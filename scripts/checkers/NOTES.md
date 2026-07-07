@@ -49,6 +49,40 @@ were kept. User-ratified 2026-07-07.
   only. Adapted from the zip's bin-entrypoint rule (SC039-044 zip numbering);
   the "must import runtime package / call runtime main entrypoint" halves were
   dropped (bin/ = runtime CLIs; scripts/ = dev tooling that may be standalone).
+- STRENGTHENED SC017 (`check_top_level_domain_role_placement`), Phase 1 layout
+  decision 2026-07-07: strata bans ALL role placement at the top-level DOMAIN
+  level, files AND directories.
+  - Role FILE branch: added `exceptions.py` (sqlbuild listed models/types/
+    constants/helpers/classes but omitted exceptions.py). Now all six role
+    files flag at domain level.
+  - Role DIR branch: was `helpers`/`classes` only AND gated on
+    `file_path.name == "__init__.py"`. Now covers all six role dir names
+    (`_RUNTIME_ROLE_DIRECTORY_NAMES` = helpers/classes/models/types/constants/
+    exceptions) and fires on ANY file whose domain-direct-child (relative_parts
+    [3]) is a role dir — the `__init__.py` gate is REMOVED.
+  - WHY the degate matters: SC017's dir branch only firing on `__init__.py`
+    meant deleting `__init__.py` (namespace package) silenced it — an LLM cheat
+    vector. Namespace packages under a banned role dir now still flag.
+- STRENGTHENED SC030 (`check_nested_runtime_package_direct_subpackages`), same
+  date/decision: was gated on `file_path.name == "__init__.py"`, so a nested
+  feature bucket with no `__init__.py` escaped entirely. Rewritten to scan the
+  package path and flag ANY file under a non-allowed direct child of a nested
+  runtime package (immediate-parent semantics preserved: helpers/ still nests
+  exactly one level, i.e. helpers/diff/ ok, helpers/diff/parsing/ flagged).
+  `__init__.py` gate REMOVED.
+- NOT a loophole (left as-is): SC043 (`check_classes_package_module_shape`)
+  excludes `__init__.py` from the exactly-one-class requirement — a correct
+  EXCLUSION (an __init__ shouldn't be forced to hold a class), not a silencer.
+- SFR3xx PORT REQUIREMENTS (write into the real strata rules): the SFR306/307
+  (top-level role placement/direct modules) and SFR305 (nested direct
+  subpackages) rules MUST fire on any file under the offending directory, NOT
+  gated on `__init__.py`. The scaffold tests
+  "reports top-level helpers package without __init__ file",
+  "reports top-level {classes,models,types,constants,exceptions} package under
+  runtime domain", "reports top-level exceptions role file under runtime
+  domain", and "reports nested feature package without __init__ file" are the
+  reference cases to port. Mutation-proven 2026-07-07 (reinstating either
+  `__init__.py` gate fails these).
 - ADDED SC906 no-shared-packages (strata decision, 00-overview #8; sqlbuild
   will adopt the ban when it adopts strata): ANY file under a shared/ segment
   in the runtime package is flagged. sqlbuild's shared/ rules (SC012/SC013) and

@@ -48,6 +48,9 @@ _MAIN_PHASE_REMEDIATION_MESSAGE: str = (
     "the result it produces (e.g. 'resolve_planner_scopes', 'detect_staleness')."
 )
 _MAIN_SUPPORT_FOLDER_NAMES: frozenset[str] = frozenset({"classes", "helpers", "shared"})
+_RUNTIME_ROLE_DIRECTORY_NAMES: frozenset[str] = frozenset(
+    {"helpers", "classes", "models", "types", "constants", "exceptions"}
+)
 _SC056_COMMENT_ALLOWED_PREFIXES: tuple[str, ...] = (
     "#!",
     "# -*-",
@@ -350,6 +353,7 @@ def check_top_level_domain_role_placement(repo_root: Path, file_path: Path) -> l
         "models.py",
         "types.py",
         "constants.py",
+        "exceptions.py",
         "helpers.py",
         "classes.py",
     }:
@@ -365,18 +369,15 @@ def check_top_level_domain_role_placement(repo_root: Path, file_path: Path) -> l
             )
         ]
 
-    if (
-        len(relative_parts) >= 5
-        and direct_child_name in {"helpers", "classes"}
-        and file_path.name == "__init__.py"
-    ):
+    if len(relative_parts) >= 5 and direct_child_name in _RUNTIME_ROLE_DIRECTORY_NAMES:
         return [
             Violation(
                 code="SC017",
                 path=file_path,
                 line=None,
                 message=(
-                    "top-level runtime domains must not contain direct helpers/ or classes/; "
+                    "top-level runtime domains must not contain direct role directories such as "
+                    "helpers/, classes/, models/, types/, constants/, or exceptions/; "
                     "move them into a subpackage"
                 ),
             )
@@ -462,42 +463,46 @@ def check_nested_runtime_package_direct_subpackages(
     relative_parts = file_path.resolve().relative_to(repo_root.resolve()).parts
     if len(relative_parts) < 6 or relative_parts[:2] != _RUNTIME_PREFIX:
         return []
-    if file_path.name != "__init__.py":
-        return []
-
-    parent_package_parts = relative_parts[:-2]
-    if len(parent_package_parts) <= 3:
-        return []
-
-    parent_package_name = parent_package_parts[-1]
-    direct_child_name = relative_parts[-2]
     if _is_within_main_package(relative_parts):
         return []
-    if parent_package_name in {"helpers", "classes", "models", "types", "constants", "exceptions"}:
-        return []
-    if direct_child_name in {
-        "helpers",
-        "shared",
-        "classes",
-        "models",
-        "types",
-        "constants",
-        "exceptions",
-        "main",
-    }:
-        return []
-    return [
-        Violation(
-            code="SC030",
-            path=file_path,
-            line=1,
-            message=(
-                "nested runtime packages must use direct subpackages only for explicit "
-                "support boundaries like helpers/, shared/, classes/, or main/; move "
-                "feature buckets under helpers/ or flatten them into role files"
-            ),
-        )
-    ]
+
+    allowed_child_names: frozenset[str] = frozenset(
+        {
+            "helpers",
+            "shared",
+            "classes",
+            "models",
+            "types",
+            "constants",
+            "exceptions",
+            "main",
+        }
+    )
+    role_container_names: frozenset[str] = frozenset(
+        {"helpers", "classes", "models", "types", "constants", "exceptions"}
+    )
+
+    package_parts = relative_parts[2:-1]
+    for index in range(2, len(package_parts)):
+        parent_package_name = package_parts[index - 1]
+        direct_child_name = package_parts[index]
+        if parent_package_name in role_container_names:
+            continue
+        if direct_child_name in allowed_child_names:
+            continue
+        return [
+            Violation(
+                code="SC030",
+                path=file_path,
+                line=1,
+                message=(
+                    "nested runtime packages must use direct subpackages only for explicit "
+                    "support boundaries like helpers/, shared/, classes/, or main/; move "
+                    "feature buckets under helpers/ or flatten them into role files"
+                ),
+            )
+        ]
+    return []
 
 
 def check_main_entry_name_collisions(repo_root: Path, file_path: Path) -> list[Violation]:

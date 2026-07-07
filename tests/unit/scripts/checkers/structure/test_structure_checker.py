@@ -314,7 +314,7 @@ from tests.unit.scripts.checkers.structure.helpers import (
                 ).strip()
                 + "\n"
             },
-            expected_violation_codes=("SC002", "SC027"),
+            expected_violation_codes=("SC002", "SC027", "SC030"),
         ),
         CheckPathsTestCase(
             description="reports top-level role file under runtime domain",
@@ -334,7 +334,70 @@ from tests.unit.scripts.checkers.structure.helpers import (
                 "src/strata/example/helpers/__init__.py": '"""Helpers."""\n',
                 "src/strata/example/helpers/build.py": "def build() -> str:\n    return 'demo'\n",
             },
+            expected_violation_codes=("SC017", "SC017"),
+        ),
+        CheckPathsTestCase(
+            description="reports top-level helpers package without __init__ file",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/helpers/build.py": "def build() -> str:\n    return 'demo'\n",
+            },
             expected_violation_codes=("SC017",),
+        ),
+        CheckPathsTestCase(
+            description="reports top-level classes package under runtime domain",
+            repo_files=compliant_repo_files()
+            | {"src/strata/example/classes/session.py": "class ExampleSession: ...\n"},
+            expected_violation_codes=("SC017",),
+        ),
+        CheckPathsTestCase(
+            description="reports top-level models package under runtime domain",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/models/result.py": (
+                    "from dataclasses import dataclass\n\n\n"
+                    "@dataclass(frozen=True)\nclass Result:\n    value: int\n"
+                ),
+            },
+            expected_violation_codes=("SC017",),
+        ),
+        CheckPathsTestCase(
+            description="reports top-level types package under runtime domain",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/types/kinds.py": (
+                    'from enum import StrEnum\n\n\nclass Kind(StrEnum):\n    A = "a"\n'
+                ),
+            },
+            expected_violation_codes=("SC017",),
+        ),
+        CheckPathsTestCase(
+            description="reports top-level constants package under runtime domain",
+            repo_files=compliant_repo_files()
+            | {"src/strata/example/constants/limits.py": "MAX_VALUE = 10\n"},
+            expected_violation_codes=("SC017", "SC016"),
+        ),
+        CheckPathsTestCase(
+            description="reports top-level exceptions package under runtime domain",
+            repo_files=compliant_repo_files()
+            | {"src/strata/example/exceptions/errors.py": "class ExampleError(Exception): ...\n"},
+            expected_violation_codes=("SC017",),
+        ),
+        CheckPathsTestCase(
+            description="reports top-level exceptions role file under runtime domain",
+            repo_files=compliant_repo_files()
+            | {"src/strata/example/exceptions.py": "class ExampleError(Exception): ...\n"},
+            expected_violation_codes=("SC017",),
+        ),
+        CheckPathsTestCase(
+            description="reports nested feature package without __init__ file",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/bucket/thing.py": (
+                    "def thing() -> str:\n    return 'demo'\n"
+                ),
+            },
+            expected_violation_codes=("SC027", "SC030"),
         ),
         CheckPathsTestCase(
             description="reports banned generic filename",

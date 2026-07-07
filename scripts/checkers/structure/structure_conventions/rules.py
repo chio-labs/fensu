@@ -64,6 +64,8 @@ _DOCSTRING_BEARING_NODE_TYPES: tuple[type[ast.AST], ...] = (
     ast.AsyncFunctionDef,
     ast.ClassDef,
 )
+
+
 def parse_python_module(file_path: Path) -> ast.Module:
     """Parse a Python file into an AST module."""
 
@@ -1972,9 +1974,7 @@ def _is_runtime_helpers_module(*, repo_root: Path, file_path: Path) -> bool:
 def _is_runtime_source_file(file_path: Path) -> bool:
     parts: tuple[str, ...] = file_path.parts
     return (
-        _RUNTIME_PREFIX[0] in parts
-        and _RUNTIME_PACKAGE_NAME in parts
-        and file_path.suffix == ".py"
+        _RUNTIME_PREFIX[0] in parts and _RUNTIME_PACKAGE_NAME in parts and file_path.suffix == ".py"
     )
 
 
@@ -2142,9 +2142,7 @@ def check_no_runtime_imports_from_tooling(
         if isinstance(node, ast.ImportFrom) and node.module is not None and node.level == 0:
             imported_roots.append((node.module.split(".")[0], node.lineno))
         if isinstance(node, ast.Import):
-            imported_roots.extend(
-                (alias.name.split(".")[0], node.lineno) for alias in node.names
-            )
+            imported_roots.extend((alias.name.split(".")[0], node.lineno) for alias in node.names)
         for imported_root, line in imported_roots:
             if imported_root == _TOOLING_ROOT_NAME:
                 violations.append(

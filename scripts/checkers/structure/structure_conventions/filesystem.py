@@ -56,9 +56,7 @@ def is_scoped_python_file(repo_root: Path, file_path: Path) -> bool:
     if relative_parts[0] == "scripts":
         return True
 
-    return (
-        len(relative_parts) >= 2 and relative_parts[0] == "src" and relative_parts[1] == "strata"
-    )
+    return len(relative_parts) >= 2 and relative_parts[0] == "src" and relative_parts[1] == "strata"
 
 
 def module_name_for_file(repo_root: Path, file_path: Path) -> str:

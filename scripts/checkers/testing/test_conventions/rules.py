@@ -14,7 +14,11 @@ from scripts.checkers.testing.test_conventions.ast_utils import (
 )
 from scripts.checkers.testing.test_conventions.constants import TEST_NAME_PATTERN, VALID_TEST_SCOPES
 from scripts.checkers.testing.test_conventions.filesystem import module_name_for_file
-from scripts.checkers.testing.test_conventions.models import LocalTestTypesInfo, ModuleContext, Violation
+from scripts.checkers.testing.test_conventions.models import (
+    LocalTestTypesInfo,
+    ModuleContext,
+    Violation,
+)
 
 
 def parse_python_module(file_path: Path) -> ast.Module:

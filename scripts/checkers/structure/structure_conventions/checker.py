@@ -74,7 +74,9 @@ def check_paths(paths: list[Path], repo_root: Path | None = None) -> list[Violat
         violations.extend(check_source_file_line_count(actual_repo_root, file_path))
         violations.extend(check_no_relative_imports(file_path, module))
         violations.extend(check_no_shared_packages(actual_repo_root, file_path))
-        violations.extend(check_no_runtime_imports_from_tooling(actual_repo_root, file_path, module))
+        violations.extend(
+            check_no_runtime_imports_from_tooling(actual_repo_root, file_path, module)
+        )
         violations.extend(check_tooling_entrypoint_shape(actual_repo_root, file_path, module))
         violations.extend(check_dev_tooling_location(actual_repo_root, file_path))
         violations.extend(check_top_level_domain_role_placement(actual_repo_root, file_path))

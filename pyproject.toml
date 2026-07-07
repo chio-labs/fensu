@@ -1,0 +1,20 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "stratalint"
+version = "0.0.2"
+description = "Strata is an architecture linter for Python repos - it stops forbidden imports, bloated modules, and dishonest functions before they turn into spaghetti."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { file = "LICENSE" }
+
+[project.scripts]
+strata = "strata.cli.main.entry:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/strata"]
+
+[dependency-groups]
+dev = ["pytest>=8.0"]

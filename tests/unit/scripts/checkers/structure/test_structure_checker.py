@@ -1,0 +1,1881 @@
+from __future__ import annotations
+
+from collections.abc import Callable
+from pathlib import Path
+from textwrap import dedent
+
+import pytest
+
+from scripts.checkers.structure.check_structure_conventions import main
+from tests.unit.scripts.checkers.structure._test_types import (
+    CheckCliMainTestCase,
+    CheckPathsTestCase,
+)
+from tests.unit.scripts.checkers.structure.helpers import (
+    collect_violation_codes,
+    compliant_repo_files,
+)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CheckPathsTestCase(
+            description="reports no violations for a compliant repo slice",
+            repo_files=compliant_repo_files(),
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="reports relative import usage",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/load.py": dedent(
+                    """
+                from .models import ExampleModel
+
+
+                def load_example() -> ExampleModel:
+                    return ExampleModel(name="demo")
+                """
+                ).strip()
+                + "\n"
+            },
+            expected_violation_codes=("SC001",),
+        ),
+        CheckPathsTestCase(
+            description="reports internal pure re-export module",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/helpers/bridge.py": dedent(
+                    """
+                from __future__ import annotations
+
+                from strata.shared.models import RetryPolicy
+
+                __all__ = ("RetryPolicy",)
+                """
+                ).strip()
+                + "\n"
+            },
+            expected_violation_codes=("SC046", "SC047"),
+        ),
+        CheckPathsTestCase(
+            description="allows top-level public re-export module",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/retries.py": dedent(
+                    """
+                from strata.shared.models import RetryPolicy
+
+                __all__ = ("RetryPolicy",)
+                """
+                ).strip()
+                + "\n"
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="does not report pure re-export violation for integration public surface",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/integrations/example/__init__.py": dedent(
+                    """
+                from __future__ import annotations
+
+                from strata.shared.models import RetryPolicy
+
+                __all__ = ["RetryPolicy"]
+                """
+                ).strip()
+                + "\n"
+            },
+            expected_violation_codes=("SC006",),
+        ),
+        CheckPathsTestCase(
+            description="reports internal helper __all__ export surface",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/helpers/formatting.py": dedent(
+                    """
+                from strata.shared.models import RetryPolicy
+
+                __all__ = ("RetryPolicy", "format_name")
+
+
+                def format_name(name: str) -> str:
+                    return name.strip()
+                """
+                ).strip()
+                + "\n"
+            },
+            expected_violation_codes=("SC047",),
+        ),
+        CheckPathsTestCase(
+            description="reports oversized source file outside allowlisted boundaries",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/constants.py": "DEFAULT_NAME = 'demo'\n" * 2001,
+            },
+            expected_violation_codes=("SC048",),
+        ),
+        CheckPathsTestCase(
+            description="allows oversized scripts file",
+            repo_files=compliant_repo_files()
+            | {
+                "scripts/example_tool/constants.py": "EXIT_CODE = 0\n" * 2001,
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="reports mixed flat helper modules and concern subfolders",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/helpers/__init__.py": '"""Helpers."""\n',
+                "src/strata/example/widget/helpers/build.py": (
+                    "def build() -> str:\n    return 'demo'\n"
+                ),
+                "src/strata/example/widget/helpers/render/name.py": (
+                    "def render() -> str:\n    return 'demo'\n"
+                ),
+            },
+            expected_violation_codes=("SC049",),
+        ),
+        CheckPathsTestCase(
+            description="reports mixed helper layout without init module",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/helpers/build.py": (
+                    "def build() -> str:\n    return 'demo'\n"
+                ),
+                "src/strata/example/widget/helpers/render/name.py": (
+                    "def render() -> str:\n    return 'demo'\n"
+                ),
+            },
+            expected_violation_codes=("SC049",),
+        ),
+        CheckPathsTestCase(
+            description="reports shared subfolder mixed with flat helper modules",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/helpers/__init__.py": '"""Helpers."""\n',
+                "src/strata/example/widget/helpers/build.py": (
+                    "def build() -> str:\n    return 'demo'\n"
+                ),
+                "src/strata/example/widget/helpers/shared/name.py": (
+                    "def render() -> str:\n    return 'demo'\n"
+                ),
+            },
+            expected_violation_codes=("SC049", "SC906"),
+        ),
+        CheckPathsTestCase(
+            description="reports only the shared ban when helpers are fully subfoldered",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/helpers/__init__.py": '"""Helpers."""\n',
+                "src/strata/example/widget/helpers/build/core.py": (
+                    "def build() -> str:\n    return 'demo'\n"
+                ),
+                "src/strata/example/widget/helpers/shared/name.py": (
+                    "def render() -> str:\n    return 'demo'\n"
+                ),
+            },
+            expected_violation_codes=("SC906",),
+        ),
+        CheckPathsTestCase(
+            description="reports helpers package with too many flat modules",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/helpers/__init__.py": '"""Helpers."""\n',
+                **{
+                    f"src/strata/example/widget/helpers/module_{index}.py": (
+                        f"def build_{index}() -> int:\n    return {index}\n"
+                    )
+                    for index in range(11)
+                },
+            },
+            expected_violation_codes=("SC050",),
+        ),
+        CheckPathsTestCase(
+            description="reports helpers package without init module with too many flat modules",
+            repo_files=compliant_repo_files()
+            | {
+                **{
+                    f"src/strata/example/widget/helpers/module_{index}.py": (
+                        f"def build_{index}() -> int:\n    return {index}\n"
+                    )
+                    for index in range(11)
+                },
+            },
+            expected_violation_codes=("SC050",),
+        ),
+        CheckPathsTestCase(
+            description="reports mixed flat main modules and concern subfolders",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/__init__.py": '"""Entrypoints."""\n',
+                "src/strata/example/widget/main/build.py": (
+                    "def build() -> str:\n    return 'demo'\n"
+                ),
+                "src/strata/example/widget/main/render/name.py": (
+                    "def render() -> str:\n    return 'demo'\n"
+                ),
+            },
+            expected_violation_codes=("SC059",),
+        ),
+        CheckPathsTestCase(
+            description="reports main package support folders outside CLI commands",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/__init__.py": '"""Entrypoints."""\n',
+                "src/strata/example/widget/main/shared/__init__.py": '"""Shared."""\n',
+            },
+            expected_violation_codes=("SC061", "SC906"),
+        ),
+        CheckPathsTestCase(
+            description="reports CLI command main support folders",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/cli/commands/main/__init__.py": '"""Entrypoints."""\n',
+                "src/strata/cli/commands/main/shared/__init__.py": '"""Shared."""\n',
+            },
+            expected_violation_codes=("SC061", "SC906"),
+        ),
+        CheckPathsTestCase(
+            description="reports main package with too many flat modules",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/__init__.py": '"""Entrypoints."""\n',
+                **{
+                    f"src/strata/example/widget/main/module_{index}.py": (
+                        f"def build_{index}() -> int:\n    return {index}\n"
+                    )
+                    for index in range(21)
+                },
+            },
+            expected_violation_codes=("SC060",),
+        ),
+        CheckPathsTestCase(
+            description="allows source target terminology in source deferral logic",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/compiler/planner/helpers/warehouse/source_deferral.py": (
+                    "def resolve() -> str | None:\n"
+                    "    source_target_name = 'prod'\n"
+                    "    return source_target_name\n"
+                )
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="allows source connection terminology in virtual source logic",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/virtual/planner/main/plan.py": (
+                    "def resolve(connection: object) -> object:\n"
+                    "    source_connection = connection\n"
+                    "    return source_connection\n"
+                )
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="allows real adapter source relation terminology outside reuse modules",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/helpers/planning.py": (
+                    "def render(source_relation: str) -> str:\n    return source_relation\n"
+                )
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="reports flat runtime main module under nested package",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main.py": dedent(
+                    """
+                def load_example() -> str:
+                    return "demo"
+                """
+                ).strip()
+                + "\n"
+            },
+            expected_violation_codes=("SC027",),
+        ),
+        CheckPathsTestCase(
+            description="reports obvious dev tooling under src package",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/testing/check_example.py": dedent(
+                    """
+                def main() -> int:
+                    return 0
+                """
+                ).strip()
+                + "\n"
+            },
+            expected_violation_codes=("SC002", "SC027"),
+        ),
+        CheckPathsTestCase(
+            description="reports top-level role file under runtime domain",
+            repo_files=compliant_repo_files()
+            | {"src/strata/example/models.py": "class Example: ...\n"},
+            expected_violation_codes=("SC017", "SC008"),
+        ),
+        CheckPathsTestCase(
+            description="reports top-level direct module under runtime domain",
+            repo_files=compliant_repo_files() | {"src/strata/example/compile.py": "value = 1\n"},
+            expected_violation_codes=("SC018",),
+        ),
+        CheckPathsTestCase(
+            description="reports top-level helpers package under runtime domain",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/helpers/__init__.py": '"""Helpers."""\n',
+                "src/strata/example/helpers/build.py": "def build() -> str:\n    return 'demo'\n",
+            },
+            expected_violation_codes=("SC017",),
+        ),
+        CheckPathsTestCase(
+            description="reports banned generic filename",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/common.py": dedent(
+                    """
+                def build_name() -> str:
+                    return "demo"
+                """
+                ).strip()
+                + "\n"
+            },
+            expected_violation_codes=("SC003", "SC027"),
+        ),
+        CheckPathsTestCase(
+            description="reports helpers module file",
+            repo_files=compliant_repo_files()
+            | {"src/strata/example/widget/helpers.py": "value = 1\n"},
+            expected_violation_codes=("SC003", "SC004"),
+        ),
+        CheckPathsTestCase(
+            description="reports classes module file",
+            repo_files=compliant_repo_files()
+            | {"src/strata/example/widget/classes.py": "class Example: ...\n"},
+            expected_violation_codes=("SC005", "SC027"),
+        ),
+        CheckPathsTestCase(
+            description="reports multiple classes in classes package module",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/classes/session.py": dedent(
+                    """
+                class ExampleSession:
+                    pass
+
+
+                class ExampleContainer:
+                    pass
+                """
+                ).strip()
+                + "\n"
+            },
+            expected_violation_codes=("SC043",),
+        ),
+        CheckPathsTestCase(
+            description="reports non-minimal init module",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/__init__.py": dedent(
+                    """
+                from strata.example.widget.main import load_example
+                """
+                ).strip()
+                + "\n"
+            },
+            expected_violation_codes=("SC006",),
+        ),
+        CheckPathsTestCase(
+            description="reports dataclass in types module",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/types.py": dedent(
+                    """
+                from dataclasses import dataclass
+
+
+                @dataclass(frozen=True)
+                class ExampleType:
+                    name: str
+                """
+                ).strip()
+                + "\n"
+            },
+            expected_violation_codes=("SC007", "SC014"),
+        ),
+        CheckPathsTestCase(
+            description="reports enum in models module",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/models.py": dedent(
+                    """
+                from enum import Enum
+
+
+                class ExampleModel(Enum):
+                    BASIC = "basic"
+                """
+                ).strip()
+                + "\n"
+            },
+            expected_violation_codes=("SC008", "SC015"),
+        ),
+        CheckPathsTestCase(
+            description="reports function in constants module",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/constants.py": dedent(
+                    """
+                def default_name() -> str:
+                    return "demo"
+                """
+                ).strip()
+                + "\n"
+            },
+            expected_violation_codes=("SC009",),
+        ),
+        CheckPathsTestCase(
+            description="reports dataclass outside models module",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/view.py": dedent(
+                    """
+                from dataclasses import dataclass
+
+
+                @dataclass(frozen=True)
+                class ExampleModel:
+                    name: str
+                """
+                ).strip()
+                + "\n"
+            },
+            expected_violation_codes=("SC027", "SC014"),
+        ),
+        CheckPathsTestCase(
+            description="reports enum outside types module",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/view.py": dedent(
+                    """
+                from enum import Enum
+
+
+                class ExampleKind(Enum):
+                    BASIC = "basic"
+                """
+                ).strip()
+                + "\n"
+            },
+            expected_violation_codes=("SC027", "SC015"),
+        ),
+        CheckPathsTestCase(
+            description="allows private enum inside helpers module",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/helpers/worker.py": dedent(
+                    """
+                from enum import StrEnum
+
+
+                class _WorkerKind(StrEnum):
+                    BASIC = "basic"
+
+
+                def run_worker() -> _WorkerKind:
+                    return _WorkerKind.BASIC
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="allows private type alias outside types module",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/helpers/worker.py": dedent(
+                    """
+                type _WorkerResult = str | int
+
+
+                def run_worker() -> _WorkerResult:
+                    return "demo"
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="reports public type alias outside types module",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/helpers/worker.py": dedent(
+                    """
+                type WorkerResult = str | int
+
+
+                def run_worker() -> WorkerResult:
+                    return "demo"
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=("SC015",),
+        ),
+        CheckPathsTestCase(
+            description="reports uppercase constant outside constants module",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/view.py": dedent(
+                    """
+                DEFAULT_NAME = "demo"
+                """
+                ).strip()
+                + "\n"
+            },
+            expected_violation_codes=("SC027", "SC016"),
+        ),
+        CheckPathsTestCase(
+            description="reports nested direct module outside helpers package",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/service.py": dedent(
+                    """
+                def build_service() -> str:
+                    return "demo"
+                """
+                ).strip()
+                + "\n"
+            },
+            expected_violation_codes=("SC027",),
+        ),
+        CheckPathsTestCase(
+            description="allows nested support module under helpers package",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/helpers/__init__.py": '"""Helpers."""\n',
+                "src/strata/example/widget/helpers/service.py": dedent(
+                    """
+                def build_service() -> str:
+                    return "demo"
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="allows focused modules under main package",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/__init__.py": '"""Main entry modules."""\n',
+                "src/strata/example/widget/main/load.py": dedent(
+                    """
+                def load_example() -> str:
+                    return _default_name()
+
+
+                def _default_name() -> str:
+                    return "demo"
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="allows flat public entry modules under main",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/__init__.py": '"""Main entry modules."""\n',
+                "src/strata/example/widget/main/plan.py": dedent(
+                    """
+                from strata.example.widget.types import ExampleName
+
+
+                def run_plan() -> ExampleName:
+                    return "demo"
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="reports main public function statement cap violations",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/plan.py": (
+                    "def run_plan() -> int:\n"
+                    + "\n".join(f"    result = {index}" for index in range(41))
+                    + "\n    return result\n"
+                ),
+            },
+            expected_violation_codes=("SC063",),
+        ),
+        CheckPathsTestCase(
+            description="reports main public function distinct call cap violations",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/plan.py": (
+                    "def run_plan() -> int:\n"
+                    + "\n".join(f"    result = phase_{index}()" for index in range(21))
+                    + "\n    return result\n"
+                ),
+            },
+            expected_violation_codes=("SC064",),
+        ),
+        CheckPathsTestCase(
+            description="reports main public function local variable cap violations",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/plan.py": (
+                    "def run_plan() -> tuple[int, ...]:\n"
+                    + "\n".join(f"    value_{index} = {index}" for index in range(21))
+                    + "\n    return (\n"
+                    + "\n".join(f"        value_{index}," for index in range(21))
+                    + "\n    )\n"
+                ),
+            },
+            expected_violation_codes=("SC065",),
+        ),
+        CheckPathsTestCase(
+            description="reports discarded main phase call results",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/plan.py": dedent(
+                    """
+                def run_plan() -> str:
+                    build_phase()
+                    return "demo"
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=("SC066",),
+        ),
+        CheckPathsTestCase(
+            description="allows discarded validator callback diagnostic writer and method calls",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/plan.py": dedent(
+                    """
+                def run_plan(on_done, stream, backend) -> str:
+                    results: list[str] = []
+                    validate_inputs()
+                    enforce_policy()
+                    check_state()
+                    on_progress()
+                    report_progress("halfway")
+                    _report_progress("still going")
+                    log_event()
+                    print("demo")
+                    write_summary(results)
+                    _ = build_receipt()
+                    results.append("demo")
+                    stream.write("demo")
+                    backend.close()
+                    on_done.complete()
+                    return "demo"
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="reports oversized private functions in main modules",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/plan.py": (
+                    "def run_plan() -> int:\n"
+                    "    return _resolve()\n"
+                    "\n"
+                    "\n"
+                    "def _resolve() -> int:\n"
+                    + "\n".join(f"    value_{index} = {index}" for index in range(41))
+                    + "\n    return value_40\n"
+                ),
+            },
+            expected_violation_codes=("SC063", "SC065"),
+        ),
+        CheckPathsTestCase(
+            description="reports discarded phase call results in private main functions",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/plan.py": dedent(
+                    """
+                def run_plan() -> str:
+                    return _resolve()
+
+
+                def _resolve() -> str:
+                    build_phase()
+                    return "demo"
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=("SC066",),
+        ),
+        CheckPathsTestCase(
+            description="reports discarded underscore-prefixed phase call results",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/plan.py": dedent(
+                    """
+                def run_plan() -> str:
+                    _build_phase()
+                    return "demo"
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=("SC066",),
+        ),
+        CheckPathsTestCase(
+            description="reports helper parameter mutation in compiler and executor phases",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/compiler/__init__.py": '"""Compiler domain."""\n',
+                "src/strata/compiler/planner/__init__.py": '"""Planner package."""\n',
+                "src/strata/compiler/planner/helpers/phase.py": dedent(
+                    """
+                def merge_values(values: list[str]) -> list[str]:
+                    values.append("demo")
+                    return values
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=("SC067",),
+        ),
+        CheckPathsTestCase(
+            description="allows documented deliberate helper parameter mutation",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/executor/__init__.py": '"""Executor domain."""\n',
+                "src/strata/executor/load/__init__.py": '"""Load package."""\n',
+                "src/strata/executor/load/helpers/phase.py": dedent(
+                    """
+                def merge_values(values: list[str]) -> list[str]:
+                    values.append("demo")  # sc: allow-param-mutation
+                    return values
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="allows methods mutating self in compiler and executor helpers",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/compiler/__init__.py": '"""Compiler domain."""\n',
+                "src/strata/compiler/planner/__init__.py": '"""Planner package."""\n',
+                "src/strata/compiler/planner/helpers/phase.py": dedent(
+                    """
+                class _PhaseState:
+                    def __init__(self, values: list[str]) -> None:
+                        self.values = values
+
+                    def merge(self, extra: list[str]) -> None:
+                        self.values.extend(extra)
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="reports mutable dataclasses in models modules",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/models.py": dedent(
+                    """
+                from dataclasses import dataclass
+
+
+                @dataclass
+                class ExampleModel:
+                    name: str
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=("SC068",),
+        ),
+        CheckPathsTestCase(
+            description="reports generic main.py inside main entry package",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/__init__.py": '"""Main entry modules."""\n',
+                "src/strata/example/widget/main/main.py": dedent(
+                    """
+                def run_widget() -> str:
+                    return "demo"
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=("SC027",),
+        ),
+        CheckPathsTestCase(
+            description="treats parent shared imports as allowed while banning the shared package",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/shared/__init__.py": '"""Widget shared support."""\n',
+                "src/strata/example/widget/shared/types.py": dedent(
+                    """
+                from typing import TypeAlias
+
+
+                ExampleName: TypeAlias = str
+                """
+                ).strip()
+                + "\n",
+                "src/strata/example/widget/main/plan.py": dedent(
+                    """
+                from strata.example.widget.shared.types import ExampleName
+
+
+                def run_plan() -> ExampleName:
+                    return "demo"
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=("SC906", "SC906"),
+        ),
+        CheckPathsTestCase(
+            description="reports concern subpackage under main when flat entries exist",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/__init__.py": '"""Main entry modules."""\n',
+                "src/strata/example/widget/main/plan/__init__.py": '"""Plan command."""\n',
+            },
+            expected_violation_codes=("SC059",),
+        ),
+        CheckPathsTestCase(
+            description="reports extra support module directly under main",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/__init__.py": '"""Main entry modules."""\n',
+                "src/strata/example/widget/main/plan.py": dedent(
+                    """
+                def run_plan() -> str:
+                    return "demo"
+                """
+                ).strip()
+                + "\n",
+                "src/strata/example/widget/main/preview.py": dedent(
+                    """
+                def render_preview() -> str:
+                    return "demo"
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="reports multiple public functions in main package module",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/__init__.py": '"""Main entry modules."""\n',
+                "src/strata/example/widget/main/load.py": dedent(
+                    """
+                def load_example() -> str:
+                    return "demo"
+
+
+                def build_example() -> str:
+                    return "demo"
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=("SC019",),
+        ),
+        CheckPathsTestCase(
+            description="allows entry module import from same package helpers",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/__init__.py": '"""Main entry modules."""\n',
+                "src/strata/example/widget/main/plan.py": dedent(
+                    """
+                from strata.example.widget.helpers.backfill.run import run_backfill
+
+
+                def run_plan() -> str:
+                    return run_backfill()
+                """
+                ).strip()
+                + "\n",
+                "src/strata/example/widget/helpers/backfill/__init__.py": '"""Backfill helpers."""\n',
+                "src/strata/example/widget/helpers/backfill/run.py": dedent(
+                    """
+                def run_backfill() -> str:
+                    return "demo"
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="allows role package import from same package helpers",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/classes/__init__.py": '"""Widget classes."""\n',
+                "src/strata/example/widget/classes/runner.py": dedent(
+                    """
+                from strata.example.widget.helpers.backfill.run import run_backfill
+
+
+                class WidgetRunner:
+                    def run(self) -> str:
+                        return run_backfill()
+                """
+                ).strip()
+                + "\n",
+                "src/strata/example/widget/helpers/backfill/__init__.py": '"""Backfill helpers."""\n',
+                "src/strata/example/widget/helpers/backfill/run.py": dedent(
+                    """
+                def run_backfill() -> str:
+                    return "demo"
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="allows one main entry to import another main entry",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/__init__.py": '"""Main entry modules."""\n',
+                "src/strata/example/widget/main/entry.py": dedent(
+                    """
+                from strata.example.widget.main.plan import run_plan
+
+
+                def run_entry() -> str:
+                    return run_plan()
+                """
+                ).strip()
+                + "\n",
+                "src/strata/example/widget/main/plan.py": dedent(
+                    """
+                def run_plan() -> str:
+                    return "demo"
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="allows main entry import from same package classes",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/__init__.py": '"""Main entry modules."""\n',
+                "src/strata/example/widget/main/run.py": dedent(
+                    """
+                from strata.example.widget.classes.runner import WidgetRunner
+
+
+                def run_widget() -> str:
+                    return WidgetRunner().run()
+                """
+                ).strip()
+                + "\n",
+                "src/strata/example/widget/classes/__init__.py": '"""Widget classes."""\n',
+                "src/strata/example/widget/classes/runner.py": dedent(
+                    """
+                class WidgetRunner:
+                    def run(self) -> str:
+                        return "demo"
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="allows helpers import from same package classes",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/helpers/__init__.py": '"""Helpers."""\n',
+                "src/strata/example/widget/helpers/build.py": dedent(
+                    """
+                from strata.example.widget.classes.runner import WidgetRunner
+
+
+                def build_widget() -> str:
+                    return WidgetRunner().run()
+                """
+                ).strip()
+                + "\n",
+                "src/strata/example/widget/classes/__init__.py": '"""Widget classes."""\n',
+                "src/strata/example/widget/classes/runner.py": dedent(
+                    """
+                class WidgetRunner:
+                    def run(self) -> str:
+                        return "demo"
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="reports mixed flat module and concern subpackage under main",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/__init__.py": '"""Main entry modules."""\n',
+                "src/strata/example/widget/main/plan.py": dedent(
+                    """
+                def run_plan() -> str:
+                    return "demo"
+                """
+                ).strip()
+                + "\n",
+                "src/strata/example/widget/main/plan/__init__.py": '"""Plan command."""\n',
+            },
+            expected_violation_codes=("SC059",),
+        ),
+        CheckPathsTestCase(
+            description="reports custom exception declared outside exceptions module",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/service.py": dedent(
+                    """
+                class ExampleError(Exception):
+                    pass
+
+
+                def load_example() -> str:
+                    return "demo"
+                """
+                ).strip()
+                + "\n"
+            },
+            expected_violation_codes=("SC027", "SC021"),
+        ),
+        CheckPathsTestCase(
+            description="reports exceptions module nested under helpers package",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/helpers/exceptions.py": dedent(
+                    """
+                class ExampleError(Exception):
+                    pass
+                """
+                ).strip()
+                + "\n"
+            },
+            expected_violation_codes=("SC021",),
+        ),
+        CheckPathsTestCase(
+            description="reports multiple public functions in main entry module",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/load.py": dedent(
+                    """
+                def load_example() -> str:
+                    return "demo"
+
+
+                def build_example() -> str:
+                    return "demo"
+                """
+                ).strip()
+                + "\n"
+            },
+            expected_violation_codes=("SC019",),
+        ),
+        CheckPathsTestCase(
+            description="reports assignments in main entry module",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/load.py": dedent(
+                    """
+                VALUE = "demo"
+
+
+                def load_example() -> str:
+                    return VALUE
+                """
+                ).strip()
+                + "\n"
+            },
+            expected_violation_codes=("SC016", "SC020"),
+        ),
+        CheckPathsTestCase(
+            description="reports too many private functions in main entry module",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/load.py": dedent(
+                    """
+                def load_example() -> str:
+                    return _first()
+
+
+                def _first() -> str:
+                    return "one"
+
+
+                def _second() -> str:
+                    return "two"
+
+
+                def _third() -> str:
+                    return "three"
+
+
+                def _fourth() -> str:
+                    return "four"
+
+
+                def _fifth() -> str:
+                    return "five"
+                """
+                ).strip()
+                + "\n"
+            },
+            expected_violation_codes=("SC026",),
+        ),
+        CheckPathsTestCase(
+            description="reports main module inside helpers package",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/helpers/__init__.py": '"""Helpers."""\n',
+                "src/strata/example/widget/helpers/main.py": dedent(
+                    """
+                def main() -> int:
+                    return 0
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=("SC010",),
+        ),
+        CheckPathsTestCase(
+            description="allows direct role modules inside helper subpackages",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/helpers/__init__.py": '"""Helpers."""\n',
+                "src/strata/example/widget/helpers/diff/__init__.py": '"""Diff helpers."""\n',
+                "src/strata/example/widget/helpers/diff/parse.py": dedent(
+                    """
+                def parse_diff() -> str:
+                    return "demo"
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="allows conventional files inside helper subpackages",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/helpers/__init__.py": '"""Helpers."""\n',
+                "src/strata/example/widget/helpers/diff/__init__.py": '"""Diff helpers."""\n',
+                "src/strata/example/widget/helpers/diff/constants.py": 'DEFAULT_KIND = "demo"\n',
+                "src/strata/example/widget/helpers/diff/models.py": dedent(
+                    """
+                from dataclasses import dataclass
+
+
+                @dataclass(frozen=True)
+                class DiffModel:
+                    name: str
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="reports main module inside helper subpackages",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/helpers/__init__.py": '"""Helpers."""\n',
+                "src/strata/example/widget/helpers/diff/__init__.py": '"""Diff helpers."""\n',
+                "src/strata/example/widget/helpers/diff/main.py": dedent(
+                    """
+                def parse_diff() -> str:
+                    return "demo"
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=("SC022",),
+        ),
+        CheckPathsTestCase(
+            description="reports nested package inside helper subpackages",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/helpers/__init__.py": '"""Helpers."""\n',
+                "src/strata/example/widget/helpers/diff/__init__.py": '"""Diff helpers."""\n',
+                "src/strata/example/widget/helpers/diff/parsing/__init__.py": '"""Parsing."""\n',
+            },
+            expected_violation_codes=("SC022", "SC030"),
+        ),
+        CheckPathsTestCase(
+            description="allows sibling public main import",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/discovery/__init__.py": '"""Discovery."""\n',
+                "src/strata/example/discovery/main/__init__.py": '"""Discovery entries."""\n',
+                "src/strata/example/discovery/main/discover.py": dedent(
+                    """
+                from strata.example.refs.main.parse import parse_ref
+
+
+                def discover_name() -> str:
+                    return parse_ref()
+                """
+                ).strip()
+                + "\n",
+                "src/strata/example/refs/__init__.py": '"""Refs."""\n',
+                "src/strata/example/refs/main/__init__.py": '"""Ref entries."""\n',
+                "src/strata/example/refs/main/parse.py": dedent(
+                    """
+                def parse_ref() -> str:
+                    return "demo"
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="allows sibling main package public entry import",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/discovery/__init__.py": '"""Discovery."""\n',
+                "src/strata/example/discovery/main/__init__.py": '"""Discovery entries."""\n',
+                "src/strata/example/discovery/main/discover.py": dedent(
+                    """
+                from strata.example.refs.main.parse import parse_ref
+
+
+                def discover_name() -> str:
+                    return parse_ref()
+                """
+                ).strip()
+                + "\n",
+                "src/strata/example/refs/__init__.py": '"""Refs."""\n',
+                "src/strata/example/refs/main/__init__.py": '"""Ref entries."""\n',
+                "src/strata/example/refs/main/parse.py": dedent(
+                    """
+                def parse_ref() -> str:
+                    return "demo"
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="reports sibling subpackage internal import",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/discovery/__init__.py": '"""Discovery."""\n',
+                "src/strata/example/discovery/main/__init__.py": '"""Discovery entries."""\n',
+                "src/strata/example/discovery/main/discover.py": dedent(
+                    """
+                from strata.example.refs.helpers.parse import parse_ref
+
+
+                def discover_name() -> str:
+                    return parse_ref()
+                """
+                ).strip()
+                + "\n",
+                "src/strata/example/refs/__init__.py": '"""Refs."""\n',
+                "src/strata/example/refs/helpers/__init__.py": '"""Ref helpers."""\n',
+                "src/strata/example/refs/helpers/parse.py": dedent(
+                    """
+                def parse_ref() -> str:
+                    return "demo"
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=("SC033",),
+        ),
+        CheckPathsTestCase(
+            description="allows sibling helper subpackage import",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/helpers/changes/__init__.py": '"""Changes."""\n',
+                "src/strata/example/widget/helpers/changes/detect.py": dedent(
+                    """
+                from strata.example.widget.helpers.identity.hashing import hash_value
+
+
+                def detect() -> str:
+                    return hash_value("demo")
+                """
+                ).strip()
+                + "\n",
+                "src/strata/example/widget/helpers/identity/__init__.py": '"""Identity."""\n',
+                "src/strata/example/widget/helpers/identity/hashing.py": dedent(
+                    """
+                def hash_value(value: str) -> str:
+                    return value
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="allows sibling models import",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/discovery/__init__.py": '"""Discovery."""\n',
+                "src/strata/example/discovery/main/__init__.py": '"""Discovery entries."""\n',
+                "src/strata/example/discovery/main/discover.py": dedent(
+                    """
+                from strata.example.refs.models import RefModel
+
+
+                def discover_name() -> RefModel:
+                    return RefModel(name="demo")
+                """
+                ).strip()
+                + "\n",
+                "src/strata/example/refs/__init__.py": '"""Refs."""\n',
+                "src/strata/example/refs/models.py": dedent(
+                    """
+                from dataclasses import dataclass
+
+
+                @dataclass(frozen=True)
+                class RefModel:
+                    name: str
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="reports main module inside shared package",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/shared/__init__.py": '"""Shared."""\n',
+                "src/strata/example/shared/main.py": dedent(
+                    """
+                def main() -> int:
+                    return 0
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=("SC906", "SC012", "SC027", "SC906"),
+        ),
+        CheckPathsTestCase(
+            description="reports shared package importing sibling internals",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/shared/__init__.py": '"""Shared."""\n',
+                "src/strata/example/shared/types.py": dedent(
+                    """
+                from strata.example.refs.helpers.parse import parse_ref
+
+
+                ExampleName = str
+                value = parse_ref()
+                """
+                ).strip()
+                + "\n",
+                "src/strata/example/refs/__init__.py": '"""Refs."""\n',
+                "src/strata/example/refs/helpers/__init__.py": '"""Ref helpers."""\n',
+                "src/strata/example/refs/helpers/parse.py": dedent(
+                    """
+                def parse_ref() -> str:
+                    return "demo"
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=("SC906", "SC906", "SC013", "SC033"),
+        ),
+        CheckPathsTestCase(
+            description="treats subpackage shared imports as allowed while banning the shared package",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/discovery/__init__.py": '"""Discovery."""\n',
+                "src/strata/example/discovery/main/__init__.py": '"""Discovery entries."""\n',
+                "src/strata/example/discovery/main/discover.py": dedent(
+                    """
+                from strata.example.shared.types import ExampleName
+
+
+                def discover_name() -> ExampleName:
+                    return "demo"
+                """
+                ).strip()
+                + "\n",
+                "src/strata/example/shared/__init__.py": '"""Shared."""\n',
+                "src/strata/example/shared/types.py": "ExampleName = str\n",
+            },
+            expected_violation_codes=("SC906", "SC906"),
+        ),
+        CheckPathsTestCase(
+            description="treats top-level shared imports as allowed while banning the shared package",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/shared/__init__.py": '"""Shared."""\n',
+                "src/strata/shared/helpers/__init__.py": '"""Shared helpers."""\n',
+                "src/strata/shared/helpers/cli_style.py": dedent(
+                    """
+                class CliStyle:
+                    def __init__(self, *, use_color: bool) -> None:
+                        self.use_color = use_color
+
+                    def accent(self, text: str) -> str:
+                        return text
+                """
+                ).strip()
+                + "\n",
+                "src/strata/example/discovery/__init__.py": '"""Discovery."""\n',
+                "src/strata/example/discovery/main/__init__.py": '"""Discovery entries."""\n',
+                "src/strata/example/discovery/main/discover.py": dedent(
+                    """
+                from strata.shared.helpers.output.cli_style import CliStyle
+
+
+                def discover_name() -> str:
+                    return CliStyle(use_color=False).accent("demo")
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=("SC906", "SC906", "SC906"),
+        ),
+        CheckPathsTestCase(
+            description="reports private dataclass after function definition",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/helpers/build.py": dedent(
+                    """
+                from __future__ import annotations
+
+                from dataclasses import dataclass
+
+
+                def do_work() -> str:
+                    return "done"
+
+
+                @dataclass(frozen=True)
+                class _InternalState:
+                    value: str
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=("SC034",),
+        ),
+        CheckPathsTestCase(
+            description="reports private constant after function definition",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/helpers/build.py": dedent(
+                    """
+                from __future__ import annotations
+
+
+                def do_work() -> str:
+                    return "done"
+
+
+                _INTERNAL_VALUE: int = 42
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=("SC034",),
+        ),
+        CheckPathsTestCase(
+            description="reports raw built-in raise in production code",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/load.py": dedent(
+                    """
+                def load_example() -> str:
+                    raise ValueError("bad example")
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=("SC035",),
+        ),
+        CheckPathsTestCase(
+            description="reports assert in production code",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/load.py": dedent(
+                    """
+                def load_example(value: str | None) -> str:
+                    assert value is not None
+                    return value
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=("SC036",),
+        ),
+        CheckPathsTestCase(
+            description="allows raw built-in names outside raise and assert contexts",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/load.py": dedent(
+                    """
+                def load_example(error: ValueError) -> str:
+                    return str(error)
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="reports silent broad exception probe answers in runtime code",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/load.py": dedent(
+                    """
+                def load_examples(values: list[str]) -> tuple[object, ...]:
+                    try:
+                        missing_name: str | None = "present"
+                    except Exception:
+                        return None
+
+                    try:
+                        probe_flag: bool = True
+                    except Exception:
+                        return False
+
+                    try:
+                        probe_map: dict[str, str] = {"present": "yes"}
+                    except Exception:
+                        return {}
+
+                    try:
+                        probe_tuple: tuple[str, ...] = ("present",)
+                    except Exception:
+                        return ()
+
+                    found: list[str] = []
+                    for value in values:
+                        try:
+                            found.append(value)
+                        except Exception:
+                            continue
+                    return (missing_name, probe_flag, probe_map, probe_tuple, found)
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=("SC044", "SC044", "SC044", "SC044", "SC044"),
+        ),
+        CheckPathsTestCase(
+            description="allows broad exception fallbacks that log or bind the exception",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/load.py": dedent(
+                    """
+                def load_examples() -> tuple[bool, bool]:
+                    try:
+                        logged_probe: bool = True
+                    except Exception:
+                        log_debug_event("probe failed")
+                        logged_probe = False
+
+                    try:
+                        failed_result: bool = True
+                    except Exception as exc:
+                        failed_result = build_failed_result(exc)
+                    return (logged_probe, failed_result)
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="allows silent broad exception probe answers outside runtime code",
+            repo_files=compliant_repo_files()
+            | {
+                "scripts/example_tool/probe.py": dedent(
+                    """
+                def probe() -> bool:
+                    try:
+                        return True
+                    except Exception:
+                        return False
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="reports helper function defined in a direct scripts entrypoint",
+            repo_files=compliant_repo_files()
+            | {
+                "scripts/check_probe.py": dedent(
+                    """
+                def probe() -> bool:
+                    try:
+                        return True
+                    except Exception:
+                        return False
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=("SC903",),
+        ),
+        CheckPathsTestCase(
+            description="allows a thin main and parse_args scripts entrypoint",
+            repo_files=compliant_repo_files()
+            | {
+                "scripts/check_example.py": dedent(
+                    """
+                import argparse
+
+                from scripts.example_tool.constants import EXIT_CODE
+
+
+                def parse_args() -> argparse.Namespace:
+                    return argparse.ArgumentParser().parse_args()
+
+
+                def main() -> int:
+                    parse_args()
+                    return EXIT_CODE
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="reports class and collection constant in a scripts entrypoint",
+            repo_files=compliant_repo_files()
+            | {
+                "scripts/check_example.py": dedent(
+                    """
+                NAMES = ["a", "b"]
+
+
+                class Runner:
+                    pass
+
+
+                def main() -> int:
+                    return 0
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=("SC016", "SC905", "SC904"),
+        ),
+        CheckPathsTestCase(
+            description="reports runtime package importing from scripts tooling",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/load.py": dedent(
+                    """
+                from scripts.example_tool.constants import EXIT_CODE
+
+
+                def load_example() -> int:
+                    return EXIT_CODE
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=("SC901",),
+        ),
+        CheckPathsTestCase(
+            description="allows warehouse metadata calls gathered once before a loop",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/gather.py": dedent(
+                    """
+                def gather(adapter, connection, entries) -> list[str]:
+                    relations = adapter.list_relations(
+                        connection, database=None, schemas=("s",)
+                    )
+                    names = {relation.name for relation in relations}
+                    return [entry for entry in entries if entry in names]
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="does not flag a same-named helper that is not metadata-bearing",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/unrelated.py": dedent(
+                    """
+                def _exists(value) -> bool:
+                    return value is not None
+
+
+                def collect(values) -> list[object]:
+                    return [value for value in values if _exists(value)]
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="allows dbt ref-kind scan in centralized resolver",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/integrations/dbt/helpers/manifest/sqlbuild_refs.py": dedent(
+                    """
+                from strata.shared.types import SqlReferenceKind
+
+
+                def is_dbt_ref(reference) -> bool:
+                    return reference.ref_kind == SqlReferenceKind.DBT_REF
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="allows load_project_macros in build_compile_inputs",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/compiler/__init__.py": '"""Compiler domain."""\n',
+                "src/strata/compiler/compile/__init__.py": '"""Compile package."""\n',
+                "src/strata/compiler/compile/main/__init__.py": '"""Compile entries."""\n',
+                "src/strata/compiler/compile/main/build_compile_inputs.py": dedent(
+                    """
+                from strata.compiler.compile.helpers.render.macros import load_project_macros
+
+
+                def build_compile_inputs(macro_files: tuple) -> dict:
+                    return load_project_macros(macro_files)
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="flags multiline docstrings",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/load.py": dedent(
+                    '''
+                def load_example() -> str:
+                    """Load an example.
+
+                    More context belongs in docs or tests.
+                    """
+
+                    return "demo"
+                '''
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=("SC055",),
+        ),
+        CheckPathsTestCase(
+            description="flags standalone comments",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/load.py": dedent(
+                    """
+                def load_example() -> str:
+                    # Claude thought this comment was helpful.
+                    return "demo"
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=("SC056",),
+        ),
+        CheckPathsTestCase(
+            description="allows tool pragma comments",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/load.py": dedent(
+                    """
+                def load_example(value) -> str:
+                    return value  # type: ignore[no-any-return]
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=(),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_repo_slice_when_checking_paths_then_returns_expected_violation_codes(
+    test_case: CheckPathsTestCase,
+    tmp_path: Path,
+    write_repo_files: Callable[[Path, dict[str, str]], None],
+) -> None:
+    write_repo_files(tmp_path, test_case.repo_files)
+
+    violation_codes: tuple[str, ...] = collect_violation_codes(tmp_path)
+
+    assert violation_codes == test_case.expected_violation_codes
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CheckCliMainTestCase(
+            description="returns zero for a compliant repo slice",
+            repo_files=compliant_repo_files(),
+            cli_paths=("src", "scripts"),
+            expected_exit_code=0,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_repo_slice_when_running_cli_main_then_returns_expected_exit_code(
+    test_case: CheckCliMainTestCase,
+    tmp_path: Path,
+    write_repo_files: Callable[[Path, dict[str, str]], None],
+) -> None:
+    write_repo_files(tmp_path, test_case.repo_files)
+
+    exit_code: int = main([str(tmp_path / path) for path in test_case.cli_paths])
+
+    assert exit_code == test_case.expected_exit_code
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-vv"])

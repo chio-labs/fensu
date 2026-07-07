@@ -216,3 +216,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# strata scratch/reference material (see .ai/07-source-material.md)
+_extracted/
+checkers.zip

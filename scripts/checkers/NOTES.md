@@ -70,6 +70,24 @@ were kept. User-ratified 2026-07-07.
   runtime package (immediate-parent semantics preserved: helpers/ still nests
   exactly one level, i.e. helpers/diff/ ok, helpers/diff/parsing/ flagged).
   `__init__.py` gate REMOVED.
+- ALLOWANCE added to SC007 (`check_types_module`), Phase 1 build 2026-07-07,
+  user-approved: a `types.py` may contain an `if TYPE_CHECKING:` block whose body
+  is IMPORTS ONLY (new helper `_is_type_checking_import_block`). WHY: a Protocol
+  is a type-layer decl so it must live in types.py (SC015), but its method
+  signatures can reference a sibling MODEL (e.g. RuleContext.fault -> Fault) that
+  must live in models.py (SC008). A plain runtime import would create a
+  models<->types cycle; the idiomatic cycle-free fix is a TYPE_CHECKING import +
+  `from __future__ import annotations`. SC007 previously rejected ANY `if` in
+  types.py, blocking this. The allowance is tight: only `if TYPE_CHECKING:`, no
+  `else`, body statements must all be Import/ImportFrom. No runtime logic can
+  hide inside (that is what SC007 protects). SC001 still applies inside the block
+  (absolute imports only). Mutation-proven both directions (disable -> the
+  "allows" test fails; over-permit -> the non-import + else guardrail tests fail).
+  SFR102/types-role PORT REQUIREMENT: the real strata types-role content rule
+  must carry this same TYPE_CHECKING-imports-only allowance. Reference cases:
+  "allows type-checking imports-only block in types module",
+  "reports non-import statement in type-checking block in types module",
+  "reports type-checking block with else in types module".
 - NOT a loophole (left as-is): SC043 (`check_classes_package_module_shape`)
   excludes `__init__.py` from the exactly-one-class requirement — a correct
   EXCLUSION (an __init__ shouldn't be forced to hold a class), not a silencer.

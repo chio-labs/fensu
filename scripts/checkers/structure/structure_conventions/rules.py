@@ -652,6 +652,8 @@ def check_types_module(file_path: Path, module: ast.Module) -> list[Violation]:
     for node in _non_docstring_body(module):
         if isinstance(node, (ast.Import, ast.ImportFrom, ast.Assign, ast.AnnAssign, ast.TypeAlias)):
             continue
+        if _is_type_checking_import_block(node):
+            continue
         if isinstance(node, ast.ClassDef) and _is_allowed_type_class(node):
             continue
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -1740,6 +1742,25 @@ def _is_string_expr(node: ast.stmt) -> bool:
         and isinstance(node.value, ast.Constant)
         and isinstance(node.value.value, str)
     )
+
+
+def _is_type_checking_import_block(node: ast.stmt) -> bool:
+    """Return whether a node is an `if TYPE_CHECKING:` block containing only imports."""
+
+    if not isinstance(node, ast.If):
+        return False
+    test: ast.expr = node.test
+    if isinstance(test, ast.Name):
+        test_name: str = test.id
+    elif isinstance(test, ast.Attribute):
+        test_name = test.attr
+    else:
+        return False
+    if test_name != "TYPE_CHECKING":
+        return False
+    if node.orelse:
+        return False
+    return all(isinstance(statement, (ast.Import, ast.ImportFrom)) for statement in node.body)
 
 
 def _is_allowed_type_class(node: ast.ClassDef) -> bool:

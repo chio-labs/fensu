@@ -475,6 +475,62 @@ from tests.unit.scripts.checkers.structure.helpers import (
             expected_violation_codes=("SC007", "SC014"),
         ),
         CheckPathsTestCase(
+            description="allows type-checking imports-only block in types module",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/types.py": dedent(
+                    """
+                from __future__ import annotations
+
+                from typing import TYPE_CHECKING, Protocol
+
+                if TYPE_CHECKING:
+                    from strata.example.refs.models import Ref
+
+
+                class ExampleContext(Protocol):
+                    def resolve(self) -> Ref: ...
+                """
+                ).strip()
+                + "\n"
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="reports non-import statement in type-checking block in types module",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/types.py": dedent(
+                    """
+                from typing import TYPE_CHECKING
+
+                if TYPE_CHECKING:
+                    VALUE = 1
+                """
+                ).strip()
+                + "\n"
+            },
+            expected_violation_codes=("SC007",),
+        ),
+        CheckPathsTestCase(
+            description="reports type-checking block with else in types module",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/types.py": dedent(
+                    """
+                from typing import TYPE_CHECKING
+
+                if TYPE_CHECKING:
+                    from strata.example.refs.models import Ref
+                else:
+                    Ref = object
+                """
+                ).strip()
+                + "\n"
+            },
+            expected_violation_codes=("SC007",),
+        ),
+        CheckPathsTestCase(
             description="reports enum in models module",
             repo_files=compliant_repo_files()
             | {

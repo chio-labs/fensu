@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 
 from strata.rules.authoring.exceptions import RuleDefinitionError
-from strata.rules.spec.types import Family, RuleKind
+from strata.rules.authoring.types import Family, RuleKind
 
 _KEBAB_CASE_PATTERN: re.Pattern[str] = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 _CORE_CODE_PREFIX: str = "SF"

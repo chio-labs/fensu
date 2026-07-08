@@ -10,9 +10,8 @@ from strata.rules.authoring.helpers.envelope import (
     validate_envelope,
 )
 from strata.rules.authoring.helpers.registry import register
-from strata.rules.authoring.types import RuleCheck
-from strata.rules.spec.models import RuleSpec
-from strata.rules.spec.types import Family, RuleKind, Severity
+from strata.rules.authoring.models import RuleSpec
+from strata.rules.authoring.types import Family, RuleCheck, RuleKind, Severity
 
 
 def rule(

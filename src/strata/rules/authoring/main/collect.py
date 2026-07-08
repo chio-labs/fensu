@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from strata.rules.authoring.helpers.registry import collect_registered as _collect_registered
-from strata.rules.spec.models import RuleSpec
+from strata.rules.authoring.models import RuleSpec
 
 
 def collect_registered() -> tuple[RuleSpec, ...]:

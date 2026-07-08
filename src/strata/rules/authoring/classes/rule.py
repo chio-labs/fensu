@@ -12,8 +12,8 @@ from strata.rules.authoring.helpers.envelope import (
     validate_code_namespace,
     validate_envelope,
 )
-from strata.rules.spec.models import Fault, RuleSpec
-from strata.rules.spec.types import Family, RuleContext, Severity
+from strata.rules.authoring.models import Fault, RuleSpec
+from strata.rules.authoring.types import Family, RuleContext, Severity
 
 _ENVELOPE_CLASS_VARS: tuple[str, ...] = ("code", "family", "slug", "message")
 

@@ -1,4 +1,4 @@
-"""Rule-definition structured runtime models."""
+"""Authoring structured runtime models: the fault and the compiled rule spec."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from strata.rules.spec.types import Family, RuleContext, RuleKind, Severity
+from strata.rules.authoring.types import Family, RuleContext, RuleKind, Severity
 
 
 @dataclass(frozen=True, slots=True)

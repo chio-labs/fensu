@@ -1,8 +1,8 @@
-"""Rule-definition constants: shipped defaults and role vocabulary."""
+"""Shipped configuration defaults: thresholds, role vocabulary, and entry caps."""
 
 from __future__ import annotations
 
-from strata.rules.spec.types import Threshold
+from strata.rules.authoring.types import Threshold
 
 DEFAULT_THRESHOLDS: dict[Threshold, int] = {
     Threshold.MAX_STATEMENTS: 40,

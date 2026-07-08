@@ -10,8 +10,8 @@ import pytest
 from strata.rules.authoring.classes.rule import Rule
 from strata.rules.authoring.main.collect import collect_registered
 from strata.rules.authoring.main.define import rule
-from strata.rules.spec.models import Fault, RuleContext, RuleSpec
-from strata.rules.spec.types import Family, RuleKind
+from strata.rules.authoring.models import Fault, RuleContext, RuleSpec
+from strata.rules.authoring.types import Family, RuleKind
 from tests.unit.src.strata.rules.authoring._test_types import RuleEnvelopeTestCase
 from tests.unit.src.strata.rules.authoring.helpers import empty_check
 

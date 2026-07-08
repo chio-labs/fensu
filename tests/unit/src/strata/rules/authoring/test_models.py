@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from strata.rules.spec.models import Fault
-from tests.unit.src.strata.rules.spec._test_types import FaultFormatTestCase
+from strata.rules.authoring.models import Fault
+from tests.unit.src.strata.rules.authoring._test_types import FaultFormatTestCase
 
 
 @pytest.mark.parametrize(
@@ -17,13 +17,14 @@ from tests.unit.src.strata.rules.spec._test_types import FaultFormatTestCase
         FaultFormatTestCase(
             description="renders code, relative path, line, column, and message",
             code="SFR001",
-            path=Path("/repo/src/strata/rules/spec/models.py"),
+            path=Path("/repo/src/strata/rules/authoring/models.py"),
             message="models.py must contain only models",
             line=12,
             column=4,
             root=Path("/repo"),
             expected_rendered=(
-                "src/strata/rules/spec/models.py:12:4: SFR001 models.py must contain only models"
+                "src/strata/rules/authoring/models.py:12:4: SFR001 "
+                "models.py must contain only models"
             ),
         ),
         FaultFormatTestCase(

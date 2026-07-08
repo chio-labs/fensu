@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from strata.rules.spec.models import RuleSpec
+from strata.rules.authoring.models import RuleSpec
 
 _REGISTERED: list[RuleSpec] = []
 

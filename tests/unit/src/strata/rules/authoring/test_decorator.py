@@ -7,9 +7,8 @@ import pytest
 from strata.rules.authoring.exceptions import RuleDefinitionError
 from strata.rules.authoring.main.collect import collect_registered
 from strata.rules.authoring.main.define import rule
-from strata.rules.authoring.types import RuleCheck
-from strata.rules.spec.models import RuleSpec
-from strata.rules.spec.types import Family, RuleKind
+from strata.rules.authoring.models import RuleSpec
+from strata.rules.authoring.types import Family, RuleCheck, RuleKind
 from tests.unit.src.strata.rules.authoring._test_types import (
     InvalidEnvelopeTestCase,
     RuleEnvelopeTestCase,

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from strata.rules.spec.types import Family, RuleKind, Severity, Threshold
-from tests.unit.src.strata.rules.spec._test_types import EnumMembersTestCase
+from strata.rules.authoring.types import Family, RuleKind, Severity, Threshold
+from tests.unit.src.strata.rules.authoring._test_types import EnumMembersTestCase
 
 
 @pytest.mark.parametrize(

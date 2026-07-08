@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import ast
 
-from strata.rules.spec.models import Fault, RuleContext
+from strata.rules.authoring.models import Fault, RuleContext
 
 
 def empty_check(module: ast.Module, ctx: RuleContext) -> list[Fault]:

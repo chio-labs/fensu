@@ -1,0 +1,103 @@
+"""Test case types for config loading and validation."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class ConfigSourceLoadTestCase:
+    """Config source files and the expected loaded values."""
+
+    description: str
+    strata_toml: str | None
+    pyproject_toml: str | None
+    expected_roots: tuple[str, ...]
+    expected_select: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ConfigDiscoveryTestCase:
+    """Config files plus a starting path and the expected source outcome."""
+
+    description: str
+    start_relative_path: str
+    child_pyproject_toml: str | None
+    parent_strata_toml: str | None
+    expected_roots: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class InvalidConfigTestCase:
+    """An invalid config file and the expected error."""
+
+    description: str
+    config_text: str
+    expected_error_type: type[Exception]
+    expected_error_fragment: str
+
+
+@dataclass(frozen=True)
+class InvalidConfigSourceTestCase:
+    """Invalid or missing config source and the expected error."""
+
+    description: str
+    strata_toml: str | None
+    pyproject_toml: str | None
+    expected_error_type: type[Exception]
+    expected_error_fragment: str
+
+
+@dataclass(frozen=True)
+class ConfigDefaultsTestCase:
+    """A valid config file and the expected normalized config values."""
+
+    description: str
+    config_text: str
+    expected_roots: tuple[str, ...]
+    expected_tests: tuple[str, ...]
+    expected_tooling: tuple[str, ...]
+    expected_threshold_name: str
+    expected_threshold_value: int
+    expected_role_name: str | None
+    expected_role_threshold_name: str | None
+    expected_role_threshold_value: int | None
+
+
+@dataclass(frozen=True)
+class ConfigListFieldTestCase:
+    """A list-valued config field and the expected normalized tuple."""
+
+    description: str
+    config_text: str
+    expected_field_name: str
+    expected_value: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ConfigThresholdTestCase:
+    """Threshold override expectations."""
+
+    description: str
+    config_text: str
+    expected_threshold_name: str
+    expected_threshold_value: int
+
+
+@dataclass(frozen=True)
+class ConfigContractTestCase:
+    """Contract default and override expectations."""
+
+    description: str
+    config_text: str
+    expected_pattern: str
+    expected_behavior: str
+
+
+@dataclass(frozen=True)
+class ConfigImmutabilityTestCase:
+    """A config mutation attempt and the expected exception type."""
+
+    description: str
+    config_text: str
+    expected_error_type: type[Exception]

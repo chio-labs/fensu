@@ -21,5 +21,30 @@ DEFAULT_ROLE_FILE_NAMES: frozenset[str] = frozenset(
     {"models.py", "types.py", "constants.py", "exceptions.py"}
 )
 
+DEFAULT_TEST_PATHS: tuple[str, ...] = ("tests",)
+DEFAULT_TOOLING_PATHS: tuple[str, ...] = ()
+DEFAULT_SELECT: tuple[str, ...] = ("SF",)
+DEFAULT_IGNORE: tuple[str, ...] = ()
+
+CONFIG_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
+    {
+        "roots",
+        "tests",
+        "tooling",
+        "select",
+        "ignore",
+        "rule_paths",
+        "rule_modules",
+        "thresholds",
+        "roles",
+        "contracts",
+    }
+)
+CONFIG_ROLE_NAMES: frozenset[str] = frozenset(
+    {"entry", "main", "helpers", "classes", "models", "types", "constants", "exceptions"}
+)
+CONTRACT_BEHAVIORS: frozenset[str] = frozenset({"no-return"})
+DEFAULT_CONTRACTS: dict[str, str] = {"validate_*": "no-return", "enforce_*": "no-return"}
+
 MAX_ENTRY_PUBLIC_FUNCTIONS: int = 1
 MAX_ENTRY_PRIVATE_FUNCTIONS: int = 2

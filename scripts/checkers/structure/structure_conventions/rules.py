@@ -51,6 +51,11 @@ _MAIN_SUPPORT_FOLDER_NAMES: frozenset[str] = frozenset({"classes", "helpers", "s
 _RUNTIME_ROLE_DIRECTORY_NAMES: frozenset[str] = frozenset(
     {"helpers", "classes", "models", "types", "constants", "exceptions"}
 )
+_MIN_KEYWORD_ONLY_PARAMETERS: int = 2
+_METHOD_SELF_PARAMETER_NAMES: frozenset[str] = frozenset({"self", "cls"})
+_KEYWORD_ONLY_EXEMPT_SIGNATURES: frozenset[tuple[str | None, tuple[str, ...]]] = frozenset(
+    {(None, ("module", "ctx"))}
+)
 _SC056_COMMENT_ALLOWED_PREFIXES: tuple[str, ...] = (
     "#!",
     "# -*-",
@@ -642,6 +647,77 @@ def check_init_module(file_path: Path, module: ast.Module) -> list[Violation]:
             message="__init__.py must be empty or docstring-only",
         )
     ]
+
+
+def check_keyword_only_parameters(
+    repo_root: Path, file_path: Path, module: ast.Module
+) -> list[Violation]:
+    """Require runtime functions with two or more parameters to be keyword-only."""
+
+    if not _is_runtime_file(repo_root, file_path):
+        return []
+
+    violations: list[Violation] = []
+    function_node: ast.FunctionDef | ast.AsyncFunctionDef
+    for function_node in _walk_function_defs(module):
+        if function_node.name.startswith("__") and function_node.name.endswith("__"):
+            continue
+        positional_names: list[str] = _positional_or_keyword_names(function_node)
+        if len(positional_names) < _MIN_KEYWORD_ONLY_PARAMETERS:
+            continue
+        if _is_keyword_only_exempt(function_node):
+            continue
+        violations.append(
+            Violation(
+                code="SC909",
+                path=file_path,
+                line=function_node.lineno,
+                message=(
+                    f"function '{function_node.name}' has {len(positional_names)} positional "
+                    "parameters; functions with two or more parameters must be keyword-only "
+                    "(add a bare '*' before them) so call sites cannot silently transpose "
+                    "arguments"
+                ),
+            )
+        )
+    return violations
+
+
+def _walk_function_defs(
+    module: ast.Module,
+) -> list[ast.FunctionDef | ast.AsyncFunctionDef]:
+    return [
+        node
+        for node in ast.walk(module)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    ]
+
+
+def _positional_or_keyword_names(
+    function_node: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> list[str]:
+    names: list[str] = [argument.arg for argument in function_node.args.args]
+    if names and names[0] in _METHOD_SELF_PARAMETER_NAMES:
+        names = names[1:]
+    return names
+
+
+def _signature_parameter_names(
+    function_node: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> tuple[str, ...]:
+    positional: list[str] = _positional_or_keyword_names(function_node)
+    keyword_only: list[str] = [argument.arg for argument in function_node.args.kwonlyargs]
+    return tuple(positional + keyword_only)
+
+
+def _is_keyword_only_exempt(function_node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    signature: tuple[str, ...] = _signature_parameter_names(function_node)
+    for exempt_name, exempt_signature in _KEYWORD_ONLY_EXEMPT_SIGNATURES:
+        if exempt_signature != signature:
+            continue
+        if exempt_name is None or exempt_name == function_node.name:
+            return True
+    return False
 
 
 def check_no_internal_public_surface_imports(

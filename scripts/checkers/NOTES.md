@@ -131,6 +131,40 @@ were kept. User-ratified 2026-07-07.
   statement in root package init", "reports internal from-import of public
   surface", "reports internal plain import of public surface", "allows internal
   qualified import of owning module".
+- ADDED SC909 keyword-only-parameters (SFS shape family), Phase 1 build
+  2026-07-07, user-approved. Runtime functions with 2+ parameters (after
+  stripping self/cls) must be keyword-only (a bare `*` before them) so call sites
+  cannot silently transpose same-typed arguments — the reader is an LLM and a
+  transposed positional arg is a silent wrong behavior. Scope: `src/strata/**`
+  only (repo-root runtime; NOT the throwaway scaffold, NOT tests).
+  - Structural carve-outs (not the allow-list): self/cls don't count toward the
+    2; dunder methods (`__x__`) are always exempt (Python calls them
+    positionally, can't be kw-only).
+  - EXEMPT ALLOW-LIST: `_KEYWORD_ONLY_EXEMPT_SIGNATURES`, entries are
+    `(function_name | None, param_name_tuple)`. `None` name matches any function
+    with that param tuple (broad); a name also requires the function name to
+    match (specific). Seeded with `(None, ("module", "ctx"))` — the FROZEN rule
+    signature (D1); every core/custom rule check is `def x(module, ctx)`, so it
+    must be exemptable. This is NOT a strata-domain special-case baked into a
+    general rule — `(module, ctx)` is just strata's own entry in a GENERAL
+    user-configurable allow-list (like exempting pytest/click fixed signatures).
+  - PRODUCT/PORT design (Phase 5 SFS): the allow-list is CONFIG-DRIVEN
+    (`[tool.strata]` e.g. `keyword_only_exempt = ["module,ctx", "check:module,ctx"]`
+    — bare `params` = broad, `name:params` = name-specific) and/or expressible as
+    a custom rule. The scaffold hardcodes strata's one broad entry as a constant
+    stand-in until config exists. Default (non-strata) allow-list is empty.
+  - Also conformed two existing fixtures to kw-only (run_plan, gather) and
+    RuleContext.fault -> message became keyword-only (nicer API + rule-compliant).
+  Mutation-proven: empty the allow-list -> the `(module,ctx)` exempt test fires
+  SC909 (allow-list is doing the work); set a name-specific entry matching the
+  fn name -> still exempt; set a name-specific entry with a DIFFERENT name -> the
+  fn fires SC909 (optional name specificity works both directions). Reference
+  cases: "reports two-parameter function that is not keyword-only", "allows
+  two-parameter function that is keyword-only", "allows single-parameter
+  positional function", "allows method with self and a single positional
+  parameter", "reports method with self and two positional parameters", "allows
+  exempt module ctx signature via allow-list", "allows dunder method with two
+  positional parameters".
 - ADDED SC906 no-shared-packages (strata decision, 00-overview #8; sqlbuild
   will adopt the ban when it adopts strata): ANY file under a shared/ segment
   in the runtime package is flagged. sqlbuild's shared/ rules (SC012/SC013) and

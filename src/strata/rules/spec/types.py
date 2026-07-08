@@ -58,8 +58,8 @@ class RuleContext(Protocol):
     def fault(
         self,
         node: ast.AST,
-        message: str | None = None,
         *,
+        message: str | None = None,
         remediation: str | None = None,
     ) -> Fault:
         """Construct a Fault with line/column/code wired from the node."""

@@ -25,6 +25,7 @@ from scripts.checkers.structure.structure_conventions.rules import (
     check_helpers_package_layout,
     check_helpers_package_shape,
     check_init_module,
+    check_keyword_only_parameters,
     check_main_discarded_call_results,
     check_main_entry_name_collisions,
     check_main_package_layout,
@@ -96,6 +97,7 @@ def check_paths(paths: list[Path], repo_root: Path | None = None) -> list[Violat
         violations.extend(
             check_no_internal_public_surface_imports(actual_repo_root, file_path, module)
         )
+        violations.extend(check_keyword_only_parameters(actual_repo_root, file_path, module))
         violations.extend(check_entry_module_shape(file_path, module))
         violations.extend(check_main_public_function_shape(file_path, module))
         violations.extend(check_main_discarded_call_results(file_path, module))

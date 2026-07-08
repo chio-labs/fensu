@@ -546,6 +546,111 @@ from tests.unit.scripts.checkers.structure.helpers import (
             expected_violation_codes=(),
         ),
         CheckPathsTestCase(
+            description="reports two-parameter function that is not keyword-only",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/helpers/combine.py": dedent(
+                    """
+                def combine(first: str, second: str) -> str:
+                    return first + second
+                """
+                ).strip()
+                + "\n"
+            },
+            expected_violation_codes=("SC909",),
+        ),
+        CheckPathsTestCase(
+            description="allows two-parameter function that is keyword-only",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/helpers/combine.py": dedent(
+                    """
+                def combine(*, first: str, second: str) -> str:
+                    return first + second
+                """
+                ).strip()
+                + "\n"
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="allows single-parameter positional function",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/helpers/combine.py": dedent(
+                    """
+                def shout(word: str) -> str:
+                    return word.upper()
+                """
+                ).strip()
+                + "\n"
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="allows method with self and a single positional parameter",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/classes/joiner.py": dedent(
+                    """
+                class Joiner:
+                    def join_one(self, word: str) -> str:
+                        return word
+                """
+                ).strip()
+                + "\n"
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="reports method with self and two positional parameters",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/classes/joiner.py": dedent(
+                    """
+                class Joiner:
+                    def join_two(self, first: str, second: str) -> str:
+                        return first + second
+                """
+                ).strip()
+                + "\n"
+            },
+            expected_violation_codes=("SC909",),
+        ),
+        CheckPathsTestCase(
+            description="allows exempt module ctx signature via allow-list",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/helpers/rule_like.py": dedent(
+                    """
+                import ast
+
+
+                def widget_rule(module: ast.Module, ctx: object) -> list[str]:
+                    return []
+                """
+                ).strip()
+                + "\n"
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="allows dunder method with two positional parameters",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/classes/pair.py": dedent(
+                    """
+                class Pair:
+                    def __init__(self, first: str, second: str) -> None:
+                        self._first = first
+                        self._second = second
+                """
+                ).strip()
+                + "\n"
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
             description="reports dataclass in types module",
             repo_files=compliant_repo_files()
             | {
@@ -878,7 +983,7 @@ from tests.unit.scripts.checkers.structure.helpers import (
             | {
                 "src/strata/example/widget/main/plan.py": dedent(
                     """
-                def run_plan(on_done, stream, backend) -> str:
+                def run_plan(*, on_done, stream, backend) -> str:
                     results: list[str] = []
                     validate_inputs()
                     enforce_policy()
@@ -1931,7 +2036,7 @@ from tests.unit.scripts.checkers.structure.helpers import (
             | {
                 "src/strata/example/widget/main/gather.py": dedent(
                     """
-                def gather(adapter, connection, entries) -> list[str]:
+                def gather(*, adapter, connection, entries) -> list[str]:
                     relations = adapter.list_relations(
                         connection, database=None, schemas=("s",)
                     )

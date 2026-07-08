@@ -625,9 +625,11 @@ def check_classes_package_module_shape(
 
 
 def check_init_module(file_path: Path, module: ast.Module) -> list[Violation]:
-    """Validate __init__.py contents."""
+    """Validate __init__.py contents (nested packages must be docstring-only)."""
 
     if file_path.name != "__init__.py":
+        return []
+    if _is_public_surface_module(file_path):
         return []
     if is_docstring_only_module(module):
         return []
@@ -640,6 +642,71 @@ def check_init_module(file_path: Path, module: ast.Module) -> list[Violation]:
             message="__init__.py must be empty or docstring-only",
         )
     ]
+
+
+def check_no_internal_public_surface_imports(
+    repo_root: Path, file_path: Path, module: ast.Module
+) -> list[Violation]:
+    """Reject internal imports of the bare public surface package."""
+
+    if not _is_runtime_file(repo_root, file_path):
+        return []
+    if _is_public_surface_module(file_path):
+        return []
+
+    violations: list[Violation] = []
+    for node in ast.walk(module):
+        if (
+            isinstance(node, ast.ImportFrom)
+            and node.level == 0
+            and node.module == (_RUNTIME_PACKAGE_NAME)
+        ):
+            violations.append(_public_surface_import_violation(file_path, node.lineno))
+            continue
+        if isinstance(node, ast.Import) and any(
+            alias.name == _RUNTIME_PACKAGE_NAME for alias in node.names
+        ):
+            violations.append(_public_surface_import_violation(file_path, node.lineno))
+    return violations
+
+
+def _public_surface_import_violation(file_path: Path, line: int) -> Violation:
+    return Violation(
+        code="SC908",
+        path=file_path,
+        line=line,
+        message=(
+            "internal modules must not import from the public surface package; "
+            "import from the owning module directly (the top-level surface is for "
+            "external consumers only)"
+        ),
+    )
+
+
+def check_public_surface_module(file_path: Path, module: ast.Module) -> list[Violation]:
+    """Restrict the root public surface to a docstring, imports, and one __all__."""
+
+    if not _is_public_surface_module(file_path):
+        return []
+
+    violations: list[Violation] = []
+    for node in _non_docstring_body(module):
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            continue
+        if _is_all_assignment(node):
+            continue
+        violations.append(
+            Violation(
+                code="SC907",
+                path=file_path,
+                line=getattr(node, "lineno", 1),
+                message=(
+                    "the public surface package __init__ must contain only re-export imports "
+                    "and a single __all__ assignment; move implementation into owning modules"
+                ),
+            )
+        )
+    return violations
 
 
 def check_types_module(file_path: Path, module: ast.Module) -> list[Violation]:
@@ -1579,6 +1646,15 @@ def _has_deep_internal_segment(parts: tuple[str, ...], internal_segments: frozen
 def _is_runtime_file(repo_root: Path, file_path: Path) -> bool:
     relative_parts: tuple[str, ...] = file_path.resolve().relative_to(repo_root.resolve()).parts
     return len(relative_parts) >= 3 and relative_parts[:2] == _RUNTIME_PREFIX
+
+
+def _is_public_surface_module(file_path: Path) -> bool:
+    resolved: Path = file_path.resolve()
+    return (
+        resolved.name == "__init__.py"
+        and resolved.parent.name == _RUNTIME_PACKAGE_NAME
+        and resolved.parent.parent.name == _RUNTIME_PREFIX[0]
+    )
 
 
 def _is_allowed_reexport_surface(repo_root: Path, file_path: Path) -> bool:

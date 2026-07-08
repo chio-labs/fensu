@@ -1,0 +1,149 @@
+"""Rule-definition type-layer declarations."""
+
+from __future__ import annotations
+
+import ast
+from enum import StrEnum
+from pathlib import Path
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    from strata.rules.spec.models import Fault
+
+
+class Family(StrEnum):
+    """The rule family a rule belongs to."""
+
+    LAYERS = "layers"
+    ROLES = "roles"
+    SHAPE = "shape"
+    NAMING = "naming"
+    HYGIENE = "hygiene"
+    TESTS = "tests"
+    ANNOTATIONS = "annotations"
+    CUSTOM = "custom"
+
+
+class Severity(StrEnum):
+    """The severity assigned to a fault."""
+
+    ERROR = "error"
+    WARNING = "warning"
+
+
+class RuleKind(StrEnum):
+    """Whether a rule ships with strata or is authored downstream."""
+
+    CORE = "core"
+    CUSTOM = "custom"
+
+
+class Threshold(StrEnum):
+    """Named, config-overridable numeric limits resolved per file at check time."""
+
+    MAX_STATEMENTS = "max_statements"
+    MAX_DISTINCT_CALLS = "max_distinct_calls"
+    MAX_LOCALS = "max_locals"
+    MAX_FILE_LINES = "max_file_lines"
+    MAX_FLAT_HELPER_MODULES = "max_flat_helper_modules"
+    MAX_FLAT_MAIN_MODULES = "max_flat_main_modules"
+    MAX_POSITIONAL_ARGS = "max_positional_args"
+    MAX_ARGUMENTS = "max_arguments"
+    MAX_STATEMENTS_GLOBAL = "max_statements_global"
+
+
+class RuleContext(Protocol):
+    """Convenience AST/position toolbox passed to a rule check; may be ignored."""
+
+    def fault(
+        self,
+        node: ast.AST,
+        message: str | None = None,
+        *,
+        remediation: str | None = None,
+    ) -> Fault:
+        """Construct a Fault with line/column/code wired from the node."""
+        ...
+
+    @property
+    def path(self) -> Path:
+        """The path of the file currently being checked."""
+        ...
+
+    @property
+    def repo_root(self) -> Path:
+        """The resolved repository root."""
+        ...
+
+    @property
+    def source(self) -> str:
+        """The raw source text of the current file."""
+        ...
+
+    def relative_parts(self) -> tuple[str, ...]:
+        """The current file's path parts relative to the repo root."""
+        ...
+
+    def role_of(self, path: Path | None = None) -> str | None:
+        """The role name of the given path (or the current file)."""
+        ...
+
+    def in_role(self, role: str) -> bool:
+        """Whether the current file is within the given role."""
+        ...
+
+    def is_entry_module(self) -> bool:
+        """Whether the current file is a main/ entry module."""
+        ...
+
+    def is_main_module(self) -> bool:
+        """Whether the current file is within a main/ package."""
+        ...
+
+    def domain(self) -> str | None:
+        """The top-level domain of the current file, if any."""
+        ...
+
+    def subdomain(self) -> str | None:
+        """The subdomain of the current file, if any."""
+        ...
+
+    def nodes(self, node_type: type[ast.AST]) -> list[ast.AST]:
+        """Nodes of the given type from the shared single-pass index."""
+        ...
+
+    def call_name(self, node: ast.Call) -> str | None:
+        """The called name of a call node, if resolvable."""
+        ...
+
+    def base_name(self, node: ast.expr) -> str | None:
+        """The base name of an expression, if resolvable."""
+        ...
+
+    def top_level_functions(self, module: ast.Module) -> tuple[ast.AST, ...]:
+        """The top-level function definitions of a module."""
+        ...
+
+    def non_docstring_body(self, module: ast.Module) -> list[ast.stmt]:
+        """A module's body with the leading docstring removed."""
+        ...
+
+    def distinct_callees(self, fn: ast.AST) -> frozenset[str]:
+        """The distinct callee names invoked within a function."""
+        ...
+
+    def assigned_locals(self, fn: ast.AST) -> frozenset[str]:
+        """The names assigned as locals within a function."""
+        ...
+
+    def parameter_names(self, fn: ast.AST) -> frozenset[str]:
+        """The parameter names of a function."""
+        ...
+
+    def inside_loop(self, node: ast.AST) -> bool:
+        """Whether a node is lexically inside a loop."""
+        ...
+
+    def threshold(self, name: Threshold) -> int:
+        """The applicable value for a named threshold on the current file."""
+        ...

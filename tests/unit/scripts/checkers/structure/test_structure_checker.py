@@ -457,6 +457,95 @@ from tests.unit.scripts.checkers.structure.helpers import (
             expected_violation_codes=("SC006",),
         ),
         CheckPathsTestCase(
+            description="allows re-export surface in root package init",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/__init__.py": dedent(
+                    """
+                \"\"\"Public surface.\"\"\"
+
+                from strata.example.widget.models import ExampleModel
+
+                __all__ = ["ExampleModel"]
+                """
+                ).strip()
+                + "\n"
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="reports non-import statement in root package init",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/__init__.py": dedent(
+                    """
+                \"\"\"Public surface.\"\"\"
+
+                from strata.example.widget.models import ExampleModel
+
+
+                def helper() -> int:
+                    return 1
+                """
+                ).strip()
+                + "\n"
+            },
+            expected_violation_codes=("SC907",),
+        ),
+        CheckPathsTestCase(
+            description="reports internal from-import of public surface",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/load.py": dedent(
+                    """
+                from strata import ExampleModel
+
+
+                def load_example() -> ExampleModel:
+                    return ExampleModel(name="demo")
+                """
+                ).strip()
+                + "\n"
+            },
+            expected_violation_codes=("SC908",),
+        ),
+        CheckPathsTestCase(
+            description="reports internal plain import of public surface",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/load.py": dedent(
+                    """
+                import strata
+
+                from strata.example.widget.models import ExampleModel
+
+
+                def load_example() -> ExampleModel:
+                    return ExampleModel(name=strata.__name__)
+                """
+                ).strip()
+                + "\n"
+            },
+            expected_violation_codes=("SC908",),
+        ),
+        CheckPathsTestCase(
+            description="allows internal qualified import of owning module",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/widget/main/load.py": dedent(
+                    """
+                from strata.example.widget.models import ExampleModel
+
+
+                def load_example() -> ExampleModel:
+                    return ExampleModel(name="demo")
+                """
+                ).strip()
+                + "\n"
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
             description="reports dataclass in types module",
             repo_files=compliant_repo_files()
             | {

@@ -12,7 +12,12 @@ from scripts.checkers.testing.test_conventions.ast_utils import (
     is_docstring_only_module,
     is_parametrize_decorator,
 )
-from scripts.checkers.testing.test_conventions.constants import TEST_NAME_PATTERN, VALID_TEST_SCOPES
+from scripts.checkers.testing.test_conventions.constants import (
+    ROOT_AREA_NAME,
+    RUNTIME_PACKAGE_NAME,
+    TEST_NAME_PATTERN,
+    VALID_TEST_SCOPES,
+)
 from scripts.checkers.testing.test_conventions.filesystem import module_name_for_file
 from scripts.checkers.testing.test_conventions.models import (
     LocalTestTypesInfo,
@@ -98,6 +103,9 @@ def _check_src_mirroring(
             )
         ]
 
+    if relative_parts[3] == RUNTIME_PACKAGE_NAME and relative_parts[4] == ROOT_AREA_NAME:
+        return []
+
     area_path = package_path / relative_parts[4]
     if not area_path.exists():
         return [
@@ -106,7 +114,9 @@ def _check_src_mirroring(
                 path=test_directory,
                 line=None,
                 message=(
-                    "tests under tests/<scope>/src must mirror a real src/<package>/<area> path"
+                    "tests under tests/<scope>/src must mirror a real src/<package>/<area> path; "
+                    "package-root concerns of the runtime package go under the reserved "
+                    "'__root__' area"
                 ),
             )
         ]

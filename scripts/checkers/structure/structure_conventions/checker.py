@@ -34,6 +34,7 @@ from scripts.checkers.structure.structure_conventions.rules import (
     check_nested_runtime_package_direct_modules,
     check_nested_runtime_package_direct_subpackages,
     check_no_internal_helper_exports,
+    check_no_internal_public_surface_imports,
     check_no_internal_reexport_modules,
     check_no_parameter_mutation_in_phase_helpers,
     check_no_raw_runtime_diagnostics,
@@ -44,6 +45,7 @@ from scripts.checkers.structure.structure_conventions.rules import (
     check_no_standalone_comments,
     check_no_swallowed_exception_probes,
     check_private_definition_ordering,
+    check_public_surface_module,
     check_shared_package_imports,
     check_shared_package_structure,
     check_single_line_docstrings,
@@ -90,6 +92,10 @@ def check_paths(paths: list[Path], repo_root: Path | None = None) -> list[Violat
         violations.extend(check_classes_module_name(file_path))
         violations.extend(check_classes_package_module_shape(actual_repo_root, file_path, module))
         violations.extend(check_init_module(file_path, module))
+        violations.extend(check_public_surface_module(file_path, module))
+        violations.extend(
+            check_no_internal_public_surface_imports(actual_repo_root, file_path, module)
+        )
         violations.extend(check_entry_module_shape(file_path, module))
         violations.extend(check_main_public_function_shape(file_path, module))
         violations.extend(check_main_discarded_call_results(file_path, module))

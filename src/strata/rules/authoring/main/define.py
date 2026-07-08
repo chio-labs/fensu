@@ -1,0 +1,53 @@
+"""The decorator authoring style: @rule wraps a check function into a RuleSpec."""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+
+from strata.rules.authoring.helpers.envelope import (
+    infer_kind,
+    validate_code_namespace,
+    validate_envelope,
+)
+from strata.rules.authoring.helpers.registry import register
+from strata.rules.authoring.types import RuleCheck
+from strata.rules.spec.models import RuleSpec
+from strata.rules.spec.types import Family, RuleKind, Severity
+
+
+def rule(
+    *,
+    code: str,
+    family: Family | str,
+    slug: str,
+    message: str,
+    remediation: str | None = None,
+    severity: Severity = Severity.ERROR,
+    enabled_by_default: bool = True,
+) -> Callable[[RuleCheck], RuleCheck]:
+    """Register the decorated function as a rule and return it unchanged."""
+
+    def decorate(check: RuleCheck) -> RuleCheck:
+        resolved_family: Family = validate_envelope(
+            code=code,
+            slug=slug,
+            message=message,
+            family=family,
+        )
+        kind: RuleKind = infer_kind(code)
+        validate_code_namespace(code=code, kind=kind)
+        spec: RuleSpec = RuleSpec(
+            code=code,
+            family=resolved_family,
+            slug=slug,
+            message=message,
+            check=check,
+            remediation=remediation,
+            severity=severity,
+            kind=kind,
+            enabled_by_default=enabled_by_default,
+        )
+        _ = register(spec)
+        return check
+
+    return decorate

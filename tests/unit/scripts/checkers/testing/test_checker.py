@@ -587,6 +587,93 @@ from tests.unit.scripts.checkers.testing.helpers import (
             },
             expected_violation_codes=("TC035",),
         ),
+        CheckPathsTestCase(
+            description="allows reserved __root__ area under the runtime package",
+            repo_files=base_repo_files()
+            | {
+                "src/strata/__init__.py": '"""strata."""\n',
+                "tests/unit/src/strata/__root__/_test_types.py": dedent(
+                    """
+                    from dataclasses import dataclass
+
+
+                    @dataclass(frozen=True)
+                    class SurfaceTestCase:
+                        description: str
+                        expected_all: tuple[str, ...]
+                    """
+                ).strip()
+                + "\n",
+                "tests/unit/src/strata/__root__/test_surface.py": dedent(
+                    """
+                    import pytest
+
+                    from tests.unit.src.strata.__root__._test_types import SurfaceTestCase
+
+
+                    @pytest.mark.parametrize(
+                        "test_case",
+                        [
+                            SurfaceTestCase(
+                                description="exports the expected names",
+                                expected_all=("Fault",),
+                            )
+                        ],
+                        ids=lambda case: case.description,
+                    )
+                    def test_given_package_when_reading_all_then_matches_expected(
+                        test_case: SurfaceTestCase,
+                    ) -> None:
+                        assert test_case.expected_all == ("Fault",)
+                    """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="rejects reserved __root__ area under a non-runtime package",
+            repo_files=base_repo_files()
+            | {
+                "tests/unit/src/example_pkg/__root__/_test_types.py": dedent(
+                    """
+                    from dataclasses import dataclass
+
+
+                    @dataclass(frozen=True)
+                    class SurfaceTestCase:
+                        description: str
+                        expected_all: tuple[str, ...]
+                    """
+                ).strip()
+                + "\n",
+                "tests/unit/src/example_pkg/__root__/test_surface.py": dedent(
+                    """
+                    import pytest
+
+                    from tests.unit.src.example_pkg.__root__._test_types import SurfaceTestCase
+
+
+                    @pytest.mark.parametrize(
+                        "test_case",
+                        [
+                            SurfaceTestCase(
+                                description="exports the expected names",
+                                expected_all=("Fault",),
+                            )
+                        ],
+                        ids=lambda case: case.description,
+                    )
+                    def test_given_package_when_reading_all_then_matches_expected(
+                        test_case: SurfaceTestCase,
+                    ) -> None:
+                        assert test_case.expected_all == ("Fault",)
+                    """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=("TC033",),
+        ),
     ],
     ids=lambda case: case.description,
 )

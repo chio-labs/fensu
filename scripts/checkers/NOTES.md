@@ -101,6 +101,36 @@ were kept. User-ratified 2026-07-07.
   domain", and "reports nested feature package without __init__ file" are the
   reference cases to port. Mutation-proven 2026-07-07 (reinstating either
   `__init__.py` gate fails these).
+- ADDED SC907 + SC908 (public API surface), Phase 1 build 2026-07-07,
+  user-approved. strata is a LIBRARY: its public rule-authoring contract is
+  `from strata import Fault, Family, Severity, Rule, rule, RuleContext` (.ai/05),
+  so the root package __init__ must be allowed to re-export. But an unguarded
+  re-export surface is an LLM abuse vector (internal code short-pathing through
+  it collapses the layer graph). So TWO rules, not one relaxed rule:
+  - SC907 (`check_public_surface_module`): the ROOT package __init__
+    (`src/strata/__init__.py` only) may contain a docstring + re-export imports +
+    a single `__all__`, and NOTHING else (no classes/functions/logic). Every
+    OTHER __init__ stays docstring-only under SC006 (unchanged; SC006 now skips
+    the root surface via `_is_public_surface_module`).
+  - SC908 (`check_no_internal_public_surface_imports`, ALWAYS ON — the guard):
+    any runtime file under src/strata/ that does `from strata import ...` OR
+    `import strata` is flagged. Internal code must import from the OWNING module
+    (`from strata.rules.spec.models import Fault`), never the bare surface. The
+    surface is for EXTERNAL consumers only. BOTH import shapes are covered
+    deliberately — a one-shape ban is a cheat vector by construction (the LLM
+    just uses the other form). Qualified `from strata.<sub> import ...` is fine
+    (that is importing a real owner, which is exactly what we want).
+  Mutation-proven: SC907 (permit a function -> "non-import statement" test
+  fails); SC908 each half independently (disable `import strata` half -> plain-
+  import test fails; disable `from strata` half -> from-import test fails).
+  PRODUCT/PORT design (Phase 5 SFR-family): SC907 becomes a disable-able rule
+  (apps keep it ON = no public surface; libraries turn it OFF to opt in), wired
+  through select/ignore. SC908 ships ALWAYS ON regardless. The nested-vs-root
+  __init__ split (SC006 vs SC907) is the two-rule shape to port. Reference
+  cases: "allows re-export surface in root package init", "reports non-import
+  statement in root package init", "reports internal from-import of public
+  surface", "reports internal plain import of public surface", "allows internal
+  qualified import of owning module".
 - ADDED SC906 no-shared-packages (strata decision, 00-overview #8; sqlbuild
   will adopt the ban when it adopts strata): ANY file under a shared/ segment
   in the runtime package is flagged. sqlbuild's shared/ rules (SC012/SC013) and
@@ -120,6 +150,30 @@ live under `tests/unit/src/strata/<area>/...` (TC031), NOT `tests/unit/strata/`
 as an early draft of the plan said. Phase 1+ tests follow TC031 while the
 scaffold rules; this also matches where strata's own SFT family will want them
 (mirror the declared root path).
+
+- ADDED reserved `__root__` test area (TC033), Phase 1 build 2026-07-07,
+  user-approved. The mirroring rule assumed every src-backed test maps to a real
+  `src/<package>/<area>` path. But some tests target the PACKAGE ROOT itself (the
+  public surface: `strata.__all__`, top-level importability) which has no
+  `<area>` directory to mirror. Rule extension: `tests/<scope>/src/strata/
+  __root__/...` is accepted as mirroring the runtime package root, with NO real
+  `src/strata/__root__/` dir required. Tightly bound:
+  - ONLY the runtime package (`strata`) may have a `__root__` area, and only at
+    the area slot (`relative_parts[3] == "strata" and relative_parts[4] ==
+    "__root__"`). `__root__` under any other package or depth still fires TC033.
+  - This mirrors exactly the one source-side special case: `src/strata/
+    __init__.py` is the SOLE `__init__` allowed to hold content (the public
+    surface, SC907); every other `__init__` is docstring-only (SC006), so no
+    other package has a testable root concern -> no other `__root__` is legal.
+  - Dunder name chosen so it cannot collide with a real domain/area name (like
+    `__init__`/`__main__`).
+  Mutation-proven: remove the allowance -> the "allows __root__" test fires
+  TC033; drop the runtime-package guard -> the "rejects __root__ under
+  non-runtime package" test fails. SFT-family PORT REQUIREMENT: the real strata
+  test-layout rule must recognize `__root__` as the reserved package-root test
+  area, tied to whichever package owns the public surface. Reference cases:
+  "allows reserved __root__ area under the runtime package", "rejects reserved
+  __root__ area under a non-runtime package".
 
 ## Ground mapping (Phase 0 exit check)
 

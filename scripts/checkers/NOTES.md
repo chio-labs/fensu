@@ -165,17 +165,40 @@ were kept. User-ratified 2026-07-07.
   parameter", "reports method with self and two positional parameters", "allows
   exempt module ctx signature via allow-list", "allows dunder method with two
   positional parameters".
-- ADDED SC906 no-shared-packages (strata decision, 00-overview #8; sqlbuild
-  will adopt the ban when it adopts strata): ANY file under a shared/ segment
-  in the runtime package is flagged. sqlbuild's shared/ rules (SC012/SC013) and
-  the shared allowances inside the import rules are KEPT verbatim (they are
-  correct while a shared/ dir momentarily exists, and keep the diff-vs-sqlbuild
-  minimal) — SC906 bans the directory itself, making them unreachable in a
-  compliant tree. Remediation MESSAGES that taught shared/ as the fix were
-  rewritten (SC011 "promote to shared/" -> "publish via main/ or role files";
-  SC033 "...or shared/" -> "publish via main/"; SC017 "subpackage or shared/"
-  -> "subpackage") so agents reading checker output during the build are never
-  steered toward the banned pattern. Codes and detection logic unchanged.
+- ADDED SC910 banned-generic-package-names (SFR/SFL-family port), 2026-07-07,
+  user-approved. Generic bucket-word package names (shared/common/util/utils/
+  misc/base/lib) describe no domain, so they become junk-drawers — nothing
+  "belongs" there, so everything gets dumped there and the dependency graph rots.
+  This is the directory twin of SC003 (banned generic FILE names). The
+  motivation was real: an LLM (me) recreated the banned shared/ as a package
+  named `spec/` — the fix is to ban the enabling generic NAMES so the honest
+  ownership analysis is forced ("what is this code ABOUT -> put it in the
+  subdomain that owns that concept"). The remediation message TEACHES this (don't
+  just rename to another vague word; find the owner; cross-cutting != ownerless,
+  a shared type is owned by the subdomain that PRODUCES it).
+  - Scope: subdomain package positions inside `src/strata/` (`relative_parts
+    [2:-1]`); role dir names (helpers/classes/models/types/constants/exceptions)
+    are NOT in the banned set so they are never affected.
+  - Config-extensible: default banned set ships for all users; a per-repo
+    `_STRATA_BANNED_PACKAGE_NAMES` extension slot (empty for now) is the stand-in
+    for the future `[tool.strata] banned_package_names` config. Ports so users
+    add their own bucket-words on top of the defaults.
+  - NOT banned by default: `spec`, `core`, `lib`... wait — `lib` IS banned;
+    `spec` and `core` are NOT (both can be domain-meaningful; `spec/` gets fixed
+    by ownership analysis, not a name ban).
+  - MERGED the former SC906 no-shared-packages rule INTO SC910: `shared` is just
+    the loudest generic bucket word, a standalone shared-only rule was awkward and
+    overlapping. SC906 (and its dedicated function/tests) REMOVED; `shared` now
+    flags as SC910. The message-rewrites that removed "promote to shared/"
+    guidance from SC011/SC033/SC017 remediation STAY (agents must never be steered
+    toward the banned pattern). sqlbuild's SC012/SC013 shared-content rules remain
+    vendored but unreachable in a compliant (shared-free) tree.
+  Mutation-proven: empty the banned set -> util/lib/shared cases stop firing;
+  populate the strata-extension slot -> a would-be-meaningful name (discovery)
+  fires (extension slot is load-bearing = config mechanism works). Reference
+  cases: "reports generic bucket-word package name util", "reports generic
+  bucket-word package name lib", "allows a domain-meaningful package name", plus
+  the migrated shared/ cases now asserting SC910.
 
 ## Consequence for strata's own tests during bootstrap
 

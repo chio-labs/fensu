@@ -165,7 +165,7 @@ from tests.unit.scripts.checkers.structure.helpers import (
                     "def render() -> str:\n    return 'demo'\n"
                 ),
             },
-            expected_violation_codes=("SC049", "SC906"),
+            expected_violation_codes=("SC049", "SC910"),
         ),
         CheckPathsTestCase(
             description="reports only the shared ban when helpers are fully subfoldered",
@@ -179,7 +179,7 @@ from tests.unit.scripts.checkers.structure.helpers import (
                     "def render() -> str:\n    return 'demo'\n"
                 ),
             },
-            expected_violation_codes=("SC906",),
+            expected_violation_codes=("SC910",),
         ),
         CheckPathsTestCase(
             description="reports helpers package with too many flat modules",
@@ -229,7 +229,7 @@ from tests.unit.scripts.checkers.structure.helpers import (
                 "src/strata/example/widget/main/__init__.py": '"""Entrypoints."""\n',
                 "src/strata/example/widget/main/shared/__init__.py": '"""Shared."""\n',
             },
-            expected_violation_codes=("SC061", "SC906"),
+            expected_violation_codes=("SC061", "SC910"),
         ),
         CheckPathsTestCase(
             description="reports CLI command main support folders",
@@ -238,7 +238,7 @@ from tests.unit.scripts.checkers.structure.helpers import (
                 "src/strata/cli/commands/main/__init__.py": '"""Entrypoints."""\n',
                 "src/strata/cli/commands/main/shared/__init__.py": '"""Shared."""\n',
             },
-            expected_violation_codes=("SC061", "SC906"),
+            expected_violation_codes=("SC061", "SC910"),
         ),
         CheckPathsTestCase(
             description="reports main package with too many flat modules",
@@ -647,6 +647,43 @@ from tests.unit.scripts.checkers.structure.helpers import (
                 """
                 ).strip()
                 + "\n"
+            },
+            expected_violation_codes=(),
+        ),
+        CheckPathsTestCase(
+            description="reports generic bucket-word package name util",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/util/__init__.py": '"""Util."""\n',
+                "src/strata/example/util/main/__init__.py": '"""Util entries."""\n',
+                "src/strata/example/util/main/run.py": dedent(
+                    """
+                def run_util() -> int:
+                    return 0
+                """
+                ).strip()
+                + "\n",
+            },
+            expected_violation_codes=("SC910", "SC910", "SC910"),
+        ),
+        CheckPathsTestCase(
+            description="reports generic bucket-word package name lib",
+            repo_files=compliant_repo_files() | {"src/strata/example/lib/models.py": "value = 1\n"},
+            expected_violation_codes=("SC910", "SC008"),
+        ),
+        CheckPathsTestCase(
+            description="allows a domain-meaningful package name",
+            repo_files=compliant_repo_files()
+            | {
+                "src/strata/example/discovery/__init__.py": '"""Discovery."""\n',
+                "src/strata/example/discovery/main/__init__.py": '"""Discovery entries."""\n',
+                "src/strata/example/discovery/main/run.py": dedent(
+                    """
+                def run_discovery() -> int:
+                    return 0
+                """
+                ).strip()
+                + "\n",
             },
             expected_violation_codes=(),
         ),
@@ -1168,7 +1205,7 @@ from tests.unit.scripts.checkers.structure.helpers import (
                 ).strip()
                 + "\n",
             },
-            expected_violation_codes=("SC906", "SC906"),
+            expected_violation_codes=("SC910", "SC910"),
         ),
         CheckPathsTestCase(
             description="reports concern subpackage under main when flat entries exist",
@@ -1701,7 +1738,7 @@ from tests.unit.scripts.checkers.structure.helpers import (
                 ).strip()
                 + "\n",
             },
-            expected_violation_codes=("SC906", "SC012", "SC027", "SC906"),
+            expected_violation_codes=("SC910", "SC012", "SC027", "SC910"),
         ),
         CheckPathsTestCase(
             description="reports shared package importing sibling internals",
@@ -1728,7 +1765,7 @@ from tests.unit.scripts.checkers.structure.helpers import (
                 ).strip()
                 + "\n",
             },
-            expected_violation_codes=("SC906", "SC906", "SC013", "SC033"),
+            expected_violation_codes=("SC910", "SC910", "SC013", "SC033"),
         ),
         CheckPathsTestCase(
             description="treats subpackage shared imports as allowed while banning the shared package",
@@ -1749,7 +1786,7 @@ from tests.unit.scripts.checkers.structure.helpers import (
                 "src/strata/example/shared/__init__.py": '"""Shared."""\n',
                 "src/strata/example/shared/types.py": "ExampleName = str\n",
             },
-            expected_violation_codes=("SC906", "SC906"),
+            expected_violation_codes=("SC910", "SC910"),
         ),
         CheckPathsTestCase(
             description="treats top-level shared imports as allowed while banning the shared package",
@@ -1781,7 +1818,7 @@ from tests.unit.scripts.checkers.structure.helpers import (
                 ).strip()
                 + "\n",
             },
-            expected_violation_codes=("SC906", "SC906", "SC906"),
+            expected_violation_codes=("SC910", "SC910", "SC910"),
         ),
         CheckPathsTestCase(
             description="reports private dataclass after function definition",

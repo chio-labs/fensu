@@ -51,6 +51,11 @@ _MAIN_SUPPORT_FOLDER_NAMES: frozenset[str] = frozenset({"classes", "helpers", "s
 _RUNTIME_ROLE_DIRECTORY_NAMES: frozenset[str] = frozenset(
     {"helpers", "classes", "models", "types", "constants", "exceptions"}
 )
+_DEFAULT_BANNED_PACKAGE_NAMES: frozenset[str] = frozenset(
+    {"shared", "common", "util", "utils", "misc", "base", "lib"}
+)
+_STRATA_BANNED_PACKAGE_NAMES: frozenset[str] = frozenset()
+_BANNED_PACKAGE_NAMES: frozenset[str] = _DEFAULT_BANNED_PACKAGE_NAMES | _STRATA_BANNED_PACKAGE_NAMES
 _MIN_KEYWORD_ONLY_PARAMETERS: int = 2
 _METHOD_SELF_PARAMETER_NAMES: frozenset[str] = frozenset({"self", "cls"})
 _KEYWORD_ONLY_EXEMPT_SIGNATURES: frozenset[tuple[str | None, tuple[str, ...]]] = frozenset(
@@ -647,6 +652,41 @@ def check_init_module(file_path: Path, module: ast.Module) -> list[Violation]:
             message="__init__.py must be empty or docstring-only",
         )
     ]
+
+
+def check_generic_package_names(repo_root: Path, file_path: Path) -> list[Violation]:
+    """Reject generic bucket-word package names that enable lazy dumping grounds."""
+
+    if not _is_runtime_file(repo_root, file_path):
+        return []
+    relative_parts: tuple[str, ...] = file_path.resolve().relative_to(repo_root.resolve()).parts
+    subdomain_segments: tuple[str, ...] = relative_parts[2:-1]
+
+    violations: list[Violation] = []
+    for segment in subdomain_segments:
+        if segment in _BANNED_PACKAGE_NAMES:
+            violations.append(
+                Violation(
+                    code="SC910",
+                    path=file_path,
+                    line=None,
+                    message=(
+                        f"package name '{segment}' is a banned generic bucket word. Names like "
+                        "shared/common/util/misc/base/lib describe no domain, so they become "
+                        "junk-drawers: because nothing 'belongs' there, everything gets dumped "
+                        "there, and the dependency graph rots as unrelated code piles up behind "
+                        "one meaningless name. Do NOT just rename it to another vague word "
+                        "(helpers2, core, spec) — that recreates the same drawer. Instead, ask "
+                        "what each piece of code is actually ABOUT and move it into the subdomain "
+                        "that owns that concept, named after the concept (e.g. 'discovery', "
+                        "'reporting', 'authoring'). If a type is used by several siblings, it "
+                        "still has one owner: the subdomain that PRODUCES it — put it in that "
+                        "subdomain's role files (models/types/constants) and import it from "
+                        "there. Cross-cutting is not the same as ownerless."
+                    ),
+                )
+            )
+    return violations
 
 
 def check_keyword_only_parameters(
@@ -2426,26 +2466,3 @@ def _is_collection_factory_call(node: ast.expr | None) -> bool:
         and isinstance(node.func, ast.Name)
         and node.func.id in {"dict", "frozenset", "list", "set", "tuple"}
     )
-
-
-def check_no_shared_packages(repo_root: Path, file_path: Path) -> list[Violation]:
-    """Reject shared/ packages anywhere in the runtime package (strata bans shared/)."""
-
-    if not _is_runtime_file(repo_root, file_path):
-        return []
-    relative_parts: tuple[str, ...] = file_path.resolve().relative_to(repo_root.resolve()).parts
-    if "shared" not in relative_parts[:-1]:
-        return []
-    return [
-        Violation(
-            code="SC906",
-            path=file_path,
-            line=None,
-            message=(
-                "shared/ packages are banned; there is no neutral junk-drawer. The owning "
-                "domain must publish reusable code via its main/ entry modules or role "
-                "files (models/types/constants/exceptions), and consumers import that "
-                "public surface"
-            ),
-        )
-    ]

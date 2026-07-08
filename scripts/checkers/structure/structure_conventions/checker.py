@@ -21,6 +21,7 @@ from scripts.checkers.structure.structure_conventions.rules import (
     check_dev_tooling_location,
     check_entry_module_shape,
     check_exception_declarations_outside_exceptions,
+    check_generic_package_names,
     check_helpers_module_name,
     check_helpers_package_layout,
     check_helpers_package_shape,
@@ -41,7 +42,6 @@ from scripts.checkers.structure.structure_conventions.rules import (
     check_no_raw_runtime_diagnostics,
     check_no_relative_imports,
     check_no_runtime_imports_from_tooling,
-    check_no_shared_packages,
     check_no_sibling_package_imports,
     check_no_standalone_comments,
     check_no_swallowed_exception_probes,
@@ -76,7 +76,6 @@ def check_paths(paths: list[Path], repo_root: Path | None = None) -> list[Violat
         module: object = parse_python_module(file_path)
         violations.extend(check_source_file_line_count(actual_repo_root, file_path))
         violations.extend(check_no_relative_imports(file_path, module))
-        violations.extend(check_no_shared_packages(actual_repo_root, file_path))
         violations.extend(
             check_no_runtime_imports_from_tooling(actual_repo_root, file_path, module)
         )
@@ -98,6 +97,7 @@ def check_paths(paths: list[Path], repo_root: Path | None = None) -> list[Violat
             check_no_internal_public_surface_imports(actual_repo_root, file_path, module)
         )
         violations.extend(check_keyword_only_parameters(actual_repo_root, file_path, module))
+        violations.extend(check_generic_package_names(actual_repo_root, file_path))
         violations.extend(check_entry_module_shape(file_path, module))
         violations.extend(check_main_public_function_shape(file_path, module))
         violations.extend(check_main_discarded_call_results(file_path, module))

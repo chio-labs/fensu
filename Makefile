@@ -14,6 +14,6 @@ check:
 	uv run python scripts/checkers/type_annotations/check_type_annotation_conventions.py src tests
 
 test:
-	uv run pytest tests -q
+	uv run pytest tests -q -n auto
 
 verify: check test

@@ -1,0 +1,27 @@
+"""Rule execution helpers."""
+
+from __future__ import annotations
+
+from strata.config.core.models import Config
+from strata.discovery.core.models import RepoRoot
+from strata.evaluation.core.classes.rule_context import EvaluationRuleContext
+from strata.evaluation.core.models import ParsedModule
+from strata.rules.authoring.models import Fault, RuleSpec
+
+
+def execute_rule(
+    *,
+    rule: RuleSpec,
+    parsed_module: ParsedModule,
+    config: Config,
+    repo_root: RepoRoot,
+) -> list[Fault]:
+    """Run one rule against one parsed module."""
+
+    ctx: EvaluationRuleContext = EvaluationRuleContext(
+        parsed_module=parsed_module,
+        config=config,
+        repo_root=repo_root,
+        rule=rule,
+    )
+    return rule.check(parsed_module.module, ctx)

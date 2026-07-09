@@ -26,6 +26,18 @@ class ScopedFile:
 
 
 @dataclass(frozen=True, slots=True)
+class PositionFacts:
+    """Computed role and package-position facts for a scoped file."""
+
+    relative_parts: tuple[str, ...]
+    domain: str | None
+    subdomain: str | None
+    role: str | None
+    is_entry_module: bool
+    is_main_module: bool
+
+
+@dataclass(frozen=True, slots=True)
 class DiscoveredTree:
     """All discovered files plus the repo root they were resolved from."""
 

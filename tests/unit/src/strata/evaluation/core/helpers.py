@@ -1,0 +1,164 @@
+"""Helpers and fake rules for evaluation tests."""
+
+from __future__ import annotations
+
+import ast
+from pathlib import Path
+from types import MappingProxyType
+
+from strata.config.core.models import Config
+from strata.discovery.core.main.discover_files import discover_files
+from strata.discovery.core.models import DiscoveredTree
+from strata.rules.authoring.models import Fault, RuleSpec
+from strata.rules.authoring.types import Family, RuleContext, Threshold
+
+
+def write_sources(*, repo_root: Path, files: tuple[tuple[str, str], ...]) -> None:
+    """Write source files under a temp repo."""
+
+    for relative_path, source in files:
+        path: Path = repo_root / relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(source, encoding="utf-8")
+
+
+def discover_test_tree(*, config: Config) -> DiscoveredTree:
+    """Discover files for an evaluation test config."""
+
+    return discover_files(config)
+
+
+def make_config_with_entry_threshold(*, roots: tuple[str, ...] = ("src/pkg",)) -> Config:
+    """Build config with a role override for entry-module threshold tests."""
+
+    return Config(
+        roots=roots,
+        role_thresholds=MappingProxyType(
+            {"main": MappingProxyType({Threshold.MAX_STATEMENTS: 30})}
+        ),
+    )
+
+
+def make_node_count_rule() -> RuleSpec:
+    """Build a fake rule that reports all call nodes via ctx.nodes."""
+
+    def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+        return [ctx.fault(node, message="call found") for node in ctx.nodes(ast.Call)]
+
+    return RuleSpec(
+        code="XEV001", family=Family.CUSTOM, slug="node-count", message="call found", check=check
+    )
+
+
+def make_threshold_rule(*, threshold: Threshold) -> RuleSpec:
+    """Build a fake rule that reports the threshold value in its message."""
+
+    def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+        node: ast.AST = module.body[0]
+        return [ctx.fault(node, message=str(ctx.threshold(threshold)))]
+
+    return RuleSpec(
+        code="XTH001", family=Family.CUSTOM, slug="threshold", message="threshold", check=check
+    )
+
+
+def make_position_rule() -> RuleSpec:
+    """Build a fake rule that reports position facts in its message."""
+
+    def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+        node: ast.AST = module.body[0]
+        message: str = f"{ctx.domain()}:{ctx.subdomain()}:{ctx.role_of()}:{ctx.is_main_module()}"
+        return [ctx.fault(node, message=message)]
+
+    return RuleSpec(
+        code="XPO001", family=Family.CUSTOM, slug="position", message="position", check=check
+    )
+
+
+def make_loop_rule() -> RuleSpec:
+    """Build a fake rule that reports calls inside loops."""
+
+    def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+        faults: list[Fault] = []
+        for node in ctx.nodes(ast.Call):
+            if isinstance(node, ast.Call) and ctx.inside_loop(node):
+                faults.append(ctx.fault(node, message=ctx.call_name(node) or "call"))
+        return faults
+
+    return RuleSpec(code="XLP001", family=Family.CUSTOM, slug="loop", message="loop", check=check)
+
+
+def make_static_fault_rule(*, code: str, line: int, message: str) -> RuleSpec:
+    """Build a fake rule that returns a static line-positioned fault."""
+
+    def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+        return [Fault(code=code, path=ctx.path, message=message, line=line, column=0)]
+
+    return RuleSpec(code=code, family=Family.CUSTOM, slug=message, message=message, check=check)
+
+
+def make_none_location_rule() -> RuleSpec:
+    """Build a fake rule returning a fault with no line/column."""
+
+    def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+        return [Fault(code="XNO001", path=ctx.path, message="none location")]
+
+    return RuleSpec(
+        code="XNO001", family=Family.CUSTOM, slug="none-location", message="none", check=check
+    )
+
+
+def make_context_property_rule() -> RuleSpec:
+    """Build a fake rule reporting source/path/root/relative context facts."""
+
+    def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+        node: ast.AST = module.body[0]
+        message: str = (
+            f"{ctx.path.name}|{ctx.repo_root.name}|{len(ctx.source)}|"
+            f"{'/'.join(ctx.relative_parts())}"
+        )
+        return [ctx.fault(node, message=message)]
+
+    return RuleSpec(
+        code="XCP001", family=Family.CUSTOM, slug="ctx-props", message="ctx", check=check
+    )
+
+
+def make_fault_factory_rule() -> RuleSpec:
+    """Build a fake rule exercising default and override fault factory fields."""
+
+    def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+        node: ast.AST = module.body[0]
+        return [
+            ctx.fault(node),
+            ctx.fault(node, message="custom message", remediation="custom remediation"),
+        ]
+
+    return RuleSpec(
+        code="XFF001",
+        family=Family.CUSTOM,
+        slug="fault-factory",
+        message="rule message",
+        remediation="rule remediation",
+        check=check,
+    )
+
+
+def make_context_ast_helper_rule() -> RuleSpec:
+    """Build a fake rule exercising ctx AST helper methods."""
+
+    def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+        fn: ast.AST = ctx.top_level_functions(module)[0]
+        call_nodes: list[ast.Call] = [
+            node for node in ctx.nodes(ast.Call) if isinstance(node, ast.Call)
+        ]
+        call: ast.Call = call_nodes[0]
+        message: str = (
+            f"{ctx.base_name(call.func) or ''}|{len(ctx.non_docstring_body(module))}|"
+            f"{len(ctx.nodes(ast.If))}|{','.join(sorted(ctx.parameter_names(fn)))}"
+        )
+        return [ctx.fault(fn, message=message)]
+
+    return RuleSpec(
+        code="XAH001", family=Family.CUSTOM, slug="ast-helpers", message="ast", check=check
+    )

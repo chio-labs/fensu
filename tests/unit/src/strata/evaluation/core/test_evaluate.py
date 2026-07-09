@@ -1,0 +1,358 @@
+"""Tests for evaluating fake rules over discovered files."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from strata.config.core.models import Config
+from strata.evaluation.core.main.evaluate import evaluate
+from strata.evaluation.core.models import EvaluationResult
+from strata.rules.authoring.types import Threshold
+from tests.unit.src.strata.evaluation.core._test_types import (
+    AstHelperContextTestCase,
+    ContextPropertyTestCase,
+    ContextThresholdTestCase,
+    EmptyEvaluationTestCase,
+    EvaluationFaultTestCase,
+    FaultFactoryTestCase,
+)
+from tests.unit.src.strata.evaluation.core.helpers import (
+    discover_test_tree,
+    make_config_with_entry_threshold,
+    make_context_ast_helper_rule,
+    make_context_property_rule,
+    make_fault_factory_rule,
+    make_loop_rule,
+    make_node_count_rule,
+    make_none_location_rule,
+    make_position_rule,
+    make_static_fault_rule,
+    make_threshold_rule,
+    write_sources,
+)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        EvaluationFaultTestCase(
+            description="rule using shared node index reports all calls",
+            files=(
+                (
+                    "src/pkg/config/core/main/load.py",
+                    "def run() -> None:\n    one()\n    two()\n",
+                ),
+            ),
+            expected_fault_codes=("XEV001", "XEV001"),
+            expected_fault_lines=(2, 3),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_ruleset_when_evaluating_then_rule_sees_shared_node_index(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: EvaluationFaultTestCase,
+) -> None:
+    write_sources(repo_root=tmp_path, files=test_case.files)
+    monkeypatch.chdir(tmp_path)
+    config: Config = Config(roots=("src/pkg",))
+
+    result: EvaluationResult = evaluate(
+        tree=discover_test_tree(config=config),
+        ruleset=(make_node_count_rule(),),
+        config=config,
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_fault_codes
+    assert tuple(fault.line for fault in result.faults) == test_case.expected_fault_lines
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        EmptyEvaluationTestCase(
+            description="empty ruleset returns no faults",
+            files=(("src/pkg/config/core/models.py", "x: int = 1\n"),),
+            expected_fault_count=0,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_empty_ruleset_when_evaluating_then_returns_no_faults(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: EmptyEvaluationTestCase,
+) -> None:
+    write_sources(repo_root=tmp_path, files=test_case.files)
+    monkeypatch.chdir(tmp_path)
+    config: Config = Config(roots=("src/pkg",))
+
+    result: EvaluationResult = evaluate(
+        tree=discover_test_tree(config=config),
+        ruleset=(),
+        config=config,
+    )
+
+    assert len(result.faults) == test_case.expected_fault_count
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ContextPropertyTestCase(
+            description="context exposes path root source and relative parts",
+            file_path="src/pkg/config/core/models.py",
+            source="value: int = 1\n",
+            expected_message_prefix="models.py|",
+            expected_message_suffix="|config/core/models.py",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_context_when_reading_properties_then_reports_expected_file_facts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: ContextPropertyTestCase,
+) -> None:
+    write_sources(repo_root=tmp_path, files=((test_case.file_path, test_case.source),))
+    monkeypatch.chdir(tmp_path)
+    config: Config = Config(roots=("src/pkg",))
+
+    result: EvaluationResult = evaluate(
+        tree=discover_test_tree(config=config),
+        ruleset=(make_context_property_rule(),),
+        config=config,
+    )
+
+    assert result.faults[0].message.startswith(test_case.expected_message_prefix)
+    assert result.faults[0].message.endswith(test_case.expected_message_suffix)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        FaultFactoryTestCase(
+            description="fault factory uses defaults and explicit overrides",
+            source="value: int = 1\n",
+            expected_messages=("rule message", "custom message"),
+            expected_remediations=("rule remediation", "custom remediation"),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_context_when_creating_faults_then_defaults_and_overrides_are_applied(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: FaultFactoryTestCase,
+) -> None:
+    write_sources(repo_root=tmp_path, files=(("src/pkg/config/core/models.py", test_case.source),))
+    monkeypatch.chdir(tmp_path)
+    config: Config = Config(roots=("src/pkg",))
+
+    result: EvaluationResult = evaluate(
+        tree=discover_test_tree(config=config),
+        ruleset=(make_fault_factory_rule(),),
+        config=config,
+    )
+
+    assert tuple(fault.message for fault in result.faults) == test_case.expected_messages
+    assert tuple(fault.remediation for fault in result.faults) == test_case.expected_remediations
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ContextThresholdTestCase(
+            description="role threshold override is used for main files",
+            file_path="src/pkg/config/core/main/load.py",
+            threshold=Threshold.MAX_STATEMENTS,
+            expected_threshold=30,
+        ),
+        ContextThresholdTestCase(
+            description="global threshold is used when role has no override",
+            file_path="src/pkg/config/core/helpers/load.py",
+            threshold=Threshold.MAX_STATEMENTS,
+            expected_threshold=40,
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_context_when_reading_threshold_then_returns_role_or_global_value(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: ContextThresholdTestCase,
+) -> None:
+    write_sources(repo_root=tmp_path, files=((test_case.file_path, "x: int = 1\n"),))
+    monkeypatch.chdir(tmp_path)
+    config: Config = make_config_with_entry_threshold()
+
+    result: EvaluationResult = evaluate(
+        tree=discover_test_tree(config=config),
+        ruleset=(make_threshold_rule(threshold=test_case.threshold),),
+        config=config,
+    )
+
+    assert result.faults[0].message == str(test_case.expected_threshold)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        EvaluationFaultTestCase(
+            description="position helpers reflect current file",
+            files=(
+                (
+                    "src/pkg/config/core/main/load.py",
+                    "x: int = 1\n",
+                ),
+            ),
+            expected_fault_codes=("XPO001",),
+            expected_fault_lines=(1,),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_context_when_reading_position_then_reports_current_file_facts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: EvaluationFaultTestCase,
+) -> None:
+    write_sources(repo_root=tmp_path, files=test_case.files)
+    monkeypatch.chdir(tmp_path)
+    config: Config = Config(roots=("src/pkg",))
+
+    result: EvaluationResult = evaluate(
+        tree=discover_test_tree(config=config),
+        ruleset=(make_position_rule(),),
+        config=config,
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_fault_codes
+    assert tuple(fault.line for fault in result.faults) == test_case.expected_fault_lines
+    assert result.faults[0].message == "config:core:main:True"
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        EvaluationFaultTestCase(
+            description="inside loop helper finds loop-contained call",
+            files=(
+                (
+                    "src/pkg/config/core/main/load.py",
+                    "def run() -> None:\n    outside()\n    for item in []:\n        inside()\n",
+                ),
+            ),
+            expected_fault_codes=("XLP001",),
+            expected_fault_lines=(4,),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_context_when_checking_loop_membership_then_reports_only_loop_calls(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: EvaluationFaultTestCase,
+) -> None:
+    write_sources(repo_root=tmp_path, files=test_case.files)
+    monkeypatch.chdir(tmp_path)
+    config: Config = Config(roots=("src/pkg",))
+
+    result: EvaluationResult = evaluate(
+        tree=discover_test_tree(config=config),
+        ruleset=(make_loop_rule(),),
+        config=config,
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_fault_codes
+    assert tuple(fault.line for fault in result.faults) == test_case.expected_fault_lines
+    assert result.faults[0].message == "inside"
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        AstHelperContextTestCase(
+            description="context ast helpers expose base name body functions and missing node buckets",
+            files=(
+                (
+                    "src/pkg/config/core/main/load.py",
+                    '"doc"\ndef run(value: int) -> None:\n    svc.client.call(value)\n',
+                ),
+            ),
+            expected_fault_codes=("XAH001",),
+            expected_fault_lines=(2,),
+            expected_message="svc|1|0|value",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_context_when_reading_ast_helpers_then_reports_expected_facts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: AstHelperContextTestCase,
+) -> None:
+    write_sources(repo_root=tmp_path, files=test_case.files)
+    monkeypatch.chdir(tmp_path)
+    config: Config = Config(roots=("src/pkg",))
+
+    result: EvaluationResult = evaluate(
+        tree=discover_test_tree(config=config),
+        ruleset=(make_context_ast_helper_rule(),),
+        config=config,
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_fault_codes
+    assert tuple(fault.line for fault in result.faults) == test_case.expected_fault_lines
+    assert result.faults[0].message == test_case.expected_message
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        EvaluationFaultTestCase(
+            description="faults are sorted by path line column and code",
+            files=(
+                ("src/pkg/b.py", "x: int = 1\n"),
+                ("src/pkg/a.py", "x: int = 1\n"),
+            ),
+            expected_fault_codes=("XNO001", "XAA001", "XBB001", "XNO001", "XAA001", "XBB001"),
+            expected_fault_lines=(None, 1, 2, None, 1, 2),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_unsorted_faults_when_evaluating_then_returns_stable_sorted_faults(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: EvaluationFaultTestCase,
+) -> None:
+    write_sources(repo_root=tmp_path, files=test_case.files)
+    monkeypatch.chdir(tmp_path)
+    config: Config = Config(roots=("src/pkg",))
+
+    result: EvaluationResult = evaluate(
+        tree=discover_test_tree(config=config),
+        ruleset=(
+            make_none_location_rule(),
+            make_static_fault_rule(code="XBB001", line=2, message="b"),
+            make_static_fault_rule(code="XAA001", line=1, message="a"),
+        ),
+        config=config,
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_fault_codes
+    assert tuple(fault.line for fault in result.faults) == test_case.expected_fault_lines
+    assert result.faults[0].line is None
+    assert result.faults[0].column is None
+    assert tuple(fault.path.name for fault in result.faults) == (
+        "a.py",
+        "a.py",
+        "a.py",
+        "b.py",
+        "b.py",
+        "b.py",
+    )

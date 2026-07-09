@@ -22,7 +22,7 @@ def write_cli_fixture_project(*, root: Path, rule_code: str) -> None:
 
     (root / "src" / "pkg").mkdir(parents=True)
     (root / "rules").mkdir()
-    (root / "src" / "pkg" / "target.py").write_text("value = 1\n", encoding="utf-8")
+    (root / "src" / "pkg" / "target.py").write_text("value: int = 1\n", encoding="utf-8")
     (root / "strata.toml").write_text(
         (f'roots = ["src"]\nselect = ["{rule_code}"]\nrule_paths = ["rules/custom_rule.py"]\n'),
         encoding="utf-8",
@@ -48,5 +48,5 @@ def write_cli_no_fault_project(root: Path) -> None:
     """Write a tiny project with no selected rules."""
 
     (root / "src" / "pkg").mkdir(parents=True)
-    (root / "src" / "pkg" / "target.py").write_text("value = 1\n", encoding="utf-8")
+    (root / "src" / "pkg" / "target.py").write_text("value: int = 1\n", encoding="utf-8")
     (root / "strata.toml").write_text('roots = ["src"]\n', encoding="utf-8")

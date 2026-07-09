@@ -27,7 +27,7 @@ from tests.unit.src.strata.cli.main.helpers import (
                 "XCK001  custom fault\n"
                 " --> src/pkg/target.py:1:0\n"
                 "  |\n"
-                "1 | value = 1\n"
+                "1 | value: int = 1\n"
                 "  | ^\n"
                 "  |\n"
                 "\n"

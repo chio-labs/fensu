@@ -166,3 +166,8 @@ class EvaluationRuleContext:
             if role_thresholds is not None and name in role_thresholds:
                 return role_thresholds[name]
         return self._config.thresholds[name]
+
+    def contracts(self) -> Mapping[str, str]:
+        """Return configured function-name behavior contracts."""
+
+        return self._config.contracts

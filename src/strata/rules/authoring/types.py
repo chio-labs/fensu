@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import ast
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
@@ -153,6 +153,10 @@ class RuleContext(Protocol):
 
     def threshold(self, name: Threshold) -> int:
         """The applicable value for a named threshold on the current file."""
+        ...
+
+    def contracts(self) -> Mapping[str, str]:
+        """The configured function-name behavior contracts."""
         ...
 
 

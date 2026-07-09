@@ -21,7 +21,7 @@ def absolute_imports_only(*, module: ast.Module, ctx: RuleContext) -> list[Fault
     """Reject relative imports."""
 
     faults: list[Fault] = []
-    for node in ast.walk(module):
+    for node in ctx.nodes(ast.ImportFrom):
         if isinstance(node, ast.ImportFrom) and node.level > 0:
             faults.append(ctx.fault(node))
     return faults
@@ -32,7 +32,7 @@ def no_star_imports(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
 
     return [
         ctx.fault(node)
-        for node in ast.walk(module)
+        for node in ctx.nodes(ast.ImportFrom)
         if isinstance(node, ast.ImportFrom) and any(alias.name == "*" for alias in node.names)
     ]
 
@@ -44,7 +44,7 @@ def no_sibling_package_internals(*, module: ast.Module, ctx: RuleContext) -> lis
         path=ctx.path, repo_root=ctx.repo_root
     )
     faults: list[Fault] = []
-    for node in ast.walk(module):
+    for node in (*ctx.nodes(ast.ImportFrom), *ctx.nodes(ast.Import)):
         if isinstance(node, ast.ImportFrom) and node.level == 0:
             if is_sibling_internal_import(
                 current_module_parts=current_module_parts, imported_parts=import_from_parts(node)
@@ -68,7 +68,7 @@ def no_cross_package_internals(*, module: ast.Module, ctx: RuleContext) -> list[
         path=ctx.path, repo_root=ctx.repo_root
     )
     faults: list[Fault] = []
-    for node in ast.walk(module):
+    for node in (*ctx.nodes(ast.ImportFrom), *ctx.nodes(ast.Import)):
         if isinstance(node, ast.ImportFrom) and node.level == 0:
             if is_cross_package_internal_import(
                 current_module_parts=current_module_parts, imported_parts=import_from_parts(node)
@@ -92,7 +92,7 @@ def no_internal_public_surface_imports(*, module: ast.Module, ctx: RuleContext) 
         return []
     package_name: str = ctx.path.parents[len(ctx.relative_parts()) - 1].name
     faults: list[Fault] = []
-    for node in ast.walk(module):
+    for node in (*ctx.nodes(ast.ImportFrom), *ctx.nodes(ast.Import)):
         if isinstance(node, ast.ImportFrom) and node.level == 0 and node.module == package_name:
             faults.append(ctx.fault(node))
         elif isinstance(node, ast.Import) and any(
@@ -119,7 +119,7 @@ def no_runtime_imports_from_tooling(*, module: ast.Module, ctx: RuleContext) -> 
     if ctx.scope() != "root":
         return []
     faults: list[Fault] = []
-    for node in ast.walk(module):
+    for node in (*ctx.nodes(ast.ImportFrom), *ctx.nodes(ast.Import)):
         if isinstance(node, ast.ImportFrom) and node.level == 0:
             if import_path_targets_tooling(imported_parts=import_from_parts(node)):
                 faults.append(ctx.fault(node))

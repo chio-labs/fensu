@@ -16,7 +16,7 @@ def validator_must_not_return(*, module: ast.Module, ctx: RuleContext) -> list[F
         pattern for pattern, behavior in ctx.contracts().items() if behavior == "no-return"
     )
     faults: list[Fault] = []
-    for node in ast.walk(module):
+    for node in (*ctx.nodes(ast.FunctionDef), *ctx.nodes(ast.AsyncFunctionDef)):
         if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
             continue
         if not any(fnmatchcase(node.name, pattern) for pattern in patterns):

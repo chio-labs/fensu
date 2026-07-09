@@ -7,15 +7,20 @@ from pathlib import Path
 import pytest
 
 from strata.config.core.models import Config
+from strata.discovery.core.main.position import position_facts
+from strata.discovery.core.main.route import families_for_scope
+from strata.discovery.core.models import PositionFacts, ScopedFile
+from strata.evaluation.core.helpers.parsing import parse_scoped_file
 from strata.evaluation.core.main.evaluate import evaluate
-from strata.evaluation.core.models import EvaluationResult
-from strata.rules.authoring.types import Threshold
+from strata.evaluation.core.models import EvaluationResult, ParsedModule
+from strata.rules.authoring.types import Family, Threshold
 from tests.unit.src.strata.evaluation.core._test_types import (
     AstHelperContextTestCase,
     ContextPropertyTestCase,
     ContextThresholdTestCase,
     EmptyEvaluationTestCase,
     EvaluationFaultTestCase,
+    EvaluationOperationTestCase,
     FaultFactoryTestCase,
 )
 from tests.unit.src.strata.evaluation.core.helpers import (
@@ -33,6 +38,61 @@ from tests.unit.src.strata.evaluation.core.helpers import (
     make_threshold_rule,
     write_sources,
 )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        EvaluationOperationTestCase(
+            description="parse position and routing execute once per file",
+            files=(
+                ("src/pkg/config/core/models.py", "value: int = 1\n"),
+                ("src/pkg/config/core/types.py", "from typing import TypeAlias\n"),
+            ),
+            expected_parse_count=2,
+            expected_position_count=2,
+            expected_routing_count=2,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_multiple_rules_when_evaluating_then_file_facts_are_computed_once(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: EvaluationOperationTestCase,
+) -> None:
+    write_sources(repo_root=tmp_path, files=test_case.files)
+    monkeypatch.chdir(tmp_path)
+    config: Config = Config(roots=("src/pkg",))
+    parse_counts: list[int] = [0]
+    position_counts: list[int] = [0]
+    routing_counts: list[int] = [0]
+
+    def count_parse(scoped_file: ScopedFile) -> ParsedModule:
+        parse_counts[0] += 1
+        return parse_scoped_file(scoped_file)
+
+    def count_position(scoped_file: ScopedFile) -> PositionFacts:
+        position_counts[0] += 1
+        return position_facts(scoped_file)
+
+    def count_routing(*, scoped_file: ScopedFile) -> frozenset[Family]:
+        routing_counts[0] += 1
+        return families_for_scope(scoped_file=scoped_file)
+
+    monkeypatch.setattr("strata.evaluation.core.main.evaluate.parse_scoped_file", count_parse)
+    monkeypatch.setattr("strata.evaluation.core.helpers.parsing.position_facts", count_position)
+    monkeypatch.setattr("strata.evaluation.core.main.evaluate.families_for_scope", count_routing)
+
+    _result: EvaluationResult = evaluate(
+        tree=discover_test_tree(config=config),
+        ruleset=(make_runtime_fault_rule(), make_runtime_fault_rule()),
+        config=config,
+    )
+
+    assert parse_counts[0] == test_case.expected_parse_count
+    assert position_counts[0] == test_case.expected_position_count
+    assert routing_counts[0] == test_case.expected_routing_count
 
 
 @pytest.mark.parametrize(

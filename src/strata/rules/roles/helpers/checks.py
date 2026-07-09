@@ -108,7 +108,7 @@ def model_declaration_outside_models(*, module: ast.Module, ctx: RuleContext) ->
         return []
     return [
         ctx.fault(node)
-        for node in ast.walk(module)
+        for node in ctx.nodes(ast.ClassDef)
         if isinstance(node, ast.ClassDef) and is_model_class(node)
     ]
 
@@ -119,7 +119,13 @@ def type_declaration_outside_types(*, module: ast.Module, ctx: RuleContext) -> l
     if ctx.role_of() == "types":
         return []
     faults: list[Fault] = []
-    for node in ast.walk(module):
+    nodes: tuple[ast.AST, ...] = (
+        *ctx.nodes(ast.ClassDef),
+        *ctx.nodes(ast.Assign),
+        *ctx.nodes(ast.AnnAssign),
+        *ctx.nodes(ast.TypeAlias),
+    )
+    for node in nodes:
         if isinstance(node, ast.ClassDef) and is_type_class(node):
             if node.name.startswith("_") and ctx.in_role("helpers"):
                 continue
@@ -153,7 +159,7 @@ def exception_declaration_outside_exceptions(
         return []
     return [
         ctx.fault(node)
-        for node in ast.walk(module)
+        for node in ctx.nodes(ast.ClassDef)
         if isinstance(node, ast.ClassDef) and is_exception_class(node)
     ]
 

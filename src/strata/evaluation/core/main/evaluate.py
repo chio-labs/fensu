@@ -24,10 +24,9 @@ def evaluate(
     faults: list[Fault] = []
     for scoped_file in tree.files:
         parsed_module: ParsedModule = _parse_file(scoped_file=scoped_file)
+        applicable_families: frozenset[Family] = families_for_scope(scoped_file=scoped_file)
         for rule in ruleset:
-            if rule.family != Family.CUSTOM and rule.family not in families_for_scope(
-                scoped_file=scoped_file
-            ):
+            if rule.family != Family.CUSTOM and rule.family not in applicable_families:
                 continue
             faults.extend(
                 execute_rule(

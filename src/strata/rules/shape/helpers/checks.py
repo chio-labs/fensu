@@ -67,7 +67,7 @@ def max_arguments(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
 
     limit: int = ctx.threshold(Threshold.MAX_ARGUMENTS)
     faults: list[Fault] = []
-    for function_node in _function_nodes(module):
+    for function_node in _function_nodes(ctx):
         count: int = len(_parameter_names(function_node))
         if count > limit:
             faults.append(ctx.fault(function_node, message=f"function has {count} parameters"))
@@ -79,7 +79,7 @@ def max_statements_global(*, module: ast.Module, ctx: RuleContext) -> list[Fault
 
     limit: int = ctx.threshold(Threshold.MAX_STATEMENTS_GLOBAL)
     faults: list[Fault] = []
-    for function_node in _function_nodes(module):
+    for function_node in _function_nodes(ctx):
         count: int = _statement_count(function_node)
         if count > limit:
             faults.append(ctx.fault(function_node, message=f"function has {count} statements"))
@@ -127,7 +127,7 @@ def keyword_only_arguments(*, module: ast.Module, ctx: RuleContext) -> list[Faul
 
     limit: int = ctx.threshold(Threshold.MAX_POSITIONAL_ARGS)
     faults: list[Fault] = []
-    for function_node in _function_nodes(module):
+    for function_node in _function_nodes(ctx):
         if _function_is_dunder(function_node):
             continue
         count: int = len(
@@ -166,7 +166,7 @@ def _parameter_mutation_faults(
     *, module: ast.Module, ctx: RuleContext, require_return: bool
 ) -> list[Fault]:
     faults: list[Fault] = []
-    for function_node in _function_nodes(module):
+    for function_node in _function_nodes(ctx):
         if _function_is_exempt_from_mutation_return(function_node):
             continue
         parameter_names: frozenset[str] = _parameter_names(function_node)
@@ -200,10 +200,10 @@ def _top_level_function_nodes(
     )
 
 
-def _function_nodes(module: ast.Module) -> tuple[ast.FunctionDef | ast.AsyncFunctionDef, ...]:
+def _function_nodes(ctx: RuleContext) -> tuple[ast.FunctionDef | ast.AsyncFunctionDef, ...]:
     return tuple(
         node
-        for node in ast.walk(module)
+        for node in (*ctx.nodes(ast.FunctionDef), *ctx.nodes(ast.AsyncFunctionDef))
         if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
     )
 

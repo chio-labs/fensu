@@ -28,6 +28,28 @@ def discover_test_tree(*, config: Config) -> DiscoveredTree:
     return discover_files(config)
 
 
+def direct_module_walk_paths(*, root: Path) -> tuple[str, ...]:
+    """Return rule files that directly call ast.walk(module)."""
+
+    paths: list[str] = []
+    for path in sorted(root.rglob("*.py")):
+        module: ast.Module = ast.parse(path.read_text(encoding="utf-8"))
+        has_direct_module_walk: bool = any(
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "ast"
+            and node.func.attr == "walk"
+            and len(node.args) == 1
+            and isinstance(node.args[0], ast.Name)
+            and node.args[0].id == "module"
+            for node in ast.walk(module)
+        )
+        if has_direct_module_walk:
+            paths.append(str(path))
+    return tuple(paths)
+
+
 def make_config_with_entry_threshold(*, roots: tuple[str, ...] = ("src/pkg",)) -> Config:
     """Build config with a role override for entry-module threshold tests."""
 

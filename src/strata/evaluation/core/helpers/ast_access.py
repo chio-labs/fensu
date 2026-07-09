@@ -3,27 +3,25 @@
 from __future__ import annotations
 
 import ast
-from collections import defaultdict
+from collections import defaultdict, deque
 from collections.abc import Mapping
 
 
-def build_node_index(module: ast.Module) -> Mapping[type[ast.AST], tuple[ast.AST, ...]]:
-    """Build a shared node index with one AST walk."""
+def build_ast_indexes(
+    module: ast.Module,
+) -> tuple[Mapping[type[ast.AST], tuple[ast.AST, ...]], Mapping[ast.AST, ast.AST]]:
+    """Build node-type and parent indexes in one breadth-first traversal."""
 
     index: defaultdict[type[ast.AST], list[ast.AST]] = defaultdict(list)
-    for node in ast.walk(module):
-        index[type(node)].append(node)
-    return {node_type: tuple(nodes) for node_type, nodes in index.items()}
-
-
-def build_parent_map(module: ast.Module) -> Mapping[ast.AST, ast.AST]:
-    """Build child -> parent links for context-sensitive helpers."""
-
     parents: dict[ast.AST, ast.AST] = {}
-    for parent in ast.walk(module):
-        for child in ast.iter_child_nodes(parent):
-            parents[child] = parent
-    return parents
+    pending: deque[ast.AST] = deque((module,))
+    while pending:
+        node: ast.AST = pending.popleft()
+        index[type(node)].append(node)
+        for child in ast.iter_child_nodes(node):
+            parents[child] = node
+            pending.append(child)
+    return {node_type: tuple(nodes) for node_type, nodes in index.items()}, parents
 
 
 def call_name(node: ast.Call) -> str | None:

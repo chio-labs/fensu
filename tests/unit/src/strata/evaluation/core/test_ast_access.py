@@ -3,11 +3,18 @@
 from __future__ import annotations
 
 import ast
+from collections.abc import Callable, Iterator
+from pathlib import Path
 
 import pytest
 
 from strata.evaluation.core.helpers import ast_access
-from tests.unit.src.strata.evaluation.core._test_types import AstAccessTestCase
+from tests.unit.src.strata.evaluation.core._test_types import (
+    AstAccessTestCase,
+    AstIndexTestCase,
+    CoreWalkTestCase,
+)
+from tests.unit.src.strata.evaluation.core.helpers import direct_module_walk_paths
 
 
 @pytest.mark.parametrize(
@@ -36,8 +43,62 @@ def test_given_module_when_reading_ast_helpers_then_returns_expected_facts(
     module: ast.Module = ast.parse(test_case.source)
     fn: ast.AST = ast_access.top_level_functions(module)[0]
 
-    assert len(ast_access.build_node_index(module)[ast.Call]) == test_case.expected_call_count
+    node_index, _ = ast_access.build_ast_indexes(module)
+
+    assert len(node_index[ast.Call]) == test_case.expected_call_count
     assert ast_access.distinct_callees(fn) == test_case.expected_distinct_callees
     assert ast_access.assigned_locals(fn) == test_case.expected_assigned_locals
     assert ast_access.parameter_names(fn) == test_case.expected_parameter_names
     assert len(ast_access.non_docstring_body(module)) == 1
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        AstIndexTestCase(
+            description="node and parent indexes share one child traversal",
+            source="def run(value: int) -> int:\n    return transform(value)\n",
+            expected_node_count=14,
+            expected_parent_count=10,
+            expected_child_scan_count=14,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_module_when_building_indexes_then_visits_each_node_once(
+    monkeypatch: pytest.MonkeyPatch,
+    test_case: AstIndexTestCase,
+) -> None:
+    module: ast.Module = ast.parse(test_case.source)
+    original_iter_child_nodes: Callable[[ast.AST], Iterator[ast.AST]] = ast.iter_child_nodes
+    child_scan_counts: list[int] = [0]
+
+    def count_child_scan(node: ast.AST) -> tuple[ast.AST, ...]:
+        child_scan_counts[0] += 1
+        return tuple(original_iter_child_nodes(node))
+
+    monkeypatch.setattr(ast, "iter_child_nodes", count_child_scan)
+
+    node_index, parent_by_node = ast_access.build_ast_indexes(module)
+
+    assert sum(len(nodes) for nodes in node_index.values()) == test_case.expected_node_count
+    assert len(parent_by_node) == test_case.expected_parent_count
+    assert child_scan_counts[0] == test_case.expected_child_scan_count
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CoreWalkTestCase(
+            description="core rule module walks are limited to stateful import analysis",
+            expected_paths=("src/strata/rules/layers/helpers/imports.py",),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_core_rules_when_inspecting_walks_then_only_holistic_analysis_walks_module(
+    test_case: CoreWalkTestCase,
+) -> None:
+    direct_walk_paths: tuple[str, ...] = direct_module_walk_paths(root=Path("src/strata/rules"))
+
+    assert direct_walk_paths == test_case.expected_paths

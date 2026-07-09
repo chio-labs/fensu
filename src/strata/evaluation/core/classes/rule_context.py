@@ -7,7 +7,6 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from strata.config.core.models import Config
-from strata.discovery.core.main.position import position_facts
 from strata.discovery.core.models import RepoRoot
 from strata.discovery.core.types import ScopeName
 from strata.evaluation.core.helpers import ast_access
@@ -85,7 +84,7 @@ class EvaluationRuleContext:
 
         if path is not None and path != self.path:
             return None
-        return position_facts(self._parsed_module.scoped_file).role
+        return self._parsed_module.position.role
 
     def in_role(self, role: str) -> bool:
         """Whether the current file is within the given role."""
@@ -95,22 +94,22 @@ class EvaluationRuleContext:
     def is_entry_module(self) -> bool:
         """Whether the current file is a main/ entry module."""
 
-        return position_facts(self._parsed_module.scoped_file).is_entry_module
+        return self._parsed_module.position.is_entry_module
 
     def is_main_module(self) -> bool:
         """Whether the current file is within a main/ package."""
 
-        return position_facts(self._parsed_module.scoped_file).is_main_module
+        return self._parsed_module.position.is_main_module
 
     def domain(self) -> str | None:
         """The top-level domain of the current file, if any."""
 
-        return position_facts(self._parsed_module.scoped_file).domain
+        return self._parsed_module.position.domain
 
     def subdomain(self) -> str | None:
         """The subdomain of the current file, if any."""
 
-        return position_facts(self._parsed_module.scoped_file).subdomain
+        return self._parsed_module.position.subdomain
 
     def nodes(self, node_type: type[ast.AST]) -> list[ast.AST]:
         """Nodes of the given type from the shared single-pass index."""

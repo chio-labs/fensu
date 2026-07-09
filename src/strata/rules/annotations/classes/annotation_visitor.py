@@ -22,8 +22,27 @@ class AnnotationVisitor(ast.NodeVisitor):
     def collect(self, module: ast.Module) -> list[Fault]:
         """Visit a module and return collected faults."""
 
+        if self._code == AnnotationCode.MODULE_VARIABLE_ANNOTATION:
+            self._collect_module_assignments(module)
+            return self._faults
+        if self._code == AnnotationCode.CLASS_ATTRIBUTE_ANNOTATION:
+            self._collect_class_assignments()
+            return self._faults
         self.visit(module)
         return self._faults
+
+    def _collect_module_assignments(self, module: ast.Module) -> None:
+        for statement in module.body:
+            if isinstance(statement, ast.Assign | ast.AugAssign):
+                self._check_module_assignment(statement)
+
+    def _collect_class_assignments(self) -> None:
+        for node in self._ctx.nodes(ast.ClassDef):
+            if not isinstance(node, ast.ClassDef) or _is_enum_class(node):
+                continue
+            for statement in node.body:
+                if isinstance(statement, ast.Assign | ast.AugAssign):
+                    self._check_class_assignment(statement)
 
     def visit_Module(self, node: ast.Module) -> None:
         for statement in node.body:

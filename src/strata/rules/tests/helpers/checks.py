@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import ast
+import os
 import re
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 
 from strata.rules.authoring.models import Fault
@@ -157,7 +159,7 @@ def _init_module_faults(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
 def _relative_import_faults(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     return [
         ctx.fault(node)
-        for node in ast.walk(module)
+        for node in ctx.nodes(ast.ImportFrom)
         if isinstance(node, ast.ImportFrom) and node.level > 0
     ]
 
@@ -193,7 +195,17 @@ def _scenario_models_faults(*, module: ast.Module, ctx: RuleContext) -> list[Fau
 
 
 def _test_file_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) -> list[Fault]:
-    local_test_types: _LocalTestTypes = _local_test_types(path=ctx.path, repo_root=ctx.repo_root)
+    local_test_types: _LocalTestTypes | None = None
+    if code in {
+        SftCode.LOCAL_TEST_TYPES_IMPORT,
+        SftCode.TEST_CASE_ANNOTATION,
+        SftCode.LOCAL_TEST_CASE_CONSTRUCTORS,
+    } and _is_test_module(ctx.path):
+        local_test_types = _local_test_types(
+            path=ctx.path,
+            repo_root=ctx.repo_root,
+            inspect_dataclasses=code != SftCode.LOCAL_TEST_TYPES_IMPORT,
+        )
     module_context: _TestModuleContext = _module_context(
         module=module, ctx=ctx, local_test_types=local_test_types
     )
@@ -214,7 +226,7 @@ def _test_file_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) ->
     faults.extend(
         _local_import_faults(module=module, ctx=ctx, code=code, local_test_types=local_test_types)
     )
-    for node in ast.walk(module):
+    for node in (*ctx.nodes(ast.FunctionDef), *ctx.nodes(ast.AsyncFunctionDef)):
         if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and node.name.startswith(
             "test_"
         ):
@@ -254,9 +266,13 @@ def _module_shape_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode)
 
 
 def _local_import_faults(
-    *, module: ast.Module, ctx: RuleContext, code: SftCode, local_test_types: _LocalTestTypes
+    *,
+    module: ast.Module,
+    ctx: RuleContext,
+    code: SftCode,
+    local_test_types: _LocalTestTypes | None,
 ) -> list[Fault]:
-    if code != SftCode.LOCAL_TEST_TYPES_IMPORT:
+    if code != SftCode.LOCAL_TEST_TYPES_IMPORT or local_test_types is None:
         return []
     faults: list[Fault] = []
     expected_module: str = local_test_types.module_name
@@ -367,26 +383,51 @@ def _parametrize_faults(
     return faults
 
 
-def _local_test_types(*, path: Path, repo_root: Path) -> _LocalTestTypes:
+def _local_test_types(*, path: Path, repo_root: Path, inspect_dataclasses: bool) -> _LocalTestTypes:
     test_types_path: Path = path.parent / "_test_types.py"
-    dataclass_names: set[str] = set()
-    if test_types_path.is_file():
-        try:
-            module: ast.Module = ast.parse(test_types_path.read_text(encoding="utf-8"))
-        except SyntaxError:
-            module = ast.Module(body=[], type_ignores=[])
-        for node in module.body:
-            if isinstance(node, ast.ClassDef) and _has_dataclass_decorator(node):
-                dataclass_names.add(node.name)
+    dataclass_names: frozenset[str] = frozenset()
+    if inspect_dataclasses and test_types_path.is_file():
+        file_stat: os.stat_result = test_types_path.stat()
+        source: str = _test_types_source(
+            path=test_types_path,
+            modified_ns=file_stat.st_mtime_ns,
+            changed_ns=file_stat.st_ctime_ns,
+            size=file_stat.st_size,
+        )
+        dataclass_names = _dataclass_names(source)
     return _LocalTestTypes(
         module_name=_module_name_for_file(path=test_types_path, repo_root=repo_root),
-        dataclass_names=frozenset(dataclass_names),
+        dataclass_names=dataclass_names,
+    )
+
+
+@lru_cache(maxsize=512)
+def _test_types_source(*, path: Path, modified_ns: int, changed_ns: int, size: int) -> str:
+    del modified_ns, changed_ns, size
+    return path.read_text(encoding="utf-8")
+
+
+@lru_cache(maxsize=512)
+def _dataclass_names(source: str) -> frozenset[str]:
+    try:
+        module: ast.Module = ast.parse(source)
+    except SyntaxError:
+        return frozenset()
+    return frozenset(
+        node.name
+        for node in module.body
+        if isinstance(node, ast.ClassDef) and _has_dataclass_decorator(node)
     )
 
 
 def _module_context(
-    *, module: ast.Module, ctx: RuleContext, local_test_types: _LocalTestTypes
+    *, module: ast.Module, ctx: RuleContext, local_test_types: _LocalTestTypes | None
 ) -> _TestModuleContext:
+    if local_test_types is None:
+        return _TestModuleContext(
+            imported_local_test_case_types=frozenset(),
+            test_case_annotation_names=frozenset(),
+        )
     imported: set[str] = set()
     for node in module.body:
         if isinstance(node, ast.ImportFrom) and node.module == local_test_types.module_name:

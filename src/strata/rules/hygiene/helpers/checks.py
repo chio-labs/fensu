@@ -43,7 +43,7 @@ def single_line_docstrings(*, module: ast.Module, ctx: RuleContext) -> list[Faul
     """Flag docstrings spanning more than one line."""
 
     faults: list[Fault] = []
-    for node in _docstring_bearing_nodes(module):
+    for node in _docstring_bearing_nodes(module=module, ctx=ctx):
         body: list[ast.stmt] | None = getattr(node, "body", None)
         if not body:
             continue
@@ -114,10 +114,10 @@ def no_swallowed_exception_probe(*, module: ast.Module, ctx: RuleContext) -> lis
     return faults
 
 
-def _docstring_bearing_nodes(module: ast.Module) -> tuple[ast.AST, ...]:
+def _docstring_bearing_nodes(*, module: ast.Module, ctx: RuleContext) -> tuple[ast.AST, ...]:
     return (
         module,
-        *(node for node in ast.walk(module) if isinstance(node, _docstring_bearing_node_types)),
+        *(node for node_type in _docstring_bearing_node_types for node in ctx.nodes(node_type)),
     )
 
 

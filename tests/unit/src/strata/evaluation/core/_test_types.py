@@ -20,6 +20,25 @@ class AstAccessTestCase:
 
 
 @dataclass(frozen=True)
+class AstIndexTestCase:
+    """Expected operation counts from combined AST index construction."""
+
+    description: str
+    source: str
+    expected_node_count: int
+    expected_parent_count: int
+    expected_child_scan_count: int
+
+
+@dataclass(frozen=True)
+class CoreWalkTestCase:
+    """Expected core rule modules retaining a deliberate full-module AST walk."""
+
+    description: str
+    expected_paths: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class EvaluationFaultTestCase:
     """Source files and expected sorted fault render facts."""
 
@@ -78,6 +97,17 @@ class EmptyEvaluationTestCase:
     description: str
     files: tuple[tuple[str, str], ...]
     expected_fault_count: int
+
+
+@dataclass(frozen=True)
+class EvaluationOperationTestCase:
+    """Source files and expected once-per-file engine operation counts."""
+
+    description: str
+    files: tuple[tuple[str, str], ...]
+    expected_parse_count: int
+    expected_position_count: int
+    expected_routing_count: int
 
 
 @dataclass(frozen=True)

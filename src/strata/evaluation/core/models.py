@@ -6,7 +6,7 @@ import ast
 from collections.abc import Mapping
 from dataclasses import dataclass
 
-from strata.discovery.core.models import ScopedFile
+from strata.discovery.core.models import PositionFacts, ScopedFile
 from strata.rules.authoring.models import Fault
 
 
@@ -19,6 +19,7 @@ class ParsedModule:
     source: str
     node_index: Mapping[type[ast.AST], tuple[ast.AST, ...]]
     parent_by_node: Mapping[ast.AST, ast.AST]
+    position: PositionFacts
 
 
 @dataclass(frozen=True, slots=True)

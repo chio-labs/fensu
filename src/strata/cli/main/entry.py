@@ -2,9 +2,16 @@
 
 from __future__ import annotations
 
+import sys
 
-def main() -> int:
-    """Run the strata CLI (placeholder until the check pipeline lands)."""
+from strata.cli.main.check import run_check
 
-    print("strata: not implemented yet (design phase); see https://pypi.org/project/stratalint/")
-    return 0
+
+def main(argv: tuple[str, ...] | None = None) -> int:
+    """Run the strata CLI."""
+
+    args: tuple[str, ...] = tuple(sys.argv[1:] if argv is None else argv)
+    if args and args[0] == "check":
+        return run_check(argv=args[1:])
+    sys.stderr.write("Usage: strata check [--no-color] [paths...]\n")
+    return 2

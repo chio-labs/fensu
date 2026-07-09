@@ -1,0 +1,246 @@
+"""Tests for ruleset registry building and custom rule loading."""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import pytest
+
+from strata.config.core.exceptions import ConfigError
+from strata.config.core.models import Config
+from strata.rules.authoring.main.define import rule
+from strata.rules.authoring.models import RuleSpec
+from strata.rules.authoring.types import Family
+from strata.rules.catalog.helpers import loading as loading_module
+from strata.rules.catalog.main.build_ruleset import build_ruleset
+from tests.unit.src.strata.rules.catalog.main._test_types import (
+    CustomRuleLoadTestCase,
+    RegistryErrorTestCase,
+    RegistryIsolationTestCase,
+    SelectCompositionTestCase,
+)
+from tests.unit.src.strata.rules.catalog.main.helpers import (
+    make_core_rule,
+    write_custom_rule_file,
+    write_module_package,
+)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CustomRuleLoadTestCase(
+            description="custom rule file loads with source path",
+            rule_code="XRG001",
+            expected_code="XRG001",
+            expected_source_fragment="rules/custom_rule.py",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_rule_path_when_building_ruleset_then_loads_custom_rule_with_source(
+    tmp_path: Path,
+    test_case: CustomRuleLoadTestCase,
+) -> None:
+    path: Path = write_custom_rule_file(
+        root=tmp_path, relative_path="rules/custom_rule.py", rule_code=test_case.rule_code
+    )
+    config: Config = Config(
+        roots=("src/pkg",), rule_paths=(str(path),), select=(test_case.rule_code,)
+    )
+
+    ruleset: tuple[RuleSpec, ...] = build_ruleset(config)
+
+    assert tuple(rule.code for rule in ruleset) == (test_case.expected_code,)
+    assert test_case.expected_source_fragment in (ruleset[0].source or "")
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CustomRuleLoadTestCase(
+            description="custom rule file loads without sys path mutation",
+            rule_code="XRG002",
+            expected_code="XRG002",
+            expected_source_fragment="rules/custom_rule.py",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_rule_path_when_building_ruleset_then_does_not_add_rule_dir_to_sys_path(
+    tmp_path: Path,
+    test_case: CustomRuleLoadTestCase,
+) -> None:
+    path: Path = write_custom_rule_file(
+        root=tmp_path, relative_path="rules/custom_rule.py", rule_code=test_case.rule_code
+    )
+    config: Config = Config(
+        roots=("src/pkg",), rule_paths=(str(path),), select=(test_case.rule_code,)
+    )
+
+    ruleset: tuple[RuleSpec, ...] = build_ruleset(config)
+
+    assert tuple(rule.code for rule in ruleset) == (test_case.expected_code,)
+    assert str(path.parent) not in sys.path
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CustomRuleLoadTestCase(
+            description="custom rule module loads with module source",
+            rule_code="XRM001",
+            expected_code="XRM001",
+            expected_source_fragment="module:custom_rules_pkg",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_rule_module_when_building_ruleset_then_loads_custom_rule_with_source(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: CustomRuleLoadTestCase,
+) -> None:
+    module_name: str = write_module_package(
+        root=tmp_path, package_name="custom_rules_pkg", rule_code=test_case.rule_code
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
+    config: Config = Config(
+        roots=("src/pkg",), rule_modules=(module_name,), select=(test_case.rule_code,)
+    )
+
+    ruleset: tuple[RuleSpec, ...] = build_ruleset(config)
+
+    assert tuple(rule.code for rule in ruleset) == (test_case.expected_code,)
+    assert ruleset[0].source == test_case.expected_source_fragment
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        RegistryErrorTestCase(
+            description="syntax error in custom file raises config error naming file",
+            rule_source="def broken(:\n    pass\n",
+            expected_error_fragment="bad_rule.py",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_syntax_error_custom_rule_file_when_building_ruleset_then_raises_config_error(
+    tmp_path: Path,
+    test_case: RegistryErrorTestCase,
+) -> None:
+    path: Path = tmp_path / "rules" / "bad_rule.py"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(test_case.rule_source, encoding="utf-8")
+    config: Config = Config(roots=("src/pkg",), rule_paths=(str(path),))
+
+    with pytest.raises(ConfigError) as error:
+        build_ruleset(config)
+
+    assert test_case.expected_error_fragment in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        RegistryErrorTestCase(
+            description="custom file using SF namespace is rejected",
+            rule_source="SFL999",
+            expected_error_fragment="X* namespace",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_custom_rule_file_with_sf_namespace_when_building_ruleset_then_raises_config_error(
+    tmp_path: Path,
+    test_case: RegistryErrorTestCase,
+) -> None:
+    path: Path = write_custom_rule_file(
+        root=tmp_path, relative_path="rules/bad_rule.py", rule_code=test_case.rule_source
+    )
+    config: Config = Config(roots=("src/pkg",), rule_paths=(str(path),))
+
+    with pytest.raises(ConfigError) as error:
+        build_ruleset(config)
+
+    assert test_case.expected_error_fragment in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        RegistryIsolationTestCase(
+            description="stale registered rule is cleared before custom file load",
+            stale_rule_code="XCL001",
+            loaded_rule_code="XCL002",
+            expected_codes=("XCL002",),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_stale_registered_rule_when_loading_custom_file_then_registry_does_not_leak(
+    tmp_path: Path,
+    test_case: RegistryIsolationTestCase,
+) -> None:
+    rule(code=test_case.stale_rule_code, family=Family.CUSTOM, slug="clear", message="clear")(
+        lambda module, ctx: []
+    )
+    path: Path = write_custom_rule_file(
+        root=tmp_path, relative_path="rules/custom_rule.py", rule_code=test_case.loaded_rule_code
+    )
+
+    ruleset: tuple[RuleSpec, ...] = build_ruleset(
+        Config(
+            roots=("src/pkg",),
+            rule_paths=(str(path),),
+            select=(test_case.stale_rule_code, test_case.loaded_rule_code),
+        )
+    )
+
+    assert tuple(rule.code for rule in ruleset) == test_case.expected_codes
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SelectCompositionTestCase(
+            description="family select respects default-off while explicit code enables it",
+            select=("SFX",),
+            ignore=(),
+            expected_codes=("SFX001",),
+        ),
+        SelectCompositionTestCase(
+            description="explicit code select enables default-off rule",
+            select=("SFX099",),
+            ignore=(),
+            expected_codes=("SFX099",),
+        ),
+        SelectCompositionTestCase(
+            description="ignore removes default-on rule",
+            select=("SFX",),
+            ignore=("SFX001",),
+            expected_codes=(),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_select_and_ignore_when_building_ruleset_then_applies_expected_composition(
+    monkeypatch: pytest.MonkeyPatch,
+    test_case: SelectCompositionTestCase,
+) -> None:
+    monkeypatch.setattr(
+        loading_module,
+        "CORE_RULES",
+        (
+            make_core_rule(code="SFX001", family=Family.HYGIENE),
+            make_core_rule(code="SFX099", family=Family.HYGIENE, enabled_by_default=False),
+        ),
+    )
+
+    ruleset: tuple[RuleSpec, ...] = build_ruleset(
+        Config(roots=("src/pkg",), select=test_case.select, ignore=test_case.ignore)
+    )
+
+    assert tuple(rule.code for rule in ruleset) == test_case.expected_codes

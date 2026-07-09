@@ -6,6 +6,7 @@ from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Family
 from strata.rules.roles.helpers.checks import (
     banned_generic_filename,
+    banned_generic_package_name,
     classes_module_name,
     helpers_classes_file_private,
     helpers_module_name,
@@ -37,6 +38,13 @@ def naming_rules() -> tuple[RuleSpec, ...]:
             slug="classes-module-name",
             message="use a classes package instead of classes.py",
             check=classes_module_name,
+        ),
+        RuleSpec(
+            code=RoleCode.BANNED_GENERIC_PACKAGE_NAME,
+            family=Family.ROLES,
+            slug="banned-generic-package-name",
+            message="domain and subdomain packages must identify an owner",
+            check=banned_generic_package_name,
         ),
         RuleSpec(
             code=RoleCode.HELPERS_CLASSES_FILE_PRIVATE,

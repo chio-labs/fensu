@@ -19,8 +19,9 @@ from strata.rules.roles.helpers.classification import (
 )
 from strata.rules.roles.types import RoleCode
 
-_banned_generic_filenames: frozenset[str] = frozenset(
-    {"base.py", "common.py", "helpers.py", "misc.py"}
+_banned_generic_filenames: frozenset[str] = frozenset({"misc.py"})
+_banned_generic_package_names: frozenset[str] = frozenset(
+    {"base", "common", "lib", "misc", "shared", "util", "utils"}
 )
 _role_names: frozenset[str] = frozenset(
     {"helpers", "classes", "models", "types", "constants", "exceptions"}
@@ -163,7 +164,37 @@ def banned_generic_filename(*, module: ast.Module, ctx: RuleContext) -> list[Fau
     del module
     if ctx.path.name not in _banned_generic_filenames:
         return []
-    return [Fault(code="SFR201", path=ctx.path, message="use a domain-specific filename")]
+    return [
+        _path_fault(
+            ctx=ctx,
+            code=RoleCode.BANNED_GENERIC_FILENAME,
+            message="misc.py hides the module's purpose",
+        )
+    ]
+
+
+def banned_generic_package_name(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Flag generic domain and subdomain package names."""
+
+    del module
+    parts: tuple[str, ...] = ctx.relative_parts()
+    for index, package_name in enumerate(parts[:2]):
+        if package_name not in _banned_generic_package_names:
+            continue
+        package_dir: Path = ctx.path.parents[len(parts) - index - 2]
+        if not _is_package_name_anchor(path=ctx.path, package_dir=package_dir):
+            return []
+        return [
+            _path_fault(
+                ctx=ctx,
+                code=RoleCode.BANNED_GENERIC_PACKAGE_NAME,
+                message=(
+                    f"{package_name}/ does not identify an owning domain; "
+                    "name the business or technical capability"
+                ),
+            )
+        ]
+    return []
 
 
 def helpers_module_name(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
@@ -558,6 +589,14 @@ def _is_package_layout_anchor(*, path: Path, package_dir: Path) -> bool:
         sorted(child for child in package_dir.glob("*.py") if child.name != "__init__.py")
     )
     return bool(direct_modules) and path == direct_modules[0]
+
+
+def _is_package_name_anchor(*, path: Path, package_dir: Path) -> bool:
+    init_path: Path = package_dir / "__init__.py"
+    if init_path.exists():
+        return path == init_path
+    modules: tuple[Path, ...] = tuple(sorted(package_dir.rglob("*.py")))
+    return bool(modules) and path == modules[0]
 
 
 def _package_layout_faults(

@@ -47,6 +47,7 @@ def always(module: ast.Module, ctx: RuleContext) -> list[Fault]:
 def write_cli_no_fault_project(root: Path) -> None:
     """Write a tiny project with no selected rules."""
 
-    (root / "src" / "pkg").mkdir(parents=True)
-    (root / "src" / "pkg" / "target.py").write_text("value: int = 1\n", encoding="utf-8")
+    source_dir: Path = root / "src" / "pkg" / "core"
+    source_dir.mkdir(parents=True)
+    (source_dir / "constants.py").write_text("VALUE: int = 1\n", encoding="utf-8")
     (root / "strata.toml").write_text('roots = ["src"]\n', encoding="utf-8")

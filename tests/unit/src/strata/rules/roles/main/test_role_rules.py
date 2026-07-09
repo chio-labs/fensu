@@ -7,7 +7,8 @@ from pathlib import Path
 import pytest
 
 from strata.evaluation.core.models import EvaluationResult
-from tests.unit.src.strata.rules.roles.main._test_types import SfrRuleTestCase
+from strata.rules.authoring.types import Threshold
+from tests.unit.src.strata.rules.roles.main._test_types import SfrRuleTestCase, SfrSupportFile
 from tests.unit.src.strata.rules.roles.main.helpers import evaluate_role_test_case
 
 
@@ -268,6 +269,153 @@ def test_given_declarations_when_checking_ownership_then_flags_only_misplaced_ro
     ids=lambda case: case.description,
 )
 def test_given_role_names_and_helper_classes_when_checking_then_flags_only_violations(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: SfrRuleTestCase,
+) -> None:
+    result: EvaluationResult = evaluate_role_test_case(
+        test_case=test_case, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
+    assert tuple(fault.line for fault in result.faults) == test_case.expected_lines
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SfrRuleTestCase(
+            description="helpers package mixing modules and subfolders is flagged",
+            rule_code="SFR301",
+            relative_path="domain/core/helpers/__init__.py",
+            source="",
+            support_files=(
+                SfrSupportFile(
+                    description="flat helper",
+                    relative_path="domain/core/helpers/values.py",
+                    source="value: int = 1\n",
+                ),
+                SfrSupportFile(
+                    description="helper concern",
+                    relative_path="domain/core/helpers/parsing/__init__.py",
+                    source="",
+                ),
+            ),
+            expected_codes=("SFR301",),
+            expected_lines=(None,),
+        ),
+        SfrRuleTestCase(
+            description="helpers package over flat threshold is flagged",
+            rule_code="SFR301",
+            relative_path="domain/core/helpers/__init__.py",
+            source="",
+            support_files=(
+                SfrSupportFile(
+                    description="first helper",
+                    relative_path="domain/core/helpers/first.py",
+                    source="value: int = 1\n",
+                ),
+                SfrSupportFile(
+                    description="second helper",
+                    relative_path="domain/core/helpers/second.py",
+                    source="value: int = 2\n",
+                ),
+            ),
+            thresholds={Threshold.MAX_FLAT_HELPER_MODULES: 1},
+            expected_codes=("SFR301",),
+            expected_lines=(None,),
+        ),
+        SfrRuleTestCase(
+            description="flat helpers package under threshold is allowed",
+            rule_code="SFR301",
+            relative_path="domain/core/helpers/__init__.py",
+            source="",
+            support_files=(
+                SfrSupportFile(
+                    description="flat helper",
+                    relative_path="domain/core/helpers/values.py",
+                    source="value: int = 1\n",
+                ),
+            ),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        SfrRuleTestCase(
+            description="main support folder is flagged",
+            rule_code="SFR302",
+            relative_path="domain/core/main/helpers/value.py",
+            source="value: int = 1\n",
+            expected_codes=("SFR302",),
+            expected_lines=(None,),
+        ),
+        SfrRuleTestCase(
+            description="nested direct support module is flagged",
+            rule_code="SFR304",
+            relative_path="domain/core/value.py",
+            source="value: int = 1\n",
+            expected_codes=("SFR304",),
+            expected_lines=(None,),
+        ),
+        SfrRuleTestCase(
+            description="nested role module is allowed",
+            rule_code="SFR304",
+            relative_path="domain/core/models.py",
+            source="",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        SfrRuleTestCase(
+            description="arbitrary nested direct subpackage is flagged",
+            rule_code="SFR305",
+            relative_path="domain/core/feature/__init__.py",
+            source="",
+            expected_codes=("SFR305",),
+            expected_lines=(None,),
+        ),
+        SfrRuleTestCase(
+            description="nested helpers subpackage is allowed",
+            rule_code="SFR305",
+            relative_path="domain/core/helpers/parsing.py",
+            source="value: int = 1\n",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        SfrRuleTestCase(
+            description="role file directly under domain is flagged",
+            rule_code="SFR306",
+            relative_path="domain/models.py",
+            source="",
+            expected_codes=("SFR306",),
+            expected_lines=(None,),
+        ),
+        SfrRuleTestCase(
+            description="role file below subpackage is allowed",
+            rule_code="SFR306",
+            relative_path="domain/core/models.py",
+            source="",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        SfrRuleTestCase(
+            description="direct domain implementation module is flagged",
+            rule_code="SFR307",
+            relative_path="domain/service.py",
+            source="value: int = 1\n",
+            expected_codes=("SFR307",),
+            expected_lines=(None,),
+        ),
+        SfrRuleTestCase(
+            description="domain init module is allowed",
+            rule_code="SFR307",
+            relative_path="domain/__init__.py",
+            source="",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_role_layouts_when_checking_then_flags_only_layout_violations(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     test_case: SfrRuleTestCase,

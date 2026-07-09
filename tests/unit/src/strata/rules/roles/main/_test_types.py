@@ -2,7 +2,19 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+from strata.rules.authoring.types import Threshold
+
+
+@dataclass(frozen=True)
+class SfrSupportFile:
+    """An additional file used to construct a role layout."""
+
+    description: str
+    relative_path: str
+    source: str
+    expected_written: bool = True
 
 
 @dataclass(frozen=True)
@@ -15,3 +27,5 @@ class SfrRuleTestCase:
     source: str
     expected_codes: tuple[str, ...]
     expected_lines: tuple[int | None, ...]
+    support_files: tuple[SfrSupportFile, ...] = field(default_factory=tuple)
+    thresholds: dict[Threshold, int] = field(default_factory=dict)

@@ -11,6 +11,7 @@ from strata.rules.shape.helpers.checks import (
     max_statements_global,
     meaningful_project_result_discarded,
     mutable_result_model,
+    no_outer_state_mutation,
     parameter_mutation_in_phase_helpers,
     too_many_distinct_calls,
     too_many_locals,
@@ -86,6 +87,13 @@ def shape_rules() -> tuple[RuleSpec, ...]:
             slug="keyword-only-arguments",
             message="function parameters must be keyword-only beyond the configured threshold",
             check=keyword_only_arguments,
+        ),
+        RuleSpec(
+            code=ShapeCode.NO_OUTER_STATE_MUTATION,
+            family=Family.SHAPE,
+            slug="no-outer-state-mutation",
+            message="functions must not mutate module-global or closure-captured state",
+            check=no_outer_state_mutation,
         ),
         RuleSpec(
             code=ShapeCode.MUTABLE_RESULT_MODEL,

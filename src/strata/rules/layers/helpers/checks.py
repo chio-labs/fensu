@@ -27,6 +27,16 @@ def absolute_imports_only(*, module: ast.Module, ctx: RuleContext) -> list[Fault
     return faults
 
 
+def no_star_imports(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Reject wildcard imports that hide imported names from boundary analysis."""
+
+    return [
+        ctx.fault(node)
+        for node in ast.walk(module)
+        if isinstance(node, ast.ImportFrom) and any(alias.name == "*" for alias in node.names)
+    ]
+
+
 def no_sibling_package_internals(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Reject imports that reach into sibling package internals."""
 
@@ -72,6 +82,23 @@ def no_cross_package_internals(*, module: ast.Module, ctx: RuleContext) -> list[
                 ):
                     faults.append(ctx.fault(node))
                     break
+    return faults
+
+
+def no_internal_public_surface_imports(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Reject internal imports routed through the bare runtime package surface."""
+
+    if ctx.scope() != "root" or (ctx.path.name == "__init__.py" and len(ctx.relative_parts()) == 1):
+        return []
+    package_name: str = ctx.path.parents[len(ctx.relative_parts()) - 1].name
+    faults: list[Fault] = []
+    for node in ast.walk(module):
+        if isinstance(node, ast.ImportFrom) and node.level == 0 and node.module == package_name:
+            faults.append(ctx.fault(node))
+        elif isinstance(node, ast.Import) and any(
+            alias.name == package_name for alias in node.names
+        ):
+            faults.append(ctx.fault(node))
     return faults
 
 

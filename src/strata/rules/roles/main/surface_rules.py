@@ -10,6 +10,7 @@ from strata.rules.roles.helpers.checks import (
     main_entry_name_collision,
     no_internal_helper_exports,
     no_reexport_shim,
+    public_surface_shape,
 )
 from strata.rules.roles.types import RoleCode
 
@@ -32,6 +33,11 @@ def surface_rules() -> tuple[RuleSpec, ...]:
             code=RoleCode.MAIN_ENTRY_NAME_COLLISION,
             slug="main-entry-name-collision",
             check=main_entry_name_collision,
+        ),
+        _rule(
+            code=RoleCode.PUBLIC_SURFACE_SHAPE,
+            slug="public-surface-shape",
+            check=public_surface_shape,
         ),
     )
 

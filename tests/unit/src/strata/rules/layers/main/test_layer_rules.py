@@ -65,6 +65,60 @@ def test_given_imports_when_checking_absolute_imports_then_flags_only_relative_i
     "test_case",
     [
         LayerRuleTestCase(
+            description="absolute star import is flagged",
+            rule_code="SFL002",
+            files=(
+                ("src/pkg/domain/alpha/main/run.py", "from pkg.domain.alpha.models import *\n"),
+            ),
+            expected_codes=("SFL002",),
+            expected_lines=(1,),
+        ),
+        LayerRuleTestCase(
+            description="relative star import is flagged independently of import direction",
+            rule_code="SFL002",
+            files=(("src/pkg/domain/alpha/main/run.py", "from ..models import *\n"),),
+            expected_codes=("SFL002",),
+            expected_lines=(1,),
+        ),
+        LayerRuleTestCase(
+            description="explicit imported names are allowed",
+            rule_code="SFL002",
+            files=(
+                (
+                    "src/pkg/domain/alpha/main/run.py",
+                    "from pkg.domain.alpha.models import First, Second\n",
+                ),
+            ),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        LayerRuleTestCase(
+            description="ordinary module import is allowed",
+            rule_code="SFL002",
+            files=(("src/pkg/domain/alpha/main/run.py", "import pkg.domain.alpha.models\n"),),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_imports_when_checking_star_imports_then_flags_only_wildcards(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: LayerRuleTestCase,
+) -> None:
+    result: EvaluationResult = evaluate_layer_test_case(
+        test_case=test_case, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
+    assert tuple(fault.line for fault in result.faults) == test_case.expected_lines
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        LayerRuleTestCase(
             description="sibling helper internals are flagged",
             rule_code="SFL101",
             files=(
@@ -168,6 +222,65 @@ def test_given_sibling_imports_when_checking_layers_then_flags_only_internal_imp
     ids=lambda case: case.description,
 )
 def test_given_cross_package_imports_when_checking_layers_then_flags_only_internal_imports(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: LayerRuleTestCase,
+) -> None:
+    result: EvaluationResult = evaluate_layer_test_case(
+        test_case=test_case, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
+    assert tuple(fault.line for fault in result.faults) == test_case.expected_lines
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        LayerRuleTestCase(
+            description="internal from-import through bare package is flagged",
+            rule_code="SFL103",
+            files=(("src/pkg/domain/alpha/main/run.py", "from pkg import PublicModel\n"),),
+            expected_codes=("SFL103",),
+            expected_lines=(1,),
+        ),
+        LayerRuleTestCase(
+            description="internal plain import of bare package is flagged",
+            rule_code="SFL103",
+            files=(("src/pkg/domain/alpha/main/run.py", "import pkg\n"),),
+            expected_codes=("SFL103",),
+            expected_lines=(1,),
+        ),
+        LayerRuleTestCase(
+            description="internal aliased import of bare package is flagged",
+            rule_code="SFL103",
+            files=(("src/pkg/domain/alpha/main/run.py", "import pkg as public_api\n"),),
+            expected_codes=("SFL103",),
+            expected_lines=(1,),
+        ),
+        LayerRuleTestCase(
+            description="internal import from concrete owning module is allowed",
+            rule_code="SFL103",
+            files=(
+                (
+                    "src/pkg/domain/alpha/main/run.py",
+                    "from pkg.domain.alpha.models import Model\n",
+                ),
+            ),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        LayerRuleTestCase(
+            description="root public surface may import package internals",
+            rule_code="SFL103",
+            files=(("src/pkg/__init__.py", "from pkg.domain.alpha.models import Model\n"),),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_internal_imports_when_checking_public_surface_then_flags_bare_package_only(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     test_case: LayerRuleTestCase,

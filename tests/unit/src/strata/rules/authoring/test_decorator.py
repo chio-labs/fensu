@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
+from strata.rules.authoring.constants import _RULE_SPEC_ATTRIBUTE
 from strata.rules.authoring.exceptions import RuleDefinitionError
-from strata.rules.authoring.main.collect import collect_registered
 from strata.rules.authoring.main.define import rule
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Family, RuleCheck, RuleKind
@@ -65,19 +65,17 @@ from tests.unit.src.strata.rules.authoring.helpers import empty_check
 def test_given_valid_envelope_when_decorating_then_registers_expected_spec(
     test_case: RuleEnvelopeTestCase,
 ) -> None:
-    rule(
+    decorated: RuleCheck = rule(
         code=test_case.code,
         family=test_case.family,
         slug=test_case.slug,
         message=test_case.message,
     )(empty_check)
+    spec: RuleSpec = getattr(decorated, _RULE_SPEC_ATTRIBUTE)
 
-    registered: tuple[RuleSpec, ...] = collect_registered()
-
-    assert len(registered) == 1
-    assert registered[0].code == test_case.expected_code
-    assert registered[0].family == test_case.expected_family
-    assert registered[0].kind == test_case.expected_kind
+    assert spec.code == test_case.expected_code
+    assert spec.family == test_case.expected_family
+    assert spec.kind == test_case.expected_kind
 
 
 @pytest.mark.parametrize(
@@ -105,11 +103,11 @@ def test_given_valid_envelope_when_decorating_then_returns_original_function(
         slug=test_case.slug,
         message=test_case.message,
     )(empty_check)
-    registered: tuple[RuleSpec, ...] = collect_registered()
+    spec: RuleSpec = getattr(decorated, _RULE_SPEC_ATTRIBUTE)
 
     assert decorated is empty_check
-    assert registered[0].check is empty_check
-    assert registered[0].code == test_case.expected_code
+    assert spec.check is empty_check
+    assert spec.code == test_case.expected_code
 
 
 @pytest.mark.parametrize(

@@ -53,6 +53,30 @@ from tests.unit.src.strata.rules.roles.main.helpers import evaluate_role_test_ca
             expected_lines=(),
         ),
         SfrRuleTestCase(
+            description="type-checking imports-only block in types role is allowed",
+            rule_code="SFR002",
+            relative_path="domain/core/types.py",
+            source="if TYPE_CHECKING:\n    from domain.core.models import Result\n",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        SfrRuleTestCase(
+            description="non-import in type-checking block in types role is flagged",
+            rule_code="SFR002",
+            relative_path="domain/core/types.py",
+            source="if TYPE_CHECKING:\n    value: int = 1\n",
+            expected_codes=("SFR002",),
+            expected_lines=(1,),
+        ),
+        SfrRuleTestCase(
+            description="type-checking block with else in types role is flagged",
+            rule_code="SFR002",
+            relative_path="domain/core/types.py",
+            source="if TYPE_CHECKING:\n    from domain.core.models import Result\nelse:\n    Result = object\n",
+            expected_codes=("SFR002",),
+            expected_lines=(1,),
+        ),
+        SfrRuleTestCase(
             description="class in constants role is flagged",
             rule_code="SFR003",
             relative_path="domain/core/constants.py",
@@ -357,6 +381,89 @@ def test_given_role_names_and_helper_classes_when_checking_then_flags_only_viola
     "test_case",
     [
         SfrRuleTestCase(
+            description="module-level standalone call is flagged",
+            rule_code="SFR206",
+            relative_path="domain/core/helpers/startup.py",
+            source="register_plugins()\n",
+            expected_codes=("SFR206",),
+            expected_lines=(1,),
+        ),
+        SfrRuleTestCase(
+            description="assigned constructor call is allowed",
+            rule_code="SFR206",
+            relative_path="domain/core/helpers/logging.py",
+            source="LOGGER: object = get_logger()\n",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        SfrRuleTestCase(
+            description="call inside function body is allowed",
+            rule_code="SFR206",
+            relative_path="domain/core/helpers/startup.py",
+            source="def start() -> None:\n    register_plugins()\n",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        SfrRuleTestCase(
+            description="standalone call in class body is flagged",
+            rule_code="SFR206",
+            relative_path="domain/core/classes/service.py",
+            source="class Service:\n    register_plugins()\n",
+            expected_codes=("SFR206",),
+            expected_lines=(2,),
+        ),
+        SfrRuleTestCase(
+            description="call inside class method body is allowed",
+            rule_code="SFR206",
+            relative_path="domain/core/classes/service.py",
+            source="class Service:\n    def start(self) -> None:\n        register_plugins()\n",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        SfrRuleTestCase(
+            description="conditional import-time call is flagged",
+            rule_code="SFR206",
+            relative_path="domain/core/helpers/startup.py",
+            source="if enabled:\n    register_plugins()\n",
+            expected_codes=("SFR206",),
+            expected_lines=(2,),
+        ),
+        SfrRuleTestCase(
+            description="type-checking guarded call is not executed at import",
+            rule_code="SFR206",
+            relative_path="domain/core/helpers/startup.py",
+            source="if TYPE_CHECKING:\n    register_type_adapter()\n",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        SfrRuleTestCase(
+            description="main-guarded call is not executed during import",
+            rule_code="SFR206",
+            relative_path="domain/core/helpers/startup.py",
+            source="if __name__ == '__main__':\n    main()\n",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_runtime_calls_when_checking_import_time_then_flags_executed_standalone_calls(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: SfrRuleTestCase,
+) -> None:
+    result: EvaluationResult = evaluate_role_test_case(
+        test_case=test_case, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
+    assert tuple(fault.line for fault in result.faults) == test_case.expected_lines
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SfrRuleTestCase(
             description="helpers package mixing modules and subfolders is flagged",
             rule_code="SFR301",
             relative_path="domain/core/helpers/__init__.py",
@@ -445,6 +552,14 @@ def test_given_role_names_and_helper_classes_when_checking_then_flags_only_viola
             expected_lines=(None,),
         ),
         SfrRuleTestCase(
+            description="nested direct subpackage without init is flagged",
+            rule_code="SFR305",
+            relative_path="domain/core/feature/implementation.py",
+            source="value: int = 1\n",
+            expected_codes=("SFR305",),
+            expected_lines=(None,),
+        ),
+        SfrRuleTestCase(
             description="nested helpers subpackage is allowed",
             rule_code="SFR305",
             relative_path="domain/core/helpers/parsing.py",
@@ -457,6 +572,54 @@ def test_given_role_names_and_helper_classes_when_checking_then_flags_only_viola
             rule_code="SFR306",
             relative_path="domain/models.py",
             source="",
+            expected_codes=("SFR306",),
+            expected_lines=(None,),
+        ),
+        SfrRuleTestCase(
+            description="role package without init directly under domain is flagged",
+            rule_code="SFR306",
+            relative_path="domain/helpers/value.py",
+            source="value: int = 1\n",
+            expected_codes=("SFR306",),
+            expected_lines=(None,),
+        ),
+        SfrRuleTestCase(
+            description="classes package without init directly under domain is flagged",
+            rule_code="SFR306",
+            relative_path="domain/classes/service.py",
+            source="class Service:\n    pass\n",
+            expected_codes=("SFR306",),
+            expected_lines=(None,),
+        ),
+        SfrRuleTestCase(
+            description="models package without init directly under domain is flagged",
+            rule_code="SFR306",
+            relative_path="domain/models/result.py",
+            source="value: int = 1\n",
+            expected_codes=("SFR306",),
+            expected_lines=(None,),
+        ),
+        SfrRuleTestCase(
+            description="types package without init directly under domain is flagged",
+            rule_code="SFR306",
+            relative_path="domain/types/protocol.py",
+            source="value: int = 1\n",
+            expected_codes=("SFR306",),
+            expected_lines=(None,),
+        ),
+        SfrRuleTestCase(
+            description="constants package without init directly under domain is flagged",
+            rule_code="SFR306",
+            relative_path="domain/constants/defaults.py",
+            source="VALUE: int = 1\n",
+            expected_codes=("SFR306",),
+            expected_lines=(None,),
+        ),
+        SfrRuleTestCase(
+            description="exceptions package without init directly under domain is flagged",
+            rule_code="SFR306",
+            relative_path="domain/exceptions/config.py",
+            source="class ConfigError(Exception):\n    pass\n",
             expected_codes=("SFR306",),
             expected_lines=(None,),
         ),
@@ -544,6 +707,50 @@ def test_given_role_layouts_when_checking_then_flags_only_layout_violations(
             rule_code="SFR402",
             relative_path="__init__.py",
             source="from pkg.domain import value\n",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        SfrRuleTestCase(
+            description="root public surface allows imports and one all declaration",
+            rule_code="SFR406",
+            relative_path="__init__.py",
+            source=(
+                '"""Public package surface."""\n\n'
+                "from pkg.domain.models import Model\n\n"
+                "__all__ = ['Model']\n"
+            ),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        SfrRuleTestCase(
+            description="root public surface function is flagged",
+            rule_code="SFR406",
+            relative_path="__init__.py",
+            source="def build() -> None:\n    return None\n",
+            expected_codes=("SFR406",),
+            expected_lines=(1,),
+        ),
+        SfrRuleTestCase(
+            description="root public surface runtime assignment is flagged",
+            rule_code="SFR406",
+            relative_path="__init__.py",
+            source="VERSION: str = '1'\n",
+            expected_codes=("SFR406",),
+            expected_lines=(1,),
+        ),
+        SfrRuleTestCase(
+            description="root public surface duplicate all declaration is flagged",
+            rule_code="SFR406",
+            relative_path="__init__.py",
+            source="__all__ = ['First']\n__all__ = ['Second']\n",
+            expected_codes=("SFR406",),
+            expected_lines=(2,),
+        ),
+        SfrRuleTestCase(
+            description="nested init is outside public surface shape rule",
+            rule_code="SFR406",
+            relative_path="domain/__init__.py",
+            source="value: int = 1\n",
             expected_codes=(),
             expected_lines=(),
         ),

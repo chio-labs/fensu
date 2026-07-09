@@ -12,7 +12,7 @@ from types import ModuleType
 
 from strata.config.core.exceptions import ConfigError
 from strata.config.core.models import Config
-from strata.rules.authoring.main.collect import collect_registered
+from strata.rules.authoring.main.inspect import rule_specs_in_module
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Family, RuleKind
 from strata.rules.catalog.constants import CORE_RULES
@@ -21,7 +21,6 @@ from strata.rules.catalog.constants import CORE_RULES
 def build_ruleset_from_config(config: Config) -> tuple[RuleSpec, ...]:
     """Load custom rules, merge with core rules, and apply select/ignore config."""
 
-    _ = collect_registered()
     custom_rules: tuple[RuleSpec, ...] = (
         *_load_rule_modules(config.rule_modules),
         *_load_rule_paths(config.rule_paths),
@@ -34,13 +33,15 @@ def _load_rule_modules(module_names: tuple[str, ...]) -> tuple[RuleSpec, ...]:
     loaded: list[RuleSpec] = []
     for module_name in module_names:
         try:
-            _ = importlib.import_module(module_name)
+            module: ModuleType = importlib.import_module(module_name)
         except Exception as error:
             raise ConfigError(
                 f"Could not import custom rule module {module_name}: {error}"
             ) from error
         loaded.extend(
-            _with_custom_source(rules=collect_registered(), source=f"module:{module_name}")
+            _with_custom_source(
+                rules=rule_specs_in_module(module=module), source=f"module:{module_name}"
+            )
         )
     return tuple(loaded)
 
@@ -65,12 +66,18 @@ def _load_rule_file(path: Path) -> tuple[RuleSpec, ...]:
     if spec is None or spec.loader is None:
         raise ConfigError(f"Could not load custom rule file {path}")
     module: ModuleType = importlib.util.module_from_spec(spec)
+    previous_module: ModuleType | None = sys.modules.get(module_name)
     sys.modules[module_name] = module
     try:
         spec.loader.exec_module(module)
     except Exception as error:
         raise ConfigError(f"Could not import custom rule file {path}: {error}") from error
-    return _with_custom_source(rules=collect_registered(), source=str(path))
+    finally:
+        if previous_module is None:
+            _ = sys.modules.pop(module_name, None)
+        else:
+            sys.modules[module_name] = previous_module
+    return _with_custom_source(rules=rule_specs_in_module(module=module), source=str(path))
 
 
 def _synthetic_module_name(path: Path) -> str:

@@ -16,8 +16,8 @@ from strata.rules.catalog.helpers import loading as loading_module
 from strata.rules.catalog.main.build_ruleset import build_ruleset
 from tests.unit.src.strata.rules.catalog.main._test_types import (
     CustomRuleLoadTestCase,
+    ModuleIsolationTestCase,
     RegistryErrorTestCase,
-    RegistryIsolationTestCase,
     SelectCompositionTestCase,
 )
 from tests.unit.src.strata.rules.catalog.main.helpers import (
@@ -54,6 +54,7 @@ def test_given_rule_path_when_building_ruleset_then_loads_custom_rule_with_sourc
 
     assert tuple(rule.code for rule in ruleset) == (test_case.expected_code,)
     assert test_case.expected_source_fragment in (ruleset[0].source or "")
+    assert loading_module._synthetic_module_name(path) not in sys.modules
 
 
 @pytest.mark.parametrize(
@@ -83,6 +84,43 @@ def test_given_rule_path_when_building_ruleset_then_does_not_add_rule_dir_to_sys
 
     assert tuple(rule.code for rule in ruleset) == (test_case.expected_code,)
     assert str(path.parent) not in sys.path
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CustomRuleLoadTestCase(
+            description="custom rule module is registered only while executing",
+            rule_code="XRG003",
+            expected_code="XRG003",
+            expected_source_fragment="rules/custom_rule.py",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_rule_path_when_executing_then_synthetic_module_is_temporary(
+    tmp_path: Path,
+    test_case: CustomRuleLoadTestCase,
+) -> None:
+    path: Path = write_custom_rule_file(
+        root=tmp_path,
+        relative_path="rules/custom_rule.py",
+        rule_code=test_case.rule_code,
+        prelude=(
+            "import sys\n"
+            "if __name__ not in sys.modules:\n"
+            "    raise RuntimeError('module is not registered during execution')\n"
+        ),
+    )
+    config: Config = Config(
+        roots=("src/pkg",), rule_paths=(str(path),), select=(test_case.rule_code,)
+    )
+
+    ruleset: tuple[RuleSpec, ...] = build_ruleset(config)
+
+    assert tuple(rule.code for rule in ruleset) == (test_case.expected_code,)
+    assert test_case.expected_source_fragment in (ruleset[0].source or "")
+    assert loading_module._synthetic_module_name(path) not in sys.modules
 
 
 @pytest.mark.parametrize(
@@ -140,6 +178,7 @@ def test_given_syntax_error_custom_rule_file_when_building_ruleset_then_raises_c
         build_ruleset(config)
 
     assert test_case.expected_error_fragment in str(error.value)
+    assert loading_module._synthetic_module_name(path) not in sys.modules
 
 
 @pytest.mark.parametrize(
@@ -171,8 +210,8 @@ def test_given_custom_rule_file_with_sf_namespace_when_building_ruleset_then_rai
 @pytest.mark.parametrize(
     "test_case",
     [
-        RegistryIsolationTestCase(
-            description="stale registered rule is cleared before custom file load",
+        ModuleIsolationTestCase(
+            description="decorated rule from another module does not leak into custom file",
             stale_rule_code="XCL001",
             loaded_rule_code="XCL002",
             expected_codes=("XCL002",),
@@ -180,9 +219,9 @@ def test_given_custom_rule_file_with_sf_namespace_when_building_ruleset_then_rai
     ],
     ids=lambda case: case.description,
 )
-def test_given_stale_registered_rule_when_loading_custom_file_then_registry_does_not_leak(
+def test_given_foreign_decorated_rule_when_loading_custom_file_then_module_metadata_is_isolated(
     tmp_path: Path,
-    test_case: RegistryIsolationTestCase,
+    test_case: ModuleIsolationTestCase,
 ) -> None:
     rule(code=test_case.stale_rule_code, family=Family.CUSTOM, slug="clear", message="clear")(
         lambda module, ctx: []

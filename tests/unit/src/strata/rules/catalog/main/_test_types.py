@@ -25,8 +25,8 @@ class RegistryErrorTestCase:
 
 
 @dataclass(frozen=True)
-class RegistryIsolationTestCase:
-    """Stale and loaded rule codes for registry isolation tests."""
+class ModuleIsolationTestCase:
+    """Foreign and loaded rule codes for module-local discovery tests."""
 
     description: str
     stale_rule_code: str

@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from strata.rules.authoring.constants import _RULE_SPEC_ATTRIBUTE
 from strata.rules.authoring.helpers.envelope import (
     infer_kind,
     resolve_envelope,
     validate_code_namespace,
 )
-from strata.rules.authoring.helpers.registry import register
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Family, RuleCheck, RuleKind, Severity
 
@@ -24,7 +24,7 @@ def rule(
     severity: Severity = Severity.ERROR,
     enabled_by_default: bool = True,
 ) -> Callable[[RuleCheck], RuleCheck]:
-    """Register the decorated function as a rule and return it unchanged."""
+    """Attach a compiled rule spec to the decorated function and return it unchanged."""
 
     def decorate(check: RuleCheck) -> RuleCheck:
         resolved_family: Family = resolve_envelope(
@@ -46,7 +46,7 @@ def rule(
             kind=kind,
             enabled_by_default=enabled_by_default,
         )
-        _ = register(spec)
+        _ = setattr(check, _RULE_SPEC_ATTRIBUTE, spec)
         return check
 
     return decorate

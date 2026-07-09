@@ -7,6 +7,7 @@ from pathlib import Path
 
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import RuleContext, Threshold
+from strata.rules.shape.helpers.outer_state import outer_state_mutations
 
 _mutator_methods: frozenset[str] = frozenset(
     {"add", "append", "clear", "extend", "insert", "pop", "remove", "setdefault", "update"}
@@ -141,6 +142,12 @@ def keyword_only_arguments(*, module: ast.Module, ctx: RuleContext) -> list[Faul
                 ctx.fault(function_node, message=f"function has {count} positional parameters")
             )
     return faults
+
+
+def no_outer_state_mutation(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Flag function mutations of module-global or closure-captured state."""
+
+    return [ctx.fault(node) for node in outer_state_mutations(module=module)]
 
 
 def mutable_result_model(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:

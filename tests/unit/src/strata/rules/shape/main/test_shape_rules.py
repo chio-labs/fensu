@@ -551,6 +551,166 @@ def test_given_function_parameters_when_checking_keyword_only_then_flags_excess_
     "test_case",
     [
         ShapeRuleTestCase(
+            description="module-global collection mutation is flagged",
+            rule_code="SFS130",
+            source="CACHE: list[int] = []\n\ndef run() -> None:\n    CACHE.append(1)\n",
+            expected_codes=("SFS130",),
+            expected_lines=(4,),
+        ),
+        ShapeRuleTestCase(
+            description="module-global subscript mutation is flagged",
+            rule_code="SFS130",
+            source="CACHE: dict[str, int] = {}\n\ndef run() -> None:\n    CACHE['x'] = 1\n",
+            expected_codes=("SFS130",),
+            expected_lines=(4,),
+        ),
+        ShapeRuleTestCase(
+            description="module-global attribute mutation is flagged",
+            rule_code="SFS130",
+            source="STATE: object = object()\n\ndef run() -> None:\n    STATE.value = 1\n",
+            expected_codes=("SFS130",),
+            expected_lines=(4,),
+        ),
+        ShapeRuleTestCase(
+            description="explicit global rebinding is flagged",
+            rule_code="SFS130",
+            source="COUNT: int = 0\n\ndef run() -> None:\n    global COUNT\n    COUNT = 1\n",
+            expected_codes=("SFS130",),
+            expected_lines=(5,),
+        ),
+        ShapeRuleTestCase(
+            description="new explicit global binding is flagged",
+            rule_code="SFS130",
+            source="def run() -> None:\n    global CREATED\n    CREATED = 1\n",
+            expected_codes=("SFS130",),
+            expected_lines=(3,),
+        ),
+        ShapeRuleTestCase(
+            description="closure collection mutation is flagged",
+            rule_code="SFS130",
+            source=(
+                "def outer() -> None:\n"
+                "    values: list[int] = []\n"
+                "    def inner() -> None:\n"
+                "        values.append(1)\n"
+            ),
+            expected_codes=("SFS130",),
+            expected_lines=(4,),
+        ),
+        ShapeRuleTestCase(
+            description="explicit nonlocal rebinding is flagged",
+            rule_code="SFS130",
+            source=(
+                "def outer() -> None:\n"
+                "    count: int = 0\n"
+                "    def inner() -> None:\n"
+                "        nonlocal count\n"
+                "        count = 1\n"
+            ),
+            expected_codes=("SFS130",),
+            expected_lines=(5,),
+        ),
+        ShapeRuleTestCase(
+            description="local collection mutation is allowed",
+            rule_code="SFS130",
+            source="def run() -> None:\n    values: list[int] = []\n    values.append(1)\n",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        ShapeRuleTestCase(
+            description="parameter and self mutation are allowed",
+            rule_code="SFS130",
+            source=(
+                "class Service:\n"
+                "    def update(self, values: list[int]) -> None:\n"
+                "        self.ready = True\n"
+                "        values.append(1)\n"
+            ),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        ShapeRuleTestCase(
+            description="reading outer state is allowed",
+            rule_code="SFS130",
+            source="VALUE: int = 1\n\ndef read() -> int:\n    return VALUE\n",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        ShapeRuleTestCase(
+            description="alias-through-local mutation remains outside initial detection",
+            rule_code="SFS130",
+            source=(
+                "CACHE: list[int] = []\n\n"
+                "def run() -> None:\n"
+                "    values: list[int] = CACHE\n"
+                "    values.append(1)\n"
+            ),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        ShapeRuleTestCase(
+            description="comprehension target shadows module binding",
+            rule_code="SFS130",
+            source=(
+                "VALUES: list[list[int]] = []\n\n"
+                "def run(*, rows: list[list[int]]) -> list[None]:\n"
+                "    return [VALUES.append(1) for VALUES in rows]\n"
+            ),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        ShapeRuleTestCase(
+            description="outer mutation inside comprehension is flagged",
+            rule_code="SFS130",
+            source=(
+                "CACHE: list[int] = []\n\n"
+                "def run(*, rows: list[int]) -> list[None]:\n"
+                "    return [CACHE.append(item) for item in rows]\n"
+            ),
+            expected_codes=("SFS130",),
+            expected_lines=(4,),
+        ),
+        ShapeRuleTestCase(
+            description="module-bound class state mutation is flagged",
+            rule_code="SFS130",
+            source=(
+                "class Registry:\n"
+                "    values: list[int] = []\n\n"
+                "def run() -> None:\n"
+                "    Registry.values.append(1)\n"
+            ),
+            expected_codes=("SFS130",),
+            expected_lines=(5,),
+        ),
+        ShapeRuleTestCase(
+            description="imported infrastructure state is outside project-owned globals",
+            rule_code="SFS130",
+            source=(
+                "import external_state\n\ndef run() -> None:\n    external_state.CACHE.append(1)\n"
+            ),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_function_state_when_checking_mutation_then_flags_only_outer_bindings(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: ShapeRuleTestCase,
+) -> None:
+    result: EvaluationResult = evaluate_shape_test_case(
+        test_case=test_case, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
+    assert tuple(fault.line for fault in result.faults) == test_case.expected_lines
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ShapeRuleTestCase(
             description="mutable dataclass model is flagged",
             rule_code="SFS201",
             source="from dataclasses import dataclass\n\n@dataclass\nclass Result:\n    value: int\n",

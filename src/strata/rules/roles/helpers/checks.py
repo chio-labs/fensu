@@ -230,6 +230,12 @@ def helpers_classes_file_private(*, module: ast.Module, ctx: RuleContext) -> lis
     return faults
 
 
+def no_import_time_side_effects(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Flag standalone calls that execute while a runtime module is imported."""
+
+    return [ctx.fault(node) for node in _import_time_bare_calls(node=module)]
+
+
 def helpers_package_layout(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag mixed or oversized flat helpers package layouts."""
 
@@ -456,6 +462,25 @@ def main_entry_name_collision(*, module: ast.Module, ctx: RuleContext) -> list[F
     ]
 
 
+def public_surface_shape(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Restrict the root package surface to imports and one __all__ declaration."""
+
+    if ctx.path.name != "__init__.py" or len(ctx.relative_parts()) != 1:
+        return []
+    faults: list[Fault] = []
+    saw_all: bool = False
+    for node in module.body:
+        if _is_docstring_statement(node) or isinstance(node, ast.Import | ast.ImportFrom):
+            continue
+        if _is_all_assignment(node):
+            if saw_all:
+                faults.append(ctx.fault(node, message="public surface may define __all__ once"))
+            saw_all = True
+            continue
+        faults.append(ctx.fault(node))
+    return faults
+
+
 def classes_one_class_per_module(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag classes modules that do not define exactly one top-level class."""
 
@@ -597,6 +622,35 @@ def _is_package_name_anchor(*, path: Path, package_dir: Path) -> bool:
         return path == init_path
     modules: tuple[Path, ...] = tuple(sorted(package_dir.rglob("*.py")))
     return bool(modules) and path == modules[0]
+
+
+def _import_time_bare_calls(*, node: ast.AST) -> tuple[ast.Expr, ...]:
+    if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda):
+        return ()
+    if isinstance(node, ast.If) and _is_nonexecuting_import_guard(node.test):
+        return tuple(
+            call for statement in node.orelse for call in _import_time_bare_calls(node=statement)
+        )
+    if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):
+        return (node,)
+    return tuple(
+        call for child in ast.iter_child_nodes(node) for call in _import_time_bare_calls(node=child)
+    )
+
+
+def _is_nonexecuting_import_guard(node: ast.expr) -> bool:
+    if isinstance(node, ast.Name) and node.id == "TYPE_CHECKING":
+        return True
+    if not isinstance(node, ast.Compare) or len(node.ops) != 1 or len(node.comparators) != 1:
+        return False
+    if not isinstance(node.left, ast.Name) or node.left.id != "__name__":
+        return False
+    comparator: ast.expr = node.comparators[0]
+    return (
+        isinstance(node.ops[0], ast.Eq)
+        and isinstance(comparator, ast.Constant)
+        and comparator.value == "__main__"
+    )
 
 
 def _package_layout_faults(

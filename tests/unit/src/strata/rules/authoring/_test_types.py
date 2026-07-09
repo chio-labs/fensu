@@ -55,3 +55,11 @@ class InvalidEnvelopeTestCase:
     slug: str
     message: str
     expected_error_fragment: str
+
+
+@dataclass(frozen=True)
+class ModuleMetadataTestCase:
+    """A module metadata discovery scenario and expected rule codes."""
+
+    description: str
+    expected_codes: tuple[str, ...]

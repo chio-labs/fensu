@@ -36,7 +36,7 @@ from tests.unit.src.strata.discovery.core.helpers import make_config, only_file,
             description="test file routes to tests family",
             scope_path="tests/unit/test_models.py",
             scope_name="test",
-            expected_families=frozenset({Family.TESTS}),
+            expected_families=frozenset({Family.ANNOTATIONS, Family.TESTS}),
         ),
         RoutingTestCase(
             description="tooling file routes to loose tooling families",

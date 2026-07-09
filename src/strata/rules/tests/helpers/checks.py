@@ -199,6 +199,12 @@ def _test_file_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) ->
     )
     faults: list[Fault] = []
     if (
+        code == SftCode.LOCAL_TEST_TYPES_FILE
+        and _is_test_module(ctx.path)
+        and not (ctx.path.parent / "_test_types.py").is_file()
+    ):
+        faults.append(ctx.fault(module))
+    if (
         code == SftCode.TEST_FILE_NAME
         and _is_test_module(ctx.path)
         and not ctx.path.name.startswith("test_")

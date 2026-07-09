@@ -7,8 +7,10 @@ from strata.rules.authoring.types import Family
 from strata.rules.layers.helpers.checks import (
     absolute_imports_only,
     no_cross_package_internals,
+    no_internal_public_surface_imports,
     no_runtime_imports_from_tooling,
     no_sibling_package_internals,
+    no_star_imports,
 )
 from strata.rules.layers.types import LayerCode
 
@@ -24,6 +26,14 @@ def import_rules() -> tuple[RuleSpec, ...]:
             message="use absolute imports; relative imports hide package boundaries",
             remediation="Replace relative imports with an absolute import path.",
             check=absolute_imports_only,
+        ),
+        RuleSpec(
+            code=LayerCode.NO_STAR_IMPORTS,
+            family=Family.LAYERS,
+            slug="no-star-imports",
+            message="star imports hide names from dependency-boundary analysis",
+            remediation="Import each required name explicitly.",
+            check=no_star_imports,
         ),
         RuleSpec(
             code=LayerCode.NO_SIBLING_PACKAGE_INTERNALS,
@@ -44,6 +54,14 @@ def import_rules() -> tuple[RuleSpec, ...]:
                 "Import from classes, models, types, constants, exceptions, or a thin main/ entry."
             ),
             check=no_cross_package_internals,
+        ),
+        RuleSpec(
+            code=LayerCode.NO_INTERNAL_PUBLIC_SURFACE_IMPORTS,
+            family=Family.LAYERS,
+            slug="no-internal-public-surface-imports",
+            message="internal code must import from the owning module, not the bare package",
+            remediation="Import from the concrete owning module below the package surface.",
+            check=no_internal_public_surface_imports,
         ),
         RuleSpec(
             code=LayerCode.NO_RUNTIME_IMPORTS_FROM_TOOLING,

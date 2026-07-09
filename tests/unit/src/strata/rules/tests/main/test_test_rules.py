@@ -55,6 +55,34 @@ from tests.unit.src.strata.rules.tests.main.helpers import (
             runtime_paths=("src/strata/rules/__init__.py",),
         ),
         SftRuleTestCase(
+            description="reserved root area under runtime package is allowed",
+            rule_code="SFT033",
+            files=(
+                SftRuleFile(
+                    description="package root test",
+                    relative_path="tests/unit/src/strata/__root__/test_surface.py",
+                    source=GOOD_TEST_SOURCE,
+                ),
+            ),
+            expected_codes=(),
+            expected_lines=(),
+            runtime_paths=("src/strata/__init__.py",),
+        ),
+        SftRuleTestCase(
+            description="reserved root area under another package is rejected",
+            rule_code="SFT033",
+            files=(
+                SftRuleFile(
+                    description="foreign package root test",
+                    relative_path="tests/unit/src/other/__root__/test_surface.py",
+                    source=GOOD_TEST_SOURCE,
+                ),
+            ),
+            expected_codes=("SFT033",),
+            expected_lines=(None,),
+            runtime_paths=("src/other/__init__.py",),
+        ),
+        SftRuleTestCase(
             description="bad mirrored root is flagged",
             rule_code="SFT030",
             files=(
@@ -209,6 +237,28 @@ def test_given_test_layout_when_checking_tests_then_flags_only_bad_mirroring(
                     source="def build_case() -> object:\n    return object()\n",
                 ),
             ),
+            expected_codes=(),
+            expected_lines=(),
+            runtime_paths=("src/strata/rules/__init__.py",),
+        ),
+        SftRuleTestCase(
+            description="test module without local test types file is flagged",
+            rule_code="SFT026",
+            files=(
+                SftRuleFile(
+                    description="test without types",
+                    relative_path="tests/unit/src/strata/rules/main/test_example.py",
+                    source=GOOD_TEST_SOURCE,
+                ),
+            ),
+            expected_codes=("SFT026",),
+            expected_lines=(None,),
+            runtime_paths=("src/strata/rules/__init__.py",),
+        ),
+        SftRuleTestCase(
+            description="test module with local test types file is allowed",
+            rule_code="SFT026",
+            files=good_test_files(),
             expected_codes=(),
             expected_lines=(),
             runtime_paths=("src/strata/rules/__init__.py",),
@@ -524,6 +574,19 @@ def test_given_test_functions_when_checking_shape_then_flags_only_function_viola
             description="local test case constructor is allowed",
             rule_code="SFT024",
             files=good_test_files(),
+            expected_codes=(),
+            expected_lines=(),
+            runtime_paths=("src/strata/rules/__init__.py",),
+        ),
+        SftRuleTestCase(
+            description="generated local test case matrix is allowed",
+            rule_code="SFT024",
+            files=good_test_files(
+                test_source=GOOD_TEST_SOURCE.replace(
+                    '[ExampleTestCase(description="example", expected_value=1)]',
+                    '[ExampleTestCase(description=f"{value}", expected_value=value) for value in (1, 2)]',
+                )
+            ),
             expected_codes=(),
             expected_lines=(),
             runtime_paths=("src/strata/rules/__init__.py",),

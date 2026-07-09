@@ -6,8 +6,8 @@ from collections.abc import Callable
 
 from strata.rules.authoring.helpers.envelope import (
     infer_kind,
+    resolve_envelope,
     validate_code_namespace,
-    validate_envelope,
 )
 from strata.rules.authoring.helpers.registry import register
 from strata.rules.authoring.models import RuleSpec
@@ -27,7 +27,7 @@ def rule(
     """Register the decorated function as a rule and return it unchanged."""
 
     def decorate(check: RuleCheck) -> RuleCheck:
-        resolved_family: Family = validate_envelope(
+        resolved_family: Family = resolve_envelope(
             code=code,
             slug=slug,
             message=message,

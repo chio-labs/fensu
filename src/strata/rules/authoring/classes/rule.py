@@ -9,8 +9,8 @@ from typing import ClassVar
 from strata.rules.authoring.exceptions import RuleDefinitionError
 from strata.rules.authoring.helpers.envelope import (
     infer_kind,
+    resolve_envelope,
     validate_code_namespace,
-    validate_envelope,
 )
 from strata.rules.authoring.models import Fault, RuleSpec
 from strata.rules.authoring.types import Family, RuleContext, Severity
@@ -39,7 +39,7 @@ class Rule(ABC):
                 f"Rule subclass {cls.__name__!r} is missing required class attributes: "
                 f"{', '.join(missing)}"
             )
-        validate_envelope(
+        resolve_envelope(
             code=cls.code,
             slug=cls.slug,
             message=cls.message,
@@ -48,7 +48,7 @@ class Rule(ABC):
         validate_code_namespace(code=cls.code, kind=infer_kind(cls.code))
 
     @abstractmethod
-    def check(self, module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    def check(self, *, module: ast.Module, ctx: RuleContext) -> list[Fault]:
         """Return the faults this rule finds in the given module."""
         ...
 
@@ -57,7 +57,7 @@ class Rule(ABC):
 
         return RuleSpec(
             code=self.code,
-            family=validate_envelope(
+            family=resolve_envelope(
                 code=self.code,
                 slug=self.slug,
                 message=self.message,

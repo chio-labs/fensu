@@ -25,7 +25,7 @@ def resolve_family(family: Family | str) -> Family:
         ) from error
 
 
-def validate_envelope(*, code: str, slug: str, message: str, family: Family | str) -> Family:
+def resolve_envelope(*, code: str, slug: str, message: str, family: Family | str) -> Family:
     """Validate identity fields and return the resolved family, or raise."""
 
     resolved_family: Family = resolve_family(family)

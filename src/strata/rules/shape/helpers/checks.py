@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+from pathlib import Path
 
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import RuleContext, Threshold
@@ -11,19 +12,10 @@ _mutator_methods: frozenset[str] = frozenset(
     {"add", "append", "clear", "extend", "insert", "pop", "remove", "setdefault", "update"}
 )
 _exempt_parameters: frozenset[str] = frozenset({"cls", "self"})
-_discarded_call_allowed_names: frozenset[str] = frozenset({"print"})
-_discarded_call_allowed_prefixes: tuple[str, ...] = (
-    "check_",
-    "enforce_",
-    "validate_",
-    "on_",
-    "report_",
-    "log",
-    "write_",
-)
+_no_return_annotation_names: frozenset[str] = frozenset({"Never", "NoReturn", "None"})
 
 
-def too_many_statements(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def too_many_statements(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag main/ top-level functions exceeding the tight statement threshold."""
 
     if not ctx.is_main_module():
@@ -37,7 +29,7 @@ def too_many_statements(module: ast.Module, ctx: RuleContext) -> list[Fault]:
     return faults
 
 
-def too_many_distinct_calls(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def too_many_distinct_calls(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag main/ top-level functions with too many distinct callees."""
 
     if not ctx.is_main_module():
@@ -53,7 +45,7 @@ def too_many_distinct_calls(module: ast.Module, ctx: RuleContext) -> list[Fault]
     return faults
 
 
-def too_many_locals(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def too_many_locals(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag main/ top-level functions juggling too many local variables."""
 
     if not ctx.is_main_module():
@@ -69,7 +61,7 @@ def too_many_locals(module: ast.Module, ctx: RuleContext) -> list[Fault]:
     return faults
 
 
-def max_arguments(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def max_arguments(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag functions exceeding the configured argument limit."""
 
     limit: int = ctx.threshold(Threshold.MAX_ARGUMENTS)
@@ -81,7 +73,7 @@ def max_arguments(module: ast.Module, ctx: RuleContext) -> list[Fault]:
     return faults
 
 
-def max_statements_global(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def max_statements_global(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag any function exceeding the loose global statement threshold."""
 
     limit: int = ctx.threshold(Threshold.MAX_STATEMENTS_GLOBAL)
@@ -93,23 +85,29 @@ def max_statements_global(module: ast.Module, ctx: RuleContext) -> list[Fault]:
     return faults
 
 
-def discarded_call_result(module: ast.Module, ctx: RuleContext) -> list[Fault]:
-    """Flag main/ orchestrator bare calls whose result is discarded."""
+def meaningful_project_result_discarded(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Flag discarded meaningful results from resolved project-local calls."""
 
     if not ctx.is_main_module():
         return []
     faults: list[Fault] = []
     for function_node in _top_level_function_nodes(module):
-        for node in ast.walk(function_node):
-            if not isinstance(node, ast.Expr) or not isinstance(node.value, ast.Call):
-                continue
-            if _discarded_call_is_allowed(node.value):
-                continue
-            faults.append(ctx.fault(node))
+        for statement, call in _bare_calls(function_node=function_node):
+            resolved_function: ast.FunctionDef | ast.AsyncFunctionDef | None = (
+                _resolve_project_function(
+                    call=call,
+                    module=module,
+                    function_node=function_node,
+                    ctx=ctx,
+                    repo_root=ctx.repo_root,
+                )
+            )
+            if resolved_function is not None and _has_meaningful_return(resolved_function):
+                faults.append(ctx.fault(statement))
     return faults
 
 
-def parameter_mutation_in_phase_helpers(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def parameter_mutation_in_phase_helpers(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag direct parameter mutation in helper functions."""
 
     if not ctx.in_role("helpers"):
@@ -117,13 +115,13 @@ def parameter_mutation_in_phase_helpers(module: ast.Module, ctx: RuleContext) ->
     return _parameter_mutation_faults(module=module, ctx=ctx, require_return=False)
 
 
-def default_mutation_return(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def default_mutation_return(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag parameter mutation unless all mutated parameters are returned."""
 
     return _parameter_mutation_faults(module=module, ctx=ctx, require_return=True)
 
 
-def keyword_only_arguments(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def keyword_only_arguments(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag excess positional parameters that should be keyword-only."""
 
     limit: int = ctx.threshold(Threshold.MAX_POSITIONAL_ARGS)
@@ -145,7 +143,7 @@ def keyword_only_arguments(module: ast.Module, ctx: RuleContext) -> list[Fault]:
     return faults
 
 
-def mutable_result_model(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def mutable_result_model(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag dataclass result models that are not frozen."""
 
     if ctx.role_of() != "models":
@@ -246,22 +244,139 @@ def _parameter_names(function_node: ast.FunctionDef | ast.AsyncFunctionDef) -> f
     return frozenset(names)
 
 
-def _discarded_call_is_allowed(node: ast.Call) -> bool:
-    name: str | None = _call_name(node)
-    if name is None:
-        return True
-    bare_name: str = name.rsplit(".", maxsplit=1)[-1].lstrip("_")
-    return bare_name in _discarded_call_allowed_names or bare_name.startswith(
-        _discarded_call_allowed_prefixes
+def _bare_calls(
+    *, function_node: ast.FunctionDef | ast.AsyncFunctionDef
+) -> tuple[tuple[ast.Expr, ast.Call], ...]:
+    return tuple(
+        call for statement in function_node.body for call in _bare_calls_in_node(node=statement)
     )
 
 
-def _call_name(node: ast.Call) -> str | None:
-    if isinstance(node.func, ast.Name):
-        return node.func.id
-    if isinstance(node.func, ast.Attribute):
-        return node.func.attr
+def _bare_calls_in_node(*, node: ast.AST) -> tuple[tuple[ast.Expr, ast.Call], ...]:
+    if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef | ast.Lambda):
+        return ()
+    if isinstance(node, ast.Expr):
+        call: ast.Call | None = _expression_call(node.value)
+        if call is not None:
+            return ((node, call),)
+    return tuple(
+        call for child in ast.iter_child_nodes(node) for call in _bare_calls_in_node(node=child)
+    )
+
+
+def _expression_call(node: ast.expr) -> ast.Call | None:
+    if isinstance(node, ast.Call):
+        return node
+    if isinstance(node, ast.Await) and isinstance(node.value, ast.Call):
+        return node.value
     return None
+
+
+def _resolve_project_function(
+    *,
+    call: ast.Call,
+    module: ast.Module,
+    function_node: ast.FunctionDef | ast.AsyncFunctionDef,
+    ctx: RuleContext,
+    repo_root: Path,
+) -> ast.FunctionDef | ast.AsyncFunctionDef | None:
+    if isinstance(call.func, ast.Name):
+        if call.func.id in ctx.parameter_names(function_node) | ctx.assigned_locals(function_node):
+            return None
+        local_function: ast.FunctionDef | ast.AsyncFunctionDef | None = _module_function(
+            module=module, name=call.func.id
+        )
+        if local_function is not None:
+            return local_function
+        imported_symbol: tuple[str, str] | None = _imported_symbol(
+            module=module, local_name=call.func.id
+        )
+        if imported_symbol is None:
+            return None
+        return _resolve_imported_function(
+            module_name=imported_symbol[0], symbol=imported_symbol[1], repo_root=repo_root
+        )
+    if isinstance(call.func, ast.Attribute) and isinstance(call.func.value, ast.Name):
+        module_name: str | None = _imported_module(module=module, local_name=call.func.value.id)
+        if module_name is not None:
+            return _resolve_imported_function(
+                module_name=module_name, symbol=call.func.attr, repo_root=repo_root
+            )
+    return None
+
+
+def _resolve_imported_function(
+    *, module_name: str, symbol: str, repo_root: Path
+) -> ast.FunctionDef | ast.AsyncFunctionDef | None:
+    module_path: Path | None = _project_module_path(module_name=module_name, repo_root=repo_root)
+    if module_path is None:
+        return None
+    try:
+        imported_module: ast.Module = ast.parse(module_path.read_text(encoding="utf-8"))
+    except (OSError, SyntaxError, UnicodeError):
+        return None
+    return _module_function(module=imported_module, name=symbol)
+
+
+def _project_module_path(*, module_name: str, repo_root: Path) -> Path | None:
+    relative_path: Path = Path(*module_name.split("."))
+    for source_root in (repo_root / "src", repo_root):
+        module_path: Path = source_root / relative_path.with_suffix(".py")
+        if module_path.is_file():
+            return module_path
+        package_path: Path = source_root / relative_path / "__init__.py"
+        if package_path.is_file():
+            return package_path
+    return None
+
+
+def _module_function(
+    *, module: ast.Module, name: str
+) -> ast.FunctionDef | ast.AsyncFunctionDef | None:
+    return next(
+        (
+            node
+            for node in module.body
+            if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and node.name == name
+        ),
+        None,
+    )
+
+
+def _imported_symbol(*, module: ast.Module, local_name: str) -> tuple[str, str] | None:
+    for node in module.body:
+        if not isinstance(node, ast.ImportFrom) or node.level or node.module is None:
+            continue
+        for alias in node.names:
+            if (alias.asname or alias.name) == local_name:
+                return node.module, alias.name
+    return None
+
+
+def _imported_module(*, module: ast.Module, local_name: str) -> str | None:
+    for node in module.body:
+        if not isinstance(node, ast.Import):
+            continue
+        for alias in node.names:
+            if alias.asname is None and "." in alias.name:
+                continue
+            bound_name: str = alias.asname or alias.name
+            if bound_name == local_name:
+                return alias.name
+    return None
+
+
+def _has_meaningful_return(function_node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    annotation: ast.expr | None = function_node.returns
+    if annotation is None or (isinstance(annotation, ast.Constant) and annotation.value is None):
+        return False
+    if isinstance(annotation, ast.Name):
+        return annotation.id not in _no_return_annotation_names
+    if isinstance(annotation, ast.Attribute):
+        return annotation.attr not in _no_return_annotation_names
+    if isinstance(annotation, ast.Constant) and isinstance(annotation.value, str):
+        return annotation.value.rsplit(".", maxsplit=1)[-1] not in _no_return_annotation_names
+    return True
 
 
 def _parameter_mutated_by_node(*, node: ast.AST, parameter_names: frozenset[str]) -> str | None:

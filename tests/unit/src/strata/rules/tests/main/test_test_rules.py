@@ -119,6 +119,19 @@ from tests.unit.src.strata.rules.tests.main.helpers import (
             expected_codes=("SFT035",),
             expected_lines=(None,),
         ),
+        SftRuleTestCase(
+            description="test scope infrastructure is exempt from mirrored layout",
+            rule_code="SFT028",
+            files=(
+                SftRuleFile(
+                    description="scope conftest",
+                    relative_path="tests/unit/conftest.py",
+                    source="",
+                ),
+            ),
+            expected_codes=(),
+            expected_lines=(),
+        ),
     ],
     ids=lambda case: case.description,
 )
@@ -184,6 +197,34 @@ def test_given_test_layout_when_checking_tests_then_flags_only_bad_mirroring(
             files=good_test_files(test_source=f"{GOOD_TEST_SOURCE}\n_PRIVATE: int = 1\n"),
             expected_codes=("SFT037",),
             expected_lines=(13,),
+            runtime_paths=("src/strata/rules/__init__.py",),
+        ),
+        SftRuleTestCase(
+            description="test support helpers may define top-level functions",
+            rule_code="SFT027",
+            files=(
+                SftRuleFile(
+                    description="local helpers",
+                    relative_path="tests/unit/src/strata/rules/tests/main/helpers.py",
+                    source="def build_case() -> object:\n    return object()\n",
+                ),
+            ),
+            expected_codes=(),
+            expected_lines=(),
+            runtime_paths=("src/strata/rules/__init__.py",),
+        ),
+        SftRuleTestCase(
+            description="legacy test helper support module is not a test file",
+            rule_code="SFT006",
+            files=(
+                SftRuleFile(
+                    description="legacy local helpers",
+                    relative_path="tests/unit/src/strata/rules/tests/main/_test_helpers.py",
+                    source="",
+                ),
+            ),
+            expected_codes=(),
+            expected_lines=(),
             runtime_paths=("src/strata/rules/__init__.py",),
         ),
     ],
@@ -477,6 +518,14 @@ def test_given_test_functions_when_checking_shape_then_flags_only_function_viola
             ),
             expected_codes=("SFT024",),
             expected_lines=(7,),
+            runtime_paths=("src/strata/rules/__init__.py",),
+        ),
+        SftRuleTestCase(
+            description="local test case constructor is allowed",
+            rule_code="SFT024",
+            files=good_test_files(),
+            expected_codes=(),
+            expected_lines=(),
             runtime_paths=("src/strata/rules/__init__.py",),
         ),
     ],

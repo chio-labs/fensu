@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import ast
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
@@ -160,4 +160,9 @@ class RuleContext(Protocol):
         ...
 
 
-type RuleCheck = Callable[[ast.Module, RuleContext], list[Fault]]
+class RuleCheck(Protocol):
+    """A rule implementation invoked with explicit module and context names."""
+
+    def __call__(self, *, module: ast.Module, ctx: RuleContext) -> list[Fault]:
+        """Return faults found in one parsed module."""
+        ...

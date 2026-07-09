@@ -7,7 +7,7 @@ from strata.discovery.core.models import ScopedFile
 from strata.rules.authoring.types import Family
 
 
-def families_for_scope(scoped_file: ScopedFile) -> frozenset[Family]:
+def families_for_scope(*, scoped_file: ScopedFile) -> frozenset[Family]:
     """Return the rule families that apply to a discovered file's scope."""
 
     if scoped_file.scope == "root":

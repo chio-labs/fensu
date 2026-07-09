@@ -30,7 +30,7 @@ _role_filenames: frozenset[str] = frozenset(
 )
 
 
-def models_only_models(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def models_only_models(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag foreign declarations in model-role modules."""
 
     if ctx.role_of() != "models":
@@ -45,7 +45,7 @@ def models_only_models(module: ast.Module, ctx: RuleContext) -> list[Fault]:
     return faults
 
 
-def types_only_types(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def types_only_types(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag runtime declarations in type-role modules."""
 
     if ctx.role_of() != "types":
@@ -67,7 +67,7 @@ def types_only_types(module: ast.Module, ctx: RuleContext) -> list[Fault]:
     return faults
 
 
-def constants_only_constants(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def constants_only_constants(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag foreign declarations in constant-role modules."""
 
     if ctx.role_of() != "constants":
@@ -85,7 +85,7 @@ def constants_only_constants(module: ast.Module, ctx: RuleContext) -> list[Fault
     ]
 
 
-def exceptions_only_exceptions(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def exceptions_only_exceptions(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag foreign declarations in exception-role modules."""
 
     if ctx.role_of() != "exceptions":
@@ -100,7 +100,7 @@ def exceptions_only_exceptions(module: ast.Module, ctx: RuleContext) -> list[Fau
     return faults
 
 
-def model_declaration_outside_models(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def model_declaration_outside_models(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag structured model declarations outside the models role."""
 
     if ctx.role_of() == "models":
@@ -112,7 +112,7 @@ def model_declaration_outside_models(module: ast.Module, ctx: RuleContext) -> li
     ]
 
 
-def type_declaration_outside_types(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def type_declaration_outside_types(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag public type-layer declarations outside the types role."""
 
     if ctx.role_of() == "types":
@@ -130,7 +130,7 @@ def type_declaration_outside_types(module: ast.Module, ctx: RuleContext) -> list
     return faults
 
 
-def constant_outside_constants(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def constant_outside_constants(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag public uppercase module constants outside the constants role."""
 
     if ctx.role_of() == "constants":
@@ -143,7 +143,9 @@ def constant_outside_constants(module: ast.Module, ctx: RuleContext) -> list[Fau
     return faults
 
 
-def exception_declaration_outside_exceptions(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def exception_declaration_outside_exceptions(
+    *, module: ast.Module, ctx: RuleContext
+) -> list[Fault]:
     """Flag custom exception declarations outside the exceptions role."""
 
     if ctx.role_of() == "exceptions":
@@ -155,7 +157,7 @@ def exception_declaration_outside_exceptions(module: ast.Module, ctx: RuleContex
     ]
 
 
-def banned_generic_filename(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def banned_generic_filename(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag vague generic module filenames."""
 
     del module
@@ -164,7 +166,7 @@ def banned_generic_filename(module: ast.Module, ctx: RuleContext) -> list[Fault]
     return [Fault(code="SFR201", path=ctx.path, message="use a domain-specific filename")]
 
 
-def helpers_module_name(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def helpers_module_name(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag helpers.py in favor of a helpers package."""
 
     del module
@@ -173,7 +175,7 @@ def helpers_module_name(module: ast.Module, ctx: RuleContext) -> list[Fault]:
     return [Fault(code="SFR202", path=ctx.path, message="use a helpers/ package")]
 
 
-def classes_module_name(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def classes_module_name(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag classes.py in favor of a classes package."""
 
     del module
@@ -182,7 +184,7 @@ def classes_module_name(module: ast.Module, ctx: RuleContext) -> list[Fault]:
     return [Fault(code="SFR203", path=ctx.path, message="use a classes/ package")]
 
 
-def helpers_classes_file_private(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def helpers_classes_file_private(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag public plain classes in helpers modules."""
 
     if not ctx.in_role("helpers"):
@@ -197,7 +199,7 @@ def helpers_classes_file_private(module: ast.Module, ctx: RuleContext) -> list[F
     return faults
 
 
-def helpers_package_layout(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def helpers_package_layout(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag mixed or oversized flat helpers package layouts."""
 
     del module
@@ -212,7 +214,7 @@ def helpers_package_layout(module: ast.Module, ctx: RuleContext) -> list[Fault]:
     )
 
 
-def main_package_layout(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def main_package_layout(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag mixed, oversized, or support-nested main package layouts."""
 
     del module
@@ -246,7 +248,7 @@ def main_package_layout(module: ast.Module, ctx: RuleContext) -> list[Fault]:
     )
 
 
-def nested_direct_modules(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def nested_direct_modules(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag ad hoc direct modules in nested non-role packages."""
 
     del module
@@ -267,7 +269,7 @@ def nested_direct_modules(module: ast.Module, ctx: RuleContext) -> list[Fault]:
     ]
 
 
-def nested_direct_subpackages(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def nested_direct_subpackages(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag arbitrary direct child packages below nested runtime packages."""
 
     del module
@@ -293,7 +295,7 @@ def nested_direct_subpackages(module: ast.Module, ctx: RuleContext) -> list[Faul
     return []
 
 
-def top_level_role_placement(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def top_level_role_placement(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag role files and directories directly below top-level domains."""
 
     del module
@@ -319,7 +321,7 @@ def top_level_role_placement(module: ast.Module, ctx: RuleContext) -> list[Fault
     return []
 
 
-def top_level_direct_modules(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def top_level_direct_modules(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag non-role modules directly below top-level domains."""
 
     del module
@@ -335,7 +337,7 @@ def top_level_direct_modules(module: ast.Module, ctx: RuleContext) -> list[Fault
     ]
 
 
-def entry_module_shape(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def entry_module_shape(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag entry modules that are not focused single-entry surfaces."""
 
     if not ctx.is_entry_module():
@@ -370,7 +372,7 @@ def entry_module_shape(module: ast.Module, ctx: RuleContext) -> list[Fault]:
     return faults
 
 
-def init_module_empty(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def init_module_empty(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag non-root package initializers containing runtime statements."""
 
     if ctx.path.name != "__init__.py" or len(ctx.relative_parts()) == 1:
@@ -384,7 +386,7 @@ def init_module_empty(module: ast.Module, ctx: RuleContext) -> list[Fault]:
     ]
 
 
-def no_reexport_shim(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def no_reexport_shim(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag internal modules that only re-export imports."""
 
     if ctx.path.name == "__init__.py" or ctx.role_of() == "exceptions":
@@ -400,7 +402,7 @@ def no_reexport_shim(module: ast.Module, ctx: RuleContext) -> list[Fault]:
     ]
 
 
-def no_internal_helper_exports(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def no_internal_helper_exports(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag __all__ declarations inside helpers packages."""
 
     if not ctx.in_role("helpers"):
@@ -408,7 +410,7 @@ def no_internal_helper_exports(module: ast.Module, ctx: RuleContext) -> list[Fau
     return [ctx.fault(node) for node in module.body if _is_all_assignment(node)]
 
 
-def main_entry_name_collision(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def main_entry_name_collision(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag a main entry module sharing its name with a sibling package."""
 
     del module
@@ -423,7 +425,7 @@ def main_entry_name_collision(module: ast.Module, ctx: RuleContext) -> list[Faul
     ]
 
 
-def classes_one_class_per_module(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def classes_one_class_per_module(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag classes modules that do not define exactly one top-level class."""
 
     if not ctx.in_role("classes") or ctx.path.name == "__init__.py":
@@ -442,7 +444,7 @@ def classes_one_class_per_module(module: ast.Module, ctx: RuleContext) -> list[F
     ]
 
 
-def helpers_package_shape(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def helpers_package_shape(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag orchestration and deep nesting below helpers packages."""
 
     del module
@@ -464,7 +466,7 @@ def helpers_package_shape(module: ast.Module, ctx: RuleContext) -> list[Fault]:
     ]
 
 
-def private_definition_ordering(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def private_definition_ordering(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag private dataclasses and constants after top-level functions."""
 
     faults: list[Fault] = []
@@ -486,7 +488,7 @@ def private_definition_ordering(module: ast.Module, ctx: RuleContext) -> list[Fa
     return faults
 
 
-def source_file_line_count(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def source_file_line_count(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag runtime source files exceeding the configured line limit."""
 
     del module

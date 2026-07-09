@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import ast
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from strata.rules.authoring.types import Family, RuleContext, RuleKind, Severity
+from strata.rules.authoring.types import Family, RuleCheck, RuleKind, Severity
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,7 +39,7 @@ class RuleSpec:
     family: Family
     slug: str
     message: str
-    check: Callable[[ast.Module, RuleContext], list[Fault]]
+    check: RuleCheck
     remediation: str | None = None
     severity: Severity = Severity.ERROR
     kind: RuleKind = RuleKind.CORE

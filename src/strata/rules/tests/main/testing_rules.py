@@ -20,7 +20,7 @@ def test_rules() -> tuple[RuleSpec, ...]:
 
 
 def _rule(*, code: SftCode, slug: str, message: str) -> RuleSpec:
-    def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    def check(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
         return test_faults(module=module, ctx=ctx, code=code)
 
     return RuleSpec(code=code, family=Family.TESTS, slug=slug, message=message, check=check)

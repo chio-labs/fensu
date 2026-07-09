@@ -17,5 +17,6 @@ class ShapeRuleTestCase:
     expected_codes: tuple[str, ...]
     expected_lines: tuple[int | None, ...]
     relative_path: str = "domain/core/main/run.py"
+    project_files: tuple[tuple[str, str], ...] = field(default_factory=tuple)
     thresholds: dict[Threshold, int] = field(default_factory=dict)
     role_thresholds: dict[str, dict[Threshold, int]] = field(default_factory=dict)

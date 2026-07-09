@@ -39,7 +39,7 @@ _docstring_bearing_node_types: tuple[type[ast.AST], ...] = (
 )
 
 
-def single_line_docstrings(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def single_line_docstrings(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag docstrings spanning more than one line."""
 
     faults: list[Fault] = []
@@ -53,7 +53,7 @@ def single_line_docstrings(module: ast.Module, ctx: RuleContext) -> list[Fault]:
     return faults
 
 
-def no_standalone_comments(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def no_standalone_comments(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag comments outside narrow tooling-directive exceptions."""
 
     del module
@@ -82,7 +82,7 @@ def no_standalone_comments(module: ast.Module, ctx: RuleContext) -> list[Fault]:
     return faults
 
 
-def no_raw_builtin_raise(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def no_raw_builtin_raise(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag raises of generic built-in exception classes."""
 
     faults: list[Fault] = []
@@ -92,14 +92,14 @@ def no_raw_builtin_raise(module: ast.Module, ctx: RuleContext) -> list[Fault]:
     return faults
 
 
-def no_assert_in_runtime(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def no_assert_in_runtime(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag assert statements in runtime code."""
 
     del module
     return [ctx.fault(node) for node in ctx.nodes(ast.Assert)]
 
 
-def no_swallowed_exception_probe(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def no_swallowed_exception_probe(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag broad exception handlers that silently answer existence probes."""
 
     del module

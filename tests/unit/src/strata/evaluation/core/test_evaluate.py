@@ -28,6 +28,7 @@ from tests.unit.src.strata.evaluation.core.helpers import (
     make_node_count_rule,
     make_none_location_rule,
     make_position_rule,
+    make_runtime_fault_rule,
     make_static_fault_rule,
     make_threshold_rule,
     write_sources,
@@ -93,6 +94,35 @@ def test_given_empty_ruleset_when_evaluating_then_returns_no_faults(
     result: EvaluationResult = evaluate(
         tree=discover_test_tree(config=config),
         ruleset=(),
+        config=config,
+    )
+
+    assert len(result.faults) == test_case.expected_fault_count
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        EmptyEvaluationTestCase(
+            description="runtime-only rule skips test-scoped files",
+            files=(("tests/unit/src/pkg/test_example.py", "assert True\n"),),
+            expected_fault_count=0,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_runtime_rule_when_evaluating_test_scope_then_rule_is_not_executed(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: EmptyEvaluationTestCase,
+) -> None:
+    write_sources(repo_root=tmp_path, files=test_case.files)
+    monkeypatch.chdir(tmp_path)
+    config: Config = Config(roots=(), tests=("tests",))
+
+    result: EvaluationResult = evaluate(
+        tree=discover_test_tree(config=config),
+        ruleset=(make_runtime_fault_rule(),),
         config=config,
     )
 

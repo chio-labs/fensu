@@ -24,4 +24,4 @@ def execute_rule(
         repo_root=repo_root,
         rule=rule,
     )
-    return rule.check(parsed_module.module, ctx)
+    return rule.check(module=parsed_module.module, ctx=ctx)

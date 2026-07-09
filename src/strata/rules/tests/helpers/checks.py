@@ -48,6 +48,8 @@ def test_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) -> list[
 
 
 def _layout_faults(*, ctx: RuleContext, code: SftCode) -> list[Fault]:
+    if ctx.path.name in {"__init__.py", "conftest.py"}:
+        return []
     try:
         relative_parts: tuple[str, ...] = (
             ctx.path.parent.resolve().relative_to(ctx.repo_root.resolve()).parts
@@ -191,7 +193,7 @@ def _scenario_models_faults(*, module: ast.Module, ctx: RuleContext) -> list[Fau
 
 
 def _test_file_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) -> list[Fault]:
-    local_test_types: _LocalTestTypes = _local_test_types(ctx.path)
+    local_test_types: _LocalTestTypes = _local_test_types(path=ctx.path, repo_root=ctx.repo_root)
     module_context: _TestModuleContext = _module_context(
         module=module, ctx=ctx, local_test_types=local_test_types
     )
@@ -219,7 +221,7 @@ def _test_file_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) ->
 
 
 def _module_shape_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) -> list[Fault]:
-    if ctx.path.name == "_test_helpers.py":
+    if not _is_test_module(ctx.path):
         return []
     faults: list[Fault] = []
     first_test_function_line: int | None = None
@@ -359,7 +361,7 @@ def _parametrize_faults(
     return faults
 
 
-def _local_test_types(path: Path) -> _LocalTestTypes:
+def _local_test_types(*, path: Path, repo_root: Path) -> _LocalTestTypes:
     test_types_path: Path = path.parent / "_test_types.py"
     dataclass_names: set[str] = set()
     if test_types_path.is_file():
@@ -371,7 +373,7 @@ def _local_test_types(path: Path) -> _LocalTestTypes:
             if isinstance(node, ast.ClassDef) and _has_dataclass_decorator(node):
                 dataclass_names.add(node.name)
     return _LocalTestTypes(
-        module_name=_module_name_for_file(test_types_path),
+        module_name=_module_name_for_file(path=test_types_path, repo_root=repo_root),
         dataclass_names=frozenset(dataclass_names),
     )
 
@@ -392,12 +394,18 @@ def _module_context(
     )
 
 
-def _module_name_for_file(path: Path) -> str:
-    return ".".join(path.with_suffix("").parts)
+def _module_name_for_file(*, path: Path, repo_root: Path) -> str:
+    return ".".join(path.relative_to(repo_root).with_suffix("").parts)
 
 
 def _is_test_module(path: Path) -> bool:
-    return path.name not in {"_test_types.py", "helpers.py", "conftest.py", "__init__.py"}
+    return path.name not in {
+        "_test_helpers.py",
+        "_test_types.py",
+        "helpers.py",
+        "conftest.py",
+        "__init__.py",
+    }
 
 
 def _is_docstring_only_module(module: ast.Module) -> bool:

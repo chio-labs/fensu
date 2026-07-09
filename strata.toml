@@ -1,0 +1,7 @@
+roots = ["src/strata"]
+tests = ["tests"]
+tooling = []
+select = ["SF"]
+
+[thresholds]
+max_positional_args = 1

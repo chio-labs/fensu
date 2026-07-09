@@ -6,10 +6,10 @@ from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Family
 from strata.rules.shape.helpers.checks import (
     default_mutation_return,
-    discarded_call_result,
     keyword_only_arguments,
     max_arguments,
     max_statements_global,
+    meaningful_project_result_discarded,
     mutable_result_model,
     parameter_mutation_in_phase_helpers,
     too_many_distinct_calls,
@@ -59,11 +59,11 @@ def shape_rules() -> tuple[RuleSpec, ...]:
             check=max_statements_global,
         ),
         RuleSpec(
-            code=ShapeCode.DISCARDED_CALL_RESULT,
+            code=ShapeCode.MEANINGFUL_PROJECT_RESULT_DISCARDED,
             family=Family.SHAPE,
-            slug="discarded-call-result",
-            message="main orchestrators must consume phase call results",
-            check=discarded_call_result,
+            slug="meaningful-project-result-discarded",
+            message="main orchestrators must consume meaningful project-local call results",
+            check=meaningful_project_result_discarded,
         ),
         RuleSpec(
             code=ShapeCode.PARAMETER_MUTATION_IN_PHASE_HELPERS,

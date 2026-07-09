@@ -26,6 +26,10 @@ def evaluate_shape_test_case(
     path: Path = tmp_path / "src" / "pkg" / test_case.relative_path
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(test_case.source, encoding="utf-8")
+    for relative_path, source in test_case.project_files:
+        project_path: Path = tmp_path / "src" / "pkg" / relative_path
+        project_path.parent.mkdir(parents=True, exist_ok=True)
+        project_path.write_text(source, encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     thresholds: dict[Threshold, int] = dict(DEFAULT_THRESHOLDS)
     thresholds.update(test_case.thresholds)

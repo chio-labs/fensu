@@ -221,23 +221,149 @@ def test_given_functions_when_checking_global_statements_then_flags_only_over_li
     "test_case",
     [
         ShapeRuleTestCase(
-            description="discarded plain call is flagged",
+            description="discarded local meaningful result is flagged",
             rule_code="SFS101",
-            source="def run() -> None:\n    build_value()\n\ndef build_value() -> int:\n    return 1\n",
+            source=(
+                "def compile_project() -> int:\n"
+                "    return 1\n\n\n"
+                "def run() -> None:\n"
+                "    compile_project()\n"
+            ),
             expected_codes=("SFS101",),
-            expected_lines=(2,),
+            expected_lines=(6,),
         ),
         ShapeRuleTestCase(
-            description="validator and assignment calls are allowed",
+            description="none and no-return project calls are allowed",
             rule_code="SFS101",
-            source="def run() -> None:\n    validate_value()\n    value: int = build_value()\n    _ = build_value()\n\ndef validate_value() -> None:\n    return None\n\ndef build_value() -> int:\n    return 1\n",
+            source=(
+                "from typing import NoReturn\n\n\n"
+                "def validate_project() -> None:\n"
+                "    return None\n\n\n"
+                "def stop_project() -> NoReturn:\n"
+                "    raise RuntimeError\n\n\n"
+                "def run() -> None:\n"
+                "    validate_project()\n"
+                "    stop_project()\n"
+            ),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        ShapeRuleTestCase(
+            description="missing and unresolved return contracts are outside the rule",
+            rule_code="SFS101",
+            source=(
+                "def local_unknown():\n"
+                "    return 1\n\n\n"
+                "def run(*, parser: object) -> None:\n"
+                "    local_unknown()\n"
+                "    external_function()\n"
+                "    parser.add_argument('path')\n"
+            ),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        ShapeRuleTestCase(
+            description="discarded directly imported meaningful result is flagged",
+            rule_code="SFS101",
+            source=(
+                "from pkg.domain.core.helpers.phases import compile_project\n\n\n"
+                "def run() -> None:\n"
+                "    compile_project()\n"
+            ),
+            project_files=(
+                (
+                    "domain/core/helpers/phases.py",
+                    "def compile_project() -> int:\n    return 1\n",
+                ),
+            ),
+            expected_codes=("SFS101",),
+            expected_lines=(5,),
+        ),
+        ShapeRuleTestCase(
+            description="discarded module-qualified meaningful result is flagged",
+            rule_code="SFS101",
+            source=(
+                "import pkg.domain.core.helpers.phases as phases\n\n\n"
+                "def run() -> None:\n"
+                "    phases.compile_project()\n"
+            ),
+            project_files=(
+                (
+                    "domain/core/helpers/phases.py",
+                    "def compile_project() -> int:\n    return 1\n",
+                ),
+            ),
+            expected_codes=("SFS101",),
+            expected_lines=(5,),
+        ),
+        ShapeRuleTestCase(
+            description="assignment return and explicit discard consume meaningful results",
+            rule_code="SFS101",
+            source=(
+                "def compile_project() -> int:\n"
+                "    return 1\n\n\n"
+                "def run() -> int:\n"
+                "    project: int = compile_project()\n"
+                "    _ = compile_project()\n"
+                "    return compile_project()\n"
+            ),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        ShapeRuleTestCase(
+            description="nested function calls are outside the orchestrator body",
+            rule_code="SFS101",
+            source=(
+                "def compile_project() -> int:\n"
+                "    return 1\n\n\n"
+                "def run() -> None:\n"
+                "    def nested() -> None:\n"
+                "        compile_project()\n\n"
+                "    nested()\n"
+            ),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        ShapeRuleTestCase(
+            description="discarded awaited meaningful result is flagged",
+            rule_code="SFS101",
+            source=(
+                "async def fetch_project() -> int:\n"
+                "    return 1\n\n\n"
+                "async def run() -> None:\n"
+                "    await fetch_project()\n"
+            ),
+            expected_codes=("SFS101",),
+            expected_lines=(6,),
+        ),
+        ShapeRuleTestCase(
+            description="validator name does not hide a meaningful return",
+            rule_code="SFS101",
+            source=(
+                "def validate_project() -> bool:\n"
+                "    return True\n\n\n"
+                "def run() -> None:\n"
+                "    validate_project()\n"
+            ),
+            expected_codes=("SFS101",),
+            expected_lines=(6,),
+        ),
+        ShapeRuleTestCase(
+            description="locally shadowed function names are unresolved",
+            rule_code="SFS101",
+            source=(
+                "def compile_project() -> int:\n"
+                "    return 1\n\n\n"
+                "def run(*, compile_project: object) -> None:\n"
+                "    compile_project()\n"
+            ),
             expected_codes=(),
             expected_lines=(),
         ),
     ],
     ids=lambda case: case.description,
 )
-def test_given_main_calls_when_checking_discarded_results_then_flags_plain_discards(
+def test_given_main_calls_when_checking_results_then_flags_discarded_project_values(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     test_case: ShapeRuleTestCase,

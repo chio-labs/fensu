@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from strata.discovery.core.helpers.routing import families_for_scope
 from strata.discovery.core.main.discover_files import discover_files
+from strata.discovery.core.main.route import families_for_scope
 from strata.discovery.core.models import DiscoveredTree, ScopedFile
 from strata.rules.authoring.types import Family
 from tests.unit.src.strata.discovery.core._test_types import RoutingTestCase
@@ -62,4 +62,4 @@ def test_given_scoped_file_when_routing_then_returns_expected_families(
     scoped_file: ScopedFile = only_file(files=tree.files)
 
     assert scoped_file.scope == test_case.scope_name
-    assert families_for_scope(scoped_file) == test_case.expected_families
+    assert families_for_scope(scoped_file=scoped_file) == test_case.expected_families

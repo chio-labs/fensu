@@ -50,6 +50,21 @@ def make_node_count_rule() -> RuleSpec:
     )
 
 
+def make_runtime_fault_rule() -> RuleSpec:
+    """Build a fake runtime-only rule that reports the first module node."""
+
+    def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+        return [ctx.fault(module.body[0])]
+
+    return RuleSpec(
+        code="SFX999",
+        family=Family.HYGIENE,
+        slug="runtime-fault",
+        message="runtime fault",
+        check=check,
+    )
+
+
 def make_threshold_rule(*, threshold: Threshold) -> RuleSpec:
     """Build a fake rule that reports the threshold value in its message."""
 

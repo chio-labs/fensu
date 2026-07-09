@@ -17,7 +17,7 @@ from strata.rules.layers.helpers.imports import (
 )
 
 
-def absolute_imports_only(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def absolute_imports_only(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Reject relative imports."""
 
     faults: list[Fault] = []
@@ -27,7 +27,7 @@ def absolute_imports_only(module: ast.Module, ctx: RuleContext) -> list[Fault]:
     return faults
 
 
-def no_sibling_package_internals(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def no_sibling_package_internals(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Reject imports that reach into sibling package internals."""
 
     current_module_parts: tuple[str, ...] = module_parts_for_path(
@@ -51,7 +51,7 @@ def no_sibling_package_internals(module: ast.Module, ctx: RuleContext) -> list[F
     return faults
 
 
-def no_cross_package_internals(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def no_cross_package_internals(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Reject imports that reach into another package's internal structure."""
 
     current_module_parts: tuple[str, ...] = module_parts_for_path(
@@ -75,7 +75,7 @@ def no_cross_package_internals(module: ast.Module, ctx: RuleContext) -> list[Fau
     return faults
 
 
-def no_cross_file_helper_private_classes(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def no_cross_file_helper_private_classes(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Reject cross-file use of helper-local private classes."""
 
     return private_helper_class_import_faults(
@@ -86,7 +86,7 @@ def no_cross_file_helper_private_classes(module: ast.Module, ctx: RuleContext) -
     )
 
 
-def no_runtime_imports_from_tooling(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+def no_runtime_imports_from_tooling(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Reject runtime code importing from the conventional tooling package."""
 
     if ctx.scope() != "root":

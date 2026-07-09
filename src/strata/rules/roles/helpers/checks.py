@@ -8,6 +8,7 @@ from pathlib import Path
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import RuleContext, Threshold
 from strata.rules.roles.helpers.classification import (
+    is_dataclass_class,
     is_exception_class,
     is_model_class,
     is_newtype_assignment,
@@ -332,6 +333,211 @@ def top_level_direct_modules(module: ast.Module, ctx: RuleContext) -> list[Fault
             message="top-level domains must contain subpackages",
         )
     ]
+
+
+def entry_module_shape(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Flag entry modules that are not focused single-entry surfaces."""
+
+    if not ctx.is_entry_module():
+        return []
+    body: tuple[ast.stmt, ...] = non_docstring_body(module)
+    public_functions: tuple[ast.FunctionDef | ast.AsyncFunctionDef, ...] = tuple(
+        node
+        for node in body
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+        and not node.name.startswith("_")
+    )
+    private_functions: tuple[ast.FunctionDef | ast.AsyncFunctionDef, ...] = tuple(
+        node
+        for node in body
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and node.name.startswith("_")
+    )
+    faults: list[Fault] = []
+    if len(public_functions) != 1:
+        faults.append(
+            _path_fault(
+                ctx=ctx,
+                code=RoleCode.ENTRY_MODULE_SHAPE,
+                message="entry modules need one public function",
+            )
+        )
+    if len(private_functions) > 2:
+        faults.append(ctx.fault(private_functions[2]))
+    for node in body:
+        if isinstance(node, ast.Import | ast.ImportFrom | ast.FunctionDef | ast.AsyncFunctionDef):
+            continue
+        faults.append(ctx.fault(node))
+    return faults
+
+
+def init_module_empty(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Flag non-root package initializers containing runtime statements."""
+
+    if ctx.path.name != "__init__.py" or len(ctx.relative_parts()) == 1:
+        return []
+    if not module.body or (len(module.body) == 1 and _is_docstring_statement(module.body[0])):
+        return []
+    return [
+        _path_fault(
+            ctx=ctx, code=RoleCode.INIT_MODULE_EMPTY, message="nested __init__.py must be empty"
+        )
+    ]
+
+
+def no_reexport_shim(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Flag internal modules that only re-export imports."""
+
+    if ctx.path.name == "__init__.py" or ctx.role_of() == "exceptions":
+        return []
+    if not _is_pure_reexport_module(module):
+        return []
+    return [
+        _path_fault(
+            ctx=ctx,
+            code=RoleCode.NO_REEXPORT_SHIM,
+            message="internal modules must not be re-export shims",
+        )
+    ]
+
+
+def no_internal_helper_exports(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Flag __all__ declarations inside helpers packages."""
+
+    if not ctx.in_role("helpers"):
+        return []
+    return [ctx.fault(node) for node in module.body if _is_all_assignment(node)]
+
+
+def main_entry_name_collision(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Flag a main entry module sharing its name with a sibling package."""
+
+    del module
+    if not ctx.is_entry_module() or not ctx.path.with_suffix("").is_dir():
+        return []
+    return [
+        _path_fault(
+            ctx=ctx,
+            code=RoleCode.MAIN_ENTRY_NAME_COLLISION,
+            message="main entry name collides with package",
+        )
+    ]
+
+
+def classes_one_class_per_module(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Flag classes modules that do not define exactly one top-level class."""
+
+    if not ctx.in_role("classes") or ctx.path.name == "__init__.py":
+        return []
+    class_nodes: tuple[ast.ClassDef, ...] = tuple(
+        node for node in module.body if isinstance(node, ast.ClassDef)
+    )
+    if len(class_nodes) == 1:
+        return []
+    return [
+        _path_fault(
+            ctx=ctx,
+            code=RoleCode.CLASSES_ONE_CLASS_PER_MODULE,
+            message="classes modules must define one class",
+        )
+    ]
+
+
+def helpers_package_shape(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Flag orchestration and deep nesting below helpers packages."""
+
+    del module
+    parts: tuple[str, ...] = ctx.relative_parts()
+    if "helpers" not in parts[:-1]:
+        return []
+    helpers_index: int = parts.index("helpers")
+    depth: int = len(parts) - helpers_index - 1
+    if depth == 1 and ctx.path.name != "main.py":
+        return []
+    if depth == 2 and ctx.path.name != "main.py":
+        return []
+    return [
+        _path_fault(
+            ctx=ctx,
+            code=RoleCode.HELPERS_PACKAGE_SHAPE,
+            message="helpers packages must stay shallow",
+        )
+    ]
+
+
+def private_definition_ordering(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Flag private dataclasses and constants after top-level functions."""
+
+    faults: list[Fault] = []
+    saw_function: bool = False
+    for node in module.body:
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+            saw_function = True
+            continue
+        if not saw_function:
+            continue
+        if (
+            isinstance(node, ast.ClassDef)
+            and node.name.startswith("_")
+            and is_dataclass_class(node)
+        ):
+            faults.append(ctx.fault(node))
+        elif any(name.startswith("_") for name in _assignment_target_names(node)):
+            faults.append(ctx.fault(node))
+    return faults
+
+
+def source_file_line_count(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Flag runtime source files exceeding the configured line limit."""
+
+    del module
+    line_count: int = len(ctx.source.splitlines())
+    if line_count <= ctx.threshold(Threshold.MAX_FILE_LINES):
+        return []
+    return [
+        _path_fault(
+            ctx=ctx,
+            code=RoleCode.SOURCE_FILE_LINE_COUNT,
+            message=f"source file has {line_count} lines",
+        )
+    ]
+
+
+def _is_docstring_statement(node: ast.stmt) -> bool:
+    return (
+        isinstance(node, ast.Expr)
+        and isinstance(node.value, ast.Constant)
+        and isinstance(node.value.value, str)
+    )
+
+
+def _is_all_assignment(node: ast.stmt) -> bool:
+    if isinstance(node, ast.Assign):
+        return any(
+            isinstance(target, ast.Name) and target.id == "__all__" for target in node.targets
+        )
+    return (
+        isinstance(node, ast.AnnAssign)
+        and isinstance(node.target, ast.Name)
+        and node.target.id == "__all__"
+    )
+
+
+def _is_pure_reexport_module(module: ast.Module) -> bool:
+    saw_import: bool = False
+    saw_all: bool = False
+    for node in module.body:
+        if _is_docstring_statement(node):
+            continue
+        if isinstance(node, ast.ImportFrom) and node.module == "__future__":
+            continue
+        if isinstance(node, ast.Import | ast.ImportFrom):
+            saw_import = True
+            continue
+        if _is_all_assignment(node):
+            saw_all = True
+            continue
+        return False
+    return saw_import and saw_all
 
 
 def _role_package_dir(*, path: Path, package_name: str) -> Path | None:

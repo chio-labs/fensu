@@ -426,3 +426,214 @@ def test_given_role_layouts_when_checking_then_flags_only_layout_violations(
 
     assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
     assert tuple(fault.line for fault in result.faults) == test_case.expected_lines
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SfrRuleTestCase(
+            description="entry module without public function is flagged",
+            rule_code="SFR401",
+            relative_path="domain/core/main/run.py",
+            source="def _prepare() -> None:\n    return None\n",
+            expected_codes=("SFR401",),
+            expected_lines=(None,),
+        ),
+        SfrRuleTestCase(
+            description="entry module with one public and two private functions is allowed",
+            rule_code="SFR401",
+            relative_path="domain/core/main/run.py",
+            source=(
+                "def run() -> None:\n    return None\n\n"
+                "def _prepare() -> None:\n    return None\n\n"
+                "def _finish() -> None:\n    return None\n"
+            ),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        SfrRuleTestCase(
+            description="entry module runtime assignment is flagged",
+            rule_code="SFR401",
+            relative_path="domain/core/main/run.py",
+            source="VALUE: int = 1\n\ndef run() -> None:\n    return None\n",
+            expected_codes=("SFR401",),
+            expected_lines=(1,),
+        ),
+        SfrRuleTestCase(
+            description="nested nonempty init is flagged",
+            rule_code="SFR402",
+            relative_path="domain/core/__init__.py",
+            source="value: int = 1\n",
+            expected_codes=("SFR402",),
+            expected_lines=(None,),
+        ),
+        SfrRuleTestCase(
+            description="root package init is allowed as public surface",
+            rule_code="SFR402",
+            relative_path="__init__.py",
+            source="from pkg.domain import value\n",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        SfrRuleTestCase(
+            description="internal pure reexport module is flagged",
+            rule_code="SFR403",
+            relative_path="domain/core/service.py",
+            source="from pkg.domain.core.impl import value\n\n__all__ = ['value']\n",
+            expected_codes=("SFR403",),
+            expected_lines=(None,),
+        ),
+        SfrRuleTestCase(
+            description="module with implementation is not a reexport shim",
+            rule_code="SFR403",
+            relative_path="domain/core/service.py",
+            source="from pkg.domain.core.impl import value\n\ndef run() -> None:\n    return None\n",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        SfrRuleTestCase(
+            description="helper all export is flagged",
+            rule_code="SFR404",
+            relative_path="domain/core/helpers/values.py",
+            source="__all__ = ['value']\n\nvalue: int = 1\n",
+            expected_codes=("SFR404",),
+            expected_lines=(1,),
+        ),
+        SfrRuleTestCase(
+            description="all export outside helpers is unaffected",
+            rule_code="SFR404",
+            relative_path="domain/core/service.py",
+            source="__all__ = ['value']\n\nvalue: int = 1\n",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        SfrRuleTestCase(
+            description="flat main entry colliding with package is flagged",
+            rule_code="SFR405",
+            relative_path="domain/core/main/run.py",
+            source="def run() -> None:\n    return None\n",
+            support_files=(
+                SfrSupportFile(
+                    description="colliding package",
+                    relative_path="domain/core/main/run/__init__.py",
+                    source="",
+                ),
+            ),
+            expected_codes=("SFR405",),
+            expected_lines=(None,),
+        ),
+        SfrRuleTestCase(
+            description="flat main entry without package is allowed",
+            rule_code="SFR405",
+            relative_path="domain/core/main/run.py",
+            source="def run() -> None:\n    return None\n",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_role_surfaces_when_checking_then_flags_only_surface_violations(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: SfrRuleTestCase,
+) -> None:
+    result: EvaluationResult = evaluate_role_test_case(
+        test_case=test_case, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
+    assert tuple(fault.line for fault in result.faults) == test_case.expected_lines
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SfrRuleTestCase(
+            description="classes module with two classes is flagged",
+            rule_code="SFR501",
+            relative_path="domain/core/classes/service.py",
+            source="class First:\n    pass\n\nclass Second:\n    pass\n",
+            expected_codes=("SFR501",),
+            expected_lines=(None,),
+        ),
+        SfrRuleTestCase(
+            description="classes module with one class is allowed",
+            rule_code="SFR501",
+            relative_path="domain/core/classes/service.py",
+            source="class Service:\n    pass\n",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        SfrRuleTestCase(
+            description="main module under helpers is flagged",
+            rule_code="SFR502",
+            relative_path="domain/core/helpers/main.py",
+            source="def run() -> None:\n    return None\n",
+            expected_codes=("SFR502",),
+            expected_lines=(None,),
+        ),
+        SfrRuleTestCase(
+            description="shallow helper concern module is allowed",
+            rule_code="SFR502",
+            relative_path="domain/core/helpers/parsing/values.py",
+            source="value: int = 1\n",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        SfrRuleTestCase(
+            description="deep helper concern module is flagged",
+            rule_code="SFR502",
+            relative_path="domain/core/helpers/parsing/text/values.py",
+            source="value: int = 1\n",
+            expected_codes=("SFR502",),
+            expected_lines=(None,),
+        ),
+        SfrRuleTestCase(
+            description="private constant after function is flagged",
+            rule_code="SFR503",
+            relative_path="domain/core/helpers/values.py",
+            source="def run() -> None:\n    return None\n\n_VALUE: int = 1\n",
+            expected_codes=("SFR503",),
+            expected_lines=(4,),
+        ),
+        SfrRuleTestCase(
+            description="private constant before function is allowed",
+            rule_code="SFR503",
+            relative_path="domain/core/helpers/values.py",
+            source="_VALUE: int = 1\n\ndef run() -> None:\n    return None\n",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        SfrRuleTestCase(
+            description="source above configured line limit is flagged",
+            rule_code="SFR601",
+            relative_path="domain/core/helpers/values.py",
+            source="first: int = 1\nsecond: int = 2\nthird: int = 3\n",
+            thresholds={Threshold.MAX_FILE_LINES: 2},
+            expected_codes=("SFR601",),
+            expected_lines=(None,),
+        ),
+        SfrRuleTestCase(
+            description="source at configured line limit is allowed",
+            rule_code="SFR601",
+            relative_path="domain/core/helpers/values.py",
+            source="first: int = 1\nsecond: int = 2\n",
+            thresholds={Threshold.MAX_FILE_LINES: 2},
+            expected_codes=(),
+            expected_lines=(),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_role_module_shapes_when_checking_then_flags_only_shape_violations(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: SfrRuleTestCase,
+) -> None:
+    result: EvaluationResult = evaluate_role_test_case(
+        test_case=test_case, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
+    assert tuple(fault.line for fault in result.faults) == test_case.expected_lines

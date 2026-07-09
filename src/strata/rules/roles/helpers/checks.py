@@ -634,14 +634,16 @@ def _import_time_bare_calls(*, node: ast.AST) -> tuple[ast.Expr, ...]:
     if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda):
         return ()
     if isinstance(node, ast.If) and _is_nonexecuting_import_guard(node.test):
-        return tuple(
-            call for statement in node.orelse for call in _import_time_bare_calls(node=statement)
-        )
+        calls: list[ast.Expr] = []
+        for statement in node.orelse:
+            calls.extend(_import_time_bare_calls(node=statement))
+        return tuple(calls)
     if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):
         return (node,)
-    return tuple(
-        call for child in ast.iter_child_nodes(node) for call in _import_time_bare_calls(node=child)
-    )
+    calls = []
+    for child in ast.iter_child_nodes(node):
+        calls.extend(_import_time_bare_calls(node=child))
+    return tuple(calls)
 
 
 def _is_nonexecuting_import_guard(node: ast.expr) -> bool:

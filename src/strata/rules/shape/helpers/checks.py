@@ -150,6 +150,13 @@ def no_outer_state_mutation(*, module: ast.Module, ctx: RuleContext) -> list[Fau
     return [ctx.fault(node) for node in outer_state_mutations(module=module)]
 
 
+def no_complex_comprehensions(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Flag comprehensions that combine generators or nest another comprehension."""
+
+    del module
+    return [ctx.fault(node) for node in ctx.complex_comprehensions()]
+
+
 def mutable_result_model(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag dataclass result models that are not frozen."""
 
@@ -254,9 +261,10 @@ def _parameter_names(function_node: ast.FunctionDef | ast.AsyncFunctionDef) -> f
 def _bare_calls(
     *, function_node: ast.FunctionDef | ast.AsyncFunctionDef
 ) -> tuple[tuple[ast.Expr, ast.Call], ...]:
-    return tuple(
-        call for statement in function_node.body for call in _bare_calls_in_node(node=statement)
-    )
+    calls: list[tuple[ast.Expr, ast.Call]] = []
+    for statement in function_node.body:
+        calls.extend(_bare_calls_in_node(node=statement))
+    return tuple(calls)
 
 
 def _bare_calls_in_node(*, node: ast.AST) -> tuple[tuple[ast.Expr, ast.Call], ...]:
@@ -266,9 +274,10 @@ def _bare_calls_in_node(*, node: ast.AST) -> tuple[tuple[ast.Expr, ast.Call], ..
         call: ast.Call | None = _expression_call(node.value)
         if call is not None:
             return ((node, call),)
-    return tuple(
-        call for child in ast.iter_child_nodes(node) for call in _bare_calls_in_node(node=child)
-    )
+    calls: list[tuple[ast.Expr, ast.Call]] = []
+    for child in ast.iter_child_nodes(node):
+        calls.extend(_bare_calls_in_node(node=child))
+    return tuple(calls)
 
 
 def _expression_call(node: ast.expr) -> ast.Call | None:

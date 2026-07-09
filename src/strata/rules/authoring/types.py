@@ -143,6 +143,10 @@ class RuleContext(Protocol):
         """The names assigned as locals within a function."""
         ...
 
+    def complex_comprehensions(self) -> tuple[ast.AST, ...]:
+        """Comprehensions that combine generators or nest another comprehension."""
+        ...
+
     def parameter_names(self, fn: ast.AST) -> frozenset[str]:
         """The parameter names of a function."""
         ...

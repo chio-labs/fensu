@@ -20,11 +20,11 @@ def evaluate_hygiene_test_case(
 ) -> EvaluationResult:
     """Write a source file and evaluate a single hygiene rule."""
 
-    path: Path = tmp_path / "src" / "pkg" / "domain" / "core" / "models.py"
+    path: Path = tmp_path / test_case.relative_path
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(test_case.source, encoding="utf-8")
     monkeypatch.chdir(tmp_path)
-    config: Config = Config(roots=("src/pkg",), tests=())
+    config: Config = Config(roots=test_case.roots, tests=(), tooling=test_case.tooling)
     return evaluate(
         tree=discover_files(config),
         ruleset=(_rule_by_code(test_case.rule_code),),

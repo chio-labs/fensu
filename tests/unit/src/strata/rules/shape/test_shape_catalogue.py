@@ -10,7 +10,9 @@ from strata.rules.shape.types import ShapeCode
 from tests.unit.src.strata.rules.shape._test_types import (
     ShapeCatalogueTestCase,
     ShapeDefaultOffTestCase,
+    ShapeGuidanceTestCase,
 )
+from tests.unit.src.strata.rules.shape.helpers import shape_rule_by_code
 
 
 @pytest.mark.parametrize(
@@ -47,6 +49,33 @@ def test_given_shape_rule_catalogue_when_reading_codes_then_matches_shape_code_e
 def test_given_shape_rule_catalogue_when_reading_sfs102_then_rule_is_default_off(
     test_case: ShapeDefaultOffTestCase,
 ) -> None:
-    rule: RuleSpec = next(rule for rule in SFS_RULES if rule.code == test_case.rule_code)
+    rule: RuleSpec = shape_rule_by_code(rule_code=test_case.rule_code)
 
     assert rule.enabled_by_default is test_case.expected_enabled_by_default
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ShapeGuidanceTestCase(
+            description="complex comprehension guidance recommends ordinary staged code",
+            rule_code=ShapeCode.NO_COMPLEX_COMPREHENSIONS,
+            expected_message=(
+                "nested or multi-generator comprehensions hide control flow and data shapes"
+            ),
+            expected_remediation=(
+                "Rewrite this as ordinary statements with named intermediate values. Use "
+                "explicit loops when needed, and extract a helper only when the transformation "
+                "is a distinct operation."
+            ),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_complex_comprehension_rule_when_reading_guidance_then_explains_clear_fix(
+    test_case: ShapeGuidanceTestCase,
+) -> None:
+    rule: RuleSpec = shape_rule_by_code(rule_code=test_case.rule_code)
+
+    assert rule.message == test_case.expected_message
+    assert rule.remediation == test_case.expected_remediation

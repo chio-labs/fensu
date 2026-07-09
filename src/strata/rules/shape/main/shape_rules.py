@@ -11,6 +11,7 @@ from strata.rules.shape.helpers.checks import (
     max_statements_global,
     meaningful_project_result_discarded,
     mutable_result_model,
+    no_complex_comprehensions,
     no_outer_state_mutation,
     parameter_mutation_in_phase_helpers,
     too_many_distinct_calls,
@@ -94,6 +95,18 @@ def shape_rules() -> tuple[RuleSpec, ...]:
             slug="no-outer-state-mutation",
             message="functions must not mutate module-global or closure-captured state",
             check=no_outer_state_mutation,
+        ),
+        RuleSpec(
+            code=ShapeCode.NO_COMPLEX_COMPREHENSIONS,
+            family=Family.SHAPE,
+            slug="no-complex-comprehensions",
+            message="nested or multi-generator comprehensions hide control flow and data shapes",
+            check=no_complex_comprehensions,
+            remediation=(
+                "Rewrite this as ordinary statements with named intermediate values. Use "
+                "explicit loops when needed, and extract a helper only when the transformation "
+                "is a distinct operation."
+            ),
         ),
         RuleSpec(
             code=ShapeCode.MUTABLE_RESULT_MODEL,

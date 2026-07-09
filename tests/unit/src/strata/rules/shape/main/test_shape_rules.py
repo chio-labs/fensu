@@ -711,6 +711,76 @@ def test_given_function_state_when_checking_mutation_then_flags_only_outer_bindi
     "test_case",
     [
         ShapeRuleTestCase(
+            description="list comprehension with two generators is flagged",
+            rule_code="SFS131",
+            source=(
+                "def run() -> list[tuple[int, int]]:\n"
+                "    return [(left, right) for left in (1, 2) for right in (3, 4)]\n"
+            ),
+            expected_codes=("SFS131",),
+            expected_lines=(2,),
+        ),
+        ShapeRuleTestCase(
+            description="comprehension containing another comprehension is flagged",
+            rule_code="SFS131",
+            source=(
+                "def run(rows: list[list[int]]) -> list[list[int]]:\n"
+                "    return [[value * 2 for value in row] for row in rows]\n"
+            ),
+            expected_codes=("SFS131",),
+            expected_lines=(2,),
+        ),
+        ShapeRuleTestCase(
+            description="tuple generator with two generators is flagged",
+            rule_code="SFS131",
+            source=(
+                "def run() -> tuple[tuple[int, int], ...]:\n"
+                "    return tuple((left, right) for left in (1, 2) for right in (3, 4))\n"
+            ),
+            expected_codes=("SFS131",),
+            expected_lines=(2,),
+        ),
+        ShapeRuleTestCase(
+            description="single filtered comprehension is allowed in product code",
+            rule_code="SFS131",
+            source=(
+                "def run(values: list[int]) -> list[int]:\n"
+                "    return [value for value in values if value > 0]\n"
+            ),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        ShapeRuleTestCase(
+            description="sequential single-generator comprehensions are allowed",
+            rule_code="SFS131",
+            source=(
+                "def run(values: list[int]) -> list[int]:\n"
+                "    doubled: list[int] = [value * 2 for value in values]\n"
+                "    return [value + 1 for value in doubled]\n"
+            ),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_comprehensions_when_checking_shape_then_flags_only_complex_forms(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: ShapeRuleTestCase,
+) -> None:
+    result: EvaluationResult = evaluate_shape_test_case(
+        test_case=test_case, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
+    assert tuple(fault.line for fault in result.faults) == test_case.expected_lines
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ShapeRuleTestCase(
             description="mutable dataclass model is flagged",
             rule_code="SFS201",
             source="from dataclasses import dataclass\n\n@dataclass\nclass Result:\n    value: int\n",

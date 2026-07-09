@@ -548,6 +548,71 @@ def test_given_test_types_when_checking_tests_then_flags_only_type_role_violatio
             runtime_paths=("src/strata/rules/__init__.py",),
         ),
         SftRuleTestCase(
+            description="ternary expression in test is flagged",
+            rule_code="SFT036",
+            files=good_test_files(
+                test_source=GOOD_TEST_SOURCE.replace(
+                    "    assert",
+                    "    result: int = 1 if test_case.expected_value else 0\n    assert",
+                )
+            ),
+            expected_codes=("SFT036",),
+            expected_lines=(11,),
+            runtime_paths=("src/strata/rules/__init__.py",),
+        ),
+        SftRuleTestCase(
+            description="match statement in test is flagged",
+            rule_code="SFT036",
+            files=good_test_files(
+                test_source=GOOD_TEST_SOURCE.replace(
+                    "    assert",
+                    "    match test_case.expected_value:\n        case 1:\n            pass\n    assert",
+                )
+            ),
+            expected_codes=("SFT036",),
+            expected_lines=(11,),
+            runtime_paths=("src/strata/rules/__init__.py",),
+        ),
+        SftRuleTestCase(
+            description="while statement in test is flagged",
+            rule_code="SFT036",
+            files=good_test_files(
+                test_source=GOOD_TEST_SOURCE.replace(
+                    "    assert",
+                    "    while test_case.expected_value < 0:\n        break\n    assert",
+                )
+            ),
+            expected_codes=("SFT036",),
+            expected_lines=(11,),
+            runtime_paths=("src/strata/rules/__init__.py",),
+        ),
+        SftRuleTestCase(
+            description="filtered comprehension in test is flagged",
+            rule_code="SFT036",
+            files=good_test_files(
+                test_source=GOOD_TEST_SOURCE.replace(
+                    "    assert",
+                    "    values: list[int] = [value for value in (1, 2) if value > 1]\n    assert",
+                )
+            ),
+            expected_codes=("SFT036",),
+            expected_lines=(11,),
+            runtime_paths=("src/strata/rules/__init__.py",),
+        ),
+        SftRuleTestCase(
+            description="single unfiltered comprehension in test is allowed",
+            rule_code="SFT036",
+            files=good_test_files(
+                test_source=GOOD_TEST_SOURCE.replace(
+                    "    assert",
+                    "    values: list[int] = [value for value in (1, 2)]\n    assert",
+                )
+            ),
+            expected_codes=(),
+            expected_lines=(),
+            runtime_paths=("src/strata/rules/__init__.py",),
+        ),
+        SftRuleTestCase(
             description="wrong test case annotation is flagged",
             rule_code="SFT010",
             files=good_test_files(
@@ -563,6 +628,64 @@ def test_given_test_types_when_checking_tests_then_flags_only_type_role_violatio
     ids=lambda case: case.description,
 )
 def test_given_test_functions_when_checking_shape_then_flags_only_function_violations(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: SftRuleTestCase,
+) -> None:
+    result: EvaluationResult = evaluate_tests_rule_test_case(
+        test_case=test_case, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
+    assert tuple(fault.line for fault in result.faults) == test_case.expected_lines
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SftRuleTestCase(
+            description="test comprehension with two generators is flagged",
+            rule_code="SFT038",
+            files=good_test_files(
+                test_source=GOOD_TEST_SOURCE.replace(
+                    "    assert",
+                    "    pairs: list[tuple[int, int]] = [(left, right) for left in (1, 2) for right in (3, 4)]\n    assert",
+                )
+            ),
+            expected_codes=("SFT038",),
+            expected_lines=(11,),
+            runtime_paths=("src/strata/rules/__init__.py",),
+        ),
+        SftRuleTestCase(
+            description="test comprehension containing another comprehension is flagged",
+            rule_code="SFT038",
+            files=good_test_files(
+                test_source=GOOD_TEST_SOURCE.replace(
+                    "    assert",
+                    "    rows: list[list[int]] = [[value for value in row] for row in ((1, 2),)]\n    assert",
+                )
+            ),
+            expected_codes=("SFT038",),
+            expected_lines=(11,),
+            runtime_paths=("src/strata/rules/__init__.py",),
+        ),
+        SftRuleTestCase(
+            description="single filtered test comprehension is simple shape",
+            rule_code="SFT038",
+            files=good_test_files(
+                test_source=GOOD_TEST_SOURCE.replace(
+                    "    assert",
+                    "    values: list[int] = [value for value in (1, 2) if value > 1]\n    assert",
+                )
+            ),
+            expected_codes=(),
+            expected_lines=(),
+            runtime_paths=("src/strata/rules/__init__.py",),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_test_comprehensions_when_checking_then_flags_only_complex_forms(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     test_case: SftRuleTestCase,

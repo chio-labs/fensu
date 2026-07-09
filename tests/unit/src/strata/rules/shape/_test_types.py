@@ -21,3 +21,13 @@ class ShapeDefaultOffTestCase:
     description: str
     rule_code: str
     expected_enabled_by_default: bool
+
+
+@dataclass(frozen=True)
+class ShapeGuidanceTestCase:
+    """Expected message and remediation for a shape rule."""
+
+    description: str
+    rule_code: str
+    expected_message: str
+    expected_remediation: str

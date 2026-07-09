@@ -146,6 +146,11 @@ class EvaluationRuleContext:
 
         return ast_access.assigned_locals(fn)
 
+    def complex_comprehensions(self) -> tuple[ast.AST, ...]:
+        """Comprehensions that combine generators or nest another comprehension."""
+
+        return ast_access.complex_comprehensions(self._parsed_module.node_index)
+
     def parameter_names(self, fn: ast.AST) -> frozenset[str]:
         """The parameter names of a function."""
 

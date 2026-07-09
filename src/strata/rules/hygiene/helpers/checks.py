@@ -114,11 +114,20 @@ def no_swallowed_exception_probe(*, module: ast.Module, ctx: RuleContext) -> lis
     return faults
 
 
+def no_complex_comprehensions_in_tooling(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Apply the global comprehension boundary to configured tooling."""
+
+    del module
+    if ctx.scope() != "tooling":
+        return []
+    return [ctx.fault(node) for node in ctx.complex_comprehensions()]
+
+
 def _docstring_bearing_nodes(*, module: ast.Module, ctx: RuleContext) -> tuple[ast.AST, ...]:
-    return (
-        module,
-        *(node for node_type in _docstring_bearing_node_types for node in ctx.nodes(node_type)),
-    )
+    nodes: list[ast.AST] = [module]
+    for node_type in _docstring_bearing_node_types:
+        nodes.extend(ctx.nodes(node_type))
+    return tuple(nodes)
 
 
 def _statement_is_multiline_docstring(node: ast.stmt) -> bool:

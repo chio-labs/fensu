@@ -30,11 +30,11 @@ def absolute_imports_only(*, module: ast.Module, ctx: RuleContext) -> list[Fault
 def no_star_imports(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Reject wildcard imports that hide imported names from boundary analysis."""
 
-    return [
-        ctx.fault(node)
-        for node in ctx.nodes(ast.ImportFrom)
-        if isinstance(node, ast.ImportFrom) and any(alias.name == "*" for alias in node.names)
-    ]
+    faults: list[Fault] = []
+    for node in ctx.nodes(ast.ImportFrom):
+        if isinstance(node, ast.ImportFrom) and any(alias.name == "*" for alias in node.names):
+            faults.append(ctx.fault(node))
+    return faults
 
 
 def no_sibling_package_internals(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:

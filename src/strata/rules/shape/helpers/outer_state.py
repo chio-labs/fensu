@@ -102,11 +102,10 @@ def _owned_mutations(
         if isinstance(node, (*_function_nodes, ast.ClassDef)):
             continue
         if isinstance(node, ast.DictComp | ast.GeneratorExp | ast.ListComp | ast.SetComp):
-            comprehension_bindings: frozenset[str] = frozenset(
-                name
-                for generator in node.generators
-                for name in _target_names(target=generator.target)
-            )
+            binding_names: set[str] = set()
+            for generator in node.generators:
+                binding_names.update(_target_names(target=generator.target))
+            comprehension_bindings: frozenset[str] = frozenset(binding_names)
             faults.extend(
                 _owned_mutations(
                     nodes=tuple(ast.iter_child_nodes(node)),
@@ -223,10 +222,7 @@ def _function_declarations(
     declarations: tuple[tuple[frozenset[str], frozenset[str]], ...] = tuple(
         _declarations(node=statement) for statement in node.body
     )
-    return (
-        frozenset(name for global_names, _ in declarations for name in global_names),
-        frozenset(name for _, nonlocal_names in declarations for name in nonlocal_names),
-    )
+    return _merge_declarations(declarations=declarations)
 
 
 def _declarations(*, node: ast.AST) -> tuple[frozenset[str], frozenset[str]]:
@@ -239,16 +235,14 @@ def _declarations(*, node: ast.AST) -> tuple[frozenset[str], frozenset[str]]:
     declarations: tuple[tuple[frozenset[str], frozenset[str]], ...] = tuple(
         _declarations(node=child) for child in ast.iter_child_nodes(node)
     )
-    return (
-        frozenset(name for global_names, _ in declarations for name in global_names),
-        frozenset(name for _, nonlocal_names in declarations for name in nonlocal_names),
-    )
+    return _merge_declarations(declarations=declarations)
 
 
 def _scope_bindings(*, nodes: list[ast.stmt], include_imports: bool) -> frozenset[str]:
-    return frozenset(
-        name for node in nodes for name in _bindings(node=node, include_imports=include_imports)
-    )
+    names: set[str] = set()
+    for node in nodes:
+        names.update(_bindings(node=node, include_imports=include_imports))
+    return frozenset(names)
 
 
 def _bindings(*, node: ast.AST, include_imports: bool) -> frozenset[str]:
@@ -271,11 +265,21 @@ def _bindings(*, node: ast.AST, include_imports: bool) -> frozenset[str]:
     )
     if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store | ast.Del):
         direct_names = frozenset({node.id})
-    return direct_names | frozenset(
-        name
-        for child in ast.iter_child_nodes(node)
-        for name in _bindings(node=child, include_imports=include_imports)
-    )
+    descendant_names: set[str] = set()
+    for child in ast.iter_child_nodes(node):
+        descendant_names.update(_bindings(node=child, include_imports=include_imports))
+    return direct_names | frozenset(descendant_names)
+
+
+def _merge_declarations(
+    *, declarations: tuple[tuple[frozenset[str], frozenset[str]], ...]
+) -> tuple[frozenset[str], frozenset[str]]:
+    global_names: set[str] = set()
+    nonlocal_names: set[str] = set()
+    for declared_globals, declared_nonlocals in declarations:
+        global_names.update(declared_globals)
+        nonlocal_names.update(declared_nonlocals)
+    return frozenset(global_names), frozenset(nonlocal_names)
 
 
 def _argument_names(*, arguments: ast.arguments) -> frozenset[str]:

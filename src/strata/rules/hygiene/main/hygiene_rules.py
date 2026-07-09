@@ -6,6 +6,7 @@ from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Family
 from strata.rules.hygiene.helpers.checks import (
     no_assert_in_runtime,
+    no_complex_comprehensions_in_tooling,
     no_raw_builtin_raise,
     no_standalone_comments,
     no_swallowed_exception_probe,
@@ -54,5 +55,17 @@ def hygiene_rules() -> tuple[RuleSpec, ...]:
             slug="no-swallowed-exception-probe",
             message="runtime code must not swallow broad exceptions as existence probe answers",
             check=no_swallowed_exception_probe,
+        ),
+        RuleSpec(
+            code=HygieneCode.NO_COMPLEX_COMPREHENSIONS_IN_TOOLING,
+            family=Family.HYGIENE,
+            slug="no-complex-comprehensions-in-tooling",
+            message="nested or multi-generator comprehensions hide control flow and data shapes",
+            check=no_complex_comprehensions_in_tooling,
+            remediation=(
+                "Rewrite this as ordinary statements with named intermediate values. Use "
+                "explicit loops when needed, and extract a helper only when the transformation "
+                "is a distinct operation."
+            ),
         ),
     )

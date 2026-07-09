@@ -6,6 +6,13 @@ import ast
 from collections import defaultdict, deque
 from collections.abc import Mapping
 
+_comprehension_types: tuple[type[ast.AST], ...] = (
+    ast.ListComp,
+    ast.SetComp,
+    ast.DictComp,
+    ast.GeneratorExp,
+)
+
 
 def build_ast_indexes(
     module: ast.Module,
@@ -87,6 +94,21 @@ def assigned_locals(fn: ast.AST) -> frozenset[str]:
     return frozenset(names)
 
 
+def complex_comprehensions(
+    node_index: Mapping[type[ast.AST], tuple[ast.AST, ...]],
+) -> tuple[ast.AST, ...]:
+    """Return comprehensions with multiple generators or a nested comprehension."""
+
+    comprehension_nodes: list[ast.AST] = []
+    for node_type in _comprehension_types:
+        comprehension_nodes.extend(node_index.get(node_type, ()))
+    return tuple(
+        node
+        for node in comprehension_nodes
+        if _generator_count(node) > 1 or _contains_nested_comprehension(node)
+    )
+
+
 def parameter_names(fn: ast.AST) -> frozenset[str]:
     """Return parameter names for a function or async function node."""
 
@@ -109,6 +131,18 @@ def inside_loop(*, node: ast.AST, parent_by_node: Mapping[ast.AST, ast.AST]) -> 
         if isinstance(current, ast.For | ast.AsyncFor | ast.While):
             return True
         current = parent_by_node.get(current)
+    return False
+
+
+def _generator_count(node: ast.AST) -> int:
+    generators: list[ast.comprehension] | None = getattr(node, "generators", None)
+    return len(generators) if generators is not None else 0
+
+
+def _contains_nested_comprehension(node: ast.AST) -> bool:
+    for child in ast.iter_child_nodes(node):
+        if any(isinstance(descendant, _comprehension_types) for descendant in ast.walk(child)):
+            return True
     return False
 
 

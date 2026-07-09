@@ -274,3 +274,39 @@ def test_given_exception_handlers_when_checking_hygiene_then_flags_only_probe_sw
 
     assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
     assert tuple(fault.line for fault in result.faults) == test_case.expected_lines
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        HygieneRuleTestCase(
+            description="multi-generator comprehension in tooling is flagged",
+            rule_code="SFX006",
+            source="pairs: list[tuple[int, int]] = [(left, right) for left in (1, 2) for right in (3, 4)]\n",
+            expected_codes=("SFX006",),
+            expected_lines=(1,),
+            relative_path="scripts/check.py",
+            roots=(),
+            tooling=("scripts",),
+        ),
+        HygieneRuleTestCase(
+            description="product comprehension is owned by shape counterpart",
+            rule_code="SFX006",
+            source="pairs: list[tuple[int, int]] = [(left, right) for left in (1, 2) for right in (3, 4)]\n",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_comprehensions_when_checking_tooling_then_applies_only_to_tooling_scope(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: HygieneRuleTestCase,
+) -> None:
+    result: EvaluationResult = evaluate_hygiene_test_case(
+        test_case=test_case, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
+    assert tuple(fault.line for fault in result.faults) == test_case.expected_lines

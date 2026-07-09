@@ -34,6 +34,8 @@ def test_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) -> list[
 
     if ctx.scope() != "test":
         return []
+    if code == SftCode.NO_COMPLEX_COMPREHENSIONS:
+        return [ctx.fault(node) for node in ctx.complex_comprehensions()]
     if ctx.path.name == "scenario_models.py" and code == SftCode.TEST_LAYOUT:
         return _scenario_models_faults(module=module, ctx=ctx)
     if code in _layout_codes():
@@ -323,9 +325,7 @@ def _test_function_faults(
         )
     )
     if code == SftCode.NO_IF_IN_TESTS:
-        faults.extend(
-            ctx.fault(node) for node in ast.walk(function_node) if isinstance(node, ast.If)
-        )
+        faults.extend(ctx.fault(node) for node in _test_body_conditionals(function_node))
     if code == SftCode.EXPECTED_FIELD_ASSERTION and not _references_expected_field(function_node):
         faults.append(ctx.fault(function_node))
     return faults
@@ -381,6 +381,18 @@ def _parametrize_faults(
     if code == SftCode.DESCRIPTION_LAMBDA_IDS and not _is_description_lambda_ids(ids_expression):
         faults.append(ctx.fault(function_node))
     return faults
+
+
+def _test_body_conditionals(
+    function_node: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> tuple[ast.AST, ...]:
+    conditionals: list[ast.AST] = []
+    for node in ast.walk(function_node):
+        if isinstance(node, ast.If | ast.IfExp | ast.Match | ast.While):
+            conditionals.append(node)
+        elif isinstance(node, ast.comprehension):
+            conditionals.extend(node.ifs)
+    return tuple(conditionals)
 
 
 def _local_test_types(*, path: Path, repo_root: Path, inspect_dataclasses: bool) -> _LocalTestTypes:

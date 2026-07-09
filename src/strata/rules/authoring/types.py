@@ -8,6 +8,8 @@ from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
+from strata.discovery.core.types import ScopeName
+
 if TYPE_CHECKING:
     from strata.rules.authoring.models import Fault
 
@@ -83,6 +85,10 @@ class RuleContext(Protocol):
 
     def relative_parts(self) -> tuple[str, ...]:
         """The current file's path parts relative to the repo root."""
+        ...
+
+    def scope(self) -> ScopeName:
+        """The configured discovery scope for the current file."""
         ...
 
     def role_of(self, path: Path | None = None) -> str | None:

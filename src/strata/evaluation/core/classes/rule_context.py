@@ -9,6 +9,7 @@ from pathlib import Path
 from strata.config.core.models import Config
 from strata.discovery.core.main.position import position_facts
 from strata.discovery.core.models import RepoRoot
+from strata.discovery.core.types import ScopeName
 from strata.evaluation.core.helpers import ast_access
 from strata.evaluation.core.models import ParsedModule
 from strata.rules.authoring.models import Fault, RuleSpec
@@ -73,6 +74,11 @@ class EvaluationRuleContext:
         """The current file's path parts relative to its matched scope root."""
 
         return self._parsed_module.scoped_file.relative_parts
+
+    def scope(self) -> ScopeName:
+        """The configured discovery scope for the current file."""
+
+        return self._parsed_module.scoped_file.scope
 
     def role_of(self, path: Path | None = None) -> str | None:
         """The role name of the current file; explicit path support arrives with ctx routing."""

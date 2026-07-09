@@ -1,0 +1,21 @@
+"""Test case types for shape rules."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+from strata.rules.authoring.types import Threshold
+
+
+@dataclass(frozen=True)
+class ShapeRuleTestCase:
+    """Shape rule source and expected fault facts."""
+
+    description: str
+    rule_code: str
+    source: str
+    expected_codes: tuple[str, ...]
+    expected_lines: tuple[int | None, ...]
+    relative_path: str = "domain/core/main/run.py"
+    thresholds: dict[Threshold, int] = field(default_factory=dict)
+    role_thresholds: dict[str, dict[Threshold, int]] = field(default_factory=dict)

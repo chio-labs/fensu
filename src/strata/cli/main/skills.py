@@ -10,7 +10,8 @@ from typing import TextIO
 from strata.agentdocs.core.exceptions import SkillInstallError
 from strata.agentdocs.core.main.update import update_skills
 from strata.agentdocs.core.models import SkillUpdateResult
-from strata.agentdocs.core.types import SkillTarget
+from strata.agentdocs.core.types import SkillCommand, SkillTarget
+from strata.cli.core.constants import SKILLS_UPDATE_OPTION
 from strata.config.core.main.load_config import load_config
 from strata.config.core.models import Config
 from strata.rules.authoring.models import RuleSpec
@@ -26,7 +27,18 @@ def run_skills(
 ) -> int:
     """Generate and install skill files from the active repository rules."""
 
-    args: argparse.Namespace = _parser().parse_args(() if argv is None else argv)
+    command_args: tuple[str, ...] = () if argv is None else argv
+    parser: argparse.ArgumentParser = _parser()
+    if command_args and command_args[0] == SKILLS_UPDATE_OPTION:
+        stderr.write("`update` is a subcommand, not an option. Run `strata skills update`.\n")
+        return 2
+    args: argparse.Namespace = parser.parse_args(command_args)
+    if args.skills_command is None:
+        stderr.write(
+            "A skills command is required. Run `strata skills update` to generate files.\n\n"
+        )
+        parser.print_help(file=stderr)
+        return 2
     project_dir: Path = Path.cwd()
     config: Config = load_config(project_dir)
     rules: tuple[RuleSpec, ...] = build_ruleset(config)
@@ -35,6 +47,7 @@ def run_skills(
     )
     try:
         result: SkillUpdateResult = update_skills(
+            config=config,
             rules=rules,
             project_dir=project_dir,
             global_install=args.global_install,
@@ -54,9 +67,9 @@ def run_skills(
 def _parser() -> argparse.ArgumentParser:
     parser: argparse.ArgumentParser = argparse.ArgumentParser(prog="strata skills")
     subparsers: argparse._SubParsersAction[argparse.ArgumentParser] = parser.add_subparsers(
-        dest="skills_command", required=True
+        dest="skills_command"
     )
-    update_parser: argparse.ArgumentParser = subparsers.add_parser("update")
+    update_parser: argparse.ArgumentParser = subparsers.add_parser(SkillCommand.UPDATE)
     update_parser.add_argument("--global", dest="global_install", action="store_true")
     update_parser.add_argument(
         "--target",

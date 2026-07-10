@@ -20,6 +20,44 @@ from tests.unit.src.strata.cli.main.helpers import CaptureOutput, write_cli_fixt
     "test_case",
     [
         SkillCommandTestCase(
+            description="missing subcommand explains the valid update command",
+            argv=(),
+            expected_exit_code=2,
+            expected_output_fragments=(
+                "A skills command is required.",
+                "`strata skills update`",
+                "usage: strata skills",
+            ),
+        ),
+        SkillCommandTestCase(
+            description="update option typo explains that update is a subcommand",
+            argv=("--update",),
+            expected_exit_code=2,
+            expected_output_fragments=(
+                "`update` is a subcommand, not an option.",
+                "`strata skills update`",
+            ),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_missing_or_mistyped_subcommand_when_running_then_explains_update_syntax(
+    test_case: SkillCommandTestCase,
+) -> None:
+    stdout: CaptureOutput = CaptureOutput()
+    stderr: CaptureOutput = CaptureOutput()
+
+    exit_code: int = run_skills(argv=test_case.argv, stdout=stdout, stderr=stderr)
+
+    assert exit_code == test_case.expected_exit_code
+    assert stdout.getvalue() == ""
+    assert all(fragment in stderr.getvalue() for fragment in test_case.expected_output_fragments)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SkillCommandTestCase(
             description="default update writes every repository-local target",
             argv=("update",),
             expected_exit_code=0,
@@ -74,7 +112,9 @@ def test_given_scope_and_targets_when_updating_skills_then_installs_active_rule_
         content: str = (tmp_path / relative_path).read_text(encoding="utf-8")
         assert GENERATED_MARKER in content
         assert "## Commands" in content
-        assert "## Default Repository Shape" in content
+        assert "## Repository Structure" in content
+        assert "### Runtime" in content
+        assert "### Tests" in content
         assert "## SFX001:" in content
         assert "## XCK001: always" in content
         assert "custom fault" in content

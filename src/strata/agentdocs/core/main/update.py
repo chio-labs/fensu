@@ -8,11 +8,13 @@ from strata.agentdocs.core.helpers.installation import build_install_targets, wr
 from strata.agentdocs.core.main.generate import generate_skill
 from strata.agentdocs.core.models import SkillInstallTarget, SkillUpdateResult
 from strata.agentdocs.core.types import SkillTarget
+from strata.config.core.models import Config
 from strata.rules.authoring.models import RuleSpec
 
 
 def update_skills(
     *,
+    config: Config,
     rules: tuple[RuleSpec, ...],
     project_dir: Path,
     global_install: bool = False,
@@ -22,7 +24,7 @@ def update_skills(
 ) -> SkillUpdateResult:
     """Generate and install Strata guidance for the active repository rules."""
 
-    content: str = generate_skill(rules=rules)
+    content: str = generate_skill(config=config, rules=rules)
     install_targets: tuple[SkillInstallTarget, ...] = build_install_targets(
         project_dir=project_dir,
         requested_targets=requested_targets,

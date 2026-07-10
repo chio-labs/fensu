@@ -5,15 +5,40 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from strata.discovery.core.types import RoleName
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import RuleContext
+
+_source_root_name: str = "src"
+_tooling_root_name: str = "scripts"
+_init_module_name: str = "__init__"
+_minimum_owned_module_parts: int = 3
+_minimum_subdomain_module_parts: int = 5
+_minimum_internal_import_parts: int = 4
+_minimum_public_surface_tail_parts: int = 2
+_public_role_names: frozenset[str] = frozenset(
+    {RoleName.MODELS, RoleName.TYPES, RoleName.CONSTANTS, RoleName.EXCEPTIONS}
+)
+_owned_role_names: frozenset[str] = frozenset(
+    {
+        RoleName.CLASSES,
+        RoleName.MAIN,
+        RoleName.MODELS,
+        RoleName.TYPES,
+        RoleName.CONSTANTS,
+        RoleName.EXCEPTIONS,
+    }
+)
 
 
 def module_parts_for_path(*, path: Path, repo_root: Path) -> tuple[str, ...]:
     """Return importable module parts for a Python file under a src layout."""
 
     relative_parts: tuple[str, ...] = path.resolve().relative_to(repo_root.resolve()).parts
-    if len(relative_parts) >= 3 and relative_parts[0] == "src":
+    if (
+        len(relative_parts) >= _minimum_owned_module_parts
+        and relative_parts[0] == _source_root_name
+    ):
         return (*relative_parts[1:-1], path.stem)
     return (*relative_parts[:-1], path.stem)
 
@@ -50,7 +75,7 @@ def _is_sibling_role_internal_import(
     *, current_module_parts: tuple[str, ...], imported_parts: tuple[str, ...]
 ) -> bool:
     current_package_parts: tuple[str, ...] = current_module_parts[:-1]
-    if len(current_package_parts) < 3:
+    if len(current_package_parts) < _minimum_owned_module_parts:
         return False
     parent_package_parts: tuple[str, ...] = current_package_parts[:-1]
     current_subpackage_name: str = current_package_parts[-1]
@@ -71,7 +96,7 @@ def _is_sibling_role_internal_import(
 def _is_sibling_subdomain_internal_import(
     *, current_module_parts: tuple[str, ...], imported_parts: tuple[str, ...]
 ) -> bool:
-    if len(current_module_parts) < 5:
+    if len(current_module_parts) < _minimum_subdomain_module_parts:
         return False
     current_owner_parts: tuple[str, ...] = current_module_parts[:-2]
     parent_owner_parts: tuple[str, ...] = current_owner_parts[:-1]
@@ -86,9 +111,9 @@ def _is_sibling_subdomain_internal_import(
     sibling_tail: tuple[str, ...] = imported_parts[len(parent_owner_parts) + 1 :]
     if not sibling_tail:
         return False
-    if sibling_tail[0] in {"models", "types", "constants", "exceptions"}:
+    if sibling_tail[0] in _public_role_names:
         return False
-    return sibling_tail[0] != "main"
+    return sibling_tail[0] != RoleName.MAIN
 
 
 def is_cross_package_internal_import(
@@ -96,7 +121,10 @@ def is_cross_package_internal_import(
 ) -> bool:
     """Return whether an import reaches into another package's internal structure."""
 
-    if len(current_module_parts) < 3 or len(imported_parts) < 3:
+    if (
+        len(current_module_parts) < _minimum_owned_module_parts
+        or len(imported_parts) < _minimum_owned_module_parts
+    ):
         return False
     if imported_parts[0] != current_module_parts[0]:
         return False
@@ -104,7 +132,10 @@ def is_cross_package_internal_import(
     imported_domain: str = imported_parts[1]
     if imported_domain == current_domain:
         return False
-    if len(imported_parts) < 4 or imported_parts[2] in _public_surface_segments():
+    if (
+        len(imported_parts) < _minimum_internal_import_parts
+        or imported_parts[2] in _public_surface_segments()
+    ):
         return False
     return _has_internal_segment(imported_parts[2:])
 
@@ -112,7 +143,7 @@ def is_cross_package_internal_import(
 def import_path_targets_tooling(*, imported_parts: tuple[str, ...]) -> bool:
     """Return whether an absolute import targets the conventional tooling package."""
 
-    return bool(imported_parts) and imported_parts[0] == "scripts"
+    return bool(imported_parts) and imported_parts[0] == _tooling_root_name
 
 
 def private_helper_class_import_faults(
@@ -198,16 +229,18 @@ def _is_allowed_sibling_public_surface(
     sibling_tail: tuple[str, ...] = imported_parts[len(parent_package_parts) + 1 :]
     if not sibling_tail:
         return True
-    if sibling_tail[0] in {"models", "types", "constants", "exceptions"}:
+    if sibling_tail[0] in _public_role_names:
         return True
-    return sibling_tail[0] == "main" and len(sibling_tail) >= 2
+    return (
+        sibling_tail[0] == RoleName.MAIN and len(sibling_tail) >= _minimum_public_surface_tail_parts
+    )
 
 
 def _allowed_sibling_dependencies(current_subpackage_name: str) -> frozenset[str]:
-    if current_subpackage_name in {"classes", "main", "models", "types", "constants", "exceptions"}:
-        return frozenset({"helpers"})
-    if current_subpackage_name == "helpers":
-        return frozenset({"classes"})
+    if current_subpackage_name in _owned_role_names:
+        return frozenset({RoleName.HELPERS})
+    if current_subpackage_name == RoleName.HELPERS:
+        return frozenset({RoleName.CLASSES})
     return frozenset()
 
 
@@ -216,15 +249,15 @@ def _has_internal_segment(parts: tuple[str, ...]) -> bool:
 
 
 def _public_surface_segments() -> frozenset[str]:
-    return frozenset({"classes", "models", "types", "constants", "exceptions", "__init__", "main"})
+    return frozenset({*_owned_role_names, _init_module_name})
 
 
 def _internal_surface_segments() -> frozenset[str]:
-    return frozenset({"helpers", "shared"})
+    return frozenset({RoleName.HELPERS, RoleName.SHARED})
 
 
 def _is_helper_module_path(parts: tuple[str, ...]) -> bool:
-    return "helpers" in parts
+    return RoleName.HELPERS in parts
 
 
 def _is_private_class_name(name: str) -> bool:

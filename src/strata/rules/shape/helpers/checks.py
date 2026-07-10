@@ -5,15 +5,18 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from strata.discovery.core.types import RoleName
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import RuleContext, Threshold
 from strata.rules.shape.helpers.outer_state import outer_state_mutations
+from strata.rules.shape.types import ShapeSymbol
 
 _mutator_methods: frozenset[str] = frozenset(
     {"add", "append", "clear", "extend", "insert", "pop", "remove", "setdefault", "update"}
 )
 _exempt_parameters: frozenset[str] = frozenset({"cls", "self"})
 _no_return_annotation_names: frozenset[str] = frozenset({"Never", "NoReturn", "None"})
+_module_separator: str = "."
 
 
 def too_many_statements(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
@@ -160,7 +163,7 @@ def no_complex_comprehensions(*, module: ast.Module, ctx: RuleContext) -> list[F
 def mutable_result_model(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag dataclass result models that are not frozen."""
 
-    if ctx.role_of() != "models":
+    if ctx.role_of() != RoleName.MODELS:
         return []
     faults: list[Fault] = []
     for node in module.body:
@@ -374,7 +377,7 @@ def _imported_module(*, module: ast.Module, local_name: str) -> str | None:
         if not isinstance(node, ast.Import):
             continue
         for alias in node.names:
-            if alias.asname is None and "." in alias.name:
+            if alias.asname is None and _module_separator in alias.name:
                 continue
             bound_name: str = alias.asname or alias.name
             if bound_name == local_name:
@@ -471,15 +474,18 @@ def _decorator_name(node: ast.expr) -> str:
 
 def _is_mutable_dataclass(node: ast.ClassDef) -> bool:
     for decorator in node.decorator_list:
-        if isinstance(decorator, ast.Call) and _decorator_name(decorator.func) == "dataclass":
+        if (
+            isinstance(decorator, ast.Call)
+            and _decorator_name(decorator.func) == ShapeSymbol.DATACLASS
+        ):
             return not _dataclass_call_is_frozen(decorator)
-        if _decorator_name(decorator) == "dataclass":
+        if _decorator_name(decorator) == ShapeSymbol.DATACLASS:
             return True
     return False
 
 
 def _dataclass_call_is_frozen(node: ast.Call) -> bool:
     for keyword in node.keywords:
-        if keyword.arg == "frozen" and isinstance(keyword.value, ast.Constant):
+        if keyword.arg == ShapeSymbol.FROZEN and isinstance(keyword.value, ast.Constant):
             return keyword.value.value is True
     return False

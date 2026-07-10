@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import ast
 
+from strata.rules.roles.types import RoleSymbol
+
 _type_class_base_names: frozenset[str] = frozenset(
     {"Enum", "IntEnum", "StrEnum", "Flag", "IntFlag", "NamedTuple", "Protocol", "TypedDict"}
 )
@@ -54,7 +56,7 @@ def is_type_checking_import_block(node: ast.stmt) -> bool:
         test_name = node.test.id
     elif isinstance(node.test, ast.Attribute):
         test_name = node.test.attr
-    return test_name == "TYPE_CHECKING" and all(
+    return test_name == RoleSymbol.TYPE_CHECKING_SYMBOL and all(
         isinstance(statement, ast.Import | ast.ImportFrom) for statement in node.body
     )
 
@@ -70,7 +72,7 @@ def is_newtype_assignment(node: ast.stmt) -> bool:
     return (
         isinstance(value, ast.Call)
         and isinstance(value.func, ast.Name | ast.Attribute)
-        and base_name(value.func) == "NewType"
+        and base_name(value.func) == RoleSymbol.NEW_TYPE
     )
 
 
@@ -87,7 +89,7 @@ def is_public_type_alias(node: ast.stmt) -> bool:
         isinstance(node, ast.AnnAssign)
         and isinstance(node.target, ast.Name)
         and not node.target.id.startswith("_")
-        and base_name(node.annotation) == "TypeAlias"
+        and base_name(node.annotation) == RoleSymbol.TYPE_ALIAS
     )
 
 

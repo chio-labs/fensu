@@ -9,12 +9,18 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
+from strata.discovery.core.types import ScopeName
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import RuleContext
-from strata.rules.tests.types import SftCode
+from strata.rules.tests.types import SftCode, TestPathName, TestScope, TestSymbol
 
 _test_name_pattern: re.Pattern[str] = re.compile(r"^test_given_.+_when_.+_then_.+$")
-_valid_test_scopes: frozenset[str] = frozenset({"unit", "integration", "e2e"})
+_valid_test_scopes: frozenset[str] = frozenset(TestScope)
+_minimum_test_layout_parts: int = 3
+_minimum_src_layout_parts: int = 5
+_minimum_scripts_layout_parts: int = 4
+_minimum_parametrize_arguments: int = 2
+_minimum_expected_field_chain_parts: int = 2
 
 
 @dataclass(frozen=True)
@@ -32,11 +38,11 @@ class _TestModuleContext:
 def test_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) -> list[Fault]:
     """Collect faults for a single tests-family rule."""
 
-    if ctx.scope() != "test":
+    if ctx.scope() is not ScopeName.TEST:
         return []
     if code == SftCode.NO_COMPLEX_COMPREHENSIONS:
         return [ctx.fault(node) for node in ctx.complex_comprehensions()]
-    if ctx.path.name == "scenario_models.py" and code == SftCode.TEST_LAYOUT:
+    if ctx.path.name == TestPathName.SCENARIO_MODELS and code == SftCode.TEST_LAYOUT:
         return _scenario_models_faults(module=module, ctx=ctx)
     if code in _layout_codes():
         return _layout_faults(ctx=ctx, code=code)
@@ -44,7 +50,7 @@ def test_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) -> list[
         return _init_module_faults(module=module, ctx=ctx)
     if code == SftCode.ABSOLUTE_IMPORTS:
         return _relative_import_faults(module=module, ctx=ctx)
-    if ctx.path.name == "_test_types.py":
+    if ctx.path.name == TestPathName.TEST_TYPES:
         return _test_types_faults(module=module, ctx=ctx, code=code)
     if ctx.path.name.endswith(".py"):
         return _test_file_faults(module=module, ctx=ctx, code=code)
@@ -52,7 +58,7 @@ def test_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) -> list[
 
 
 def _layout_faults(*, ctx: RuleContext, code: SftCode) -> list[Fault]:
-    if ctx.path.name in {"__init__.py", "conftest.py"}:
+    if ctx.path.name in {TestPathName.INIT_MODULE, TestPathName.CONFTEST}:
         return []
     try:
         relative_parts: tuple[str, ...] = (
@@ -60,7 +66,7 @@ def _layout_faults(*, ctx: RuleContext, code: SftCode) -> list[Fault]:
         )
     except ValueError:
         return [_path_fault(ctx=ctx, code=SftCode.TEST_LAYOUT, message="test path is outside repo")]
-    if len(relative_parts) < 3 or relative_parts[0] != "tests":
+    if len(relative_parts) < _minimum_test_layout_parts or relative_parts[0] != TestPathName.TESTS:
         return _selected_path_faults(
             ctx=ctx,
             code=code,
@@ -76,9 +82,9 @@ def _layout_faults(*, ctx: RuleContext, code: SftCode) -> list[Fault]:
             message="test scope must be unit, integration, or e2e",
         )
     mirrored_root: str = relative_parts[2]
-    if mirrored_root == "src":
+    if mirrored_root == TestPathName.SRC:
         return _src_layout_faults(ctx=ctx, code=code, relative_parts=relative_parts)
-    if mirrored_root == "scripts":
+    if mirrored_root == TestPathName.SCRIPTS:
         return _scripts_layout_faults(ctx=ctx, code=code, relative_parts=relative_parts)
     return _selected_path_faults(
         ctx=ctx,
@@ -91,7 +97,7 @@ def _layout_faults(*, ctx: RuleContext, code: SftCode) -> list[Fault]:
 def _src_layout_faults(
     *, ctx: RuleContext, code: SftCode, relative_parts: tuple[str, ...]
 ) -> list[Fault]:
-    if len(relative_parts) < 5:
+    if len(relative_parts) < _minimum_src_layout_parts:
         return _selected_path_faults(
             ctx=ctx,
             code=code,
@@ -106,7 +112,7 @@ def _src_layout_faults(
             actual_code=SftCode.SRC_PACKAGE_EXISTS,
             message="tests under tests/<scope>/src must mirror a real package under src/",
         )
-    if relative_parts[3] == "strata" and relative_parts[4] == "__root__":
+    if relative_parts[3] == TestPathName.STRATA and relative_parts[4] == TestPathName.ROOT_SURFACE:
         return []
     area_path: Path = package_path / relative_parts[4]
     if not area_path.exists():
@@ -122,7 +128,7 @@ def _src_layout_faults(
 def _scripts_layout_faults(
     *, ctx: RuleContext, code: SftCode, relative_parts: tuple[str, ...]
 ) -> list[Fault]:
-    if len(relative_parts) < 4:
+    if len(relative_parts) < _minimum_scripts_layout_parts:
         return _selected_path_faults(
             ctx=ctx,
             code=code,
@@ -154,7 +160,7 @@ def _path_fault(*, ctx: RuleContext, code: SftCode, message: str) -> Fault:
 
 
 def _init_module_faults(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
-    if ctx.path.name != "__init__.py" or _is_docstring_only_module(module):
+    if ctx.path.name != TestPathName.INIT_MODULE or _is_docstring_only_module(module):
         return []
     return [ctx.fault(module, message="__init__.py must be empty or docstring-only")]
 
@@ -177,7 +183,7 @@ def _test_types_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) -
             for statement in node.body
             if isinstance(statement, ast.AnnAssign) and isinstance(statement.target, ast.Name)
         )
-        if code == SftCode.TEST_TYPES_DESCRIPTION and "description" not in field_names:
+        if code == SftCode.TEST_TYPES_DESCRIPTION and TestSymbol.DESCRIPTION not in field_names:
             faults.append(ctx.fault(node))
         if code == SftCode.TEST_TYPES_EXPECTED_FIELD and not any(
             field_name.startswith("expected_") for field_name in field_names
@@ -306,7 +312,8 @@ def _test_function_faults(
             faults.append(ctx.fault(function_node))
         return faults
     test_case_arg: ast.arg | None = next(
-        (argument for argument in function_node.args.args if argument.arg == "test_case"), None
+        (argument for argument in function_node.args.args if argument.arg == TestSymbol.TEST_CASE),
+        None,
     )
     if code == SftCode.ACCEPTS_TEST_CASE and test_case_arg is None:
         faults.append(ctx.fault(function_node))
@@ -340,14 +347,15 @@ def _parametrize_faults(
     decorator: ast.Call,
     module_context: _TestModuleContext,
 ) -> list[Fault]:
-    if len(decorator.args) < 2:
+    if len(decorator.args) < _minimum_parametrize_arguments:
         return [ctx.fault(function_node)] if code == SftCode.PARAMETRIZE_ARGUMENTS else []
     parameter_name: str | None = _extract_string(decorator.args[0])
     faults: list[Fault] = []
-    if code == SftCode.PARAMETRIZE_TEST_CASE and parameter_name != "test_case":
+    if code == SftCode.PARAMETRIZE_TEST_CASE and parameter_name != TestSymbol.TEST_CASE:
         faults.append(ctx.fault(function_node))
     ids_expression: ast.expr | None = next(
-        (keyword.value for keyword in decorator.keywords if keyword.arg == "ids"), None
+        (keyword.value for keyword in decorator.keywords if keyword.arg == TestSymbol.IDS),
+        None,
     )
     if code == SftCode.PARAMETRIZE_IDS and ids_expression is None:
         faults.append(ctx.fault(function_node))
@@ -460,11 +468,11 @@ def _module_name_for_file(*, path: Path, repo_root: Path) -> str:
 
 def _is_test_module(path: Path) -> bool:
     return path.name not in {
-        "_test_helpers.py",
-        "_test_types.py",
-        "helpers.py",
-        "conftest.py",
-        "__init__.py",
+        TestPathName.TEST_HELPERS,
+        TestPathName.TEST_TYPES,
+        TestPathName.HELPERS,
+        TestPathName.CONFTEST,
+        TestPathName.INIT_MODULE,
     }
 
 
@@ -503,7 +511,7 @@ def _parametrize_decorator(
     for decorator in function_node.decorator_list:
         if (
             isinstance(decorator, ast.Call)
-            and _decorator_name(decorator.func) == "pytest.mark.parametrize"
+            and _decorator_name(decorator.func) == TestSymbol.PARAMETRIZE
         ):
             return decorator
     return None
@@ -531,8 +539,8 @@ def _references_expected_field(function_node: ast.FunctionDef | ast.AsyncFunctio
             chain: tuple[str, ...] | None = _attribute_chain(node)
             if (
                 chain
-                and len(chain) >= 2
-                and chain[0] == "test_case"
+                and len(chain) >= _minimum_expected_field_chain_parts
+                and chain[0] == TestSymbol.TEST_CASE
                 and chain[-1].startswith("expected_")
             ):
                 return True
@@ -550,9 +558,9 @@ def _is_local_constructor(*, node: ast.expr, context: _TestModuleContext) -> boo
 def _is_description_lambda_ids(node: ast.expr | None) -> bool:
     if not isinstance(node, ast.Lambda) or len(node.args.args) != 1:
         return False
-    if node.args.args[0].arg != "case":
+    if node.args.args[0].arg != TestSymbol.CASE:
         return False
-    return _attribute_chain(node.body) == ("case", "description")
+    return _attribute_chain(node.body) == (TestSymbol.CASE, TestSymbol.DESCRIPTION)
 
 
 def _is_test_case_list_assignment(node: ast.stmt) -> bool:
@@ -567,7 +575,7 @@ def _is_test_case_list_assignment(node: ast.stmt) -> bool:
 
 
 def _is_case_list_name(name: str) -> bool:
-    return name == "TEST_CASES" or name.endswith("_TEST_CASES")
+    return name == TestSymbol.TEST_CASES or name.endswith("_TEST_CASES")
 
 
 def _is_private_assignment(node: ast.stmt) -> bool:

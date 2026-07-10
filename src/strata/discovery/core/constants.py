@@ -9,6 +9,11 @@ ROLE_FILE_TO_NAME: dict[str, str] = {
     file_name: file_name.removesuffix(".py") for file_name in DEFAULT_ROLE_FILE_NAMES
 }
 ROLE_DIR_NAMES: frozenset[str] = DEFAULT_ROLE_DIR_NAMES
+INIT_MODULE_FILE_NAME: str = "__init__.py"
+INIT_MODULE_NAME: str = "__init__"
+MAIN_MODULE_FILE_NAME: str = "main.py"
+MINIMUM_NESTED_PATH_PARTS: int = 2
+PYTHON_FILE_SUFFIX: str = ".py"
 
 ROOT_FAMILIES: frozenset[Family] = frozenset(
     {

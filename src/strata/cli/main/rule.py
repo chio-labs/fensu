@@ -9,6 +9,8 @@ import textwrap
 from pathlib import Path
 from typing import TextIO
 
+from strata.cli.core.constants import NO_COLOR_ENVIRONMENT_VARIABLE
+from strata.cli.core.types import ColorMode
 from strata.config.core.main.load_config import load_config
 from strata.config.core.models import Config
 from strata.reporting.core.constants import ANSI_BOLD_CYAN, ANSI_DIM, ANSI_RESET, REPORT_LINE_WIDTH
@@ -31,8 +33,8 @@ def run_rule(
     if rule is None:
         stderr.write(f"Unknown rule code: {args.code}\n")
         return 2
-    use_color: bool = "NO_COLOR" not in os.environ and (
-        args.color == "always" or (args.color == "auto" and stdout.isatty())
+    use_color: bool = NO_COLOR_ENVIRONMENT_VARIABLE not in os.environ and (
+        args.color == ColorMode.ALWAYS or (args.color == ColorMode.AUTO and stdout.isatty())
     )
     stdout.write(_render_rule(rule, use_color=use_color))
     stdout.write("\n")
@@ -76,8 +78,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("code", help="rule code to inspect")
     parser.add_argument(
         "--color",
-        choices=("auto", "always", "never"),
-        default="auto",
+        choices=tuple(ColorMode),
+        default=ColorMode.AUTO,
         help="ANSI color behavior",
     )
     return parser

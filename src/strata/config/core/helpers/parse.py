@@ -8,6 +8,7 @@ from typing import cast
 
 from strata.config.core.exceptions import ConfigError
 from strata.config.core.models import ConfigSource
+from strata.config.core.types import ConfigSourceKind
 
 
 def parse_config_source(source: ConfigSource) -> Mapping[str, object]:
@@ -20,7 +21,7 @@ def parse_config_source(source: ConfigSource) -> Mapping[str, object]:
         raise ConfigError(f"Could not parse {source.path}: {error}") from error
     if not isinstance(data, dict):
         raise ConfigError(f"Config source {source.path} did not contain a TOML table.")
-    if source.kind == "strata_toml":
+    if source.kind is ConfigSourceKind.STRATA_TOML:
         return data
     return _extract_pyproject_config(data=data, path=str(source.path))
 

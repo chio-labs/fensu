@@ -8,11 +8,14 @@ import sys
 from pathlib import Path
 from typing import TextIO
 
+from strata.cli.core.constants import NO_COLOR_ENVIRONMENT_VARIABLE
+from strata.cli.core.types import ColorMode
 from strata.mapping.core.exceptions import MapError
 from strata.mapping.core.main.ast import build_ast_call_map
 from strata.mapping.core.main.build import build_call_map
 from strata.mapping.core.main.resolve_project import resolve_mapping_project
 from strata.mapping.core.models import MappingProject
+from strata.mapping.core.types import PathMode
 
 
 def run_map(
@@ -34,9 +37,11 @@ def run_map(
             depth=args.depth,
             repo_root=project.repo_root,
             provider=build_ast_call_map,
-            path_mode=args.paths,
-            use_color="NO_COLOR" not in os.environ
-            and (args.color == "always" or (args.color == "auto" and stdout.isatty())),
+            path_mode=PathMode(args.paths),
+            use_color=NO_COLOR_ENVIRONMENT_VARIABLE not in os.environ
+            and (
+                args.color == ColorMode.ALWAYS or (args.color == ColorMode.AUTO and stdout.isatty())
+            ),
         )
     except MapError as error:
         stderr.write(f"{error}\n")
@@ -59,14 +64,14 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--paths",
-        choices=("absolute", "relative", "compact", "none"),
-        default="relative",
+        choices=tuple(PathMode),
+        default=PathMode.RELATIVE,
         help="path display style",
     )
     parser.add_argument(
         "--color",
-        choices=("auto", "always", "never"),
-        default="auto",
+        choices=tuple(ColorMode),
+        default=ColorMode.AUTO,
         help="ANSI color behavior",
     )
     return parser

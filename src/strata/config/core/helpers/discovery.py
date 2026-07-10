@@ -7,6 +7,7 @@ from pathlib import Path
 
 from strata.config.core.exceptions import ConfigError
 from strata.config.core.models import ConfigSource
+from strata.config.core.types import ConfigSourceKind
 
 
 def locate_config(start: Path | None = None) -> ConfigSource:
@@ -17,10 +18,10 @@ def locate_config(start: Path | None = None) -> ConfigSource:
     for candidate_directory in (directory, *directory.parents):
         strata_toml: Path = candidate_directory / "strata.toml"
         if strata_toml.is_file():
-            return ConfigSource(path=strata_toml, kind="strata_toml")
+            return ConfigSource(path=strata_toml, kind=ConfigSourceKind.STRATA_TOML)
         pyproject: Path = candidate_directory / "pyproject.toml"
         if pyproject.is_file() and _pyproject_has_strata_config(pyproject):
-            return ConfigSource(path=pyproject, kind="pyproject")
+            return ConfigSource(path=pyproject, kind=ConfigSourceKind.PYPROJECT)
     raise ConfigError("No strata config found; create strata.toml or [tool.strata].")
 
 

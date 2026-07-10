@@ -4,9 +4,22 @@ from __future__ import annotations
 
 import ast
 
-from strata.rules.annotations.types import AnnotationCode
+from strata.rules.annotations.types import AnnotationCode, AnnotationSymbol, ParameterName
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import RuleContext
+
+_module_exempt_names: frozenset[str] = frozenset(
+    {
+        AnnotationSymbol.ALL,
+        AnnotationSymbol.MATCH_ARGS,
+        AnnotationSymbol.SLOTS,
+        AnnotationSymbol.VERSION,
+    }
+)
+_class_exempt_names: frozenset[str] = frozenset(
+    {AnnotationSymbol.MATCH_ARGS, AnnotationSymbol.SLOTS, AnnotationSymbol.TEST}
+)
+_enum_base_names: frozenset[str] = frozenset({AnnotationSymbol.ENUM, AnnotationSymbol.STR_ENUM})
 
 
 class AnnotationVisitor(ast.NodeVisitor):
@@ -117,7 +130,11 @@ class AnnotationVisitor(ast.NodeVisitor):
     def _check_function_signature(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
         positional_args: list[ast.arg] = [*node.args.posonlyargs, *node.args.args]
         exempt_parameter_name: str | None = None
-        if self._class_depth > 0 and positional_args and positional_args[0].arg in {"self", "cls"}:
+        if (
+            self._class_depth > 0
+            and positional_args
+            and positional_args[0].arg in {ParameterName.SELF, ParameterName.CLS}
+        ):
             exempt_parameter_name = positional_args[0].arg
         for parameter in [*node.args.posonlyargs, *node.args.args, *node.args.kwonlyargs]:
             if parameter.annotation is not None or parameter.arg == exempt_parameter_name:
@@ -153,7 +170,10 @@ class AnnotationVisitor(ast.NodeVisitor):
         ]:
             if parameter is None:
                 continue
-            if parameter.annotation is not None or parameter.arg in {"self", "cls"}:
+            if parameter.annotation is not None or parameter.arg in {
+                ParameterName.SELF,
+                ParameterName.CLS,
+            }:
                 names.add(parameter.arg)
         return names
 
@@ -182,7 +202,7 @@ class AnnotationVisitor(ast.NodeVisitor):
     def _check_local_assignment(self, node: ast.Assign | ast.AugAssign) -> None:
         current_scope: set[str] = self._function_scopes[-1]
         for target in _iter_simple_name_targets(node):
-            if target.id == "_" or target.id in current_scope:
+            if target.id == ParameterName.DISCARD or target.id in current_scope:
                 continue
             self._append_fault(
                 code=AnnotationCode.LOCAL_VARIABLE_ANNOTATION,
@@ -209,17 +229,17 @@ def _iter_simple_name_targets(node: ast.Assign | ast.AugAssign) -> list[ast.Name
 
 
 def _is_exempt_module_name(name: str) -> bool:
-    return name in {"__all__", "__match_args__", "__slots__", "__version__"}
+    return name in _module_exempt_names
 
 
 def _is_exempt_class_name(name: str) -> bool:
-    return name in {"__match_args__", "__slots__", "__test__"}
+    return name in _class_exempt_names
 
 
 def _is_enum_class(node: ast.ClassDef) -> bool:
     for base in node.bases:
-        if isinstance(base, ast.Name) and base.id in {"Enum", "StrEnum"}:
+        if isinstance(base, ast.Name) and base.id in _enum_base_names:
             return True
-        if isinstance(base, ast.Attribute) and base.attr in {"Enum", "StrEnum"}:
+        if isinstance(base, ast.Attribute) and base.attr in _enum_base_names:
             return True
     return False

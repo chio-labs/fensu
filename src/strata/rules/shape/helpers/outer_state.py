@@ -14,6 +14,7 @@ _comprehension_nodes: tuple[type[ast.AST], ...] = (
     ast.ListComp,
     ast.SetComp,
 )
+_wildcard_import_name: str = "*"
 
 
 def outer_state_mutations(*, module: ast.Module) -> tuple[ast.AST, ...]:
@@ -259,7 +260,11 @@ def _bindings(*, node: ast.AST, include_imports: bool) -> frozenset[str]:
     if isinstance(node, ast.ImportFrom):
         if not include_imports:
             return frozenset()
-        return frozenset(alias.asname or alias.name for alias in node.names if alias.name != "*")
+        return frozenset(
+            alias.asname or alias.name
+            for alias in node.names
+            if alias.name != _wildcard_import_name
+        )
     direct_names: frozenset[str] = frozenset(
         {node.name} if isinstance(node, ast.ExceptHandler) and node.name is not None else set()
     )

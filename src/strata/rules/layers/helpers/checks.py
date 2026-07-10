@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import ast
 
+from strata.discovery.core.constants import INIT_MODULE_FILE_NAME
+from strata.discovery.core.types import ScopeName
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import RuleContext
 from strata.rules.layers.helpers.imports import (
@@ -15,6 +17,8 @@ from strata.rules.layers.helpers.imports import (
     module_parts_for_path,
     private_helper_class_import_faults,
 )
+
+_wildcard_import_name: str = "*"
 
 
 def absolute_imports_only(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
@@ -32,7 +36,9 @@ def no_star_imports(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
 
     faults: list[Fault] = []
     for node in ctx.nodes(ast.ImportFrom):
-        if isinstance(node, ast.ImportFrom) and any(alias.name == "*" for alias in node.names):
+        if isinstance(node, ast.ImportFrom) and any(
+            alias.name == _wildcard_import_name for alias in node.names
+        ):
             faults.append(ctx.fault(node))
     return faults
 
@@ -125,7 +131,9 @@ def no_cross_package_internals(*, module: ast.Module, ctx: RuleContext) -> list[
 def no_internal_public_surface_imports(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Reject internal imports routed through the bare runtime package surface."""
 
-    if ctx.scope() != "root" or (ctx.path.name == "__init__.py" and len(ctx.relative_parts()) == 1):
+    if ctx.scope() is not ScopeName.ROOT or (
+        ctx.path.name == INIT_MODULE_FILE_NAME and len(ctx.relative_parts()) == 1
+    ):
         return []
     package_name: str = ctx.path.parents[len(ctx.relative_parts()) - 1].name
     faults: list[Fault] = []
@@ -153,7 +161,7 @@ def no_cross_file_helper_private_classes(*, module: ast.Module, ctx: RuleContext
 def no_runtime_imports_from_tooling(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Reject runtime code importing from the conventional tooling package."""
 
-    if ctx.scope() != "root":
+    if ctx.scope() is not ScopeName.ROOT:
         return []
     faults: list[Fault] = []
     for node in (*ctx.nodes(ast.ImportFrom), *ctx.nodes(ast.Import)):

@@ -7,6 +7,7 @@ import io
 import tokenize
 from collections.abc import Iterator
 
+from strata.discovery.core.types import ScopeName
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import RuleContext
 from strata.rules.hygiene.types import HygieneCode
@@ -37,6 +38,11 @@ _docstring_bearing_node_types: tuple[type[ast.AST], ...] = (
     ast.AsyncFunctionDef,
     ast.ClassDef,
 )
+_exception_class_name: str = "Exception"
+_frozenset_function_name: str = "frozenset"
+_module_name_variable: str = "__name__"
+_main_module_name: str = "__main__"
+_newline_character: str = "\n"
 
 
 def single_line_docstrings(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
@@ -122,7 +128,7 @@ def no_complex_comprehensions_in_tooling(*, module: ast.Module, ctx: RuleContext
     """Apply the global comprehension boundary to configured tooling."""
 
     del module
-    if ctx.scope() != "tooling":
+    if ctx.scope() is not ScopeName.TOOLING:
         return []
     return [ctx.fault(node) for node in ctx.complex_comprehensions()]
 
@@ -174,7 +180,7 @@ def _statement_is_multiline_docstring(node: ast.stmt) -> bool:
     if not isinstance(node.value, ast.Constant) or not isinstance(node.value.value, str):
         return False
     end_lineno: int = getattr(node, "end_lineno", node.lineno)
-    return end_lineno > node.lineno or "\n" in node.value.value
+    return end_lineno > node.lineno or _newline_character in node.value.value
 
 
 def _raise_uses_raw_builtin(*, node: ast.Raise, ctx: RuleContext) -> bool:
@@ -185,7 +191,11 @@ def _raise_uses_raw_builtin(*, node: ast.Raise, ctx: RuleContext) -> bool:
 
 
 def _is_bare_exception_handler(node: ast.ExceptHandler) -> bool:
-    return node.name is None and isinstance(node.type, ast.Name) and node.type.id == "Exception"
+    return (
+        node.name is None
+        and isinstance(node.type, ast.Name)
+        and node.type.id == _exception_class_name
+    )
 
 
 def _handler_body_is_single_swallow(body: list[ast.stmt]) -> bool:
@@ -220,7 +230,7 @@ def _decision_literal_nodes(node: ast.expr) -> tuple[ast.expr, ...]:
     if (
         isinstance(node, ast.Call)
         and isinstance(node.func, ast.Name)
-        and node.func.id == "frozenset"
+        and node.func.id == _frozenset_function_name
         and len(node.args) == 1
     ):
         return _decision_literal_nodes(node.args[0])
@@ -249,7 +259,7 @@ def _is_main_execution_guard(node: ast.Compare) -> bool:
         and isinstance(node.ops[0], ast.Eq)
         and len(node.comparators) == 1
         and isinstance(node.left, ast.Name)
-        and node.left.id == "__name__"
+        and node.left.id == _module_name_variable
         and isinstance(node.comparators[0], ast.Constant)
-        and node.comparators[0].value == "__main__"
+        and node.comparators[0].value == _main_module_name
     )

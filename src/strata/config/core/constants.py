@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from strata.config.core.types import ContractBehavior, RuleSelector
+from strata.discovery.core.types import RoleName
 from strata.rules.authoring.types import Threshold
 
 DEFAULT_THRESHOLDS: dict[Threshold, int] = {
@@ -17,14 +19,16 @@ DEFAULT_THRESHOLDS: dict[Threshold, int] = {
     Threshold.MAX_SCRIPT_ENTRYPOINT_LINES: 80,
 }
 
-DEFAULT_ROLE_DIR_NAMES: frozenset[str] = frozenset({"main", "helpers", "classes"})
+DEFAULT_ROLE_DIR_NAMES: frozenset[str] = frozenset(
+    {RoleName.MAIN, RoleName.HELPERS, RoleName.CLASSES}
+)
 DEFAULT_ROLE_FILE_NAMES: frozenset[str] = frozenset(
     {"models.py", "types.py", "constants.py", "exceptions.py"}
 )
 
 DEFAULT_TEST_PATHS: tuple[str, ...] = ("tests",)
 DEFAULT_TOOLING_PATHS: tuple[str, ...] = ()
-DEFAULT_SELECT: tuple[str, ...] = ("SF",)
+DEFAULT_SELECT: tuple[str, ...] = (RuleSelector.ALL,)
 DEFAULT_IGNORE: tuple[str, ...] = ()
 
 CONFIG_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
@@ -41,21 +45,12 @@ CONFIG_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
         "contracts",
     }
 )
-CONFIG_ROLE_NAMES: frozenset[str] = frozenset(
-    {
-        "entry",
-        "main",
-        "helpers",
-        "classes",
-        "rules",
-        "models",
-        "types",
-        "constants",
-        "exceptions",
-    }
-)
-CONTRACT_BEHAVIORS: frozenset[str] = frozenset({"no-return"})
-DEFAULT_CONTRACTS: dict[str, str] = {"validate_*": "no-return", "enforce_*": "no-return"}
+CONFIG_ROLE_NAMES: frozenset[str] = frozenset(RoleName)
+CONTRACT_BEHAVIORS: frozenset[str] = frozenset(ContractBehavior)
+DEFAULT_CONTRACTS: dict[str, str] = {
+    "validate_*": ContractBehavior.NO_RETURN,
+    "enforce_*": ContractBehavior.NO_RETURN,
+}
 
 MAX_ENTRY_PUBLIC_FUNCTIONS: int = 1
 MAX_ENTRY_PRIVATE_FUNCTIONS: int = 2

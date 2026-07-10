@@ -37,13 +37,14 @@ def _configured_scope_roots(
     *, config: Config, repo_root: RepoRoot
 ) -> tuple[tuple[ScopeName, Path], ...]:
     root_scopes: tuple[tuple[ScopeName, Path], ...] = tuple(
-        ("root", _resolve_path(repo_root=repo_root, value=root)) for root in config.roots
+        (ScopeName.ROOT, _resolve_path(repo_root=repo_root, value=root)) for root in config.roots
     )
     test_scopes: tuple[tuple[ScopeName, Path], ...] = tuple(
-        ("test", _resolve_path(repo_root=repo_root, value=root)) for root in config.tests
+        (ScopeName.TEST, _resolve_path(repo_root=repo_root, value=root)) for root in config.tests
     )
     tooling_scopes: tuple[tuple[ScopeName, Path], ...] = tuple(
-        ("tooling", _resolve_path(repo_root=repo_root, value=root)) for root in config.tooling
+        (ScopeName.TOOLING, _resolve_path(repo_root=repo_root, value=root))
+        for root in config.tooling
     )
     return (*root_scopes, *test_scopes, *tooling_scopes)
 

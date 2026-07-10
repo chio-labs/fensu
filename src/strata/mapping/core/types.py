@@ -2,11 +2,19 @@
 
 from __future__ import annotations
 
-from typing import Literal, Protocol
+from enum import StrEnum
+from typing import Protocol
 
 from strata.mapping.core.models import CallMapNode, MappingSource
 
-type PathMode = Literal["absolute", "relative", "compact", "none"]
+
+class PathMode(StrEnum):
+    """Supported call-map path display modes."""
+
+    ABSOLUTE = "absolute"
+    RELATIVE = "relative"
+    COMPACT = "compact"
+    NONE = "none"
 
 
 class CallMapProvider(Protocol):

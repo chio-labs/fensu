@@ -12,10 +12,13 @@ from types import ModuleType
 
 from strata.config.core.exceptions import ConfigError
 from strata.config.core.models import Config
+from strata.config.core.types import RuleSelector
 from strata.rules.authoring.main.inspect import rule_specs_in_module
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Family, RuleKind
 from strata.rules.catalog.constants import CORE_RULES
+
+_minimum_core_rule_code_length: int = 3
 
 
 def build_ruleset_from_config(config: Config) -> tuple[RuleSpec, ...]:
@@ -143,7 +146,7 @@ def _select_rules(
 
 def _rule_matches_select(*, rule: RuleSpec, select: tuple[str, ...]) -> bool:
     for selector in select:
-        if selector == "SF" and rule.code.startswith("SF"):
+        if selector == RuleSelector.ALL and rule.code.startswith(RuleSelector.ALL):
             return True
         if selector == rule.code:
             return True
@@ -154,20 +157,22 @@ def _rule_matches_select(*, rule: RuleSpec, select: tuple[str, ...]) -> bool:
 
 def _family_selector(family: Family) -> str:
     family_selectors: dict[Family, str] = {
-        Family.LAYERS: "SFL",
-        Family.ROLES: "SFR",
-        Family.SHAPE: "SFS",
-        Family.NAMING: "SFN",
-        Family.HYGIENE: "SFX",
-        Family.TESTS: "SFT",
-        Family.ANNOTATIONS: "SFA",
+        Family.LAYERS: RuleSelector.LAYERS,
+        Family.ROLES: RuleSelector.ROLES,
+        Family.SHAPE: RuleSelector.SHAPE,
+        Family.NAMING: RuleSelector.NAMING,
+        Family.HYGIENE: RuleSelector.HYGIENE,
+        Family.TESTS: RuleSelector.TESTS,
+        Family.ANNOTATIONS: RuleSelector.ANNOTATIONS,
         Family.CUSTOM: "X",
     }
     return family_selectors[family]
 
 
 def _is_code_selector(selector: str) -> bool:
-    return (selector.startswith("SF") and len(selector) > 3) or selector.startswith("X")
+    return (
+        selector.startswith(RuleSelector.ALL) and len(selector) > _minimum_core_rule_code_length
+    ) or selector.startswith("X")
 
 
 def _validate_unique_codes(*, rules: tuple[RuleSpec, ...]) -> None:

@@ -32,4 +32,4 @@ class SfrRuleTestCase:
     thresholds: dict[Threshold, int] = field(default_factory=dict)
     expected_messages: tuple[str, ...] = field(default_factory=tuple)
     expected_remediations: tuple[str, ...] = field(default_factory=tuple)
-    scope: ScopeName = "root"
+    scope: ScopeName = ScopeName.ROOT

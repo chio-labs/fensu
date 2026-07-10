@@ -127,10 +127,8 @@ select = ["SF", "XAC001"]
 
 Custom rules are included by `strata rule` and `strata skill` once configured.
 
-Two strict decision-literal checks are available as explicit opt-ins: `SFX007`
-requires string comparison values to be named, and `SFX008` does the same for
-numeric comparison values other than `-1`, `0`, and `1`. Select either rule by
-its full code when that convention fits the repository.
+`SFX007` requires string comparison values to be named, and `SFX008` does the
+same for numeric comparison values other than `-1`, `0`, and `1`.
 
 ## Tooling Layout
 

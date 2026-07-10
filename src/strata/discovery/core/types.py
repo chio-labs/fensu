@@ -2,6 +2,27 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from enum import StrEnum
 
-type ScopeName = Literal["root", "test", "tooling"]
+
+class ScopeName(StrEnum):
+    """Configured repository scan scopes."""
+
+    ROOT = "root"
+    TEST = "test"
+    TOOLING = "tooling"
+
+
+class RoleName(StrEnum):
+    """Standard module and package roles."""
+
+    CLASSES = "classes"
+    CONSTANTS = "constants"
+    ENTRY = "entry"
+    EXCEPTIONS = "exceptions"
+    HELPERS = "helpers"
+    MAIN = "main"
+    MODELS = "models"
+    RULES = "rules"
+    SHARED = "shared"
+    TYPES = "types"

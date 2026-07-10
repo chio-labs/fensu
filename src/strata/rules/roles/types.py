@@ -43,3 +43,12 @@ class RoleCode(StrEnum):
     TOOLING_ENTRYPOINT_LINE_COUNT = "SFR703"
     RULES_ROLE_CONTENT = "SFR704"
     TOOLING_PACKAGE_LAYOUT = "SFR705"
+
+
+class RoleSymbol(StrEnum):
+    """Python symbols with role-classification semantics."""
+
+    TYPE_CHECKING_SYMBOL = "TYPE_CHECKING"
+    NEW_TYPE = "NewType"
+    TYPE_ALIAS = "TypeAlias"
+    RULE = "rule"

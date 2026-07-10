@@ -16,7 +16,7 @@ def build_call_map(
     depth: int,
     repo_root: Path,
     provider: CallMapProvider,
-    path_mode: PathMode = "relative",
+    path_mode: PathMode = PathMode.RELATIVE,
     use_color: bool = False,
 ) -> str:
     """Build and render one downstream project call map."""

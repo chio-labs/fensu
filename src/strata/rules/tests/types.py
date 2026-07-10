@@ -42,3 +42,38 @@ class SftCode(StrEnum):
     NO_IF_IN_TESTS = "SFT036"
     PRIVATE_CONSTANT_ORDER = "SFT037"
     NO_COMPLEX_COMPREHENSIONS = "SFT038"
+
+
+class TestPathName(StrEnum):
+    """Filesystem names with test-layout semantics."""
+
+    TESTS = "tests"
+    SRC = "src"
+    SCRIPTS = "scripts"
+    STRATA = "strata"
+    ROOT_SURFACE = "__root__"
+    INIT_MODULE = "__init__.py"
+    CONFTEST = "conftest.py"
+    HELPERS = "helpers.py"
+    TEST_HELPERS = "_test_helpers.py"
+    TEST_TYPES = "_test_types.py"
+    SCENARIO_MODELS = "scenario_models.py"
+
+
+class TestSymbol(StrEnum):
+    """Python symbols with test-convention semantics."""
+
+    DESCRIPTION = "description"
+    TEST_CASE = "test_case"
+    IDS = "ids"
+    CASE = "case"
+    PARAMETRIZE = "pytest.mark.parametrize"
+    TEST_CASES = "TEST_CASES"
+
+
+class TestScope(StrEnum):
+    """Supported test suite scopes."""
+
+    UNIT = "unit"
+    INTEGRATION = "integration"
+    E2E = "e2e"

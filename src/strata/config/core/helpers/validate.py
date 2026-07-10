@@ -12,6 +12,7 @@ from strata.config.core.constants import (
     CONTRACT_BEHAVIORS,
 )
 from strata.config.core.exceptions import ConfigError, ConfigValidationError
+from strata.config.core.types import RuleSelector
 from strata.rules.authoring.types import Threshold
 
 
@@ -46,7 +47,7 @@ def _validate_string_sequence(*, name: str, value: object) -> tuple[str, ...]:
         raise ConfigError(f"Config key {name} must be a list of strings.")
     result: list[str] = []
     for item in value:
-        if not isinstance(item, str) or item == "":
+        if not isinstance(item, str) or not item:
             raise ConfigValidationError(f"Config key {name} must contain non-empty strings.")
         result.append(item)
     return tuple(result)
@@ -83,9 +84,11 @@ def _validate_selection(*, name: str, value: object) -> None:
 
 
 def _selection_entry_is_well_formed(entry: str) -> bool:
-    if entry == "SF":
+    if entry == RuleSelector.ALL:
         return True
-    family_selectors: set[str] = {"SFL", "SFR", "SFS", "SFN", "SFX", "SFT", "SFA"}
+    family_selectors: set[str] = {
+        selector for selector in RuleSelector if selector is not RuleSelector.ALL
+    }
     if entry in family_selectors:
         return True
     family_letters: str = "".join(selector[-1] for selector in sorted(family_selectors))
@@ -127,7 +130,7 @@ def _validate_contracts(*, value: object) -> None:
     if not isinstance(value, dict):
         raise ConfigValidationError("Config key contracts must be a table.")
     for pattern, behavior in value.items():
-        if not isinstance(pattern, str) or pattern == "":
+        if not isinstance(pattern, str) or not pattern:
             raise ConfigValidationError("Config contract patterns must be non-empty strings.")
         if behavior not in CONTRACT_BEHAVIORS:
             raise ConfigValidationError(f"Unknown contract behavior for {pattern}: {behavior}.")

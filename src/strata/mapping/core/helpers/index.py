@@ -5,7 +5,12 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from strata.mapping.core.constants import EXCLUDED_DIRECTORY_NAMES
+from strata.mapping.core.constants import (
+    EXCLUDED_DIRECTORY_NAMES,
+    INIT_MODULE_FILE_NAME,
+    INIT_MODULE_NAME,
+    PATH_SYMBOL_SEPARATOR,
+)
 from strata.mapping.core.exceptions import MapError
 from strata.mapping.core.models import FunctionDefinition, MappingSource
 
@@ -23,7 +28,7 @@ def build_function_index(*, sources: tuple[MappingSource, ...]) -> dict[str, Fun
         imported_symbols, imported_modules = _imports(
             module=module,
             module_name=module_name,
-            package_module=path.name == "__init__.py",
+            package_module=path.name == INIT_MODULE_FILE_NAME,
         )
         for node in module.body:
             if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
@@ -45,8 +50,8 @@ def select_function(
 ) -> FunctionDefinition:
     """Resolve a bare, dotted, or path-qualified requested function."""
 
-    if "::" in symbol:
-        path_fragment, function_name = symbol.rsplit("::", maxsplit=1)
+    if PATH_SYMBOL_SEPARATOR in symbol:
+        path_fragment, function_name = symbol.rsplit(PATH_SYMBOL_SEPARATOR, maxsplit=1)
         matches: tuple[FunctionDefinition, ...] = tuple(
             definition
             for definition in definitions.values()
@@ -84,7 +89,7 @@ def _python_files(*, sources: tuple[MappingSource, ...]) -> tuple[tuple[Path, Pa
 def _module_name(*, path: Path, import_root: Path) -> str:
     parts: tuple[str, ...] = path.relative_to(import_root).parts
     module_parts: tuple[str, ...] = (*parts[:-1], parts[-1].removesuffix(".py"))
-    if module_parts[-1] == "__init__":
+    if module_parts[-1] == INIT_MODULE_NAME:
         module_parts = module_parts[:-1]
     return ".".join(module_parts)
 

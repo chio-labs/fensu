@@ -7,6 +7,10 @@ ANSI_DIM: str = "\x1b[2m"
 ANSI_FUNCTION: str = "\x1b[1;36m"
 ANSI_UNRESOLVED: str = "\x1b[33m"
 ANSI_CYCLE: str = "\x1b[35m"
+INIT_MODULE_FILE_NAME: str = "__init__.py"
+INIT_MODULE_NAME: str = "__init__"
+MAX_COMPACT_PATH_PARTS: int = 4
+PATH_SYMBOL_SEPARATOR: str = "::"
 
 EXCLUDED_DIRECTORY_NAMES: frozenset[str] = frozenset(
     {

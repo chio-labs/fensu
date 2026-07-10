@@ -20,3 +20,10 @@ class ShapeCode(StrEnum):
     NO_OUTER_STATE_MUTATION = "SFS130"
     NO_COMPLEX_COMPREHENSIONS = "SFS131"
     MUTABLE_RESULT_MODEL = "SFS201"
+
+
+class ShapeSymbol(StrEnum):
+    """Python symbols with shape-rule semantics."""
+
+    DATACLASS = "dataclass"
+    FROZEN = "frozen"

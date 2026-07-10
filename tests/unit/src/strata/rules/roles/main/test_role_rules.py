@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from strata.discovery.core.types import ScopeName
 from strata.evaluation.core.models import EvaluationResult
 from strata.rules.authoring.types import Threshold
 from tests.unit.src.strata.rules.roles.main._test_types import SfrRuleTestCase, SfrSupportFile
@@ -979,7 +980,7 @@ def test_given_path_level_role_fault_when_evaluating_then_inherits_actionable_me
             ),
             expected_codes=(),
             expected_lines=(),
-            scope="tooling",
+            scope=ScopeName.TOOLING,
         ),
         SfrRuleTestCase(
             description="public parse_args in direct script is flagged",
@@ -993,7 +994,7 @@ def test_given_path_level_role_fault_when_evaluating_then_inherits_actionable_me
             ),
             expected_codes=("SFR701",),
             expected_lines=(1,),
-            scope="tooling",
+            scope=ScopeName.TOOLING,
         ),
         SfrRuleTestCase(
             description="class in direct script is flagged",
@@ -1002,7 +1003,7 @@ def test_given_path_level_role_fault_when_evaluating_then_inherits_actionable_me
             source="class Fetcher:\n    pass\n\ndef main() -> int:\n    return 0\n",
             expected_codes=("SFR701",),
             expected_lines=(1,),
-            scope="tooling",
+            scope=ScopeName.TOOLING,
         ),
         SfrRuleTestCase(
             description="direct script calling imported tooling main entry is allowed",
@@ -1015,7 +1016,7 @@ def test_given_path_level_role_fault_when_evaluating_then_inherits_actionable_me
             ),
             expected_codes=(),
             expected_lines=(),
-            scope="tooling",
+            scope=ScopeName.TOOLING,
         ),
         SfrRuleTestCase(
             description="direct script without main delegation is flagged",
@@ -1024,7 +1025,7 @@ def test_given_path_level_role_fault_when_evaluating_then_inherits_actionable_me
             source="def main() -> int:\n    return 0\n",
             expected_codes=("SFR702",),
             expected_lines=(None,),
-            scope="tooling",
+            scope=ScopeName.TOOLING,
         ),
         SfrRuleTestCase(
             description="implementation call retained in direct script main is flagged",
@@ -1040,7 +1041,7 @@ def test_given_path_level_role_fault_when_evaluating_then_inherits_actionable_me
             ),
             expected_codes=("SFR702", "SFR702"),
             expected_lines=(6, 6),
-            scope="tooling",
+            scope=ScopeName.TOOLING,
         ),
         SfrRuleTestCase(
             description="direct script above configured line limit is flagged",
@@ -1050,7 +1051,7 @@ def test_given_path_level_role_fault_when_evaluating_then_inherits_actionable_me
             thresholds={Threshold.MAX_SCRIPT_ENTRYPOINT_LINES: 2},
             expected_codes=("SFR703",),
             expected_lines=(None,),
-            scope="tooling",
+            scope=ScopeName.TOOLING,
         ),
         SfrRuleTestCase(
             description="rules role allows multiple decorated functions",
@@ -1067,7 +1068,7 @@ def test_given_path_level_role_fault_when_evaluating_then_inherits_actionable_me
             ),
             expected_codes=(),
             expected_lines=(),
-            scope="tooling",
+            scope=ScopeName.TOOLING,
         ),
         SfrRuleTestCase(
             description="undecorated function in rules role is flagged",
@@ -1076,7 +1077,7 @@ def test_given_path_level_role_fault_when_evaluating_then_inherits_actionable_me
             source="def helper() -> None:\n    return None\n",
             expected_codes=("SFR704",),
             expected_lines=(1,),
-            scope="tooling",
+            scope=ScopeName.TOOLING,
         ),
         SfrRuleTestCase(
             description="standard role directory directly under tool package is allowed",
@@ -1085,7 +1086,7 @@ def test_given_path_level_role_fault_when_evaluating_then_inherits_actionable_me
             source="def run_fetch() -> int:\n    return 0\n",
             expected_codes=(),
             expected_lines=(),
-            scope="tooling",
+            scope=ScopeName.TOOLING,
         ),
         SfrRuleTestCase(
             description="arbitrary package directly under tool package is flagged",
@@ -1094,7 +1095,7 @@ def test_given_path_level_role_fault_when_evaluating_then_inherits_actionable_me
             source="def run_fetch() -> int:\n    return 0\n",
             expected_codes=("SFR705",),
             expected_lines=(None,),
-            scope="tooling",
+            scope=ScopeName.TOOLING,
         ),
         SfrRuleTestCase(
             description="direct implementation module under tool package is flagged",
@@ -1103,7 +1104,7 @@ def test_given_path_level_role_fault_when_evaluating_then_inherits_actionable_me
             source="def run_fetch() -> int:\n    return 0\n",
             expected_codes=("SFR705",),
             expected_lines=(None,),
-            scope="tooling",
+            scope=ScopeName.TOOLING,
         ),
     ],
     ids=lambda case: case.description,

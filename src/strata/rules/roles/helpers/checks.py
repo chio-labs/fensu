@@ -5,6 +5,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from strata.discovery.core.constants import INIT_MODULE_FILE_NAME, PYTHON_FILE_SUFFIX
+from strata.discovery.core.types import RoleName, ScopeName
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import RuleContext, Threshold
 from strata.rules.roles.helpers.classification import (
@@ -18,26 +20,48 @@ from strata.rules.roles.helpers.classification import (
     is_type_class,
     non_docstring_body,
 )
-from strata.rules.roles.types import RoleCode
+from strata.rules.roles.types import RoleCode, RoleSymbol
 
 _banned_generic_filenames: frozenset[str] = frozenset({"misc.py"})
 _banned_generic_package_names: frozenset[str] = frozenset(
     {"base", "common", "lib", "misc", "shared", "util", "utils"}
 )
 _role_names: frozenset[str] = frozenset(
-    {"helpers", "classes", "models", "types", "constants", "exceptions"}
+    {
+        RoleName.HELPERS,
+        RoleName.CLASSES,
+        RoleName.MODELS,
+        RoleName.TYPES,
+        RoleName.CONSTANTS,
+        RoleName.EXCEPTIONS,
+    }
 )
 _role_filenames: frozenset[str] = frozenset(
     {"models.py", "types.py", "constants.py", "exceptions.py", "helpers.py"}
 )
 _tooling_private_function_names: frozenset[str] = frozenset({"_build_parser", "_parse_args"})
-_tooling_role_names: frozenset[str] = frozenset({"main", "helpers", "classes", "rules"})
+_tooling_role_names: frozenset[str] = frozenset(
+    {RoleName.MAIN, RoleName.HELPERS, RoleName.CLASSES, RoleName.RULES}
+)
+_classes_module_file_name: str = "classes.py"
+_future_module_name: str = "__future__"
+_helpers_module_file_name: str = "helpers.py"
+_main_module_file_name: str = "main.py"
+_main_module_name: str = "__main__"
+_module_name_variable: str = "__name__"
+_all_export_name: str = "__all__"
+_python_cache_directory_name: str = "__pycache__"
+_minimum_nested_module_parts: int = 3
+_minimum_nested_subpackage_parts: int = 4
+_top_level_role_parts: int = 2
+_maximum_entry_private_functions: int = 2
+_shallow_helper_depth: int = 2
 
 
 def models_only_models(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag foreign declarations in model-role modules."""
 
-    if ctx.role_of() != "models":
+    if ctx.role_of() != RoleName.MODELS:
         return []
     faults: list[Fault] = []
     for node in non_docstring_body(module):
@@ -52,7 +76,7 @@ def models_only_models(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
 def types_only_types(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag runtime declarations in type-role modules."""
 
-    if ctx.role_of() != "types":
+    if ctx.role_of() != RoleName.TYPES:
         return []
     faults: list[Fault] = []
     allowed_nodes: tuple[type[ast.stmt], ...] = (
@@ -74,7 +98,7 @@ def types_only_types(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
 def constants_only_constants(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag foreign declarations in constant-role modules."""
 
-    if ctx.role_of() != "constants":
+    if ctx.role_of() != RoleName.CONSTANTS:
         return []
     allowed_nodes: tuple[type[ast.stmt], ...] = (
         ast.Import,
@@ -92,7 +116,7 @@ def constants_only_constants(*, module: ast.Module, ctx: RuleContext) -> list[Fa
 def exceptions_only_exceptions(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag foreign declarations in exception-role modules."""
 
-    if ctx.role_of() != "exceptions":
+    if ctx.role_of() != RoleName.EXCEPTIONS:
         return []
     faults: list[Fault] = []
     for node in non_docstring_body(module):
@@ -107,7 +131,7 @@ def exceptions_only_exceptions(*, module: ast.Module, ctx: RuleContext) -> list[
 def model_declaration_outside_models(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag structured model declarations outside the models role."""
 
-    if ctx.role_of() == "models":
+    if ctx.role_of() == RoleName.MODELS:
         return []
     return [
         ctx.fault(node)
@@ -119,7 +143,7 @@ def model_declaration_outside_models(*, module: ast.Module, ctx: RuleContext) ->
 def type_declaration_outside_types(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag public type-layer declarations outside the types role."""
 
-    if ctx.role_of() == "types":
+    if ctx.role_of() == RoleName.TYPES:
         return []
     faults: list[Fault] = []
     nodes: tuple[ast.AST, ...] = (
@@ -130,7 +154,7 @@ def type_declaration_outside_types(*, module: ast.Module, ctx: RuleContext) -> l
     )
     for node in nodes:
         if isinstance(node, ast.ClassDef) and is_type_class(node):
-            if node.name.startswith("_") and ctx.in_role("helpers"):
+            if node.name.startswith("_") and ctx.in_role(RoleName.HELPERS):
                 continue
             faults.append(ctx.fault(node))
         elif isinstance(node, ast.stmt) and (
@@ -143,7 +167,7 @@ def type_declaration_outside_types(*, module: ast.Module, ctx: RuleContext) -> l
 def constant_outside_constants(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag public uppercase module constants outside the constants role."""
 
-    if ctx.role_of() == "constants":
+    if ctx.role_of() == RoleName.CONSTANTS:
         return []
     faults: list[Fault] = []
     for node in non_docstring_body(module):
@@ -158,7 +182,7 @@ def exception_declaration_outside_exceptions(
 ) -> list[Fault]:
     """Flag custom exception declarations outside the exceptions role."""
 
-    if ctx.role_of() == "exceptions":
+    if ctx.role_of() == RoleName.EXCEPTIONS:
         return []
     return [
         ctx.fault(node)
@@ -210,7 +234,7 @@ def helpers_module_name(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag helpers.py in favor of a helpers package."""
 
     del module
-    if ctx.path.name != "helpers.py":
+    if ctx.path.name != _helpers_module_file_name:
         return []
     return [ctx.path_fault(message="use a helpers/ package")]
 
@@ -219,7 +243,7 @@ def classes_module_name(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag classes.py in favor of a classes package."""
 
     del module
-    if ctx.path.name != "classes.py":
+    if ctx.path.name != _classes_module_file_name:
         return []
     return [ctx.path_fault(message="use a classes/ package")]
 
@@ -227,7 +251,7 @@ def classes_module_name(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
 def helpers_classes_file_private(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag public plain classes in helpers modules."""
 
-    if not ctx.in_role("helpers"):
+    if not ctx.in_role(RoleName.HELPERS):
         return []
     faults: list[Fault] = []
     for node in module.body:
@@ -267,13 +291,13 @@ def main_package_layout(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     parts: tuple[str, ...] = ctx.relative_parts()
     for index, part in enumerate(parts[:-1]):
         if (
-            part == "main"
+            part == RoleName.MAIN
             and index + 1 < len(parts)
             and parts[index + 1]
             in {
-                "helpers",
-                "shared",
-                "classes",
+                RoleName.HELPERS,
+                RoleName.SHARED,
+                RoleName.CLASSES,
             }
         ):
             return [
@@ -298,13 +322,13 @@ def nested_direct_modules(*, module: ast.Module, ctx: RuleContext) -> list[Fault
     """Flag ad hoc direct modules in nested non-role packages."""
 
     del module
-    if ctx.scope() == "tooling":
+    if ctx.scope() is ScopeName.TOOLING:
         return []
     parts: tuple[str, ...] = ctx.relative_parts()
-    if len(parts) < 3 or "main" in parts[:-1]:
+    if len(parts) < _minimum_nested_module_parts or RoleName.MAIN in parts[:-1]:
         return []
     if any(part in _role_names for part in parts[:-1]) or parts[-1] in {
-        "__init__.py",
+        INIT_MODULE_FILE_NAME,
         *_role_filenames,
     }:
         return []
@@ -321,13 +345,22 @@ def nested_direct_subpackages(*, module: ast.Module, ctx: RuleContext) -> list[F
     """Flag arbitrary direct child packages below nested runtime packages."""
 
     del module
-    if ctx.scope() == "tooling":
+    if ctx.scope() is ScopeName.TOOLING:
         return []
     parts: tuple[str, ...] = ctx.relative_parts()
-    if len(parts) < 4 or "main" in parts[:-1]:
+    if len(parts) < _minimum_nested_subpackage_parts or RoleName.MAIN in parts[:-1]:
         return []
     allowed_children: frozenset[str] = frozenset(
-        {"helpers", "shared", "classes", "models", "types", "constants", "exceptions", "main"}
+        {
+            RoleName.HELPERS,
+            RoleName.SHARED,
+            RoleName.CLASSES,
+            RoleName.MODELS,
+            RoleName.TYPES,
+            RoleName.CONSTANTS,
+            RoleName.EXCEPTIONS,
+            RoleName.MAIN,
+        }
     )
     package_parts: tuple[str, ...] = parts[:-1]
     for index in range(2, len(package_parts)):
@@ -349,12 +382,15 @@ def top_level_role_placement(*, module: ast.Module, ctx: RuleContext) -> list[Fa
     """Flag role files and directories directly below top-level domains."""
 
     del module
-    if ctx.scope() == "tooling":
+    if ctx.scope() is ScopeName.TOOLING:
         return []
     parts: tuple[str, ...] = ctx.relative_parts()
-    if len(parts) < 2 or parts[0] == "shared":
+    if len(parts) < _top_level_role_parts or parts[0] == RoleName.SHARED:
         return []
-    if len(parts) == 2 and parts[1] in {*_role_filenames, "classes.py"}:
+    if len(parts) == _top_level_role_parts and parts[1] in {
+        *_role_filenames,
+        _classes_module_file_name,
+    }:
         return [
             _path_fault(
                 ctx=ctx,
@@ -362,7 +398,7 @@ def top_level_role_placement(*, module: ast.Module, ctx: RuleContext) -> list[Fa
                 message="top-level domains must not contain role files",
             )
         ]
-    if len(parts) >= 3 and parts[1] in _role_names:
+    if len(parts) >= _minimum_nested_module_parts and parts[1] in _role_names:
         return [
             _path_fault(
                 ctx=ctx,
@@ -377,10 +413,13 @@ def top_level_direct_modules(*, module: ast.Module, ctx: RuleContext) -> list[Fa
     """Flag non-role modules directly below top-level domains."""
 
     del module
-    if ctx.scope() == "tooling":
+    if ctx.scope() is ScopeName.TOOLING:
         return []
     parts: tuple[str, ...] = ctx.relative_parts()
-    if len(parts) != 2 or parts[-1] in {"__init__.py", *_role_filenames}:
+    if len(parts) != _top_level_role_parts or parts[-1] in {
+        INIT_MODULE_FILE_NAME,
+        *_role_filenames,
+    }:
         return []
     return [
         _path_fault(
@@ -417,7 +456,7 @@ def entry_module_shape(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
                 message="entry modules need one public function",
             )
         )
-    if len(private_functions) > 2:
+    if len(private_functions) > _maximum_entry_private_functions:
         faults.append(
             ctx.fault(
                 private_functions[2],
@@ -439,7 +478,7 @@ def entry_module_shape(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
 def init_module_empty(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag non-root package initializers containing runtime statements."""
 
-    if ctx.path.name != "__init__.py" or len(ctx.relative_parts()) == 1:
+    if ctx.path.name != INIT_MODULE_FILE_NAME or len(ctx.relative_parts()) == 1:
         return []
     if not module.body or (len(module.body) == 1 and _is_docstring_statement(module.body[0])):
         return []
@@ -453,7 +492,7 @@ def init_module_empty(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
 def no_reexport_shim(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag internal modules that only re-export imports."""
 
-    if ctx.path.name == "__init__.py" or ctx.role_of() == "exceptions":
+    if ctx.path.name == INIT_MODULE_FILE_NAME or ctx.role_of() == RoleName.EXCEPTIONS:
         return []
     if not _is_pure_reexport_module(module):
         return []
@@ -469,7 +508,7 @@ def no_reexport_shim(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
 def no_internal_helper_exports(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag __all__ declarations inside helpers packages."""
 
-    if not ctx.in_role("helpers"):
+    if not ctx.in_role(RoleName.HELPERS):
         return []
     return [ctx.fault(node) for node in module.body if _is_all_assignment(node)]
 
@@ -492,7 +531,7 @@ def main_entry_name_collision(*, module: ast.Module, ctx: RuleContext) -> list[F
 def public_surface_shape(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Restrict the root package surface to imports and one __all__ declaration."""
 
-    if ctx.path.name != "__init__.py" or len(ctx.relative_parts()) != 1:
+    if ctx.path.name != INIT_MODULE_FILE_NAME or len(ctx.relative_parts()) != 1:
         return []
     faults: list[Fault] = []
     saw_all: bool = False
@@ -511,7 +550,7 @@ def public_surface_shape(*, module: ast.Module, ctx: RuleContext) -> list[Fault]
 def classes_one_class_per_module(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag classes modules that do not define exactly one top-level class."""
 
-    if not ctx.in_role("classes") or ctx.path.name == "__init__.py":
+    if not ctx.in_role(RoleName.CLASSES) or ctx.path.name == INIT_MODULE_FILE_NAME:
         return []
     class_nodes: tuple[ast.ClassDef, ...] = tuple(
         node for node in module.body if isinstance(node, ast.ClassDef)
@@ -532,13 +571,13 @@ def helpers_package_shape(*, module: ast.Module, ctx: RuleContext) -> list[Fault
 
     del module
     parts: tuple[str, ...] = ctx.relative_parts()
-    if "helpers" not in parts[:-1]:
+    if RoleName.HELPERS not in parts[:-1]:
         return []
-    helpers_index: int = parts.index("helpers")
+    helpers_index: int = parts.index(RoleName.HELPERS)
     depth: int = len(parts) - helpers_index - 1
-    if depth == 1 and ctx.path.name != "main.py":
+    if depth == 1 and ctx.path.name != _main_module_file_name:
         return []
-    if depth == 2 and ctx.path.name != "main.py":
+    if depth == _shallow_helper_depth and ctx.path.name != _main_module_file_name:
         return []
     return [
         _path_fault(
@@ -611,7 +650,7 @@ def tooling_entrypoint_shape(*, module: ast.Module, ctx: RuleContext) -> list[Fa
     )
     faults: list[Fault] = []
     main_functions: tuple[ast.FunctionDef | ast.AsyncFunctionDef, ...] = tuple(
-        node for node in public_functions if node.name == "main"
+        node for node in public_functions if node.name == RoleName.MAIN
     )
     if not public_functions or len(main_functions) > 1:
         faults.append(
@@ -621,7 +660,7 @@ def tooling_entrypoint_shape(*, module: ast.Module, ctx: RuleContext) -> list[Fa
         if isinstance(node, ast.Import | ast.ImportFrom):
             continue
         if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
-            if node.name == "main" or node.name in _tooling_private_function_names:
+            if node.name == RoleName.MAIN or node.name in _tooling_private_function_names:
                 continue
             faults.append(
                 ctx.fault(
@@ -652,7 +691,7 @@ def tooling_entrypoint_delegation(*, module: ast.Module, ctx: RuleContext) -> li
     for node in module.body:
         if not isinstance(node, ast.ImportFrom) or node.module is None:
             continue
-        if "main" not in node.module.split("."):
+        if RoleName.MAIN not in node.module.split("."):
             continue
         for alias in node.names:
             imported_entries.add(alias.asname or alias.name)
@@ -660,7 +699,8 @@ def tooling_entrypoint_delegation(*, module: ast.Module, ctx: RuleContext) -> li
         (
             node
             for node in module.body
-            if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and node.name == "main"
+            if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+            and node.name == RoleName.MAIN
         ),
         None,
     )
@@ -714,14 +754,19 @@ def tooling_entrypoint_line_count(*, module: ast.Module, ctx: RuleContext) -> li
 def rules_role_content(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Allow only decorated rule declarations in tooling rules/ modules."""
 
-    if ctx.scope() != "tooling" or not ctx.in_role("rules") or ctx.path.name == "__init__.py":
+    if (
+        ctx.scope() is not ScopeName.TOOLING
+        or not ctx.in_role(RoleName.RULES)
+        or ctx.path.name == INIT_MODULE_FILE_NAME
+    ):
         return []
     faults: list[Fault] = []
     for node in non_docstring_body(module):
         if isinstance(node, ast.Import | ast.ImportFrom) or is_type_checking_import_block(node):
             continue
         if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and any(
-            decorator_name(decorator).split(".")[-1] == "rule" for decorator in node.decorator_list
+            decorator_name(decorator).split(".")[-1] == RoleSymbol.RULE
+            for decorator in node.decorator_list
         ):
             continue
         faults.append(
@@ -737,13 +782,13 @@ def tooling_package_layout(*, module: ast.Module, ctx: RuleContext) -> list[Faul
     """Require tooling implementation packages to use direct role boundaries."""
 
     del module
-    if ctx.scope() != "tooling":
+    if ctx.scope() is not ScopeName.TOOLING:
         return []
     parts: tuple[str, ...] = ctx.relative_parts()
-    if len(parts) < 2:
+    if len(parts) < _top_level_role_parts:
         return []
-    if len(parts) == 2:
-        if parts[-1] == "__init__.py" or parts[-1] in _role_filenames:
+    if len(parts) == _top_level_role_parts:
+        if parts[-1] == INIT_MODULE_FILE_NAME or parts[-1] in _role_filenames:
             return []
         return [
             ctx.path_fault(message="tool packages may contain only role files and role directories")
@@ -768,12 +813,13 @@ def _is_docstring_statement(node: ast.stmt) -> bool:
 def _is_all_assignment(node: ast.stmt) -> bool:
     if isinstance(node, ast.Assign):
         return any(
-            isinstance(target, ast.Name) and target.id == "__all__" for target in node.targets
+            isinstance(target, ast.Name) and target.id == _all_export_name
+            for target in node.targets
         )
     return (
         isinstance(node, ast.AnnAssign)
         and isinstance(node.target, ast.Name)
-        and node.target.id == "__all__"
+        and node.target.id == _all_export_name
     )
 
 
@@ -783,7 +829,7 @@ def _is_pure_reexport_module(module: ast.Module) -> bool:
     for node in module.body:
         if _is_docstring_statement(node):
             continue
-        if isinstance(node, ast.ImportFrom) and node.module == "__future__":
+        if isinstance(node, ast.ImportFrom) and node.module == _future_module_name:
             continue
         if isinstance(node, ast.Import | ast.ImportFrom):
             saw_import = True
@@ -806,10 +852,10 @@ def _role_package_dir(*, path: Path, package_name: str) -> Path | None:
 def _is_direct_tooling_entrypoint(ctx: RuleContext) -> bool:
     parts: tuple[str, ...] = ctx.relative_parts()
     return (
-        ctx.scope() == "tooling"
+        ctx.scope() is ScopeName.TOOLING
         and len(parts) == 1
-        and ctx.path.suffix == ".py"
-        and ctx.path.name != "__init__.py"
+        and ctx.path.suffix == PYTHON_FILE_SUFFIX
+        and ctx.path.name != INIT_MODULE_FILE_NAME
     )
 
 
@@ -818,7 +864,7 @@ def _is_package_layout_anchor(*, path: Path, package_dir: Path) -> bool:
     if init_path.exists():
         return path == init_path
     direct_modules: tuple[Path, ...] = tuple(
-        sorted(child for child in package_dir.glob("*.py") if child.name != "__init__.py")
+        sorted(child for child in package_dir.glob("*.py") if child.name != INIT_MODULE_FILE_NAME)
     )
     return bool(direct_modules) and path == direct_modules[0]
 
@@ -848,17 +894,17 @@ def _import_time_bare_calls(*, node: ast.AST) -> tuple[ast.Expr, ...]:
 
 
 def _is_nonexecuting_import_guard(node: ast.expr) -> bool:
-    if isinstance(node, ast.Name) and node.id == "TYPE_CHECKING":
+    if isinstance(node, ast.Name) and node.id == RoleSymbol.TYPE_CHECKING_SYMBOL:
         return True
     if not isinstance(node, ast.Compare) or len(node.ops) != 1 or len(node.comparators) != 1:
         return False
-    if not isinstance(node.left, ast.Name) or node.left.id != "__name__":
+    if not isinstance(node.left, ast.Name) or node.left.id != _module_name_variable:
         return False
     comparator: ast.expr = node.comparators[0]
     return (
         isinstance(node.ops[0], ast.Eq)
         and isinstance(comparator, ast.Constant)
-        and comparator.value == "__main__"
+        and comparator.value == _main_module_name
     )
 
 
@@ -872,12 +918,14 @@ def _package_layout_faults(
     direct_modules: tuple[Path, ...] = tuple(
         child
         for child in package_dir.glob("*.py")
-        if child.name != "__init__.py" and child.is_file()
+        if child.name != INIT_MODULE_FILE_NAME and child.is_file()
     )
     concern_subfolders: tuple[Path, ...] = tuple(
         child
         for child in package_dir.iterdir()
-        if child.is_dir() and child.name != "__pycache__" and child.name not in ignored_subfolders
+        if child.is_dir()
+        and child.name != _python_cache_directory_name
+        and child.name not in ignored_subfolders
     )
     faults: list[Fault] = []
     code: RoleCode = (

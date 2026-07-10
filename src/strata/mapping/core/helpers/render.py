@@ -10,6 +10,7 @@ from strata.mapping.core.constants import (
     ANSI_FUNCTION,
     ANSI_RESET,
     ANSI_UNRESOLVED,
+    MAX_COMPACT_PATH_PARTS,
 )
 from strata.mapping.core.models import CallMapNode, UnresolvedCall
 from strata.mapping.core.types import PathMode
@@ -19,7 +20,7 @@ def render_tree(
     *,
     root: CallMapNode,
     repo_root: Path,
-    path_mode: PathMode = "relative",
+    path_mode: PathMode = PathMode.RELATIVE,
     use_color: bool = False,
 ) -> str:
     """Render one call tree with locations, cycle markers, and depth markers."""
@@ -103,20 +104,20 @@ def _label(*, node: CallMapNode, repo_root: Path, path_mode: PathMode, use_color
 
 
 def _location(*, path: Path, line: int, repo_root: Path, path_mode: PathMode) -> str:
-    if path_mode == "none":
+    if path_mode is PathMode.NONE:
         return ""
     display_path: Path = path
-    if path_mode != "absolute" and path.is_relative_to(repo_root):
+    if path_mode is not PathMode.ABSOLUTE and path.is_relative_to(repo_root):
         display_path = path.relative_to(repo_root)
     path_text: str = str(display_path)
-    if path_mode == "compact":
+    if path_mode is PathMode.COMPACT:
         path_text = _compact_path(path_text)
     return f"  {path_text}:{line}"
 
 
 def _compact_path(path: str) -> str:
     parts: tuple[str, ...] = Path(path).parts
-    if len(parts) <= 4:
+    if len(parts) <= MAX_COMPACT_PATH_PARTS:
         return path
     return str(Path(*parts[:2], "…", *parts[-2:]))
 

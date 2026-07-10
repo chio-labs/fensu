@@ -16,7 +16,7 @@ from tests.unit.src.strata.rules.hygiene._test_types import HygieneCatalogueTest
             description="hygiene rule catalogue matches hygiene code enum",
             expected_codes=tuple(code.value for code in HygieneCode),
             expected_unique_count=len(HygieneCode),
-            expected_enabled_by_default=(True, True, True, True, True, True, False, False),
+            expected_enabled_by_default=(True, True, True, True, True, True, True, True),
         )
     ],
     ids=lambda case: case.description,

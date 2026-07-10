@@ -99,7 +99,6 @@ def hygiene_rules() -> tuple[RuleSpec, ...]:
                 "the branch expresses the concept it represents."
             ),
             check=no_unnamed_string_decisions,
-            enabled_by_default=False,
         ),
         RuleSpec(
             code=HygieneCode.NO_MAGIC_NUMERIC_COMPARISONS,
@@ -111,6 +110,5 @@ def hygiene_rules() -> tuple[RuleSpec, ...]:
                 "only -1, 0, and 1 are self-explanatory comparison values."
             ),
             check=no_magic_numeric_comparisons,
-            enabled_by_default=False,
         ),
     )

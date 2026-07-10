@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 from fnmatch import fnmatchcase
 
+from strata.config.core.types import ContractBehavior
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import RuleContext
 
@@ -13,7 +14,9 @@ def validator_must_not_return(*, module: ast.Module, ctx: RuleContext) -> list[F
     """Flag meaningful returns from functions under no-return name contracts."""
 
     patterns: tuple[str, ...] = tuple(
-        pattern for pattern, behavior in ctx.contracts().items() if behavior == "no-return"
+        pattern
+        for pattern, behavior in ctx.contracts().items()
+        if behavior == ContractBehavior.NO_RETURN
     )
     faults: list[Fault] = []
     for node in (*ctx.nodes(ast.FunctionDef), *ctx.nodes(ast.AsyncFunctionDef)):

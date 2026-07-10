@@ -6,9 +6,9 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
-from typing import Literal
 
 from strata.config.core.constants import DEFAULT_CONTRACTS, DEFAULT_THRESHOLDS
+from strata.config.core.types import ConfigSourceKind
 from strata.rules.authoring.types import Threshold
 
 
@@ -17,7 +17,7 @@ class ConfigSource:
     """The config source selected by discovery."""
 
     path: Path
-    kind: Literal["strata_toml", "pyproject"]
+    kind: ConfigSourceKind
 
 
 @dataclass(frozen=True, slots=True)

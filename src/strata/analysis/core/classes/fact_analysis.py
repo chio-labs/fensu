@@ -8,7 +8,10 @@ from pathlib import Path
 
 from strata.analysis.core.helpers.annotations import annotation_facts
 from strata.analysis.core.helpers.comments import comment_facts
-from strata.analysis.core.helpers.function_conditionals import function_conditional_facts
+from strata.analysis.core.helpers.control_flow import (
+    complex_comprehension_locations,
+    function_conditional_facts,
+)
 from strata.analysis.core.helpers.function_metrics import function_facts
 from strata.analysis.core.helpers.hygiene import hygiene_facts
 from strata.analysis.core.helpers.locations import line_offsets, source_range
@@ -24,6 +27,7 @@ from strata.analysis.core.models import (
     MeaningfulReturnFact,
     OuterStateMutationFact,
     ReferenceFacts,
+    SourceLocation,
 )
 
 
@@ -50,6 +54,7 @@ class PythonFactAnalysis:
         self._parent_by_node: Mapping[ast.AST, ast.AST] = parent_by_node
         self._annotations: AnnotationFacts | None = None
         self._comments: tuple[CommentFact, ...] | None = None
+        self._complex_comprehensions: tuple[SourceLocation, ...] | None = None
         self._function_conditionals: tuple[FunctionConditionalFact, ...] | None = None
         self._functions: FunctionFacts | None = None
         self._hygiene: HygieneFacts | None = None
@@ -65,6 +70,7 @@ class PythonFactAnalysis:
                 path=self._path,
                 source=self._source,
                 module=self._module,
+                node_index=self._node_index,
             )
         return self._annotations
 
@@ -74,6 +80,16 @@ class PythonFactAnalysis:
         if self._comments is None:
             self._comments = comment_facts(path=self._path, source=self._source)
         return self._comments
+
+    def complex_comprehensions(self) -> tuple[SourceLocation, ...]:
+        """Return complex comprehension locations."""
+
+        if self._complex_comprehensions is None:
+            self._complex_comprehensions = complex_comprehension_locations(
+                path=self._path,
+                node_index=self._node_index,
+            )
+        return self._complex_comprehensions
 
     def outer_state_mutations(self) -> tuple[OuterStateMutationFact, ...]:
         """Return direct mutations resolving to state owned by an outer scope."""

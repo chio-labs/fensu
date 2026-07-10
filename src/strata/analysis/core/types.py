@@ -15,6 +15,7 @@ from strata.analysis.core.models import (
     MeaningfulReturnFact,
     OuterStateMutationFact,
     ReferenceFacts,
+    SourceLocation,
     SourceRange,
     SyntaxHandle,
 )
@@ -78,6 +79,10 @@ class FactAnalysis(Protocol):
 
     def comments(self) -> tuple[CommentFact, ...]:
         """Return source comments in token order."""
+        ...
+
+    def complex_comprehensions(self) -> tuple[SourceLocation, ...]:
+        """Return complex comprehension locations."""
         ...
 
     def function_conditionals(self) -> tuple[FunctionConditionalFact, ...]:

@@ -71,7 +71,7 @@ def no_complex_comprehensions_in_tooling(*, module: ast.Module, ctx: RuleContext
     del module
     if ctx.scope() is not ScopeName.TOOLING:
         return []
-    return [ctx.fault(node) for node in ctx.complex_comprehensions()]
+    return [ctx.fault_at(location) for location in ctx._analysis.facts.complex_comprehensions()]
 
 
 def no_unnamed_string_decisions(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:

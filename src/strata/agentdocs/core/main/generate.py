@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from strata.agentdocs.core.constants import GENERATED_MARKER
 from strata.agentdocs.core.helpers.guidance import repository_guidance_lines
+from strata.agentdocs.core.helpers.workflow import navigation_workflow_lines
 from strata.config.core.models import Config
 from strata.rules.authoring.models import RuleSpec
 
@@ -14,7 +15,10 @@ def generate_skill(*, config: Config, rules: tuple[RuleSpec, ...]) -> str:
     lines: list[str] = [
         "---",
         "name: strata",
-        "description: Use Strata to inspect and enforce this Python repository's architecture.",
+        (
+            "description: Use Strata when navigating unfamiliar Python code, enforcing repository "
+            "architecture, or explaining substantial completed work with call-flow maps."
+        ),
         "---",
         "",
         GENERATED_MARKER,
@@ -34,6 +38,7 @@ def generate_skill(*, config: Config, rules: tuple[RuleSpec, ...]) -> str:
         "- Run `strata skills update` after changing rule selection or custom rules.",
         "",
     ]
+    lines.extend(navigation_workflow_lines())
     active_codes: frozenset[str] = frozenset(rule.code for rule in rules)
     lines.extend(repository_guidance_lines(config=config, active_codes=active_codes))
     lines.extend(

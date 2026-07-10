@@ -12,6 +12,7 @@ from tests.unit.src.strata.agentdocs.core.main._test_types import GuidanceTestCa
 from tests.unit.src.strata.agentdocs.core.main.helpers import (
     core_rule_codes_for_prefix,
     core_rules_for_codes,
+    structure_fragment_is_absent,
 )
 
 
@@ -24,6 +25,11 @@ from tests.unit.src.strata.agentdocs.core.main.helpers import (
             rule_codes=tuple(rule.code for rule in CORE_RULES),
             expected_fragments=(
                 "## Repository Structure",
+                "## Navigation And Work Handoffs",
+                "Use `strata map <symbol> --depth 4` when tracing an unfamiliar flow",
+                "Prefer a concise guided walkthrough",
+                "3. Back in run_command(...)",
+                "`DONE`, `PENDING`, and `WE ARE HERE` are agent-authored",
                 "### Runtime",
                 "src/acme/",
                 "models.py",
@@ -138,7 +144,12 @@ from tests.unit.src.strata.agentdocs.core.main.helpers import (
             description="unrelated active rule omits unsupported repository examples",
             config=Config(roots=("src/acme",), tests=("tests",), tooling=("scripts",)),
             rule_codes=("SFX001",),
-            expected_fragments=("## Active Rules", "## SFX001: single-line-docstrings"),
+            expected_fragments=(
+                "Use Strata when navigating unfamiliar Python code",
+                "## Navigation And Work Handoffs",
+                "## Active Rules",
+                "## SFX001: single-line-docstrings",
+            ),
             expected_absent_fragments=(
                 "## Repository Structure",
                 "### Runtime",
@@ -155,7 +166,9 @@ def test_given_config_and_active_rules_when_generating_then_shows_only_proven_gu
     rules: tuple[RuleSpec, ...] = core_rules_for_codes(test_case.rule_codes)
 
     document: str = generate_skill(config=test_case.config, rules=rules)
-    guidance: str = document.partition("## Active Rules")[0]
 
     assert all(fragment in document for fragment in test_case.expected_fragments)
-    assert all(fragment not in guidance for fragment in test_case.expected_absent_fragments)
+    assert all(
+        structure_fragment_is_absent(document=document, fragment=fragment)
+        for fragment in test_case.expected_absent_fragments
+    )

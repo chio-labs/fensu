@@ -131,11 +131,3 @@ for the complete API and configuration.
 The quickstart, architecture model, configuration reference, adoption guide, and
 CLI reference live in the
 [Strata documentation repository](https://github.com/chio-labs/strata-docs).
-
-## Development
-
-```bash
-make verify
-```
-
-This runs formatting, static typing, Strata's self-check, and the full test suite.

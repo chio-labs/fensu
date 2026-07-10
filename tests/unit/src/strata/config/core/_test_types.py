@@ -101,3 +101,15 @@ class ConfigImmutabilityTestCase:
     description: str
     config_text: str
     expected_error_type: type[Exception]
+
+
+@dataclass(frozen=True)
+class RuleExceptionConfigTestCase:
+    """Configured rule exception and expected normalized fields."""
+
+    description: str
+    config_text: str
+    expected_rule: str
+    expected_path: str
+    expected_symbols: tuple[str, ...]
+    expected_reason: str

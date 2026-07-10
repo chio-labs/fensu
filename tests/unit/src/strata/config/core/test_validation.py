@@ -16,6 +16,81 @@ from tests.unit.src.strata.config.core.helpers import write_strata_toml
     "test_case",
     [
         InvalidConfigTestCase(
+            description="family rule exception selector is rejected",
+            config_text=(
+                'roots = ["src/pkg"]\n[[rule_exceptions]]\nrule = "SFS"\n'
+                'path = "src/pkg/a.py"\nsymbols = ["run"]\nreason = "required"\n'
+            ),
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="exact rule code",
+        ),
+        InvalidConfigTestCase(
+            description="glob rule exception path is rejected",
+            config_text=(
+                'roots = ["src/pkg"]\n[[rule_exceptions]]\nrule = "SFS120"\n'
+                'path = "src/pkg/*.py"\nsymbols = ["run"]\nreason = "required"\n'
+            ),
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="exact repository-relative",
+        ),
+        InvalidConfigTestCase(
+            description="path only rule exception is rejected",
+            config_text=(
+                'roots = ["src/pkg"]\n[[rule_exceptions]]\nrule = "SFS120"\n'
+                'path = "src/pkg/a.py"\nreason = "required"\n'
+            ),
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="only rule, path, symbols, and reason",
+        ),
+        InvalidConfigTestCase(
+            description="empty rule exception reason is rejected",
+            config_text=(
+                'roots = ["src/pkg"]\n[[rule_exceptions]]\nrule = "SFS120"\n'
+                'path = "src/pkg/a.py"\nsymbols = ["run"]\nreason = "   "\n'
+            ),
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="reason",
+        ),
+        InvalidConfigTestCase(
+            description="malformed qualified symbol is rejected",
+            config_text=(
+                'roots = ["src/pkg"]\n[[rule_exceptions]]\nrule = "SFS120"\n'
+                'path = "src/pkg/a.py"\nsymbols = ["outer.inner.deep"]\nreason = "required"\n'
+            ),
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="Malformed",
+        ),
+        InvalidConfigTestCase(
+            description="duplicate rule path symbol exception is rejected",
+            config_text=(
+                'roots = ["src/pkg"]\n'
+                '[[rule_exceptions]]\nrule = "SFS120"\npath = "src/pkg/a.py"\n'
+                'symbols = ["run"]\nreason = "first"\n'
+                '[[rule_exceptions]]\nrule = "SFS120"\npath = "src/pkg/a.py"\n'
+                'symbols = ["run"]\nreason = "second"\n'
+            ),
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="Duplicate",
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_invalid_rule_exception_when_loading_then_raises_validation_error(
+    tmp_path: Path,
+    test_case: InvalidConfigTestCase,
+) -> None:
+    write_strata_toml(root=tmp_path, contents=test_case.config_text)
+
+    with pytest.raises(test_case.expected_error_type) as error:
+        load_config(tmp_path)
+
+    assert test_case.expected_error_fragment in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        InvalidConfigTestCase(
             description="unknown key is rejected",
             config_text='roots = ["src/pkg"]\nrootss = ["typo"]\n',
             expected_error_type=ConfigValidationError,

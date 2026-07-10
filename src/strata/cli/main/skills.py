@@ -14,6 +14,9 @@ from strata.agentdocs.core.types import SkillCommand, SkillTarget
 from strata.cli.core.constants import SKILLS_UPDATE_OPTION
 from strata.config.core.main.load_config import load_config
 from strata.config.core.models import Config
+from strata.discovery.core.main.discover_files import discover_files
+from strata.discovery.core.models import DiscoveredTree
+from strata.evaluation.core.main.validate_rule_exceptions import validate_rule_exceptions
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.catalog.main.build_ruleset import build_ruleset
 
@@ -42,6 +45,8 @@ def run_skills(
     project_dir: Path = Path.cwd()
     config: Config = load_config(project_dir)
     rules: tuple[RuleSpec, ...] = build_ruleset(config)
+    tree: DiscoveredTree = discover_files(config)
+    validate_rule_exceptions(config=config, repo_root=tree.repo_root.path)
     requested_targets: tuple[SkillTarget, ...] = tuple(
         SkillTarget(target) for target in args.targets
     )

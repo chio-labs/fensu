@@ -6,7 +6,7 @@ import ast
 from pathlib import Path
 from types import MappingProxyType
 
-from strata.config.core.models import Config
+from strata.config.core.models import Config, RuleExceptionEntry
 from strata.discovery.core.main.discover_files import discover_files
 from strata.discovery.core.models import DiscoveredTree
 from strata.rules.authoring.models import Fault, RuleSpec
@@ -20,6 +20,16 @@ def write_sources(*, repo_root: Path, files: tuple[tuple[str, str], ...]) -> Non
         path: Path = repo_root / relative_path
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(source, encoding="utf-8")
+
+
+def write_exception_target(*, repo_root: Path, path: str, create_path: bool) -> None:
+    """Write a target function only when an exception-target test requests it."""
+
+    if create_path:
+        write_sources(
+            repo_root=repo_root,
+            files=((path, "def run() -> None:\n    pass\n"),),
+        )
 
 
 def discover_test_tree(*, config: Config) -> DiscoveredTree:
@@ -57,6 +67,24 @@ def make_config_with_entry_threshold(*, roots: tuple[str, ...] = ("src/pkg",)) -
         roots=roots,
         role_thresholds=MappingProxyType(
             {"main": MappingProxyType({Threshold.MAX_STATEMENTS: 30})}
+        ),
+    )
+
+
+def make_rule_exception_config(*, path: str, symbols: tuple[str, ...], reason: str) -> Config:
+    """Build config selecting SFS120 with one grouped rule exception."""
+
+    return Config(
+        roots=("src/pkg",),
+        tests=(),
+        select=("SFS120",),
+        rule_exceptions=(
+            RuleExceptionEntry(
+                rule="SFS120",
+                path=path,
+                symbols=symbols,
+                reason=reason,
+            ),
         ),
     )
 

@@ -41,6 +41,27 @@ def generate_skill(*, config: Config, rules: tuple[RuleSpec, ...]) -> str:
     lines.extend(navigation_workflow_lines())
     active_codes: frozenset[str] = frozenset(rule.code for rule in rules)
     lines.extend(repository_guidance_lines(config=config, active_codes=active_codes))
+    if config.rule_exceptions:
+        lines.extend(
+            (
+                "## Active Rule Exceptions",
+                "",
+                (
+                    "These centralized exceptions are exact and review-visible in `strata.toml`. "
+                    "Do not broaden them or add inline suppression comments."
+                ),
+                "",
+            )
+        )
+        for exception in config.rule_exceptions:
+            lines.extend(
+                (
+                    f"- `{exception.rule}` in `{exception.path}`: "
+                    f"{', '.join(f'`{symbol}`' for symbol in exception.symbols)}",
+                    f"  Reason: {exception.reason}",
+                )
+            )
+        lines.append("")
     lines.extend(
         (
             "## Active Rules",

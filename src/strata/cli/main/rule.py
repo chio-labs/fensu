@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
+import textwrap
 from pathlib import Path
 from typing import TextIO
 
 from strata.config.core.main.load_config import load_config
 from strata.config.core.models import Config
+from strata.reporting.core.constants import ANSI_BOLD_CYAN, ANSI_DIM, ANSI_RESET, REPORT_LINE_WIDTH
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.catalog.main.build_catalogue import build_catalogue
 
@@ -28,30 +31,53 @@ def run_rule(
     if rule is None:
         stderr.write(f"Unknown rule code: {args.code}\n")
         return 2
-    stdout.write(_render_rule(rule))
+    use_color: bool = "NO_COLOR" not in os.environ and (
+        args.color == "always" or (args.color == "auto" and stdout.isatty())
+    )
+    stdout.write(_render_rule(rule, use_color=use_color))
     stdout.write("\n")
     return 0
 
 
-def _render_rule(rule: RuleSpec) -> str:
+def _render_rule(rule: RuleSpec, *, use_color: bool) -> str:
     remediation: str = rule.remediation or "None provided."
     source: str = rule.source or "core"
     enabled: str = "yes" if rule.enabled_by_default else "no"
-    return "\n".join(
-        (
-            f"{rule.code} {rule.slug}",
-            f"Family: {rule.family.value}",
-            f"Severity: {rule.severity.value}",
-            f"Kind: {rule.kind.value}",
-            f"Enabled by default: {enabled}",
-            f"Source: {source}",
-            f"Message: {rule.message}",
-            f"Remediation: {remediation}",
-        )
+    header: str = f"{rule.code} {rule.slug}"
+    if use_color:
+        header = f"{ANSI_BOLD_CYAN}{rule.code}{ANSI_RESET} {rule.slug}"
+    fields: tuple[tuple[str, str], ...] = (
+        ("Family", rule.family.value),
+        ("Severity", rule.severity.value),
+        ("Kind", rule.kind.value),
+        ("Enabled by default", enabled),
+        ("Source", source),
+        ("Message", rule.message),
+        ("Remediation", remediation),
     )
+    lines: list[str] = [header]
+    for label, value in fields:
+        prefix: str = f"{label}: "
+        wrapped: list[str] = textwrap.wrap(
+            value,
+            width=REPORT_LINE_WIDTH,
+            initial_indent=prefix,
+            subsequent_indent=" " * len(prefix),
+        )
+        if use_color:
+            first_value: str = wrapped[0].removeprefix(prefix)
+            wrapped[0] = f"{ANSI_DIM}{label}:{ANSI_RESET} {first_value}"
+        lines.extend(wrapped)
+    return "\n".join(lines)
 
 
 def _parser() -> argparse.ArgumentParser:
     parser: argparse.ArgumentParser = argparse.ArgumentParser(prog="strata rule")
     parser.add_argument("code", help="rule code to inspect")
+    parser.add_argument(
+        "--color",
+        choices=("auto", "always", "never"),
+        default="auto",
+        help="ANSI color behavior",
+    )
     return parser

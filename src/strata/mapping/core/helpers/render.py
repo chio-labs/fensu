@@ -49,7 +49,7 @@ def _child_lines(
     for index, entry in enumerate(node.entries):
         last: bool = index == len(node.entries) - 1
         connector: str = "└── " if last else "├── "
-        rendered_connector: str = _color(connector, style=ANSI_DIM, enabled=use_color)
+        rendered_connector: str = _color(f"{prefix}{connector}", style=ANSI_DIM, enabled=use_color)
         if isinstance(entry, UnresolvedCall):
             location: str = _location(
                 path=node.definition.path,
@@ -62,7 +62,7 @@ def _child_lines(
             marker: str = _color(
                 f"(unresolved {entry.reason})", style=ANSI_UNRESOLVED, enabled=use_color
             )
-            lines.append(f"{prefix}{rendered_connector}{label}{rendered_location}  {marker}")
+            lines.append(f"{rendered_connector}{label}{rendered_location}  {marker}")
             continue
         label = _label(
             node=entry,
@@ -70,7 +70,7 @@ def _child_lines(
             path_mode=path_mode,
             use_color=use_color,
         )
-        lines.append(f"{prefix}{rendered_connector}{label}")
+        lines.append(f"{rendered_connector}{label}")
         child_prefix: str = f"{prefix}{'    ' if last else '│   '}"
         lines.extend(
             _child_lines(

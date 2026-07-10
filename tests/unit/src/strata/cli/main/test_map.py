@@ -380,7 +380,10 @@ def test_given_mixed_call_types_when_mapping_then_preserves_call_site_order(
             argv=("run", "--color", "always"),
             is_terminal=False,
             no_color=False,
-            expected_output_fragments=("\x1b[33m(unresolved parameter call)\x1b[0m",),
+            expected_output_fragments=(
+                "\x1b[2m│   └── \x1b[0m",
+                "\x1b[33m(unresolved parameter call)\x1b[0m",
+            ),
             expected_absent_fragments=(),
             dynamic_seam=True,
         ),

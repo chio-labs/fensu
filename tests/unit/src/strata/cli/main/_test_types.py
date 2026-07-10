@@ -38,6 +38,18 @@ class MetadataCommandTestCase:
 
 
 @dataclass(frozen=True)
+class RulePresentationTestCase:
+    """Rule terminal styling inputs and expected output."""
+
+    description: str
+    argv: tuple[str, ...]
+    is_terminal: bool
+    no_color: bool
+    expected_output_fragments: tuple[str, ...]
+    expected_absent_fragments: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class SkillCommandTestCase:
     """Skill command inputs and expected generated guidance."""
 

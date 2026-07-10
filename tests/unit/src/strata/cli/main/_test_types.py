@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from strata.agentdocs.core.constants import GENERATED_MARKER
+
 
 @dataclass(frozen=True)
 class CheckCommandTestCase:
@@ -51,12 +53,15 @@ class RulePresentationTestCase:
 
 @dataclass(frozen=True)
 class SkillCommandTestCase:
-    """Skill command inputs and expected generated guidance."""
+    """Skills update inputs and expected installed guidance."""
 
     description: str
     argv: tuple[str, ...]
     expected_exit_code: int
     expected_output_fragments: tuple[str, ...]
+    expected_written_paths: tuple[str, ...] = ()
+    expected_absent_fragments: tuple[str, ...] = ()
+    expected_file_fragment: str = GENERATED_MARKER
 
 
 @dataclass(frozen=True)

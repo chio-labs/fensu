@@ -10,7 +10,7 @@ class CliCommand(StrEnum):
 
     CHECK = "check"
     RULE = "rule"
-    SKILL = "skill"
+    SKILLS = "skills"
     MAP = "map"
 
 

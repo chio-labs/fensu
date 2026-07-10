@@ -8,7 +8,7 @@ from strata.cli.core.types import CliCommand
 from strata.cli.main.check import run_check
 from strata.cli.main.map import run_map
 from strata.cli.main.rule import run_rule
-from strata.cli.main.skill import run_skill
+from strata.cli.main.skills import run_skills
 
 
 def main(argv: tuple[str, ...] | None = None) -> int:
@@ -19,9 +19,9 @@ def main(argv: tuple[str, ...] | None = None) -> int:
         return run_check(argv=args[1:])
     if args and args[0] == CliCommand.RULE:
         return run_rule(argv=args[1:])
-    if args and args[0] == CliCommand.SKILL:
-        return run_skill(argv=args[1:])
+    if args and args[0] == CliCommand.SKILLS:
+        return run_skills(argv=args[1:])
     if args and args[0] == CliCommand.MAP:
         return run_map(argv=args[1:])
-    sys.stderr.write("Usage: strata {check,rule,skill,map} ...\n")
+    sys.stderr.write("Usage: strata {check,rule,skills,map} ...\n")
     return 2

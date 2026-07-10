@@ -27,16 +27,21 @@ def configure_no_color(*, monkeypatch: pytest.MonkeyPatch, enabled: bool) -> Non
         monkeypatch.setenv("NO_COLOR", "1")
 
 
-def write_cli_fixture_project(*, root: Path, rule_code: str) -> None:
+def write_cli_fixture_project(
+    *, root: Path, rule_code: str, include_core_rules: bool = False
+) -> None:
     """Write a tiny project with one custom rule that always reports a fault."""
 
     (root / "src" / "pkg").mkdir(parents=True)
     (root / "rules").mkdir()
     (root / "src" / "pkg" / "target.py").write_text("value: int = 1\n", encoding="utf-8")
-    (root / "strata.toml").write_text(
-        (f'roots = ["src"]\nselect = ["{rule_code}"]\nrule_paths = ["rules/custom_rule.py"]\n'),
-        encoding="utf-8",
+    selected_rules: str = f'"SF", "{rule_code}"' if include_core_rules else f'"{rule_code}"'
+    ignored_rules: str = 'ignore = ["SFX002"]\n' if include_core_rules else ""
+    config: str = (
+        f'roots = ["src"]\nselect = [{selected_rules}]\n{ignored_rules}'
+        'rule_paths = ["rules/custom_rule.py"]\n'
     )
+    (root / "strata.toml").write_text(config, encoding="utf-8")
     (root / "rules" / "custom_rule.py").write_text(
         f'''
 from __future__ import annotations

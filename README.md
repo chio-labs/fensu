@@ -17,16 +17,9 @@ pip install stratalint
 
 The distribution name is `stratalint`; the installed command is `strata`.
 
-## Current Usage
+## Quick Start
 
-From a development checkout:
-
-```bash
-uv sync
-uv run strata check
-```
-
-Strata reads `strata.toml` from the repository:
+Add `strata.toml` at the repository root:
 
 ```toml
 roots = ["src/my_package"]
@@ -38,29 +31,70 @@ select = ["SF"]
 max_positional_args = 1
 ```
 
-The configured scopes receive different policies: product roots and tooling get
-structural rules, while tests get test and annotation rules.
-
-## Commands
-
-Check the configured repository:
+Then run:
 
 ```bash
 strata check
+strata skills update
 ```
 
-Inspect the single-sourced metadata for a core or configured custom rule:
+Product roots and tooling receive structural rules. Tests receive test and
+annotation rules.
+
+## Default Structure
+
+Strata's default architecture uses two ownership levels before role-oriented
+modules and packages. Tests mirror the code they cover; tooling uses one ownership
+level because `scripts/` already establishes the outer boundary.
+
+```text
+src/my_package/
+├── __init__.py
+└── domain/
+    └── subdomain/
+        ├── main/
+        │   └── run.py
+        ├── helpers/
+        ├── classes/
+        ├── models.py
+        ├── types.py
+        ├── constants.py
+        └── exceptions.py
+tests/unit/src/my_package/domain/subdomain/
+├── _test_types.py
+└── test_run.py
+scripts/
+├── run_tool.py
+└── tool_name/
+    ├── main/
+    ├── helpers/
+    └── classes/
+```
+
+Direct `scripts/*.py` files are thin command adapters. Supporting logic belongs
+under `scripts/<tool>/<role>/`.
+
+## Commands
+
+Check the configured repository and inspect rule metadata:
 
 ```bash
+strata check
 strata rule SFS131
 ```
 
-Generate a SKILL.md-style document from the project's active rules:
+Install repository-aware agent skills. Repository-local installation is the
+default; `--global` writes to the corresponding user-level agent directories.
 
 ```bash
-strata skill
-strata skill --output .agents/skills/strata/SKILL.md
+strata skills update
+strata skills update --global
+strata skills update --target opencode --target agents
 ```
+
+The generated skill includes concise Strata usage, the default structure, and
+every enabled core and custom rule from the current repository. Existing
+user-authored skill files are preserved unless `--force` is supplied.
 
 Render a conservative downstream call tree:
 
@@ -68,29 +102,15 @@ Render a conservative downstream call tree:
 strata map run_plan --depth 3
 strata map path/to/module::run_plan
 strata map package.module.run_plan --root src
-strata map service.run --root services --root libraries
 ```
 
 `strata map` does not require Strata configuration or architecture-rule adoption.
-Explicit `--root` values are Python import roots and may be repeated. Without
-explicit roots, map uses configured Strata roots when available, otherwise it
-infers `src/` or falls back to the repository root.
-
-Repository-relative paths are the default so terminals such as VS Code can make
-locations clickable. Use `--paths absolute|relative|compact|none` to change the
-display. ANSI color is automatic for terminals, can be controlled with
-`--color auto|always|never`, and respects `NO_COLOR`.
-
-The current provider resolves top-level project functions through same-module
-calls, absolute and relative direct imports, module aliases, namespace packages,
-and multiple import roots. Calls remain in source order. Dynamic dispatch is not
-guessed; calls through function parameters are displayed as unresolved seams.
-Ambiguous bare names require a dotted or `path::function` selector. Cycles and
-depth truncation are marked in both colored and plain output.
+It resolves statically knowable project-function calls without guessing dynamic
+dispatch. Use `strata map --help` for root, path, depth, and color controls.
 
 ## Custom Rules
 
-Custom checks use `X...` codes and the same `RuleContext` available to core rules:
+Custom checks use `X...` codes and the same `RuleContext` as core rules:
 
 ```python
 from __future__ import annotations
@@ -123,7 +143,7 @@ scripts/strata_rules/rules/
 └── naming.py
 ```
 
-Load the decorated rule modules from configuration:
+Configure and enable them in `strata.toml`:
 
 ```toml
 tooling = ["scripts"]
@@ -132,33 +152,11 @@ rule_modules = ["company_architecture.rules"]
 select = ["SF", "XAC001"]
 ```
 
-Custom rules are included by `strata rule` and `strata skill` once configured.
+Custom rules are included by `strata check`, `strata rule`, and
+`strata skills update` once configured.
 
 `SFX007` requires string comparison values to be named, and `SFX008` does the
 same for numeric comparison values other than `-1`, `0`, and `1`.
-
-## Tooling Layout
-
-Direct `scripts/*.py` files are thin command adapters. Each defines public
-`main()`, may keep parser glue in `_parse_args()` or `_build_parser()`, and
-delegates execution to an imported entry function from a nested `main/` module.
-`scripts/__init__.py` and nested modules are not treated as command adapters.
-
-Tool implementations use one ownership level followed by a role:
-
-```text
-scripts/
-├── generate_report.py
-└── reporting/
-    ├── main/
-    ├── helpers/
-    └── classes/
-```
-
-The supported roles directly below a tool are `main/`, `helpers/`, `classes/`,
-and `rules/`. A `rules/` module may contain imports, import-only `TYPE_CHECKING`
-blocks, and any number of decorated `@rule` functions; supporting logic belongs
-in the other roles.
 
 ## Philosophy
 

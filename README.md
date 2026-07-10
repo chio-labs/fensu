@@ -7,8 +7,15 @@ plays, and whether functions make control flow, state, and data ownership clear.
 > Most linters catch bad code. Strata catches code that is in the wrong place,
 > the wrong shape, or dishonest about what it does.
 
-The distribution name is `stratalint`; the command is `strata`. The project is
-functional and self-hosting, but remains pre-release.
+The project is functional and self-hosting, but remains pre-release.
+
+## Installation
+
+```bash
+pip install stratalint
+```
+
+The distribution name is `stratalint`; the installed command is `strata`.
 
 ## Current Usage
 

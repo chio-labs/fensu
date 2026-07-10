@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  Keep Python architecture executable.
+  Keeping Python repos from turning into spaghetti.
 </p>
 
 **Most linters catch bad code inside files. Strata catches architectural drift:

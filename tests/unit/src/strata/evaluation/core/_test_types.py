@@ -142,3 +142,14 @@ class RuleExceptionTargetTestCase:
     symbol: str
     create_path: bool
     expected_error_fragment: str
+
+
+@dataclass(frozen=True)
+class AnalysisContextTestCase:
+    """Source and expected backend-neutral context fault."""
+
+    description: str
+    source: str
+    expected_line: int
+    expected_column: int
+    expected_message: str

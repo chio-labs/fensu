@@ -11,6 +11,8 @@ from typing import TYPE_CHECKING, Protocol
 from strata.discovery.core.types import ScopeName
 
 if TYPE_CHECKING:
+    from strata.analysis.core.models import SourceRange, SyntaxHandle
+    from strata.analysis.core.types import Analysis
     from strata.rules.authoring.models import Fault
 
 
@@ -59,6 +61,11 @@ class Threshold(StrEnum):
 class RuleContext(Protocol):
     """Convenience AST/position toolbox passed to a rule check; may be ignored."""
 
+    @property
+    def _analysis(self) -> Analysis:
+        """Return Strata's private, unstable backend-neutral analysis facade."""
+        ...
+
     def fault(
         self,
         node: ast.AST,
@@ -67,6 +74,28 @@ class RuleContext(Protocol):
         remediation: str | None = None,
     ) -> Fault:
         """Construct a Fault with line/column/code wired from the node."""
+        ...
+
+    def fault_at(
+        self,
+        location: SyntaxHandle | SourceRange,
+        *,
+        message: str | None = None,
+        remediation: str | None = None,
+    ) -> Fault:
+        """Construct a Fault from a backend-neutral syntax location."""
+        ...
+
+    def fault_for(
+        self,
+        *,
+        path: Path,
+        line: int,
+        column: int,
+        message: str | None = None,
+        remediation: str | None = None,
+    ) -> Fault:
+        """Construct a Fault from an explicit backend-neutral source location."""
         ...
 
     def path_fault(self, *, message: str | None = None, remediation: str | None = None) -> Fault:

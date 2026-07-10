@@ -618,6 +618,18 @@ def test_given_function_parameters_when_checking_keyword_only_then_flags_excess_
             expected_lines=(),
         ),
         ShapeRuleTestCase(
+            description="local binding shadows a module binding with the same name",
+            rule_code="SFS130",
+            source=(
+                "CACHE: list[int] = []\n\n"
+                "def run() -> None:\n"
+                "    CACHE: list[int] = []\n"
+                "    CACHE.append(1)\n"
+            ),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        ShapeRuleTestCase(
             description="parameter and self mutation are allowed",
             rule_code="SFS130",
             source=(

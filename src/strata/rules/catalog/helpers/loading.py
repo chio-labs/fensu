@@ -155,8 +155,8 @@ def _rule_matches_select(*, rule: RuleSpec, select: tuple[str, ...]) -> bool:
     return False
 
 
-def _family_selector(family: Family) -> str:
-    family_selectors: dict[Family, str] = {
+def _family_selector(family: Family) -> RuleSelector:
+    family_selectors: dict[Family, RuleSelector] = {
         Family.LAYERS: RuleSelector.LAYERS,
         Family.ROLES: RuleSelector.ROLES,
         Family.SHAPE: RuleSelector.SHAPE,
@@ -164,7 +164,7 @@ def _family_selector(family: Family) -> str:
         Family.HYGIENE: RuleSelector.HYGIENE,
         Family.TESTS: RuleSelector.TESTS,
         Family.ANNOTATIONS: RuleSelector.ANNOTATIONS,
-        Family.CUSTOM: "X",
+        Family.CUSTOM: RuleSelector.CUSTOM,
     }
     return family_selectors[family]
 
@@ -172,7 +172,7 @@ def _family_selector(family: Family) -> str:
 def _is_code_selector(selector: str) -> bool:
     return (
         selector.startswith(RuleSelector.ALL) and len(selector) > _minimum_core_rule_code_length
-    ) or selector.startswith("X")
+    ) or selector.startswith(RuleSelector.CUSTOM)
 
 
 def _validate_unique_codes(*, rules: tuple[RuleSpec, ...]) -> None:

@@ -356,6 +356,12 @@ def test_given_foreign_decorated_rule_when_loading_custom_file_then_module_metad
             ignore=("SFX001",),
             expected_codes=(),
         ),
+        SelectCompositionTestCase(
+            description="custom family selector includes custom rules",
+            select=("X",),
+            ignore=(),
+            expected_codes=("XRG001",),
+        ),
     ],
     ids=lambda case: case.description,
 )
@@ -369,6 +375,7 @@ def test_given_select_and_ignore_when_building_ruleset_then_applies_expected_com
         (
             make_core_rule(code="SFX001", family=Family.HYGIENE),
             make_core_rule(code="SFX099", family=Family.HYGIENE, enabled_by_default=False),
+            make_core_rule(code="XRG001", family=Family.CUSTOM),
         ),
     )
 

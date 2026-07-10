@@ -85,6 +85,12 @@ def test_given_valid_config_when_loading_then_applies_defaults(
             expected_value=("SFL", "XWH001"),
         ),
         ConfigListFieldTestCase(
+            description="custom family selector is accepted",
+            config_text='roots = ["src/pkg"]\nselect = ["X"]\n',
+            expected_field_name="select",
+            expected_value=("X",),
+        ),
+        ConfigListFieldTestCase(
             description="ignore override is normalized",
             config_text='roots = ["src/pkg"]\nignore = ["SFX002"]\n',
             expected_field_name="ignore",

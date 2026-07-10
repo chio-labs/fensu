@@ -23,6 +23,7 @@ class RuleSelector(StrEnum):
     HYGIENE = "SFX"
     TESTS = "SFT"
     ANNOTATIONS = "SFA"
+    CUSTOM = "X"
 
 
 class ContractBehavior(StrEnum):

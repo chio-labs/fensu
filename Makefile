@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: check self-check test verify
+.PHONY: check self-check skills test verify
 
 check:
 	uv run ruff format .
@@ -10,6 +10,9 @@ check:
 
 self-check:
 	uv run strata check
+
+skills:
+	uv run strata skills update
 
 test:
 	uv run pytest tests -q -n auto

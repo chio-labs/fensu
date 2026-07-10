@@ -356,7 +356,7 @@ def test_given_mixed_call_types_when_mapping_then_preserves_call_site_order(
             argv=("run",),
             is_terminal=True,
             no_color=False,
-            expected_output_fragments=("\x1b[1;36mrun(...)\x1b[0m", "\x1b[2m"),
+            expected_output_fragments=("\x1b[38;5;208mrun(...)\x1b[0m", "\x1b[2m"),
             expected_absent_fragments=(),
         ),
         MapPresentationTestCase(

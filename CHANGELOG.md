@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.2](https://github.com/chio-labs/strata/compare/v0.1.1...v0.1.2) (2026-07-10)
+
+
+### Documentation
+
+* remove development footer ([53c07b8](https://github.com/chio-labs/strata/commit/53c07b8bf5eedd1d1e5b266c7263804a3a660e9c))
+* show strata map call tree ([96f77f2](https://github.com/chio-labs/strata/commit/96f77f23290bafe226965f87b803707fb1bc911a))
+
 ## [0.1.1](https://github.com/chio-labs/strata/compare/v0.1.0...v0.1.1) (2026-07-10)
 
 

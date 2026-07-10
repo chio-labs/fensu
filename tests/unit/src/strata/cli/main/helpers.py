@@ -74,6 +74,32 @@ def write_cli_no_fault_project(root: Path) -> None:
     (root / "strata.toml").write_text('roots = ["src"]\n', encoding="utf-8")
 
 
+def write_cli_exception_project(root: Path) -> None:
+    """Write a project whose only core fault is exactly excepted."""
+
+    source: Path = root / "src" / "pkg" / "external.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("def callback(value: int) -> None:\n    pass\n", encoding="utf-8")
+    (root / "strata.toml").write_text(
+        'roots = ["src"]\n'
+        'select = ["SFS120"]\n'
+        "[[rule_exceptions]]\n"
+        'rule = "SFS120"\n'
+        'path = "src/pkg/external.py"\n'
+        'symbols = ["callback"]\n'
+        'reason = "The external API invokes this callback positionally."\n',
+        encoding="utf-8",
+    )
+
+
+def write_cli_stale_exception_project(root: Path) -> None:
+    """Write a project whose valid exception no longer suppresses a fault."""
+
+    write_cli_exception_project(root)
+    source: Path = root / "src" / "pkg" / "external.py"
+    source.write_text("def callback(*, value: int) -> None:\n    pass\n", encoding="utf-8")
+
+
 def write_cli_map_project(
     *,
     root: Path,

@@ -13,7 +13,7 @@ from strata.config.core.constants import (
     DEFAULT_THRESHOLDS,
     DEFAULT_TOOLING_PATHS,
 )
-from strata.config.core.models import Config
+from strata.config.core.models import Config, RuleExceptionEntry
 from strata.rules.authoring.types import Threshold
 
 
@@ -46,6 +46,7 @@ def build_config(raw: Mapping[str, object]) -> Config:
         ignore=_string_tuple(value=raw.get("ignore"), default=DEFAULT_IGNORE),
         rule_paths=_string_tuple(value=raw.get("rule_paths")),
         rule_modules=_string_tuple(value=raw.get("rule_modules")),
+        rule_exceptions=_rule_exceptions(raw.get("rule_exceptions")),
         thresholds=MappingProxyType(thresholds),
         role_thresholds=MappingProxyType(role_thresholds),
         contracts=MappingProxyType(contracts),
@@ -68,3 +69,31 @@ def _string_tuple(*, value: object, default: tuple[str, ...] = ()) -> tuple[str,
     if not isinstance(value, list):
         return default
     return tuple(item for item in value if isinstance(item, str))
+
+
+def _rule_exceptions(value: object) -> tuple[RuleExceptionEntry, ...]:
+    if not isinstance(value, list):
+        return ()
+    result: list[RuleExceptionEntry] = []
+    for entry in value:
+        if not isinstance(entry, dict):
+            continue
+        rule: object = entry.get("rule")
+        path: object = entry.get("path")
+        symbols: object = entry.get("symbols")
+        reason: object = entry.get("reason")
+        if (
+            isinstance(rule, str)
+            and isinstance(path, str)
+            and isinstance(symbols, list)
+            and isinstance(reason, str)
+        ):
+            result.append(
+                RuleExceptionEntry(
+                    rule=rule,
+                    path=path,
+                    symbols=tuple(symbol for symbol in symbols if isinstance(symbol, str)),
+                    reason=reason,
+                )
+            )
+    return tuple(result)

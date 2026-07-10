@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from strata.agentdocs.core.main.generate import generate_skill
-from strata.config.core.models import Config
+from strata.config.core.models import Config, RuleExceptionEntry
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.catalog.constants import CORE_RULES
 from tests.unit.src.strata.agentdocs.core.main._test_types import GuidanceTestCase
@@ -19,6 +19,29 @@ from tests.unit.src.strata.agentdocs.core.main.helpers import (
 @pytest.mark.parametrize(
     "test_case",
     [
+        GuidanceTestCase(
+            description="active rule exceptions show exact symbols and review reason",
+            config=Config(
+                roots=("src/acme",),
+                tests=(),
+                tooling=(),
+                rule_exceptions=(
+                    RuleExceptionEntry(
+                        rule="SFS120",
+                        path="src/acme/external.py",
+                        symbols=("Collector.update",),
+                        reason="The external API invokes this method positionally.",
+                    ),
+                ),
+            ),
+            rule_codes=("SFS120",),
+            expected_fragments=(
+                "## Active Rule Exceptions",
+                "`SFS120` in `src/acme/external.py`: `Collector.update`",
+                "Reason: The external API invokes this method positionally.",
+            ),
+            expected_absent_fragments=("# noqa",),
+        ),
         GuidanceTestCase(
             description="full core rules show detailed configured runtime tests and tooling",
             config=Config(roots=("src/acme",), tests=("tests",), tooling=("scripts",)),

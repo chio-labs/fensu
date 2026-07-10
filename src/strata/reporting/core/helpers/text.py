@@ -15,7 +15,13 @@ from strata.reporting.core.constants import (
 from strata.rules.authoring.models import Fault
 
 
-def render_text(*, faults: tuple[Fault, ...], root: Path, use_color: bool) -> str:
+def render_text(
+    *,
+    faults: tuple[Fault, ...],
+    root: Path,
+    use_color: bool,
+    applied_exception_count: int,
+) -> str:
     """Render faults as stable text lines with a summary."""
 
     lines: list[str] = []
@@ -28,6 +34,9 @@ def render_text(*, faults: tuple[Fault, ...], root: Path, use_color: bool) -> st
     if lines:
         lines.append("")
     lines.append(_format_summary(text=f"Found {count} {noun}", count=count, use_color=use_color))
+    if applied_exception_count:
+        exception_noun: str = "exception" if applied_exception_count == 1 else "exceptions"
+        lines.append(f"Applied {applied_exception_count} rule {exception_noun}")
     return "\n".join(lines)
 
 

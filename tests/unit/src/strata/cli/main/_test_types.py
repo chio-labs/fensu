@@ -30,6 +30,16 @@ class CheckNoFaultTestCase:
 
 
 @dataclass(frozen=True)
+class CheckErrorTestCase:
+    """CLI check input and expected configuration error output."""
+
+    description: str
+    argv: tuple[str, ...]
+    expected_exit_code: int
+    expected_error_fragment: str
+
+
+@dataclass(frozen=True)
 class MetadataCommandTestCase:
     """CLI metadata command inputs and expected output."""
 

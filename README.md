@@ -1,4 +1,10 @@
-# Strata
+<p align="center">
+  <img src="https://raw.githubusercontent.com/chio-labs/strata/main/.github/strata-logo-wide.png" alt="Strata" width="100%">
+</p>
+
+<p align="center">
+  Keep Python architecture executable.
+</p>
 
 **Most linters catch bad code inside files. Strata catches architectural drift:
 code crossing the wrong boundary, living in the wrong module, or growing into the

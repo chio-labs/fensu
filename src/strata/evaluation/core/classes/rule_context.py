@@ -51,6 +51,16 @@ class EvaluationRuleContext:
             remediation=self._rule.remediation if remediation is None else remediation,
         )
 
+    def path_fault(self, *, message: str | None = None, remediation: str | None = None) -> Fault:
+        """Construct a file-level Fault using the active rule metadata."""
+
+        return Fault(
+            code=self._rule.code,
+            path=self.path,
+            message=self._rule.message if message is None else message,
+            remediation=self._rule.remediation if remediation is None else remediation,
+        )
+
     @property
     def path(self) -> Path:
         """The path of the file currently being checked."""

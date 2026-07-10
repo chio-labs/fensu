@@ -385,3 +385,37 @@ def test_given_runtime_imports_tooling_when_checking_layers_then_flags_only_runt
 
     assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
     assert tuple(fault.line for fault in result.faults) == test_case.expected_lines
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        LayerRuleTestCase(
+            description="cross-package diagnostic identifies the imported internal path",
+            rule_code="SFL102",
+            files=(
+                (
+                    "src/pkg/domain_a/core/main/run.py",
+                    "from pkg.domain_b.core.helpers.parse import parse_value\n",
+                ),
+            ),
+            expected_codes=("SFL102",),
+            expected_lines=(1,),
+            expected_messages=(
+                "import 'pkg.domain_b.core.helpers.parse' reaches into internal structure of "
+                "'pkg.domain_b'",
+            ),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_cross_package_internal_import_when_evaluating_then_names_target_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: LayerRuleTestCase,
+) -> None:
+    result: EvaluationResult = evaluate_layer_test_case(
+        test_case=test_case, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+
+    assert tuple(fault.message for fault in result.faults) == test_case.expected_messages

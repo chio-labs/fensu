@@ -5,6 +5,8 @@ from __future__ import annotations
 from io import StringIO
 from pathlib import Path
 
+import pytest
+
 
 class CaptureOutput(StringIO):
     """Small text sink with configurable terminal-color support."""
@@ -15,6 +17,14 @@ class CaptureOutput(StringIO):
 
     def isatty(self) -> bool:
         return self._is_terminal
+
+
+def configure_no_color(*, monkeypatch: pytest.MonkeyPatch, enabled: bool) -> None:
+    """Set or clear the conventional terminal color opt-out."""
+
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    if enabled:
+        monkeypatch.setenv("NO_COLOR", "1")
 
 
 def write_cli_fixture_project(*, root: Path, rule_code: str) -> None:
@@ -66,28 +76,37 @@ def write_cli_map_project(
     cycle: bool = False,
     dynamic_seam: bool = False,
     configured_root: str = "src/pkg",
+    write_config: bool = True,
+    relative_imports: bool = False,
+    dynamic_first: bool = False,
 ) -> None:
     """Write a project with a resolvable three-function call chain."""
 
     package: Path = root / configured_root
     package_name: str = package.name
     package.mkdir(parents=True)
-    (root / "strata.toml").write_text(f'roots = ["{configured_root}"]\n', encoding="utf-8")
+    if write_config:
+        (root / "strata.toml").write_text(f'roots = ["{configured_root}"]\n', encoding="utf-8")
     parameters: str = "callback: object" if dynamic_seam else ""
     callback_line: str = "    callback()" if dynamic_seam else ""
+    step_import: str = (
+        "from .steps import step" if relative_imports else f"from {package_name}.steps import step"
+    )
+    function_lines: tuple[str, ...] = ("    step()", callback_line)
+    if dynamic_first:
+        function_lines = (callback_line, "    step()")
+    function_body: str = "\n".join(filter(None, function_lines))
     (package / "entry.py").write_text(
-        (
-            f"from {package_name}.steps import step\n\n"
-            f"def run({parameters}) -> None:\n"
-            "    step()\n"
-            f"{callback_line}\n"
-        ),
+        (f"{step_import}\n\ndef run({parameters}) -> None:\n{function_body}\n"),
         encoding="utf-8",
     )
+    finish_import: str = (
+        "from . import finish as finishing"
+        if relative_imports
+        else f"import {package_name}.finish as finishing"
+    )
     (package / "steps.py").write_text(
-        f"import {package_name}.finish as finishing\n\n"
-        "def step() -> None:\n"
-        "    finishing.finish()\n",
+        f"{finish_import}\n\ndef step() -> None:\n    finishing.finish()\n",
         encoding="utf-8",
     )
     finish_source: str = "def finish() -> None:\n    return None\n"
@@ -98,3 +117,17 @@ def write_cli_map_project(
     (package / "finish.py").write_text(finish_source, encoding="utf-8")
     if ambiguous:
         (package / "other.py").write_text("def run() -> None:\n    return None\n", encoding="utf-8")
+
+
+def write_multi_root_map_project(root: Path) -> None:
+    """Write two import roots connected by one direct project call."""
+
+    application: Path = root / "services/acme"
+    library: Path = root / "libraries/shared"
+    application.mkdir(parents=True)
+    library.mkdir(parents=True)
+    (application / "entry.py").write_text(
+        "from shared.steps import step\n\ndef run() -> None:\n    step()\n",
+        encoding="utf-8",
+    )
+    (library / "steps.py").write_text("def step() -> None:\n    return None\n", encoding="utf-8")

@@ -75,12 +75,19 @@ def is_newtype_assignment(node: ast.stmt) -> bool:
 
 
 def is_public_type_alias(node: ast.stmt) -> bool:
-    """Return whether a statement defines a public Python 3.12 type alias."""
+    """Return whether a statement defines a public explicit type alias."""
 
-    return (
+    if (
         isinstance(node, ast.TypeAlias)
         and isinstance(node.name, ast.Name)
         and not node.name.id.startswith("_")
+    ):
+        return True
+    return (
+        isinstance(node, ast.AnnAssign)
+        and isinstance(node.target, ast.Name)
+        and not node.target.id.startswith("_")
+        and base_name(node.annotation) == "TypeAlias"
     )
 
 

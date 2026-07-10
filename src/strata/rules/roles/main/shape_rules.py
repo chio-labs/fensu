@@ -10,6 +10,7 @@ from strata.rules.roles.helpers.checks import (
     private_definition_ordering,
     source_file_line_count,
 )
+from strata.rules.roles.helpers.metadata import role_rule_details
 from strata.rules.roles.types import RoleCode
 
 
@@ -41,10 +42,12 @@ def shape_rules() -> tuple[RuleSpec, ...]:
 
 
 def _rule(*, code: RoleCode, slug: str, check: RuleCheck) -> RuleSpec:
+    message, remediation = role_rule_details(code)
     return RuleSpec(
         code=code,
         family=Family.ROLES,
         slug=slug,
-        message=f"role shape violation ({code.value})",
+        message=message,
+        remediation=remediation,
         check=check,
     )

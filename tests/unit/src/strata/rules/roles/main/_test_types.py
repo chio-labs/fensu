@@ -29,3 +29,5 @@ class SfrRuleTestCase:
     expected_lines: tuple[int | None, ...]
     support_files: tuple[SfrSupportFile, ...] = field(default_factory=tuple)
     thresholds: dict[Threshold, int] = field(default_factory=dict)
+    expected_messages: tuple[str, ...] = field(default_factory=tuple)
+    expected_remediations: tuple[str, ...] = field(default_factory=tuple)

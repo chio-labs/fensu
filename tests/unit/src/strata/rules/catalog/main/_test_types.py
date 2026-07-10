@@ -42,3 +42,14 @@ class SelectCompositionTestCase:
     select: tuple[str, ...]
     ignore: tuple[str, ...]
     expected_codes: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class CatalogueQualityTestCase:
+    """Forbidden metadata fragments and expected catalogue-quality result."""
+
+    description: str
+    forbidden_message_fragments: tuple[str, ...]
+    max_message_length: int
+    max_remediation_length: int
+    expected_issues: tuple[str, ...]

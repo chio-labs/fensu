@@ -1,0 +1,90 @@
+"""Actionable catalogue metadata for role layout and surface rules."""
+
+from __future__ import annotations
+
+from strata.rules.roles.types import RoleCode
+
+
+def role_rule_details(code: RoleCode) -> tuple[str, str]:
+    """Return the contract and normal correction for one structural role rule."""
+
+    details: dict[RoleCode, tuple[str, str]] = {
+        RoleCode.HELPERS_PACKAGE_LAYOUT: (
+            "helpers/ packages must use one consistent shallow layout",
+            "Keep a small flat helpers/ package or group all concerns into shallow subfolders; "
+            "do not mix both shapes.",
+        ),
+        RoleCode.MAIN_PACKAGE_LAYOUT: (
+            "main/ packages must remain flat orchestration surfaces",
+            "Keep entry modules directly under main/ and move support logic to the sibling "
+            "helpers/ package.",
+        ),
+        RoleCode.NESTED_DIRECT_MODULES: (
+            "nested runtime packages may contain only role-oriented direct modules",
+            "Move additional implementation modules under the package's helpers/ boundary.",
+        ),
+        RoleCode.NESTED_DIRECT_SUBPACKAGES: (
+            "nested runtime packages must use explicit role boundaries",
+            "Move feature subpackages under helpers/ or use a supported role such as main/, "
+            "classes/, or shared/.",
+        ),
+        RoleCode.TOP_LEVEL_ROLE_PLACEMENT: (
+            "top-level domains must not contain direct role files or directories",
+            "Create an owning subpackage beneath the domain, or move broadly shared code to the "
+            "top-level shared/ package.",
+        ),
+        RoleCode.TOP_LEVEL_DIRECT_MODULES: (
+            "top-level domains must contain owned subpackages instead of direct modules",
+            "Move the module into a named subdomain; keep only approved role files at the domain "
+            "root.",
+        ),
+        RoleCode.ENTRY_MODULE_SHAPE: (
+            "main/ entry modules must expose one focused public function",
+            "Keep only imports, one public entry function, and at most two small private glue "
+            "functions; move phase logic to helpers/.",
+        ),
+        RoleCode.INIT_MODULE_EMPTY: (
+            "nested __init__.py files must be empty or docstring-only",
+            "Remove runtime declarations and import from the concrete owning module instead.",
+        ),
+        RoleCode.NO_REEXPORT_SHIM: (
+            "internal modules must not exist only to re-export imports",
+            "Import the implementation module directly or expose a deliberate API through an "
+            "approved public surface.",
+        ),
+        RoleCode.NO_INTERNAL_HELPER_EXPORTS: (
+            "helpers/ modules must not publish an __all__ surface",
+            "Keep helpers internal and expose public behavior through main/, classes/, models, "
+            "types, constants, or exceptions.",
+        ),
+        RoleCode.MAIN_ENTRY_NAME_COLLISION: (
+            "main/ cannot define a module and package with the same entry name",
+            "Choose either the flat entry module or the same-named package and remove the "
+            "competing surface.",
+        ),
+        RoleCode.PUBLIC_SURFACE_SHAPE: (
+            "root package surfaces may contain only imports and one __all__ declaration",
+            "Move runtime behavior into an owning module and keep the root __init__.py as a "
+            "deliberate import surface.",
+        ),
+        RoleCode.CLASSES_ONE_CLASS_PER_MODULE: (
+            "classes/ modules must define exactly one top-level class",
+            "Split additional classes into separately named modules under classes/.",
+        ),
+        RoleCode.HELPERS_PACKAGE_SHAPE: (
+            "helpers/ packages must stay shallow and contain no orchestration entrypoints",
+            "Remove main.py and nested feature packages; use direct role-oriented helper modules "
+            "or one shallow grouping level.",
+        ),
+        RoleCode.PRIVATE_DEFINITION_ORDERING: (
+            "private constants and dataclasses must appear before top-level functions",
+            "Move private module declarations above the first function so readers see module "
+            "state before behavior.",
+        ),
+        RoleCode.SOURCE_FILE_LINE_COUNT: (
+            "source files must stay below the configured line limit",
+            "Split the file by a cohesive role or concern instead of extracting arbitrary "
+            "numbered fragments.",
+        ),
+    }
+    return details[code]

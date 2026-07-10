@@ -75,6 +75,10 @@ def no_standalone_comments(*, module: ast.Module, ctx: RuleContext) -> list[Faul
                     message="standalone comments are not allowed; prefer clear names or docs/tests",
                     line=token.start[0],
                     column=token.start[1],
+                    remediation=(
+                        "Replace the comment with clearer names or move lasting explanation into "
+                        "documentation or tests."
+                    ),
                 )
             )
     except tokenize.TokenError:

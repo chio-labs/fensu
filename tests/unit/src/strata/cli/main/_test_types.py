@@ -58,6 +58,31 @@ class MapCommandTestCase:
 
 
 @dataclass(frozen=True)
+class StandaloneMapTestCase:
+    """Map behavior for a repository without Strata configuration."""
+
+    description: str
+    configured_root: str
+    argv: tuple[str, ...]
+    relative_imports: bool
+    expected_output_fragments: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class MapPresentationTestCase:
+    """Map rendering options and their visible output contract."""
+
+    description: str
+    argv: tuple[str, ...]
+    is_terminal: bool
+    no_color: bool
+    expected_output_fragments: tuple[str, ...]
+    expected_absent_fragments: tuple[str, ...]
+    cycle: bool = False
+    dynamic_seam: bool = False
+
+
+@dataclass(frozen=True)
 class EntryDispatchTestCase:
     """CLI argv and expected delegated command runner."""
 

@@ -13,3 +13,12 @@ class RenderReportTestCase:
     use_color: bool
     expected_text: str
     expected_fault_count: int
+
+
+@dataclass(frozen=True)
+class RemediationRenderTestCase:
+    """Expected message/help separation for one rendered fault."""
+
+    description: str
+    use_color: bool
+    expected_text_fragments: tuple[str, ...]

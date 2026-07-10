@@ -209,7 +209,7 @@ def helpers_module_name(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     del module
     if ctx.path.name != "helpers.py":
         return []
-    return [Fault(code="SFR202", path=ctx.path, message="use a helpers/ package")]
+    return [ctx.path_fault(message="use a helpers/ package")]
 
 
 def classes_module_name(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
@@ -218,7 +218,7 @@ def classes_module_name(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     del module
     if ctx.path.name != "classes.py":
         return []
-    return [Fault(code="SFR203", path=ctx.path, message="use a classes/ package")]
+    return [ctx.path_fault(message="use a classes/ package")]
 
 
 def helpers_classes_file_private(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
@@ -407,11 +407,21 @@ def entry_module_shape(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
             )
         )
     if len(private_functions) > 2:
-        faults.append(ctx.fault(private_functions[2]))
+        faults.append(
+            ctx.fault(
+                private_functions[2],
+                message="main/ entry modules may define at most two private glue functions",
+            )
+        )
     for node in body:
         if isinstance(node, ast.Import | ast.ImportFrom | ast.FunctionDef | ast.AsyncFunctionDef):
             continue
-        faults.append(ctx.fault(node))
+        faults.append(
+            ctx.fault(
+                node,
+                message="main/ entry modules may contain only imports and top-level functions",
+            )
+        )
     return faults
 
 
@@ -544,9 +554,19 @@ def private_definition_ordering(*, module: ast.Module, ctx: RuleContext) -> list
             and node.name.startswith("_")
             and is_dataclass_class(node)
         ):
-            faults.append(ctx.fault(node))
+            faults.append(
+                ctx.fault(
+                    node,
+                    message="private dataclasses must appear before top-level functions",
+                )
+            )
         elif any(name.startswith("_") for name in _assignment_target_names(node)):
-            faults.append(ctx.fault(node))
+            faults.append(
+                ctx.fault(
+                    node,
+                    message="private constants must appear before top-level functions",
+                )
+            )
     return faults
 
 
@@ -700,7 +720,8 @@ def _package_layout_faults(
 
 
 def _path_fault(*, ctx: RuleContext, code: RoleCode, message: str) -> Fault:
-    return Fault(code=code, path=ctx.path, message=message)
+    del code
+    return ctx.path_fault(message=message)
 
 
 def _assignment_target_names(node: ast.stmt) -> tuple[str, ...]:

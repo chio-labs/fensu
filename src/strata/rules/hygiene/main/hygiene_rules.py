@@ -26,6 +26,10 @@ def hygiene_rules() -> tuple[RuleSpec, ...]:
             message=(
                 "docstrings must be a single line; move extended explanation into docs or tests"
             ),
+            remediation=(
+                "Keep one concise summary line and move extended rationale into documentation "
+                "or tests."
+            ),
             check=single_line_docstrings,
         ),
         RuleSpec(
@@ -33,6 +37,10 @@ def hygiene_rules() -> tuple[RuleSpec, ...]:
             family=Family.HYGIENE,
             slug="no-standalone-comments",
             message="standalone comments are not allowed; prefer clear names or docs/tests",
+            remediation=(
+                "Replace the comment with clearer names or move lasting explanation into "
+                "documentation or tests."
+            ),
             check=no_standalone_comments,
         ),
         RuleSpec(
@@ -40,6 +48,10 @@ def hygiene_rules() -> tuple[RuleSpec, ...]:
             family=Family.HYGIENE,
             slug="no-raw-builtin-raise",
             message="runtime code must raise structured errors instead of raw built-in exceptions",
+            remediation=(
+                "Raise a domain-specific exception from exceptions.py with a stable actionable "
+                "message."
+            ),
             check=no_raw_builtin_raise,
         ),
         RuleSpec(
@@ -47,6 +59,9 @@ def hygiene_rules() -> tuple[RuleSpec, ...]:
             family=Family.HYGIENE,
             slug="no-assert-in-runtime",
             message="runtime code must not use assert for invariants; raise a structured error",
+            remediation=(
+                "Replace assert with an explicit guard that raises a domain-specific exception."
+            ),
             check=no_assert_in_runtime,
         ),
         RuleSpec(
@@ -54,6 +69,10 @@ def hygiene_rules() -> tuple[RuleSpec, ...]:
             family=Family.HYGIENE,
             slug="no-swallowed-exception-probe",
             message="runtime code must not swallow broad exceptions as existence probe answers",
+            remediation=(
+                "Use an explicit metadata or existence check, or catch only the expected "
+                "exception and preserve failures."
+            ),
             check=no_swallowed_exception_probe,
         ),
         RuleSpec(

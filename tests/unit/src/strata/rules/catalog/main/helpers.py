@@ -47,6 +47,29 @@ def make_core_rule(*, code: str, family: Family, enabled_by_default: bool = True
     )
 
 
+def catalogue_quality_issues(
+    *,
+    rules: tuple[RuleSpec, ...],
+    forbidden_message_fragments: tuple[str, ...],
+    max_message_length: int,
+    max_remediation_length: int,
+) -> tuple[str, ...]:
+    """Return actionable metadata defects from core rules."""
+
+    issues: list[str] = []
+    for rule in rules:
+        if rule.remediation is None:
+            issues.append(f"{rule.code}: missing remediation")
+        if len(rule.message) > max_message_length:
+            issues.append(f"{rule.code}: message too long")
+        if rule.remediation is not None and len(rule.remediation) > max_remediation_length:
+            issues.append(f"{rule.code}: remediation too long")
+        for fragment in forbidden_message_fragments:
+            if fragment in rule.message:
+                issues.append(f"{rule.code}: generic message")
+    return tuple(issues)
+
+
 def _custom_rule_source(*, rule_code: str, prelude: str = "") -> str:
     family: str = "Family.CUSTOM" if rule_code.startswith("X") else "Family.LAYERS"
     return f'''

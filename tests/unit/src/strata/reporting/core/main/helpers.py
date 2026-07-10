@@ -40,3 +40,19 @@ def make_missing_column_fault(root: Path) -> tuple[Fault, ...]:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("line_only = True\n", encoding="utf-8")
     return (Fault(code="XRP004", path=path, line=1, message="line only"),)
+
+
+def make_remediated_fault(root: Path) -> tuple[Fault, ...]:
+    """Build a fault with long actionable help text."""
+
+    return (
+        Fault(
+            code="XRP005",
+            path=root / "src/pkg/main/run.py",
+            message="main/ entry contains phase implementation",
+            remediation=(
+                "Move phase implementation into helpers/ and keep main/ focused on ordered "
+                "phase calls that return explicit result models."
+            ),
+        ),
+    )

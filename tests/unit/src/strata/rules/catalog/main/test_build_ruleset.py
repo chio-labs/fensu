@@ -12,19 +12,53 @@ from strata.config.core.models import Config
 from strata.rules.authoring.main.define import rule
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Family
+from strata.rules.catalog.constants import CORE_RULES
 from strata.rules.catalog.helpers import loading as loading_module
 from strata.rules.catalog.main.build_ruleset import build_ruleset
 from tests.unit.src.strata.rules.catalog.main._test_types import (
+    CatalogueQualityTestCase,
     CustomRuleLoadTestCase,
     ModuleIsolationTestCase,
     RegistryErrorTestCase,
     SelectCompositionTestCase,
 )
 from tests.unit.src.strata.rules.catalog.main.helpers import (
+    catalogue_quality_issues,
     make_core_rule,
     write_custom_rule_file,
     write_module_package,
 )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CatalogueQualityTestCase(
+            description="every core rule provides actionable agent-ready metadata",
+            forbidden_message_fragments=(
+                "role surface violation",
+                "role layout violation",
+                "role shape violation",
+                "test convention violation",
+            ),
+            max_message_length=120,
+            max_remediation_length=400,
+            expected_issues=(),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_core_catalogue_when_reviewing_metadata_then_every_rule_is_actionable(
+    test_case: CatalogueQualityTestCase,
+) -> None:
+    issues: tuple[str, ...] = catalogue_quality_issues(
+        rules=CORE_RULES,
+        forbidden_message_fragments=test_case.forbidden_message_fragments,
+        max_message_length=test_case.max_message_length,
+        max_remediation_length=test_case.max_remediation_length,
+    )
+
+    assert issues == test_case.expected_issues
 
 
 @pytest.mark.parametrize(

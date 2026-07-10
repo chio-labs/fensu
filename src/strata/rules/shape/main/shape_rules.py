@@ -30,6 +30,7 @@ def shape_rules() -> tuple[RuleSpec, ...]:
             family=Family.SHAPE,
             slug="too-many-statements",
             message="main functions must stay phase-shaped and below the statement limit",
+            remediation="Extract cohesive phases into helpers that return explicit result models.",
             check=too_many_statements,
         ),
         RuleSpec(
@@ -37,6 +38,10 @@ def shape_rules() -> tuple[RuleSpec, ...]:
             family=Family.SHAPE,
             slug="too-many-distinct-calls",
             message="main functions must not coordinate too many distinct callees",
+            remediation=(
+                "Group related work into named phase helpers and keep main/ as a short ordered "
+                "flow."
+            ),
             check=too_many_distinct_calls,
         ),
         RuleSpec(
@@ -44,6 +49,9 @@ def shape_rules() -> tuple[RuleSpec, ...]:
             family=Family.SHAPE,
             slug="too-many-locals",
             message="main functions must not juggle too many local variables",
+            remediation=(
+                "Let each extracted phase own its intermediates and return one structured result."
+            ),
             check=too_many_locals,
         ),
         RuleSpec(
@@ -51,6 +59,9 @@ def shape_rules() -> tuple[RuleSpec, ...]:
             family=Family.SHAPE,
             slug="max-arguments",
             message="functions must stay below the configured argument limit",
+            remediation=(
+                "Reduce the function's responsibility or group cohesive inputs into a typed model."
+            ),
             check=max_arguments,
         ),
         RuleSpec(
@@ -58,6 +69,10 @@ def shape_rules() -> tuple[RuleSpec, ...]:
             family=Family.SHAPE,
             slug="max-statements-global",
             message="functions must stay below the global statement limit",
+            remediation=(
+                "Split the function at a meaningful phase boundary with explicit inputs and "
+                "outputs."
+            ),
             check=max_statements_global,
         ),
         RuleSpec(
@@ -65,6 +80,9 @@ def shape_rules() -> tuple[RuleSpec, ...]:
             family=Family.SHAPE,
             slug="meaningful-project-result-discarded",
             message="main orchestrators must consume meaningful project-local call results",
+            remediation=(
+                "Assign, return, or explicitly discard the phase result with _ = call(...)."
+            ),
             check=meaningful_project_result_discarded,
         ),
         RuleSpec(
@@ -72,6 +90,7 @@ def shape_rules() -> tuple[RuleSpec, ...]:
             family=Family.SHAPE,
             slug="parameter-mutation-in-phase-helpers",
             message="helpers must return values instead of mutating parameters",
+            remediation="Return a new or updated value so dataflow remains visible to the caller.",
             check=parameter_mutation_in_phase_helpers,
             enabled_by_default=False,
         ),
@@ -80,6 +99,10 @@ def shape_rules() -> tuple[RuleSpec, ...]:
             family=Family.SHAPE,
             slug="default-mutation-return",
             message="functions that mutate parameters must return every mutated parameter",
+            remediation=(
+                "Return each mutated parameter explicitly, or avoid parameter mutation and "
+                "return a new value."
+            ),
             check=default_mutation_return,
         ),
         RuleSpec(
@@ -87,6 +110,9 @@ def shape_rules() -> tuple[RuleSpec, ...]:
             family=Family.SHAPE,
             slug="keyword-only-arguments",
             message="function parameters must be keyword-only beyond the configured threshold",
+            remediation=(
+                "Insert * before optional or secondary parameters so call sites name their meaning."
+            ),
             check=keyword_only_arguments,
         ),
         RuleSpec(
@@ -94,6 +120,10 @@ def shape_rules() -> tuple[RuleSpec, ...]:
             family=Family.SHAPE,
             slug="no-outer-state-mutation",
             message="functions must not mutate module-global or closure-captured state",
+            remediation=(
+                "Pass state explicitly and return the updated value instead of mutating outer "
+                "scope."
+            ),
             check=no_outer_state_mutation,
         ),
         RuleSpec(
@@ -113,6 +143,7 @@ def shape_rules() -> tuple[RuleSpec, ...]:
             family=Family.SHAPE,
             slug="mutable-result-model",
             message="dataclass result models must be frozen",
+            remediation="Declare the shared result model with @dataclass(frozen=True).",
             check=mutable_result_model,
         ),
     )

@@ -12,6 +12,7 @@ from strata.rules.roles.helpers.checks import (
     no_reexport_shim,
     public_surface_shape,
 )
+from strata.rules.roles.helpers.metadata import role_rule_details
 from strata.rules.roles.types import RoleCode
 
 
@@ -43,10 +44,12 @@ def surface_rules() -> tuple[RuleSpec, ...]:
 
 
 def _rule(*, code: RoleCode, slug: str, check: RuleCheck) -> RuleSpec:
+    message, remediation = role_rule_details(code)
     return RuleSpec(
         code=code,
         family=Family.ROLES,
         slug=slug,
-        message=f"role surface violation ({code.value})",
+        message=message,
+        remediation=remediation,
         check=check,
     )

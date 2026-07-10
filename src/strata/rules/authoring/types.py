@@ -68,6 +68,10 @@ class RuleContext(Protocol):
         """Construct a Fault with line/column/code wired from the node."""
         ...
 
+    def path_fault(self, *, message: str | None = None, remediation: str | None = None) -> Fault:
+        """Construct a file-level Fault using the active rule metadata."""
+        ...
+
     @property
     def path(self) -> Path:
         """The path of the file currently being checked."""

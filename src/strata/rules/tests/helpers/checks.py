@@ -149,7 +149,8 @@ def _selected_path_faults(
 
 
 def _path_fault(*, ctx: RuleContext, code: SftCode, message: str) -> Fault:
-    return Fault(code=code, path=ctx.path, message=message)
+    del code
+    return ctx.path_fault(message=message)
 
 
 def _init_module_faults(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:

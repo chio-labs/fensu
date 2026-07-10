@@ -61,13 +61,26 @@ Render a conservative downstream call tree:
 ```bash
 strata map run_plan --depth 3
 strata map path/to/module::run_plan
+strata map package.module.run_plan --root src
+strata map service.run --root services --root libraries
 ```
 
-The current map provider resolves top-level project functions through same-module
-calls, direct imports, and module aliases. Dynamic dispatch and unresolved calls
-are not guessed; calls through function parameters are displayed as unresolved
-seams. Ambiguous bare names require a dotted or `path::function` selector; cycles
-and depth truncation are marked in the output.
+`strata map` does not require Strata configuration or architecture-rule adoption.
+Explicit `--root` values are Python import roots and may be repeated. Without
+explicit roots, map uses configured Strata roots when available, otherwise it
+infers `src/` or falls back to the repository root.
+
+Repository-relative paths are the default so terminals such as VS Code can make
+locations clickable. Use `--paths absolute|relative|compact|none` to change the
+display. ANSI color is automatic for terminals, can be controlled with
+`--color auto|always|never`, and respects `NO_COLOR`.
+
+The current provider resolves top-level project functions through same-module
+calls, absolute and relative direct imports, module aliases, namespace packages,
+and multiple import roots. Calls remain in source order. Dynamic dispatch is not
+guessed; calls through function parameters are displayed as unresolved seams.
+Ambiguous bare names require a dotted or `path::function` selector. Cycles and
+depth truncation are marked in both colored and plain output.
 
 ## Custom Rules
 

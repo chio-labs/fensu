@@ -8,11 +8,15 @@ import pytest
 
 from strata.reporting.core.main.render import render
 from strata.reporting.core.models import RenderedReport
-from tests.unit.src.strata.reporting.core.main._test_types import RenderReportTestCase
+from tests.unit.src.strata.reporting.core.main._test_types import (
+    RemediationRenderTestCase,
+    RenderReportTestCase,
+)
 from tests.unit.src.strata.reporting.core.main.helpers import (
     make_faults,
     make_missing_column_fault,
     make_missing_source_fault,
+    make_remediated_fault,
 )
 
 
@@ -147,3 +151,39 @@ def test_given_no_faults_when_rendering_report_then_returns_healthy_summary(
 
     assert report.text == test_case.expected_text
     assert report.fault_count == test_case.expected_fault_count
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        RemediationRenderTestCase(
+            description="plain diagnostics wrap remediation under a help label",
+            use_color=False,
+            expected_text_fragments=(
+                "XRP005  main/ entry contains phase implementation",
+                "  = help: Move phase implementation into helpers/ and keep main/ focused on "
+                "ordered phase calls that",
+                "          return explicit result models.",
+            ),
+        ),
+        RemediationRenderTestCase(
+            description="colored diagnostics mute only the help label",
+            use_color=True,
+            expected_text_fragments=(
+                "  \033[2m= help:\033[0m Move phase implementation into helpers/ and keep "
+                "main/ focused on ordered phase calls that",
+                "          return explicit result models.",
+            ),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_remediation_when_rendering_fault_then_separates_actionable_help(
+    tmp_path: Path,
+    test_case: RemediationRenderTestCase,
+) -> None:
+    report: RenderedReport = render(
+        faults=make_remediated_fault(tmp_path), root=tmp_path, use_color=test_case.use_color
+    )
+
+    assert all(fragment in report.text for fragment in test_case.expected_text_fragments)

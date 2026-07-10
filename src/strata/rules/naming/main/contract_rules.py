@@ -17,6 +17,10 @@ def contract_rules() -> tuple[RuleSpec, ...]:
             family=Family.NAMING,
             slug="validator-must-not-return",
             message="functions under no-return naming contracts must not return values",
+            remediation=(
+                "Raise on invalid input and return None implicitly from validate_, enforce_, or "
+                "check_ functions."
+            ),
             check=validator_must_not_return,
         ),
     )

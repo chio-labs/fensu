@@ -4,36 +4,124 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from strata.mapping.core.constants import (
+    ANSI_CYCLE,
+    ANSI_DIM,
+    ANSI_FUNCTION,
+    ANSI_RESET,
+    ANSI_UNRESOLVED,
+)
 from strata.mapping.core.models import CallMapNode, UnresolvedCall
+from strata.mapping.core.types import PathMode
 
 
-def render_tree(*, root: CallMapNode, repo_root: Path) -> str:
+def render_tree(
+    *,
+    root: CallMapNode,
+    repo_root: Path,
+    path_mode: PathMode = "relative",
+    use_color: bool = False,
+) -> str:
     """Render one call tree with locations, cycle markers, and depth markers."""
 
-    child_lines: tuple[str, ...] = _child_lines(node=root, repo_root=repo_root, prefix="")
-    return "\n".join((_label(node=root, repo_root=repo_root), *child_lines)) + "\n"
+    child_lines: tuple[str, ...] = _child_lines(
+        node=root,
+        repo_root=repo_root,
+        path_mode=path_mode,
+        prefix="",
+        use_color=use_color,
+    )
+    root_label: str = _label(
+        node=root, repo_root=repo_root, path_mode=path_mode, use_color=use_color
+    )
+    return "\n".join((root_label, *child_lines)) + "\n"
 
 
-def _child_lines(*, node: CallMapNode, repo_root: Path, prefix: str) -> tuple[str, ...]:
+def _child_lines(
+    *,
+    node: CallMapNode,
+    repo_root: Path,
+    path_mode: PathMode,
+    prefix: str,
+    use_color: bool,
+) -> tuple[str, ...]:
     lines: list[str] = []
-    entries: tuple[CallMapNode | UnresolvedCall, ...] = (*node.children, *node.unresolved_calls)
-    for index, entry in enumerate(entries):
-        last: bool = index == len(entries) - 1
+    for index, entry in enumerate(node.entries):
+        last: bool = index == len(node.entries) - 1
         connector: str = "└── " if last else "├── "
+        rendered_connector: str = _color(connector, style=ANSI_DIM, enabled=use_color)
         if isinstance(entry, UnresolvedCall):
-            location: Path = node.definition.path.relative_to(repo_root)
-            lines.append(
-                f"{prefix}{connector}{entry.name}(...)  {location}:{entry.line}  "
-                f"(unresolved {entry.reason})"
+            location: str = _location(
+                path=node.definition.path,
+                line=entry.line,
+                repo_root=repo_root,
+                path_mode=path_mode,
             )
+            label: str = _color(f"{entry.name}(...)", style=ANSI_FUNCTION, enabled=use_color)
+            rendered_location: str = _color(location, style=ANSI_DIM, enabled=use_color)
+            marker: str = _color(
+                f"(unresolved {entry.reason})", style=ANSI_UNRESOLVED, enabled=use_color
+            )
+            lines.append(f"{prefix}{rendered_connector}{label}{rendered_location}  {marker}")
             continue
-        lines.append(f"{prefix}{connector}{_label(node=entry, repo_root=repo_root)}")
+        label = _label(
+            node=entry,
+            repo_root=repo_root,
+            path_mode=path_mode,
+            use_color=use_color,
+        )
+        lines.append(f"{prefix}{rendered_connector}{label}")
         child_prefix: str = f"{prefix}{'    ' if last else '│   '}"
-        lines.extend(_child_lines(node=entry, repo_root=repo_root, prefix=child_prefix))
+        lines.extend(
+            _child_lines(
+                node=entry,
+                repo_root=repo_root,
+                path_mode=path_mode,
+                prefix=child_prefix,
+                use_color=use_color,
+            )
+        )
     return tuple(lines)
 
 
-def _label(*, node: CallMapNode, repo_root: Path) -> str:
-    location: Path = node.definition.path.relative_to(repo_root)
-    marker: str = "  (cycle)" if node.cycle else "  (depth limit)" if node.truncated else ""
-    return f"{node.definition.name}(...)  {location}:{node.definition.node.lineno}{marker}"
+def _label(*, node: CallMapNode, repo_root: Path, path_mode: PathMode, use_color: bool) -> str:
+    function: str = _color(f"{node.definition.name}(...)", style=ANSI_FUNCTION, enabled=use_color)
+    location: str = _location(
+        path=node.definition.path,
+        line=node.definition.node.lineno,
+        repo_root=repo_root,
+        path_mode=path_mode,
+    )
+    rendered_location: str = _color(location, style=ANSI_DIM, enabled=use_color)
+    if node.cycle:
+        marker: str = _color("  (cycle)", style=ANSI_CYCLE, enabled=use_color)
+    elif node.truncated:
+        marker = _color("  (depth limit)", style=ANSI_DIM, enabled=use_color)
+    else:
+        marker = ""
+    return f"{function}{rendered_location}{marker}"
+
+
+def _location(*, path: Path, line: int, repo_root: Path, path_mode: PathMode) -> str:
+    if path_mode == "none":
+        return ""
+    display_path: Path = path
+    if path_mode != "absolute" and path.is_relative_to(repo_root):
+        display_path = path.relative_to(repo_root)
+    path_text: str = str(display_path)
+    if path_mode == "compact":
+        path_text = _compact_path(path_text)
+    return f"  {path_text}:{line}"
+
+
+def _compact_path(path: str) -> str:
+    parts: tuple[str, ...] = Path(path).parts
+    if len(parts) <= 4:
+        return path
+    return str(Path(*parts[:2], "…", *parts[-2:]))
+
+
+def _color(text: str, *, style: str, enabled: bool) -> str:
+    if not text or not enabled:
+        return text
+    return f"{style}{text}{ANSI_RESET}"

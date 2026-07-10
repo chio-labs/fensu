@@ -170,6 +170,17 @@ def test_given_role_files_when_checking_content_then_flags_only_foreign_declarat
             expected_lines=(),
         ),
         SfrRuleTestCase(
+            description="explicit TypeAlias outside types role is flagged",
+            rule_code="SFR102",
+            relative_path="domain/core/helpers/aliases.py",
+            source=(
+                "from typing import Literal, TypeAlias\n\n"
+                "PathMode: TypeAlias = Literal['short', 'full']\n"
+            ),
+            expected_codes=("SFR102",),
+            expected_lines=(3,),
+        ),
+        SfrRuleTestCase(
             description="public uppercase constant outside constants role is flagged",
             rule_code="SFR103",
             relative_path="domain/core/helpers/values.py",
@@ -916,3 +927,35 @@ def test_given_role_module_shapes_when_checking_then_flags_only_shape_violations
 
     assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
     assert tuple(fault.line for fault in result.faults) == test_case.expected_lines
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SfrRuleTestCase(
+            description="path-level entry fault inherits actionable catalogue remediation",
+            rule_code="SFR401",
+            relative_path="domain/core/main/run.py",
+            source="def _prepare() -> None:\n    return None\n",
+            expected_codes=("SFR401",),
+            expected_lines=(None,),
+            expected_messages=("entry modules need one public function",),
+            expected_remediations=(
+                "Keep only imports, one public entry function, and at most two small private "
+                "glue functions; move phase logic to helpers/.",
+            ),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_path_level_role_fault_when_evaluating_then_inherits_actionable_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: SfrRuleTestCase,
+) -> None:
+    result: EvaluationResult = evaluate_role_test_case(
+        test_case=test_case, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+
+    assert tuple(fault.message for fault in result.faults) == test_case.expected_messages
+    assert tuple(fault.remediation for fault in result.faults) == test_case.expected_remediations

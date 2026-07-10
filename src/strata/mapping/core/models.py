@@ -8,6 +8,22 @@ from pathlib import Path
 
 
 @dataclass(frozen=True, slots=True)
+class MappingSource:
+    """A directory to scan and the import root used to name its modules."""
+
+    scan_path: Path
+    import_root: Path
+
+
+@dataclass(frozen=True, slots=True)
+class MappingProject:
+    """Repository display root and Python sources included in one map."""
+
+    repo_root: Path
+    sources: tuple[MappingSource, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class FunctionDefinition:
     """A project-owned top-level function definition."""
 
@@ -33,7 +49,6 @@ class CallMapNode:
     """One function and its resolved project-local callees."""
 
     definition: FunctionDefinition
-    children: tuple[CallMapNode, ...]
-    unresolved_calls: tuple[UnresolvedCall, ...] = ()
+    entries: tuple[CallMapNode | UnresolvedCall, ...]
     cycle: bool = False
     truncated: bool = False

@@ -32,51 +32,49 @@ def _build_node(
 ) -> CallMapNode:
     key: str = f"{definition.module_name}.{definition.name}"
     if key in ancestors:
-        return CallMapNode(definition=definition, children=(), cycle=True)
-    callees, unresolved_calls = _call_targets(definition=definition, definitions=definitions)
+        return CallMapNode(definition=definition, entries=(), cycle=True)
+    call_entries: tuple[FunctionDefinition | UnresolvedCall, ...] = _call_entries(
+        definition=definition, definitions=definitions
+    )
     if remaining_depth == 0:
         return CallMapNode(
             definition=definition,
-            children=(),
-            unresolved_calls=(),
-            truncated=bool(callees or unresolved_calls),
+            entries=(),
+            truncated=bool(call_entries),
         )
     next_ancestors: frozenset[str] = ancestors | {key}
-    children: tuple[CallMapNode, ...] = tuple(
-        _build_node(
-            definition=callee,
+    entries: tuple[CallMapNode | UnresolvedCall, ...] = tuple(
+        entry
+        if isinstance(entry, UnresolvedCall)
+        else _build_node(
+            definition=entry,
             definitions=definitions,
             remaining_depth=remaining_depth - 1,
             ancestors=next_ancestors,
         )
-        for callee in callees
+        for entry in call_entries
     )
-    return CallMapNode(
-        definition=definition,
-        children=children,
-        unresolved_calls=unresolved_calls,
-    )
+    return CallMapNode(definition=definition, entries=entries)
 
 
-def _call_targets(
+def _call_entries(
     *, definition: FunctionDefinition, definitions: dict[str, FunctionDefinition]
-) -> tuple[tuple[FunctionDefinition, ...], tuple[UnresolvedCall, ...]]:
-    resolved: list[FunctionDefinition] = []
-    unresolved: list[UnresolvedCall] = []
+) -> tuple[FunctionDefinition | UnresolvedCall, ...]:
+    entries: list[FunctionDefinition | UnresolvedCall] = []
     seen: set[str] = set()
     parameter_names: frozenset[str] = _parameter_names(definition.node)
     for call in _owned_calls(definition.node):
         key: str | None = _resolve_call_key(call=call, definition=definition)
         if isinstance(call.func, ast.Name) and call.func.id in parameter_names:
-            unresolved.append(
+            entries.append(
                 UnresolvedCall(name=call.func.id, line=call.lineno, reason="parameter call")
             )
             continue
         if key is None or key in seen or key not in definitions:
             continue
         seen.add(key)
-        resolved.append(definitions[key])
-    return tuple(resolved), tuple(unresolved)
+        entries.append(definitions[key])
+    return tuple(entries)
 
 
 def _owned_calls(node: ast.AST) -> tuple[ast.Call, ...]:

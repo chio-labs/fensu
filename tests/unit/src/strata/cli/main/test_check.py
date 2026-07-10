@@ -30,6 +30,7 @@ from tests.unit.src.strata.cli.main.helpers import (
                 "1 | value: int = 1\n"
                 "  | ^\n"
                 "  |\n"
+                "  = help: apply the custom remediation\n"
                 "\n"
                 "Found 1 fault"
             ),

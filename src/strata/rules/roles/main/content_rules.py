@@ -22,6 +22,7 @@ def content_rules() -> tuple[RuleSpec, ...]:
             family=Family.ROLES,
             slug="models-only-models",
             message="models role files may contain only structured runtime models",
+            remediation="Move functions and non-model declarations to their owning role module.",
             check=models_only_models,
         ),
         RuleSpec(
@@ -29,6 +30,9 @@ def content_rules() -> tuple[RuleSpec, ...]:
             family=Family.ROLES,
             slug="types-only-types",
             message="types role files may contain only type-layer declarations",
+            remediation=(
+                "Move runtime values and functions out of types.py into their owning runtime role."
+            ),
             check=types_only_types,
         ),
         RuleSpec(
@@ -36,6 +40,9 @@ def content_rules() -> tuple[RuleSpec, ...]:
             family=Family.ROLES,
             slug="constants-only-constants",
             message="constants role files may contain only assignments and imports",
+            remediation=(
+                "Move functions and classes out of constants.py into their owning role module."
+            ),
             check=constants_only_constants,
         ),
         RuleSpec(
@@ -43,6 +50,9 @@ def content_rules() -> tuple[RuleSpec, ...]:
             family=Family.ROLES,
             slug="exceptions-only-exceptions",
             message="exceptions role files may contain only custom exceptions",
+            remediation=(
+                "Move non-exception declarations out of exceptions.py into their owning role."
+            ),
             check=exceptions_only_exceptions,
         ),
     )

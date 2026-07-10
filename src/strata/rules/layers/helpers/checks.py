@@ -46,17 +46,34 @@ def no_sibling_package_internals(*, module: ast.Module, ctx: RuleContext) -> lis
     faults: list[Fault] = []
     for node in (*ctx.nodes(ast.ImportFrom), *ctx.nodes(ast.Import)):
         if isinstance(node, ast.ImportFrom) and node.level == 0:
+            imported_parts: tuple[str, ...] = import_from_parts(node)
             if is_sibling_internal_import(
-                current_module_parts=current_module_parts, imported_parts=import_from_parts(node)
+                current_module_parts=current_module_parts, imported_parts=imported_parts
             ):
-                faults.append(ctx.fault(node))
+                faults.append(
+                    ctx.fault(
+                        node,
+                        message=(
+                            f"import '{'.'.join(imported_parts)}' reaches into sibling internals"
+                        ),
+                    )
+                )
         elif isinstance(node, ast.Import):
             for alias in node.names:
+                imported_parts = import_alias_parts(alias)
                 if is_sibling_internal_import(
                     current_module_parts=current_module_parts,
-                    imported_parts=import_alias_parts(alias),
+                    imported_parts=imported_parts,
                 ):
-                    faults.append(ctx.fault(node))
+                    faults.append(
+                        ctx.fault(
+                            node,
+                            message=(
+                                f"import '{'.'.join(imported_parts)}' reaches into sibling "
+                                "internals"
+                            ),
+                        )
+                    )
                     break
     return faults
 
@@ -70,17 +87,37 @@ def no_cross_package_internals(*, module: ast.Module, ctx: RuleContext) -> list[
     faults: list[Fault] = []
     for node in (*ctx.nodes(ast.ImportFrom), *ctx.nodes(ast.Import)):
         if isinstance(node, ast.ImportFrom) and node.level == 0:
+            imported_parts: tuple[str, ...] = import_from_parts(node)
             if is_cross_package_internal_import(
-                current_module_parts=current_module_parts, imported_parts=import_from_parts(node)
+                current_module_parts=current_module_parts, imported_parts=imported_parts
             ):
-                faults.append(ctx.fault(node))
+                target_package: str = ".".join(imported_parts[:2])
+                faults.append(
+                    ctx.fault(
+                        node,
+                        message=(
+                            f"import '{'.'.join(imported_parts)}' reaches into internal structure "
+                            f"of '{target_package}'"
+                        ),
+                    )
+                )
         elif isinstance(node, ast.Import):
             for alias in node.names:
+                imported_parts = import_alias_parts(alias)
                 if is_cross_package_internal_import(
                     current_module_parts=current_module_parts,
-                    imported_parts=import_alias_parts(alias),
+                    imported_parts=imported_parts,
                 ):
-                    faults.append(ctx.fault(node))
+                    target_package = ".".join(imported_parts[:2])
+                    faults.append(
+                        ctx.fault(
+                            node,
+                            message=(
+                                f"import '{'.'.join(imported_parts)}' reaches into internal "
+                                f"structure of '{target_package}'"
+                            ),
+                        )
+                    )
                     break
     return faults
 

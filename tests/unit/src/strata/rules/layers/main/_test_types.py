@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
@@ -14,6 +14,7 @@ class LayerRuleTestCase:
     files: tuple[tuple[str, str], ...]
     expected_codes: tuple[str, ...]
     expected_lines: tuple[int | None, ...]
+    expected_messages: tuple[str, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True)

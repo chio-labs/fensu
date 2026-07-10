@@ -3,37 +3,35 @@
 from __future__ import annotations
 
 import ast
+from pathlib import Path
 
-from strata.config.core.models import Config
-from strata.discovery.core.main.discover_files import discover_files
-from strata.discovery.core.models import DiscoveredTree, ScopedFile
+from strata.mapping.core.constants import EXCLUDED_DIRECTORY_NAMES
 from strata.mapping.core.exceptions import MapError
-from strata.mapping.core.models import FunctionDefinition
+from strata.mapping.core.models import FunctionDefinition, MappingSource
 
 
-def build_function_index(*, config: Config) -> dict[str, FunctionDefinition]:
-    """Build fully-qualified top-level function definitions for configured roots."""
+def build_function_index(*, sources: tuple[MappingSource, ...]) -> dict[str, FunctionDefinition]:
+    """Build fully-qualified top-level functions from project mapping sources."""
 
-    tree: DiscoveredTree = discover_files(config)
     definitions: dict[str, FunctionDefinition] = {}
-    for scoped_file in tree.files:
-        if scoped_file.scope != "root":
-            continue
+    for path, import_root in _python_files(sources=sources):
         try:
-            module: ast.Module = ast.parse(
-                scoped_file.path.read_text(encoding="utf-8"), filename=str(scoped_file.path)
-            )
+            module: ast.Module = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         except SyntaxError as error:
-            raise MapError(f"Could not parse {scoped_file.path}: {error.msg}") from error
-        module_name: str = _module_name(scoped_file=scoped_file)
-        imported_symbols, imported_modules = _imports(module)
+            raise MapError(f"Could not parse {path}: {error.msg}") from error
+        module_name: str = _module_name(path=path, import_root=import_root)
+        imported_symbols, imported_modules = _imports(
+            module=module,
+            module_name=module_name,
+            package_module=path.name == "__init__.py",
+        )
         for node in module.body:
             if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
                 continue
             definition: FunctionDefinition = FunctionDefinition(
                 module_name=module_name,
                 name=node.name,
-                path=scoped_file.path,
+                path=path,
                 node=node,
                 imported_symbols=imported_symbols,
                 imported_modules=imported_modules,
@@ -71,26 +69,62 @@ def select_function(
     raise MapError(f"Ambiguous function {symbol}; choose one of: {choices}")
 
 
-def _module_name(*, scoped_file: ScopedFile) -> str:
-    parts: tuple[str, ...] = scoped_file.relative_parts
-    module_parts: tuple[str, ...] = (
-        scoped_file.root.name,
-        *parts[:-1],
-        parts[-1].removesuffix(".py"),
-    )
+def _python_files(*, sources: tuple[MappingSource, ...]) -> tuple[tuple[Path, Path], ...]:
+    discovered: dict[Path, Path] = {}
+    for source in sources:
+        for path in source.scan_path.rglob("*.py"):
+            resolved_path: Path = path.resolve()
+            relative_parts: tuple[str, ...] = resolved_path.relative_to(source.scan_path).parts
+            if any(part in EXCLUDED_DIRECTORY_NAMES for part in relative_parts):
+                continue
+            discovered.setdefault(resolved_path, source.import_root)
+    return tuple((path, discovered[path]) for path in sorted(discovered))
+
+
+def _module_name(*, path: Path, import_root: Path) -> str:
+    parts: tuple[str, ...] = path.relative_to(import_root).parts
+    module_parts: tuple[str, ...] = (*parts[:-1], parts[-1].removesuffix(".py"))
     if module_parts[-1] == "__init__":
         module_parts = module_parts[:-1]
     return ".".join(module_parts)
 
 
-def _imports(module: ast.Module) -> tuple[dict[str, tuple[str, str]], dict[str, str]]:
+def _imports(
+    *, module: ast.Module, module_name: str, package_module: bool
+) -> tuple[dict[str, tuple[str, str]], dict[str, str]]:
     symbols: dict[str, tuple[str, str]] = {}
     modules: dict[str, str] = {}
     for node in module.body:
-        if isinstance(node, ast.ImportFrom) and node.module is not None and node.level == 0:
+        if isinstance(node, ast.ImportFrom):
+            imported_from: str | None = _import_from_module(
+                node=node,
+                module_name=module_name,
+                package_module=package_module,
+            )
+            if imported_from is None:
+                continue
             for alias in node.names:
-                symbols[alias.asname or alias.name] = (node.module, alias.name)
+                local_name: str = alias.asname or alias.name
+                symbols[local_name] = (imported_from, alias.name)
+                modules[local_name] = f"{imported_from}.{alias.name}"
         elif isinstance(node, ast.Import):
             for alias in node.names:
                 modules[alias.asname or alias.name.split(".", maxsplit=1)[0]] = alias.name
     return symbols, modules
+
+
+def _import_from_module(
+    *, node: ast.ImportFrom, module_name: str, package_module: bool
+) -> str | None:
+    if node.level == 0:
+        return node.module
+    package_parts: list[str] = module_name.split(".")
+    if not package_module:
+        package_parts = package_parts[:-1]
+    parent_count: int = node.level - 1
+    if parent_count > len(package_parts):
+        return None
+    base_parts: list[str] = package_parts[: len(package_parts) - parent_count]
+    if node.module is not None:
+        base_parts.extend(node.module.split("."))
+    return ".".join(base_parts) or None

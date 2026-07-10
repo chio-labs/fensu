@@ -2,9 +2,16 @@
 
 from __future__ import annotations
 
+import textwrap
 from pathlib import Path
 
-from strata.reporting.core.constants import ANSI_BOLD_GREEN, ANSI_BOLD_RED, ANSI_DIM, ANSI_RESET
+from strata.reporting.core.constants import (
+    ANSI_BOLD_GREEN,
+    ANSI_BOLD_RED,
+    ANSI_DIM,
+    ANSI_RESET,
+    REPORT_LINE_WIDTH,
+)
 from strata.rules.authoring.models import Fault
 
 
@@ -27,7 +34,8 @@ def render_text(*, faults: tuple[Fault, ...], root: Path, use_color: bool) -> st
 def _format_fault(*, fault: Fault, root: Path, use_color: bool) -> tuple[str, ...]:
     header: tuple[str, str] = _format_header(fault=fault, root=root, use_color=use_color)
     excerpt: tuple[str, ...] = _format_excerpt(fault=fault, use_color=use_color)
-    return (*header, *excerpt)
+    help_lines: tuple[str, ...] = _format_help(fault=fault, use_color=use_color)
+    return (*header, *excerpt, *help_lines)
 
 
 def _format_header(*, fault: Fault, root: Path, use_color: bool) -> tuple[str, str]:
@@ -71,6 +79,24 @@ def _format_location(*, fault: Fault, root: Path) -> str:
     line_text: str = str(fault.line) if fault.line is not None else "-"
     column_text: str = str(fault.column) if fault.column is not None else "-"
     return f"{relative_path}:{line_text}:{column_text}"
+
+
+def _format_help(*, fault: Fault, use_color: bool) -> tuple[str, ...]:
+    if fault.remediation is None:
+        return ()
+    prefix: str = "  = help: "
+    continuation: str = "          "
+    wrapped: list[str] = textwrap.wrap(
+        fault.remediation,
+        width=REPORT_LINE_WIDTH,
+        initial_indent=prefix,
+        subsequent_indent=continuation,
+    )
+    if not use_color:
+        return tuple(wrapped)
+    label: str = f"{ANSI_DIM}= help:{ANSI_RESET}"
+    first_line: str = wrapped[0].removeprefix(prefix)
+    return (f"  {label} {first_line}", *wrapped[1:])
 
 
 def _read_source_line(*, path: Path, line: int | None) -> str | None:

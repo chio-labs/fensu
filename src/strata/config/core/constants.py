@@ -43,6 +43,7 @@ CONFIG_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
         "thresholds",
         "roles",
         "contracts",
+        "rule_exceptions",
     }
 )
 CONFIG_ROLE_NAMES: frozenset[str] = frozenset(RoleName)

@@ -137,6 +137,21 @@ Following the rules should remove repeated architectural decisions from everyday
 work. Deliberate differences belong in selection, configuration, or custom rules,
 where they remain visible, rather than in scattered inline suppressions.
 
+Unavoidable external calling conventions can use exact symbol-scoped exceptions:
+
+```toml
+[[rule_exceptions]]
+rule = "SFS120"
+path = "src/my_package/integrations/helpers/callbacks.py"
+symbols = ["ProgressCollector.update"]
+reason = "The external API invokes this callback positionally."
+```
+
+Exceptions accept one exact rule code, repository-relative Python file, and one
+or more qualified symbols. Globs, directories, line numbers, path-only entries,
+and inline suppression comments are not supported. `strata check` rejects stale
+exceptions that no longer suppress a fault.
+
 ## Agent Skills
 
 Generate repository-aware guidance from the active ruleset:

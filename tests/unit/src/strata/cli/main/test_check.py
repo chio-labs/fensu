@@ -7,11 +7,17 @@ from pathlib import Path
 import pytest
 
 from strata.cli.main.check import run_check
-from tests.unit.src.strata.cli.main._test_types import CheckCommandTestCase, CheckNoFaultTestCase
+from tests.unit.src.strata.cli.main._test_types import (
+    CheckCommandTestCase,
+    CheckErrorTestCase,
+    CheckNoFaultTestCase,
+)
 from tests.unit.src.strata.cli.main.helpers import (
     CaptureOutput,
+    write_cli_exception_project,
     write_cli_fixture_project,
     write_cli_no_fault_project,
+    write_cli_stale_exception_project,
 )
 
 
@@ -82,3 +88,57 @@ def test_given_no_faults_when_running_check_then_outputs_summary_and_exit_zero(
 
     assert exit_code == test_case.expected_exit_code
     assert test_case.expected_output_fragment in stdout.getvalue()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CheckNoFaultTestCase(
+            description="applied exception reports count when check otherwise passes",
+            argv=("--no-color",),
+            expected_exit_code=0,
+            expected_output_fragment="Found 0 faults\nApplied 1 rule exception",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_applied_exception_when_running_check_then_reports_count_and_exit_zero(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: CheckNoFaultTestCase,
+) -> None:
+    write_cli_exception_project(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    stdout: CaptureOutput = CaptureOutput()
+
+    exit_code: int = run_check(argv=test_case.argv, stdout=stdout)
+
+    assert exit_code == test_case.expected_exit_code
+    assert test_case.expected_output_fragment in stdout.getvalue()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CheckErrorTestCase(
+            description="stale exception returns configuration error and removal guidance",
+            argv=("--no-color",),
+            expected_exit_code=2,
+            expected_error_fragment="Stale rule exception(s) suppressed no faults; remove them",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_stale_exception_when_running_check_then_reports_actionable_error(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: CheckErrorTestCase,
+) -> None:
+    write_cli_stale_exception_project(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    stderr: CaptureOutput = CaptureOutput()
+
+    exit_code: int = run_check(argv=test_case.argv, stderr=stderr)
+
+    assert exit_code == test_case.expected_exit_code
+    assert test_case.expected_error_fragment in stderr.getvalue()

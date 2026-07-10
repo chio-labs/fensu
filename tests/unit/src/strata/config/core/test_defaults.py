@@ -7,15 +7,52 @@ from pathlib import Path
 import pytest
 
 from strata.config.core.main.load_config import load_config
-from strata.config.core.models import Config
+from strata.config.core.models import Config, RuleExceptionEntry
 from strata.rules.authoring.types import Threshold
 from tests.unit.src.strata.config.core._test_types import (
     ConfigContractTestCase,
     ConfigDefaultsTestCase,
     ConfigListFieldTestCase,
     ConfigThresholdTestCase,
+    RuleExceptionConfigTestCase,
 )
 from tests.unit.src.strata.config.core.helpers import write_strata_toml
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        RuleExceptionConfigTestCase(
+            description="symbol scoped rule exception is normalized",
+            config_text=(
+                'roots = ["src/pkg"]\n'
+                "[[rule_exceptions]]\n"
+                'rule = "SFS120"\n'
+                'path = "src/pkg/progress.py"\n'
+                'symbols = ["Collector.update", "outer.nested"]\n'
+                'reason = "External callbacks invoke these positionally."\n'
+            ),
+            expected_rule="SFS120",
+            expected_path="src/pkg/progress.py",
+            expected_symbols=("Collector.update", "outer.nested"),
+            expected_reason="External callbacks invoke these positionally.",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_rule_exception_when_loading_then_normalizes_exact_fields(
+    tmp_path: Path,
+    test_case: RuleExceptionConfigTestCase,
+) -> None:
+    write_strata_toml(root=tmp_path, contents=test_case.config_text)
+
+    config: Config = load_config(tmp_path)
+    exception: RuleExceptionEntry = config.rule_exceptions[0]
+
+    assert exception.rule == test_case.expected_rule
+    assert exception.path == test_case.expected_path
+    assert exception.symbols == test_case.expected_symbols
+    assert exception.reason == test_case.expected_reason
 
 
 @pytest.mark.parametrize(

@@ -22,3 +22,12 @@ class RemediationRenderTestCase:
     description: str
     use_color: bool
     expected_text_fragments: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ExceptionRenderTestCase:
+    """Applied exception count and expected report summary."""
+
+    description: str
+    applied_exception_count: int
+    expected_text: str

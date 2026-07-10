@@ -119,3 +119,26 @@ class AstHelperContextTestCase:
     expected_fault_codes: tuple[str, ...]
     expected_fault_lines: tuple[int | None, ...]
     expected_message: str
+
+
+@dataclass(frozen=True)
+class RuleExceptionEvaluationTestCase:
+    """Source exceptions and expected retained evaluation result."""
+
+    description: str
+    source: str
+    symbols: tuple[str, ...]
+    expected_fault_lines: tuple[int | None, ...]
+    expected_applied_exception_count: int
+    expected_error_fragment: str | None
+
+
+@dataclass(frozen=True)
+class RuleExceptionTargetTestCase:
+    """Configured target and expected semantic validation error."""
+
+    description: str
+    path: str
+    symbol: str
+    create_path: bool
+    expected_error_fragment: str

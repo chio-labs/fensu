@@ -12,7 +12,10 @@ from typing import TextIO
 from strata.cli.core.constants import NO_COLOR_ENVIRONMENT_VARIABLE
 from strata.cli.core.types import ColorMode
 from strata.config.core.main.load_config import load_config
-from strata.config.core.models import Config
+from strata.config.core.models import Config, RuleExceptionEntry
+from strata.discovery.core.main.discover_files import discover_files
+from strata.discovery.core.models import DiscoveredTree
+from strata.evaluation.core.main.validate_rule_exceptions import validate_rule_exceptions
 from strata.reporting.core.constants import ANSI_BOLD_CYAN, ANSI_DIM, ANSI_RESET, REPORT_LINE_WIDTH
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.catalog.main.build_catalogue import build_catalogue
@@ -28,7 +31,10 @@ def run_rule(
 
     args: argparse.Namespace = _parser().parse_args(() if argv is None else argv)
     config: Config = load_config(Path.cwd())
-    rules_by_code: dict[str, RuleSpec] = {rule.code: rule for rule in build_catalogue(config)}
+    catalogue: tuple[RuleSpec, ...] = build_catalogue(config)
+    tree: DiscoveredTree = discover_files(config)
+    validate_rule_exceptions(config=config, repo_root=tree.repo_root.path)
+    rules_by_code: dict[str, RuleSpec] = {rule.code: rule for rule in catalogue}
     rule: RuleSpec | None = rules_by_code.get(args.code.upper())
     if rule is None:
         stderr.write(f"Unknown rule code: {args.code}\n")
@@ -36,12 +42,17 @@ def run_rule(
     use_color: bool = NO_COLOR_ENVIRONMENT_VARIABLE not in os.environ and (
         args.color == ColorMode.ALWAYS or (args.color == ColorMode.AUTO and stdout.isatty())
     )
-    stdout.write(_render_rule(rule, use_color=use_color))
+    exceptions: tuple[RuleExceptionEntry, ...] = tuple(
+        exception for exception in config.rule_exceptions if exception.rule == rule.code
+    )
+    stdout.write(_render_rule(rule, exceptions=exceptions, use_color=use_color))
     stdout.write("\n")
     return 0
 
 
-def _render_rule(rule: RuleSpec, *, use_color: bool) -> str:
+def _render_rule(
+    rule: RuleSpec, *, exceptions: tuple[RuleExceptionEntry, ...], use_color: bool
+) -> str:
     remediation: str = rule.remediation or "None provided."
     source: str = rule.source or "core"
     enabled: str = "yes" if rule.enabled_by_default else "no"
@@ -70,6 +81,12 @@ def _render_rule(rule: RuleSpec, *, use_color: bool) -> str:
             first_value: str = wrapped[0].removeprefix(prefix)
             wrapped[0] = f"{ANSI_DIM}{label}:{ANSI_RESET} {first_value}"
         lines.extend(wrapped)
+    if exceptions:
+        lines.extend(("", "Active exceptions:"))
+        for exception in exceptions:
+            symbols: str = ", ".join(exception.symbols)
+            lines.append(f"  {exception.path}: {symbols}")
+            lines.append(f"    Reason: {exception.reason}")
     return "\n".join(lines)
 
 

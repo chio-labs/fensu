@@ -53,3 +53,12 @@ class CatalogueQualityTestCase:
     max_message_length: int
     max_remediation_length: int
     expected_issues: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class RuleExceptionCodeTestCase:
+    """Configured exception code and expected catalogue error."""
+
+    description: str
+    rule_code: str
+    expected_error_fragment: str

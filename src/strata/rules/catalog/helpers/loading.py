@@ -37,6 +37,7 @@ def build_catalogue_from_config(config: Config) -> tuple[RuleSpec, ...]:
     )
     all_rules: tuple[RuleSpec, ...] = (*CORE_RULES, *custom_rules)
     _validate_unique_codes(rules=all_rules)
+    _validate_exception_codes(config=config, rules=all_rules)
     return all_rules
 
 
@@ -131,10 +132,9 @@ def _select_rules(
     *, rules: tuple[RuleSpec, ...], select: tuple[str, ...], ignore: tuple[str, ...]
 ) -> tuple[RuleSpec, ...]:
     selected: list[RuleSpec] = []
-    ignore_set: set[str] = set(ignore)
     explicit_code_selects: set[str] = {item for item in select if _is_code_selector(item)}
     for rule in rules:
-        if rule.code in ignore_set:
+        if _rule_matches_select(rule=rule, select=ignore):
             continue
         if rule.enabled_by_default and _rule_matches_select(rule=rule, select=select):
             selected.append(rule)
@@ -186,3 +186,10 @@ def _validate_unique_codes(*, rules: tuple[RuleSpec, ...]) -> None:
                 f"Duplicate rule code {rule.code}: {previous_source} and {current_source}"
             )
         rules_by_code[rule.code] = rule
+
+
+def _validate_exception_codes(*, config: Config, rules: tuple[RuleSpec, ...]) -> None:
+    known_codes: frozenset[str] = frozenset(rule.code for rule in rules)
+    for exception in config.rule_exceptions:
+        if exception.rule not in known_codes:
+            raise ConfigError(f"Unknown rule exception code: {exception.rule}.")

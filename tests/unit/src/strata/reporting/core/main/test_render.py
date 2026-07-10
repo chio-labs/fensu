@@ -9,6 +9,7 @@ import pytest
 from strata.reporting.core.main.render import render
 from strata.reporting.core.models import RenderedReport
 from tests.unit.src.strata.reporting.core.main._test_types import (
+    ExceptionRenderTestCase,
     RemediationRenderTestCase,
     RenderReportTestCase,
 )
@@ -151,6 +152,31 @@ def test_given_no_faults_when_rendering_report_then_returns_healthy_summary(
 
     assert report.text == test_case.expected_text
     assert report.fault_count == test_case.expected_fault_count
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ExceptionRenderTestCase(
+            description="applied exceptions appear after a healthy summary",
+            applied_exception_count=2,
+            expected_text="Found 0 faults\nApplied 2 rule exceptions",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_applied_exceptions_when_rendering_then_reports_exception_count(
+    tmp_path: Path,
+    test_case: ExceptionRenderTestCase,
+) -> None:
+    report: RenderedReport = render(
+        faults=(),
+        root=tmp_path,
+        applied_exception_count=test_case.applied_exception_count,
+    )
+
+    assert report.text == test_case.expected_text
+    assert report.applied_exception_count == test_case.applied_exception_count
 
 
 @pytest.mark.parametrize(

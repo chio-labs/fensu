@@ -21,6 +21,16 @@ class ConfigSource:
 
 
 @dataclass(frozen=True, slots=True)
+class RuleExceptionEntry:
+    """One centralized exact rule/path exception grouping qualified symbols."""
+
+    rule: str
+    path: str
+    symbols: tuple[str, ...]
+    reason: str
+
+
+@dataclass(frozen=True, slots=True)
 class Config:
     """Validated strata configuration."""
 
@@ -31,6 +41,7 @@ class Config:
     ignore: tuple[str, ...] = ()
     rule_paths: tuple[str, ...] = ()
     rule_modules: tuple[str, ...] = ()
+    rule_exceptions: tuple[RuleExceptionEntry, ...] = ()
     thresholds: Mapping[Threshold, int] = field(
         default_factory=lambda: MappingProxyType(dict(DEFAULT_THRESHOLDS))
     )

@@ -96,8 +96,8 @@ def test_given_module_when_building_indexes_then_visits_each_node_once(
     "test_case",
     [
         CoreWalkTestCase(
-            description="core rule module walks are limited to stateful import analysis",
-            expected_paths=("src/strata/rules/layers/helpers/imports.py",),
+            description="core rules delegate all holistic module walks to analysis",
+            expected_paths=(),
         )
     ],
     ids=lambda case: case.description,

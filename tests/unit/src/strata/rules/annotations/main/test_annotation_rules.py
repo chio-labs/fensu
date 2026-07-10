@@ -202,6 +202,13 @@ def test_given_class_assignments_when_checking_annotations_then_flags_only_unann
             expected_codes=(),
             expected_lines=(),
         ),
+        AnnotationRuleTestCase(
+            description="nested class attribute does not bind its enclosing function local",
+            rule_code="SFA103",
+            source=("def run() -> None:\n    class Config:\n        value = 1\n    value = 2\n"),
+            expected_codes=("SFA103",),
+            expected_lines=(4,),
+        ),
     ],
     ids=lambda case: case.description,
 )

@@ -6,9 +6,25 @@ import ast
 from collections.abc import Mapping
 from pathlib import Path
 
+from strata.analysis.core.helpers.annotations import annotation_facts
+from strata.analysis.core.helpers.comments import comment_facts
+from strata.analysis.core.helpers.function_conditionals import function_conditional_facts
+from strata.analysis.core.helpers.function_metrics import function_facts
+from strata.analysis.core.helpers.hygiene import hygiene_facts
 from strata.analysis.core.helpers.locations import line_offsets, source_range
 from strata.analysis.core.helpers.outer_state import outer_state_mutation_nodes
-from strata.analysis.core.models import OuterStateMutationFact
+from strata.analysis.core.helpers.references import reference_facts
+from strata.analysis.core.helpers.returns import meaningful_return_facts
+from strata.analysis.core.models import (
+    AnnotationFacts,
+    CommentFact,
+    FunctionConditionalFact,
+    FunctionFacts,
+    HygieneFacts,
+    MeaningfulReturnFact,
+    OuterStateMutationFact,
+    ReferenceFacts,
+)
 
 
 class PythonFactAnalysis:
@@ -20,6 +36,7 @@ class PythonFactAnalysis:
         path: Path,
         source: str,
         module: ast.Module,
+        nodes: tuple[ast.AST, ...],
         node_index: Mapping[type[ast.AST], tuple[ast.AST, ...]],
         parent_by_node: Mapping[ast.AST, ast.AST],
     ) -> None:
@@ -28,9 +45,35 @@ class PythonFactAnalysis:
         self._path: Path = path
         self._source: str = source
         self._module: ast.Module = module
+        self._nodes: tuple[ast.AST, ...] = nodes
         self._node_index: Mapping[type[ast.AST], tuple[ast.AST, ...]] = node_index
         self._parent_by_node: Mapping[ast.AST, ast.AST] = parent_by_node
+        self._annotations: AnnotationFacts | None = None
+        self._comments: tuple[CommentFact, ...] | None = None
+        self._function_conditionals: tuple[FunctionConditionalFact, ...] | None = None
+        self._functions: FunctionFacts | None = None
+        self._hygiene: HygieneFacts | None = None
+        self._meaningful_returns: tuple[MeaningfulReturnFact, ...] | None = None
         self._outer_state_mutations: tuple[OuterStateMutationFact, ...] | None = None
+        self._references: ReferenceFacts | None = None
+
+    def annotations(self) -> AnnotationFacts:
+        """Return missing annotations from one shared traversal."""
+
+        if self._annotations is None:
+            self._annotations = annotation_facts(
+                path=self._path,
+                source=self._source,
+                module=self._module,
+            )
+        return self._annotations
+
+    def comments(self) -> tuple[CommentFact, ...]:
+        """Return source comments in token order."""
+
+        if self._comments is None:
+            self._comments = comment_facts(path=self._path, source=self._source)
+        return self._comments
 
     def outer_state_mutations(self) -> tuple[OuterStateMutationFact, ...]:
         """Return direct mutations resolving to state owned by an outer scope."""
@@ -57,3 +100,57 @@ class PythonFactAnalysis:
                 for node in mutation_nodes
             )
         return self._outer_state_mutations
+
+    def function_conditionals(self) -> tuple[FunctionConditionalFact, ...]:
+        """Return conditional control flow grouped by owning function."""
+
+        if self._function_conditionals is None:
+            self._function_conditionals = function_conditional_facts(
+                path=self._path,
+                source=self._source,
+                node_index=self._node_index,
+            )
+        return self._function_conditionals
+
+    def functions(self) -> FunctionFacts:
+        """Return reusable structural function metrics."""
+
+        if self._functions is None:
+            self._functions = function_facts(
+                path=self._path,
+                module=self._module,
+                node_index=self._node_index,
+            )
+        return self._functions
+
+    def hygiene(self) -> HygieneFacts:
+        """Return syntax-based hygiene facts."""
+
+        if self._hygiene is None:
+            self._hygiene = hygiene_facts(
+                path=self._path,
+                module=self._module,
+                node_index=self._node_index,
+            )
+        return self._hygiene
+
+    def meaningful_returns(self) -> tuple[MeaningfulReturnFact, ...]:
+        """Return the first meaningful return owned by each function."""
+
+        if self._meaningful_returns is None:
+            self._meaningful_returns = meaningful_return_facts(
+                path=self._path,
+                node_index=self._node_index,
+            )
+        return self._meaningful_returns
+
+    def references(self) -> ReferenceFacts:
+        """Return import and attribute-reference facts."""
+
+        if self._references is None:
+            self._references = reference_facts(
+                path=self._path,
+                nodes=self._nodes,
+                node_index=self._node_index,
+            )
+        return self._references

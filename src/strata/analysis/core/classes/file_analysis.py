@@ -52,6 +52,7 @@ class PythonFileAnalysis:
                 path=self._path,
                 source=self._source,
                 module=module,
+                nodes=self._nodes,
                 node_index=self._node_index,
                 parent_by_node=self._parent_by_node,
             )

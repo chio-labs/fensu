@@ -6,7 +6,18 @@ import ast
 from collections.abc import Mapping
 from typing import NamedTuple, Protocol
 
-from strata.analysis.core.models import OuterStateMutationFact, SourceRange, SyntaxHandle
+from strata.analysis.core.models import (
+    AnnotationFacts,
+    CommentFact,
+    FunctionConditionalFact,
+    FunctionFacts,
+    HygieneFacts,
+    MeaningfulReturnFact,
+    OuterStateMutationFact,
+    ReferenceFacts,
+    SourceRange,
+    SyntaxHandle,
+)
 
 
 class TextAnalysis(Protocol):
@@ -61,8 +72,36 @@ class RelationAnalysis(Protocol):
 class FactAnalysis(Protocol):
     """Backend-neutral semantic facts computed for the current file."""
 
+    def annotations(self) -> AnnotationFacts:
+        """Return missing function and local annotation facts."""
+        ...
+
+    def comments(self) -> tuple[CommentFact, ...]:
+        """Return source comments in token order."""
+        ...
+
+    def function_conditionals(self) -> tuple[FunctionConditionalFact, ...]:
+        """Return conditional control flow grouped by owning function."""
+        ...
+
+    def functions(self) -> FunctionFacts:
+        """Return reusable structural function metrics."""
+        ...
+
+    def hygiene(self) -> HygieneFacts:
+        """Return syntax-based hygiene facts."""
+        ...
+
+    def meaningful_returns(self) -> tuple[MeaningfulReturnFact, ...]:
+        """Return the first meaningful return owned by each function."""
+        ...
+
     def outer_state_mutations(self) -> tuple[OuterStateMutationFact, ...]:
         """Return direct mutations resolving to state owned by an outer scope."""
+        ...
+
+    def references(self) -> ReferenceFacts:
+        """Return import and attribute-reference facts."""
         ...
 
 

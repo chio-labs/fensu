@@ -13,4 +13,30 @@ from strata.rules.authoring.types import RuleContext
 def annotation_faults(*, module: ast.Module, ctx: RuleContext, code: AnnotationCode) -> list[Fault]:
     """Collect annotation faults for a single annotation rule code."""
 
+    if code == AnnotationCode.PARAMETER_ANNOTATION:
+        return [
+            ctx.fault_at(
+                fact.location,
+                message=f"function parameter '{fact.name}' must define a type annotation",
+            )
+            for fact in ctx._analysis.facts.annotations().parameters
+        ]
+    if code == AnnotationCode.RETURN_ANNOTATION:
+        return [
+            ctx.fault_at(
+                fact.location,
+                message=f"function '{fact.name}' must define a return type annotation",
+            )
+            for fact in ctx._analysis.facts.annotations().returns
+        ]
+    if code == AnnotationCode.LOCAL_VARIABLE_ANNOTATION:
+        return [
+            ctx.fault_at(
+                fact.location,
+                message=(
+                    f"local variable '{fact.name}' must define a type annotation on first binding"
+                ),
+            )
+            for fact in ctx._analysis.facts.annotations().locals
+        ]
     return AnnotationVisitor(ctx=ctx, code=code).collect(module)

@@ -6,7 +6,7 @@ import ast
 from pathlib import Path
 from typing import Protocol, cast
 
-from strata.analysis.core.models import SourcePosition, SourceRange
+from strata.analysis.core.models import SourceLocation, SourcePosition, SourceRange
 
 
 class _LocatedNode(Protocol):
@@ -51,6 +51,16 @@ def source_range(
             column=located_node.end_col_offset,
             offset=line_offsets[located_node.end_lineno - 1] + located_node.end_col_offset,
         ),
+    )
+
+
+def source_location(*, path: Path, node: ast.AST) -> SourceLocation:
+    """Return the backend-neutral diagnostic location for one Python AST node."""
+
+    return SourceLocation(
+        path=path,
+        line=getattr(node, "lineno", 1),
+        column=getattr(node, "col_offset", 0),
     )
 
 

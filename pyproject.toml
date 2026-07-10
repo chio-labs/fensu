@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "stratalint"
 version = "0.1.0"
-description = "Strata is an architecture linter for Python repos - it stops forbidden imports, bloated modules, and dishonest functions before they turn into spaghetti."
+description = "Architecture linting for Python repositories"
 readme = "README.md"
 requires-python = ">=3.12"
 license = "Apache-2.0"

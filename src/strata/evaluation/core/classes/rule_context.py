@@ -6,6 +6,8 @@ import ast
 from collections.abc import Mapping
 from pathlib import Path
 
+from strata.analysis.core.models import SourceRange, SyntaxHandle
+from strata.analysis.core.types import Analysis
 from strata.config.core.models import Config
 from strata.discovery.core.models import RepoRoot
 from strata.discovery.core.types import ScopeName
@@ -33,6 +35,12 @@ class EvaluationRuleContext:
         self._repo_root: RepoRoot = repo_root
         self._rule: RuleSpec = rule
 
+    @property
+    def _analysis(self) -> Analysis:
+        """Return the private replaceable analysis facade for the current file."""
+
+        return self._parsed_module.analysis
+
     def fault(
         self,
         node: ast.AST,
@@ -48,6 +56,47 @@ class EvaluationRuleContext:
             message=self._rule.message if message is None else message,
             line=getattr(node, "lineno", None),
             column=getattr(node, "col_offset", None),
+            remediation=self._rule.remediation if remediation is None else remediation,
+        )
+
+    def fault_at(
+        self,
+        location: SyntaxHandle | SourceRange,
+        *,
+        message: str | None = None,
+        remediation: str | None = None,
+    ) -> Fault:
+        """Construct a Fault from a backend-neutral syntax location."""
+
+        if isinstance(location, SyntaxHandle):
+            source_range: SourceRange = self._analysis.syntax.range(location)
+        else:
+            source_range = location
+        return self.fault_for(
+            path=source_range.path,
+            line=source_range.start.line,
+            column=source_range.start.column,
+            message=message,
+            remediation=remediation,
+        )
+
+    def fault_for(
+        self,
+        *,
+        path: Path,
+        line: int,
+        column: int,
+        message: str | None = None,
+        remediation: str | None = None,
+    ) -> Fault:
+        """Construct a Fault from an explicit backend-neutral source location."""
+
+        return Fault(
+            code=self._rule.code,
+            path=path,
+            message=self._rule.message if message is None else message,
+            line=line,
+            column=column,
             remediation=self._rule.remediation if remediation is None else remediation,
         )
 

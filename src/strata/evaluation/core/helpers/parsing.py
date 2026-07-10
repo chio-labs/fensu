@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import ast
 
+from strata.analysis.core.main.build import build_analysis
+from strata.analysis.core.types import AnalysisBuild
 from strata.discovery.core.main.position import position_facts
 from strata.discovery.core.models import ScopedFile
 from strata.evaluation.core.exceptions import ParseError
-from strata.evaluation.core.helpers.ast_access import build_ast_indexes
 from strata.evaluation.core.models import ParsedModule
 
 
@@ -26,12 +27,15 @@ def parse_scoped_file(scoped_file: ScopedFile) -> ParsedModule:
         raise ParseError(
             path=scoped_file.path, message=message, line=error.lineno, column=error.offset
         ) from error
-    node_index, parent_by_node = build_ast_indexes(module)
+    analysis_build: AnalysisBuild = build_analysis(
+        path=scoped_file.path, source=source, module=module
+    )
     return ParsedModule(
         scoped_file=scoped_file,
         module=module,
         source=source,
-        node_index=node_index,
-        parent_by_node=parent_by_node,
+        node_index=analysis_build.node_index,
+        parent_by_node=analysis_build.parent_by_node,
         position=position_facts(scoped_file),
+        analysis=analysis_build.analysis,
     )

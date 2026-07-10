@@ -6,6 +6,7 @@ import ast
 from pathlib import Path
 from types import MappingProxyType
 
+from strata.analysis.core.models import SourceRange, SyntaxHandle
 from strata.config.core.models import Config, RuleExceptionEntry
 from strata.discovery.core.main.discover_files import discover_files
 from strata.discovery.core.models import DiscoveredTree
@@ -226,4 +227,18 @@ def make_context_ast_helper_rule() -> RuleSpec:
 
     return RuleSpec(
         code="XAH001", family=Family.CUSTOM, slug="ast-helpers", message="ast", check=check
+    )
+
+
+def make_analysis_context_rule() -> RuleSpec:
+    """Build a fake rule that reports through the private analysis facade."""
+
+    def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+        handle: SyntaxHandle = ctx._analysis.syntax.handles(kind="Call")[0]
+        source_range: SourceRange = ctx._analysis.syntax.range(handle)
+        message: str = ctx._analysis.text.slice(source_range)
+        return [ctx.fault_at(handle, message=message)]
+
+    return RuleSpec(
+        code="XAN001", family=Family.CUSTOM, slug="analysis", message="analysis", check=check
     )

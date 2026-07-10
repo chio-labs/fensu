@@ -8,7 +8,6 @@ from pathlib import Path
 from strata.discovery.core.types import RoleName
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import RuleContext, Threshold
-from strata.rules.shape.helpers.outer_state import outer_state_mutations
 from strata.rules.shape.types import ShapeSymbol
 
 _mutator_methods: frozenset[str] = frozenset(
@@ -150,7 +149,8 @@ def keyword_only_arguments(*, module: ast.Module, ctx: RuleContext) -> list[Faul
 def no_outer_state_mutation(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag function mutations of module-global or closure-captured state."""
 
-    return [ctx.fault(node) for node in outer_state_mutations(module=module)]
+    del module
+    return [ctx.fault_at(fact.location) for fact in ctx._analysis.facts.outer_state_mutations()]
 
 
 def no_complex_comprehensions(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:

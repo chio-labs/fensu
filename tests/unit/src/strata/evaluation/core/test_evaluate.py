@@ -15,6 +15,7 @@ from strata.evaluation.core.main.evaluate import evaluate
 from strata.evaluation.core.models import EvaluationResult, ParsedModule
 from strata.rules.authoring.types import Family, Threshold
 from tests.unit.src.strata.evaluation.core._test_types import (
+    AnalysisContextTestCase,
     AstHelperContextTestCase,
     ContextPropertyTestCase,
     ContextThresholdTestCase,
@@ -25,6 +26,7 @@ from tests.unit.src.strata.evaluation.core._test_types import (
 )
 from tests.unit.src.strata.evaluation.core.helpers import (
     discover_test_tree,
+    make_analysis_context_rule,
     make_config_with_entry_threshold,
     make_context_ast_helper_rule,
     make_context_property_rule,
@@ -38,6 +40,41 @@ from tests.unit.src.strata.evaluation.core.helpers import (
     make_threshold_rule,
     write_sources,
 )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        AnalysisContextTestCase(
+            description="private analysis facade creates backend-neutral fault locations",
+            source="def run() -> None:\n    call()\n",
+            expected_line=2,
+            expected_column=4,
+            expected_message="call()",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_analysis_context_when_reporting_handle_then_fault_uses_source_location(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: AnalysisContextTestCase,
+) -> None:
+    write_sources(
+        repo_root=tmp_path,
+        files=(("src/pkg/config/core/main/load.py", test_case.source),),
+    )
+    monkeypatch.chdir(tmp_path)
+
+    result: EvaluationResult = evaluate(
+        tree=discover_test_tree(config=Config(roots=("src/pkg",))),
+        ruleset=(make_analysis_context_rule(),),
+        config=Config(roots=("src/pkg",)),
+    )
+
+    assert result.faults[0].line == test_case.expected_line
+    assert result.faults[0].column == test_case.expected_column
+    assert result.faults[0].message == test_case.expected_message
 
 
 @pytest.mark.parametrize(

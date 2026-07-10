@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pytest
 
+from strata.analysis.core.main.build import build_analysis
+from strata.analysis.core.types import AnalysisBuild
 from strata.evaluation.core.helpers import ast_access
 from tests.unit.src.strata.evaluation.core._test_types import (
     AstAccessTestCase,
@@ -43,9 +45,11 @@ def test_given_module_when_reading_ast_helpers_then_returns_expected_facts(
     module: ast.Module = ast.parse(test_case.source)
     fn: ast.AST = ast_access.top_level_functions(module)[0]
 
-    node_index, _ = ast_access.build_ast_indexes(module)
+    build: AnalysisBuild = build_analysis(
+        path=Path("module.py"), source=test_case.source, module=module
+    )
 
-    assert len(node_index[ast.Call]) == test_case.expected_call_count
+    assert len(build.node_index[ast.Call]) == test_case.expected_call_count
     assert ast_access.distinct_callees(fn) == test_case.expected_distinct_callees
     assert ast_access.assigned_locals(fn) == test_case.expected_assigned_locals
     assert ast_access.parameter_names(fn) == test_case.expected_parameter_names
@@ -79,10 +83,12 @@ def test_given_module_when_building_indexes_then_visits_each_node_once(
 
     monkeypatch.setattr(ast, "iter_child_nodes", count_child_scan)
 
-    node_index, parent_by_node = ast_access.build_ast_indexes(module)
+    build: AnalysisBuild = build_analysis(
+        path=Path("module.py"), source=test_case.source, module=module
+    )
 
-    assert sum(len(nodes) for nodes in node_index.values()) == test_case.expected_node_count
-    assert len(parent_by_node) == test_case.expected_parent_count
+    assert sum(len(nodes) for nodes in build.node_index.values()) == test_case.expected_node_count
+    assert len(build.parent_by_node) == test_case.expected_parent_count
     assert child_scan_counts[0] == test_case.expected_child_scan_count
 
 

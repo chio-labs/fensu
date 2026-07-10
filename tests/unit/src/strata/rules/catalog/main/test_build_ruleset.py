@@ -210,6 +210,35 @@ def test_given_custom_rule_file_with_sf_namespace_when_building_ruleset_then_rai
 @pytest.mark.parametrize(
     "test_case",
     [
+        RegistryErrorTestCase(
+            description="duplicate custom rule codes are rejected",
+            rule_source="XDU001",
+            expected_error_fragment="Duplicate rule code XDU001",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_duplicate_custom_codes_when_building_ruleset_then_raises_config_error(
+    tmp_path: Path,
+    test_case: RegistryErrorTestCase,
+) -> None:
+    first_path: Path = write_custom_rule_file(
+        root=tmp_path, relative_path="rules/first.py", rule_code=test_case.rule_source
+    )
+    second_path: Path = write_custom_rule_file(
+        root=tmp_path, relative_path="rules/second.py", rule_code=test_case.rule_source
+    )
+    config: Config = Config(roots=("src/pkg",), rule_paths=(str(first_path), str(second_path)))
+
+    with pytest.raises(ConfigError) as error:
+        build_ruleset(config)
+
+    assert test_case.expected_error_fragment in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
         ModuleIsolationTestCase(
             description="decorated rule from another module does not leak into custom file",
             stale_rule_code="XCL001",

@@ -21,12 +21,20 @@ from strata.rules.catalog.constants import CORE_RULES
 def build_ruleset_from_config(config: Config) -> tuple[RuleSpec, ...]:
     """Load custom rules, merge with core rules, and apply select/ignore config."""
 
+    all_rules: tuple[RuleSpec, ...] = build_catalogue_from_config(config)
+    return _select_rules(rules=all_rules, select=config.select, ignore=config.ignore)
+
+
+def build_catalogue_from_config(config: Config) -> tuple[RuleSpec, ...]:
+    """Load the complete core and configured custom rule catalogue."""
+
     custom_rules: tuple[RuleSpec, ...] = (
         *_load_rule_modules(config.rule_modules),
         *_load_rule_paths(config.rule_paths),
     )
     all_rules: tuple[RuleSpec, ...] = (*CORE_RULES, *custom_rules)
-    return _select_rules(rules=all_rules, select=config.select, ignore=config.ignore)
+    _validate_unique_codes(rules=all_rules)
+    return all_rules
 
 
 def _load_rule_modules(module_names: tuple[str, ...]) -> tuple[RuleSpec, ...]:
@@ -154,3 +162,16 @@ def _family_selector(family: Family) -> str:
 
 def _is_code_selector(selector: str) -> bool:
     return (selector.startswith("SF") and len(selector) > 3) or selector.startswith("X")
+
+
+def _validate_unique_codes(*, rules: tuple[RuleSpec, ...]) -> None:
+    rules_by_code: dict[str, RuleSpec] = {}
+    for rule in rules:
+        previous: RuleSpec | None = rules_by_code.get(rule.code)
+        if previous is not None:
+            previous_source: str = previous.source or "core"
+            current_source: str = rule.source or "core"
+            raise ConfigError(
+                f"Duplicate rule code {rule.code}: {previous_source} and {current_source}"
+            )
+        rules_by_code[rule.code] = rule

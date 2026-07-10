@@ -5,6 +5,9 @@ from __future__ import annotations
 import sys
 
 from strata.cli.main.check import run_check
+from strata.cli.main.map import run_map
+from strata.cli.main.rule import run_rule
+from strata.cli.main.skill import run_skill
 
 
 def main(argv: tuple[str, ...] | None = None) -> int:
@@ -13,5 +16,11 @@ def main(argv: tuple[str, ...] | None = None) -> int:
     args: tuple[str, ...] = tuple(sys.argv[1:] if argv is None else argv)
     if args and args[0] == "check":
         return run_check(argv=args[1:])
-    sys.stderr.write("Usage: strata check [--no-color] [paths...]\n")
+    if args and args[0] == "rule":
+        return run_rule(argv=args[1:])
+    if args and args[0] == "skill":
+        return run_skill(argv=args[1:])
+    if args and args[0] == "map":
+        return run_map(argv=args[1:])
+    sys.stderr.write("Usage: strata {check,rule,skill,map} ...\n")
     return 2

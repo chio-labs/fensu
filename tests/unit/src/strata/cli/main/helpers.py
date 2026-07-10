@@ -36,7 +36,13 @@ import ast
 from strata import Family, Fault, RuleContext, rule
 
 
-@rule(code="{rule_code}", family=Family.CUSTOM, slug="always", message="custom fault")
+@rule(
+    code="{rule_code}",
+    family=Family.CUSTOM,
+    slug="always",
+    message="custom fault",
+    remediation="apply the custom remediation",
+)
 def always(module: ast.Module, ctx: RuleContext) -> list[Fault]:
     return [ctx.fault(module.body[0])]
 ''',
@@ -51,3 +57,44 @@ def write_cli_no_fault_project(root: Path) -> None:
     source_dir.mkdir(parents=True)
     (source_dir / "constants.py").write_text("VALUE: int = 1\n", encoding="utf-8")
     (root / "strata.toml").write_text('roots = ["src"]\n', encoding="utf-8")
+
+
+def write_cli_map_project(
+    *,
+    root: Path,
+    ambiguous: bool = False,
+    cycle: bool = False,
+    dynamic_seam: bool = False,
+    configured_root: str = "src/pkg",
+) -> None:
+    """Write a project with a resolvable three-function call chain."""
+
+    package: Path = root / configured_root
+    package_name: str = package.name
+    package.mkdir(parents=True)
+    (root / "strata.toml").write_text(f'roots = ["{configured_root}"]\n', encoding="utf-8")
+    parameters: str = "callback: object" if dynamic_seam else ""
+    callback_line: str = "    callback()" if dynamic_seam else ""
+    (package / "entry.py").write_text(
+        (
+            f"from {package_name}.steps import step\n\n"
+            f"def run({parameters}) -> None:\n"
+            "    step()\n"
+            f"{callback_line}\n"
+        ),
+        encoding="utf-8",
+    )
+    (package / "steps.py").write_text(
+        f"import {package_name}.finish as finishing\n\n"
+        "def step() -> None:\n"
+        "    finishing.finish()\n",
+        encoding="utf-8",
+    )
+    finish_source: str = "def finish() -> None:\n    return None\n"
+    if cycle:
+        finish_source = (
+            f"from {package_name}.entry import run\n\ndef finish() -> None:\n    run()\n"
+        )
+    (package / "finish.py").write_text(finish_source, encoding="utf-8")
+    if ambiguous:
+        (package / "other.py").write_text("def run() -> None:\n    return None\n", encoding="utf-8")

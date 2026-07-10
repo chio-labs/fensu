@@ -14,6 +14,7 @@ from tests.unit.src.strata.cli.main._test_types import (
 from tests.unit.src.strata.cli.main.helpers import (
     CaptureOutput,
     configure_no_color,
+    write_cli_exception_project,
     write_cli_fixture_project,
 )
 
@@ -90,6 +91,37 @@ def test_given_unknown_rule_when_inspecting_then_returns_clear_error(
 
     assert exit_code == test_case.expected_exit_code
     assert all(fragment in stderr.getvalue() for fragment in test_case.expected_output_fragments)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        MetadataCommandTestCase(
+            description="rule inspection shows active exact exceptions and reasons",
+            argv=("SFS120",),
+            expected_exit_code=0,
+            expected_output_fragments=(
+                "Active exceptions:",
+                "src/pkg/external.py: callback",
+                "Reason: The external API invokes this callback positionally.",
+            ),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_active_exception_when_inspecting_rule_then_renders_path_symbol_and_reason(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: MetadataCommandTestCase,
+) -> None:
+    write_cli_exception_project(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    stdout: CaptureOutput = CaptureOutput()
+
+    exit_code: int = run_rule(argv=test_case.argv, stdout=stdout)
+
+    assert exit_code == test_case.expected_exit_code
+    assert all(fragment in stdout.getvalue() for fragment in test_case.expected_output_fragments)
 
 
 @pytest.mark.parametrize(

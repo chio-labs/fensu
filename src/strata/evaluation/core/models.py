@@ -23,7 +23,17 @@ class ParsedModule:
 
 
 @dataclass(frozen=True, slots=True)
+class RuleExceptionKey:
+    """One exact configured rule, path, and qualified-symbol exception."""
+
+    rule: str
+    path: str
+    symbol: str
+
+
+@dataclass(frozen=True, slots=True)
 class EvaluationResult:
     """Evaluation output for a discovered tree."""
 
     faults: tuple[Fault, ...]
+    applied_exception_count: int = 0

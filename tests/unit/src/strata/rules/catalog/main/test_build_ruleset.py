@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from strata.config.core.exceptions import ConfigError
-from strata.config.core.models import Config
+from strata.config.core.models import Config, RuleExceptionEntry
 from strata.rules.authoring.main.define import rule
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Family
@@ -20,6 +20,7 @@ from tests.unit.src.strata.rules.catalog.main._test_types import (
     CustomRuleLoadTestCase,
     ModuleIsolationTestCase,
     RegistryErrorTestCase,
+    RuleExceptionCodeTestCase,
     SelectCompositionTestCase,
 )
 from tests.unit.src.strata.rules.catalog.main.helpers import (
@@ -29,6 +30,38 @@ from tests.unit.src.strata.rules.catalog.main.helpers import (
     write_importing_custom_rule_package,
     write_module_package,
 )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        RuleExceptionCodeTestCase(
+            description="unknown exact rule exception code is rejected",
+            rule_code="SFS999",
+            expected_error_fragment="Unknown rule exception code: SFS999",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_unknown_exception_code_when_building_catalogue_then_raises_config_error(
+    test_case: RuleExceptionCodeTestCase,
+) -> None:
+    config: Config = Config(
+        roots=("src/pkg",),
+        rule_exceptions=(
+            RuleExceptionEntry(
+                rule=test_case.rule_code,
+                path="src/pkg/a.py",
+                symbols=("run",),
+                reason="External caller.",
+            ),
+        ),
+    )
+
+    with pytest.raises(ConfigError) as error:
+        build_ruleset(config)
+
+    assert test_case.expected_error_fragment in str(error.value)
 
 
 @pytest.mark.parametrize(
@@ -355,6 +388,18 @@ def test_given_foreign_decorated_rule_when_loading_custom_file_then_module_metad
             select=("SFX",),
             ignore=("SFX001",),
             expected_codes=(),
+        ),
+        SelectCompositionTestCase(
+            description="family ignore removes only rules in that family",
+            select=("SF", "X"),
+            ignore=("SFX",),
+            expected_codes=("XRG001",),
+        ),
+        SelectCompositionTestCase(
+            description="custom family ignore removes custom rules",
+            select=("SF", "X"),
+            ignore=("X",),
+            expected_codes=("SFX001",),
         ),
         SelectCompositionTestCase(
             description="custom family selector includes custom rules",

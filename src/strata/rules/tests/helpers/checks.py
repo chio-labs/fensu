@@ -50,7 +50,7 @@ def test_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) -> list[
             and TestSymbol.PARAMETRIZE in fact.decorator_names
         ]
     if code == SftCode.NO_COMPLEX_COMPREHENSIONS:
-        return [ctx.fault(node) for node in ctx.complex_comprehensions()]
+        return [ctx.fault_at(location) for location in ctx._analysis.facts.complex_comprehensions()]
     if ctx.path.name == TestPathName.SCENARIO_MODELS and code == SftCode.TEST_LAYOUT:
         return _scenario_models_faults(module=module, ctx=ctx)
     if code in _layout_codes():

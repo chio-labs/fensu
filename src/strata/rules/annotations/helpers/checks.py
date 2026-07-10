@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import ast
 
-from strata.rules.annotations.classes.annotation_visitor import AnnotationVisitor
 from strata.rules.annotations.types import AnnotationCode
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import RuleContext
@@ -39,4 +38,18 @@ def annotation_faults(*, module: ast.Module, ctx: RuleContext, code: AnnotationC
             )
             for fact in ctx._analysis.facts.annotations().locals
         ]
-    return AnnotationVisitor(ctx=ctx, code=code).collect(module)
+    if code == AnnotationCode.MODULE_VARIABLE_ANNOTATION:
+        return [
+            ctx.fault_at(
+                fact.location,
+                message=f"module-level variable '{fact.name}' must define a type annotation",
+            )
+            for fact in ctx._analysis.facts.annotations().module_variables
+        ]
+    return [
+        ctx.fault_at(
+            fact.location,
+            message=f"class attribute '{fact.name}' must define a type annotation",
+        )
+        for fact in ctx._analysis.facts.annotations().class_attributes
+    ]

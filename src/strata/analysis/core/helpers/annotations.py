@@ -3,20 +3,26 @@
 from __future__ import annotations
 
 import ast
+from collections.abc import Mapping
 from pathlib import Path
 
-from strata.analysis.core.helpers.locations import line_offsets, source_range
+from strata.analysis.core.helpers.locations import line_offsets, source_location, source_range
 from strata.analysis.core.models import (
     AnnotationFacts,
     MissingLocalAnnotationFact,
     MissingParameterAnnotationFact,
     MissingReturnAnnotationFact,
+    MissingVariableAnnotationFact,
     SourceRange,
 )
 
 _receiver_names: frozenset[str] = frozenset({"self", "cls"})
 _enum_base_names: frozenset[str] = frozenset({"Enum", "StrEnum"})
 _discard_name: str = "_"
+_module_exempt_names: frozenset[str] = frozenset(
+    {"__all__", "__match_args__", "__slots__", "__version__"}
+)
+_class_exempt_names: frozenset[str] = frozenset({"__match_args__", "__slots__", "__test__"})
 
 
 class _AnnotationVisitor(ast.NodeVisitor):
@@ -36,6 +42,8 @@ class _AnnotationVisitor(ast.NodeVisitor):
             parameters=tuple(self._parameters),
             returns=tuple(self._returns),
             locals=tuple(self._locals),
+            module_variables=(),
+            class_attributes=(),
         )
 
     def visit_ClassDef(self, node: ast.ClassDef) -> None:
@@ -147,10 +155,26 @@ class _AnnotationVisitor(ast.NodeVisitor):
         )
 
 
-def annotation_facts(*, path: Path, source: str, module: ast.Module) -> AnnotationFacts:
+def annotation_facts(
+    *,
+    path: Path,
+    source: str,
+    module: ast.Module,
+    node_index: Mapping[type[ast.AST], tuple[ast.AST, ...]],
+) -> AnnotationFacts:
     """Return shared missing-annotation facts from one file traversal."""
 
-    return _AnnotationVisitor(path=path, source=source).collect(module)
+    function_facts: AnnotationFacts = _AnnotationVisitor(path=path, source=source).collect(module)
+    return AnnotationFacts(
+        parameters=function_facts.parameters,
+        returns=function_facts.returns,
+        locals=function_facts.locals,
+        module_variables=_module_variable_facts(path=path, module=module),
+        class_attributes=_class_attribute_facts(
+            path=path,
+            class_nodes=node_index.get(ast.ClassDef, ()),
+        ),
+    )
 
 
 def _annotated_parameter_names(node: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str]:
@@ -177,3 +201,55 @@ def _is_enum_class(node: ast.ClassDef) -> bool:
         if isinstance(base, ast.Attribute) and base.attr in _enum_base_names:
             return True
     return False
+
+
+def _module_variable_facts(
+    *, path: Path, module: ast.Module
+) -> tuple[MissingVariableAnnotationFact, ...]:
+    facts: list[MissingVariableAnnotationFact] = []
+    for statement in module.body:
+        if isinstance(statement, ast.Assign | ast.AugAssign):
+            facts.extend(
+                _variable_facts(
+                    path=path,
+                    node=statement,
+                    exempt_names=_module_exempt_names,
+                )
+            )
+    return tuple(facts)
+
+
+def _class_attribute_facts(
+    *, path: Path, class_nodes: tuple[ast.AST, ...]
+) -> tuple[MissingVariableAnnotationFact, ...]:
+    facts: list[MissingVariableAnnotationFact] = []
+    for node in class_nodes:
+        if not isinstance(node, ast.ClassDef) or _is_enum_class(node):
+            continue
+        for statement in node.body:
+            if isinstance(statement, ast.Assign | ast.AugAssign):
+                facts.extend(
+                    _variable_facts(
+                        path=path,
+                        node=statement,
+                        exempt_names=_class_exempt_names,
+                    )
+                )
+    return tuple(facts)
+
+
+def _variable_facts(
+    *,
+    path: Path,
+    node: ast.Assign | ast.AugAssign,
+    exempt_names: frozenset[str],
+) -> tuple[MissingVariableAnnotationFact, ...]:
+    targets: list[ast.expr] = node.targets if isinstance(node, ast.Assign) else [node.target]
+    return tuple(
+        MissingVariableAnnotationFact(
+            name=target.id,
+            location=source_location(path=path, node=target),
+        )
+        for target in targets
+        if isinstance(target, ast.Name) and target.id not in exempt_names
+    )

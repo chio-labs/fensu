@@ -157,7 +157,7 @@ def no_complex_comprehensions(*, module: ast.Module, ctx: RuleContext) -> list[F
     """Flag comprehensions that combine generators or nest another comprehension."""
 
     del module
-    return [ctx.fault(node) for node in ctx.complex_comprehensions()]
+    return [ctx.fault_at(location) for location in ctx._analysis.facts.complex_comprehensions()]
 
 
 def mutable_result_model(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:

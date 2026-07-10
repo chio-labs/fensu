@@ -80,12 +80,22 @@ class MissingLocalAnnotationFact:
 
 
 @dataclass(frozen=True, slots=True)
+class MissingVariableAnnotationFact:
+    """An unannotated module variable or class attribute."""
+
+    name: str
+    location: SourceLocation
+
+
+@dataclass(frozen=True, slots=True)
 class AnnotationFacts:
     """Missing annotation facts collected by one shared file traversal."""
 
     parameters: tuple[MissingParameterAnnotationFact, ...]
     returns: tuple[MissingReturnAnnotationFact, ...]
     locals: tuple[MissingLocalAnnotationFact, ...]
+    module_variables: tuple[MissingVariableAnnotationFact, ...]
+    class_attributes: tuple[MissingVariableAnnotationFact, ...]
 
 
 @dataclass(frozen=True, slots=True)

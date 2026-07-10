@@ -10,6 +10,7 @@ from strata.rules.roles.main.misplaced_rules import misplaced_rules
 from strata.rules.roles.main.naming_rules import naming_rules
 from strata.rules.roles.main.shape_rules import shape_rules
 from strata.rules.roles.main.surface_rules import surface_rules
+from strata.rules.roles.main.tooling_rules import tooling_rules
 
 SFR_RULES: tuple[RuleSpec, ...] = (
     *content_rules(),
@@ -19,4 +20,5 @@ SFR_RULES: tuple[RuleSpec, ...] = (
     *layout_rules(),
     *surface_rules(),
     *shape_rules(),
+    *tooling_rules(),
 )

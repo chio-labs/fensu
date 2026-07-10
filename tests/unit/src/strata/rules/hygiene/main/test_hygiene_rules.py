@@ -310,3 +310,135 @@ def test_given_comprehensions_when_checking_tooling_then_applies_only_to_tooling
 
     assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
     assert tuple(fault.line for fault in result.faults) == test_case.expected_lines
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        HygieneRuleTestCase(
+            description="string equality decision is flagged",
+            rule_code="SFX007",
+            source="def ready(status: str) -> bool:\n    return status == 'ready'\n",
+            expected_codes=("SFX007",),
+            expected_lines=(2,),
+        ),
+        HygieneRuleTestCase(
+            description="string membership values are each flagged",
+            rule_code="SFX007",
+            source="def ready(status: str) -> bool:\n    return status in {'ready', 'done'}\n",
+            expected_codes=("SFX007", "SFX007"),
+            expected_lines=(2, 2),
+        ),
+        HygieneRuleTestCase(
+            description="frozenset string membership value is flagged",
+            rule_code="SFX007",
+            source="def ready(status: str) -> bool:\n    return status in frozenset({'ready'})\n",
+            expected_codes=("SFX007",),
+            expected_lines=(2,),
+        ),
+        HygieneRuleTestCase(
+            description="named string decision is allowed",
+            rule_code="SFX007",
+            source="READY: str = 'ready'\n\ndef ready(status: str) -> bool:\n    return status == READY\n",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        HygieneRuleTestCase(
+            description="string outside comparison is allowed",
+            rule_code="SFX007",
+            source="def message() -> str:\n    return 'ready'\n",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        HygieneRuleTestCase(
+            description="canonical main execution guard is allowed",
+            rule_code="SFX007",
+            source="if __name__ == '__main__':\n    main()\n",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_string_literals_when_checking_decisions_then_requires_named_values(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: HygieneRuleTestCase,
+) -> None:
+    result: EvaluationResult = evaluate_hygiene_test_case(
+        test_case=test_case, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
+    assert tuple(fault.line for fault in result.faults) == test_case.expected_lines
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        HygieneRuleTestCase(
+            description="numeric threshold comparison is flagged",
+            rule_code="SFX008",
+            source="def enough(count: int) -> bool:\n    return count >= 3\n",
+            expected_codes=("SFX008",),
+            expected_lines=(2,),
+        ),
+        HygieneRuleTestCase(
+            description="chained numeric bounds are each flagged",
+            rule_code="SFX008",
+            source="def valid(value: int) -> bool:\n    return 5 < value <= 10\n",
+            expected_codes=("SFX008", "SFX008"),
+            expected_lines=(2, 2),
+        ),
+        HygieneRuleTestCase(
+            description="numeric membership values are each flagged",
+            rule_code="SFX008",
+            source="def valid(value: int) -> bool:\n    return value in {2, 3}\n",
+            expected_codes=("SFX008", "SFX008"),
+            expected_lines=(2, 2),
+        ),
+        HygieneRuleTestCase(
+            description="canonical numeric sentinels are allowed",
+            rule_code="SFX008",
+            source=(
+                "def valid(value: int) -> bool:\n"
+                "    return value >= -1 and value != 0 and value <= 1\n"
+            ),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        HygieneRuleTestCase(
+            description="named numeric threshold is allowed",
+            rule_code="SFX008",
+            source="LIMIT: int = 3\n\ndef enough(count: int) -> bool:\n    return count >= LIMIT\n",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        HygieneRuleTestCase(
+            description="numeric literal outside comparison is allowed",
+            rule_code="SFX008",
+            source="def increment(value: int) -> int:\n    return value + 3\n",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        HygieneRuleTestCase(
+            description="boolean comparison is not a numeric decision",
+            rule_code="SFX008",
+            source="def enabled(value: bool) -> bool:\n    return value is True\n",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_numeric_literals_when_checking_comparisons_then_requires_named_thresholds(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: HygieneRuleTestCase,
+) -> None:
+    result: EvaluationResult = evaluate_hygiene_test_case(
+        test_case=test_case, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
+    assert tuple(fault.line for fault in result.faults) == test_case.expected_lines

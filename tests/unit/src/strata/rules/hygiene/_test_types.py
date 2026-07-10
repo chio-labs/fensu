@@ -12,3 +12,4 @@ class HygieneCatalogueTestCase:
     description: str
     expected_codes: tuple[str, ...]
     expected_unique_count: int
+    expected_enabled_by_default: tuple[bool, ...]

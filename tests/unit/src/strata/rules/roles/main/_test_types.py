@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from strata.discovery.core.types import ScopeName
 from strata.rules.authoring.types import Threshold
 
 
@@ -31,3 +32,4 @@ class SfrRuleTestCase:
     thresholds: dict[Threshold, int] = field(default_factory=dict)
     expected_messages: tuple[str, ...] = field(default_factory=tuple)
     expected_remediations: tuple[str, ...] = field(default_factory=tuple)
+    scope: ScopeName = "root"

@@ -8,6 +8,7 @@ from pathlib import Path
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import RuleContext, Threshold
 from strata.rules.roles.helpers.classification import (
+    decorator_name,
     is_dataclass_class,
     is_exception_class,
     is_model_class,
@@ -29,6 +30,8 @@ _role_names: frozenset[str] = frozenset(
 _role_filenames: frozenset[str] = frozenset(
     {"models.py", "types.py", "constants.py", "exceptions.py", "helpers.py"}
 )
+_tooling_private_function_names: frozenset[str] = frozenset({"_build_parser", "_parse_args"})
+_tooling_role_names: frozenset[str] = frozenset({"main", "helpers", "classes", "rules"})
 
 
 def models_only_models(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
@@ -295,6 +298,8 @@ def nested_direct_modules(*, module: ast.Module, ctx: RuleContext) -> list[Fault
     """Flag ad hoc direct modules in nested non-role packages."""
 
     del module
+    if ctx.scope() == "tooling":
+        return []
     parts: tuple[str, ...] = ctx.relative_parts()
     if len(parts) < 3 or "main" in parts[:-1]:
         return []
@@ -316,6 +321,8 @@ def nested_direct_subpackages(*, module: ast.Module, ctx: RuleContext) -> list[F
     """Flag arbitrary direct child packages below nested runtime packages."""
 
     del module
+    if ctx.scope() == "tooling":
+        return []
     parts: tuple[str, ...] = ctx.relative_parts()
     if len(parts) < 4 or "main" in parts[:-1]:
         return []
@@ -342,6 +349,8 @@ def top_level_role_placement(*, module: ast.Module, ctx: RuleContext) -> list[Fa
     """Flag role files and directories directly below top-level domains."""
 
     del module
+    if ctx.scope() == "tooling":
+        return []
     parts: tuple[str, ...] = ctx.relative_parts()
     if len(parts) < 2 or parts[0] == "shared":
         return []
@@ -368,6 +377,8 @@ def top_level_direct_modules(*, module: ast.Module, ctx: RuleContext) -> list[Fa
     """Flag non-role modules directly below top-level domains."""
 
     del module
+    if ctx.scope() == "tooling":
+        return []
     parts: tuple[str, ...] = ctx.relative_parts()
     if len(parts) != 2 or parts[-1] in {"__init__.py", *_role_filenames}:
         return []
@@ -586,6 +597,166 @@ def source_file_line_count(*, module: ast.Module, ctx: RuleContext) -> list[Faul
     ]
 
 
+def tooling_entrypoint_shape(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Keep direct scripts as one-public-function command adapters."""
+
+    if not _is_direct_tooling_entrypoint(ctx):
+        return []
+    body: tuple[ast.stmt, ...] = non_docstring_body(module)
+    public_functions: tuple[ast.FunctionDef | ast.AsyncFunctionDef, ...] = tuple(
+        node
+        for node in body
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+        and not node.name.startswith("_")
+    )
+    faults: list[Fault] = []
+    main_functions: tuple[ast.FunctionDef | ast.AsyncFunctionDef, ...] = tuple(
+        node for node in public_functions if node.name == "main"
+    )
+    if not public_functions or len(main_functions) > 1:
+        faults.append(
+            ctx.path_fault(message="direct scripts must define exactly one public main() function")
+        )
+    for node in body:
+        if isinstance(node, ast.Import | ast.ImportFrom):
+            continue
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+            if node.name == "main" or node.name in _tooling_private_function_names:
+                continue
+            faults.append(
+                ctx.fault(
+                    node,
+                    message=(
+                        "direct scripts may define only main(), _parse_args(), and _build_parser()"
+                    ),
+                )
+            )
+            continue
+        if isinstance(node, ast.If) and _is_nonexecuting_import_guard(node.test):
+            continue
+        faults.append(
+            ctx.fault(
+                node,
+                message="direct scripts may contain only imports, command functions, and guards",
+            )
+        )
+    return faults
+
+
+def tooling_entrypoint_delegation(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Require direct scripts to call an imported main/ entry function."""
+
+    if not _is_direct_tooling_entrypoint(ctx):
+        return []
+    imported_entries: set[str] = set()
+    for node in module.body:
+        if not isinstance(node, ast.ImportFrom) or node.module is None:
+            continue
+        if "main" not in node.module.split("."):
+            continue
+        for alias in node.names:
+            imported_entries.add(alias.asname or alias.name)
+    main_function: ast.FunctionDef | ast.AsyncFunctionDef | None = next(
+        (
+            node
+            for node in module.body
+            if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and node.name == "main"
+        ),
+        None,
+    )
+    if main_function is None:
+        return [
+            ctx.path_fault(
+                message="direct scripts must import and call an entry function from a main/ module"
+            )
+        ]
+    calls: tuple[ast.Call, ...] = tuple(
+        call for call in ast.walk(main_function) if isinstance(call, ast.Call)
+    )
+    delegates: bool = any(
+        isinstance(call.func, ast.Name) and call.func.id in imported_entries for call in calls
+    )
+    faults: list[Fault] = []
+    if not delegates:
+        faults.append(
+            ctx.path_fault(
+                message="direct scripts must import and call an entry function from a main/ module"
+            )
+        )
+    allowed_calls: frozenset[str] = frozenset({"_parse_args", *imported_entries})
+    for call in calls:
+        if isinstance(call.func, ast.Name) and call.func.id in allowed_calls:
+            continue
+        faults.append(
+            ctx.fault(
+                call,
+                message=(
+                    "direct script main() may call only _parse_args() and imported main/ entries"
+                ),
+            )
+        )
+    return faults
+
+
+def tooling_entrypoint_line_count(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Keep direct script adapters below their configured line limit."""
+
+    del module
+    if not _is_direct_tooling_entrypoint(ctx):
+        return []
+    line_count: int = len(ctx.source.splitlines())
+    limit: int = ctx.threshold(Threshold.MAX_SCRIPT_ENTRYPOINT_LINES)
+    if line_count <= limit:
+        return []
+    return [ctx.path_fault(message=f"direct script has {line_count} lines (limit: {limit})")]
+
+
+def rules_role_content(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Allow only decorated rule declarations in tooling rules/ modules."""
+
+    if ctx.scope() != "tooling" or not ctx.in_role("rules") or ctx.path.name == "__init__.py":
+        return []
+    faults: list[Fault] = []
+    for node in non_docstring_body(module):
+        if isinstance(node, ast.Import | ast.ImportFrom) or is_type_checking_import_block(node):
+            continue
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and any(
+            decorator_name(decorator).split(".")[-1] == "rule" for decorator in node.decorator_list
+        ):
+            continue
+        faults.append(
+            ctx.fault(
+                node,
+                message="rules/ modules may contain only imports and @rule functions",
+            )
+        )
+    return faults
+
+
+def tooling_package_layout(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Require tooling implementation packages to use direct role boundaries."""
+
+    del module
+    if ctx.scope() != "tooling":
+        return []
+    parts: tuple[str, ...] = ctx.relative_parts()
+    if len(parts) < 2:
+        return []
+    if len(parts) == 2:
+        if parts[-1] == "__init__.py" or parts[-1] in _role_filenames:
+            return []
+        return [
+            ctx.path_fault(message="tool packages may contain only role files and role directories")
+        ]
+    role_name: str = parts[1]
+    if role_name in _tooling_role_names:
+        return []
+    package_dir: Path = ctx.path.parents[len(parts) - 3]
+    if not _is_package_name_anchor(path=ctx.path, package_dir=package_dir):
+        return []
+    return [ctx.path_fault(message=f"tool package child '{role_name}/' is not an approved role")]
+
+
 def _is_docstring_statement(node: ast.stmt) -> bool:
     return (
         isinstance(node, ast.Expr)
@@ -630,6 +801,16 @@ def _role_package_dir(*, path: Path, package_name: str) -> Path | None:
     if path.parent.parent.name == package_name:
         return path.parent.parent
     return None
+
+
+def _is_direct_tooling_entrypoint(ctx: RuleContext) -> bool:
+    parts: tuple[str, ...] = ctx.relative_parts()
+    return (
+        ctx.scope() == "tooling"
+        and len(parts) == 1
+        and ctx.path.suffix == ".py"
+        and ctx.path.name != "__init__.py"
+    )
 
 
 def _is_package_layout_anchor(*, path: Path, package_dir: Path) -> bool:

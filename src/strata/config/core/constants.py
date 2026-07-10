@@ -14,6 +14,7 @@ DEFAULT_THRESHOLDS: dict[Threshold, int] = {
     Threshold.MAX_POSITIONAL_ARGS: 0,
     Threshold.MAX_ARGUMENTS: 10,
     Threshold.MAX_STATEMENTS_GLOBAL: 70,
+    Threshold.MAX_SCRIPT_ENTRYPOINT_LINES: 80,
 }
 
 DEFAULT_ROLE_DIR_NAMES: frozenset[str] = frozenset({"main", "helpers", "classes"})
@@ -41,7 +42,17 @@ CONFIG_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
     }
 )
 CONFIG_ROLE_NAMES: frozenset[str] = frozenset(
-    {"entry", "main", "helpers", "classes", "models", "types", "constants", "exceptions"}
+    {
+        "entry",
+        "main",
+        "helpers",
+        "classes",
+        "rules",
+        "models",
+        "types",
+        "constants",
+        "exceptions",
+    }
 )
 CONTRACT_BEHAVIORS: frozenset[str] = frozenset({"no-return"})
 DEFAULT_CONTRACTS: dict[str, str] = {"validate_*": "no-return", "enforce_*": "no-return"}

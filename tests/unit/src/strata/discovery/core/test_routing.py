@@ -39,10 +39,19 @@ from tests.unit.src.strata.discovery.core.helpers import make_config, only_file,
             expected_families=frozenset({Family.ANNOTATIONS, Family.TESTS}),
         ),
         RoutingTestCase(
-            description="tooling file routes to loose tooling families",
+            description="tooling file routes to structural families",
             scope_path="scripts/check.py",
             scope_name="tooling",
-            expected_families=frozenset({Family.LAYERS, Family.HYGIENE}),
+            expected_families=frozenset(
+                {
+                    Family.LAYERS,
+                    Family.ROLES,
+                    Family.SHAPE,
+                    Family.NAMING,
+                    Family.HYGIENE,
+                    Family.ANNOTATIONS,
+                }
+            ),
         ),
     ],
     ids=lambda case: case.description,

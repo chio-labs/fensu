@@ -127,6 +127,40 @@ def no_complex_comprehensions_in_tooling(*, module: ast.Module, ctx: RuleContext
     return [ctx.fault(node) for node in ctx.complex_comprehensions()]
 
 
+def no_unnamed_string_decisions(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Flag string literals used directly as comparison values."""
+
+    del module
+    faults: list[Fault] = []
+    for node in ctx.nodes(ast.Compare):
+        if not isinstance(node, ast.Compare) or _is_main_execution_guard(node):
+            continue
+        for operand in (node.left, *node.comparators):
+            faults.extend(
+                ctx.fault(literal)
+                for literal in _decision_literal_nodes(operand)
+                if isinstance(literal, ast.Constant) and isinstance(literal.value, str)
+            )
+    return faults
+
+
+def no_magic_numeric_comparisons(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Flag non-canonical numeric literals used directly as comparison values."""
+
+    del module
+    faults: list[Fault] = []
+    for node in ctx.nodes(ast.Compare):
+        if not isinstance(node, ast.Compare):
+            continue
+        for operand in (node.left, *node.comparators):
+            for literal in _decision_literal_nodes(operand):
+                value: object = _numeric_literal_value(literal)
+                if value is None or value in {-1, 0, 1}:
+                    continue
+                faults.append(ctx.fault(literal))
+    return faults
+
+
 def _docstring_bearing_nodes(*, module: ast.Module, ctx: RuleContext) -> tuple[ast.AST, ...]:
     nodes: list[ast.AST] = [module]
     for node_type in _docstring_bearing_node_types:
@@ -173,3 +207,49 @@ def _is_swallowed_probe_return_value(node: ast.expr | None) -> bool:
     if isinstance(node, ast.Tuple):
         return not node.elts
     return False
+
+
+def _decision_literal_nodes(node: ast.expr) -> tuple[ast.expr, ...]:
+    if isinstance(node, ast.Constant | ast.UnaryOp):
+        return (node,)
+    if isinstance(node, ast.List | ast.Set | ast.Tuple):
+        literals: list[ast.expr] = []
+        for element in node.elts:
+            literals.extend(_decision_literal_nodes(element))
+        return tuple(literals)
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "frozenset"
+        and len(node.args) == 1
+    ):
+        return _decision_literal_nodes(node.args[0])
+    return ()
+
+
+def _numeric_literal_value(node: ast.expr) -> int | float | complex | None:
+    if isinstance(node, ast.Constant):
+        if isinstance(node.value, bool) or not isinstance(node.value, int | float | complex):
+            return None
+        return node.value
+    if (
+        isinstance(node, ast.UnaryOp)
+        and isinstance(node.op, ast.USub)
+        and isinstance(node.operand, ast.Constant)
+        and not isinstance(node.operand.value, bool)
+        and isinstance(node.operand.value, int | float | complex)
+    ):
+        return -node.operand.value
+    return None
+
+
+def _is_main_execution_guard(node: ast.Compare) -> bool:
+    return (
+        len(node.ops) == 1
+        and isinstance(node.ops[0], ast.Eq)
+        and len(node.comparators) == 1
+        and isinstance(node.left, ast.Name)
+        and node.left.id == "__name__"
+        and isinstance(node.comparators[0], ast.Constant)
+        and node.comparators[0].value == "__main__"
+    )

@@ -7,9 +7,11 @@ from strata.rules.authoring.types import Family
 from strata.rules.hygiene.helpers.checks import (
     no_assert_in_runtime,
     no_complex_comprehensions_in_tooling,
+    no_magic_numeric_comparisons,
     no_raw_builtin_raise,
     no_standalone_comments,
     no_swallowed_exception_probe,
+    no_unnamed_string_decisions,
     single_line_docstrings,
 )
 from strata.rules.hygiene.types import HygieneCode
@@ -86,5 +88,29 @@ def hygiene_rules() -> tuple[RuleSpec, ...]:
                 "explicit loops when needed, and extract a helper only when the transformation "
                 "is a distinct operation."
             ),
+        ),
+        RuleSpec(
+            code=HygieneCode.NO_UNNAMED_STRING_DECISIONS,
+            family=Family.HYGIENE,
+            slug="no-unnamed-string-decisions",
+            message="string literals must not directly control comparison behavior",
+            remediation=(
+                "Name the decision value in constants.py or compare against an enum member so "
+                "the branch expresses the concept it represents."
+            ),
+            check=no_unnamed_string_decisions,
+            enabled_by_default=False,
+        ),
+        RuleSpec(
+            code=HygieneCode.NO_MAGIC_NUMERIC_COMPARISONS,
+            family=Family.HYGIENE,
+            slug="no-magic-numeric-comparisons",
+            message="non-canonical numeric literals must not directly control comparisons",
+            remediation=(
+                "Name the threshold or sentinel in constants.py and compare against that name; "
+                "only -1, 0, and 1 are self-explanatory comparison values."
+            ),
+            check=no_magic_numeric_comparisons,
+            enabled_by_default=False,
         ),
     )

@@ -26,6 +26,7 @@ from tests.unit.src.strata.rules.catalog.main.helpers import (
     catalogue_quality_issues,
     make_core_rule,
     write_custom_rule_file,
+    write_importing_custom_rule_package,
     write_module_package,
 )
 
@@ -118,6 +119,36 @@ def test_given_rule_path_when_building_ruleset_then_does_not_add_rule_dir_to_sys
 
     assert tuple(rule.code for rule in ruleset) == (test_case.expected_code,)
     assert str(path.parent) not in sys.path
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CustomRuleLoadTestCase(
+            description="scripts rule package imports its local helper through repository root",
+            rule_code="XRG004",
+            expected_code="XRG004",
+            expected_source_fragment="scripts/strata_rules/rules/custom.py",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_rule_path_with_package_import_when_building_then_resolves_repository_package(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: CustomRuleLoadTestCase,
+) -> None:
+    path: Path = write_importing_custom_rule_package(root=tmp_path, rule_code=test_case.rule_code)
+    monkeypatch.chdir(tmp_path)
+    config: Config = Config(
+        roots=("src/pkg",), rule_paths=(str(path),), select=(test_case.rule_code,)
+    )
+
+    ruleset: tuple[RuleSpec, ...] = build_ruleset(config)
+
+    assert tuple(rule.code for rule in ruleset) == (test_case.expected_code,)
+    assert test_case.expected_source_fragment in (ruleset[0].source or "")
+    assert str(tmp_path) not in sys.path
 
 
 @pytest.mark.parametrize(

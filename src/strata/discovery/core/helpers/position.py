@@ -42,6 +42,8 @@ def role_of(scoped_file: ScopedFile) -> str | None:
     if file_role is not None:
         return file_role
     for part in parts[:-1]:
+        if scoped_file.scope == "tooling" and part == "rules":
+            return part
         if part in ROLE_DIR_NAMES:
             return part
     return None

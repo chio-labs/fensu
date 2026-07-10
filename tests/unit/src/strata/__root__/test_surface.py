@@ -13,7 +13,7 @@ from tests.unit.src.strata.__root__._test_types import PublicSurfaceTestCase
     [
         PublicSurfaceTestCase(
             description="strata exports exactly the six public authoring names",
-            expected_all=("Fault", "Family", "Severity", "Rule", "rule", "RuleContext"),
+            expected_all=("Fault", "Family", "Severity", "rule", "RuleContext"),
         )
     ],
     ids=lambda case: case.description,
@@ -31,7 +31,7 @@ def test_given_strata_package_when_reading_all_then_matches_expected(
     [
         PublicSurfaceTestCase(
             description="every exported name is importable from the top level",
-            expected_all=("Fault", "Family", "Severity", "Rule", "rule", "RuleContext"),
+            expected_all=("Fault", "Family", "Severity", "rule", "RuleContext"),
         )
     ],
     ids=lambda case: case.description,

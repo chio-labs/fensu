@@ -75,6 +75,10 @@ def _load_rule_file(path: Path) -> tuple[RuleSpec, ...]:
         raise ConfigError(f"Could not load custom rule file {path}")
     module: ModuleType = importlib.util.module_from_spec(spec)
     previous_module: ModuleType | None = sys.modules.get(module_name)
+    repository_path: str = str(Path.cwd().resolve())
+    added_repository_path: bool = repository_path not in sys.path
+    if added_repository_path:
+        sys.path.insert(0, repository_path)
     sys.modules[module_name] = module
     try:
         spec.loader.exec_module(module)
@@ -85,6 +89,8 @@ def _load_rule_file(path: Path) -> tuple[RuleSpec, ...]:
             _ = sys.modules.pop(module_name, None)
         else:
             sys.modules[module_name] = previous_module
+        if added_repository_path:
+            sys.path.remove(repository_path)
     return _with_custom_source(rules=rule_specs_in_module(module=module), source=str(path))
 
 

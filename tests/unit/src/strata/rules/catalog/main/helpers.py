@@ -31,6 +31,41 @@ def write_module_package(*, root: Path, package_name: str, rule_code: str) -> st
     return package_name
 
 
+def write_importing_custom_rule_package(*, root: Path, rule_code: str) -> Path:
+    """Write a scripts rule package whose decorated rule imports a local helper."""
+
+    package: Path = root / "scripts/strata_rules"
+    rules_path: Path = package / "rules/custom.py"
+    helper_path: Path = package / "helpers/names.py"
+    rules_path.parent.mkdir(parents=True)
+    helper_path.parent.mkdir(parents=True)
+    for init_path in (
+        root / "scripts/__init__.py",
+        package / "__init__.py",
+        rules_path.parent / "__init__.py",
+        helper_path.parent / "__init__.py",
+    ):
+        init_path.write_text('"""Package."""\n', encoding="utf-8")
+    helper_path.write_text('RULE_MESSAGE: str = "custom message"\n', encoding="utf-8")
+    rules_path.write_text(
+        f'''
+from __future__ import annotations
+
+import ast
+
+from scripts.strata_rules.helpers.names import RULE_MESSAGE
+from strata import Family, Fault, RuleContext, rule
+
+
+@rule(code="{rule_code}", family=Family.CUSTOM, slug="custom-rule", message=RULE_MESSAGE)
+def custom_rule(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    return []
+''',
+        encoding="utf-8",
+    )
+    return rules_path.parent
+
+
 def make_core_rule(*, code: str, family: Family, enabled_by_default: bool = True) -> RuleSpec:
     """Build a fake core rule for selection-composition tests."""
 

@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from strata.rules.authoring.classes.rule import Rule
 from strata.rules.authoring.main.define import rule
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import Family, RuleContext, Severity
 
-__all__ = ["Fault", "Family", "Severity", "Rule", "rule", "RuleContext"]
+__all__ = ["Fault", "Family", "Severity", "rule", "RuleContext"]

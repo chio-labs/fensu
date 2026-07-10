@@ -31,9 +31,8 @@ select = ["SF"]
 max_positional_args = 1
 ```
 
-The configured scopes receive different policies: product roots get structural
-rules, tests get test and annotation rules, and tooling gets a deliberately
-smaller boundary/hygiene set.
+The configured scopes receive different policies: product roots and tooling get
+structural rules, while tests get test and annotation rules.
 
 ## Commands
 
@@ -109,15 +108,52 @@ def no_acme_global(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     ]
 ```
 
-Load custom files or importable modules from configuration:
+Keep project-local rules in the tooling tree:
+
+```text
+scripts/strata_rules/rules/
+├── boundaries.py
+└── naming.py
+```
+
+Load the decorated rule modules from configuration:
 
 ```toml
-rule_paths = ["strata_rules"]
+tooling = ["scripts"]
+rule_paths = ["scripts/strata_rules/rules"]
 rule_modules = ["company_architecture.rules"]
 select = ["SF", "XAC001"]
 ```
 
 Custom rules are included by `strata rule` and `strata skill` once configured.
+
+Two strict decision-literal checks are available as explicit opt-ins: `SFX007`
+requires string comparison values to be named, and `SFX008` does the same for
+numeric comparison values other than `-1`, `0`, and `1`. Select either rule by
+its full code when that convention fits the repository.
+
+## Tooling Layout
+
+Direct `scripts/*.py` files are thin command adapters. Each defines public
+`main()`, may keep parser glue in `_parse_args()` or `_build_parser()`, and
+delegates execution to an imported entry function from a nested `main/` module.
+`scripts/__init__.py` and nested modules are not treated as command adapters.
+
+Tool implementations use one ownership level followed by a role:
+
+```text
+scripts/
+├── generate_report.py
+└── reporting/
+    ├── main/
+    ├── helpers/
+    └── classes/
+```
+
+The supported roles directly below a tool are `main/`, `helpers/`, `classes/`,
+and `rules/`. A `rules/` module may contain imports, import-only `TYPE_CHECKING`
+blocks, and any number of decorated `@rule` functions; supporting logic belongs
+in the other roles.
 
 ## Philosophy
 

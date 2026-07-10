@@ -23,17 +23,26 @@ def evaluate_role_test_case(
 ) -> EvaluationResult:
     """Write a source file and evaluate a single roles rule."""
 
-    path: Path = tmp_path / "src" / "pkg" / test_case.relative_path
+    scope_root: Path = tmp_path / ("scripts" if test_case.scope == "tooling" else "src/pkg")
+    path: Path = scope_root / test_case.relative_path
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(test_case.source, encoding="utf-8")
     for support_file in test_case.support_files:
-        support_path: Path = tmp_path / "src" / "pkg" / support_file.relative_path
+        support_path: Path = scope_root / support_file.relative_path
         support_path.parent.mkdir(parents=True, exist_ok=True)
         support_path.write_text(support_file.source, encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     thresholds: dict[Threshold, int] = dict(DEFAULT_THRESHOLDS)
     thresholds.update(test_case.thresholds)
-    config: Config = Config(roots=("src/pkg",), tests=(), thresholds=MappingProxyType(thresholds))
+    runtime_root: Path = tmp_path / "src/pkg"
+    runtime_root.mkdir(parents=True, exist_ok=True)
+    tooling: tuple[str, ...] = ("scripts",) if test_case.scope == "tooling" else ()
+    config: Config = Config(
+        roots=("src/pkg",),
+        tests=(),
+        tooling=tooling,
+        thresholds=MappingProxyType(thresholds),
+    )
     return evaluate(
         tree=discover_files(config),
         ruleset=(_rule_by_code(test_case.rule_code),),

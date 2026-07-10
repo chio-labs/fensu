@@ -959,3 +959,163 @@ def test_given_path_level_role_fault_when_evaluating_then_inherits_actionable_me
 
     assert tuple(fault.message for fault in result.faults) == test_case.expected_messages
     assert tuple(fault.remediation for fault in result.faults) == test_case.expected_remediations
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SfrRuleTestCase(
+            description="direct script with private parser and public main is allowed",
+            rule_code="SFR701",
+            relative_path="generate_report.py",
+            source=(
+                "import argparse\n\n"
+                "def _parse_args() -> argparse.Namespace:\n"
+                "    return argparse.ArgumentParser().parse_args()\n\n"
+                "def main() -> int:\n"
+                "    return 0\n\n"
+                "if __name__ == '__main__':\n"
+                "    raise SystemExit(main())\n"
+            ),
+            expected_codes=(),
+            expected_lines=(),
+            scope="tooling",
+        ),
+        SfrRuleTestCase(
+            description="public parse_args in direct script is flagged",
+            rule_code="SFR701",
+            relative_path="generate_report.py",
+            source=(
+                "def parse_args() -> object:\n"
+                "    return object()\n\n"
+                "def main() -> int:\n"
+                "    return 0\n"
+            ),
+            expected_codes=("SFR701",),
+            expected_lines=(1,),
+            scope="tooling",
+        ),
+        SfrRuleTestCase(
+            description="class in direct script is flagged",
+            rule_code="SFR701",
+            relative_path="generate_report.py",
+            source="class Fetcher:\n    pass\n\ndef main() -> int:\n    return 0\n",
+            expected_codes=("SFR701",),
+            expected_lines=(1,),
+            scope="tooling",
+        ),
+        SfrRuleTestCase(
+            description="direct script calling imported tooling main entry is allowed",
+            rule_code="SFR702",
+            relative_path="generate_report.py",
+            source=(
+                "from scripts.reporting.main.fetch import run_fetch\n\n"
+                "def main() -> int:\n"
+                "    return run_fetch()\n"
+            ),
+            expected_codes=(),
+            expected_lines=(),
+            scope="tooling",
+        ),
+        SfrRuleTestCase(
+            description="direct script without main delegation is flagged",
+            rule_code="SFR702",
+            relative_path="generate_report.py",
+            source="def main() -> int:\n    return 0\n",
+            expected_codes=("SFR702",),
+            expected_lines=(None,),
+            scope="tooling",
+        ),
+        SfrRuleTestCase(
+            description="implementation call retained in direct script main is flagged",
+            rule_code="SFR702",
+            relative_path="generate_report.py",
+            source=(
+                "import json\n"
+                "from scripts.reporting.main.fetch import run_fetch\n\n"
+                "def main() -> int:\n"
+                "    result: object = run_fetch()\n"
+                "    print(json.dumps(result))\n"
+                "    return 0\n"
+            ),
+            expected_codes=("SFR702", "SFR702"),
+            expected_lines=(6, 6),
+            scope="tooling",
+        ),
+        SfrRuleTestCase(
+            description="direct script above configured line limit is flagged",
+            rule_code="SFR703",
+            relative_path="generate_report.py",
+            source="def main() -> int:\n    value: int = 1\n    return value\n",
+            thresholds={Threshold.MAX_SCRIPT_ENTRYPOINT_LINES: 2},
+            expected_codes=("SFR703",),
+            expected_lines=(None,),
+            scope="tooling",
+        ),
+        SfrRuleTestCase(
+            description="rules role allows multiple decorated functions",
+            rule_code="SFR704",
+            relative_path="strata_rules/rules/imports.py",
+            source=(
+                "from strata import Family, rule\n\n"
+                "@rule(code='XIM001', family=Family.CUSTOM, slug='first', message='first')\n"
+                "def first(*, module: object, ctx: object) -> list[object]:\n"
+                "    return []\n\n"
+                "@rule(code='XIM002', family=Family.CUSTOM, slug='second', message='second')\n"
+                "def second(*, module: object, ctx: object) -> list[object]:\n"
+                "    return []\n"
+            ),
+            expected_codes=(),
+            expected_lines=(),
+            scope="tooling",
+        ),
+        SfrRuleTestCase(
+            description="undecorated function in rules role is flagged",
+            rule_code="SFR704",
+            relative_path="strata_rules/rules/imports.py",
+            source="def helper() -> None:\n    return None\n",
+            expected_codes=("SFR704",),
+            expected_lines=(1,),
+            scope="tooling",
+        ),
+        SfrRuleTestCase(
+            description="standard role directory directly under tool package is allowed",
+            rule_code="SFR705",
+            relative_path="reporting/main/fetch.py",
+            source="def run_fetch() -> int:\n    return 0\n",
+            expected_codes=(),
+            expected_lines=(),
+            scope="tooling",
+        ),
+        SfrRuleTestCase(
+            description="arbitrary package directly under tool package is flagged",
+            rule_code="SFR705",
+            relative_path="reporting/work/fetch.py",
+            source="def run_fetch() -> int:\n    return 0\n",
+            expected_codes=("SFR705",),
+            expected_lines=(None,),
+            scope="tooling",
+        ),
+        SfrRuleTestCase(
+            description="direct implementation module under tool package is flagged",
+            rule_code="SFR705",
+            relative_path="reporting/fetch.py",
+            source="def run_fetch() -> int:\n    return 0\n",
+            expected_codes=("SFR705",),
+            expected_lines=(None,),
+            scope="tooling",
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_configured_tooling_when_checking_structure_then_enforces_tool_roles(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: SfrRuleTestCase,
+) -> None:
+    result: EvaluationResult = evaluate_role_test_case(
+        test_case=test_case, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
+    assert tuple(fault.line for fault in result.faults) == test_case.expected_lines

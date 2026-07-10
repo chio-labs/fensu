@@ -21,4 +21,4 @@ ROOT_FAMILIES: frozenset[Family] = frozenset(
     }
 )
 TEST_FAMILIES: frozenset[Family] = frozenset({Family.ANNOTATIONS, Family.TESTS})
-TOOLING_FAMILIES: frozenset[Family] = frozenset({Family.LAYERS, Family.HYGIENE})
+TOOLING_FAMILIES: frozenset[Family] = ROOT_FAMILIES

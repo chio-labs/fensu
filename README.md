@@ -1,13 +1,25 @@
 # Strata
 
-Strata is an opinionated architecture linter for Python repositories. It checks
-where code lives, which boundaries imports may cross, what role each module
-plays, and whether functions make control flow, state, and data ownership clear.
+**Most linters catch bad code inside files. Strata catches architectural drift:
+code crossing the wrong boundary, living in the wrong module, or growing into the
+wrong shape.**
 
-> Most linters catch bad code. Strata catches code that is in the wrong place,
-> the wrong shape, or dishonest about what it does.
+As a repository grows, code moves, lessons get forgotten, and the mental map
+decays. Tests preserve behavior and types preserve interfaces. Strata makes the
+repository's architectural expectations executable.
 
-The project is functional and self-hosting, but remains pre-release.
+Strata enforces:
+
+- which layers may import which;
+- what each module or role file may contain;
+- whether orchestrator functions stay small;
+- whether dataflow and mutation are explicit;
+- whether names such as `validate_*` mean what they claim.
+
+It ships a coherent default architecture rather than a blank rule framework, then
+lets projects disable, extend, or replace parts deliberately.
+
+Strata is functional and self-hosting, but remains pre-release.
 
 ## Installation
 
@@ -25,31 +37,25 @@ Add `strata.toml` at the repository root:
 roots = ["src/my_package"]
 tests = ["tests"]
 tooling = ["scripts"]
-select = ["SF"]
-
-[thresholds]
-max_positional_args = 1
 ```
 
 Then run:
 
 ```bash
 strata check
-strata skills update
 ```
 
-Product roots and tooling receive structural rules. Tests receive test and
-annotation rules.
+All rule families are enabled by default. Product roots and tooling receive
+structural rules; tests receive test-convention and annotation rules.
 
 ## Default Structure
 
-Strata's default architecture uses two ownership levels before role-oriented
-modules and packages. Tests mirror the code they cover; tooling uses one ownership
-level because `scripts/` already establishes the outer boundary.
+Product code uses domain, subdomain, then role. Tests mirror the code they cover;
+tooling uses one ownership level because `scripts/` already establishes the outer
+boundary.
 
 ```text
 src/my_package/
-├── __init__.py
 └── domain/
     └── subdomain/
         ├── main/
@@ -74,97 +80,56 @@ scripts/
 Direct `scripts/*.py` files are thin command adapters. Supporting logic belongs
 under `scripts/<tool>/<role>/`.
 
-## Commands
-
-Check the configured repository and inspect rule metadata:
+## Core Commands
 
 ```bash
 strata check
 strata rule SFS131
+strata map run_plan --depth 3
 ```
 
-Install repository-aware agent skills. Repository-local installation is the
-default; `--global` writes to the corresponding user-level agent directories.
+`strata check` enforces the configured architecture, `strata rule` explains one
+rule and its remediation, and `strata map` renders a conservative downstream call
+tree. Mapping does not require Strata configuration or rule adoption.
+
+## Philosophy
+
+Strata is strict by default wherever it can make an honest deterministic claim.
+Following the rules should remove repeated architectural decisions from everyday
+work. Deliberate differences belong in selection, configuration, or custom rules,
+where they remain visible, rather than in scattered inline suppressions.
+
+## Agent Skills
+
+Generate repository-aware guidance from the active ruleset:
 
 ```bash
 strata skills update
 strata skills update --global
-strata skills update --target opencode --target agents
 ```
 
-The generated skill includes concise Strata usage, the default structure, and
-every enabled core and custom rule from the current repository. Existing
-user-authored skill files are preserved unless `--force` is supplied.
-
-Render a conservative downstream call tree:
-
-```bash
-strata map run_plan --depth 3
-strata map path/to/module::run_plan
-strata map package.module.run_plan --root src
-```
-
-`strata map` does not require Strata configuration or architecture-rule adoption.
-It resolves statically knowable project-function calls without guessing dynamic
-dispatch. Use `strata map --help` for root, path, depth, and color controls.
+The generated skill includes Strata usage, rule-supported architecture examples,
+navigation and work-handoff guidance, and every enabled core and custom rule.
+Existing user-authored skill files are preserved unless `--force` is supplied.
 
 ## Custom Rules
 
-Custom checks use `X...` codes and the same `RuleContext` as core rules:
+Custom checks use `X...` codes and the same `RuleContext` as core rules. Once
+configured, they participate in `strata check`, `strata rule`, and generated agent
+skills. See the
+[custom-rule guide](https://github.com/chio-labs/strata-docs/blob/main/concepts/custom-rules.mdx)
+for the complete API and configuration.
 
-```python
-from __future__ import annotations
+## Documentation
 
-import ast
+The quickstart, architecture model, configuration reference, adoption guide, and
+CLI reference live in the
+[Strata documentation repository](https://github.com/chio-labs/strata-docs).
 
-from strata import Family, Fault, RuleContext, rule
+## Development
 
-
-@rule(
-    code="XAC001",
-    family=Family.CUSTOM,
-    slug="no-acme-global",
-    message="ACME_GLOBAL hides ownership",
-    remediation="Move the value to the module that owns and produces it.",
-)
-def no_acme_global(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
-    return [
-        ctx.fault(node)
-        for node in ctx.nodes(ast.Name)
-        if isinstance(node, ast.Name) and node.id == "ACME_GLOBAL"
-    ]
+```bash
+make verify
 ```
 
-Keep project-local rules in the tooling tree:
-
-```text
-scripts/strata_rules/rules/
-├── boundaries.py
-└── naming.py
-```
-
-Configure and enable them in `strata.toml`:
-
-```toml
-tooling = ["scripts"]
-rule_paths = ["scripts/strata_rules/rules"]
-rule_modules = ["company_architecture.rules"]
-select = ["SF", "XAC001"]
-```
-
-Custom rules are included by `strata check`, `strata rule`, and
-`strata skills update` once configured.
-
-`SFX007` requires string comparison values to be named, and `SFX008` does the
-same for numeric comparison values other than `-1`, `0`, and `1`.
-
-## Philosophy
-
-Strata ships a coherent default architecture instead of a blank rule framework.
-Rules are strict by default where the tool can make an honest deterministic
-claim. A rule that overclaims should be fixed; a deliberate project difference
-should be expressed through selection, configuration, or a custom rule rather
-than scattered inline suppressions.
-
-The project dogfoods this contract: `make verify` runs formatting, static typing,
-`strata check`, and the full test suite.
+This runs formatting, static typing, Strata's self-check, and the full test suite.

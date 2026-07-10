@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.1](https://github.com/chio-labs/strata/compare/v0.1.0...v0.1.1) (2026-07-10)
+
+
+### Documentation
+
+* align package tagline ([7d2ad5e](https://github.com/chio-labs/strata/commit/7d2ad5e0a7546d10f8519977fb15386c6b8c2df3))
+* align package tagline ([fbf65d9](https://github.com/chio-labs/strata/commit/fbf65d99115872adbba3c230b70dce18b93ca7da))
+* improve package presentation ([7f63abe](https://github.com/chio-labs/strata/commit/7f63abe35d3044b5d6ff5bf280d51a0badd0ada3))
+* improve package presentation ([a644413](https://github.com/chio-labs/strata/commit/a644413936476636f4bd4f0b8c29aef919494a60))
+
 ## [0.1.0](https://github.com/chio-labs/strata/compare/v0.0.2...v0.1.0) (2026-07-10)
 
 

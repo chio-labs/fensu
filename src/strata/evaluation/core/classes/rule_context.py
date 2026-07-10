@@ -6,7 +6,7 @@ import ast
 from collections.abc import Mapping
 from pathlib import Path
 
-from strata.analysis.core.models import SourceRange, SyntaxHandle
+from strata.analysis.core.models import SourceLocation, SourceRange, SyntaxHandle
 from strata.analysis.core.types import Analysis
 from strata.config.core.models import Config
 from strata.discovery.core.models import RepoRoot
@@ -61,7 +61,7 @@ class EvaluationRuleContext:
 
     def fault_at(
         self,
-        location: SyntaxHandle | SourceRange,
+        location: SyntaxHandle | SourceLocation | SourceRange,
         *,
         message: str | None = None,
         remediation: str | None = None,
@@ -70,12 +70,21 @@ class EvaluationRuleContext:
 
         if isinstance(location, SyntaxHandle):
             source_range: SourceRange = self._analysis.syntax.range(location)
+            path: Path = source_range.path
+            line: int = source_range.start.line
+            column: int = source_range.start.column
+        elif isinstance(location, SourceRange):
+            path = location.path
+            line = location.start.line
+            column = location.start.column
         else:
-            source_range = location
+            path = location.path
+            line = location.line
+            column = location.column
         return self.fault_for(
-            path=source_range.path,
-            line=source_range.start.line,
-            column=source_range.start.column,
+            path=path,
+            line=line,
+            column=column,
             message=message,
             remediation=remediation,
         )

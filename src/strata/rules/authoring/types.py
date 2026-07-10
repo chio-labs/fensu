@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Protocol
 from strata.discovery.core.types import ScopeName
 
 if TYPE_CHECKING:
-    from strata.analysis.core.models import SourceRange, SyntaxHandle
+    from strata.analysis.core.models import SourceLocation, SourceRange, SyntaxHandle
     from strata.analysis.core.types import Analysis
     from strata.rules.authoring.models import Fault
 
@@ -78,7 +78,7 @@ class RuleContext(Protocol):
 
     def fault_at(
         self,
-        location: SyntaxHandle | SourceRange,
+        location: SyntaxHandle | SourceLocation | SourceRange,
         *,
         message: str | None = None,
         remediation: str | None = None,

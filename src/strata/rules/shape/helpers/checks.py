@@ -21,29 +21,31 @@ _module_separator: str = "."
 def too_many_statements(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag main/ top-level functions exceeding the tight statement threshold."""
 
+    del module
     if not ctx.is_main_module():
         return []
     limit: int = ctx.threshold(Threshold.MAX_STATEMENTS)
     faults: list[Fault] = []
-    for function_node in _top_level_function_nodes(module):
-        count: int = _statement_count(function_node)
+    for fact in ctx._analysis.facts.functions().top_level:
+        count: int = fact.statement_count
         if count > limit:
-            faults.append(ctx.fault(function_node, message=f"function has {count} statements"))
+            faults.append(ctx.fault_at(fact.location, message=f"function has {count} statements"))
     return faults
 
 
 def too_many_distinct_calls(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag main/ top-level functions with too many distinct callees."""
 
+    del module
     if not ctx.is_main_module():
         return []
     limit: int = ctx.threshold(Threshold.MAX_DISTINCT_CALLS)
     faults: list[Fault] = []
-    for function_node in _top_level_function_nodes(module):
-        count: int = len(ctx.distinct_callees(function_node))
+    for fact in ctx._analysis.facts.functions().top_level:
+        count: int = fact.distinct_call_count
         if count > limit:
             faults.append(
-                ctx.fault(function_node, message=f"function calls {count} distinct functions")
+                ctx.fault_at(fact.location, message=f"function calls {count} distinct functions")
             )
     return faults
 
@@ -51,15 +53,16 @@ def too_many_distinct_calls(*, module: ast.Module, ctx: RuleContext) -> list[Fau
 def too_many_locals(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag main/ top-level functions juggling too many local variables."""
 
+    del module
     if not ctx.is_main_module():
         return []
     limit: int = ctx.threshold(Threshold.MAX_LOCALS)
     faults: list[Fault] = []
-    for function_node in _top_level_function_nodes(module):
-        count: int = len(_assigned_local_names(function_node))
+    for fact in ctx._analysis.facts.functions().top_level:
+        count: int = fact.assigned_local_count
         if count > limit:
             faults.append(
-                ctx.fault(function_node, message=f"function defines {count} local variables")
+                ctx.fault_at(fact.location, message=f"function defines {count} local variables")
             )
     return faults
 
@@ -67,24 +70,26 @@ def too_many_locals(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
 def max_arguments(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag functions exceeding the configured argument limit."""
 
+    del module
     limit: int = ctx.threshold(Threshold.MAX_ARGUMENTS)
     faults: list[Fault] = []
-    for function_node in _function_nodes(ctx):
-        count: int = len(_parameter_names(function_node))
+    for fact in ctx._analysis.facts.functions().functions:
+        count: int = fact.parameter_count
         if count > limit:
-            faults.append(ctx.fault(function_node, message=f"function has {count} parameters"))
+            faults.append(ctx.fault_at(fact.location, message=f"function has {count} parameters"))
     return faults
 
 
 def max_statements_global(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag any function exceeding the loose global statement threshold."""
 
+    del module
     limit: int = ctx.threshold(Threshold.MAX_STATEMENTS_GLOBAL)
     faults: list[Fault] = []
-    for function_node in _function_nodes(ctx):
-        count: int = _statement_count(function_node)
+    for fact in ctx._analysis.facts.functions().functions:
+        count: int = fact.statement_count
         if count > limit:
-            faults.append(ctx.fault(function_node, message=f"function has {count} statements"))
+            faults.append(ctx.fault_at(fact.location, message=f"function has {count} statements"))
     return faults
 
 
@@ -127,21 +132,16 @@ def default_mutation_return(*, module: ast.Module, ctx: RuleContext) -> list[Fau
 def keyword_only_arguments(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag excess positional parameters that should be keyword-only."""
 
+    del module
     limit: int = ctx.threshold(Threshold.MAX_POSITIONAL_ARGS)
     faults: list[Fault] = []
-    for function_node in _function_nodes(ctx):
-        if _function_is_dunder(function_node):
+    for fact in ctx._analysis.facts.functions().functions:
+        if fact.dunder:
             continue
-        count: int = len(
-            [
-                arg.arg
-                for arg in (*function_node.args.posonlyargs, *function_node.args.args)
-                if arg.arg not in _exempt_parameters
-            ]
-        )
+        count: int = fact.positional_parameter_count
         if count > limit:
             faults.append(
-                ctx.fault(function_node, message=f"function has {count} positional parameters")
+                ctx.fault_at(fact.location, message=f"function has {count} positional parameters")
             )
     return faults
 
@@ -229,22 +229,6 @@ def _non_docstring_body(module: ast.Module) -> tuple[ast.stmt, ...]:
     ):
         return tuple(module.body[1:])
     return tuple(module.body)
-
-
-def _statement_count(function_node: ast.FunctionDef | ast.AsyncFunctionDef) -> int:
-    return sum(1 for node in ast.walk(function_node) if isinstance(node, ast.stmt)) - 1
-
-
-def _assigned_local_names(function_node: ast.FunctionDef | ast.AsyncFunctionDef) -> frozenset[str]:
-    names: set[str] = set()
-    for node in ast.walk(function_node):
-        if isinstance(node, ast.Assign):
-            for target in node.targets:
-                if isinstance(target, ast.Name):
-                    names.add(target.id)
-        if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
-            names.add(node.target.id)
-    return frozenset(names)
 
 
 def _parameter_names(function_node: ast.FunctionDef | ast.AsyncFunctionDef) -> frozenset[str]:

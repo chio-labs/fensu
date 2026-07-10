@@ -34,3 +34,90 @@ class OuterStateFactTestCase:
     expected_fact_count: int
     expected_line: int
     expected_text: str
+
+
+@dataclass(frozen=True)
+class AnnotationFactTestCase:
+    """Source and expected shared missing-annotation facts."""
+
+    description: str
+    source: str
+    expected_parameter_names: tuple[str, ...]
+    expected_parameter_lines: tuple[int, ...]
+    expected_return_names: tuple[str, ...]
+    expected_return_lines: tuple[int, ...]
+    expected_local_names: tuple[str, ...]
+    expected_local_lines: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class FunctionConditionalFactTestCase:
+    """Source and expected function conditional-control-flow facts."""
+
+    description: str
+    source: str
+    expected_function_names: tuple[str, ...]
+    expected_decorator_names: tuple[tuple[str, ...], ...]
+    expected_lines: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class ReferenceFactTestCase:
+    """Source and expected import and attribute-reference facts."""
+
+    description: str
+    source: str
+    expected_import_modules: tuple[tuple[str, ...], ...]
+    expected_import_names: tuple[tuple[str, ...], ...]
+    expected_event_types: tuple[str, ...]
+    expected_event_lines: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class CommentFactTestCase:
+    """Source and expected tokenized comment facts."""
+
+    description: str
+    source: str
+    expected_texts: tuple[str, ...]
+    expected_lines: tuple[int, ...]
+    expected_columns: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class FunctionMetricFactTestCase:
+    """Source and expected shared structural function metrics."""
+
+    description: str
+    source: str
+    expected_names: tuple[str, ...]
+    expected_top_level_names: tuple[str, ...]
+    expected_statement_counts: tuple[int, ...]
+    expected_call_counts: tuple[int, ...]
+    expected_local_counts: tuple[int, ...]
+    expected_parameter_counts: tuple[int, ...]
+    expected_positional_counts: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class MeaningfulReturnFactTestCase:
+    """Source and expected owned meaningful-return facts."""
+
+    description: str
+    source: str
+    expected_function_names: tuple[str, ...]
+    expected_lines: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class HygieneFactTestCase:
+    """Source and expected syntax-based hygiene fact locations."""
+
+    description: str
+    source: str
+    expected_docstring_lines: tuple[int, ...]
+    expected_raise_lines: tuple[int, ...]
+    expected_assertion_lines: tuple[int, ...]
+    expected_probe_lines: tuple[int, ...]
+    expected_string_lines: tuple[int, ...]
+    expected_numeric_lines: tuple[int, ...]

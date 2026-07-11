@@ -7,18 +7,17 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from strata.analysis.core.helpers.annotations import annotation_facts
-from strata.analysis.core.helpers.comments import comment_facts
 from strata.analysis.core.helpers.control_flow import (
     complex_comprehension_locations,
     function_conditional_facts,
 )
+from strata.analysis.core.helpers.declarations import module_declaration_facts
 from strata.analysis.core.helpers.function_metrics import (
     dataclass_facts,
     function_facts,
-    module_declaration_facts,
     test_function_facts,
 )
-from strata.analysis.core.helpers.hygiene import hygiene_facts
+from strata.analysis.core.helpers.hygiene import comment_facts, hygiene_facts
 from strata.analysis.core.helpers.locations import line_offsets, source_range
 from strata.analysis.core.helpers.outer_state import (
     outer_state_mutation_nodes,

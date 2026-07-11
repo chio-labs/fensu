@@ -216,13 +216,19 @@ def test_given_dataclass_declarations_when_querying_facts_then_returns_model_met
                 "    pass\n\n"
                 "def build() -> None:\n"
                 "    class NestedError(Exception):\n"
-                "        pass\n"
+                "        pass\n\n"
+                "class Service(Protocol):\n"
+                "    pass\n\n"
+                "DEFAULT_VALUE: int = 1\n"
+                "PathMode: TypeAlias = str\n"
             ),
-            expected_statement_lines=(2, 5, 8, 11),
-            expected_model_flags=(False, True, False, False),
-            expected_exception_flags=(False, False, True, False),
+            expected_statement_lines=(2, 5, 8, 11, 15, 18, 19),
+            expected_model_flags=(False, True, False, False, False, False, False),
+            expected_exception_flags=(False, False, True, False, False, False, False),
             expected_model_lines=(5,),
+            expected_type_lines=(15, 19),
             expected_exception_lines=(8, 12),
+            expected_assignment_names=((), (), (), (), (), ("DEFAULT_VALUE",), ("PathMode",)),
         )
     ],
     ids=lambda case: case.description,
@@ -250,8 +256,14 @@ def test_given_module_declarations_when_querying_facts_then_returns_role_classif
     assert (
         tuple(location.line for location in facts.model_locations) == test_case.expected_model_lines
     )
+    assert tuple(fact.location.line for fact in facts.type_declarations) == (
+        test_case.expected_type_lines
+    )
     assert tuple(location.line for location in facts.exception_locations) == (
         test_case.expected_exception_lines
+    )
+    assert tuple(fact.assignment_target_names for fact in facts.statements) == (
+        test_case.expected_assignment_names
     )
 
 

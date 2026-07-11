@@ -156,7 +156,9 @@ class ModuleDeclarationFactTestCase:
     expected_model_flags: tuple[bool, ...]
     expected_exception_flags: tuple[bool, ...]
     expected_model_lines: tuple[int, ...]
+    expected_type_lines: tuple[int, ...]
     expected_exception_lines: tuple[int, ...]
+    expected_assignment_names: tuple[tuple[str, ...], ...]
 
 
 @dataclass(frozen=True)

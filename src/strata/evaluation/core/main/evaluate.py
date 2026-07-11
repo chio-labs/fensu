@@ -67,4 +67,5 @@ def evaluate(
     return EvaluationResult(
         faults=sort_faults(faults=faults, repo_root=tree.repo_root.path),
         applied_exception_count=len(applied_exceptions),
+        dependencies=project.dependencies(),
     )

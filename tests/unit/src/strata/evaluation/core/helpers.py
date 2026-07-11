@@ -266,3 +266,23 @@ def make_analysis_context_rule() -> RuleSpec:
     return RuleSpec(
         code="XAN001", family=Family.CUSTOM, slug="analysis", message="analysis", check=check
     )
+
+
+def make_project_dependency_rule() -> RuleSpec:
+    """Build a fake rule that observes one missing project file."""
+
+    def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+        del module
+        ctx._project.is_file(
+            requester=ctx.path,
+            path=ctx.repo_root / "missing.py",
+        )
+        return []
+
+    return RuleSpec(
+        code="XPD001",
+        family=Family.CUSTOM,
+        slug="project-dependency",
+        message="project dependency",
+        check=check,
+    )

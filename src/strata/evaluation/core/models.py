@@ -6,6 +6,7 @@ import ast
 from collections.abc import Mapping
 from dataclasses import dataclass
 
+from strata.analysis.core.models import ProjectDependency
 from strata.analysis.core.types import Analysis
 from strata.discovery.core.models import PositionFacts, ScopedFile
 from strata.rules.authoring.models import Fault
@@ -39,3 +40,4 @@ class EvaluationResult:
 
     faults: tuple[Fault, ...]
     applied_exception_count: int = 0
+    dependencies: tuple[ProjectDependency, ...] = ()

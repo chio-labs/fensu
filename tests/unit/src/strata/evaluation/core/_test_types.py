@@ -140,6 +140,16 @@ class ProjectDependencyTestCase:
 
 
 @dataclass(frozen=True)
+class ProjectDependencyEvaluationTestCase:
+    """Source and expected dependency propagated through evaluation."""
+
+    description: str
+    source: str
+    expected_dependency_name: str
+    expected_dependency_kind: str
+
+
+@dataclass(frozen=True)
 class ProjectDirectoryQueryTestCase:
     """Directory contents and expected aggregate dependency metadata."""
 

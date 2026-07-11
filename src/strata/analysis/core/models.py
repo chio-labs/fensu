@@ -178,6 +178,18 @@ class FunctionFacts:
 
 
 @dataclass(frozen=True, slots=True)
+class ParameterMutationFact:
+    """The first direct mutation of one function parameter."""
+
+    function_name: str
+    parameter_name: str
+    location: SourceLocation
+    returned: bool
+    dunder: bool
+    setter: bool
+
+
+@dataclass(frozen=True, slots=True)
 class MeaningfulReturnFact:
     """The first meaningful return owned by a function."""
 

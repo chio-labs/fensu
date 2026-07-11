@@ -37,6 +37,17 @@ class OuterStateFactTestCase:
 
 
 @dataclass(frozen=True)
+class ParameterMutationFactTestCase:
+    """Source and expected backend-neutral parameter mutation facts."""
+
+    description: str
+    source: str
+    expected_parameter_names: tuple[str, ...]
+    expected_lines: tuple[int, ...]
+    expected_returned: tuple[bool, ...]
+
+
+@dataclass(frozen=True)
 class AnnotationFactTestCase:
     """Source and expected shared missing-annotation facts."""
 

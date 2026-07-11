@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from strata.analysis.core.types import ProjectDependencyKind
 from strata.cache.fingerprints.types import CanonicalValue
 from strata.cache.results.models import (
     CachedFact,
@@ -72,3 +73,32 @@ class NonCacheableConversionTestCase:
     description: str
     relative_path: str
     expected_result: CachedFileResult | None
+
+
+@dataclass(frozen=True)
+class DependencyInvalidationTestCase:
+    """One dependency mutation and expected current-state answers."""
+
+    description: str
+    expected_before: bool
+    expected_after: bool
+
+
+@dataclass(frozen=True)
+class ScalarDependencyInvalidationTestCase:
+    """One scalar query kind and expected mutation invalidation."""
+
+    description: str
+    kind: ProjectDependencyKind
+    expected_before: bool
+    expected_after: bool
+
+
+@dataclass(frozen=True)
+class GlobDependencyInvalidationTestCase:
+    """One glob recursion mode and expected namespace invalidation."""
+
+    description: str
+    recursive: bool
+    expected_before: bool
+    expected_after: bool

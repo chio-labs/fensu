@@ -17,6 +17,7 @@ from strata.cache.results.constants import (
     FINGERPRINT_DIRECTORY_PREFIX_LENGTH,
 )
 from strata.cache.results.helpers.conversion import build_cached_file_result
+from strata.cache.results.helpers.dependencies import dependencies_are_current
 from strata.cache.results.helpers.serialization import (
     file_result_from_record,
     file_result_to_record,
@@ -30,6 +31,7 @@ from strata.cache.results.models import (
     CachedFileResult,
     CacheIndex,
     CacheIndexEntry,
+    CacheLookup,
     CacheMetadata,
     CacheStats,
 )
@@ -56,6 +58,12 @@ class ResultCache:
     ) -> CacheStats:
         """Publish cacheable file results and an index, returning operation counts."""
 
+        existing_index: CacheIndex | None = self.load_index(global_fingerprint=global_fingerprint)
+        existing_entries: dict[str, CacheIndexEntry] = (
+            {entry.path: entry for entry in existing_index.entries}
+            if existing_index is not None
+            else {}
+        )
         entries: list[CacheIndexEntry] = []
         writes: int = 0
         non_cacheable: int = 0
@@ -71,6 +79,23 @@ class ResultCache:
                 global_fingerprint=global_fingerprint,
                 result=result,
             )
+            entry: CacheIndexEntry = CacheIndexEntry(
+                path=result.path,
+                source_fingerprint=result.source_fingerprint,
+                result_fingerprint=fingerprints.result,
+                record_fingerprint=fingerprints.record,
+            )
+            existing_entry: CacheIndexEntry | None = existing_entries.get(result.path)
+            if (
+                existing_entry == entry
+                and self.load_result(
+                    global_fingerprint=global_fingerprint,
+                    entry=entry,
+                )
+                is not None
+            ):
+                entries.append(entry)
+                continue
             written: bool = self._store.write(
                 relative_path=_result_path(fingerprints.result),
                 record=file_result_to_record(result),
@@ -78,18 +103,17 @@ class ResultCache:
             if not written:
                 continue
             writes += 1
-            entries.append(
-                CacheIndexEntry(
-                    path=result.path,
-                    source_fingerprint=result.source_fingerprint,
-                    result_fingerprint=fingerprints.result,
-                    record_fingerprint=fingerprints.record,
-                )
-            )
+            entries.append(entry)
         index: CacheIndex = CacheIndex(
             global_fingerprint=global_fingerprint,
             entries=tuple(sorted(entries, key=lambda entry: entry.path)),
         )
+        if index == existing_index:
+            return CacheStats(
+                misses=len(evaluations),
+                writes=writes,
+                non_cacheable=non_cacheable,
+            )
         metadata_written: bool = self._store.write(
             relative_path=CACHE_METADATA_PATH,
             record=metadata_to_record(CacheMetadata(global_fingerprint=global_fingerprint)),
@@ -162,6 +186,30 @@ class ResultCache:
         ):
             return None
         return result
+
+    def load_candidate(
+        self,
+        *,
+        global_fingerprint: CacheFingerprint,
+        entry: CacheIndexEntry,
+        source_fingerprint: CacheFingerprint,
+    ) -> CacheLookup:
+        """Return an unchanged indexed candidate or an explicit invalidation."""
+
+        if entry.source_fingerprint != source_fingerprint:
+            return CacheLookup(result=None, missed=False, invalidated=True)
+        result: CachedFileResult | None = self.load_result(
+            global_fingerprint=global_fingerprint,
+            entry=entry,
+        )
+        if result is None:
+            return CacheLookup(result=None, missed=True, invalidated=False)
+        if not dependencies_are_current(
+            observations=result.dependencies,
+            repo_root=self._repo_root,
+        ):
+            return CacheLookup(result=None, missed=False, invalidated=True)
+        return CacheLookup(result=result, missed=False, invalidated=False)
 
 
 def _result_path(fingerprint: CacheFingerprint) -> Path:

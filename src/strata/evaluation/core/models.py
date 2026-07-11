@@ -6,6 +6,8 @@ import ast
 from collections.abc import Mapping
 from dataclasses import dataclass
 
+from strata.analysis.core.models import ProjectDependency
+from strata.analysis.core.types import Analysis
 from strata.discovery.core.models import PositionFacts, ScopedFile
 from strata.rules.authoring.models import Fault
 
@@ -20,6 +22,7 @@ class ParsedModule:
     node_index: Mapping[type[ast.AST], tuple[ast.AST, ...]]
     parent_by_node: Mapping[ast.AST, ast.AST]
     position: PositionFacts
+    analysis: Analysis
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,3 +40,4 @@ class EvaluationResult:
 
     faults: tuple[Fault, ...]
     applied_exception_count: int = 0
+    dependencies: tuple[ProjectDependency, ...] = ()

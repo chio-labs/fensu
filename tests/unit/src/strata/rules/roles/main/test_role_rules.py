@@ -54,6 +54,20 @@ from tests.unit.src.strata.rules.roles.main.helpers import evaluate_role_test_ca
             expected_lines=(),
         ),
         SfrRuleTestCase(
+            description="private dataclass protocol in types role is flagged as a model",
+            rule_code="SFR002",
+            relative_path="domain/core/types.py",
+            source=(
+                "from dataclasses import dataclass\n"
+                "from typing import Protocol\n\n"
+                "@dataclass\n"
+                "class _Event(Protocol):\n"
+                "    value: int\n"
+            ),
+            expected_codes=("SFR002",),
+            expected_lines=(5,),
+        ),
+        SfrRuleTestCase(
             description="type-checking imports-only block in types role is allowed",
             rule_code="SFR002",
             relative_path="domain/core/types.py",
@@ -167,6 +181,20 @@ def test_given_role_files_when_checking_content_then_flags_only_foreign_declarat
             rule_code="SFR102",
             relative_path="domain/core/helpers/service.py",
             source="from typing import Protocol\n\nclass _Service(Protocol):\n    value: int\n",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        SfrRuleTestCase(
+            description="private dataclass protocol outside types is not a type declaration",
+            rule_code="SFR102",
+            relative_path="domain/core/classes/event.py",
+            source=(
+                "from dataclasses import dataclass\n"
+                "from typing import Protocol\n\n"
+                "@dataclass\n"
+                "class _Event(Protocol):\n"
+                "    value: int\n"
+            ),
             expected_codes=(),
             expected_lines=(),
         ),
@@ -818,6 +846,21 @@ def test_given_role_layouts_when_checking_then_flags_only_layout_violations(
             rule_code="SFR405",
             relative_path="domain/core/main/run.py",
             source="def run() -> None:\n    return None\n",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        SfrRuleTestCase(
+            description="flat main entry sharing its name with a file is allowed",
+            rule_code="SFR405",
+            relative_path="domain/core/main/run.py",
+            source="def run() -> None:\n    return None\n",
+            support_files=(
+                SfrSupportFile(
+                    description="same-named plain file",
+                    relative_path="domain/core/main/run",
+                    source="",
+                ),
+            ),
             expected_codes=(),
             expected_lines=(),
         ),

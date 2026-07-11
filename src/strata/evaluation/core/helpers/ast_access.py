@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import ast
-from collections import defaultdict, deque
 from collections.abc import Mapping
 
 _comprehension_types: tuple[type[ast.AST], ...] = (
@@ -12,23 +11,6 @@ _comprehension_types: tuple[type[ast.AST], ...] = (
     ast.DictComp,
     ast.GeneratorExp,
 )
-
-
-def build_ast_indexes(
-    module: ast.Module,
-) -> tuple[Mapping[type[ast.AST], tuple[ast.AST, ...]], Mapping[ast.AST, ast.AST]]:
-    """Build node-type and parent indexes in one breadth-first traversal."""
-
-    index: defaultdict[type[ast.AST], list[ast.AST]] = defaultdict(list)
-    parents: dict[ast.AST, ast.AST] = {}
-    pending: deque[ast.AST] = deque((module,))
-    while pending:
-        node: ast.AST = pending.popleft()
-        index[type(node)].append(node)
-        for child in ast.iter_child_nodes(node):
-            parents[child] = node
-            pending.append(child)
-    return {node_type: tuple(nodes) for node_type, nodes in index.items()}, parents
 
 
 def call_name(node: ast.Call) -> str | None:

@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from strata.analysis.core.models import ParametrizeFact, PytestFunctionFact, PytestModuleFacts
-from strata.analysis.core.types import Analysis
 from strata.discovery.core.types import ScopeName
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import RuleContext
@@ -395,12 +394,13 @@ def _local_test_types(*, ctx: RuleContext, inspect_dataclasses: bool) -> _LocalT
     test_types_path: Path = ctx.path.parent / "_test_types.py"
     dataclass_names: frozenset[str] = frozenset()
     if inspect_dataclasses:
-        analysis: Analysis | None = ctx._project.analysis(
-            requester=ctx.path,
-            path=test_types_path,
+        dataclass_names = frozenset(
+            fact.name
+            for fact in ctx._project.dataclasses(
+                requester=ctx.path,
+                path=test_types_path,
+            )
         )
-        if analysis is not None:
-            dataclass_names = frozenset(fact.name for fact in analysis.facts.dataclasses())
     return _LocalTestTypes(
         module_name=_module_name_for_file(path=test_types_path, repo_root=ctx.repo_root),
         dataclass_names=dataclass_names,

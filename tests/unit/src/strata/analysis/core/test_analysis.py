@@ -12,6 +12,7 @@ from strata.analysis.core.main.build import build_analysis
 from strata.analysis.core.models import (
     AnnotationFacts,
     CommentFact,
+    DataclassFact,
     FunctionConditionalFact,
     FunctionFacts,
     HygieneFacts,
@@ -27,6 +28,7 @@ from tests.unit.src.strata.analysis.core._test_types import (
     AnalysisErrorTestCase,
     AnnotationFactTestCase,
     CommentFactTestCase,
+    DataclassFactTestCase,
     FunctionConditionalFactTestCase,
     FunctionMetricFactTestCase,
     HygieneFactTestCase,
@@ -35,6 +37,50 @@ from tests.unit.src.strata.analysis.core._test_types import (
     ReferenceFactTestCase,
     SourceAnalysisTestCase,
 )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        DataclassFactTestCase(
+            description="dataclass facts expose fields frozen state and decorator ownership",
+            source=(
+                "@dataclass(frozen=True)\n"
+                "class Case:\n"
+                "    description: str\n"
+                "    expected_value: int\n\n"
+                "@dataclasses.dataclass\n"
+                "class External:\n"
+                "    value: int\n"
+            ),
+            expected_names=("Case", "External"),
+            expected_field_names=(
+                frozenset({"description", "expected_value"}),
+                frozenset({"value"}),
+            ),
+            expected_frozen=(True, False),
+            expected_shape_candidates=(True, False),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_dataclass_declarations_when_querying_facts_then_returns_model_metadata(
+    tmp_path: Path,
+    test_case: DataclassFactTestCase,
+) -> None:
+    path: Path = tmp_path / "module.py"
+    analysis: Analysis = build_analysis(
+        path=path,
+        source=test_case.source,
+        module=ast.parse(test_case.source),
+    ).analysis
+
+    facts: tuple[DataclassFact, ...] = analysis.facts.dataclasses()
+
+    assert tuple(fact.name for fact in facts) == test_case.expected_names
+    assert tuple(fact.field_names for fact in facts) == test_case.expected_field_names
+    assert tuple(fact.frozen for fact in facts) == test_case.expected_frozen
+    assert tuple(fact.shape_candidate for fact in facts) == test_case.expected_shape_candidates
 
 
 @pytest.mark.parametrize(

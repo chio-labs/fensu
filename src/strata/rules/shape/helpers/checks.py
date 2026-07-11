@@ -8,7 +8,6 @@ from pathlib import Path
 from strata.discovery.core.types import RoleName
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import RuleContext, Threshold
-from strata.rules.shape.types import ShapeSymbol
 
 _mutator_methods: frozenset[str] = frozenset(
     {"add", "append", "clear", "extend", "insert", "pop", "remove", "setdefault", "update"}
@@ -163,13 +162,14 @@ def no_complex_comprehensions(*, module: ast.Module, ctx: RuleContext) -> list[F
 def mutable_result_model(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag dataclass result models that are not frozen."""
 
+    del module
     if ctx.role_of() != RoleName.MODELS:
         return []
-    faults: list[Fault] = []
-    for node in module.body:
-        if isinstance(node, ast.ClassDef) and _is_mutable_dataclass(node):
-            faults.append(ctx.fault(node))
-    return faults
+    return [
+        ctx.fault_at(fact.location)
+        for fact in ctx._analysis.facts.dataclasses()
+        if fact.shape_candidate and not fact.frozen
+    ]
 
 
 def _parameter_mutation_faults(
@@ -454,22 +454,3 @@ def _decorator_name(node: ast.expr) -> str:
     if isinstance(node, ast.Call):
         return _decorator_name(node.func)
     return ""
-
-
-def _is_mutable_dataclass(node: ast.ClassDef) -> bool:
-    for decorator in node.decorator_list:
-        if (
-            isinstance(decorator, ast.Call)
-            and _decorator_name(decorator.func) == ShapeSymbol.DATACLASS
-        ):
-            return not _dataclass_call_is_frozen(decorator)
-        if _decorator_name(decorator) == ShapeSymbol.DATACLASS:
-            return True
-    return False
-
-
-def _dataclass_call_is_frozen(node: ast.Call) -> bool:
-    for keyword in node.keywords:
-        if keyword.arg == ShapeSymbol.FROZEN and isinstance(keyword.value, ast.Constant):
-            return keyword.value.value is True
-    return False

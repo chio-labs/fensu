@@ -9,6 +9,7 @@ from typing import NamedTuple, Protocol
 from strata.analysis.core.models import (
     AnnotationFacts,
     CommentFact,
+    DataclassFact,
     FunctionConditionalFact,
     FunctionFacts,
     HygieneFacts,
@@ -79,6 +80,10 @@ class FactAnalysis(Protocol):
 
     def comments(self) -> tuple[CommentFact, ...]:
         """Return source comments in token order."""
+        ...
+
+    def dataclasses(self) -> tuple[DataclassFact, ...]:
+        """Return top-level dataclass declarations and field metadata."""
         ...
 
     def complex_comprehensions(self) -> tuple[SourceLocation, ...]:

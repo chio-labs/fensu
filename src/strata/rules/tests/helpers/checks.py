@@ -183,21 +183,18 @@ def _relative_import_faults(*, module: ast.Module, ctx: RuleContext) -> list[Fau
 
 
 def _test_types_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) -> list[Fault]:
+    del module
     faults: list[Fault] = []
-    for node in module.body:
-        if not isinstance(node, ast.ClassDef) or not _has_dataclass_decorator(node):
-            continue
-        field_names: frozenset[str] = frozenset(
-            statement.target.id
-            for statement in node.body
-            if isinstance(statement, ast.AnnAssign) and isinstance(statement.target, ast.Name)
-        )
-        if code == SftCode.TEST_TYPES_DESCRIPTION and TestSymbol.DESCRIPTION not in field_names:
-            faults.append(ctx.fault(node))
-        if code == SftCode.TEST_TYPES_EXPECTED_FIELD and not any(
-            field_name.startswith("expected_") for field_name in field_names
+    for fact in ctx._analysis.facts.dataclasses():
+        if (
+            code == SftCode.TEST_TYPES_DESCRIPTION
+            and TestSymbol.DESCRIPTION not in fact.field_names
         ):
-            faults.append(ctx.fault(node))
+            faults.append(ctx.fault_at(fact.location))
+        if code == SftCode.TEST_TYPES_EXPECTED_FIELD and not any(
+            field_name.startswith("expected_") for field_name in fact.field_names
+        ):
+            faults.append(ctx.fault_at(fact.location))
     return faults
 
 

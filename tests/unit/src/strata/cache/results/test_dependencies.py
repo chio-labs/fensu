@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
+import strata.cache.results.helpers.dependencies as dependency_module
 from strata.analysis.core.types import ProjectDependencyKind
 from strata.cache.fingerprints.main.source import fingerprint_source
 from strata.cache.results.helpers.dependencies import dependencies_are_current
 from strata.cache.results.models import DependencyObservation
+from strata.cache.results.types import DependencyStateCache
 from tests.unit.src.strata.cache.results._test_types import (
     DependencyInvalidationTestCase,
+    DependencyReuseTestCase,
     GlobDependencyInvalidationTestCase,
     ScalarDependencyInvalidationTestCase,
 )
@@ -273,3 +277,44 @@ def test_given_symlink_observation_when_target_changes_then_invalidates(
 
     assert before is test_case.expected_before
     assert after is test_case.expected_after
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        DependencyReuseTestCase(
+            description="equivalent requester queries share one filesystem observation",
+            requester_paths=("src/pkg/first.py", "src/pkg/second.py"),
+            expected_current=True,
+            expected_observation_count=1,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_equivalent_dependency_queries_when_validating_batch_then_reuses_observation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: DependencyReuseTestCase,
+) -> None:
+    observations: tuple[DependencyObservation, ...] = tuple(
+        DependencyObservation(
+            requester_path=requester_path,
+            query_path="missing.py",
+            dependency_path="missing.py",
+            kind=ProjectDependencyKind.EXISTS,
+            answer=False,
+        )
+        for requester_path in test_case.requester_paths
+    )
+    observer: Mock = Mock(wraps=dependency_module._reobserve)
+    monkeypatch.setattr(dependency_module, "_reobserve", observer)
+    states: DependencyStateCache = {}
+
+    current: bool = dependencies_are_current(
+        observations=observations,
+        repo_root=tmp_path,
+        states=states,
+    )
+
+    assert current is test_case.expected_current
+    assert observer.call_count == test_case.expected_observation_count

@@ -2,30 +2,37 @@
 
 from __future__ import annotations
 
+import sqlite3
 from pathlib import Path
 
 from strata.cache.storage.classes.cache_store import CacheStore
+from strata.cache.storage.models import CacheRecord
 
 
 def write_raw_cache_entry(*, store: CacheStore, relative_path: str, data: bytes) -> None:
     """Write unvalidated bytes directly into one cache entry."""
 
-    path: Path = store.root / relative_path
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(data)
+    _ = store.write(
+        relative_path=Path(relative_path),
+        record=CacheRecord(kind="index", payload={}),
+    )
+    with sqlite3.connect(store.root) as connection:
+        connection.execute("UPDATE records SET data = ? WHERE key = ?", (data, relative_path))
 
 
-def fail_replace(
-    source: str,
-    destination: str,
-    *,
-    src_dir_fd: int | None = None,
-    dst_dir_fd: int | None = None,
-) -> None:
-    """Simulate an interrupted atomic publication."""
+def install_write_failure(*, store: CacheStore, failed_key: str | None = None) -> None:
+    """Install a database trigger that aborts every record update."""
 
-    del source, destination, src_dir_fd, dst_dir_fd
-    raise OSError("simulated replace failure")
+    _ = store.write(
+        relative_path=Path("setup"),
+        record=CacheRecord(kind="setup", payload={}),
+    )
+    with sqlite3.connect(store.root) as connection:
+        condition: str = "" if failed_key is None else f" WHEN NEW.key = '{failed_key}'"
+        connection.execute(
+            f"CREATE TRIGGER fail_writes BEFORE INSERT ON records{condition} "
+            "BEGIN SELECT RAISE(ABORT, 'simulated write failure'); END"
+        )
 
 
 def deeply_nested_cache_json(depth: int) -> bytes:

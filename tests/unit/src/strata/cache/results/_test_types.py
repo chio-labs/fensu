@@ -85,6 +85,16 @@ class DependencyInvalidationTestCase:
 
 
 @dataclass(frozen=True)
+class DependencyReuseTestCase:
+    """Equivalent requester observations and expected filesystem query count."""
+
+    description: str
+    requester_paths: tuple[str, ...]
+    expected_current: bool
+    expected_observation_count: int
+
+
+@dataclass(frozen=True)
 class ScalarDependencyInvalidationTestCase:
     """One scalar query kind and expected mutation invalidation."""
 

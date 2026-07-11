@@ -3,17 +3,16 @@
 from __future__ import annotations
 
 import os
+import sqlite3
 from pathlib import Path
 
 import pytest
 
-from strata.cache.storage.classes import cache_store as cache_store_module
 from strata.cache.storage.classes.cache_store import CacheStore
-from strata.cache.storage.constants import SECURE_CACHE_IO_SUPPORTED
 from strata.cache.storage.exceptions import CachePathError
-from strata.cache.storage.models import CacheRecord
+from strata.cache.storage.models import CacheRecord, CacheWrite
 from tests.unit.src.strata.cache.storage._test_types import CachePathTestCase, CacheStoreTestCase
-from tests.unit.src.strata.cache.storage.helpers import fail_replace, write_raw_cache_entry
+from tests.unit.src.strata.cache.storage.helpers import install_write_failure, write_raw_cache_entry
 
 
 @pytest.mark.parametrize(
@@ -62,7 +61,6 @@ def test_given_missing_cache_when_reading_then_returns_miss_without_creating_sto
     ],
     ids=lambda case: case.description,
 )
-@pytest.mark.skipif(not SECURE_CACHE_IO_SUPPORTED, reason="secure descriptor I/O unavailable")
 def test_given_cache_record_when_writing_then_atomically_round_trips(
     tmp_path: Path,
     test_case: CacheStoreTestCase,
@@ -78,7 +76,10 @@ def test_given_cache_record_when_writing_then_atomically_round_trips(
 
     assert written is test_case.expected_write
     assert loaded == test_case.expected_record
-    assert tuple(store.root.rglob("*.tmp")) == ()
+    assert store.root.name == "v1.db"
+    with sqlite3.connect(store.root) as connection:
+        journal_mode: tuple[str] | None = connection.execute("PRAGMA journal_mode").fetchone()
+    assert journal_mode == ("wal",)
 
 
 @pytest.mark.parametrize(
@@ -128,13 +129,12 @@ def test_given_corrupted_entry_when_reading_then_returns_cache_miss(
     ],
     ids=lambda case: case.description,
 )
-def test_given_atomic_replace_failure_when_writing_then_cleans_temporary_entry(
-    monkeypatch: pytest.MonkeyPatch,
+def test_given_transaction_failure_when_writing_then_leaves_no_visible_entry(
     tmp_path: Path,
     test_case: CacheStoreTestCase,
 ) -> None:
     store: CacheStore = CacheStore(repo_root=tmp_path)
-    monkeypatch.setattr(cache_store_module.os, "replace", fail_replace)
+    install_write_failure(store=store)
 
     written: bool = store.write(
         relative_path=Path(test_case.relative_path),
@@ -147,7 +147,6 @@ def test_given_atomic_replace_failure_when_writing_then_cleans_temporary_entry(
 
     assert written is test_case.expected_write
     assert loaded == test_case.expected_record
-    assert tuple(store.root.rglob("*.tmp")) == ()
 
 
 @pytest.mark.parametrize(
@@ -164,16 +163,14 @@ def test_given_atomic_replace_failure_when_writing_then_cleans_temporary_entry(
     ],
     ids=lambda case: case.description,
 )
-@pytest.mark.skipif(not SECURE_CACHE_IO_SUPPORTED, reason="secure descriptor I/O unavailable")
-def test_given_existing_entry_when_replacement_fails_then_preserves_previous_record(
-    monkeypatch: pytest.MonkeyPatch,
+def test_given_existing_entry_when_transaction_fails_then_preserves_previous_record(
     tmp_path: Path,
     test_case: CacheStoreTestCase,
 ) -> None:
     store: CacheStore = CacheStore(repo_root=tmp_path)
     previous: CacheRecord = CacheRecord(kind=test_case.kind, payload=test_case.payload)
     _ = store.write(relative_path=Path(test_case.relative_path), record=previous)
-    monkeypatch.setattr(cache_store_module.os, "replace", fail_replace)
+    install_write_failure(store=store)
 
     written: bool = store.write(
         relative_path=Path(test_case.relative_path),
@@ -186,7 +183,48 @@ def test_given_existing_entry_when_replacement_fails_then_preserves_previous_rec
 
     assert written is test_case.expected_write
     assert loaded == test_case.expected_record
-    assert tuple(store.root.rglob("*.tmp")) == ()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CacheStoreTestCase(
+            description="failure on later batch row rolls back every earlier row",
+            relative_path="results/first",
+            kind="result",
+            payload={"value": 1},
+            expected_write=False,
+            expected_record=None,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_multi_record_batch_when_later_write_fails_then_rolls_back_transaction(
+    tmp_path: Path,
+    test_case: CacheStoreTestCase,
+) -> None:
+    store: CacheStore = CacheStore(repo_root=tmp_path)
+    install_write_failure(store=store, failed_key="results/second")
+
+    written: bool = store.write_batch(
+        writes=(
+            CacheWrite(
+                relative_path=Path(test_case.relative_path),
+                record=CacheRecord(kind=test_case.kind, payload=test_case.payload),
+            ),
+            CacheWrite(
+                relative_path=Path("results/second"),
+                record=CacheRecord(kind=test_case.kind, payload={"value": 2}),
+            ),
+        )
+    )
+    loaded: CacheRecord | None = store.read(
+        relative_path=Path(test_case.relative_path),
+        expected_kind=test_case.kind,
+    )
+
+    assert written is test_case.expected_write
+    assert loaded == test_case.expected_record
 
 
 @pytest.mark.parametrize(
@@ -250,7 +288,7 @@ def test_given_symlinked_cache_root_when_accessing_then_refuses_external_target(
 
     assert written is test_case.expected_write
     assert loaded == test_case.expected_record
-    assert not (external / "cache/v1" / test_case.relative_path).exists()
+    assert not (external / "cache/v1.db").exists()
 
 
 @pytest.mark.parametrize(
@@ -302,16 +340,16 @@ def test_given_symlink_loop_when_accessing_cache_then_returns_miss(
     ids=lambda case: case.description,
 )
 @pytest.mark.skipif(
-    not SECURE_CACHE_IO_SUPPORTED or not hasattr(os, "mkfifo"),
-    reason="secure FIFO test unavailable",
+    not hasattr(os, "mkfifo"),
+    reason="FIFO test unavailable",
 )
-def test_given_fifo_cache_entry_when_reading_then_returns_miss_without_blocking(
+def test_given_fifo_database_when_reading_then_returns_miss_without_blocking(
     tmp_path: Path,
     test_case: CacheStoreTestCase,
 ) -> None:
     store: CacheStore = CacheStore(repo_root=tmp_path)
-    store.root.mkdir(parents=True)
-    os.mkfifo(store.root / test_case.relative_path)
+    store.root.parent.mkdir(parents=True)
+    os.mkfifo(store.root)
 
     loaded: CacheRecord | None = store.read(
         relative_path=Path(test_case.relative_path),

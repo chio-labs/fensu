@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import sqlite3
 from io import StringIO
 from pathlib import Path
 
 import pytest
+
+from strata.cache.storage.constants import CACHE_DATABASE_RELATIVE_PATH
 
 
 class CaptureOutput(StringIO):
@@ -98,6 +101,31 @@ def write_cli_stale_exception_project(root: Path) -> None:
     write_cli_exception_project(root)
     source: Path = root / "src" / "pkg" / "external.py"
     source.write_text("def callback(*, value: int) -> None:\n    pass\n", encoding="utf-8")
+
+
+def write_cli_core_fault_project(root: Path) -> None:
+    """Write a cacheable project with one deterministic core fault."""
+
+    source: Path = root / "src/pkg/models.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("VALUE = 1\n", encoding="utf-8")
+    (root / "strata.toml").write_text(
+        'roots = ["src/pkg"]\ntests = []\nselect = ["SFA101"]\n',
+        encoding="utf-8",
+    )
+
+
+def cache_snapshot(root: Path) -> tuple[tuple[str, bytes], ...]:
+    """Return deterministic logical cache keys and canonical record bytes."""
+
+    database: Path = root / CACHE_DATABASE_RELATIVE_PATH
+    if not database.is_file():
+        return ()
+    with sqlite3.connect(f"{database.as_uri()}?mode=ro", uri=True) as connection:
+        rows: list[tuple[str, bytes]] = connection.execute(
+            "SELECT key, data FROM records ORDER BY key"
+        ).fetchall()
+    return tuple(rows)
 
 
 def write_cli_map_project(

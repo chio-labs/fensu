@@ -7,7 +7,7 @@ from pathlib import Path
 from threading import Event
 
 from strata.cache.storage.classes.cache_store import CacheStore
-from strata.cache.storage.models import CacheRecord
+from strata.cache.storage.models import CacheRead, CacheRecord, CacheWrite
 
 
 def write_records_concurrently(
@@ -49,6 +49,45 @@ def read_during_concurrent_writes(
             for value in values
         ]
         _ = tuple(writer.result() for writer in writers)
+        finished.set()
+        _ = reader.result()
+    return tuple(observed)
+
+
+def read_batches_during_concurrent_writes(
+    *,
+    store: CacheStore,
+    relative_paths: tuple[Path, Path],
+    kind: str,
+    values: tuple[int, ...],
+) -> tuple[tuple[CacheRecord | None, ...], ...]:
+    """Observe two records while complete transactions replace both."""
+
+    finished: Event = Event()
+    observed: list[tuple[CacheRecord | None, ...]] = []
+    reads: tuple[CacheRead, ...] = tuple(
+        CacheRead(relative_path=path, expected_kind=kind) for path in relative_paths
+    )
+
+    def read_until_finished() -> None:
+        while not finished.is_set():
+            observed.append(store.read_batch(reads=reads))
+
+    def write_batches() -> None:
+        for value in values:
+            writes: tuple[CacheWrite, ...] = tuple(
+                CacheWrite(
+                    relative_path=path,
+                    record=CacheRecord(kind=kind, payload={"value": value}),
+                )
+                for path in relative_paths
+            )
+            _ = store.write_batch(writes=writes)
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        reader: Future[None] = executor.submit(read_until_finished)
+        writer: Future[None] = executor.submit(write_batches)
+        _ = writer.result()
         finished.set()
         _ = reader.result()
     return tuple(observed)

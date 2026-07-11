@@ -23,7 +23,6 @@ from strata.cache.results.models import (
     CacheStats,
 )
 from strata.cache.storage.classes.cache_store import CacheStore
-from strata.cache.storage.constants import SECURE_CACHE_IO_SUPPORTED
 from strata.evaluation.core.models import FileEvaluation
 from tests.integration.src.strata.cache.results._test_types import (
     ResultCacheCandidateTestCase,
@@ -35,11 +34,6 @@ from tests.integration.src.strata.cache.results.helpers import (
     external_dependency_evaluation,
     file_evaluation,
     install_cache_write_failure,
-)
-
-pytestmark: object = pytest.mark.skipif(
-    not SECURE_CACHE_IO_SUPPORTED,
-    reason="secure descriptor I/O unavailable",
 )
 
 _GLOBAL_FINGERPRINT: CacheFingerprint = CacheFingerprint("a" * 64)
@@ -131,16 +125,8 @@ def test_given_non_cacheable_evaluation_when_publishing_then_records_safe_counts
     "test_case",
     [
         ResultCachePublicationFailureTestCase(
-            description="metadata failure leaves result blobs unindexed",
+            description="transaction failure leaves results and index unpublished",
             relative_path="src/pkg/models.py",
-            failed_path="metadata.json",
-            expected_writes=0,
-            expected_index=None,
-        ),
-        ResultCachePublicationFailureTestCase(
-            description="index failure leaves result blobs unreachable",
-            relative_path="src/pkg/models.py",
-            failed_path="index.json",
             expected_writes=0,
             expected_index=None,
         ),
@@ -154,7 +140,6 @@ def test_given_publication_stage_failure_when_publishing_then_reports_no_indexed
 ) -> None:
     install_cache_write_failure(
         monkeypatch=monkeypatch,
-        failed_path=Path(test_case.failed_path),
     )
     cache: ResultCache = ResultCache(repo_root=tmp_path)
 

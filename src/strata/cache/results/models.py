@@ -45,6 +45,7 @@ class CacheStats:
     invalidations: int = 0
     writes: int = 0
     non_cacheable: int = 0
+    storage_failed: bool = False
 
 
 @dataclass(frozen=True, slots=True)

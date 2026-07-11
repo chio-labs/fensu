@@ -93,3 +93,26 @@ class FileResultFingerprintTestCase:
     second_fault_message: str
     expected_result_equal: bool
     expected_record_equal: bool
+
+
+@dataclass(frozen=True)
+class GlobalRuntimeFingerprintTestCase:
+    """Runtime semantic identities and expected global invalidation."""
+
+    description: str
+    first_python_implementation: str
+    second_python_implementation: str
+    first_contract_version: int
+    second_contract_version: int
+    expected_equal: bool
+
+
+@dataclass(frozen=True)
+class GlobalFingerprintBuilderTestCase:
+    """Loaded package availability and expected global builder result."""
+
+    description: str
+    package_available: bool
+    source_available: bool
+    complete_source: bool
+    expected_available: bool

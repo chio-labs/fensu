@@ -1,7 +1,6 @@
 """Helpers for persistent result-cache integration tests."""
 
 import ast
-from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -10,7 +9,7 @@ import strata.evaluation.core.helpers.file_evaluation as file_evaluation_module
 from strata.analysis.core.models import ProjectDependency
 from strata.analysis.core.types import ProjectDependencyKind
 from strata.cache.storage.classes.cache_store import CacheStore
-from strata.cache.storage.models import CacheRecord
+from strata.cache.storage.models import CacheWrite
 from strata.config.core.models import Config, RuleExceptionEntry
 from strata.discovery.core.main.discover_files import discover_files
 from strata.discovery.core.models import DiscoveredTree
@@ -77,23 +76,18 @@ def external_dependency_evaluation(*, repo_root: Path, relative_path: str) -> Fi
 def install_cache_write_failure(
     *,
     monkeypatch: pytest.MonkeyPatch,
-    failed_path: Path,
 ) -> None:
-    """Fail one exact cache publication path while preserving other writes."""
+    """Reject one complete cache publication transaction."""
 
-    original: Callable[..., bool] = CacheStore.write
-
-    def write(
+    def write_batch(
         store: CacheStore,
         *,
-        relative_path: Path,
-        record: CacheRecord,
+        writes: tuple[CacheWrite, ...],
     ) -> bool:
-        if relative_path == failed_path:
-            return False
-        return original(store, relative_path=relative_path, record=record)
+        del store, writes
+        return False
 
-    monkeypatch.setattr(CacheStore, "write", write)
+    monkeypatch.setattr(CacheStore, "write_batch", write_batch)
 
 
 def write_project_sources(
@@ -214,13 +208,12 @@ def install_rule_execution_failure(*, monkeypatch: pytest.MonkeyPatch) -> None:
 def install_cache_write_rejection(*, monkeypatch: pytest.MonkeyPatch) -> None:
     """Reject every persistent write while proving a fully warm generation."""
 
-    def reject_write(
+    def reject_write_batch(
         store: CacheStore,
         *,
-        relative_path: Path,
-        record: CacheRecord,
+        writes: tuple[CacheWrite, ...],
     ) -> bool:
-        del store, relative_path, record
+        del store, writes
         raise AssertionError("fully warm cache path attempted a persistent write")
 
-    monkeypatch.setattr(CacheStore, "write", reject_write)
+    monkeypatch.setattr(CacheStore, "write_batch", reject_write_batch)

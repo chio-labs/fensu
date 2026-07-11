@@ -6,6 +6,9 @@ import ast
 from pathlib import Path
 from types import MappingProxyType
 
+import pytest
+
+import strata.cache.fingerprints.main.build_global as build_global_module
 from strata.analysis.core.types import ProjectDependencyKind
 from strata.cache.fingerprints.models import CacheFingerprint
 from strata.cache.results.models import CachedFault, CachedFileResult, DependencyObservation
@@ -96,3 +99,35 @@ def cached_file_result(*, dependency_answer: bool, fault_message: str) -> Cached
             ),
         ),
     )
+
+
+def configure_package_availability(
+    *,
+    monkeypatch: pytest.MonkeyPatch,
+    available: bool,
+    source_available: bool,
+    complete_source: bool,
+    empty_package_root: Path,
+) -> None:
+    """Disable loaded-package discovery for conservative fallback coverage."""
+
+    if not available:
+        monkeypatch.setattr(build_global_module, "_loaded_package_root", lambda: None)
+    elif not source_available:
+        empty_package_root.mkdir()
+        monkeypatch.setattr(
+            build_global_module,
+            "_loaded_package_root",
+            lambda: empty_package_root,
+        )
+    elif not complete_source:
+        empty_package_root.mkdir()
+        (empty_package_root / "__init__.py").write_text("", encoding="utf-8")
+        bytecode: Path = empty_package_root / "__pycache__/missing.cpython-312.pyc"
+        bytecode.parent.mkdir()
+        bytecode.write_bytes(b"orphan bytecode")
+        monkeypatch.setattr(
+            build_global_module,
+            "_loaded_package_root",
+            lambda: empty_package_root,
+        )

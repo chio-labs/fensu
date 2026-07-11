@@ -2,22 +2,18 @@
 
 from __future__ import annotations
 
+import sqlite3
 from pathlib import Path
 
 import pytest
 
 from strata.cache.storage.classes.cache_store import CacheStore
-from strata.cache.storage.constants import SECURE_CACHE_IO_SUPPORTED
-from strata.cache.storage.models import CacheRecord
+from strata.cache.storage.models import CacheRecord, CacheWrite
 from tests.integration.src.strata.cache.storage._test_types import PersistentStoreTestCase
 from tests.integration.src.strata.cache.storage.helpers import (
+    read_batches_during_concurrent_writes,
     read_during_concurrent_writes,
     write_records_concurrently,
-)
-
-pytestmark: object = pytest.mark.skipif(
-    not SECURE_CACHE_IO_SUPPORTED,
-    reason="secure descriptor I/O unavailable",
 )
 
 
@@ -57,7 +53,7 @@ def test_given_written_record_when_opening_new_store_then_reads_persisted_value(
 
     assert written is True
     assert loaded == expected_record
-    assert len(tuple(second_store.root.rglob("*.tmp"))) == test_case.expected_temporary_count
+    assert second_store.root.is_file()
 
 
 @pytest.mark.parametrize(
@@ -96,7 +92,6 @@ def test_given_concurrent_writers_when_publishing_same_entry_then_reader_sees_co
     assert loaded is not None
     assert isinstance(loaded.payload, dict)
     assert loaded.payload["value"] in test_case.expected_payload_values
-    assert len(tuple(store.root.rglob("*.tmp"))) == test_case.expected_temporary_count
 
 
 @pytest.mark.parametrize(
@@ -134,4 +129,89 @@ def test_given_existing_entry_when_reading_during_writes_then_every_observation_
 
     assert sum(record is None for record in observed) == test_case.expected_miss_count
     assert all(record is not None for record in observed)
-    assert len(tuple(store.root.rglob("*.tmp"))) == test_case.expected_temporary_count
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        PersistentStoreTestCase(
+            description="batch readers observe one complete transaction generation",
+            relative_path="results/generation",
+            kind="result",
+            writer_count=8,
+            expected_payload_values=tuple(range(8)),
+            expected_temporary_count=0,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_multi_record_generations_when_reading_during_writes_then_never_observes_mixture(
+    tmp_path: Path,
+    test_case: PersistentStoreTestCase,
+) -> None:
+    store: CacheStore = CacheStore(repo_root=tmp_path)
+    paths: tuple[Path, Path] = (
+        Path(f"{test_case.relative_path}/first"),
+        Path(f"{test_case.relative_path}/second"),
+    )
+    _ = store.write_batch(
+        writes=tuple(
+            CacheWrite(
+                relative_path=path,
+                record=CacheRecord(kind=test_case.kind, payload={"value": -1}),
+            )
+            for path in paths
+        )
+    )
+
+    observed: tuple[tuple[CacheRecord | None, ...], ...] = read_batches_during_concurrent_writes(
+        store=store,
+        relative_paths=paths,
+        kind=test_case.kind,
+        values=test_case.expected_payload_values,
+    )
+
+    assert observed
+    assert all(first is not None and second is not None for first, second in observed)
+    assert all(first == second for first, second in observed)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        PersistentStoreTestCase(
+            description="busy writer rejects publication without deleting committed database",
+            relative_path="metadata.json",
+            kind="metadata",
+            writer_count=1,
+            expected_payload_values=(7,),
+            expected_temporary_count=0,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_busy_database_when_publishing_then_preserves_committed_state(
+    tmp_path: Path,
+    test_case: PersistentStoreTestCase,
+) -> None:
+    store: CacheStore = CacheStore(repo_root=tmp_path)
+    previous: CacheRecord = CacheRecord(
+        kind=test_case.kind,
+        payload={"value": test_case.expected_payload_values[0]},
+    )
+    _ = store.write(relative_path=Path(test_case.relative_path), record=previous)
+    with sqlite3.connect(store.root, isolation_level=None) as blocker:
+        blocker.execute("BEGIN IMMEDIATE")
+        written: bool = store.write(
+            relative_path=Path(test_case.relative_path),
+            record=CacheRecord(kind=test_case.kind, payload={"value": 8}),
+        )
+        blocker.rollback()
+    loaded: CacheRecord | None = store.read(
+        relative_path=Path(test_case.relative_path),
+        expected_kind=test_case.kind,
+    )
+
+    assert written is False
+    assert store.root.is_file()
+    assert loaded == previous

@@ -1,110 +1,170 @@
-"""Atomic repository-local persistent cache storage."""
+"""Transactional repository-local SQLite cache storage."""
 
 from __future__ import annotations
 
-import os
-import secrets
-import stat
+import sqlite3
 from pathlib import Path
-from typing import BinaryIO
 
 from strata.cache.storage.constants import (
-    CACHE_FILE_MODE,
-    CACHE_TEMPORARY_SUFFIX,
-    CACHE_VERSION_RELATIVE_PATH,
-    DIRECTORY_OPEN_FLAGS,
-    FILE_READ_FLAGS,
-    FILE_WRITE_FLAGS,
+    CACHE_DATABASE_APPLICATION_ID,
+    CACHE_DATABASE_BUSY_TIMEOUT_MS,
+    CACHE_DATABASE_READ_CHUNK_SIZE,
+    CACHE_DATABASE_RECORD_COLUMNS,
+    CACHE_DATABASE_RELATIVE_PATH,
+    CACHE_DATABASE_ROW_COLUMN_COUNT,
+    CACHE_DATABASE_SCHEMA_VERSION,
+    CACHE_DATABASE_SELECTED_COLUMN_COUNT,
+    CACHE_DATABASE_WAL_MODE,
     PARENT_PATH_PART,
-    SECURE_CACHE_IO_SUPPORTED,
 )
 from strata.cache.storage.exceptions import CachePathError, CacheRecordError
 from strata.cache.storage.helpers.serialization import decode_cache_record, encode_cache_record
-from strata.cache.storage.models import CacheRecord
+from strata.cache.storage.models import CacheRead, CacheRecord, CacheWrite
+
+_CREATE_RECORDS_SQL: str = (
+    "CREATE TABLE records ("
+    "key TEXT PRIMARY KEY NOT NULL, "
+    "kind TEXT NOT NULL, "
+    "data BLOB NOT NULL"
+    ") WITHOUT ROWID"
+)
+_READ_RECORDS_SQL_PREFIX: str = "SELECT key, kind, data FROM records WHERE key IN"
+_UPSERT_RECORD_SQL: str = (
+    "INSERT INTO records(key, kind, data) VALUES (?, ?, ?) "
+    "ON CONFLICT(key) DO UPDATE SET kind = excluded.kind, data = excluded.data"
+)
 
 
 class CacheStore:
-    """Read and atomically publish disposable versioned cache records."""
+    """Store canonical records in one disposable transactional database."""
 
     def __init__(self, *, repo_root: Path) -> None:
-        """Bind storage without creating the cache directory."""
+        """Bind storage without creating the cache database."""
 
         self._repo_root: Path = repo_root.resolve()
-        self._root: Path = self._repo_root / CACHE_VERSION_RELATIVE_PATH
+        self._database: Path = self._repo_root / CACHE_DATABASE_RELATIVE_PATH
 
     @property
     def root(self) -> Path:
-        """Return the active versioned cache root."""
+        """Return the active cache database path."""
 
-        return self._root
+        return self._database
 
     def read(self, *, relative_path: Path, expected_kind: str) -> CacheRecord | None:
-        """Return a validated record or None for a miss, corruption, or read failure."""
+        """Return a validated record or None for any unavailable cache state."""
 
-        self._validate_relative_path(relative_path)
-        if not SECURE_CACHE_IO_SUPPORTED:
-            return None
-        parent_descriptor: int | None = None
-        file_descriptor: int | None = None
+        return self.read_batch(
+            reads=(CacheRead(relative_path=relative_path, expected_kind=expected_kind),)
+        )[0]
+
+    def read_batch(self, *, reads: tuple[CacheRead, ...]) -> tuple[CacheRecord | None, ...]:
+        """Read canonical records through one consistent database connection."""
+
+        if not reads:
+            return ()
+        keyed_reads: tuple[tuple[str, str], ...] = tuple(
+            (self._key(read.relative_path), read.expected_kind) for read in reads
+        )
+        misses: tuple[None, ...] = (None,) * len(reads)
+        if not self._database_is_readable():
+            return misses
+        connection: sqlite3.Connection | None = None
         try:
-            parent_descriptor = self._open_parent(relative_path=relative_path, create=False)
-            file_descriptor = os.open(
-                relative_path.name,
-                FILE_READ_FLAGS,
-                dir_fd=parent_descriptor,
+            connection = sqlite3.connect(
+                f"{self._database.as_uri()}?mode=ro",
+                uri=True,
+                timeout=CACHE_DATABASE_BUSY_TIMEOUT_MS / 1_000,
             )
-            if not stat.S_ISREG(os.fstat(file_descriptor).st_mode):
-                return None
-            file: BinaryIO = os.fdopen(file_descriptor, "rb")
-            file_descriptor = None
-            with file:
-                data: bytes = file.read()
-        except (OSError, RuntimeError):
-            return None
+            connection.execute("PRAGMA query_only = ON")
+            connection.execute("BEGIN")
+            if not _database_identity_is_current(connection):
+                return misses
+            rows_by_key: dict[str, tuple[object, ...]] = {}
+            keys: tuple[str, ...] = tuple(key for key, _ in keyed_reads)
+            for offset in range(0, len(keys), CACHE_DATABASE_READ_CHUNK_SIZE):
+                chunk: tuple[str, ...] = keys[offset : offset + CACHE_DATABASE_READ_CHUNK_SIZE]
+                placeholders: str = ",".join("?" for _ in chunk)
+                rows: tuple[tuple[object, ...], ...] = tuple(
+                    connection.execute(
+                        f"{_READ_RECORDS_SQL_PREFIX} ({placeholders})",
+                        chunk,
+                    ).fetchall()
+                )
+                for row in rows:
+                    if len(row) == CACHE_DATABASE_SELECTED_COLUMN_COUNT and isinstance(row[0], str):
+                        rows_by_key[row[0]] = row[1:]
+            return tuple(
+                _decode_row(row=rows_by_key.get(key), expected_kind=expected_kind)
+                for key, expected_kind in keyed_reads
+            )
+        except (OSError, RuntimeError, sqlite3.Error):
+            return misses
         finally:
-            _close_descriptor(file_descriptor)
-            _close_descriptor(parent_descriptor)
-        return decode_cache_record(data, expected_kind=expected_kind)
+            _close_connection(connection)
 
     def write(self, *, relative_path: Path, record: CacheRecord) -> bool:
-        """Atomically publish a record, returning False when storage is unavailable."""
+        """Publish one record in a transaction."""
 
-        self._validate_relative_path(relative_path)
-        if not SECURE_CACHE_IO_SUPPORTED:
-            return False
-        parent_descriptor: int | None = None
-        file_descriptor: int | None = None
-        temporary_name: str | None = None
+        return self.write_batch(writes=(CacheWrite(relative_path=relative_path, record=record),))
+
+    def write_batch(self, *, writes: tuple[CacheWrite, ...]) -> bool:
+        """Commit every encoded record together or leave prior state unchanged."""
+
+        if not writes:
+            return True
         try:
-            data: bytes = encode_cache_record(record)
-            parent_descriptor = self._open_parent(relative_path=relative_path, create=True)
-            temporary_name = f".{relative_path.name}.{secrets.token_hex(8)}{CACHE_TEMPORARY_SUFFIX}"
-            file_descriptor = os.open(
-                temporary_name,
-                FILE_WRITE_FLAGS,
-                CACHE_FILE_MODE,
-                dir_fd=parent_descriptor,
+            rows: tuple[tuple[str, str, bytes], ...] = self._encoded_rows(writes)
+        except (CachePathError, CacheRecordError, TypeError, ValueError):
+            raise
+        if not self._prepare_database_parent():
+            return False
+        if self._database.exists() and not self._database_is_readable():
+            return False
+        connection: sqlite3.Connection | None = None
+        try:
+            connection = sqlite3.connect(
+                self._database,
+                timeout=CACHE_DATABASE_BUSY_TIMEOUT_MS / 1_000,
+                isolation_level=None,
             )
-            file: BinaryIO = os.fdopen(file_descriptor, "wb")
-            file_descriptor = None
-            with file:
-                file.write(data)
-                file.flush()
-                os.fsync(file.fileno())
-            os.replace(
-                temporary_name,
-                relative_path.name,
-                src_dir_fd=parent_descriptor,
-                dst_dir_fd=parent_descriptor,
-            )
-            temporary_name = None
-        except (CacheRecordError, OSError, RuntimeError):
+            connection.execute(f"PRAGMA busy_timeout = {CACHE_DATABASE_BUSY_TIMEOUT_MS}")
+            journal_mode: tuple[object, ...] | None = connection.execute(
+                "PRAGMA journal_mode = WAL"
+            ).fetchone()
+            if journal_mode is None or str(journal_mode[0]).lower() != CACHE_DATABASE_WAL_MODE:
+                return False
+            connection.execute("PRAGMA synchronous = NORMAL")
+            connection.execute("BEGIN IMMEDIATE")
+            if _database_is_uninitialized(connection):
+                connection.execute(_CREATE_RECORDS_SQL)
+                connection.execute(f"PRAGMA application_id = {CACHE_DATABASE_APPLICATION_ID}")
+                connection.execute(f"PRAGMA user_version = {CACHE_DATABASE_SCHEMA_VERSION}")
+            elif not _database_identity_is_current(connection):
+                connection.rollback()
+                return False
+            connection.executemany(_UPSERT_RECORD_SQL, rows)
+            connection.commit()
+            return True
+        except (OSError, RuntimeError, sqlite3.Error):
+            _rollback_connection(connection)
             return False
         finally:
-            _close_descriptor(file_descriptor)
-            _remove_temporary_file(name=temporary_name, parent_descriptor=parent_descriptor)
-            _close_descriptor(parent_descriptor)
-        return True
+            _close_connection(connection)
+
+    def _encoded_rows(self, writes: tuple[CacheWrite, ...]) -> tuple[tuple[str, str, bytes], ...]:
+        keys: set[str] = set()
+        rows: list[tuple[str, str, bytes]] = []
+        for write in writes:
+            key: str = self._key(write.relative_path)
+            if key in keys:
+                raise CachePathError(f"Cache publication contains duplicate key: {key}")
+            keys.add(key)
+            rows.append((key, write.record.kind, encode_cache_record(write.record)))
+        return tuple(rows)
+
+    def _key(self, relative_path: Path) -> str:
+        self._validate_relative_path(relative_path)
+        return relative_path.as_posix()
 
     def _validate_relative_path(self, relative_path: Path) -> None:
         if (
@@ -116,48 +176,94 @@ class CacheStore:
                 f"Cache entry path must stay below the cache root: {relative_path}"
             )
 
-    def _open_parent(self, *, relative_path: Path, create: bool) -> int:
-        directory_parts: tuple[str, ...] = (
-            *CACHE_VERSION_RELATIVE_PATH.parts,
-            *relative_path.parent.parts,
-        )
-        descriptor: int = os.open(self._repo_root, DIRECTORY_OPEN_FLAGS)
+    def _prepare_database_parent(self) -> bool:
+        current: Path = self._repo_root
         try:
-            for part in directory_parts:
-                if create:
-                    _create_directory(name=part, parent_descriptor=descriptor)
-                child_descriptor: int = os.open(
-                    part,
-                    DIRECTORY_OPEN_FLAGS,
-                    dir_fd=descriptor,
-                )
-                _close_descriptor(descriptor)
-                descriptor = child_descriptor
-        except OSError:
-            _close_descriptor(descriptor)
-            raise
-        return descriptor
+            for part in CACHE_DATABASE_RELATIVE_PATH.parent.parts:
+                current = current / part
+                if current.exists():
+                    if current.is_symlink() or not current.is_dir():
+                        return False
+                    continue
+                try:
+                    current.mkdir()
+                except FileExistsError:
+                    if current.is_symlink() or not current.is_dir():
+                        return False
+        except (OSError, RuntimeError):
+            return False
+        return True
+
+    def _database_is_readable(self) -> bool:
+        try:
+            return (
+                self._database.is_file()
+                and not self._database.is_symlink()
+                and self._parents_are_directories()
+            )
+        except (OSError, RuntimeError):
+            return False
+
+    def _parents_are_directories(self) -> bool:
+        current: Path = self._repo_root
+        for part in CACHE_DATABASE_RELATIVE_PATH.parent.parts:
+            current = current / part
+            if current.is_symlink() or not current.is_dir():
+                return False
+        return True
 
 
-def _create_directory(*, name: str, parent_descriptor: int) -> None:
+def _database_identity_is_current(connection: sqlite3.Connection) -> bool:
+    application_id: tuple[object, ...] | None = connection.execute(
+        "PRAGMA application_id"
+    ).fetchone()
+    user_version: tuple[object, ...] | None = connection.execute("PRAGMA user_version").fetchone()
+    columns: tuple[tuple[object, ...], ...] = tuple(
+        connection.execute("PRAGMA table_info(records)").fetchall()
+    )
+    column_identity: tuple[tuple[object, ...], ...] = tuple(
+        (column[1], column[2], column[3], column[5]) for column in columns
+    )
+    return (
+        application_id == (CACHE_DATABASE_APPLICATION_ID,)
+        and user_version == (CACHE_DATABASE_SCHEMA_VERSION,)
+        and column_identity == CACHE_DATABASE_RECORD_COLUMNS
+    )
+
+
+def _decode_row(*, row: tuple[object, ...] | None, expected_kind: str) -> CacheRecord | None:
+    if row is None or len(row) != CACHE_DATABASE_ROW_COLUMN_COUNT:
+        return None
+    kind, data = row
+    if kind != expected_kind or not isinstance(data, bytes):
+        return None
+    return decode_cache_record(data, expected_kind=expected_kind)
+
+
+def _database_is_uninitialized(connection: sqlite3.Connection) -> bool:
+    application_id: tuple[object, ...] | None = connection.execute(
+        "PRAGMA application_id"
+    ).fetchone()
+    user_version: tuple[object, ...] | None = connection.execute("PRAGMA user_version").fetchone()
+    tables: tuple[tuple[object, ...], ...] = tuple(
+        connection.execute(
+            "SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+        ).fetchall()
+    )
+    return application_id == (0,) and user_version == (0,) and not tables
+
+
+def _rollback_connection(connection: sqlite3.Connection | None) -> None:
     try:
-        os.mkdir(name, dir_fd=parent_descriptor)
-    except FileExistsError:
+        if connection is not None:
+            connection.rollback()
+    except sqlite3.Error:
         return
 
 
-def _remove_temporary_file(*, name: str | None, parent_descriptor: int | None) -> None:
-    if name is None or parent_descriptor is None:
-        return
+def _close_connection(connection: sqlite3.Connection | None) -> None:
     try:
-        os.unlink(name, dir_fd=parent_descriptor)
-    except OSError:
-        return
-
-
-def _close_descriptor(descriptor: int | None) -> None:
-    try:
-        if descriptor is not None:
-            os.close(descriptor)
-    except OSError:
+        if connection is not None:
+            connection.close()
+    except sqlite3.Error:
         return

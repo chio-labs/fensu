@@ -98,6 +98,14 @@ strata map run_plan --depth 3
 rule and its remediation, and `strata map` renders a conservative downstream call
 tree. Mapping does not require Strata configuration or rule adoption.
 
+`strata check --cache` stores disposable evaluation results in a repository-local
+SQLite database under `.strata/cache/`
+and reuses them only after validating source, configuration, rule, implementation,
+and project-query inputs. Ordinary checks remain uncached while the cache contract
+is finalized; `--no-cache` also makes that choice explicit.
+Deleting `.strata/cache/` is always safe; ignore that directory rather than the
+complete `.strata/` namespace, which is reserved for other Strata-owned state.
+
 ## Enforce It, Then See It
 
 Because Strata enforces the structure, it can also render it. `strata map`

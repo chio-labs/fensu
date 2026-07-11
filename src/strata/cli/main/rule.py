@@ -11,8 +11,9 @@ from typing import TextIO
 
 from strata.cli.core.constants import NO_COLOR_ENVIRONMENT_VARIABLE
 from strata.cli.core.types import ColorMode
-from strata.config.core.main.load_config import load_config
-from strata.config.core.models import Config, RuleExceptionEntry
+from strata.config.core.exceptions import ConfigError
+from strata.config.core.main.load_project_config import load_project_config
+from strata.config.core.models import Config, LoadedConfig, RuleExceptionEntry
 from strata.discovery.core.main.discover_files import discover_files
 from strata.discovery.core.models import DiscoveredTree
 from strata.evaluation.core.main.validate_rule_exceptions import validate_rule_exceptions
@@ -30,10 +31,16 @@ def run_rule(
     """Render metadata for one rule code."""
 
     args: argparse.Namespace = _parser().parse_args(() if argv is None else argv)
-    config: Config = load_config(Path.cwd())
-    catalogue: tuple[RuleSpec, ...] = build_catalogue(config)
-    tree: DiscoveredTree = discover_files(config)
-    validate_rule_exceptions(config=config, repo_root=tree.repo_root.path)
+    try:
+        loaded: LoadedConfig = load_project_config(Path.cwd())
+        project_dir: Path = loaded.source.path.parent.resolve()
+        config: Config = loaded.config
+        catalogue: tuple[RuleSpec, ...] = build_catalogue(config, repo_root=project_dir)
+        tree: DiscoveredTree = discover_files(config, repo_root=project_dir)
+        validate_rule_exceptions(config=config, repo_root=tree.repo_root.path)
+    except ConfigError as error:
+        stderr.write(f"{error}\n")
+        return 2
     rules_by_code: dict[str, RuleSpec] = {rule.code: rule for rule in catalogue}
     rule: RuleSpec | None = rules_by_code.get(args.code.upper())
     if rule is None:

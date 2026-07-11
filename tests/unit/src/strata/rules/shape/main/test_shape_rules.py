@@ -280,6 +280,24 @@ def test_given_functions_when_checking_global_statements_then_flags_only_over_li
             expected_lines=(5,),
         ),
         ShapeRuleTestCase(
+            description="discarded imported result resolves under a python container",
+            rule_code="SFS101",
+            source=(
+                "from mypkg.domain.core.helpers.phases import compile_project\n\n\n"
+                "def run() -> None:\n"
+                "    compile_project()\n"
+            ),
+            project_files=(
+                (
+                    "domain/core/helpers/phases.py",
+                    "def compile_project() -> int:\n    return 1\n",
+                ),
+            ),
+            expected_codes=("SFS101",),
+            expected_lines=(5,),
+            root="python/mypkg",
+        ),
+        ShapeRuleTestCase(
             description="discarded module-qualified meaningful result is flagged",
             rule_code="SFS101",
             source=(

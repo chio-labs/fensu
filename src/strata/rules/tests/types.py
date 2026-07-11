@@ -47,10 +47,6 @@ class SftCode(StrEnum):
 class TestPathName(StrEnum):
     """Filesystem names with test-layout semantics."""
 
-    TESTS = "tests"
-    SRC = "src"
-    SCRIPTS = "scripts"
-    STRATA = "strata"
     ROOT_SURFACE = "__root__"
     INIT_MODULE = "__init__.py"
     CONFTEST = "conftest.py"

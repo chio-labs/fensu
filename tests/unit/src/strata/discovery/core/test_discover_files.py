@@ -6,16 +6,19 @@ from pathlib import Path
 
 import pytest
 
+from strata.config.core.exceptions import ConfigError
 from strata.discovery.core.exceptions import RepoRootNotFoundError
 from strata.discovery.core.main.discover_files import discover_files
 from strata.discovery.core.models import DiscoveredTree, ScopedFile
 from tests.unit.src.strata.discovery.core._test_types import (
     AbsoluteRootDiscoveryTestCase,
     DiscoveryFilesTestCase,
+    LayoutConfigErrorTestCase,
     MissingRootTestCase,
     ScopedRelativePartsTestCase,
 )
 from tests.unit.src.strata.discovery.core.helpers import (
+    layout_error_config,
     make_config,
     relative_file_names,
     write_python_files,
@@ -150,14 +153,14 @@ def test_given_absolute_root_when_discovering_then_returns_expected_python_files
             expected_relative_parts=("checkers", "check.py"),
         ),
         ScopedRelativePartsTestCase(
-            description="overlapping scopes prefer root before tests",
+            description="overlapping scopes prefer the most specific test root",
             roots=(".",),
             tests=("tests",),
             tooling=(),
             file_path="tests/unit/test_models.py",
-            expected_scope="root",
-            expected_root_path=".",
-            expected_relative_parts=("tests", "unit", "test_models.py"),
+            expected_scope="test",
+            expected_root_path="tests",
+            expected_relative_parts=("unit", "test_models.py"),
         ),
     ],
     ids=lambda case: case.description,
@@ -206,5 +209,65 @@ def test_given_nonexistent_root_when_discovering_then_raises_repo_root_error(
 
     with pytest.raises(RepoRootNotFoundError) as error:
         discover_files(make_config(roots=test_case.roots))
+
+    assert test_case.expected_error_fragment in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        LayoutConfigErrorTestCase(
+            description="one path cannot be both runtime and tooling",
+            roots=("src/pkg",),
+            tests=(),
+            tooling=("src/pkg",),
+            uses_external_root=False,
+            expected_error_fragment="both roots and tooling",
+        ),
+        LayoutConfigErrorTestCase(
+            description="runtime and tooling cannot claim the same import package",
+            roots=("src/tools",),
+            tests=(),
+            tooling=("dev/tools",),
+            uses_external_root=False,
+            expected_error_fragment="same import package: tools",
+        ),
+        LayoutConfigErrorTestCase(
+            description="runtime and tests cannot claim the same import package",
+            roots=("src/qa",),
+            tests=("qa",),
+            tooling=(),
+            uses_external_root=False,
+            expected_error_fragment="Runtime and test roots must not claim",
+        ),
+        LayoutConfigErrorTestCase(
+            description="configured roots cannot escape the repository",
+            roots=(),
+            tests=(),
+            tooling=(),
+            uses_external_root=True,
+            expected_error_fragment="inside the repository",
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_ambiguous_or_external_layout_when_discovering_then_reports_config_error(
+    tmp_path: Path,
+    test_case: LayoutConfigErrorTestCase,
+) -> None:
+    repo_root: Path = tmp_path / "repo"
+    runtime_root: Path = repo_root / "src/pkg"
+    runtime_root.mkdir(parents=True)
+    (repo_root / "src/tools").mkdir(parents=True)
+    (repo_root / "src/qa").mkdir(parents=True)
+    (repo_root / "qa").mkdir(parents=True)
+    (repo_root / "dev/tools").mkdir(parents=True)
+    external_root: Path = tmp_path / "external/pkg"
+    external_root.mkdir(parents=True)
+    with pytest.raises(ConfigError) as error:
+        discover_files(
+            layout_error_config(test_case=test_case, external_root=external_root),
+            repo_root=repo_root,
+        )
 
     assert test_case.expected_error_fragment in str(error.value)

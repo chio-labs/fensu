@@ -27,6 +27,20 @@ class ConfigFingerprintTestCase:
 
 
 @dataclass(frozen=True)
+class ConfigLayoutFingerprintTestCase:
+    """Two configured layouts and whether their fingerprints must match."""
+
+    description: str
+    first_roots: tuple[str, ...]
+    second_roots: tuple[str, ...]
+    first_tests: tuple[str, ...]
+    second_tests: tuple[str, ...]
+    first_tooling: tuple[str, ...]
+    second_tooling: tuple[str, ...]
+    expected_equal: bool
+
+
+@dataclass(frozen=True)
 class SourceFingerprintTestCase:
     """Two source payloads and whether their fingerprints must match."""
 

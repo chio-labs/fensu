@@ -38,7 +38,7 @@ def write_cli_fixture_project(
     selected_rules: str = f'"SF", "{rule_code}"' if include_core_rules else f'"{rule_code}"'
     ignored_rules: str = 'ignore = ["SFX002"]\n' if include_core_rules else ""
     config: str = (
-        f'roots = ["src"]\nselect = [{selected_rules}]\n{ignored_rules}'
+        f'roots = ["src/pkg"]\nselect = [{selected_rules}]\n{ignored_rules}'
         'rule_paths = ["rules/custom_rule.py"]\n'
     )
     (root / "strata.toml").write_text(config, encoding="utf-8")
@@ -68,10 +68,10 @@ def always(module: ast.Module, ctx: RuleContext) -> list[Fault]:
 def write_cli_no_fault_project(root: Path) -> None:
     """Write a tiny project with no selected rules."""
 
-    source_dir: Path = root / "src" / "pkg" / "core"
+    source_dir: Path = root / "src" / "pkg" / "domain" / "core"
     source_dir.mkdir(parents=True)
     (source_dir / "constants.py").write_text("VALUE: int = 1\n", encoding="utf-8")
-    (root / "strata.toml").write_text('roots = ["src"]\n', encoding="utf-8")
+    (root / "strata.toml").write_text('roots = ["src/pkg"]\n', encoding="utf-8")
 
 
 def write_cli_exception_project(root: Path) -> None:
@@ -81,7 +81,7 @@ def write_cli_exception_project(root: Path) -> None:
     source.parent.mkdir(parents=True)
     source.write_text("def callback(value: int) -> None:\n    pass\n", encoding="utf-8")
     (root / "strata.toml").write_text(
-        'roots = ["src"]\n'
+        'roots = ["src/pkg"]\n'
         'select = ["SFS120"]\n'
         "[[rule_exceptions]]\n"
         'rule = "SFS120"\n'

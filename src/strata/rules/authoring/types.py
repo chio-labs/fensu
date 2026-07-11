@@ -127,7 +127,23 @@ class RuleContext(Protocol):
         ...
 
     def relative_parts(self) -> tuple[str, ...]:
-        """The current file's path parts relative to the repo root."""
+        """The current file's path parts relative to its matched scope root."""
+        ...
+
+    def repo_relative_parts(self) -> tuple[str, ...]:
+        """The current file's path parts relative to the repository root."""
+        ...
+
+    def scope_root(self) -> Path:
+        """The configured root that owns the current file."""
+        ...
+
+    def scope_roots(self, scope: ScopeName) -> tuple[Path, ...]:
+        """The ordered configured roots for one scope category."""
+        ...
+
+    def module_parts(self) -> tuple[str, ...]:
+        """The current file's complete importable module parts."""
         ...
 
     def scope(self) -> ScopeName:

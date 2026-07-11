@@ -17,9 +17,11 @@ from strata.cache.fingerprints.helpers.fingerprints import (
 from strata.cache.fingerprints.models import CacheFingerprint
 from strata.config.core.models import Config
 from strata.rules.authoring.models import RuleSpec
+from strata.rules.catalog.main.build_ruleset import build_ruleset
 from tests.unit.src.strata.cache.fingerprints._test_types import (
     CanonicalFingerprintTestCase,
     ConfigFingerprintTestCase,
+    ConfigLayoutFingerprintTestCase,
     GlobalFingerprintTestCase,
     ImplementationFingerprintTestCase,
     RulesetFingerprintTestCase,
@@ -28,6 +30,7 @@ from tests.unit.src.strata.cache.fingerprints._test_types import (
 from tests.unit.src.strata.cache.fingerprints.helpers import (
     config_with_statement_threshold,
     rule_with_message,
+    write_custom_rule,
     write_implementation,
 )
 
@@ -94,6 +97,63 @@ def test_given_validated_configs_when_fingerprinting_then_captures_policy_inputs
 
     first: CacheFingerprint = config_fingerprint(first_config)
     second: CacheFingerprint = config_fingerprint(second_config)
+
+    assert (first == second) is test_case.expected_equal
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ConfigLayoutFingerprintTestCase(
+            description="runtime root change invalidates config identity",
+            first_roots=("src/pkg",),
+            second_roots=("python/pkg",),
+            first_tests=("tests",),
+            second_tests=("tests",),
+            first_tooling=("scripts",),
+            second_tooling=("scripts",),
+            expected_equal=False,
+        ),
+        ConfigLayoutFingerprintTestCase(
+            description="test root change invalidates config identity",
+            first_roots=("src/pkg",),
+            second_roots=("src/pkg",),
+            first_tests=("tests",),
+            second_tests=("qa",),
+            first_tooling=("scripts",),
+            second_tooling=("scripts",),
+            expected_equal=False,
+        ),
+        ConfigLayoutFingerprintTestCase(
+            description="tooling root change invalidates config identity",
+            first_roots=("src/pkg",),
+            second_roots=("src/pkg",),
+            first_tests=("tests",),
+            second_tests=("tests",),
+            first_tooling=("scripts",),
+            second_tooling=("dev/tools",),
+            expected_equal=False,
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_configured_layout_when_fingerprinting_then_captures_every_scope(
+    test_case: ConfigLayoutFingerprintTestCase,
+) -> None:
+    first: CacheFingerprint = config_fingerprint(
+        Config(
+            roots=test_case.first_roots,
+            tests=test_case.first_tests,
+            tooling=test_case.first_tooling,
+        )
+    )
+    second: CacheFingerprint = config_fingerprint(
+        Config(
+            roots=test_case.second_roots,
+            tests=test_case.second_tests,
+            tooling=test_case.second_tooling,
+        )
+    )
 
     assert (first == second) is test_case.expected_equal
 
@@ -171,6 +231,38 @@ def test_given_effective_rulesets_when_fingerprinting_then_captures_rule_metadat
 
     first: CacheFingerprint = ruleset_fingerprint((first_rule,))
     second: CacheFingerprint = ruleset_fingerprint((second_rule,))
+
+    assert (first == second) is test_case.expected_equal
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ImplementationFingerprintTestCase(
+            description="custom rule implementation edit changes ruleset identity",
+            first="no fault",
+            second="fault",
+            expected_equal=False,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_custom_rule_source_when_fingerprinting_then_captures_implementation_changes(
+    tmp_path: Path,
+    test_case: ImplementationFingerprintTestCase,
+) -> None:
+    rule_path: Path = tmp_path / "rules/custom.py"
+    config: Config = Config(
+        roots=("src/pkg",),
+        tests=(),
+        rule_paths=("rules/custom.py",),
+        select=("XCF001",),
+    )
+    (tmp_path / "src/pkg").mkdir(parents=True)
+    write_custom_rule(path=rule_path, returns_fault=False)
+    first: CacheFingerprint = ruleset_fingerprint(build_ruleset(config, repo_root=tmp_path))
+    write_custom_rule(path=rule_path, returns_fault=True)
+    second: CacheFingerprint = ruleset_fingerprint(build_ruleset(config, repo_root=tmp_path))
 
     assert (first == second) is test_case.expected_equal
 

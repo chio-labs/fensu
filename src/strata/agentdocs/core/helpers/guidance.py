@@ -49,17 +49,27 @@ def repository_guidance_lines(*, config: Config, active_codes: frozenset[str]) -
 def _runtime_guidance(*, config: Config, active_codes: frozenset[str]) -> tuple[str, ...]:
     if not RUNTIME_BASIC_CODES.issubset(active_codes):
         return ()
-    root: str = _display_path(config.roots[0])
-    lines: list[str] = ["### Runtime", "", "```text", f"{root}/", "└── <domain>/"]
-    if not RUNTIME_NESTED_CODES.issubset(active_codes):
-        lines.extend(("    └── <subpackage>/", "```", ""))
-        return tuple(lines)
-    lines.append("    └── <subdomain>/")
+    nested_enabled: bool = RUNTIME_NESTED_CODES.issubset(active_codes)
     entries: tuple[str, ...] = _runtime_role_entries(active_codes=active_codes)
-    lines.extend(_tree_entries(entries=entries, indent="        "))
-    lines.extend(("```", ""))
+    lines: list[str] = ["### Runtime", ""]
+    for configured_root in config.roots:
+        root: str = _display_path(configured_root)
+        lines.extend(("```text", f"{root}/", "└── <domain>/"))
+        if not nested_enabled:
+            lines.extend(("    └── <subpackage>/", "```", ""))
+            continue
+        lines.append("    └── <subdomain>/")
+        lines.extend(_tree_entries(entries=entries, indent="        "))
+        lines.extend(("```", ""))
+    if not nested_enabled:
+        return tuple(lines)
     lines.extend(_subdomain_naming_lines())
-    lines.extend(runtime_role_example_lines(runtime_root=root, active_codes=active_codes))
+    lines.extend(
+        runtime_role_example_lines(
+            runtime_root=_display_path(config.roots[0]),
+            active_codes=active_codes,
+        )
+    )
     return tuple(lines)
 
 
@@ -109,28 +119,57 @@ def _subdomain_naming_lines() -> tuple[str, ...]:
 def _test_guidance(*, config: Config, active_codes: frozenset[str]) -> tuple[str, ...]:
     if not config.tests or not TEST_BASIC_CODES.issubset(active_codes):
         return ()
-    test_root: str = _display_path(config.tests[0])
-    lines: list[str] = ["### Tests", "", "```text", f"{test_root}/", "└── <scope>/"]
-    if not TEST_RUNTIME_MIRROR_CODES.issubset(active_codes):
-        lines.extend(("    └── <mirrored-root>/...", "```", ""))
-        return tuple(lines)
-    runtime_root: str = _display_path(config.roots[0])
-    lines.append(f"    └── {runtime_root}/<domain>/<subdomain>/")
+    runtime_mirrors_enabled: bool = TEST_RUNTIME_MIRROR_CODES.issubset(active_codes)
     entries: tuple[str, ...] = (
         ("_test_types.py", "test_feature.py") if TEST_CASE_FILE_CODES.issubset(active_codes) else ()
     )
-    lines.extend(_tree_entries(entries=entries, indent="        "))
-    lines.extend(("```", ""))
+    lines: list[str] = ["### Tests", ""]
+    for configured_test_root in config.tests:
+        test_root: str = _display_path(configured_test_root)
+        if not runtime_mirrors_enabled:
+            lines.extend(
+                (
+                    "```text",
+                    f"{test_root}/",
+                    "└── <scope>/",
+                    "    └── <mirrored-root>/...",
+                    "```",
+                    "",
+                )
+            )
+            continue
+        for configured_runtime_root in config.roots:
+            runtime_root: str = _display_path(configured_runtime_root)
+            lines.extend(
+                (
+                    "```text",
+                    f"{test_root}/",
+                    "└── <scope>/",
+                    f"    └── {runtime_root}/<domain>/<subdomain>/",
+                )
+            )
+            lines.extend(_tree_entries(entries=entries, indent="        "))
+            lines.extend(("```", ""))
+    if not runtime_mirrors_enabled:
+        return tuple(lines)
     if config.tooling and TEST_TOOLING_MIRROR_CODES.issubset(active_codes):
-        tooling_root: str = _display_path(config.tooling[0])
+        for configured_test_root in config.tests:
+            for configured_tooling_root in config.tooling:
+                lines.extend(
+                    (
+                        "Tooling-backed tests mirror under "
+                        f"`{_display_path(configured_test_root)}/<scope>/"
+                        f"{_display_path(configured_tooling_root)}/<area>/`.",
+                        "",
+                    )
+                )
+    if TEST_AUTHORING_CODES.issubset(active_codes) and RUNTIME_MAIN_CODES.issubset(active_codes):
         lines.extend(
-            (
-                f"Tooling-backed tests mirror under `{test_root}/<scope>/{tooling_root}/<tool>/`.",
-                "",
+            _test_authoring_example(
+                runtime_root=_display_path(config.roots[0]),
+                test_root=_display_path(config.tests[0]),
             )
         )
-    if TEST_AUTHORING_CODES.issubset(active_codes) and RUNTIME_MAIN_CODES.issubset(active_codes):
-        lines.extend(_test_authoring_example(runtime_root=runtime_root, test_root=test_root))
     return tuple(lines)
 
 
@@ -190,23 +229,24 @@ def _tooling_guidance(*, config: Config, active_codes: frozenset[str]) -> tuple[
     package_enabled: bool = TOOLING_PACKAGE_CODES.issubset(active_codes)
     if not adapter_enabled and not package_enabled:
         return ()
-    tooling_root: str = _display_path(config.tooling[0])
     entries: list[str] = []
     if adapter_enabled:
         entries.append("run_tool.py")
     if package_enabled:
         entries.append("<tool>/")
-    lines: list[str] = ["### Tooling", "", "```text", f"{tooling_root}/"]
-    lines.extend(_tree_entries(entries=tuple(entries), indent=""))
-    if package_enabled:
-        role_entries: tuple[str, ...] = (
-            *_entry_when(label="main/", evidence=RUNTIME_MAIN_CODES, active=active_codes),
-            *_entry_when(label="helpers/", evidence=RUNTIME_HELPERS_CODES, active=active_codes),
-            *_entry_when(label="classes/", evidence=RUNTIME_CLASSES_CODES, active=active_codes),
-            *_entry_when(label="rules/", evidence=TOOLING_RULES_CODES, active=active_codes),
-        )
-        lines.extend(_tree_entries(entries=role_entries, indent="    "))
-    lines.extend(("```", ""))
+    role_entries: tuple[str, ...] = (
+        *_entry_when(label="main/", evidence=RUNTIME_MAIN_CODES, active=active_codes),
+        *_entry_when(label="helpers/", evidence=RUNTIME_HELPERS_CODES, active=active_codes),
+        *_entry_when(label="classes/", evidence=RUNTIME_CLASSES_CODES, active=active_codes),
+        *_entry_when(label="rules/", evidence=TOOLING_RULES_CODES, active=active_codes),
+    )
+    lines: list[str] = ["### Tooling", ""]
+    for configured_tooling_root in config.tooling:
+        lines.extend(("```text", f"{_display_path(configured_tooling_root)}/"))
+        lines.extend(_tree_entries(entries=tuple(entries), indent=""))
+        if package_enabled:
+            lines.extend(_tree_entries(entries=role_entries, indent="    "))
+        lines.extend(("```", ""))
     return tuple(lines)
 
 

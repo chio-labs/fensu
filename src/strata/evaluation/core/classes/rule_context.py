@@ -10,7 +10,8 @@ from typing import Any
 from strata.analysis.core.models import SourceLocation, SourceRange, SyntaxHandle
 from strata.analysis.core.types import Analysis, ProjectAnalysis
 from strata.config.core.models import Config
-from strata.discovery.core.models import RepoRoot
+from strata.discovery.core.constants import INIT_MODULE_FILE_NAME
+from strata.discovery.core.models import ProjectLayout, RepoRoot
 from strata.discovery.core.types import ScopeName
 from strata.evaluation.core.helpers import ast_access
 from strata.evaluation.core.models import ParsedModule
@@ -27,6 +28,7 @@ class EvaluationRuleContext:
         parsed_module: ParsedModule,
         config: Config,
         repo_root: RepoRoot,
+        layout: ProjectLayout,
         rule: RuleSpec,
         project: ProjectAnalysis,
         file_cache: dict[str, object],
@@ -36,6 +38,7 @@ class EvaluationRuleContext:
         self._parsed_module: ParsedModule = parsed_module
         self._config: Config = config
         self._repo_root: RepoRoot = repo_root
+        self._layout: ProjectLayout = layout
         self._rule: RuleSpec = rule
         self.__project: ProjectAnalysis = project
         self._file_cache: dict[str, Any] = file_cache
@@ -159,6 +162,36 @@ class EvaluationRuleContext:
         """The current file's path parts relative to its matched scope root."""
 
         return self._parsed_module.scoped_file.relative_parts
+
+    def repo_relative_parts(self) -> tuple[str, ...]:
+        """The current file's path parts relative to the repository root."""
+
+        return self.path.relative_to(self.repo_root).parts
+
+    def scope_root(self) -> Path:
+        """The configured root that owns the current file."""
+
+        return self._parsed_module.scoped_file.root
+
+    def scope_roots(self, scope: ScopeName) -> tuple[Path, ...]:
+        """The ordered configured roots for one scope category."""
+
+        if scope is ScopeName.ROOT:
+            return tuple(source.path for source in self._layout.runtime_sources)
+        if scope is ScopeName.TEST:
+            return tuple(root.path for root in self._layout.test_roots)
+        return tuple(source.path for source in self._layout.tooling_sources)
+
+    def module_parts(self) -> tuple[str, ...]:
+        """The current file's complete importable module parts."""
+
+        relative: Path = self.path.relative_to(self.scope_root().parent)
+        parts: tuple[str, ...] = (*relative.parts[:-1], relative.stem)
+        return (
+            parts[:-1]
+            if parts and parts[-1] == INIT_MODULE_FILE_NAME.removesuffix(".py")
+            else parts
+        )
 
     def scope(self) -> ScopeName:
         """The configured discovery scope for the current file."""

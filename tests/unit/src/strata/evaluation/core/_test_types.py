@@ -137,6 +137,8 @@ class ProjectDependencyTestCase:
     module_name: str
     expected_dependency_paths: tuple[str, ...]
     expected_dependency_kinds: tuple[str, ...]
+    runtime_roots: tuple[str, ...] = ("src/pkg",)
+    test_roots: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

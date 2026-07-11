@@ -48,3 +48,20 @@ def rule_with_message(message: str) -> RuleSpec:
         message=message,
         check=check,
     )
+
+
+def write_custom_rule(*, path: Path, returns_fault: bool) -> None:
+    """Write one custom rule with stable metadata and selectable behavior."""
+
+    result: str = "[ctx.path_fault()]" if returns_fault else "[]"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "from __future__ import annotations\n\n"
+        "import ast\n\n"
+        "from strata import Family, Fault, RuleContext, rule\n\n"
+        "@rule(code='XCF001', family=Family.CUSTOM, slug='cache-source', message='stable')\n"
+        "def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:\n"
+        "    del module\n"
+        f"    return {result}\n",
+        encoding="utf-8",
+    )

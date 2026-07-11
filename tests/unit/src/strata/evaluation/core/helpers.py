@@ -10,7 +10,13 @@ from strata.analysis.core.models import SourceRange, SyntaxHandle
 from strata.analysis.core.types import Analysis
 from strata.config.core.models import Config, RuleExceptionEntry
 from strata.discovery.core.main.discover_files import discover_files
-from strata.discovery.core.models import DiscoveredTree, ScopedFile
+from strata.discovery.core.models import (
+    DiscoveredTree,
+    ProjectLayout,
+    ProjectPath,
+    ProjectSource,
+    ScopedFile,
+)
 from strata.evaluation.core.models import ParsedModule
 from strata.evaluation.core.types import EvaluationProjectAnalysis
 from strata.rules.authoring.models import Fault, RuleSpec
@@ -40,6 +46,42 @@ def discover_test_tree(*, config: Config) -> DiscoveredTree:
     """Discover files for an evaluation test config."""
 
     return discover_files(config)
+
+
+def make_project_layout(
+    *,
+    repo_root: Path,
+    runtime_roots: tuple[str, ...] = ("src/pkg",),
+    test_roots: tuple[str, ...] = (),
+    tooling_roots: tuple[str, ...] = (),
+) -> ProjectLayout:
+    """Build resolved project layout facts for direct evaluation tests."""
+
+    return ProjectLayout(
+        runtime_sources=tuple(
+            _project_source(repo_root=repo_root, relative_path=value) for value in runtime_roots
+        ),
+        test_roots=tuple(
+            ProjectPath(
+                path=(repo_root / value).resolve(),
+                relative_parts=Path(value).parts,
+            )
+            for value in test_roots
+        ),
+        tooling_sources=tuple(
+            _project_source(repo_root=repo_root, relative_path=value) for value in tooling_roots
+        ),
+    )
+
+
+def _project_source(*, repo_root: Path, relative_path: str) -> ProjectSource:
+    path: Path = (repo_root / relative_path).resolve()
+    return ProjectSource(
+        path=path,
+        relative_parts=Path(relative_path).parts,
+        import_root=path.parent,
+        package_name=path.name,
+    )
 
 
 def exercise_project_parse_order(

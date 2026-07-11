@@ -17,6 +17,7 @@ from strata.rules.authoring.types import RuleContext
 from strata.rules.tests.constants import SFT_RULES
 from strata.rules.tests.helpers import checks as test_checks
 from tests.unit.src.strata.rules.tests.main._test_types import (
+    SftConfiguredLayoutTestCase,
     SftOperationTestCase,
     SftRuleFile,
     SftRuleTestCase,
@@ -24,9 +25,48 @@ from tests.unit.src.strata.rules.tests.main._test_types import (
 from tests.unit.src.strata.rules.tests.main.helpers import (
     GOOD_TEST_SOURCE,
     GOOD_TEST_TYPES_SOURCE,
+    evaluate_configured_layout_test_case,
     evaluate_tests_rule_test_case,
     good_test_files,
 )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SftConfiguredLayoutTestCase(
+            description="qa mirrors a python runtime package",
+            roots=("python/mypkg",),
+            tests=("qa",),
+            tooling=(),
+            source_path="python/mypkg/domain/__init__.py",
+            test_path="qa/unit/python/mypkg/domain/test_example.py",
+            expected_codes=(),
+        ),
+        SftConfiguredLayoutTestCase(
+            description="qa mirrors nested tooling",
+            roots=("python/mypkg",),
+            tests=("qa",),
+            tooling=("dev/tools",),
+            source_path="dev/tools/release/__init__.py",
+            test_path="qa/unit/dev/tools/release/test_example.py",
+            expected_codes=(),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_configured_layout_when_checking_all_layout_rules_then_accepts_exact_mirror(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: SftConfiguredLayoutTestCase,
+) -> None:
+    result: EvaluationResult = evaluate_configured_layout_test_case(
+        test_case=test_case,
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
 
 
 @pytest.mark.parametrize(
@@ -124,6 +164,23 @@ def test_given_complete_tests_family_when_evaluating_then_bounds_local_type_load
             runtime_paths=("src/strata/rules/__init__.py",),
         ),
         SftRuleTestCase(
+            description="custom test root mirrors a python source root",
+            rule_code="SFT033",
+            files=(
+                SftRuleFile(
+                    description="configured source mirror",
+                    relative_path="qa/unit/python/mypkg/domain/test_example.py",
+                    source=GOOD_TEST_SOURCE,
+                ),
+            ),
+            expected_codes=(),
+            expected_lines=(),
+            runtime_paths=("python/mypkg/domain/__init__.py",),
+            roots=("python/mypkg",),
+            tests=("qa",),
+            tooling=(),
+        ),
+        SftRuleTestCase(
             description="reserved root area under runtime package is allowed",
             rule_code="SFT033",
             files=(
@@ -138,8 +195,8 @@ def test_given_complete_tests_family_when_evaluating_then_bounds_local_type_load
             runtime_paths=("src/strata/__init__.py",),
         ),
         SftRuleTestCase(
-            description="reserved root area under another package is rejected",
-            rule_code="SFT033",
+            description="reserved root area under an unconfigured package is rejected",
+            rule_code="SFT032",
             files=(
                 SftRuleFile(
                     description="foreign package root test",
@@ -147,7 +204,7 @@ def test_given_complete_tests_family_when_evaluating_then_bounds_local_type_load
                     source=GOOD_TEST_SOURCE,
                 ),
             ),
-            expected_codes=("SFT033",),
+            expected_codes=("SFT032",),
             expected_lines=(None,),
             runtime_paths=("src/other/__init__.py",),
         ),
@@ -215,6 +272,22 @@ def test_given_complete_tests_family_when_evaluating_then_bounds_local_type_load
             ),
             expected_codes=("SFT035",),
             expected_lines=(None,),
+        ),
+        SftRuleTestCase(
+            description="custom test root mirrors nested configured tooling",
+            rule_code="SFT035",
+            files=(
+                SftRuleFile(
+                    description="configured tooling mirror",
+                    relative_path="qa/unit/dev/tools/release/test_example.py",
+                    source=GOOD_TEST_SOURCE,
+                ),
+            ),
+            expected_codes=(),
+            expected_lines=(),
+            tooling_paths=("dev/tools/release/__init__.py",),
+            tests=("qa",),
+            tooling=("dev/tools",),
         ),
         SftRuleTestCase(
             description="test scope infrastructure is exempt from mirrored layout",

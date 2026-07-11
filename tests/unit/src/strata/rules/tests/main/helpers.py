@@ -12,7 +12,11 @@ from strata.evaluation.core.main.evaluate import evaluate
 from strata.evaluation.core.models import EvaluationResult
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.tests.constants import SFT_RULES
-from tests.unit.src.strata.rules.tests.main._test_types import SftRuleFile, SftRuleTestCase
+from tests.unit.src.strata.rules.tests.main._test_types import (
+    SftConfiguredLayoutTestCase,
+    SftRuleFile,
+    SftRuleTestCase,
+)
 
 GOOD_TEST_TYPES_SOURCE: str = (
     "from dataclasses import dataclass\n\n"
@@ -48,10 +52,42 @@ def evaluate_tests_rule_test_case(
     for file in test_case.files:
         _write_file(tmp_path=tmp_path, relative_path=file.relative_path, source=file.source)
     monkeypatch.chdir(tmp_path)
-    config: Config = Config(roots=("src/strata",), tests=("tests",), tooling=("scripts",))
+    config: Config = Config(
+        roots=test_case.roots,
+        tests=test_case.tests,
+        tooling=test_case.tooling,
+    )
     return evaluate(
         tree=discover_files(config),
         ruleset=(_rule_by_code(test_case.rule_code),),
+        config=config,
+    )
+
+
+def evaluate_configured_layout_test_case(
+    *,
+    test_case: SftConfiguredLayoutTestCase,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> EvaluationResult:
+    """Evaluate every test-layout rule for one configured path mirror."""
+
+    for root in test_case.roots:
+        (tmp_path / root).mkdir(parents=True, exist_ok=True)
+    _write_file(tmp_path=tmp_path, relative_path=test_case.source_path, source="")
+    _write_file(tmp_path=tmp_path, relative_path=test_case.test_path, source="")
+    monkeypatch.chdir(tmp_path)
+    config: Config = Config(
+        roots=test_case.roots,
+        tests=test_case.tests,
+        tooling=test_case.tooling,
+    )
+    layout_rules: tuple[RuleSpec, ...] = tuple(
+        rule for rule in SFT_RULES if "SFT028" <= rule.code <= "SFT035"
+    )
+    return evaluate(
+        tree=discover_files(config),
+        ruleset=layout_rules,
         config=config,
     )
 

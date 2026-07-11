@@ -7,12 +7,12 @@ from pathlib import Path
 import pytest
 
 from strata.cli.main.map import run_map
-from tests.unit.src.strata.cli.main._test_types import (
+from tests.integration.src.strata.cli.main._test_types import (
     MapCommandTestCase,
     MapPresentationTestCase,
     StandaloneMapTestCase,
 )
-from tests.unit.src.strata.cli.main.helpers import (
+from tests.integration.src.strata.cli.main.helpers import (
     CaptureOutput,
     configure_no_color,
     write_cli_map_project,

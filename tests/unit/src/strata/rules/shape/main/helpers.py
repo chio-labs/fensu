@@ -23,18 +23,19 @@ def evaluate_shape_test_case(
 ) -> EvaluationResult:
     """Write a source file and evaluate a single shape rule."""
 
-    path: Path = tmp_path / "src" / "pkg" / test_case.relative_path
+    source_root: Path = tmp_path / test_case.root
+    path: Path = source_root / test_case.relative_path
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(test_case.source, encoding="utf-8")
     for relative_path, source in test_case.project_files:
-        project_path: Path = tmp_path / "src" / "pkg" / relative_path
+        project_path: Path = source_root / relative_path
         project_path.parent.mkdir(parents=True, exist_ok=True)
         project_path.write_text(source, encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     thresholds: dict[Threshold, int] = dict(DEFAULT_THRESHOLDS)
     thresholds.update(test_case.thresholds)
     config: Config = Config(
-        roots=("src/pkg",),
+        roots=(test_case.root,),
         tests=(),
         thresholds=MappingProxyType(thresholds),
         role_thresholds=MappingProxyType(

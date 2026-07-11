@@ -44,6 +44,7 @@ def evaluate(
                 parsed_module=parsed_module,
                 config=config,
                 repo_root=tree.repo_root,
+                layout=tree.layout,
                 project=project,
                 file_cache=file_cache,
             )

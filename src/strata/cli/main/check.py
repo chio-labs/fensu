@@ -9,8 +9,8 @@ from pathlib import Path
 from typing import TextIO
 
 from strata.config.core.exceptions import ConfigError
-from strata.config.core.main.load_config import load_config
-from strata.config.core.models import Config
+from strata.config.core.main.load_project_config import load_project_config
+from strata.config.core.models import Config, LoadedConfig
 from strata.discovery.core.main.discover_files import discover_files
 from strata.discovery.core.models import DiscoveredTree
 from strata.evaluation.core.main.evaluate import evaluate
@@ -31,12 +31,21 @@ def run_check(
     """Run `strata check` and return its process exit code."""
 
     args: argparse.Namespace = _parser().parse_args(() if argv is None else argv)
+    invocation_dir: Path = Path.cwd().resolve()
     try:
-        config: Config = load_config(Path.cwd())
+        loaded: LoadedConfig = load_project_config(invocation_dir)
+        project_dir: Path = loaded.source.path.parent.resolve()
+        config: Config = loaded.config
         if args.paths:
-            config = replace(config, roots=tuple(args.paths))
-        tree: DiscoveredTree = discover_files(config)
-        ruleset: tuple[RuleSpec, ...] = build_ruleset(config)
+            config = replace(
+                config,
+                roots=tuple(
+                    _invocation_path(value=value, invocation_dir=invocation_dir)
+                    for value in args.paths
+                ),
+            )
+        tree: DiscoveredTree = discover_files(config, repo_root=project_dir)
+        ruleset: tuple[RuleSpec, ...] = build_ruleset(config, repo_root=project_dir)
         validate_rule_exceptions(config=config, repo_root=tree.repo_root.path)
         result: EvaluationResult = evaluate(tree=tree, ruleset=ruleset, config=config)
     except ConfigError as error:
@@ -59,3 +68,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--no-color", action="store_true", help="disable ANSI color output")
     parser.add_argument("paths", nargs="*", help="configured root paths to check")
     return parser
+
+
+def _invocation_path(*, value: str, invocation_dir: Path) -> str:
+    path: Path = Path(value)
+    return str(path.resolve() if path.is_absolute() else (invocation_dir / path).resolve())

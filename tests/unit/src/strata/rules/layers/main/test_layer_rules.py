@@ -131,6 +131,19 @@ def test_given_imports_when_checking_star_imports_then_flags_only_wildcards(
             expected_lines=(1,),
         ),
         LayerRuleTestCase(
+            description="sibling helper internals are flagged under a python container",
+            rule_code="SFL101",
+            files=(
+                (
+                    "python/mypkg/domain/alpha/main/run.py",
+                    "from mypkg.domain.beta.helpers.parse import parse_value\n",
+                ),
+            ),
+            expected_codes=("SFL101",),
+            expected_lines=(1,),
+            roots=("python/mypkg",),
+        ),
+        LayerRuleTestCase(
             description="sibling main entry is allowed",
             rule_code="SFL101",
             files=(
@@ -193,6 +206,19 @@ def test_given_sibling_imports_when_checking_layers_then_flags_only_internal_imp
             ),
             expected_codes=("SFL102",),
             expected_lines=(1,),
+        ),
+        LayerRuleTestCase(
+            description="cross-domain helper import is flagged under a lib container",
+            rule_code="SFL102",
+            files=(
+                (
+                    "lib/acme/domain_a/core/main/run.py",
+                    "from acme.domain_b.core.helpers.parse import parse_value\n",
+                ),
+            ),
+            expected_codes=("SFL102",),
+            expected_lines=(1,),
+            roots=("lib/acme",),
         ),
         LayerRuleTestCase(
             description="cross-domain role file import is allowed",
@@ -367,7 +393,17 @@ def test_given_helper_private_class_references_when_checking_layers_then_flags_c
             tooling=("scripts",),
             expected_codes=("SFL301",),
             expected_lines=(1,),
-        )
+        ),
+        ToolingImportRuleTestCase(
+            description="runtime import follows a nested configured tooling package",
+            files=(
+                ("src/pkg/domain/alpha/main/run.py", "from tools.release import publish\n"),
+                ("dev/tools/release.py", "def publish() -> None:\n    pass\n"),
+            ),
+            tooling=("dev/tools",),
+            expected_codes=("SFL301",),
+            expected_lines=(1,),
+        ),
     ],
     ids=lambda case: case.description,
 )

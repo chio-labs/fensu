@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import sys
 from pathlib import Path
 
@@ -171,6 +172,7 @@ def test_given_rule_path_with_package_import_when_building_then_resolves_reposit
     tmp_path: Path,
     test_case: CustomRuleLoadTestCase,
 ) -> None:
+    _ = importlib.import_module("scripts.benchmarking")
     path: Path = write_importing_custom_rule_package(root=tmp_path, rule_code=test_case.rule_code)
     monkeypatch.chdir(tmp_path)
     config: Config = Config(

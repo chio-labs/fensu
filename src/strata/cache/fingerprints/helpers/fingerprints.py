@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 import platform
 from collections.abc import Mapping
@@ -70,6 +71,7 @@ def ruleset_fingerprint(ruleset: tuple[RuleSpec, ...]) -> CacheFingerprint:
             "severity": rule.severity.value,
             "slug": rule.slug,
             "source": rule.source,
+            "source_fingerprint": _check_source_fingerprint(rule.check),
         }
         for rule in ruleset
     ]
@@ -138,3 +140,16 @@ def _role_threshold_values(
 def _check_name(check: RuleCheck) -> str:
     name: object = getattr(check, "__qualname__", None)
     return name if isinstance(name, str) else type(check).__qualname__
+
+
+def _check_source_fingerprint(check: RuleCheck) -> CanonicalValue:
+    try:
+        source_path: str | None = inspect.getsourcefile(check)
+    except TypeError:
+        return None
+    if source_path is None:
+        return None
+    path: Path = Path(source_path)
+    if not path.is_file():
+        return None
+    return source_fingerprint(path.read_bytes()).value

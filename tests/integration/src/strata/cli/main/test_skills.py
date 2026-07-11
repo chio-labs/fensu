@@ -12,8 +12,8 @@ from strata.config.core.main.load_config import load_config
 from strata.config.core.models import Config
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.catalog.main.build_ruleset import build_ruleset
-from tests.unit.src.strata.cli.main._test_types import SkillCommandTestCase
-from tests.unit.src.strata.cli.main.helpers import CaptureOutput, write_cli_fixture_project
+from tests.integration.src.strata.cli.main._test_types import SkillCommandTestCase
+from tests.integration.src.strata.cli.main.helpers import CaptureOutput, write_cli_fixture_project
 
 
 @pytest.mark.parametrize(
@@ -120,6 +120,38 @@ def test_given_scope_and_targets_when_updating_skills_then_installs_active_rule_
         assert "custom fault" in content
         assert all(heading in content for heading in active_rule_headings)
         assert all(fragment not in content for fragment in test_case.expected_absent_fragments)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SkillCommandTestCase(
+            description="nested invocation writes repository-local skill at the config root",
+            argv=("update", "--target", "agents"),
+            expected_exit_code=0,
+            expected_output_fragments=("Updated Strata skill files:",),
+            expected_written_paths=(".agents/skills/strata/SKILL.md",),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_nested_working_directory_when_updating_skills_then_writes_at_project_root(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: SkillCommandTestCase,
+) -> None:
+    write_cli_fixture_project(root=tmp_path, rule_code="XCK003", include_core_rules=True)
+    nested: Path = tmp_path / "src/pkg/nested"
+    nested.mkdir()
+    monkeypatch.chdir(nested)
+    stdout: CaptureOutput = CaptureOutput()
+
+    exit_code: int = run_skills(argv=test_case.argv, stdout=stdout)
+
+    assert exit_code == test_case.expected_exit_code
+    assert all(fragment in stdout.getvalue() for fragment in test_case.expected_output_fragments)
+    assert all((tmp_path / path).is_file() for path in test_case.expected_written_paths)
+    assert not (nested / ".agents").exists()
 
 
 @pytest.mark.parametrize(

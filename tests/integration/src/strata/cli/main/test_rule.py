@@ -7,11 +7,11 @@ from pathlib import Path
 import pytest
 
 from strata.cli.main.rule import run_rule
-from tests.unit.src.strata.cli.main._test_types import (
+from tests.integration.src.strata.cli.main._test_types import (
     MetadataCommandTestCase,
     RulePresentationTestCase,
 )
-from tests.unit.src.strata.cli.main.helpers import (
+from tests.integration.src.strata.cli.main.helpers import (
     CaptureOutput,
     configure_no_color,
     write_cli_exception_project,

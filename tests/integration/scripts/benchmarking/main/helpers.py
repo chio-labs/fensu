@@ -46,3 +46,15 @@ def run_benchmark_command(
         text=True,
         check=False,
     )
+
+
+def write_profile_project(root: Path) -> None:
+    """Write a minimal project for an in-process profile run."""
+
+    source: Path = root / "src/pkg/domain/core/models.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("VALUE: int = 1\n", encoding="utf-8")
+    (root / "strata.toml").write_text(
+        'roots = ["src/pkg"]\ntests = []\ntooling = []\nselect = ["SFA101"]\n',
+        encoding="utf-8",
+    )

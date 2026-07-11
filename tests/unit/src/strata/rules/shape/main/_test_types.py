@@ -20,3 +20,4 @@ class ShapeRuleTestCase:
     project_files: tuple[tuple[str, str], ...] = field(default_factory=tuple)
     thresholds: dict[Threshold, int] = field(default_factory=dict)
     role_thresholds: dict[str, dict[Threshold, int]] = field(default_factory=dict)
+    root: str = "src/pkg"

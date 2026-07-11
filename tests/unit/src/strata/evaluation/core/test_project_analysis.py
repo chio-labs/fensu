@@ -21,7 +21,10 @@ from tests.unit.src.strata.evaluation.core._test_types import (
     ProjectParseContractTestCase,
     ProjectRetentionTestCase,
 )
-from tests.unit.src.strata.evaluation.core.helpers import exercise_project_parse_order
+from tests.unit.src.strata.evaluation.core.helpers import (
+    exercise_project_parse_order,
+    make_project_layout,
+)
 
 
 @pytest.mark.parametrize(
@@ -33,11 +36,29 @@ from tests.unit.src.strata.evaluation.core.helpers import exercise_project_parse
             expected_dependency_paths=(
                 "src/pkg/phases.py",
                 "src/pkg/phases/__init__.py",
-                "pkg/phases.py",
-                "pkg/phases/__init__.py",
             ),
-            expected_dependency_kinds=("is_file", "is_file", "is_file", "is_file"),
-        )
+            expected_dependency_kinds=("is_file", "is_file"),
+        ),
+        ProjectDependencyTestCase(
+            description="module probes only its matching configured package root",
+            module_name="shared.phases",
+            expected_dependency_paths=(
+                "lib/shared/phases.py",
+                "lib/shared/phases/__init__.py",
+            ),
+            expected_dependency_kinds=("is_file", "is_file"),
+            runtime_roots=("services/acme", "lib/shared"),
+        ),
+        ProjectDependencyTestCase(
+            description="module probes a configured test package root",
+            module_name="qa.unit.helpers",
+            expected_dependency_paths=(
+                "qa/unit/helpers.py",
+                "qa/unit/helpers/__init__.py",
+            ),
+            expected_dependency_kinds=("is_file", "is_file"),
+            test_roots=("qa",),
+        ),
     ],
     ids=lambda case: case.description,
 )
@@ -47,7 +68,15 @@ def test_given_missing_module_when_querying_then_records_all_candidate_dependenc
 ) -> None:
     requester: Path = tmp_path / "src/pkg/main/run.py"
     project: EvaluationProjectAnalysis = build_project_analysis(
-        tree=DiscoveredTree(files=(), repo_root=RepoRoot(tmp_path))
+        tree=DiscoveredTree(
+            files=(),
+            repo_root=RepoRoot(tmp_path),
+            layout=make_project_layout(
+                repo_root=tmp_path,
+                runtime_roots=test_case.runtime_roots,
+                test_roots=test_case.test_roots,
+            ),
+        )
     )
 
     function: ProjectFunctionFact | None = project.module_function(
@@ -94,7 +123,11 @@ def test_given_directory_queries_when_observing_then_records_aggregate_dependenc
     (nested / "nested.py").write_text("", encoding="utf-8")
     requester: Path = tmp_path / "src/pkg/main/run.py"
     project: EvaluationProjectAnalysis = build_project_analysis(
-        tree=DiscoveredTree(files=(), repo_root=RepoRoot(tmp_path))
+        tree=DiscoveredTree(
+            files=(),
+            repo_root=RepoRoot(tmp_path),
+            layout=make_project_layout(repo_root=tmp_path),
+        )
     )
 
     entries: tuple[Path, ...] = project.directory_entries(requester=requester, path=package)
@@ -169,7 +202,11 @@ def test_given_project_query_order_when_parsing_then_retains_only_required_modul
         relative_parts=("domain", test_case.file_name),
     )
     project: EvaluationProjectAnalysis = build_project_analysis(
-        tree=DiscoveredTree(files=(scoped_file,), repo_root=RepoRoot(tmp_path))
+        tree=DiscoveredTree(
+            files=(scoped_file,),
+            repo_root=RepoRoot(tmp_path),
+            layout=make_project_layout(repo_root=tmp_path),
+        )
     )
     parse_counts: list[int] = [0]
 
@@ -223,7 +260,11 @@ def test_given_parsed_test_types_when_querying_dataclasses_then_reuses_fact_snap
         relative_parts=("domain", test_case.file_name),
     )
     project: EvaluationProjectAnalysis = build_project_analysis(
-        tree=DiscoveredTree(files=(scoped_file,), repo_root=RepoRoot(tmp_path))
+        tree=DiscoveredTree(
+            files=(scoped_file,),
+            repo_root=RepoRoot(tmp_path),
+            layout=make_project_layout(repo_root=tmp_path, test_roots=("tests",)),
+        )
     )
     parse_counts: list[int] = [0]
 
@@ -272,7 +313,11 @@ def test_given_malformed_discovered_file_when_querying_then_only_normal_parse_ra
         relative_parts=("domain", "broken.py"),
     )
     project: EvaluationProjectAnalysis = build_project_analysis(
-        tree=DiscoveredTree(files=(scoped_file,), repo_root=RepoRoot(tmp_path))
+        tree=DiscoveredTree(
+            files=(scoped_file,),
+            repo_root=RepoRoot(tmp_path),
+            layout=make_project_layout(repo_root=tmp_path),
+        )
     )
 
     analysis: Analysis | None = project.analysis(requester=path, path=path)

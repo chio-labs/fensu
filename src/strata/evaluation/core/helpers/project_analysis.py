@@ -8,7 +8,7 @@ from pathlib import Path
 from strata.analysis.core.main.build import build_analysis
 from strata.analysis.core.models import DataclassFact, ProjectDependency, ProjectFunctionFact
 from strata.analysis.core.types import Analysis, AnalysisBuild, ProjectDependencyKind
-from strata.discovery.core.models import DiscoveredTree, ScopedFile
+from strata.discovery.core.models import DiscoveredTree, ProjectSource, ScopedFile
 from strata.evaluation.core.exceptions import ParseError
 from strata.evaluation.core.helpers.parsing import parse_scoped_file
 from strata.evaluation.core.models import ParsedModule
@@ -24,6 +24,19 @@ class _EvaluationProjectAnalysis:
         """Index discovered files without parsing them eagerly."""
 
         self._repo_root: Path = tree.repo_root.path
+        self._sources: tuple[ProjectSource, ...] = (
+            *tree.layout.runtime_sources,
+            *tree.layout.tooling_sources,
+            *(
+                ProjectSource(
+                    path=root.path,
+                    relative_parts=root.relative_parts,
+                    import_root=root.path.parent,
+                    package_name=root.path.name,
+                )
+                for root in tree.layout.test_roots
+            ),
+        )
         self._scoped_files: dict[Path, ScopedFile] = {
             scoped_file.path.resolve(): scoped_file for scoped_file in tree.files
         }
@@ -199,12 +212,22 @@ class _EvaluationProjectAnalysis:
         return self._globs[cache_key]
 
     def _module_path(self, *, requester: Path, module_name: str) -> Path | None:
-        relative_path: Path = Path(*module_name.split("."))
-        for source_root in (self._repo_root / "src", self._repo_root):
-            module_path: Path = source_root / relative_path.with_suffix(".py")
+        module_parts: tuple[str, ...] = tuple(module_name.split("."))
+        if not module_parts:
+            return None
+        for source in self._sources:
+            if source.package_name != module_parts[0]:
+                continue
+            if len(module_parts) == 1:
+                package_path: Path = source.path / "__init__.py"
+                if self.is_file(requester=requester, path=package_path):
+                    return package_path
+                continue
+            relative_path: Path = Path(*module_parts[1:])
+            module_path: Path = source.path / relative_path.with_suffix(".py")
             if self.is_file(requester=requester, path=module_path):
                 return module_path
-            package_path: Path = source_root / relative_path / "__init__.py"
+            package_path = source.path / relative_path / "__init__.py"
             if self.is_file(requester=requester, path=package_path):
                 return package_path
         return None

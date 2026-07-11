@@ -22,3 +22,12 @@ class BenchmarkErrorTestCase:
     description: str
     runs: int
     expected_error_fragment: str
+
+
+@dataclass(frozen=True)
+class ProfileBenchmarkTestCase:
+    """Expected facts from an in-process profiled check."""
+
+    description: str
+    expected_file_count: int
+    expected_rule_count: int

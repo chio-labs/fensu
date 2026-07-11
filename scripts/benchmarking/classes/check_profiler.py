@@ -17,7 +17,7 @@ from strata.analysis.core.types import Analysis, ProjectAnalysis
 from strata.config.core.main.load_config import load_config
 from strata.config.core.models import Config
 from strata.discovery.core.main.discover_files import discover_files
-from strata.discovery.core.models import RepoRoot, ScopedFile
+from strata.discovery.core.models import ProjectLayout, RepoRoot, ScopedFile
 from strata.evaluation.core.main.evaluate import evaluate
 from strata.evaluation.core.models import ParsedModule
 from strata.reporting.core.main.render import render
@@ -87,6 +87,7 @@ class CheckProfiler:
         parsed_module: ParsedModule,
         config: Config,
         repo_root: RepoRoot,
+        layout: ProjectLayout,
         project: ProjectAnalysis,
         file_cache: dict[str, object],
     ) -> list[Fault]:
@@ -99,6 +100,7 @@ class CheckProfiler:
                 parsed_module=parsed_module,
                 config=config,
                 repo_root=repo_root,
+                layout=layout,
                 project=project,
                 file_cache=file_cache,
             )
@@ -110,8 +112,8 @@ class CheckProfiler:
 
     def _run_phases(self, project: Path) -> ProfileReport:
         config, config_seconds = _timed(lambda: load_config(project))
-        tree, discovery_seconds = _timed(lambda: discover_files(config))
-        ruleset, catalogue_seconds = _timed(lambda: build_ruleset(config))
+        tree, discovery_seconds = _timed(lambda: discover_files(config, repo_root=project))
+        ruleset, catalogue_seconds = _timed(lambda: build_ruleset(config, repo_root=project))
         result, evaluation_seconds = _timed(
             lambda: evaluate(tree=tree, ruleset=ruleset, config=config)
         )

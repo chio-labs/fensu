@@ -26,6 +26,9 @@ class SftRuleTestCase:
     expected_lines: tuple[int | None, ...]
     runtime_paths: tuple[str, ...] = field(default_factory=tuple)
     tooling_paths: tuple[str, ...] = field(default_factory=tuple)
+    roots: tuple[str, ...] = ("src/strata",)
+    tests: tuple[str, ...] = ("tests",)
+    tooling: tuple[str, ...] = ("scripts",)
 
 
 @dataclass(frozen=True)
@@ -35,3 +38,16 @@ class SftOperationTestCase:
     description: str
     expected_parse_count: int
     expected_layout_count: int
+
+
+@dataclass(frozen=True)
+class SftConfiguredLayoutTestCase:
+    """Configured source and test paths expected to form a valid mirror."""
+
+    description: str
+    roots: tuple[str, ...]
+    tests: tuple[str, ...]
+    tooling: tuple[str, ...]
+    source_path: str
+    test_path: str
+    expected_codes: tuple[str, ...]

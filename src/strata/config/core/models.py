@@ -21,6 +21,14 @@ class ConfigSource:
 
 
 @dataclass(frozen=True, slots=True)
+class LoadedConfig:
+    """Validated configuration paired with its selected source."""
+
+    config: Config
+    source: ConfigSource
+
+
+@dataclass(frozen=True, slots=True)
 class RuleExceptionEntry:
     """One centralized exact rule/path exception grouping qualified symbols."""
 

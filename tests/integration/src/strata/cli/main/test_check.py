@@ -7,12 +7,12 @@ from pathlib import Path
 import pytest
 
 from strata.cli.main.check import run_check
-from tests.unit.src.strata.cli.main._test_types import (
+from tests.integration.src.strata.cli.main._test_types import (
     CheckCommandTestCase,
     CheckErrorTestCase,
     CheckNoFaultTestCase,
 )
-from tests.unit.src.strata.cli.main.helpers import (
+from tests.integration.src.strata.cli.main.helpers import (
     CaptureOutput,
     write_cli_exception_project,
     write_cli_fixture_project,
@@ -60,6 +60,39 @@ def test_given_custom_rule_fault_when_running_check_then_outputs_report_and_exit
     assert exit_code == test_case.expected_exit_code
     assert test_case.expected_output_fragment in stdout.getvalue()
     assert test_case.expected_no_output_fragment not in stdout.getvalue()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CheckCommandTestCase(
+            description="nested invocation uses config-relative roots and custom rules",
+            argv=("--no-color",),
+            rule_code="XCK002",
+            expected_exit_code=1,
+            expected_output_fragment="XCK002  custom fault",
+            expected_no_output_fragment="Configured root path",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_nested_working_directory_when_running_check_then_uses_config_directory(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: CheckCommandTestCase,
+) -> None:
+    write_cli_fixture_project(root=tmp_path, rule_code=test_case.rule_code)
+    nested: Path = tmp_path / "src/pkg/nested"
+    nested.mkdir()
+    monkeypatch.chdir(nested)
+    stdout: CaptureOutput = CaptureOutput()
+    stderr: CaptureOutput = CaptureOutput()
+
+    exit_code: int = run_check(argv=test_case.argv, stdout=stdout, stderr=stderr)
+
+    assert exit_code == test_case.expected_exit_code
+    assert test_case.expected_output_fragment in stdout.getvalue()
+    assert test_case.expected_no_output_fragment not in stderr.getvalue()
 
 
 @pytest.mark.parametrize(

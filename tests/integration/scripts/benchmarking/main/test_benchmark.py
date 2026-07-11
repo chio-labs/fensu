@@ -7,13 +7,17 @@ from pathlib import Path
 
 import pytest
 
-from tests.unit.scripts.benchmarking.main._test_types import (
+from scripts.benchmarking.classes.check_profiler import CheckProfiler
+from scripts.benchmarking.models import ProfileReport
+from tests.integration.scripts.benchmarking.main._test_types import (
     BenchmarkErrorTestCase,
     ProcessBenchmarkTestCase,
+    ProfileBenchmarkTestCase,
 )
-from tests.unit.scripts.benchmarking.main.helpers import (
+from tests.integration.scripts.benchmarking.main.helpers import (
     run_benchmark_command,
     write_fake_strata,
+    write_profile_project,
 )
 
 
@@ -75,3 +79,26 @@ def test_given_changing_check_when_running_benchmark_then_returns_clear_error(
 
     assert completed.returncode == 2
     assert test_case.expected_error_fragment in completed.stderr
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ProfileBenchmarkTestCase(
+            description="profiler forwards the complete rule execution contract",
+            expected_file_count=1,
+            expected_rule_count=1,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_profile_project_when_running_profiler_then_completes_instrumented_check(
+    tmp_path: Path,
+    test_case: ProfileBenchmarkTestCase,
+) -> None:
+    write_profile_project(tmp_path)
+
+    report: ProfileReport = CheckProfiler().run(tmp_path)
+
+    assert report.file_count == test_case.expected_file_count
+    assert report.rule_count == test_case.expected_rule_count

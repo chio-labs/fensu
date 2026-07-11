@@ -12,8 +12,9 @@ from strata.agentdocs.core.main.update import update_skills
 from strata.agentdocs.core.models import SkillUpdateResult
 from strata.agentdocs.core.types import SkillCommand, SkillTarget
 from strata.cli.core.constants import SKILLS_UPDATE_OPTION
-from strata.config.core.main.load_config import load_config
-from strata.config.core.models import Config
+from strata.config.core.exceptions import ConfigError
+from strata.config.core.main.load_project_config import load_project_config
+from strata.config.core.models import Config, LoadedConfig
 from strata.discovery.core.main.discover_files import discover_files
 from strata.discovery.core.models import DiscoveredTree
 from strata.evaluation.core.main.validate_rule_exceptions import validate_rule_exceptions
@@ -42,15 +43,16 @@ def run_skills(
         )
         parser.print_help(file=stderr)
         return 2
-    project_dir: Path = Path.cwd()
-    config: Config = load_config(project_dir)
-    rules: tuple[RuleSpec, ...] = build_ruleset(config)
-    tree: DiscoveredTree = discover_files(config)
-    validate_rule_exceptions(config=config, repo_root=tree.repo_root.path)
     requested_targets: tuple[SkillTarget, ...] = tuple(
         SkillTarget(target) for target in args.targets
     )
     try:
+        loaded: LoadedConfig = load_project_config(Path.cwd())
+        project_dir: Path = loaded.source.path.parent.resolve()
+        config: Config = loaded.config
+        rules: tuple[RuleSpec, ...] = build_ruleset(config, repo_root=project_dir)
+        tree: DiscoveredTree = discover_files(config, repo_root=project_dir)
+        validate_rule_exceptions(config=config, repo_root=tree.repo_root.path)
         result: SkillUpdateResult = update_skills(
             config=config,
             rules=rules,
@@ -60,7 +62,7 @@ def run_skills(
             force=args.force,
             home_dir=home_dir,
         )
-    except SkillInstallError as error:
+    except (ConfigError, SkillInstallError) as error:
         stderr.write(f"{error}\n")
         return 2
     stdout.write("Updated Strata skill files:\n")

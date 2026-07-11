@@ -39,7 +39,7 @@ def evaluate_layer_test_case(
     """Write files and evaluate a layer-rule test case."""
 
     write_files(root=tmp_path, files=test_case.files)
-    config: Config = Config(roots=("src/pkg",), tests=())
+    config: Config = Config(roots=test_case.roots, tests=())
     return evaluate_layer_rule(
         rule_code=test_case.rule_code, config=config, monkeypatch=monkeypatch, repo_root=tmp_path
     )

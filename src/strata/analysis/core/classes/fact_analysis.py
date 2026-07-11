@@ -12,11 +12,15 @@ from strata.analysis.core.helpers.control_flow import (
     complex_comprehension_locations,
     function_conditional_facts,
 )
-from strata.analysis.core.helpers.function_metrics import dataclass_facts, function_facts
+from strata.analysis.core.helpers.function_metrics import (
+    dataclass_facts,
+    function_facts,
+    test_function_facts,
+)
 from strata.analysis.core.helpers.hygiene import hygiene_facts
 from strata.analysis.core.helpers.locations import line_offsets, source_range
 from strata.analysis.core.helpers.outer_state import outer_state_mutation_nodes
-from strata.analysis.core.helpers.references import reference_facts
+from strata.analysis.core.helpers.references import reference_facts, test_module_facts
 from strata.analysis.core.helpers.returns import meaningful_return_facts
 from strata.analysis.core.models import (
     AnnotationFacts,
@@ -27,6 +31,8 @@ from strata.analysis.core.models import (
     HygieneFacts,
     MeaningfulReturnFact,
     OuterStateMutationFact,
+    PytestFunctionFact,
+    PytestModuleFacts,
     ReferenceFacts,
     SourceLocation,
 )
@@ -60,9 +66,11 @@ class PythonFactAnalysis:
         self._function_conditionals: tuple[FunctionConditionalFact, ...] | None = None
         self._functions: FunctionFacts | None = None
         self._hygiene: HygieneFacts | None = None
-        self._meaningful_returns: tuple[MeaningfulReturnFact, ...] | None = None
+        self._meaningful_returns: dict[tuple[str, ...], tuple[MeaningfulReturnFact, ...]] = {}
         self._outer_state_mutations: tuple[OuterStateMutationFact, ...] | None = None
         self._references: ReferenceFacts | None = None
+        self._test_functions: tuple[PytestFunctionFact, ...] | None = None
+        self._test_module: PytestModuleFacts | None = None
 
     def annotations(self) -> AnnotationFacts:
         """Return missing annotations from one shared traversal."""
@@ -159,15 +167,18 @@ class PythonFactAnalysis:
             )
         return self._hygiene
 
-    def meaningful_returns(self) -> tuple[MeaningfulReturnFact, ...]:
+    def meaningful_returns(
+        self, *, name_patterns: tuple[str, ...] = ()
+    ) -> tuple[MeaningfulReturnFact, ...]:
         """Return the first meaningful return owned by each function."""
 
-        if self._meaningful_returns is None:
-            self._meaningful_returns = meaningful_return_facts(
+        if name_patterns not in self._meaningful_returns:
+            self._meaningful_returns[name_patterns] = meaningful_return_facts(
                 path=self._path,
                 node_index=self._node_index,
+                name_patterns=name_patterns,
             )
-        return self._meaningful_returns
+        return self._meaningful_returns[name_patterns]
 
     def references(self) -> ReferenceFacts:
         """Return import and attribute-reference facts."""
@@ -175,7 +186,25 @@ class PythonFactAnalysis:
         if self._references is None:
             self._references = reference_facts(
                 path=self._path,
+                module=self._module,
                 nodes=self._nodes,
                 node_index=self._node_index,
             )
         return self._references
+
+    def test_functions(self) -> tuple[PytestFunctionFact, ...]:
+        """Return reusable syntax metadata for test functions."""
+
+        if self._test_functions is None:
+            self._test_functions = test_function_facts(
+                path=self._path,
+                node_index=self._node_index,
+            )
+        return self._test_functions
+
+    def test_module(self) -> PytestModuleFacts:
+        """Return reusable test module-shape metadata."""
+
+        if self._test_module is None:
+            self._test_module = test_module_facts(path=self._path, module=self._module)
+        return self._test_module

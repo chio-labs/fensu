@@ -15,6 +15,8 @@ from strata.analysis.core.models import (
     HygieneFacts,
     MeaningfulReturnFact,
     OuterStateMutationFact,
+    PytestFunctionFact,
+    PytestModuleFacts,
     ReferenceFacts,
     SourceLocation,
     SourceRange,
@@ -102,7 +104,9 @@ class FactAnalysis(Protocol):
         """Return syntax-based hygiene facts."""
         ...
 
-    def meaningful_returns(self) -> tuple[MeaningfulReturnFact, ...]:
+    def meaningful_returns(
+        self, *, name_patterns: tuple[str, ...] = ()
+    ) -> tuple[MeaningfulReturnFact, ...]:
         """Return the first meaningful return owned by each function."""
         ...
 
@@ -112,6 +116,14 @@ class FactAnalysis(Protocol):
 
     def references(self) -> ReferenceFacts:
         """Return import and attribute-reference facts."""
+        ...
+
+    def test_functions(self) -> tuple[PytestFunctionFact, ...]:
+        """Return reusable syntax metadata for test functions."""
+        ...
+
+    def test_module(self) -> PytestModuleFacts:
+        """Return reusable test module-shape metadata."""
         ...
 
 

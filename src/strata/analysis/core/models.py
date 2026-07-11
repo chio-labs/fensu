@@ -125,6 +125,7 @@ class ImportFact:
     aliases: tuple[ImportAliasFact, ...]
     relative_level: int
     from_import: bool
+    top_level: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -205,3 +206,51 @@ class DataclassFact:
     field_names: frozenset[str]
     frozen: bool
     shape_candidate: bool
+
+
+@dataclass(frozen=True, slots=True)
+class ParametrizeCaseFact:
+    """One visible pytest parametrization case expression."""
+
+    location: SourceLocation
+    constructor_name: str | None
+    dictionary: bool
+
+
+@dataclass(frozen=True, slots=True)
+class ParametrizeFact:
+    """Structured pytest parametrization decorator metadata."""
+
+    argument_count: int
+    parameter_name: str | None
+    ids_present: bool
+    description_lambda_ids: bool
+    values_is_name: bool
+    values_is_list_comprehension: bool
+    values_is_sequence: bool
+    values_empty: bool
+    cases: tuple[ParametrizeCaseFact, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class PytestFunctionFact:
+    """Reusable syntax metadata for one test function."""
+
+    name: str
+    location: SourceLocation
+    parameter_names: frozenset[str]
+    test_case_annotation_name: str | None
+    parametrize: ParametrizeFact | None
+    references_expected_field: bool
+    conditional_locations: tuple[SourceLocation, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class PytestModuleFacts:
+    """Reusable module-shape metadata for test convention policy."""
+
+    empty_or_docstring_only: bool
+    scenario_invalid_locations: tuple[SourceLocation, ...]
+    top_level_helper_locations: tuple[SourceLocation, ...]
+    test_case_list_locations: tuple[SourceLocation, ...]
+    private_after_test_locations: tuple[SourceLocation, ...]

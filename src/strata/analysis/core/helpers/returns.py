@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 from collections.abc import Mapping
+from fnmatch import fnmatchcase
 from pathlib import Path
 
 from strata.analysis.core.helpers.locations import source_location
@@ -14,6 +15,7 @@ def meaningful_return_facts(
     *,
     path: Path,
     node_index: Mapping[type[ast.AST], tuple[ast.AST, ...]],
+    name_patterns: tuple[str, ...] = (),
 ) -> tuple[MeaningfulReturnFact, ...]:
     """Return the first meaningful return owned by each function."""
 
@@ -24,6 +26,8 @@ def meaningful_return_facts(
     )
     for node in functions:
         if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+            continue
+        if name_patterns and not any(fnmatchcase(node.name, pattern) for pattern in name_patterns):
             continue
         meaningful_return: ast.Return | None = _owned_meaningful_return(node)
         if meaningful_return is not None:

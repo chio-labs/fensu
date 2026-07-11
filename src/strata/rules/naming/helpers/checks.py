@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import ast
-from fnmatch import fnmatchcase
 
 from strata.config.core.types import ContractBehavior
 from strata.rules.authoring.models import Fault
@@ -20,7 +19,6 @@ def validator_must_not_return(*, module: ast.Module, ctx: RuleContext) -> list[F
         if behavior == ContractBehavior.NO_RETURN
     )
     faults: list[Fault] = []
-    for fact in ctx._analysis.facts.meaningful_returns():
-        if any(fnmatchcase(fact.function_name, pattern) for pattern in patterns):
-            faults.append(ctx.fault_at(fact.location))
+    for fact in ctx._analysis.facts.meaningful_returns(name_patterns=patterns):
+        faults.append(ctx.fault_at(fact.location))
     return faults

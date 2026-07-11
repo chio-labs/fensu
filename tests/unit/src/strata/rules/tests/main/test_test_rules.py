@@ -613,6 +613,18 @@ def test_given_test_types_when_checking_tests_then_flags_only_type_role_violatio
             runtime_paths=("src/strata/rules/__init__.py",),
         ),
         SftRuleTestCase(
+            description="conditional expression in parametrize cases is outside the test body",
+            rule_code="SFT036",
+            files=good_test_files(
+                test_source=GOOD_TEST_SOURCE.replace(
+                    "expected_value=1", "expected_value=(1 if True else 0)"
+                )
+            ),
+            expected_codes=(),
+            expected_lines=(),
+            runtime_paths=("src/strata/rules/__init__.py",),
+        ),
+        SftRuleTestCase(
             description="wrong test case annotation is flagged",
             rule_code="SFT010",
             files=good_test_files(

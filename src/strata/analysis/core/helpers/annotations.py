@@ -23,6 +23,7 @@ _module_exempt_names: frozenset[str] = frozenset(
     {"__all__", "__match_args__", "__slots__", "__version__"}
 )
 _class_exempt_names: frozenset[str] = frozenset({"__match_args__", "__slots__", "__test__"})
+_statement_containers: tuple[type[ast.AST], ...] = (ast.stmt, ast.ExceptHandler, ast.match_case)
 
 
 class _AnnotationVisitor(ast.NodeVisitor):
@@ -43,6 +44,11 @@ class _AnnotationVisitor(ast.NodeVisitor):
             module_variables=(),
             class_attributes=(),
         )
+
+    def generic_visit(self, node: ast.AST) -> None:
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, _statement_containers):
+                self.visit(child)
 
     def visit_ClassDef(self, node: ast.ClassDef) -> None:
         self._class_depth += 1

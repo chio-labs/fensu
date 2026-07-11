@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 from collections.abc import Mapping
+from pathlib import Path
 from typing import NamedTuple, Protocol
 
 from strata.analysis.core.models import (
@@ -17,6 +18,9 @@ from strata.analysis.core.models import (
     ModuleDeclarationFacts,
     OuterStateMutationFact,
     ParameterMutationFact,
+    ProjectCallFacts,
+    ProjectDependency,
+    ProjectFunctionFact,
     PytestFunctionFact,
     PytestModuleFacts,
     ReferenceFacts,
@@ -124,6 +128,14 @@ class FactAnalysis(Protocol):
         """Return first direct mutations of function parameters."""
         ...
 
+    def project_calls(self) -> ProjectCallFacts:
+        """Return project-resolvable discarded calls."""
+        ...
+
+    def project_functions(self) -> tuple[ProjectFunctionFact, ...]:
+        """Return top-level function result contracts."""
+        ...
+
     def references(self) -> ReferenceFacts:
         """Return import and attribute-reference facts."""
         ...
@@ -158,6 +170,36 @@ class Analysis(Protocol):
     @property
     def facts(self) -> FactAnalysis:
         """Return semantic file facts."""
+        ...
+
+
+class ProjectAnalysis(Protocol):
+    """Backend-neutral cross-file analysis and filesystem queries."""
+
+    def analysis(self, *, requester: Path, path: Path) -> Analysis | None:
+        """Return analysis for a project path and record the dependency."""
+        ...
+
+    def dependencies(self) -> tuple[ProjectDependency, ...]:
+        """Return deterministic requester-to-path dependencies observed so far."""
+        ...
+
+    def module_function(
+        self, *, requester: Path, module_name: str, function_name: str
+    ) -> ProjectFunctionFact | None:
+        """Return a function contract from a resolvable project module."""
+        ...
+
+    def exists(self, *, requester: Path, path: Path) -> bool:
+        """Return whether a project path exists and record the dependency."""
+        ...
+
+    def is_dir(self, *, requester: Path, path: Path) -> bool:
+        """Return whether a project path is a directory and record the dependency."""
+        ...
+
+    def is_file(self, *, requester: Path, path: Path) -> bool:
+        """Return whether a project path is a file and record the dependency."""
         ...
 
 

@@ -117,7 +117,10 @@ def test_given_multiple_rules_when_evaluating_then_file_facts_are_computed_once(
         routing_counts[0] += 1
         return families_for_scope(scoped_file=scoped_file)
 
-    monkeypatch.setattr("strata.evaluation.core.main.evaluate.parse_scoped_file", count_parse)
+    monkeypatch.setattr(
+        "strata.evaluation.core.helpers.project_analysis.parse_scoped_file",
+        count_parse,
+    )
     monkeypatch.setattr("strata.evaluation.core.helpers.parsing.position_facts", count_position)
     monkeypatch.setattr("strata.evaluation.core.main.evaluate.families_for_scope", count_routing)
 

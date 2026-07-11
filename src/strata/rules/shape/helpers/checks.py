@@ -3,16 +3,11 @@
 from __future__ import annotations
 
 import ast
-import os
-from functools import lru_cache
-from pathlib import Path
 
+from strata.analysis.core.models import ProjectCallFacts, ProjectFunctionFact
 from strata.discovery.core.types import RoleName
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import RuleContext, Threshold
-
-_no_return_annotation_names: frozenset[str] = frozenset({"Never", "NoReturn", "None"})
-_module_separator: str = "."
 
 
 def too_many_statements(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
@@ -93,22 +88,27 @@ def max_statements_global(*, module: ast.Module, ctx: RuleContext) -> list[Fault
 def meaningful_project_result_discarded(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag discarded meaningful results from resolved project-local calls."""
 
+    del module
     if not ctx.is_main_module():
         return []
+    facts: ProjectCallFacts = ctx._analysis.facts.project_calls()
+    functions: tuple[ProjectFunctionFact, ...] = ctx._analysis.facts.project_functions()
     faults: list[Fault] = []
-    for function_node in _top_level_function_nodes(module):
-        for statement, call in _bare_calls(function_node=function_node):
-            resolved_function: ast.FunctionDef | ast.AsyncFunctionDef | None = (
-                _resolve_project_function(
-                    call=call,
-                    module=module,
-                    function_node=function_node,
-                    ctx=ctx,
-                    repo_root=ctx.repo_root,
-                )
+    for call in facts.discarded_calls:
+        function: ProjectFunctionFact | None
+        if call.module_name is None:
+            function = next(
+                (fact for fact in functions if fact.name == call.function_name),
+                None,
             )
-            if resolved_function is not None and _has_meaningful_return(resolved_function):
-                faults.append(ctx.fault(statement))
+        else:
+            function = ctx._project.module_function(
+                requester=ctx.path,
+                module_name=call.module_name,
+                function_name=call.function_name,
+            )
+        if function is not None and function.meaningful_result:
+            faults.append(ctx.fault_at(call.location))
     return faults
 
 
@@ -179,182 +179,3 @@ def _parameter_mutation_faults(
         for fact in ctx._analysis.facts.parameter_mutations()
         if not fact.dunder and not fact.setter and (not require_return or not fact.returned)
     ]
-
-
-def _top_level_function_nodes(
-    module: ast.Module,
-) -> tuple[ast.FunctionDef | ast.AsyncFunctionDef, ...]:
-    return tuple(
-        node
-        for node in _non_docstring_body(module)
-        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
-    )
-
-
-def _non_docstring_body(module: ast.Module) -> tuple[ast.stmt, ...]:
-    if len(module.body) == 0:
-        return ()
-    first_statement: ast.stmt = module.body[0]
-    if (
-        isinstance(first_statement, ast.Expr)
-        and isinstance(first_statement.value, ast.Constant)
-        and isinstance(first_statement.value.value, str)
-    ):
-        return tuple(module.body[1:])
-    return tuple(module.body)
-
-
-def _bare_calls(
-    *, function_node: ast.FunctionDef | ast.AsyncFunctionDef
-) -> tuple[tuple[ast.Expr, ast.Call], ...]:
-    calls: list[tuple[ast.Expr, ast.Call]] = []
-    for statement in function_node.body:
-        calls.extend(_bare_calls_in_node(node=statement))
-    return tuple(calls)
-
-
-def _bare_calls_in_node(*, node: ast.AST) -> tuple[tuple[ast.Expr, ast.Call], ...]:
-    if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef | ast.Lambda):
-        return ()
-    if isinstance(node, ast.Expr):
-        call: ast.Call | None = _expression_call(node.value)
-        if call is not None:
-            return ((node, call),)
-    calls: list[tuple[ast.Expr, ast.Call]] = []
-    for child in ast.iter_child_nodes(node):
-        calls.extend(_bare_calls_in_node(node=child))
-    return tuple(calls)
-
-
-def _expression_call(node: ast.expr) -> ast.Call | None:
-    if isinstance(node, ast.Call):
-        return node
-    if isinstance(node, ast.Await) and isinstance(node.value, ast.Call):
-        return node.value
-    return None
-
-
-def _resolve_project_function(
-    *,
-    call: ast.Call,
-    module: ast.Module,
-    function_node: ast.FunctionDef | ast.AsyncFunctionDef,
-    ctx: RuleContext,
-    repo_root: Path,
-) -> ast.FunctionDef | ast.AsyncFunctionDef | None:
-    if isinstance(call.func, ast.Name):
-        if call.func.id in ctx.parameter_names(function_node) | ctx.assigned_locals(function_node):
-            return None
-        local_function: ast.FunctionDef | ast.AsyncFunctionDef | None = _module_function(
-            module=module, name=call.func.id
-        )
-        if local_function is not None:
-            return local_function
-        imported_symbol: tuple[str, str] | None = _imported_symbol(
-            module=module, local_name=call.func.id
-        )
-        if imported_symbol is None:
-            return None
-        return _resolve_imported_function(
-            module_name=imported_symbol[0], symbol=imported_symbol[1], repo_root=repo_root
-        )
-    if isinstance(call.func, ast.Attribute) and isinstance(call.func.value, ast.Name):
-        module_name: str | None = _imported_module(module=module, local_name=call.func.value.id)
-        if module_name is not None:
-            return _resolve_imported_function(
-                module_name=module_name, symbol=call.func.attr, repo_root=repo_root
-            )
-    return None
-
-
-def _resolve_imported_function(
-    *, module_name: str, symbol: str, repo_root: Path
-) -> ast.FunctionDef | ast.AsyncFunctionDef | None:
-    module_path: Path | None = _project_module_path(module_name=module_name, repo_root=repo_root)
-    if module_path is None:
-        return None
-    try:
-        file_stat: os.stat_result = module_path.stat()
-        imported_module: ast.Module | None = _project_module(
-            path=module_path,
-            modified_ns=file_stat.st_mtime_ns,
-            changed_ns=file_stat.st_ctime_ns,
-            size=file_stat.st_size,
-        )
-    except OSError:
-        return None
-    if imported_module is None:
-        return None
-    return _module_function(module=imported_module, name=symbol)
-
-
-@lru_cache(maxsize=512)
-def _project_module(
-    *, path: Path, modified_ns: int, changed_ns: int, size: int
-) -> ast.Module | None:
-    del modified_ns, changed_ns, size
-    try:
-        return ast.parse(path.read_text(encoding="utf-8"))
-    except (OSError, SyntaxError, UnicodeError):
-        return None
-
-
-def _project_module_path(*, module_name: str, repo_root: Path) -> Path | None:
-    relative_path: Path = Path(*module_name.split("."))
-    for source_root in (repo_root / "src", repo_root):
-        module_path: Path = source_root / relative_path.with_suffix(".py")
-        if module_path.is_file():
-            return module_path
-        package_path: Path = source_root / relative_path / "__init__.py"
-        if package_path.is_file():
-            return package_path
-    return None
-
-
-def _module_function(
-    *, module: ast.Module, name: str
-) -> ast.FunctionDef | ast.AsyncFunctionDef | None:
-    return next(
-        (
-            node
-            for node in module.body
-            if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and node.name == name
-        ),
-        None,
-    )
-
-
-def _imported_symbol(*, module: ast.Module, local_name: str) -> tuple[str, str] | None:
-    for node in module.body:
-        if not isinstance(node, ast.ImportFrom) or node.level or node.module is None:
-            continue
-        for alias in node.names:
-            if (alias.asname or alias.name) == local_name:
-                return node.module, alias.name
-    return None
-
-
-def _imported_module(*, module: ast.Module, local_name: str) -> str | None:
-    for node in module.body:
-        if not isinstance(node, ast.Import):
-            continue
-        for alias in node.names:
-            if alias.asname is None and _module_separator in alias.name:
-                continue
-            bound_name: str = alias.asname or alias.name
-            if bound_name == local_name:
-                return alias.name
-    return None
-
-
-def _has_meaningful_return(function_node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
-    annotation: ast.expr | None = function_node.returns
-    if annotation is None or (isinstance(annotation, ast.Constant) and annotation.value is None):
-        return False
-    if isinstance(annotation, ast.Name):
-        return annotation.id not in _no_return_annotation_names
-    if isinstance(annotation, ast.Attribute):
-        return annotation.attr not in _no_return_annotation_names
-    if isinstance(annotation, ast.Constant) and isinstance(annotation.value, str):
-        return annotation.value.rsplit(".", maxsplit=1)[-1] not in _no_return_annotation_names
-    return True

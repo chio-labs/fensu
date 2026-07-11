@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import ast
-import os
 import re
 from dataclasses import dataclass
-from functools import cache, lru_cache
 from pathlib import Path
 
 from strata.analysis.core.models import ParametrizeFact, PytestFunctionFact, PytestModuleFacts
+from strata.analysis.core.types import Analysis
 from strata.discovery.core.types import ScopeName
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import RuleContext
@@ -94,7 +93,10 @@ def test_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) -> list[
 def _layout_faults(*, ctx: RuleContext, code: SftCode) -> list[Fault]:
     if ctx.path.name in {TestPathName.INIT_MODULE, TestPathName.CONFTEST}:
         return []
-    issue: _LayoutIssue | None = _layout_issue(parent=ctx.path.parent, repo_root=ctx.repo_root)
+    issue: _LayoutIssue | None = ctx._memoize(
+        key="tests.layout_issue",
+        operation=lambda: _layout_issue(ctx=ctx),
+    )
     if issue is None:
         return []
     return _selected_path_faults(
@@ -105,10 +107,11 @@ def _layout_faults(*, ctx: RuleContext, code: SftCode) -> list[Fault]:
     )
 
 
-@cache
-def _layout_issue(*, parent: Path, repo_root: Path) -> _LayoutIssue | None:
+def _layout_issue(*, ctx: RuleContext) -> _LayoutIssue | None:
     try:
-        relative_parts: tuple[str, ...] = parent.resolve().relative_to(repo_root.resolve()).parts
+        relative_parts: tuple[str, ...] = (
+            ctx.path.parent.resolve().relative_to(ctx.repo_root.resolve()).parts
+        )
     except ValueError:
         return _LayoutIssue(code=SftCode.TEST_LAYOUT, message="test path is outside repo")
     if len(relative_parts) < _minimum_test_layout_parts or relative_parts[0] != TestPathName.TESTS:
@@ -124,23 +127,23 @@ def _layout_issue(*, parent: Path, repo_root: Path) -> _LayoutIssue | None:
         )
     mirrored_root: str = relative_parts[2]
     if mirrored_root == TestPathName.SRC:
-        return _src_layout_issue(repo_root=repo_root, relative_parts=relative_parts)
+        return _src_layout_issue(ctx=ctx, relative_parts=relative_parts)
     if mirrored_root == TestPathName.SCRIPTS:
-        return _scripts_layout_issue(repo_root=repo_root, relative_parts=relative_parts)
+        return _scripts_layout_issue(ctx=ctx, relative_parts=relative_parts)
     return _LayoutIssue(
         code=SftCode.TEST_MIRRORED_ROOT,
         message="test directories must mirror src or scripts",
     )
 
 
-def _src_layout_issue(*, repo_root: Path, relative_parts: tuple[str, ...]) -> _LayoutIssue | None:
+def _src_layout_issue(*, ctx: RuleContext, relative_parts: tuple[str, ...]) -> _LayoutIssue | None:
     if len(relative_parts) < _minimum_src_layout_parts:
         return _LayoutIssue(
             code=SftCode.SRC_MIRROR_DEPTH,
             message="src-backed tests must live under tests/<scope>/src/<package>/<area>/...",
         )
-    package_path: Path = repo_root / "src" / relative_parts[3]
-    if not package_path.is_dir():
+    package_path: Path = ctx.repo_root / "src" / relative_parts[3]
+    if not ctx._project.is_dir(requester=ctx.path, path=package_path):
         return _LayoutIssue(
             code=SftCode.SRC_PACKAGE_EXISTS,
             message="tests under tests/<scope>/src must mirror a real package under src/",
@@ -148,7 +151,7 @@ def _src_layout_issue(*, repo_root: Path, relative_parts: tuple[str, ...]) -> _L
     if relative_parts[3] == TestPathName.STRATA and relative_parts[4] == TestPathName.ROOT_SURFACE:
         return None
     area_path: Path = package_path / relative_parts[4]
-    if not area_path.exists():
+    if not ctx._project.exists(requester=ctx.path, path=area_path):
         return _LayoutIssue(
             code=SftCode.SRC_AREA_EXISTS,
             message="tests under tests/<scope>/src must mirror a real src package area",
@@ -157,15 +160,15 @@ def _src_layout_issue(*, repo_root: Path, relative_parts: tuple[str, ...]) -> _L
 
 
 def _scripts_layout_issue(
-    *, repo_root: Path, relative_parts: tuple[str, ...]
+    *, ctx: RuleContext, relative_parts: tuple[str, ...]
 ) -> _LayoutIssue | None:
     if len(relative_parts) < _minimum_scripts_layout_parts:
         return _LayoutIssue(
             code=SftCode.SCRIPTS_MIRROR_DEPTH,
             message="script-backed tests must live under tests/<scope>/scripts/<area>/...",
         )
-    area_path: Path = repo_root / "scripts" / relative_parts[3]
-    if not area_path.exists():
+    area_path: Path = ctx.repo_root / "scripts" / relative_parts[3]
+    if not ctx._project.exists(requester=ctx.path, path=area_path):
         return _LayoutIssue(
             code=SftCode.SCRIPTS_AREA_EXISTS,
             message="tests under tests/<scope>/scripts must mirror a real scripts area",
@@ -238,8 +241,7 @@ def _test_file_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) ->
         SftCode.LOCAL_TEST_CASE_CONSTRUCTORS,
     } and _is_test_module(ctx.path):
         local_test_types = _local_test_types(
-            path=ctx.path,
-            repo_root=ctx.repo_root,
+            ctx=ctx,
             inspect_dataclasses=code != SftCode.LOCAL_TEST_TYPES_IMPORT,
         )
     module_context: _TestModuleContext = _module_context(ctx=ctx, local_test_types=local_test_types)
@@ -247,7 +249,10 @@ def _test_file_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) ->
     if (
         code == SftCode.LOCAL_TEST_TYPES_FILE
         and _is_test_module(ctx.path)
-        and not (ctx.path.parent / "_test_types.py").is_file()
+        and not ctx._project.is_file(
+            requester=ctx.path,
+            path=ctx.path.parent / "_test_types.py",
+        )
     ):
         faults.append(ctx.path_fault())
     if (
@@ -388,40 +393,19 @@ def _parametrize_faults(
     return faults
 
 
-def _local_test_types(*, path: Path, repo_root: Path, inspect_dataclasses: bool) -> _LocalTestTypes:
-    test_types_path: Path = path.parent / "_test_types.py"
+def _local_test_types(*, ctx: RuleContext, inspect_dataclasses: bool) -> _LocalTestTypes:
+    test_types_path: Path = ctx.path.parent / "_test_types.py"
     dataclass_names: frozenset[str] = frozenset()
-    if inspect_dataclasses and test_types_path.is_file():
-        file_stat: os.stat_result = test_types_path.stat()
-        source: str = _test_types_source(
+    if inspect_dataclasses:
+        analysis: Analysis | None = ctx._project.analysis(
+            requester=ctx.path,
             path=test_types_path,
-            modified_ns=file_stat.st_mtime_ns,
-            changed_ns=file_stat.st_ctime_ns,
-            size=file_stat.st_size,
         )
-        dataclass_names = _dataclass_names(source)
+        if analysis is not None:
+            dataclass_names = frozenset(fact.name for fact in analysis.facts.dataclasses())
     return _LocalTestTypes(
-        module_name=_module_name_for_file(path=test_types_path, repo_root=repo_root),
+        module_name=_module_name_for_file(path=test_types_path, repo_root=ctx.repo_root),
         dataclass_names=dataclass_names,
-    )
-
-
-@lru_cache(maxsize=512)
-def _test_types_source(*, path: Path, modified_ns: int, changed_ns: int, size: int) -> str:
-    del modified_ns, changed_ns, size
-    return path.read_text(encoding="utf-8")
-
-
-@lru_cache(maxsize=512)
-def _dataclass_names(source: str) -> frozenset[str]:
-    try:
-        module: ast.Module = ast.parse(source)
-    except SyntaxError:
-        return frozenset()
-    return frozenset(
-        node.name
-        for node in module.body
-        if isinstance(node, ast.ClassDef) and _has_dataclass_decorator(node)
     )
 
 
@@ -461,23 +445,6 @@ def _is_test_module(path: Path) -> bool:
         TestPathName.CONFTEST,
         TestPathName.INIT_MODULE,
     }
-
-
-def _has_dataclass_decorator(node: ast.ClassDef) -> bool:
-    return any(
-        _decorator_name(decorator).endswith("dataclass") for decorator in node.decorator_list
-    )
-
-
-def _decorator_name(node: ast.expr) -> str:
-    if isinstance(node, ast.Name):
-        return node.id
-    if isinstance(node, ast.Attribute):
-        parent: str = _decorator_name(node.value)
-        return node.attr if not parent else f"{parent}.{node.attr}"
-    if isinstance(node, ast.Call):
-        return _decorator_name(node.func)
-    return ""
 
 
 def _is_local_constructor(*, constructor_name: str | None, context: _TestModuleContext) -> bool:

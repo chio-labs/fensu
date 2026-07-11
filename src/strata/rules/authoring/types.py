@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import ast
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
@@ -12,7 +12,7 @@ from strata.discovery.core.types import ScopeName
 
 if TYPE_CHECKING:
     from strata.analysis.core.models import SourceLocation, SourceRange, SyntaxHandle
-    from strata.analysis.core.types import Analysis
+    from strata.analysis.core.types import Analysis, ProjectAnalysis
     from strata.rules.authoring.models import Fault
 
 
@@ -64,6 +64,15 @@ class RuleContext(Protocol):
     @property
     def _analysis(self) -> Analysis:
         """Return Strata's private, unstable backend-neutral analysis facade."""
+        ...
+
+    @property
+    def _project(self) -> ProjectAnalysis:
+        """Return Strata's private, unstable cross-file analysis facade."""
+        ...
+
+    def _memoize[T](self, *, key: str, operation: Callable[[], T]) -> T:
+        """Return one value shared by all rules evaluating the current file."""
         ...
 
     def fault(

@@ -36,6 +36,7 @@ class ProfileReport:
     catalogue_seconds: float
     evaluation_seconds: float
     parse_seconds: float
+    query_parse_seconds: float
     rule_seconds: float
     engine_seconds: float
     render_seconds: float

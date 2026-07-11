@@ -23,6 +23,8 @@ from strata.analysis.core.models import (
     OuterStateMutationFact,
     ParameterMutationFact,
     ParametrizeFact,
+    ProjectCallFacts,
+    ProjectFunctionFact,
     PytestFunctionFact,
     PytestModuleFacts,
     ReferenceFacts,
@@ -42,11 +44,68 @@ from tests.unit.src.strata.analysis.core._test_types import (
     ModuleDeclarationFactTestCase,
     OuterStateFactTestCase,
     ParameterMutationFactTestCase,
+    ProjectCallFactTestCase,
     PytestFunctionFactTestCase,
     PytestModuleFactTestCase,
     ReferenceFactTestCase,
     SourceAnalysisTestCase,
 )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ProjectCallFactTestCase(
+            description="project call facts preserve contracts targets shadowing and scope",
+            source=(
+                "from pkg.phases import load as imported_load\n"
+                "import pkg.compile as compile_module\n\n"
+                "def local_phase() -> int:\n"
+                "    return 1\n\n"
+                "def no_result() -> None:\n"
+                "    return None\n\n"
+                "def run(*, imported_load: object) -> None:\n"
+                "    local_phase()\n"
+                "    imported_load()\n"
+                "    compile_module.compile_project()\n"
+                "    def nested() -> None:\n"
+                "        local_phase()\n"
+            ),
+            expected_function_names=("local_phase", "no_result", "run"),
+            expected_meaningful_results=(True, False, False),
+            expected_module_names=(None, "pkg.compile"),
+            expected_call_names=("local_phase", "compile_project"),
+            expected_call_lines=(11, 13),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_project_calls_when_querying_facts_then_returns_backend_neutral_targets(
+    tmp_path: Path,
+    test_case: ProjectCallFactTestCase,
+) -> None:
+    path: Path = tmp_path / "main.py"
+    analysis: Analysis = build_analysis(
+        path=path,
+        source=test_case.source,
+        module=ast.parse(test_case.source),
+    ).analysis
+    facts: ProjectCallFacts = analysis.facts.project_calls()
+    function_facts: tuple[ProjectFunctionFact, ...] = analysis.facts.project_functions()
+
+    assert tuple(fact.name for fact in function_facts) == test_case.expected_function_names
+    assert tuple(fact.meaningful_result for fact in function_facts) == (
+        test_case.expected_meaningful_results
+    )
+    assert tuple(fact.module_name for fact in facts.discarded_calls) == (
+        test_case.expected_module_names
+    )
+    assert tuple(fact.function_name for fact in facts.discarded_calls) == (
+        test_case.expected_call_names
+    )
+    assert tuple(fact.location.line for fact in facts.discarded_calls) == (
+        test_case.expected_call_lines
+    )
 
 
 @pytest.mark.parametrize(

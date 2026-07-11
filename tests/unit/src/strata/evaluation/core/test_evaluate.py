@@ -23,6 +23,7 @@ from tests.unit.src.strata.evaluation.core._test_types import (
     EvaluationFaultTestCase,
     EvaluationOperationTestCase,
     FaultFactoryTestCase,
+    ProjectDependencyEvaluationTestCase,
 )
 from tests.unit.src.strata.evaluation.core.helpers import (
     discover_test_tree,
@@ -35,11 +36,49 @@ from tests.unit.src.strata.evaluation.core.helpers import (
     make_node_count_rule,
     make_none_location_rule,
     make_position_rule,
+    make_project_dependency_rule,
     make_runtime_fault_rule,
     make_static_fault_rule,
     make_threshold_rule,
     write_sources,
 )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ProjectDependencyEvaluationTestCase(
+            description="project query dependencies are returned by evaluation",
+            source="value: int = 1\n",
+            expected_dependency_name="missing.py",
+            expected_dependency_kind="is_file",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_project_query_when_evaluating_then_returns_observed_dependency(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: ProjectDependencyEvaluationTestCase,
+) -> None:
+    write_sources(
+        repo_root=tmp_path,
+        files=(("src/pkg/config/core/models.py", test_case.source),),
+    )
+    monkeypatch.chdir(tmp_path)
+    config: Config = Config(roots=("src/pkg",))
+
+    result: EvaluationResult = evaluate(
+        tree=discover_test_tree(config=config),
+        ruleset=(make_project_dependency_rule(),),
+        config=config,
+    )
+
+    assert tuple(item.requester.name for item in result.dependencies) == ("models.py",)
+    assert tuple(item.query_path.name for item in result.dependencies) == (
+        test_case.expected_dependency_name,
+    )
+    assert tuple(item.kind for item in result.dependencies) == (test_case.expected_dependency_kind,)
 
 
 @pytest.mark.parametrize(

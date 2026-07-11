@@ -12,7 +12,6 @@ from strata.rules.authoring.types import RuleContext, Threshold
 from strata.rules.roles.helpers.classification import (
     decorator_name,
     is_dataclass_class,
-    is_exception_class,
     is_model_class,
     is_newtype_assignment,
     is_public_type_alias,
@@ -63,14 +62,12 @@ def models_only_models(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
 
     if ctx.role_of() != RoleName.MODELS:
         return []
-    faults: list[Fault] = []
-    for node in non_docstring_body(module):
-        if isinstance(node, ast.Import | ast.ImportFrom):
-            continue
-        if isinstance(node, ast.ClassDef) and is_model_class(node):
-            continue
-        faults.append(ctx.fault(node))
-    return faults
+    del module
+    return [
+        ctx.fault_at(fact.location)
+        for fact in ctx._analysis.facts.module_declarations().statements
+        if not fact.import_statement and not fact.model_class
+    ]
 
 
 def types_only_types(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
@@ -118,14 +115,12 @@ def exceptions_only_exceptions(*, module: ast.Module, ctx: RuleContext) -> list[
 
     if ctx.role_of() != RoleName.EXCEPTIONS:
         return []
-    faults: list[Fault] = []
-    for node in non_docstring_body(module):
-        if isinstance(node, ast.Import | ast.ImportFrom):
-            continue
-        if isinstance(node, ast.ClassDef) and is_exception_class(node):
-            continue
-        faults.append(ctx.fault(node))
-    return faults
+    del module
+    return [
+        ctx.fault_at(fact.location)
+        for fact in ctx._analysis.facts.module_declarations().statements
+        if not fact.import_statement and not fact.exception_class
+    ]
 
 
 def model_declaration_outside_models(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
@@ -133,10 +128,10 @@ def model_declaration_outside_models(*, module: ast.Module, ctx: RuleContext) ->
 
     if ctx.role_of() == RoleName.MODELS:
         return []
+    del module
     return [
-        ctx.fault(node)
-        for node in ctx.nodes(ast.ClassDef)
-        if isinstance(node, ast.ClassDef) and is_model_class(node)
+        ctx.fault_at(location)
+        for location in ctx._analysis.facts.module_declarations().model_locations
     ]
 
 
@@ -184,10 +179,10 @@ def exception_declaration_outside_exceptions(
 
     if ctx.role_of() == RoleName.EXCEPTIONS:
         return []
+    del module
     return [
-        ctx.fault(node)
-        for node in ctx.nodes(ast.ClassDef)
-        if isinstance(node, ast.ClassDef) and is_exception_class(node)
+        ctx.fault_at(location)
+        for location in ctx._analysis.facts.module_declarations().exception_locations
     ]
 
 

@@ -18,6 +18,7 @@ from strata.analysis.core.models import (
     FunctionFacts,
     HygieneFacts,
     MeaningfulReturnFact,
+    ModuleDeclarationFacts,
     NodeId,
     OuterStateMutationFact,
     ParameterMutationFact,
@@ -38,6 +39,7 @@ from tests.unit.src.strata.analysis.core._test_types import (
     FunctionMetricFactTestCase,
     HygieneFactTestCase,
     MeaningfulReturnFactTestCase,
+    ModuleDeclarationFactTestCase,
     OuterStateFactTestCase,
     ParameterMutationFactTestCase,
     PytestFunctionFactTestCase,
@@ -197,6 +199,60 @@ def test_given_dataclass_declarations_when_querying_facts_then_returns_model_met
     assert tuple(fact.field_names for fact in facts) == test_case.expected_field_names
     assert tuple(fact.frozen for fact in facts) == test_case.expected_frozen
     assert tuple(fact.shape_candidate for fact in facts) == test_case.expected_shape_candidates
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ModuleDeclarationFactTestCase(
+            description="module declaration facts classify top-level and nested classes",
+            source=(
+                '"""Module."""\n'
+                "import pkg\n\n"
+                "@dataclass\n"
+                "class Result:\n"
+                "    value: int\n\n"
+                "class ProblemError(Exception):\n"
+                "    pass\n\n"
+                "def build() -> None:\n"
+                "    class NestedError(Exception):\n"
+                "        pass\n"
+            ),
+            expected_statement_lines=(2, 5, 8, 11),
+            expected_model_flags=(False, True, False, False),
+            expected_exception_flags=(False, False, True, False),
+            expected_model_lines=(5,),
+            expected_exception_lines=(8, 12),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_module_declarations_when_querying_facts_then_returns_role_classifications(
+    tmp_path: Path,
+    test_case: ModuleDeclarationFactTestCase,
+) -> None:
+    path: Path = tmp_path / "module.py"
+    analysis: Analysis = build_analysis(
+        path=path,
+        source=test_case.source,
+        module=ast.parse(test_case.source),
+    ).analysis
+
+    facts: ModuleDeclarationFacts = analysis.facts.module_declarations()
+
+    assert tuple(fact.location.line for fact in facts.statements) == (
+        test_case.expected_statement_lines
+    )
+    assert tuple(fact.model_class for fact in facts.statements) == test_case.expected_model_flags
+    assert tuple(fact.exception_class for fact in facts.statements) == (
+        test_case.expected_exception_flags
+    )
+    assert (
+        tuple(location.line for location in facts.model_locations) == test_case.expected_model_lines
+    )
+    assert tuple(location.line for location in facts.exception_locations) == (
+        test_case.expected_exception_lines
+    )
 
 
 @pytest.mark.parametrize(

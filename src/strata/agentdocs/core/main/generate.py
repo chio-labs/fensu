@@ -16,8 +16,9 @@ def generate_skill(*, config: Config, rules: tuple[RuleSpec, ...]) -> str:
         "---",
         "name: strata",
         (
-            "description: Use Strata when navigating unfamiliar Python code, enforcing repository "
-            "architecture, or explaining substantial completed work with call-flow maps."
+            "description: Use whenever Strata is mentioned or used, including installation, "
+            "strata.toml configuration, strata check/rule/map/skills commands, SF diagnostics, "
+            "repository architecture, or multi-module Python call-flow work."
         ),
         "---",
         "",
@@ -29,6 +30,7 @@ def generate_skill(*, config: Config, rules: tuple[RuleSpec, ...]) -> str:
             "Strata checks code ownership, dependency boundaries, module roles, function shape, "
             "and test conventions. This skill is generated from the repository's active rules."
         ),
+        "Load this guidance before running any `strata` command or changing Strata configuration.",
         "",
         "## Commands",
         "",

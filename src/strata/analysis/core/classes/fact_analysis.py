@@ -12,7 +12,7 @@ from strata.analysis.core.helpers.control_flow import (
     complex_comprehension_locations,
     function_conditional_facts,
 )
-from strata.analysis.core.helpers.function_metrics import function_facts
+from strata.analysis.core.helpers.function_metrics import dataclass_facts, function_facts
 from strata.analysis.core.helpers.hygiene import hygiene_facts
 from strata.analysis.core.helpers.locations import line_offsets, source_range
 from strata.analysis.core.helpers.outer_state import outer_state_mutation_nodes
@@ -21,6 +21,7 @@ from strata.analysis.core.helpers.returns import meaningful_return_facts
 from strata.analysis.core.models import (
     AnnotationFacts,
     CommentFact,
+    DataclassFact,
     FunctionConditionalFact,
     FunctionFacts,
     HygieneFacts,
@@ -54,6 +55,7 @@ class PythonFactAnalysis:
         self._parent_by_node: Mapping[ast.AST, ast.AST] = parent_by_node
         self._annotations: AnnotationFacts | None = None
         self._comments: tuple[CommentFact, ...] | None = None
+        self._dataclasses: tuple[DataclassFact, ...] | None = None
         self._complex_comprehensions: tuple[SourceLocation, ...] | None = None
         self._function_conditionals: tuple[FunctionConditionalFact, ...] | None = None
         self._functions: FunctionFacts | None = None
@@ -80,6 +82,13 @@ class PythonFactAnalysis:
         if self._comments is None:
             self._comments = comment_facts(path=self._path, source=self._source)
         return self._comments
+
+    def dataclasses(self) -> tuple[DataclassFact, ...]:
+        """Return top-level dataclass declarations and field metadata."""
+
+        if self._dataclasses is None:
+            self._dataclasses = dataclass_facts(path=self._path, module=self._module)
+        return self._dataclasses
 
     def complex_comprehensions(self) -> tuple[SourceLocation, ...]:
         """Return complex comprehension locations."""

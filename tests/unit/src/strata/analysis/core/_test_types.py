@@ -121,3 +121,15 @@ class HygieneFactTestCase:
     expected_probe_lines: tuple[int, ...]
     expected_string_lines: tuple[int, ...]
     expected_numeric_lines: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class DataclassFactTestCase:
+    """Source and expected top-level dataclass metadata."""
+
+    description: str
+    source: str
+    expected_names: tuple[str, ...]
+    expected_field_names: tuple[frozenset[str], ...]
+    expected_frozen: tuple[bool, ...]
+    expected_shape_candidates: tuple[bool, ...]

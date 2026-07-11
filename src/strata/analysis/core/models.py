@@ -194,3 +194,14 @@ class HygieneFacts:
     swallowed_exception_probes: tuple[SourceLocation, ...]
     unnamed_string_decisions: tuple[SourceLocation, ...]
     magic_numeric_comparisons: tuple[SourceLocation, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class DataclassFact:
+    """One dataclass declaration and its field/frozen metadata."""
+
+    name: str
+    location: SourceLocation
+    field_names: frozenset[str]
+    frozen: bool
+    shape_candidate: bool

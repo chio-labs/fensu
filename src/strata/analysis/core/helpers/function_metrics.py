@@ -7,9 +7,11 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from strata.analysis.core.helpers.locations import source_location
-from strata.analysis.core.models import FunctionFacts, FunctionMetricFact
+from strata.analysis.core.models import DataclassFact, FunctionFacts, FunctionMetricFact
 
 _exempt_parameters: frozenset[str] = frozenset({"cls", "self"})
+_dataclass_decorator_name: str = "dataclass"
+_frozen_keyword_name: str = "frozen"
 
 
 def function_facts(
@@ -108,3 +110,60 @@ def _name_from_expr(node: ast.expr) -> str | None:
         base: str | None = _name_from_expr(node.value)
         return node.attr if base is None else f"{base}.{node.attr}"
     return None
+
+
+def dataclass_facts(*, path: Path, module: ast.Module) -> tuple[DataclassFact, ...]:
+    """Return top-level dataclass declarations and field metadata."""
+
+    facts: list[DataclassFact] = []
+    for node in module.body:
+        if not isinstance(node, ast.ClassDef):
+            continue
+        decorator: ast.expr | None = next(
+            (
+                candidate
+                for candidate in node.decorator_list
+                if _decorator_name(candidate).endswith(_dataclass_decorator_name)
+            ),
+            None,
+        )
+        if decorator is None:
+            continue
+        decorator_name: str = _decorator_name(
+            decorator.func if isinstance(decorator, ast.Call) else decorator
+        )
+        facts.append(
+            DataclassFact(
+                name=node.name,
+                location=source_location(path=path, node=node),
+                field_names=frozenset(
+                    statement.target.id
+                    for statement in node.body
+                    if isinstance(statement, ast.AnnAssign)
+                    and isinstance(statement.target, ast.Name)
+                ),
+                frozen=_dataclass_call_is_frozen(decorator),
+                shape_candidate=decorator_name == _dataclass_decorator_name,
+            )
+        )
+    return tuple(facts)
+
+
+def _decorator_name(node: ast.expr) -> str:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        parent: str = _decorator_name(node.value)
+        return node.attr if not parent else f"{parent}.{node.attr}"
+    if isinstance(node, ast.Call):
+        return _decorator_name(node.func)
+    return ""
+
+
+def _dataclass_call_is_frozen(node: ast.expr) -> bool:
+    if not isinstance(node, ast.Call):
+        return False
+    for keyword in node.keywords:
+        if keyword.arg == _frozen_keyword_name and isinstance(keyword.value, ast.Constant):
+            return keyword.value.value is True
+    return False

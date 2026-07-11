@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+from collections import deque
 from collections.abc import Mapping
 
 _mutator_methods: frozenset[str] = frozenset(
@@ -133,18 +134,13 @@ def _scope_local_bindings(
     if isinstance(owner, ast.Lambda):
         bindings: frozenset[str] = _argument_names(arguments=owner.args)
     elif isinstance(owner, ast.FunctionDef | ast.AsyncFunctionDef):
-        declarations, declaration_cache = _scope_declarations(
-            owner=owner, declaration_cache=declaration_cache
+        scope_bindings, global_names, nonlocal_names = _scope_metadata(
+            nodes=owner.body, include_imports=True
         )
-        global_names, nonlocal_names = declarations
         bindings = (
-            (
-                _argument_names(arguments=owner.args)
-                | _scope_bindings(nodes=owner.body, include_imports=True)
-            )
-            - global_names
-            - nonlocal_names
+            (_argument_names(arguments=owner.args) | scope_bindings) - global_names - nonlocal_names
         )
+        declaration_cache[owner] = (global_names, nonlocal_names)
     else:
         bindings = frozenset()
     binding_cache[owner] = bindings
@@ -163,12 +159,8 @@ def _scope_declarations(
     if cached is not None:
         return cached, declaration_cache
     if isinstance(owner, ast.FunctionDef | ast.AsyncFunctionDef):
-        declarations: tuple[tuple[frozenset[str], frozenset[str]], ...] = tuple(
-            _declarations(node=statement) for statement in owner.body
-        )
-        result: tuple[frozenset[str], frozenset[str]] = _merge_declarations(
-            declarations=declarations
-        )
+        _, global_names, nonlocal_names = _scope_metadata(nodes=owner.body, include_imports=True)
+        result: tuple[frozenset[str], frozenset[str]] = (global_names, nonlocal_names)
     else:
         result = (frozenset(), frozenset())
     declaration_cache[owner] = result
@@ -275,65 +267,45 @@ def _name_resolves_outer(
     return name in outer_bindings
 
 
-def _declarations(*, node: ast.AST) -> tuple[frozenset[str], frozenset[str]]:
-    if isinstance(node, (*_function_nodes, ast.ClassDef)):
-        return frozenset(), frozenset()
-    if isinstance(node, ast.Global):
-        return frozenset(node.names), frozenset()
-    if isinstance(node, ast.Nonlocal):
-        return frozenset(), frozenset(node.names)
-    declarations: tuple[tuple[frozenset[str], frozenset[str]], ...] = tuple(
-        _declarations(node=child) for child in ast.iter_child_nodes(node)
-    )
-    return _merge_declarations(declarations=declarations)
-
-
 def _scope_bindings(*, nodes: list[ast.stmt], include_imports: bool) -> frozenset[str]:
-    names: set[str] = set()
-    for node in nodes:
-        names.update(_bindings(node=node, include_imports=include_imports))
-    return frozenset(names)
+    bindings, _, _ = _scope_metadata(nodes=nodes, include_imports=include_imports)
+    return bindings
 
 
-def _bindings(*, node: ast.AST, include_imports: bool) -> frozenset[str]:
-    if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
-        return frozenset({node.name})
-    if isinstance(node, (ast.Lambda, *_comprehension_nodes)):
-        return frozenset()
-    if isinstance(node, ast.Import):
-        if not include_imports:
-            return frozenset()
-        return frozenset(
-            alias.asname or alias.name.split(".", maxsplit=1)[0] for alias in node.names
-        )
-    if isinstance(node, ast.ImportFrom):
-        if not include_imports:
-            return frozenset()
-        return frozenset(
-            alias.asname or alias.name
-            for alias in node.names
-            if alias.name != _wildcard_import_name
-        )
-    direct_names: frozenset[str] = frozenset(
-        {node.name} if isinstance(node, ast.ExceptHandler) and node.name is not None else set()
-    )
-    if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store | ast.Del):
-        direct_names = frozenset({node.id})
-    descendant_names: set[str] = set()
-    for child in ast.iter_child_nodes(node):
-        descendant_names.update(_bindings(node=child, include_imports=include_imports))
-    return direct_names | frozenset(descendant_names)
-
-
-def _merge_declarations(
-    *, declarations: tuple[tuple[frozenset[str], frozenset[str]], ...]
-) -> tuple[frozenset[str], frozenset[str]]:
+def _scope_metadata(
+    *, nodes: list[ast.stmt], include_imports: bool
+) -> tuple[frozenset[str], frozenset[str], frozenset[str]]:
+    bindings: set[str] = set()
     global_names: set[str] = set()
     nonlocal_names: set[str] = set()
-    for declared_globals, declared_nonlocals in declarations:
-        global_names.update(declared_globals)
-        nonlocal_names.update(declared_nonlocals)
-    return frozenset(global_names), frozenset(nonlocal_names)
+    pending: deque[ast.AST] = deque(nodes)
+    while pending:
+        node: ast.AST = pending.popleft()
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
+            bindings.add(node.name)
+            continue
+        if isinstance(node, (ast.Lambda, *_comprehension_nodes)):
+            continue
+        if isinstance(node, ast.Global):
+            global_names.update(node.names)
+        elif isinstance(node, ast.Nonlocal):
+            nonlocal_names.update(node.names)
+        elif isinstance(node, ast.Import) and include_imports:
+            bindings.update(
+                alias.asname or alias.name.split(".", maxsplit=1)[0] for alias in node.names
+            )
+        elif isinstance(node, ast.ImportFrom) and include_imports:
+            bindings.update(
+                alias.asname or alias.name
+                for alias in node.names
+                if alias.name != _wildcard_import_name
+            )
+        elif isinstance(node, ast.ExceptHandler) and node.name is not None:
+            bindings.add(node.name)
+        elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store | ast.Del):
+            bindings.add(node.id)
+        pending.extend(ast.iter_child_nodes(node))
+    return frozenset(bindings), frozenset(global_names), frozenset(nonlocal_names)
 
 
 def _argument_names(*, arguments: ast.arguments) -> frozenset[str]:

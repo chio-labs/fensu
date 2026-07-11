@@ -496,17 +496,13 @@ def test_given_missing_annotations_when_querying_facts_then_returns_all_fact_gro
     facts: AnnotationFacts = analysis.facts.annotations()
 
     assert tuple(fact.name for fact in facts.parameters) == test_case.expected_parameter_names
-    assert tuple(fact.location.start.line for fact in facts.parameters) == (
+    assert tuple(fact.location.line for fact in facts.parameters) == (
         test_case.expected_parameter_lines
     )
     assert tuple(fact.name for fact in facts.returns) == test_case.expected_return_names
-    assert (
-        tuple(fact.location.start.line for fact in facts.returns) == test_case.expected_return_lines
-    )
+    assert tuple(fact.location.line for fact in facts.returns) == test_case.expected_return_lines
     assert tuple(fact.name for fact in facts.locals) == test_case.expected_local_names
-    assert (
-        tuple(fact.location.start.line for fact in facts.locals) == test_case.expected_local_lines
-    )
+    assert tuple(fact.location.line for fact in facts.locals) == test_case.expected_local_lines
 
 
 @pytest.mark.parametrize(

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import ast
+import os
+from functools import lru_cache
 from pathlib import Path
 
 from strata.discovery.core.types import RoleName
@@ -315,10 +317,29 @@ def _resolve_imported_function(
     if module_path is None:
         return None
     try:
-        imported_module: ast.Module = ast.parse(module_path.read_text(encoding="utf-8"))
-    except (OSError, SyntaxError, UnicodeError):
+        file_stat: os.stat_result = module_path.stat()
+        imported_module: ast.Module | None = _project_module(
+            path=module_path,
+            modified_ns=file_stat.st_mtime_ns,
+            changed_ns=file_stat.st_ctime_ns,
+            size=file_stat.st_size,
+        )
+    except OSError:
+        return None
+    if imported_module is None:
         return None
     return _module_function(module=imported_module, name=symbol)
+
+
+@lru_cache(maxsize=512)
+def _project_module(
+    *, path: Path, modified_ns: int, changed_ns: int, size: int
+) -> ast.Module | None:
+    del modified_ns, changed_ns, size
+    try:
+        return ast.parse(path.read_text(encoding="utf-8"))
+    except (OSError, SyntaxError, UnicodeError):
+        return None
 
 
 def _project_module_path(*, module_name: str, repo_root: Path) -> Path | None:

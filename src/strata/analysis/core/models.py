@@ -60,7 +60,7 @@ class MissingParameterAnnotationFact:
     """A function parameter requiring an annotation."""
 
     name: str
-    location: SourceRange
+    location: SourceLocation
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,7 +68,7 @@ class MissingReturnAnnotationFact:
     """A function requiring a return annotation."""
 
     name: str
-    location: SourceRange
+    location: SourceLocation
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,7 +76,7 @@ class MissingLocalAnnotationFact:
     """A first local binding requiring an annotation."""
 
     name: str
-    location: SourceRange
+    location: SourceLocation
 
 
 @dataclass(frozen=True, slots=True)

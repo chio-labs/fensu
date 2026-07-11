@@ -6,14 +6,14 @@ import ast
 from collections.abc import Mapping
 from pathlib import Path
 
-from strata.analysis.core.helpers.locations import line_offsets, source_location, source_range
+from strata.analysis.core.helpers.locations import source_location
 from strata.analysis.core.models import (
     AnnotationFacts,
     MissingLocalAnnotationFact,
     MissingParameterAnnotationFact,
     MissingReturnAnnotationFact,
     MissingVariableAnnotationFact,
-    SourceRange,
+    SourceLocation,
 )
 
 _receiver_names: frozenset[str] = frozenset({"self", "cls"})
@@ -26,10 +26,8 @@ _class_exempt_names: frozenset[str] = frozenset({"__match_args__", "__slots__", 
 
 
 class _AnnotationVisitor(ast.NodeVisitor):
-    def __init__(self, *, path: Path, source: str) -> None:
+    def __init__(self, *, path: Path) -> None:
         self._path: Path = path
-        self._source: str = source
-        self._line_offsets: tuple[int, ...] = line_offsets(source)
         self._parameters: list[MissingParameterAnnotationFact] = []
         self._returns: list[MissingReturnAnnotationFact] = []
         self._locals: list[MissingLocalAnnotationFact] = []
@@ -146,25 +144,19 @@ class _AnnotationVisitor(ast.NodeVisitor):
             )
             current_scope.add(target.id)
 
-    def _location(self, node: ast.AST) -> SourceRange:
-        return source_range(
-            path=self._path,
-            source=self._source,
-            line_offsets=self._line_offsets,
-            node=node,
-        )
+    def _location(self, node: ast.AST) -> SourceLocation:
+        return source_location(path=self._path, node=node)
 
 
 def annotation_facts(
     *,
     path: Path,
-    source: str,
     module: ast.Module,
     node_index: Mapping[type[ast.AST], tuple[ast.AST, ...]],
 ) -> AnnotationFacts:
     """Return shared missing-annotation facts from one file traversal."""
 
-    function_facts: AnnotationFacts = _AnnotationVisitor(path=path, source=source).collect(module)
+    function_facts: AnnotationFacts = _AnnotationVisitor(path=path).collect(module)
     return AnnotationFacts(
         parameters=function_facts.parameters,
         returns=function_facts.returns,

@@ -209,6 +209,7 @@ class ProjectDependency:
     query_path: Path
     dependency: Path
     kind: str
+    answer: None | bool | str | tuple[Path, ...]
     pattern: str | None = None
     recursive: bool = False
 

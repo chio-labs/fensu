@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -13,13 +14,15 @@ from strata.discovery.core.types import ScopeName
 from strata.evaluation.core.exceptions import ParseError
 from strata.evaluation.core.helpers.parsing import parse_scoped_file
 from strata.evaluation.core.helpers.project_analysis import build_project_analysis
-from strata.evaluation.core.models import ParsedModule
+from strata.evaluation.core.models import ParsedModule, SourceSnapshot
 from strata.evaluation.core.types import EvaluationProjectAnalysis
 from tests.unit.src.strata.evaluation.core._test_types import (
     ProjectDependencyTestCase,
     ProjectDirectoryQueryTestCase,
     ProjectParseContractTestCase,
     ProjectRetentionTestCase,
+    ProjectScalarQueryTestCase,
+    ProjectSourceQueryTestCase,
 )
 from tests.unit.src.strata.evaluation.core.helpers import (
     exercise_project_parse_order,
@@ -38,6 +41,7 @@ from tests.unit.src.strata.evaluation.core.helpers import (
                 "src/pkg/phases/__init__.py",
             ),
             expected_dependency_kinds=("is_file", "is_file"),
+            expected_dependency_answers=(False, False),
         ),
         ProjectDependencyTestCase(
             description="module probes only its matching configured package root",
@@ -47,6 +51,7 @@ from tests.unit.src.strata.evaluation.core.helpers import (
                 "lib/shared/phases/__init__.py",
             ),
             expected_dependency_kinds=("is_file", "is_file"),
+            expected_dependency_answers=(False, False),
             runtime_roots=("services/acme", "lib/shared"),
         ),
         ProjectDependencyTestCase(
@@ -57,6 +62,7 @@ from tests.unit.src.strata.evaluation.core.helpers import (
                 "qa/unit/helpers/__init__.py",
             ),
             expected_dependency_kinds=("is_file", "is_file"),
+            expected_dependency_answers=(False, False),
             test_roots=("qa",),
         ),
     ],
@@ -94,6 +100,7 @@ def test_given_missing_module_when_querying_then_records_all_candidate_dependenc
         test_case.expected_dependency_paths
     )
     assert tuple(item.kind for item in dependencies) == test_case.expected_dependency_kinds
+    assert tuple(item.answer for item in dependencies) == test_case.expected_dependency_answers
 
 
 @pytest.mark.parametrize(
@@ -152,6 +159,18 @@ def test_given_directory_queries_when_observing_then_records_aggregate_dependenc
         pattern="*.sql",
         recursive=True,
     )
+    (package / "later.py").write_text("", encoding="utf-8")
+    repeated_direct: tuple[Path, ...] = project.glob(
+        requester=requester,
+        path=package,
+        pattern="*.py",
+    )
+    repeated_recursive: tuple[Path, ...] = project.glob(
+        requester=requester,
+        path=package,
+        pattern="*.py",
+        recursive=True,
+    )
     dependencies: tuple[ProjectDependency, ...] = project.dependencies()
 
     assert tuple(sorted(path.name for path in entries)) == test_case.expected_entry_names
@@ -162,11 +181,100 @@ def test_given_directory_queries_when_observing_then_records_aggregate_dependenc
         == test_case.expected_recursive_matches
     )
     assert no_matches == ()
+    assert repeated_direct == direct_matches
+    assert repeated_recursive == recursive_matches
     assert tuple(item.kind for item in dependencies) == test_case.expected_dependency_kinds
     assert tuple(item.pattern for item in dependencies) == test_case.expected_patterns
     assert tuple(item.recursive for item in dependencies) == test_case.expected_recursive
     assert all(item.query_path == package for item in dependencies)
     assert all(item.dependency == package.resolve() for item in dependencies)
+    assert tuple(item.answer for item in dependencies) == (
+        entries,
+        direct_matches,
+        recursive_matches,
+        no_matches,
+    )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ProjectScalarQueryTestCase(
+            description="scalar queries record the exact returned booleans",
+            expected_dependency_kinds=("exists", "is_file", "is_dir"),
+            expected_dependency_answers=(True, False, True),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_scalar_queries_when_observing_then_records_returned_answers(
+    tmp_path: Path,
+    test_case: ProjectScalarQueryTestCase,
+) -> None:
+    package: Path = tmp_path / "src/pkg/domain"
+    package.mkdir(parents=True)
+    requester: Path = tmp_path / "src/pkg/main/run.py"
+    project: EvaluationProjectAnalysis = build_project_analysis(
+        tree=DiscoveredTree(
+            files=(),
+            repo_root=RepoRoot(tmp_path),
+            layout=make_project_layout(repo_root=tmp_path),
+        )
+    )
+
+    exists: bool = project.exists(requester=requester, path=package)
+    is_file: bool = project.is_file(requester=requester, path=package)
+    is_dir: bool = project.is_dir(requester=requester, path=package)
+    package.rmdir()
+    frozen_answers: tuple[bool, ...] = (
+        project.exists(requester=requester, path=package),
+        project.is_file(requester=requester, path=package),
+        project.is_dir(requester=requester, path=package),
+    )
+    dependencies: tuple[ProjectDependency, ...] = project.dependencies()
+
+    assert (exists, is_file, is_dir) == test_case.expected_dependency_answers
+    assert frozen_answers == test_case.expected_dependency_answers
+    assert tuple(item.kind for item in dependencies) == test_case.expected_dependency_kinds
+    assert tuple(item.answer for item in dependencies) == test_case.expected_dependency_answers
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ProjectSourceQueryTestCase(
+            description="source answer is frozen and retained for each requester",
+            source="value: int = 1\n",
+            mutated_source="value: int = 2\n",
+            expected_dependency_count=2,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_repeated_source_query_when_source_mutates_then_reuses_first_answer(
+    tmp_path: Path,
+    test_case: ProjectSourceQueryTestCase,
+) -> None:
+    path: Path = tmp_path / "src/pkg/domain/models.py"
+    path.parent.mkdir(parents=True)
+    path.write_text(test_case.source, encoding="utf-8")
+    project: EvaluationProjectAnalysis = build_project_analysis(
+        tree=DiscoveredTree(
+            files=(),
+            repo_root=RepoRoot(tmp_path),
+            layout=make_project_layout(repo_root=tmp_path),
+        )
+    )
+
+    first: Analysis | None = project.analysis(requester=path.parent / "first.py", path=path)
+    path.write_text(test_case.mutated_source, encoding="utf-8")
+    second: Analysis | None = project.analysis(requester=path.parent / "second.py", path=path)
+    dependencies: tuple[ProjectDependency, ...] = project.dependencies()
+    expected_answer: str = hashlib.sha256(test_case.source.encode("utf-8")).hexdigest()
+
+    assert first is second
+    assert len(dependencies) == test_case.expected_dependency_count
+    assert tuple(item.answer for item in dependencies) == (expected_answer, expected_answer)
 
 
 @pytest.mark.parametrize(
@@ -210,9 +318,13 @@ def test_given_project_query_order_when_parsing_then_retains_only_required_modul
     )
     parse_counts: list[int] = [0]
 
-    def count_parse(candidate: ScopedFile) -> ParsedModule:
+    def count_parse(
+        candidate: ScopedFile,
+        *,
+        source_snapshot: SourceSnapshot | None = None,
+    ) -> ParsedModule:
         parse_counts[0] += 1
-        return parse_scoped_file(candidate)
+        return parse_scoped_file(candidate, source_snapshot=source_snapshot)
 
     monkeypatch.setattr(
         "strata.evaluation.core.helpers.project_analysis.parse_scoped_file",
@@ -323,5 +435,7 @@ def test_given_malformed_discovered_file_when_querying_then_only_normal_parse_ra
     analysis: Analysis | None = project.analysis(requester=path, path=path)
 
     assert analysis is None
+    dependencies: tuple[ProjectDependency, ...] = project.dependencies()
+    assert dependencies[0].answer == hashlib.sha256(test_case.source.encode("utf-8")).hexdigest()
     with pytest.raises(test_case.expected_error_type):
         project.parsed_module(scoped_file)

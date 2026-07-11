@@ -281,7 +281,7 @@ def _fault(value: CanonicalValue) -> CachedFault | None:
         and isinstance(message, str)
         and _optional_position(line, minimum=1)
         and _optional_position(column, minimum=0)
-        and (line is None) == (column is None)
+        and (line is not None or column is None)
         and (remediation is None or isinstance(remediation, str))
     ):
         return None

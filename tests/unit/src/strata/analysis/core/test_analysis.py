@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -19,6 +20,9 @@ from strata.analysis.core.models import (
     MeaningfulReturnFact,
     NodeId,
     OuterStateMutationFact,
+    ParametrizeFact,
+    PytestFunctionFact,
+    PytestModuleFacts,
     ReferenceFacts,
     SourceRange,
     SyntaxHandle,
@@ -34,9 +38,119 @@ from tests.unit.src.strata.analysis.core._test_types import (
     HygieneFactTestCase,
     MeaningfulReturnFactTestCase,
     OuterStateFactTestCase,
+    PytestFunctionFactTestCase,
+    PytestModuleFactTestCase,
     ReferenceFactTestCase,
     SourceAnalysisTestCase,
 )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        PytestModuleFactTestCase(
+            description="test module facts expose declaration shape and ordering",
+            source=(
+                '"""Module."""\n'
+                "from pkg import Value\n\n"
+                "def helper() -> None:\n"
+                "    pass\n\n"
+                "TEST_CASES = []\n\n"
+                "def test_given_value_when_checking_then_matches() -> None:\n"
+                "    pass\n\n"
+                "_LATE = 1\n"
+            ),
+            expected_empty_or_docstring_only=False,
+            expected_scenario_lines=(4, 7, 9, 12),
+            expected_helper_lines=(4,),
+            expected_case_list_lines=(7,),
+            expected_private_lines=(12,),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_test_module_when_querying_facts_then_returns_declaration_shape(
+    tmp_path: Path,
+    test_case: PytestModuleFactTestCase,
+) -> None:
+    path: Path = tmp_path / "module.py"
+    analysis: Analysis = build_analysis(
+        path=path,
+        source=test_case.source,
+        module=ast.parse(test_case.source),
+    ).analysis
+
+    facts: PytestModuleFacts = analysis.facts.test_module()
+
+    assert facts.empty_or_docstring_only is test_case.expected_empty_or_docstring_only
+    assert tuple(location.line for location in facts.scenario_invalid_locations) == (
+        test_case.expected_scenario_lines
+    )
+    assert tuple(location.line for location in facts.top_level_helper_locations) == (
+        test_case.expected_helper_lines
+    )
+    assert tuple(location.line for location in facts.test_case_list_locations) == (
+        test_case.expected_case_list_lines
+    )
+    assert tuple(location.line for location in facts.private_after_test_locations) == (
+        test_case.expected_private_lines
+    )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        PytestFunctionFactTestCase(
+            description="test function facts expose parametrization and expected references",
+            source=(
+                "@pytest.mark.parametrize(\n"
+                "    'test_case',\n"
+                "    [ExampleTestCase(description='case', expected_value=1)],\n"
+                "    ids=lambda case: case.description,\n"
+                ")\n"
+                "def test_given_value_when_checking_then_matches(\n"
+                "    test_case: ExampleTestCase,\n"
+                ") -> None:\n"
+                "    assert test_case.expected_value == 1\n"
+            ),
+            expected_names=("test_given_value_when_checking_then_matches",),
+            expected_annotations=("ExampleTestCase",),
+            expected_parameter_names=("test_case",),
+            expected_ids=(True,),
+            expected_case_constructors=(("ExampleTestCase",),),
+            expected_references=(True,),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_test_functions_when_querying_facts_then_returns_pytest_metadata(
+    tmp_path: Path,
+    test_case: PytestFunctionFactTestCase,
+) -> None:
+    path: Path = tmp_path / "module.py"
+    analysis: Analysis = build_analysis(
+        path=path,
+        source=test_case.source,
+        module=ast.parse(test_case.source),
+    ).analysis
+
+    facts: tuple[PytestFunctionFact, ...] = analysis.facts.test_functions()
+    parametrizations: tuple[ParametrizeFact, ...] = tuple(
+        cast(ParametrizeFact, fact.parametrize) for fact in facts
+    )
+    case_constructors: list[tuple[str | None, ...]] = []
+    for parametrization in parametrizations:
+        case_constructors.append(tuple(case.constructor_name for case in parametrization.cases))
+
+    assert tuple(fact.name for fact in facts) == test_case.expected_names
+    assert tuple(fact.test_case_annotation_name for fact in facts) == test_case.expected_annotations
+    assert (
+        tuple(fact.parameter_name for fact in parametrizations)
+        == test_case.expected_parameter_names
+    )
+    assert tuple(fact.description_lambda_ids for fact in parametrizations) == test_case.expected_ids
+    assert tuple(case_constructors) == test_case.expected_case_constructors
+    assert tuple(fact.references_expected_field for fact in facts) == test_case.expected_references
 
 
 @pytest.mark.parametrize(
@@ -96,8 +210,8 @@ def test_given_dataclass_declarations_when_querying_facts_then_returns_model_met
                 "        return 2\n"
                 "    return None\n"
             ),
-            expected_function_names=("validate", "nested"),
-            expected_lines=(5, 3),
+            expected_function_names=("validate",),
+            expected_lines=(5,),
         )
     ],
     ids=lambda case: case.description,
@@ -113,7 +227,9 @@ def test_given_function_returns_when_querying_facts_then_preserves_scope_ownersh
         module=ast.parse(test_case.source),
     ).analysis
 
-    facts: tuple[MeaningfulReturnFact, ...] = analysis.facts.meaningful_returns()
+    facts: tuple[MeaningfulReturnFact, ...] = analysis.facts.meaningful_returns(
+        name_patterns=("validate*",)
+    )
 
     assert tuple(fact.function_name for fact in facts) == test_case.expected_function_names
     assert tuple(fact.location.line for fact in facts) == test_case.expected_lines

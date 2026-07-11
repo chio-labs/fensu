@@ -133,3 +133,30 @@ class DataclassFactTestCase:
     expected_field_names: tuple[frozenset[str], ...]
     expected_frozen: tuple[bool, ...]
     expected_shape_candidates: tuple[bool, ...]
+
+
+@dataclass(frozen=True)
+class PytestFunctionFactTestCase:
+    """Source and expected pytest function metadata."""
+
+    description: str
+    source: str
+    expected_names: tuple[str, ...]
+    expected_annotations: tuple[str | None, ...]
+    expected_parameter_names: tuple[str | None, ...]
+    expected_ids: tuple[bool, ...]
+    expected_case_constructors: tuple[tuple[str | None, ...], ...]
+    expected_references: tuple[bool, ...]
+
+
+@dataclass(frozen=True)
+class PytestModuleFactTestCase:
+    """Source and expected test module-shape metadata."""
+
+    description: str
+    source: str
+    expected_empty_or_docstring_only: bool
+    expected_scenario_lines: tuple[int, ...]
+    expected_helper_lines: tuple[int, ...]
+    expected_case_list_lines: tuple[int, ...]
+    expected_private_lines: tuple[int, ...]

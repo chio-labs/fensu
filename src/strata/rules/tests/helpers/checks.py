@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
+from strata.analysis.core.models import ParametrizeFact, PytestFunctionFact, PytestModuleFacts
 from strata.discovery.core.types import ScopeName
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import RuleContext
@@ -20,7 +21,24 @@ _minimum_test_layout_parts: int = 3
 _minimum_src_layout_parts: int = 5
 _minimum_scripts_layout_parts: int = 4
 _minimum_parametrize_arguments: int = 2
-_minimum_expected_field_chain_parts: int = 2
+_test_function_rule_codes: frozenset[SftCode] = frozenset(
+    {
+        SftCode.TEST_FUNCTION_NAME,
+        SftCode.DATACLASS_PARAMETRIZE,
+        SftCode.ACCEPTS_TEST_CASE,
+        SftCode.TEST_CASE_ANNOTATION,
+        SftCode.EXPECTED_FIELD_ASSERTION,
+        SftCode.PARAMETRIZE_ARGUMENTS,
+        SftCode.PARAMETRIZE_TEST_CASE,
+        SftCode.PARAMETRIZE_IDS,
+        SftCode.INLINE_PARAMETRIZE_VALUES,
+        SftCode.INLINE_PARAMETRIZE_SEQUENCE,
+        SftCode.NONEMPTY_PARAMETRIZE_VALUES,
+        SftCode.NO_DICT_TEST_CASES,
+        SftCode.LOCAL_TEST_CASE_CONSTRUCTORS,
+        SftCode.DESCRIPTION_LAMBDA_IDS,
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -43,12 +61,11 @@ def test_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) -> list[
     if code == SftCode.NO_IF_IN_TESTS:
         if not _is_test_module(ctx.path):
             return []
-        return [
-            ctx.fault_at(fact.location)
-            for fact in ctx._analysis.facts.function_conditionals()
-            if fact.function_name.startswith("test_")
-            and TestSymbol.PARAMETRIZE in fact.decorator_names
-        ]
+        faults: list[Fault] = []
+        for fact in ctx._analysis.facts.test_functions():
+            if fact.parametrize is not None:
+                faults.extend(ctx.fault_at(location) for location in fact.conditional_locations)
+        return faults
     if code == SftCode.NO_COMPLEX_COMPREHENSIONS:
         return [ctx.fault_at(location) for location in ctx._analysis.facts.complex_comprehensions()]
     if ctx.path.name == TestPathName.SCENARIO_MODELS and code == SftCode.TEST_LAYOUT:
@@ -61,6 +78,8 @@ def test_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) -> list[
         return _relative_import_faults(module=module, ctx=ctx)
     if ctx.path.name == TestPathName.TEST_TYPES:
         return _test_types_faults(module=module, ctx=ctx, code=code)
+    if code in {SftCode.TEST_TYPES_DESCRIPTION, SftCode.TEST_TYPES_EXPECTED_FIELD}:
+        return []
     if ctx.path.name.endswith(".py"):
         return _test_file_faults(module=module, ctx=ctx, code=code)
     return []
@@ -169,16 +188,21 @@ def _path_fault(*, ctx: RuleContext, code: SftCode, message: str) -> Fault:
 
 
 def _init_module_faults(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
-    if ctx.path.name != TestPathName.INIT_MODULE or _is_docstring_only_module(module):
+    del module
+    if (
+        ctx.path.name != TestPathName.INIT_MODULE
+        or ctx._analysis.facts.test_module().empty_or_docstring_only
+    ):
         return []
-    return [ctx.fault(module, message="__init__.py must be empty or docstring-only")]
+    return [ctx.path_fault(message="__init__.py must be empty or docstring-only")]
 
 
 def _relative_import_faults(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    del module
     return [
-        ctx.fault(node)
-        for node in ctx.nodes(ast.ImportFrom)
-        if isinstance(node, ast.ImportFrom) and node.level > 0
+        ctx.fault_at(fact.location)
+        for fact in ctx._analysis.facts.references().imports
+        if fact.from_import and fact.relative_level > 0
     ]
 
 
@@ -199,17 +223,15 @@ def _test_types_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) -
 
 
 def _scenario_models_faults(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
-    faults: list[Fault] = []
-    for node in module.body:
-        if _is_docstring_statement(node) or isinstance(node, ast.Import | ast.ImportFrom):
-            continue
-        if isinstance(node, ast.ClassDef) and _has_dataclass_decorator(node):
-            continue
-        faults.append(ctx.fault(node))
-    return faults
+    del module
+    return [
+        ctx.fault_at(location)
+        for location in ctx._analysis.facts.test_module().scenario_invalid_locations
+    ]
 
 
 def _test_file_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) -> list[Fault]:
+    del module
     local_test_types: _LocalTestTypes | None = None
     if code in {
         SftCode.LOCAL_TEST_TYPES_IMPORT,
@@ -221,68 +243,50 @@ def _test_file_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) ->
             repo_root=ctx.repo_root,
             inspect_dataclasses=code != SftCode.LOCAL_TEST_TYPES_IMPORT,
         )
-    module_context: _TestModuleContext = _module_context(
-        module=module, ctx=ctx, local_test_types=local_test_types
-    )
+    module_context: _TestModuleContext = _module_context(ctx=ctx, local_test_types=local_test_types)
     faults: list[Fault] = []
     if (
         code == SftCode.LOCAL_TEST_TYPES_FILE
         and _is_test_module(ctx.path)
         and not (ctx.path.parent / "_test_types.py").is_file()
     ):
-        faults.append(ctx.fault(module))
+        faults.append(ctx.path_fault())
     if (
         code == SftCode.TEST_FILE_NAME
         and _is_test_module(ctx.path)
         and not ctx.path.name.startswith("test_")
     ):
-        faults.append(ctx.fault(module))
-    faults.extend(_module_shape_faults(module=module, ctx=ctx, code=code))
-    faults.extend(
-        _local_import_faults(module=module, ctx=ctx, code=code, local_test_types=local_test_types)
-    )
-    for node in (*ctx.nodes(ast.FunctionDef), *ctx.nodes(ast.AsyncFunctionDef)):
-        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and node.name.startswith(
-            "test_"
-        ):
+        faults.append(ctx.path_fault())
+    faults.extend(_module_shape_faults(ctx=ctx, code=code))
+    faults.extend(_local_import_faults(ctx=ctx, code=code, local_test_types=local_test_types))
+    if code in _test_function_rule_codes:
+        for fact in ctx._analysis.facts.test_functions():
             faults.extend(
                 _test_function_faults(
-                    function_node=node, ctx=ctx, code=code, module_context=module_context
+                    fact=fact,
+                    ctx=ctx,
+                    code=code,
+                    module_context=module_context,
                 )
             )
     return faults
 
 
-def _module_shape_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) -> list[Fault]:
+def _module_shape_faults(*, ctx: RuleContext, code: SftCode) -> list[Fault]:
     if not _is_test_module(ctx.path):
         return []
-    faults: list[Fault] = []
-    first_test_function_line: int | None = None
-    for node in module.body:
-        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and not node.name.startswith(
-            "test_"
-        ):
-            if code == SftCode.NO_TOP_LEVEL_HELPERS:
-                faults.append(ctx.fault(node))
-        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and node.name.startswith(
-            "test_"
-        ):
-            if first_test_function_line is None:
-                first_test_function_line = node.lineno
-        if code == SftCode.NO_MODULE_TEST_CASE_LISTS and _is_test_case_list_assignment(node):
-            faults.append(ctx.fault(node))
-        if (
-            code == SftCode.PRIVATE_CONSTANT_ORDER
-            and first_test_function_line is not None
-            and _is_private_assignment(node)
-        ):
-            faults.append(ctx.fault(node))
-    return faults
+    facts: PytestModuleFacts = ctx._analysis.facts.test_module()
+    if code == SftCode.NO_TOP_LEVEL_HELPERS:
+        return [ctx.fault_at(location) for location in facts.top_level_helper_locations]
+    if code == SftCode.NO_MODULE_TEST_CASE_LISTS:
+        return [ctx.fault_at(location) for location in facts.test_case_list_locations]
+    if code == SftCode.PRIVATE_CONSTANT_ORDER:
+        return [ctx.fault_at(location) for location in facts.private_after_test_locations]
+    return []
 
 
 def _local_import_faults(
     *,
-    module: ast.Module,
     ctx: RuleContext,
     code: SftCode,
     local_test_types: _LocalTestTypes | None,
@@ -291,108 +295,97 @@ def _local_import_faults(
         return []
     faults: list[Fault] = []
     expected_module: str = local_test_types.module_name
-    for node in module.body:
+    for fact in ctx._analysis.facts.references().imports:
+        module_name: str = ".".join(fact.module_parts)
         if (
-            isinstance(node, ast.ImportFrom)
-            and node.module
-            and node.module.endswith("._test_types")
+            fact.top_level
+            and fact.from_import
+            and module_name.endswith("._test_types")
+            and module_name != expected_module
         ):
-            if node.module != expected_module:
-                faults.append(ctx.fault(node))
+            faults.append(ctx.fault_at(fact.location))
     return faults
 
 
 def _test_function_faults(
     *,
-    function_node: ast.FunctionDef | ast.AsyncFunctionDef,
+    fact: PytestFunctionFact,
     ctx: RuleContext,
     code: SftCode,
     module_context: _TestModuleContext,
 ) -> list[Fault]:
     faults: list[Fault] = []
-    if code == SftCode.TEST_FUNCTION_NAME and not _test_name_pattern.match(function_node.name):
-        faults.append(ctx.fault(function_node))
-    parametrize: ast.Call | None = _parametrize_decorator(function_node)
+    if code == SftCode.TEST_FUNCTION_NAME and not _test_name_pattern.match(fact.name):
+        faults.append(ctx.fault_at(fact.location))
+    parametrize: ParametrizeFact | None = fact.parametrize
     if parametrize is None:
         if code == SftCode.DATACLASS_PARAMETRIZE:
-            faults.append(ctx.fault(function_node))
+            faults.append(ctx.fault_at(fact.location))
         return faults
-    test_case_arg: ast.arg | None = next(
-        (argument for argument in function_node.args.args if argument.arg == TestSymbol.TEST_CASE),
-        None,
-    )
-    if code == SftCode.ACCEPTS_TEST_CASE and test_case_arg is None:
-        faults.append(ctx.fault(function_node))
+    test_case_present: bool = TestSymbol.TEST_CASE in fact.parameter_names
+    if code == SftCode.ACCEPTS_TEST_CASE and not test_case_present:
+        faults.append(ctx.fault_at(fact.location))
     if code == SftCode.TEST_CASE_ANNOTATION and (
-        test_case_arg is None
-        or not isinstance(test_case_arg.annotation, ast.Name)
-        or test_case_arg.annotation.id not in module_context.test_case_annotation_names
+        not test_case_present
+        or fact.test_case_annotation_name not in module_context.test_case_annotation_names
     ):
-        faults.append(ctx.fault(function_node))
+        faults.append(ctx.fault_at(fact.location))
     faults.extend(
         _parametrize_faults(
-            function_node=function_node,
+            function=fact,
             ctx=ctx,
             code=code,
             decorator=parametrize,
             module_context=module_context,
         )
     )
-    if code == SftCode.EXPECTED_FIELD_ASSERTION and not _references_expected_field(function_node):
-        faults.append(ctx.fault(function_node))
+    if code == SftCode.EXPECTED_FIELD_ASSERTION and not fact.references_expected_field:
+        faults.append(ctx.fault_at(fact.location))
     return faults
 
 
 def _parametrize_faults(
     *,
-    function_node: ast.FunctionDef | ast.AsyncFunctionDef,
+    function: PytestFunctionFact,
     ctx: RuleContext,
     code: SftCode,
-    decorator: ast.Call,
+    decorator: ParametrizeFact,
     module_context: _TestModuleContext,
 ) -> list[Fault]:
-    if len(decorator.args) < _minimum_parametrize_arguments:
-        return [ctx.fault(function_node)] if code == SftCode.PARAMETRIZE_ARGUMENTS else []
-    parameter_name: str | None = _extract_string(decorator.args[0])
+    if decorator.argument_count < _minimum_parametrize_arguments:
+        return [ctx.fault_at(function.location)] if code == SftCode.PARAMETRIZE_ARGUMENTS else []
     faults: list[Fault] = []
-    if code == SftCode.PARAMETRIZE_TEST_CASE and parameter_name != TestSymbol.TEST_CASE:
-        faults.append(ctx.fault(function_node))
-    ids_expression: ast.expr | None = next(
-        (keyword.value for keyword in decorator.keywords if keyword.arg == TestSymbol.IDS),
-        None,
-    )
-    if code == SftCode.PARAMETRIZE_IDS and ids_expression is None:
-        faults.append(ctx.fault(function_node))
-    values_expression: ast.expr = decorator.args[1]
-    if isinstance(values_expression, ast.Name):
+    if code == SftCode.PARAMETRIZE_TEST_CASE and decorator.parameter_name != TestSymbol.TEST_CASE:
+        faults.append(ctx.fault_at(function.location))
+    if code == SftCode.PARAMETRIZE_IDS and not decorator.ids_present:
+        faults.append(ctx.fault_at(function.location))
+    if decorator.values_is_name:
         return faults + (
-            [ctx.fault(function_node)] if code == SftCode.INLINE_PARAMETRIZE_VALUES else []
+            [ctx.fault_at(function.location)] if code == SftCode.INLINE_PARAMETRIZE_VALUES else []
         )
-    if isinstance(values_expression, ast.ListComp):
+    if decorator.values_is_list_comprehension:
         if code == SftCode.LOCAL_TEST_CASE_CONSTRUCTORS and not _is_local_constructor(
-            node=values_expression.elt, context=module_context
+            constructor_name=decorator.cases[0].constructor_name, context=module_context
         ):
-            faults.append(ctx.fault(values_expression.elt))
-        if code == SftCode.DESCRIPTION_LAMBDA_IDS and not _is_description_lambda_ids(
-            ids_expression
-        ):
-            faults.append(ctx.fault(function_node))
+            faults.append(ctx.fault_at(decorator.cases[0].location))
+        if code == SftCode.DESCRIPTION_LAMBDA_IDS and not decorator.description_lambda_ids:
+            faults.append(ctx.fault_at(function.location))
         return faults
-    if not isinstance(values_expression, ast.List | ast.Tuple):
+    if not decorator.values_is_sequence:
         return faults + (
-            [ctx.fault(function_node)] if code == SftCode.INLINE_PARAMETRIZE_SEQUENCE else []
+            [ctx.fault_at(function.location)] if code == SftCode.INLINE_PARAMETRIZE_SEQUENCE else []
         )
-    if code == SftCode.NONEMPTY_PARAMETRIZE_VALUES and not values_expression.elts:
-        faults.append(ctx.fault(function_node))
-    for element in values_expression.elts:
-        if code == SftCode.NO_DICT_TEST_CASES and isinstance(element, ast.Dict):
-            faults.append(ctx.fault(element))
+    if code == SftCode.NONEMPTY_PARAMETRIZE_VALUES and decorator.values_empty:
+        faults.append(ctx.fault_at(function.location))
+    for case in decorator.cases:
+        if code == SftCode.NO_DICT_TEST_CASES and case.dictionary:
+            faults.append(ctx.fault_at(case.location))
         elif code == SftCode.LOCAL_TEST_CASE_CONSTRUCTORS and not _is_local_constructor(
-            node=element, context=module_context
+            constructor_name=case.constructor_name, context=module_context
         ):
-            faults.append(ctx.fault(element))
-    if code == SftCode.DESCRIPTION_LAMBDA_IDS and not _is_description_lambda_ids(ids_expression):
-        faults.append(ctx.fault(function_node))
+            faults.append(ctx.fault_at(case.location))
+    if code == SftCode.DESCRIPTION_LAMBDA_IDS and not decorator.description_lambda_ids:
+        faults.append(ctx.fault_at(function.location))
     return faults
 
 
@@ -434,7 +427,7 @@ def _dataclass_names(source: str) -> frozenset[str]:
 
 
 def _module_context(
-    *, module: ast.Module, ctx: RuleContext, local_test_types: _LocalTestTypes | None
+    *, ctx: RuleContext, local_test_types: _LocalTestTypes | None
 ) -> _TestModuleContext:
     if local_test_types is None:
         return _TestModuleContext(
@@ -442,12 +435,15 @@ def _module_context(
             test_case_annotation_names=frozenset(),
         )
     imported: set[str] = set()
-    for node in module.body:
-        if isinstance(node, ast.ImportFrom) and node.module == local_test_types.module_name:
-            for imported_name in node.names:
-                if imported_name.name in local_test_types.dataclass_names:
-                    imported.add(imported_name.asname or imported_name.name)
-    del ctx
+    for fact in ctx._analysis.facts.references().imports:
+        if (
+            fact.top_level
+            and fact.from_import
+            and ".".join(fact.module_parts) == local_test_types.module_name
+        ):
+            for alias in fact.aliases:
+                if alias.imported_name in local_test_types.dataclass_names:
+                    imported.add(alias.bound_name)
     return _TestModuleContext(
         imported_local_test_case_types=frozenset(imported),
         test_case_annotation_names=frozenset(imported),
@@ -468,18 +464,6 @@ def _is_test_module(path: Path) -> bool:
     }
 
 
-def _is_docstring_only_module(module: ast.Module) -> bool:
-    return not module.body or (len(module.body) == 1 and _is_docstring_statement(module.body[0]))
-
-
-def _is_docstring_statement(node: ast.stmt) -> bool:
-    return (
-        isinstance(node, ast.Expr)
-        and isinstance(node.value, ast.Constant)
-        and isinstance(node.value.value, str)
-    )
-
-
 def _has_dataclass_decorator(node: ast.ClassDef) -> bool:
     return any(
         _decorator_name(decorator).endswith("dataclass") for decorator in node.decorator_list
@@ -497,87 +481,8 @@ def _decorator_name(node: ast.expr) -> str:
     return ""
 
 
-def _parametrize_decorator(
-    function_node: ast.FunctionDef | ast.AsyncFunctionDef,
-) -> ast.Call | None:
-    for decorator in function_node.decorator_list:
-        if (
-            isinstance(decorator, ast.Call)
-            and _decorator_name(decorator.func) == TestSymbol.PARAMETRIZE
-        ):
-            return decorator
-    return None
-
-
-def _extract_string(node: ast.expr) -> str | None:
-    return node.value if isinstance(node, ast.Constant) and isinstance(node.value, str) else None
-
-
-def _attribute_chain(node: ast.expr) -> tuple[str, ...] | None:
-    parts: list[str] = []
-    current: ast.expr = node
-    while isinstance(current, ast.Attribute):
-        parts.append(current.attr)
-        current = current.value
-    if isinstance(current, ast.Name):
-        parts.append(current.id)
-        return tuple(reversed(parts))
-    return None
-
-
-def _references_expected_field(function_node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
-    for node in ast.walk(function_node):
-        if isinstance(node, ast.Attribute):
-            chain: tuple[str, ...] | None = _attribute_chain(node)
-            if (
-                chain
-                and len(chain) >= _minimum_expected_field_chain_parts
-                and chain[0] == TestSymbol.TEST_CASE
-                and chain[-1].startswith("expected_")
-            ):
-                return True
-    return False
-
-
-def _is_local_constructor(*, node: ast.expr, context: _TestModuleContext) -> bool:
-    return (
-        isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id in context.imported_local_test_case_types
-    )
-
-
-def _is_description_lambda_ids(node: ast.expr | None) -> bool:
-    if not isinstance(node, ast.Lambda) or len(node.args.args) != 1:
-        return False
-    if node.args.args[0].arg != TestSymbol.CASE:
-        return False
-    return _attribute_chain(node.body) == (TestSymbol.CASE, TestSymbol.DESCRIPTION)
-
-
-def _is_test_case_list_assignment(node: ast.stmt) -> bool:
-    if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
-        return _is_case_list_name(node.target.id)
-    if isinstance(node, ast.Assign):
-        return any(
-            isinstance(target, ast.Name) and _is_case_list_name(target.id)
-            for target in node.targets
-        )
-    return False
-
-
-def _is_case_list_name(name: str) -> bool:
-    return name == TestSymbol.TEST_CASES or name.endswith("_TEST_CASES")
-
-
-def _is_private_assignment(node: ast.stmt) -> bool:
-    if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
-        return node.target.id.startswith("_")
-    if isinstance(node, ast.Assign):
-        return any(
-            isinstance(target, ast.Name) and target.id.startswith("_") for target in node.targets
-        )
-    return False
+def _is_local_constructor(*, constructor_name: str | None, context: _TestModuleContext) -> bool:
+    return constructor_name in context.imported_local_test_case_types
 
 
 def _layout_codes() -> frozenset[SftCode]:

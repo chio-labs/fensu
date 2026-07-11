@@ -58,6 +58,7 @@ def _runtime_guidance(*, config: Config, active_codes: frozenset[str]) -> tuple[
     entries: tuple[str, ...] = _runtime_role_entries(active_codes=active_codes)
     lines.extend(_tree_entries(entries=entries, indent="        "))
     lines.extend(("```", ""))
+    lines.extend(_subdomain_naming_lines())
     lines.extend(runtime_role_example_lines(runtime_root=root, active_codes=active_codes))
     return tuple(lines)
 
@@ -71,6 +72,37 @@ def _runtime_role_entries(*, active_codes: frozenset[str]) -> tuple[str, ...]:
         *_entry_when(label="types.py", evidence=RUNTIME_TYPES_CODES, active=active_codes),
         *_entry_when(label="constants.py", evidence=RUNTIME_CONSTANTS_CODES, active=active_codes),
         *_entry_when(label="exceptions.py", evidence=RUNTIME_EXCEPTIONS_CODES, active=active_codes),
+    )
+
+
+def _subdomain_naming_lines() -> tuple[str, ...]:
+    return (
+        "### Subdomain Naming",
+        "",
+        (
+            "Do not use `core` as the default subdomain name. Prefer a capability-specific "
+            "owner when the package already has a stable purpose or independent lifecycle."
+        ),
+        "",
+        (
+            "Use `core` only for one cohesive central engine where a narrower name would be "
+            "artificial. Avoid speculative package splitting before boundaries are real."
+        ),
+        "",
+        "```text",
+        "Prefer:",
+        "cache/fingerprints/",
+        "cache/storage/",
+        "cache/invalidation/",
+        "",
+        "Potentially valid:",
+        "analysis/core/",
+        "evaluation/core/",
+        "",
+        "Avoid when distinct capabilities are already known:",
+        "cache/core/",
+        "```",
+        "",
     )
 
 

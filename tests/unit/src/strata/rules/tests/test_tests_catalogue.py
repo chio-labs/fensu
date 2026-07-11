@@ -43,15 +43,15 @@ def test_given_tests_rule_catalogue_when_reading_codes_then_matches_tests_code_e
             ),
         ),
         SftGuidanceTestCase(
-            description="complex comprehension guidance recommends ordinary staged code",
+            description="complex comprehension guidance recommends a named transformation",
             rule_code=SftCode.NO_COMPLEX_COMPREHENSIONS,
             expected_message=(
                 "nested or multi-generator comprehensions hide control flow and data shapes"
             ),
             expected_remediation=(
-                "Rewrite this as ordinary statements with named intermediate values. Use "
-                "explicit loops when needed, and extract a helper only when the transformation "
-                "is a distinct operation."
+                "Extract a named helper when the transformation has a coherent purpose. For "
+                "one-off local logic, use simple statements with named intermediate values "
+                "instead of nested comprehension control flow."
             ),
         ),
     ],

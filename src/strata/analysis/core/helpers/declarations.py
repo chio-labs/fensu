@@ -10,6 +10,7 @@ from strata.analysis.core.helpers.locations import source_location
 from strata.analysis.core.models import (
     ModuleDeclarationFacts,
     ModuleStatementFact,
+    NamedCallFact,
     SourceLocation,
     TypeDeclarationFact,
 )
@@ -24,6 +25,9 @@ _new_type_name: str = "NewType"
 _future_module_name: str = "__future__"
 _all_export_name: str = "__all__"
 _rule_decorator_name: str = "rule"
+_main_role_name: str = "main"
+_module_name_variable: str = "__name__"
+_main_module_name: str = "__main__"
 
 
 def module_declaration_facts(
@@ -61,6 +65,7 @@ def module_declaration_facts(
     all_assignment_locations: list[SourceLocation] = []
     for node in body:
         model_class, type_class, exception_class = class_kinds.get(node, (False, False, False))
+        all_assignment: bool = _is_all_assignment(node)
         statements.append(
             ModuleStatementFact(
                 location=source_location(path=path, node=node),
@@ -78,15 +83,17 @@ def module_declaration_facts(
                 class_name=node.name if isinstance(node, ast.ClassDef) else None,
                 dataclass_class=isinstance(node, ast.ClassDef) and _is_dataclass_class(node),
                 docstring_statement=_is_docstring(node),
-                all_assignment=_is_all_assignment(node),
+                all_assignment=all_assignment,
                 rule_decorated_function=isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
                 and any(
                     _decorator_name(item).split(".")[-1] == _rule_decorator_name
                     for item in node.decorator_list
                 ),
+                nonexecuting_import_guard=isinstance(node, ast.If)
+                and _is_nonexecuting_guard(node.test),
             )
         )
-        if _is_all_assignment(node):
+        if all_assignment:
             all_assignment_locations.append(source_location(path=path, node=node))
     for node_type in (ast.Assign, ast.AnnAssign, ast.TypeAlias):
         for node in node_index.get(node_type, ()):
@@ -96,6 +103,31 @@ def module_declaration_facts(
                         location=source_location(path=path, node=node), private=False
                     )
                 )
+    imported_main_entry_names: set[str] = set()
+    for node in module.body:
+        if not isinstance(node, ast.ImportFrom) or node.module is None:
+            continue
+        if _main_role_name in node.module.split("."):
+            imported_main_entry_names.update(alias.asname or alias.name for alias in node.names)
+    main_function: ast.FunctionDef | ast.AsyncFunctionDef | None = next(
+        (
+            node
+            for node in module.body
+            if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+            and node.name == _main_role_name
+        ),
+        None,
+    )
+    main_calls: tuple[NamedCallFact, ...] = ()
+    if main_function is not None:
+        main_calls = tuple(
+            NamedCallFact(
+                location=source_location(path=path, node=call),
+                name=call.func.id if isinstance(call.func, ast.Name) else None,
+            )
+            for call in ast.walk(main_function)
+            if isinstance(call, ast.Call)
+        )
     return ModuleDeclarationFacts(
         statements=tuple(statements),
         empty_or_docstring_only=not module.body
@@ -103,6 +135,11 @@ def module_declaration_facts(
         pure_reexport=_is_pure_reexport(module),
         top_level_class_count=len([node for node in module.body if isinstance(node, ast.ClassDef)]),
         all_assignment_locations=tuple(all_assignment_locations),
+        import_time_call_locations=tuple(
+            source_location(path=path, node=node) for node in _import_time_bare_calls(module)
+        ),
+        imported_main_entry_names=frozenset(imported_main_entry_names),
+        main_calls=main_calls,
         model_locations=tuple(model_locations),
         type_declarations=tuple(type_declarations),
         exception_locations=tuple(exception_locations),
@@ -122,9 +159,11 @@ def _is_dataclass_class(node: ast.ClassDef) -> bool:
 
 
 def _is_type_class(node: ast.ClassDef) -> bool:
-    return not _is_model_class(node) and any(
-        _base_name(base) in _type_base_names for base in node.bases
-    )
+    if _is_dataclass_class(node) or any(
+        _base_name(base) in _model_base_names for base in node.bases
+    ):
+        return False
+    return any(_base_name(base) in _type_base_names for base in node.bases)
 
 
 def _is_exception_class(node: ast.ClassDef) -> bool:
@@ -223,3 +262,34 @@ def _is_pure_reexport(module: ast.Module) -> bool:
             continue
         return False
     return saw_import and saw_all
+
+
+def _import_time_bare_calls(node: ast.AST) -> tuple[ast.Expr, ...]:
+    if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda):
+        return ()
+    if isinstance(node, ast.If) and _is_nonexecuting_guard(node.test):
+        calls: list[ast.Expr] = []
+        for statement in node.orelse:
+            calls.extend(_import_time_bare_calls(statement))
+        return tuple(calls)
+    if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):
+        return (node,)
+    calls = []
+    for child in ast.iter_child_nodes(node):
+        calls.extend(_import_time_bare_calls(child))
+    return tuple(calls)
+
+
+def _is_nonexecuting_guard(node: ast.expr) -> bool:
+    if isinstance(node, ast.Name) and node.id == _type_checking_name:
+        return True
+    if not isinstance(node, ast.Compare) or len(node.ops) != 1 or len(node.comparators) != 1:
+        return False
+    comparator: ast.expr = node.comparators[0]
+    return (
+        isinstance(node.left, ast.Name)
+        and node.left.id == _module_name_variable
+        and isinstance(node.ops[0], ast.Eq)
+        and isinstance(comparator, ast.Constant)
+        and comparator.value == _main_module_name
+    )

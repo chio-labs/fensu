@@ -2,22 +2,21 @@
 
 from __future__ import annotations
 
-import ast
-import os
 from collections.abc import Callable
 from pathlib import Path
-from typing import Literal
 
 import pytest
 
 from strata.config.core.models import Config
 from strata.discovery.core.main.discover_files import discover_files
+from strata.discovery.core.models import ScopedFile
+from strata.evaluation.core.helpers.parsing import parse_scoped_file
 from strata.evaluation.core.main.evaluate import evaluate
-from strata.evaluation.core.models import EvaluationResult
+from strata.evaluation.core.models import EvaluationResult, ParsedModule
+from strata.rules.authoring.types import RuleContext
 from strata.rules.tests.constants import SFT_RULES
 from strata.rules.tests.helpers import checks as test_checks
 from tests.unit.src.strata.rules.tests.main._test_types import (
-    DataclassCacheTestCase,
     SftOperationTestCase,
     SftRuleFile,
     SftRuleTestCase,
@@ -33,85 +32,10 @@ from tests.unit.src.strata.rules.tests.main.helpers import (
 @pytest.mark.parametrize(
     "test_case",
     [
-        DataclassCacheTestCase(
-            description="repeated test type inspection reads and parses unchanged source once",
-            source=(
-                "from dataclasses import dataclass\n\n"
-                "@dataclass(frozen=True)\n"
-                "class CachedCase:\n"
-                "    description: str\n"
-            ),
-            expected_names=frozenset({"CachedCase"}),
-            expected_parse_count=1,
-            expected_read_count=1,
-        )
-    ],
-    ids=lambda case: case.description,
-)
-def test_given_repeated_test_type_source_when_extracting_names_then_reuses_parse(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    test_case: DataclassCacheTestCase,
-) -> None:
-    original_parse: Callable[..., ast.AST] = ast.parse
-    original_read_text: Callable[..., str] = Path.read_text
-    parse_counts: list[int] = [0]
-    read_counts: list[int] = [0]
-
-    def count_parse(
-        source: str,
-        filename: str = "<unknown>",
-        mode: Literal["exec"] = "exec",
-        *,
-        type_comments: bool = False,
-        feature_version: None | int | tuple[int, int] = None,
-    ) -> ast.Module:
-        parse_counts[0] += 1
-        return original_parse(
-            source,
-            filename,
-            mode,
-            type_comments=type_comments,
-            feature_version=feature_version,
-        )
-
-    def count_read_text(path: Path, encoding: str | None = None, errors: str | None = None) -> str:
-        read_counts[0] += 1
-        return original_read_text(path, encoding=encoding, errors=errors)
-
-    monkeypatch.setattr(ast, "parse", count_parse)
-    monkeypatch.setattr(Path, "read_text", count_read_text)
-    test_types_path: Path = tmp_path / "_test_types.py"
-    test_types_path.write_text(test_case.source, encoding="utf-8")
-    file_stat: os.stat_result = test_types_path.stat()
-
-    first_source: str = test_checks._test_types_source(
-        path=test_types_path,
-        modified_ns=file_stat.st_mtime_ns,
-        changed_ns=file_stat.st_ctime_ns,
-        size=file_stat.st_size,
-    )
-    second_source: str = test_checks._test_types_source(
-        path=test_types_path,
-        modified_ns=file_stat.st_mtime_ns,
-        changed_ns=file_stat.st_ctime_ns,
-        size=file_stat.st_size,
-    )
-    first_names: frozenset[str] = test_checks._dataclass_names(first_source)
-    second_names: frozenset[str] = test_checks._dataclass_names(second_source)
-
-    assert first_names == test_case.expected_names
-    assert second_names == test_case.expected_names
-    assert parse_counts[0] == test_case.expected_parse_count
-    assert read_counts[0] == test_case.expected_read_count
-
-
-@pytest.mark.parametrize(
-    "test_case",
-    [
         SftOperationTestCase(
-            description="complete tests family loads local types only for dependent rules",
-            expected_local_type_load_count=3,
+            description="complete tests family parses each discovered file only once",
+            expected_parse_count=3,
+            expected_layout_count=2,
         )
     ],
     ids=lambda case: case.description,
@@ -133,26 +57,32 @@ def test_given_complete_tests_family_when_evaluating_then_bounds_local_type_load
         path.write_text(source, encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     config: Config = Config(roots=("src/strata",), tests=("tests",))
-    original_local_test_types: Callable[..., test_checks._LocalTestTypes] = (
-        test_checks._local_test_types
+    parse_counts: list[int] = [0]
+    layout_counts: list[int] = [0]
+    original_layout_issue: Callable[..., test_checks._LayoutIssue | None] = (
+        test_checks._layout_issue
     )
-    load_counts: list[int] = [0]
 
-    def count_local_test_types(
-        *, path: Path, repo_root: Path, inspect_dataclasses: bool
-    ) -> test_checks._LocalTestTypes:
-        load_counts[0] += 1
-        return original_local_test_types(
-            path=path, repo_root=repo_root, inspect_dataclasses=inspect_dataclasses
-        )
+    def count_parse(scoped_file: ScopedFile) -> ParsedModule:
+        parse_counts[0] += 1
+        return parse_scoped_file(scoped_file)
 
-    monkeypatch.setattr(test_checks, "_local_test_types", count_local_test_types)
+    def count_layout_issue(*, ctx: RuleContext) -> test_checks._LayoutIssue | None:
+        layout_counts[0] += 1
+        return original_layout_issue(ctx=ctx)
+
+    monkeypatch.setattr(
+        "strata.evaluation.core.helpers.project_analysis.parse_scoped_file",
+        count_parse,
+    )
+    monkeypatch.setattr(test_checks, "_layout_issue", count_layout_issue)
 
     _result: EvaluationResult = evaluate(
         tree=discover_files(config), ruleset=SFT_RULES, config=config
     )
 
-    assert load_counts[0] == test_case.expected_local_type_load_count
+    assert parse_counts[0] == test_case.expected_parse_count
+    assert layout_counts[0] == test_case.expected_layout_count
 
 
 @pytest.mark.parametrize(

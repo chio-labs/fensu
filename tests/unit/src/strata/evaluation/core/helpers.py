@@ -7,9 +7,12 @@ from pathlib import Path
 from types import MappingProxyType
 
 from strata.analysis.core.models import SourceRange, SyntaxHandle
+from strata.analysis.core.types import Analysis
 from strata.config.core.models import Config, RuleExceptionEntry
 from strata.discovery.core.main.discover_files import discover_files
-from strata.discovery.core.models import DiscoveredTree
+from strata.discovery.core.models import DiscoveredTree, ScopedFile
+from strata.evaluation.core.models import ParsedModule
+from strata.evaluation.core.types import EvaluationProjectAnalysis
 from strata.rules.authoring.models import Fault, RuleSpec
 from strata.rules.authoring.types import Family, RuleContext, Threshold
 
@@ -37,6 +40,27 @@ def discover_test_tree(*, config: Config) -> DiscoveredTree:
     """Discover files for an evaluation test config."""
 
     return discover_files(config)
+
+
+def exercise_project_parse_order(
+    *,
+    project: EvaluationProjectAnalysis,
+    scoped_file: ScopedFile,
+    query_first: bool,
+) -> tuple[Analysis | None, ParsedModule]:
+    """Run tolerant and strict project access in the selected order."""
+
+    if query_first:
+        analysis: Analysis | None = project.analysis(
+            requester=scoped_file.path,
+            path=scoped_file.path,
+        )
+        return analysis, project.parsed_module(scoped_file)
+    parsed: ParsedModule = project.parsed_module(scoped_file)
+    return (
+        project.analysis(requester=scoped_file.path, path=scoped_file.path),
+        parsed,
+    )
 
 
 def direct_module_walk_paths(*, root: Path) -> tuple[str, ...]:

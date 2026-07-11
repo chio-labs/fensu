@@ -15,6 +15,7 @@ def render_profile(report: ProfileReport, *, rule_limit: int = 20) -> str:
         f"catalogue={report.catalogue_seconds:.4f}",
         f"evaluation={report.evaluation_seconds:.4f}",
         f"  parse_index={report.parse_seconds:.4f}",
+        f"  query_parse_within_rules={report.query_parse_seconds:.4f}",
         f"  rule_execution={report.rule_seconds:.4f}",
         f"  engine_overhead_sort={report.engine_seconds:.4f}",
         f"render={report.render_seconds:.4f} bytes={report.rendered_bytes}",

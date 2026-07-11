@@ -24,7 +24,11 @@ from strata.analysis.core.helpers.outer_state import (
     parameter_mutation_facts,
 )
 from strata.analysis.core.helpers.references import reference_facts, test_module_facts
-from strata.analysis.core.helpers.returns import meaningful_return_facts
+from strata.analysis.core.helpers.returns import (
+    meaningful_return_facts,
+    project_call_facts,
+    project_function_facts,
+)
 from strata.analysis.core.models import (
     AnnotationFacts,
     CommentFact,
@@ -36,6 +40,8 @@ from strata.analysis.core.models import (
     ModuleDeclarationFacts,
     OuterStateMutationFact,
     ParameterMutationFact,
+    ProjectCallFacts,
+    ProjectFunctionFact,
     PytestFunctionFact,
     PytestModuleFacts,
     ReferenceFacts,
@@ -75,6 +81,8 @@ class PythonFactAnalysis:
         self._module_declarations: ModuleDeclarationFacts | None = None
         self._outer_state_mutations: tuple[OuterStateMutationFact, ...] | None = None
         self._parameter_mutations: tuple[ParameterMutationFact, ...] | None = None
+        self._project_calls: ProjectCallFacts | None = None
+        self._project_functions: tuple[ProjectFunctionFact, ...] | None = None
         self._references: ReferenceFacts | None = None
         self._test_functions: tuple[PytestFunctionFact, ...] | None = None
         self._test_module: PytestModuleFacts | None = None
@@ -162,6 +170,20 @@ class PythonFactAnalysis:
                 parent_by_node=self._parent_by_node,
             )
         return self._parameter_mutations
+
+    def project_calls(self) -> ProjectCallFacts:
+        """Return project-resolvable discarded calls."""
+
+        if self._project_calls is None:
+            self._project_calls = project_call_facts(path=self._path, module=self._module)
+        return self._project_calls
+
+    def project_functions(self) -> tuple[ProjectFunctionFact, ...]:
+        """Return top-level function result contracts."""
+
+        if self._project_functions is None:
+            self._project_functions = project_function_facts(module=self._module)
+        return self._project_functions
 
     def functions(self) -> FunctionFacts:
         """Return reusable structural function metrics."""

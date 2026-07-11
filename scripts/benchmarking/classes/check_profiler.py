@@ -9,9 +9,11 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import cast
 
+import strata.evaluation.core.helpers.project_analysis as project_analysis_module
 import strata.evaluation.core.main.evaluate as evaluate_module
 from scripts.benchmarking.models import ProfileReport
-from scripts.benchmarking.types import EvaluatorModule
+from scripts.benchmarking.types import EvaluatorModule, ProjectAnalysisModule
+from strata.analysis.core.types import Analysis, ProjectAnalysis
 from strata.config.core.main.load_config import load_config
 from strata.config.core.models import Config
 from strata.discovery.core.main.discover_files import discover_files
@@ -30,11 +32,19 @@ class CheckProfiler:
         """Initialize empty timing counters."""
 
         self._parse_seconds: float = 0.0
+        self._query_parse_seconds: float = 0.0
+        self._inside_rule: bool = False
         self._rule_seconds: dict[str, float] = defaultdict(float)
         self._rule_calls: dict[str, int] = defaultdict(int)
         self._evaluator: EvaluatorModule = cast(EvaluatorModule, evaluate_module)
+        self._project_analysis: ProjectAnalysisModule = cast(
+            ProjectAnalysisModule, project_analysis_module
+        )
         self._original_parse: Callable[[ScopedFile], ParsedModule] = (
-            self._evaluator.parse_scoped_file
+            self._project_analysis.parse_scoped_file
+        )
+        self._original_external_analysis: Callable[..., Analysis | None] = (
+            self._project_analysis.build_external_analysis
         )
         self._original_execute: Callable[..., list[Fault]] = self._evaluator.execute_rule
 
@@ -43,19 +53,31 @@ class CheckProfiler:
 
         previous_directory: Path = Path.cwd()
         os.chdir(project)
-        self._evaluator.parse_scoped_file = self._timed_parse
+        self._project_analysis.parse_scoped_file = self._timed_parse
+        self._project_analysis.build_external_analysis = self._timed_external_analysis
         self._evaluator.execute_rule = self._timed_execute
         try:
             return self._run_phases(project)
         finally:
-            self._evaluator.parse_scoped_file = self._original_parse
+            self._project_analysis.parse_scoped_file = self._original_parse
+            self._project_analysis.build_external_analysis = self._original_external_analysis
             self._evaluator.execute_rule = self._original_execute
             os.chdir(previous_directory)
 
     def _timed_parse(self, scoped_file: ScopedFile) -> ParsedModule:
         started: float = time.perf_counter()
         result: ParsedModule = self._original_parse(scoped_file)
-        self._parse_seconds += time.perf_counter() - started
+        elapsed: float = time.perf_counter() - started
+        if self._inside_rule:
+            self._query_parse_seconds += elapsed
+        else:
+            self._parse_seconds += elapsed
+        return result
+
+    def _timed_external_analysis(self, *, path: Path) -> Analysis | None:
+        started: float = time.perf_counter()
+        result: Analysis | None = self._original_external_analysis(path=path)
+        self._query_parse_seconds += time.perf_counter() - started
         return result
 
     def _timed_execute(
@@ -65,14 +87,23 @@ class CheckProfiler:
         parsed_module: ParsedModule,
         config: Config,
         repo_root: RepoRoot,
+        project: ProjectAnalysis,
+        file_cache: dict[str, object],
     ) -> list[Fault]:
         started: float = time.perf_counter()
-        result: list[Fault] = self._original_execute(
-            rule=rule,
-            parsed_module=parsed_module,
-            config=config,
-            repo_root=repo_root,
-        )
+        previous_inside_rule: bool = self._inside_rule
+        self._inside_rule = True
+        try:
+            result: list[Fault] = self._original_execute(
+                rule=rule,
+                parsed_module=parsed_module,
+                config=config,
+                repo_root=repo_root,
+                project=project,
+                file_cache=file_cache,
+            )
+        finally:
+            self._inside_rule = previous_inside_rule
         self._rule_seconds[rule.code] += time.perf_counter() - started
         self._rule_calls[rule.code] += 1
         return result
@@ -100,6 +131,7 @@ class CheckProfiler:
             catalogue_seconds=catalogue_seconds,
             evaluation_seconds=evaluation_seconds,
             parse_seconds=self._parse_seconds,
+            query_parse_seconds=self._query_parse_seconds,
             rule_seconds=rule_seconds,
             engine_seconds=evaluation_seconds - self._parse_seconds - rule_seconds,
             render_seconds=render_seconds,

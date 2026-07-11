@@ -111,6 +111,19 @@ class FunctionMetricFactTestCase:
 
 
 @dataclass(frozen=True)
+class ProjectCallFactTestCase:
+    """Source and expected project-call contracts and discarded targets."""
+
+    description: str
+    source: str
+    expected_function_names: tuple[str, ...]
+    expected_meaningful_results: tuple[bool, ...]
+    expected_module_names: tuple[str | None, ...]
+    expected_call_names: tuple[str, ...]
+    expected_call_lines: tuple[int, ...]
+
+
+@dataclass(frozen=True)
 class MeaningfulReturnFactTestCase:
     """Source and expected owned meaningful-return facts."""
 

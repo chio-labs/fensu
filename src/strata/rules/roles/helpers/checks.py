@@ -5,15 +5,12 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from strata.analysis.core.models import ModuleStatementFact
+from strata.analysis.core.models import ModuleDeclarationFacts, ModuleStatementFact
 from strata.discovery.core.constants import INIT_MODULE_FILE_NAME, PYTHON_FILE_SUFFIX
 from strata.discovery.core.types import RoleName, ScopeName
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import RuleContext, Threshold
-from strata.rules.roles.helpers.classification import (
-    non_docstring_body,
-)
-from strata.rules.roles.types import RoleCode, RoleSymbol
+from strata.rules.roles.types import RoleCode
 
 _banned_generic_filenames: frozenset[str] = frozenset({"misc.py"})
 _banned_generic_package_names: frozenset[str] = frozenset(
@@ -37,12 +34,8 @@ _tooling_role_names: frozenset[str] = frozenset(
     {RoleName.MAIN, RoleName.HELPERS, RoleName.CLASSES, RoleName.RULES}
 )
 _classes_module_file_name: str = "classes.py"
-_future_module_name: str = "__future__"
 _helpers_module_file_name: str = "helpers.py"
 _main_module_file_name: str = "main.py"
-_main_module_name: str = "__main__"
-_module_name_variable: str = "__name__"
-_all_export_name: str = "__all__"
 _python_cache_directory_name: str = "__pycache__"
 _minimum_nested_module_parts: int = 3
 _minimum_nested_subpackage_parts: int = 4
@@ -236,7 +229,11 @@ def helpers_classes_file_private(*, module: ast.Module, ctx: RuleContext) -> lis
 def no_import_time_side_effects(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag standalone calls that execute while a runtime module is imported."""
 
-    return [ctx.fault(node) for node in _import_time_bare_calls(node=module)]
+    del module
+    return [
+        ctx.fault_at(location)
+        for location in ctx._analysis.facts.module_declarations().import_time_call_locations
+    ]
 
 
 def helpers_package_layout(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
@@ -613,41 +610,44 @@ def tooling_entrypoint_shape(*, module: ast.Module, ctx: RuleContext) -> list[Fa
 
     if not _is_direct_tooling_entrypoint(ctx):
         return []
-    body: tuple[ast.stmt, ...] = non_docstring_body(module)
-    public_functions: tuple[ast.FunctionDef | ast.AsyncFunctionDef, ...] = tuple(
-        node
-        for node in body
-        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
-        and not node.name.startswith("_")
+    del module
+    statements: tuple[ModuleStatementFact, ...] = (
+        ctx._analysis.facts.module_declarations().statements
+    )
+    public_functions: tuple[ModuleStatementFact, ...] = tuple(
+        fact for fact in statements if fact.function_name and not fact.function_name.startswith("_")
     )
     faults: list[Fault] = []
-    main_functions: tuple[ast.FunctionDef | ast.AsyncFunctionDef, ...] = tuple(
-        node for node in public_functions if node.name == RoleName.MAIN
+    main_functions: tuple[ModuleStatementFact, ...] = tuple(
+        fact for fact in public_functions if fact.function_name == RoleName.MAIN
     )
     if not public_functions or len(main_functions) > 1:
         faults.append(
             ctx.path_fault(message="direct scripts must define exactly one public main() function")
         )
-    for node in body:
-        if isinstance(node, ast.Import | ast.ImportFrom):
+    for fact in statements:
+        if fact.import_statement:
             continue
-        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
-            if node.name == RoleName.MAIN or node.name in _tooling_private_function_names:
+        if fact.function_name is not None:
+            if (
+                fact.function_name == RoleName.MAIN
+                or fact.function_name in _tooling_private_function_names
+            ):
                 continue
             faults.append(
-                ctx.fault(
-                    node,
+                ctx.fault_at(
+                    fact.location,
                     message=(
                         "direct scripts may define only main(), _parse_args(), and _build_parser()"
                     ),
                 )
             )
             continue
-        if isinstance(node, ast.If) and _is_nonexecuting_import_guard(node.test):
+        if fact.nonexecuting_import_guard:
             continue
         faults.append(
-            ctx.fault(
-                node,
+            ctx.fault_at(
+                fact.location,
                 message="direct scripts may contain only imports, command functions, and guards",
             )
         )
@@ -659,35 +659,17 @@ def tooling_entrypoint_delegation(*, module: ast.Module, ctx: RuleContext) -> li
 
     if not _is_direct_tooling_entrypoint(ctx):
         return []
-    imported_entries: set[str] = set()
-    for node in module.body:
-        if not isinstance(node, ast.ImportFrom) or node.module is None:
-            continue
-        if RoleName.MAIN not in node.module.split("."):
-            continue
-        for alias in node.names:
-            imported_entries.add(alias.asname or alias.name)
-    main_function: ast.FunctionDef | ast.AsyncFunctionDef | None = next(
-        (
-            node
-            for node in module.body
-            if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
-            and node.name == RoleName.MAIN
-        ),
-        None,
-    )
-    if main_function is None:
+    del module
+    facts: ModuleDeclarationFacts = ctx._analysis.facts.module_declarations()
+    main_present: bool = any(fact.function_name == RoleName.MAIN for fact in facts.statements)
+    if not main_present:
         return [
             ctx.path_fault(
                 message="direct scripts must import and call an entry function from a main/ module"
             )
         ]
-    calls: tuple[ast.Call, ...] = tuple(
-        call for call in ast.walk(main_function) if isinstance(call, ast.Call)
-    )
-    delegates: bool = any(
-        isinstance(call.func, ast.Name) and call.func.id in imported_entries for call in calls
-    )
+    imported_entries: frozenset[str] = facts.imported_main_entry_names
+    delegates: bool = any(call.name in imported_entries for call in facts.main_calls)
     faults: list[Fault] = []
     if not delegates:
         faults.append(
@@ -696,12 +678,12 @@ def tooling_entrypoint_delegation(*, module: ast.Module, ctx: RuleContext) -> li
             )
         )
     allowed_calls: frozenset[str] = frozenset({"_parse_args", *imported_entries})
-    for call in calls:
-        if isinstance(call.func, ast.Name) and call.func.id in allowed_calls:
+    for call in facts.main_calls:
+        if call.name in allowed_calls:
             continue
         faults.append(
-            ctx.fault(
-                call,
+            ctx.fault_at(
+                call.location,
                 message=(
                     "direct script main() may call only _parse_args() and imported main/ entries"
                 ),
@@ -806,37 +788,6 @@ def _is_package_name_anchor(*, path: Path, package_dir: Path) -> bool:
         return path == init_path
     modules: tuple[Path, ...] = tuple(sorted(package_dir.rglob("*.py")))
     return bool(modules) and path == modules[0]
-
-
-def _import_time_bare_calls(*, node: ast.AST) -> tuple[ast.Expr, ...]:
-    if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda):
-        return ()
-    if isinstance(node, ast.If) and _is_nonexecuting_import_guard(node.test):
-        calls: list[ast.Expr] = []
-        for statement in node.orelse:
-            calls.extend(_import_time_bare_calls(node=statement))
-        return tuple(calls)
-    if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):
-        return (node,)
-    calls = []
-    for child in ast.iter_child_nodes(node):
-        calls.extend(_import_time_bare_calls(node=child))
-    return tuple(calls)
-
-
-def _is_nonexecuting_import_guard(node: ast.expr) -> bool:
-    if isinstance(node, ast.Name) and node.id == RoleSymbol.TYPE_CHECKING_SYMBOL:
-        return True
-    if not isinstance(node, ast.Compare) or len(node.ops) != 1 or len(node.comparators) != 1:
-        return False
-    if not isinstance(node.left, ast.Name) or node.left.id != _module_name_variable:
-        return False
-    comparator: ast.expr = node.comparators[0]
-    return (
-        isinstance(node.ops[0], ast.Eq)
-        and isinstance(comparator, ast.Constant)
-        and comparator.value == _main_module_name
-    )
 
 
 def _package_layout_faults(

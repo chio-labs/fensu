@@ -178,6 +178,38 @@ class FunctionFacts:
 
 
 @dataclass(frozen=True, slots=True)
+class ProjectFunctionFact:
+    """One top-level function and whether its annotation promises a result."""
+
+    name: str
+    meaningful_result: bool
+
+
+@dataclass(frozen=True, slots=True)
+class DiscardedProjectCallFact:
+    """One discarded call that can be resolved within the project."""
+
+    location: SourceLocation
+    module_name: str | None
+    function_name: str
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectCallFacts:
+    """Resolvable discarded calls for one module."""
+
+    discarded_calls: tuple[DiscardedProjectCallFact, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectDependency:
+    """One requester-to-path dependency observed by a project query."""
+
+    requester: Path
+    dependency: Path
+
+
+@dataclass(frozen=True, slots=True)
 class ParameterMutationFact:
     """The first direct mutation of one function parameter."""
 
@@ -239,6 +271,7 @@ class ModuleStatementFact:
     docstring_statement: bool
     all_assignment: bool
     rule_decorated_function: bool
+    nonexecuting_import_guard: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -250,6 +283,14 @@ class TypeDeclarationFact:
 
 
 @dataclass(frozen=True, slots=True)
+class NamedCallFact:
+    """One call with a statically knowable bare name when available."""
+
+    location: SourceLocation
+    name: str | None
+
+
+@dataclass(frozen=True, slots=True)
 class ModuleDeclarationFacts:
     """Top-level statements and classified declarations in one module."""
 
@@ -258,6 +299,9 @@ class ModuleDeclarationFacts:
     pure_reexport: bool
     top_level_class_count: int
     all_assignment_locations: tuple[SourceLocation, ...]
+    import_time_call_locations: tuple[SourceLocation, ...]
+    imported_main_entry_names: frozenset[str]
+    main_calls: tuple[NamedCallFact, ...]
     model_locations: tuple[SourceLocation, ...]
     type_declarations: tuple[TypeDeclarationFact, ...]
     exception_locations: tuple[SourceLocation, ...]

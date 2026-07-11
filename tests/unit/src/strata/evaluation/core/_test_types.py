@@ -111,6 +111,34 @@ class EvaluationOperationTestCase:
 
 
 @dataclass(frozen=True)
+class ProjectRetentionTestCase:
+    """Project-query order and expected strict parse count."""
+
+    description: str
+    file_name: str
+    query_first: bool
+    expected_parse_count: int
+
+
+@dataclass(frozen=True)
+class ProjectParseContractTestCase:
+    """Malformed discovered source and expected strict parse failure."""
+
+    description: str
+    source: str
+    expected_error_type: type[Exception]
+
+
+@dataclass(frozen=True)
+class ProjectDependencyTestCase:
+    """Missing module query and expected candidate dependencies."""
+
+    description: str
+    module_name: str
+    expected_dependency_paths: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class AstHelperContextTestCase:
     """Source files and expected ctx AST helper message."""
 

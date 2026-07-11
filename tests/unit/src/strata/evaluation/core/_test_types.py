@@ -136,6 +136,20 @@ class ProjectDependencyTestCase:
     description: str
     module_name: str
     expected_dependency_paths: tuple[str, ...]
+    expected_dependency_kinds: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ProjectDirectoryQueryTestCase:
+    """Directory contents and expected aggregate dependency metadata."""
+
+    description: str
+    expected_entry_names: tuple[str, ...]
+    expected_direct_matches: tuple[str, ...]
+    expected_recursive_matches: tuple[str, ...]
+    expected_dependency_kinds: tuple[str, ...]
+    expected_patterns: tuple[str | None, ...]
+    expected_recursive: tuple[bool, ...]
 
 
 @dataclass(frozen=True)

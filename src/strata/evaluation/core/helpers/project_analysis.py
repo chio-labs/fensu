@@ -7,7 +7,7 @@ from pathlib import Path
 
 from strata.analysis.core.main.build import build_analysis
 from strata.analysis.core.models import ProjectDependency, ProjectFunctionFact
-from strata.analysis.core.types import Analysis, AnalysisBuild
+from strata.analysis.core.types import Analysis, AnalysisBuild, ProjectDependencyKind
 from strata.discovery.core.models import DiscoveredTree, ScopedFile
 from strata.evaluation.core.exceptions import ParseError
 from strata.evaluation.core.helpers.parsing import parse_scoped_file
@@ -35,6 +35,8 @@ class _EvaluationProjectAnalysis:
         self._exists: dict[Path, bool] = {}
         self._directories: dict[Path, bool] = {}
         self._files: dict[Path, bool] = {}
+        self._directory_entries: dict[Path, tuple[Path, ...]] = {}
+        self._globs: dict[tuple[Path, str, bool], tuple[Path, ...]] = {}
 
     def parsed_module(self, scoped_file: ScopedFile) -> ParsedModule:
         """Return one strict discovered-file parse, reusing project queries."""
@@ -53,7 +55,11 @@ class _EvaluationProjectAnalysis:
         """Return tolerant analysis for a queried path and record its dependency."""
 
         resolved_path: Path = self._resolve(path)
-        self._record(requester=requester, dependency=resolved_path)
+        self._record(
+            requester=requester,
+            dependency=path,
+            kind=ProjectDependencyKind.SOURCE,
+        )
         parsed: ParsedModule | None = self._parsed_modules.get(resolved_path)
         if parsed is not None:
             return parsed.analysis
@@ -79,6 +85,19 @@ class _EvaluationProjectAnalysis:
 
         return tuple(self._dependencies)
 
+    def directory_entries(self, *, requester: Path, path: Path) -> tuple[Path, ...]:
+        """Return direct children and record a directory namespace dependency."""
+
+        query_path: Path = path.absolute()
+        self._record(
+            requester=requester,
+            dependency=query_path,
+            kind=ProjectDependencyKind.DIRECTORY_ENTRIES,
+        )
+        if query_path not in self._directory_entries:
+            self._directory_entries[query_path] = tuple(query_path.iterdir())
+        return self._directory_entries[query_path]
+
     def module_function(
         self, *, requester: Path, module_name: str, function_name: str
     ) -> ProjectFunctionFact | None:
@@ -102,7 +121,11 @@ class _EvaluationProjectAnalysis:
         """Return whether a path exists and record the dependency."""
 
         resolved_path: Path = self._resolve(path)
-        self._record(requester=requester, dependency=resolved_path)
+        self._record(
+            requester=requester,
+            dependency=path,
+            kind=ProjectDependencyKind.EXISTS,
+        )
         if resolved_path not in self._exists:
             self._exists[resolved_path] = resolved_path.exists()
         return self._exists[resolved_path]
@@ -111,7 +134,11 @@ class _EvaluationProjectAnalysis:
         """Return whether a path is a directory and record the dependency."""
 
         resolved_path: Path = self._resolve(path)
-        self._record(requester=requester, dependency=resolved_path)
+        self._record(
+            requester=requester,
+            dependency=path,
+            kind=ProjectDependencyKind.IS_DIR,
+        )
         if resolved_path not in self._directories:
             self._directories[resolved_path] = resolved_path.is_dir()
         return self._directories[resolved_path]
@@ -120,10 +147,39 @@ class _EvaluationProjectAnalysis:
         """Return whether a path is a file and record the dependency."""
 
         resolved_path: Path = self._resolve(path)
-        self._record(requester=requester, dependency=resolved_path)
+        self._record(
+            requester=requester,
+            dependency=path,
+            kind=ProjectDependencyKind.IS_FILE,
+        )
         if resolved_path not in self._files:
             self._files[resolved_path] = resolved_path.is_file()
         return self._files[resolved_path]
+
+    def glob(
+        self,
+        *,
+        requester: Path,
+        path: Path,
+        pattern: str,
+        recursive: bool = False,
+    ) -> tuple[Path, ...]:
+        """Return direct or recursive path matches and record an aggregate dependency."""
+
+        query_path: Path = path.absolute()
+        cache_key: tuple[Path, str, bool] = (query_path, pattern, recursive)
+        self._record(
+            requester=requester,
+            dependency=query_path,
+            kind=ProjectDependencyKind.GLOB,
+            pattern=pattern,
+            recursive=recursive,
+        )
+        if cache_key not in self._globs:
+            self._globs[cache_key] = tuple(
+                query_path.rglob(pattern) if recursive else query_path.glob(pattern)
+            )
+        return self._globs[cache_key]
 
     def _module_path(self, *, requester: Path, module_name: str) -> Path | None:
         relative_path: Path = Path(*module_name.split("."))
@@ -136,10 +192,23 @@ class _EvaluationProjectAnalysis:
                 return package_path
         return None
 
-    def _record(self, *, requester: Path, dependency: Path) -> None:
+    def _record(
+        self,
+        *,
+        requester: Path,
+        dependency: Path,
+        kind: ProjectDependencyKind,
+        pattern: str | None = None,
+        recursive: bool = False,
+    ) -> None:
+        query_path: Path = dependency.absolute()
         observed: ProjectDependency = ProjectDependency(
             requester=self._resolve(requester),
-            dependency=dependency,
+            query_path=query_path,
+            dependency=self._resolve(query_path),
+            kind=kind,
+            pattern=pattern,
+            recursive=recursive,
         )
         if observed not in self._dependency_set:
             self._dependency_set.add(observed)

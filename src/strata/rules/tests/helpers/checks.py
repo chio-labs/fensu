@@ -109,9 +109,7 @@ def _layout_faults(*, ctx: RuleContext, code: SftCode) -> list[Fault]:
 
 def _layout_issue(*, ctx: RuleContext) -> _LayoutIssue | None:
     try:
-        relative_parts: tuple[str, ...] = (
-            ctx.path.parent.resolve().relative_to(ctx.repo_root.resolve()).parts
-        )
+        relative_parts: tuple[str, ...] = ctx.path.parent.relative_to(ctx.repo_root).parts
     except ValueError:
         return _LayoutIssue(code=SftCode.TEST_LAYOUT, message="test path is outside repo")
     if len(relative_parts) < _minimum_test_layout_parts or relative_parts[0] != TestPathName.TESTS:

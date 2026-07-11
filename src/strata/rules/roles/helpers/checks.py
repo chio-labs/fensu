@@ -177,7 +177,7 @@ def banned_generic_package_name(*, module: ast.Module, ctx: RuleContext) -> list
         if package_name not in _banned_generic_package_names:
             continue
         package_dir: Path = ctx.path.parents[len(parts) - index - 2]
-        if not _is_package_name_anchor(path=ctx.path, package_dir=package_dir):
+        if not _is_package_name_anchor(ctx=ctx, path=ctx.path, package_dir=package_dir):
             return []
         return [
             _path_fault(
@@ -241,7 +241,11 @@ def helpers_package_layout(*, module: ast.Module, ctx: RuleContext) -> list[Faul
 
     del module
     package_dir: Path | None = _role_package_dir(path=ctx.path, package_name="helpers")
-    if package_dir is None or not _is_package_layout_anchor(path=ctx.path, package_dir=package_dir):
+    if package_dir is None or not _is_package_layout_anchor(
+        ctx=ctx,
+        path=ctx.path,
+        package_dir=package_dir,
+    ):
         return []
     return _package_layout_faults(
         ctx=ctx,
@@ -275,7 +279,11 @@ def main_package_layout(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
                 )
             ]
     package_dir: Path | None = _role_package_dir(path=ctx.path, package_name="main")
-    if package_dir is None or not _is_package_layout_anchor(path=ctx.path, package_dir=package_dir):
+    if package_dir is None or not _is_package_layout_anchor(
+        ctx=ctx,
+        path=ctx.path,
+        package_dir=package_dir,
+    ):
         return []
     return _package_layout_faults(
         ctx=ctx,
@@ -488,7 +496,10 @@ def main_entry_name_collision(*, module: ast.Module, ctx: RuleContext) -> list[F
     """Flag a main entry module sharing its name with a sibling package."""
 
     del module
-    if not ctx.is_entry_module() or not ctx.path.with_suffix("").is_dir():
+    if not ctx.is_entry_module() or not ctx._project.is_dir(
+        requester=ctx.path,
+        path=ctx.path.with_suffix(""),
+    ):
         return []
     return [
         _path_fault(
@@ -749,7 +760,7 @@ def tooling_package_layout(*, module: ast.Module, ctx: RuleContext) -> list[Faul
     if role_name in _tooling_role_names:
         return []
     package_dir: Path = ctx.path.parents[len(parts) - 3]
-    if not _is_package_name_anchor(path=ctx.path, package_dir=package_dir):
+    if not _is_package_name_anchor(ctx=ctx, path=ctx.path, package_dir=package_dir):
         return []
     return [ctx.path_fault(message=f"tool package child '{role_name}/' is not an approved role")]
 
@@ -772,21 +783,38 @@ def _is_direct_tooling_entrypoint(ctx: RuleContext) -> bool:
     )
 
 
-def _is_package_layout_anchor(*, path: Path, package_dir: Path) -> bool:
+def _is_package_layout_anchor(*, ctx: RuleContext, path: Path, package_dir: Path) -> bool:
     init_path: Path = package_dir / "__init__.py"
-    if init_path.exists():
+    if ctx._project.exists(requester=ctx.path, path=init_path):
         return path == init_path
     direct_modules: tuple[Path, ...] = tuple(
-        sorted(child for child in package_dir.glob("*.py") if child.name != INIT_MODULE_FILE_NAME)
+        sorted(
+            child
+            for child in ctx._project.glob(
+                requester=ctx.path,
+                path=package_dir,
+                pattern="*.py",
+            )
+            if child.name != INIT_MODULE_FILE_NAME
+        )
     )
     return bool(direct_modules) and path == direct_modules[0]
 
 
-def _is_package_name_anchor(*, path: Path, package_dir: Path) -> bool:
+def _is_package_name_anchor(*, ctx: RuleContext, path: Path, package_dir: Path) -> bool:
     init_path: Path = package_dir / "__init__.py"
-    if init_path.exists():
+    if ctx._project.exists(requester=ctx.path, path=init_path):
         return path == init_path
-    modules: tuple[Path, ...] = tuple(sorted(package_dir.rglob("*.py")))
+    modules: tuple[Path, ...] = tuple(
+        sorted(
+            ctx._project.glob(
+                requester=ctx.path,
+                path=package_dir,
+                pattern="*.py",
+                recursive=True,
+            )
+        )
+    )
     return bool(modules) and path == modules[0]
 
 
@@ -799,13 +827,18 @@ def _package_layout_faults(
 ) -> list[Fault]:
     direct_modules: tuple[Path, ...] = tuple(
         child
-        for child in package_dir.glob("*.py")
-        if child.name != INIT_MODULE_FILE_NAME and child.is_file()
+        for child in ctx._project.glob(
+            requester=ctx.path,
+            path=package_dir,
+            pattern="*.py",
+        )
+        if child.name != INIT_MODULE_FILE_NAME
+        and ctx._project.is_file(requester=ctx.path, path=child)
     )
     concern_subfolders: tuple[Path, ...] = tuple(
         child
-        for child in package_dir.iterdir()
-        if child.is_dir()
+        for child in ctx._project.directory_entries(requester=ctx.path, path=package_dir)
+        if ctx._project.is_dir(requester=ctx.path, path=child)
         and child.name != _python_cache_directory_name
         and child.name not in ignored_subfolders
     )

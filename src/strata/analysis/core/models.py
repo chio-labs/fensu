@@ -206,7 +206,11 @@ class ProjectDependency:
     """One requester-to-path dependency observed by a project query."""
 
     requester: Path
+    query_path: Path
     dependency: Path
+    kind: str
+    pattern: str | None = None
+    recursive: bool = False
 
 
 @dataclass(frozen=True, slots=True)

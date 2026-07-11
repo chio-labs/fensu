@@ -14,6 +14,7 @@ from strata.analysis.core.models import (
     FunctionFacts,
     HygieneFacts,
     MeaningfulReturnFact,
+    ModuleDeclarationFacts,
     OuterStateMutationFact,
     ParameterMutationFact,
     PytestFunctionFact,
@@ -109,6 +110,10 @@ class FactAnalysis(Protocol):
         self, *, name_patterns: tuple[str, ...] = ()
     ) -> tuple[MeaningfulReturnFact, ...]:
         """Return the first meaningful return owned by each function."""
+        ...
+
+    def module_declarations(self) -> ModuleDeclarationFacts:
+        """Return module statements and classified declarations."""
         ...
 
     def outer_state_mutations(self) -> tuple[OuterStateMutationFact, ...]:

@@ -221,6 +221,25 @@ class DataclassFact:
 
 
 @dataclass(frozen=True, slots=True)
+class ModuleStatementFact:
+    """One top-level non-docstring statement relevant to module-role policy."""
+
+    location: SourceLocation
+    import_statement: bool
+    model_class: bool
+    exception_class: bool
+
+
+@dataclass(frozen=True, slots=True)
+class ModuleDeclarationFacts:
+    """Top-level statements and classified declarations in one module."""
+
+    statements: tuple[ModuleStatementFact, ...]
+    model_locations: tuple[SourceLocation, ...]
+    exception_locations: tuple[SourceLocation, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class ParametrizeCaseFact:
     """One visible pytest parametrization case expression."""
 

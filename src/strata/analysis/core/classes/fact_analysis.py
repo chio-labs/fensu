@@ -15,6 +15,7 @@ from strata.analysis.core.helpers.control_flow import (
 from strata.analysis.core.helpers.function_metrics import (
     dataclass_facts,
     function_facts,
+    module_declaration_facts,
     test_function_facts,
 )
 from strata.analysis.core.helpers.hygiene import hygiene_facts
@@ -33,6 +34,7 @@ from strata.analysis.core.models import (
     FunctionFacts,
     HygieneFacts,
     MeaningfulReturnFact,
+    ModuleDeclarationFacts,
     OuterStateMutationFact,
     ParameterMutationFact,
     PytestFunctionFact,
@@ -71,6 +73,7 @@ class PythonFactAnalysis:
         self._functions: FunctionFacts | None = None
         self._hygiene: HygieneFacts | None = None
         self._meaningful_returns: dict[tuple[str, ...], tuple[MeaningfulReturnFact, ...]] = {}
+        self._module_declarations: ModuleDeclarationFacts | None = None
         self._outer_state_mutations: tuple[OuterStateMutationFact, ...] | None = None
         self._parameter_mutations: tuple[ParameterMutationFact, ...] | None = None
         self._references: ReferenceFacts | None = None
@@ -197,6 +200,17 @@ class PythonFactAnalysis:
                 name_patterns=name_patterns,
             )
         return self._meaningful_returns[name_patterns]
+
+    def module_declarations(self) -> ModuleDeclarationFacts:
+        """Return module statements and classified declarations."""
+
+        if self._module_declarations is None:
+            self._module_declarations = module_declaration_facts(
+                path=self._path,
+                module=self._module,
+                node_index=self._node_index,
+            )
+        return self._module_declarations
 
     def references(self) -> ReferenceFacts:
         """Return import and attribute-reference facts."""

@@ -147,6 +147,19 @@ class DataclassFactTestCase:
 
 
 @dataclass(frozen=True)
+class ModuleDeclarationFactTestCase:
+    """Source and expected module-role declaration facts."""
+
+    description: str
+    source: str
+    expected_statement_lines: tuple[int, ...]
+    expected_model_flags: tuple[bool, ...]
+    expected_exception_flags: tuple[bool, ...]
+    expected_model_lines: tuple[int, ...]
+    expected_exception_lines: tuple[int, ...]
+
+
+@dataclass(frozen=True)
 class PytestFunctionFactTestCase:
     """Source and expected pytest function metadata."""
 

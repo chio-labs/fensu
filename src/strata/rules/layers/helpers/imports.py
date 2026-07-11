@@ -32,7 +32,7 @@ _owned_role_names: frozenset[str] = frozenset(
 def module_parts_for_path(*, path: Path, repo_root: Path) -> tuple[str, ...]:
     """Return importable module parts for a Python file under a src layout."""
 
-    relative_parts: tuple[str, ...] = path.resolve().relative_to(repo_root.resolve()).parts
+    relative_parts: tuple[str, ...] = path.relative_to(repo_root).parts
     if (
         len(relative_parts) >= _minimum_owned_module_parts
         and relative_parts[0] == _source_root_name

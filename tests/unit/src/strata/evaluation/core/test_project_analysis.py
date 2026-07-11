@@ -17,6 +17,7 @@ from strata.evaluation.core.models import ParsedModule
 from strata.evaluation.core.types import EvaluationProjectAnalysis
 from tests.unit.src.strata.evaluation.core._test_types import (
     ProjectDependencyTestCase,
+    ProjectDirectoryQueryTestCase,
     ProjectParseContractTestCase,
     ProjectRetentionTestCase,
 )
@@ -35,6 +36,7 @@ from tests.unit.src.strata.evaluation.core.helpers import exercise_project_parse
                 "pkg/phases.py",
                 "pkg/phases/__init__.py",
             ),
+            expected_dependency_kinds=("is_file", "is_file", "is_file", "is_file"),
         )
     ],
     ids=lambda case: case.description,
@@ -62,6 +64,76 @@ def test_given_missing_module_when_querying_then_records_all_candidate_dependenc
     assert tuple(str(item.dependency.relative_to(tmp_path)) for item in dependencies) == (
         test_case.expected_dependency_paths
     )
+    assert tuple(item.kind for item in dependencies) == test_case.expected_dependency_kinds
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ProjectDirectoryQueryTestCase(
+            description="directory queries record listing and glob namespace inputs",
+            expected_entry_names=("direct.py", "nested", "notes.txt"),
+            expected_direct_matches=("direct.py",),
+            expected_recursive_matches=("direct.py", "nested/nested.py"),
+            expected_dependency_kinds=("directory_entries", "glob", "glob", "glob"),
+            expected_patterns=(None, "*.py", "*.py", "*.sql"),
+            expected_recursive=(False, False, True, True),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_directory_queries_when_observing_then_records_aggregate_dependencies(
+    tmp_path: Path,
+    test_case: ProjectDirectoryQueryTestCase,
+) -> None:
+    package: Path = tmp_path / "src/pkg/domain"
+    nested: Path = package / "nested"
+    nested.mkdir(parents=True)
+    (package / "direct.py").write_text("", encoding="utf-8")
+    (package / "notes.txt").write_text("", encoding="utf-8")
+    (nested / "nested.py").write_text("", encoding="utf-8")
+    requester: Path = tmp_path / "src/pkg/main/run.py"
+    project: EvaluationProjectAnalysis = build_project_analysis(
+        tree=DiscoveredTree(files=(), repo_root=RepoRoot(tmp_path))
+    )
+
+    entries: tuple[Path, ...] = project.directory_entries(requester=requester, path=package)
+    repeated_entries: tuple[Path, ...] = project.directory_entries(
+        requester=requester,
+        path=package,
+    )
+    direct_matches: tuple[Path, ...] = project.glob(
+        requester=requester,
+        path=package,
+        pattern="*.py",
+    )
+    recursive_matches: tuple[Path, ...] = project.glob(
+        requester=requester,
+        path=package,
+        pattern="*.py",
+        recursive=True,
+    )
+    no_matches: tuple[Path, ...] = project.glob(
+        requester=requester,
+        path=package,
+        pattern="*.sql",
+        recursive=True,
+    )
+    dependencies: tuple[ProjectDependency, ...] = project.dependencies()
+
+    assert tuple(sorted(path.name for path in entries)) == test_case.expected_entry_names
+    assert repeated_entries == entries
+    assert tuple(path.name for path in direct_matches) == test_case.expected_direct_matches
+    assert (
+        tuple(str(path.relative_to(package)) for path in recursive_matches)
+        == test_case.expected_recursive_matches
+    )
+    assert no_matches == ()
+    assert tuple(item.kind for item in dependencies) == test_case.expected_dependency_kinds
+    assert tuple(item.pattern for item in dependencies) == test_case.expected_patterns
+    assert tuple(item.recursive for item in dependencies) == test_case.expected_recursive
+    assert all(item.query_path == package for item in dependencies)
+    assert all(item.dependency == package.resolve() for item in dependencies)
 
 
 @pytest.mark.parametrize(

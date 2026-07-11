@@ -849,6 +849,21 @@ def test_given_role_layouts_when_checking_then_flags_only_layout_violations(
             expected_codes=(),
             expected_lines=(),
         ),
+        SfrRuleTestCase(
+            description="flat main entry sharing its name with a file is allowed",
+            rule_code="SFR405",
+            relative_path="domain/core/main/run.py",
+            source="def run() -> None:\n    return None\n",
+            support_files=(
+                SfrSupportFile(
+                    description="same-named plain file",
+                    relative_path="domain/core/main/run",
+                    source="",
+                ),
+            ),
+            expected_codes=(),
+            expected_lines=(),
+        ),
     ],
     ids=lambda case: case.description,
 )

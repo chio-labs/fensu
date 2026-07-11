@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 from collections.abc import Mapping
+from enum import StrEnum
 from pathlib import Path
 from typing import NamedTuple, Protocol
 
@@ -28,6 +29,17 @@ from strata.analysis.core.models import (
     SourceRange,
     SyntaxHandle,
 )
+
+
+class ProjectDependencyKind(StrEnum):
+    """The project input observed by a cross-file query."""
+
+    SOURCE = "source"
+    EXISTS = "exists"
+    IS_FILE = "is_file"
+    IS_DIR = "is_dir"
+    DIRECTORY_ENTRIES = "directory_entries"
+    GLOB = "glob"
 
 
 class TextAnalysis(Protocol):
@@ -184,6 +196,10 @@ class ProjectAnalysis(Protocol):
         """Return deterministic requester-to-path dependencies observed so far."""
         ...
 
+    def directory_entries(self, *, requester: Path, path: Path) -> tuple[Path, ...]:
+        """Return direct children and record a directory namespace dependency."""
+        ...
+
     def module_function(
         self, *, requester: Path, module_name: str, function_name: str
     ) -> ProjectFunctionFact | None:
@@ -200,6 +216,17 @@ class ProjectAnalysis(Protocol):
 
     def is_file(self, *, requester: Path, path: Path) -> bool:
         """Return whether a project path is a file and record the dependency."""
+        ...
+
+    def glob(
+        self,
+        *,
+        requester: Path,
+        path: Path,
+        pattern: str,
+        recursive: bool = False,
+    ) -> tuple[Path, ...]:
+        """Return direct or recursive path matches and record an aggregate dependency."""
         ...
 
 

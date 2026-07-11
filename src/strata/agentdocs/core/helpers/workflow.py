@@ -10,47 +10,53 @@ def navigation_workflow_lines() -> tuple[str, ...]:
         "## Navigation And Work Handoffs",
         "",
         (
-            "Use `strata map <symbol> --depth 4` when tracing an unfamiliar flow, locating "
-            "behavior across package boundaries, or recovering the surrounding architecture. "
-            "Skip it for trivial, isolated edits."
+            "For any non-trivial change that crosses module or package boundaries, run "
+            "`strata map <symbol> --depth 4` before editing. Rerun the same map after "
+            "implementation to explain the changed flow. Skip only isolated single-file edits."
         ),
         "",
         (
-            "Treat the map as a deterministic call skeleton. Read the relevant source to explain "
-            "purpose and branches, use the diff to identify changes, and use checks and tests to "
-            "state what was verified. Never guess through unresolved calls."
+            "Treat the map as a deterministic call skeleton whose primary benefit is helping the "
+            "user understand the system, not proving that the agent explored it. Do not paste a "
+            "raw map as the handoff. Read the relevant source to explain purpose and branches, "
+            "use the diff to identify what changed and why, and use checks and tests to state what "
+            "was verified. Never guess through unresolved calls. If the map cannot resolve the "
+            "flow, state that and continue with direct source inspection."
         ),
         "",
         (
-            "After a substantial chunk of work, rerun `strata check` and the relevant map. Prefer "
-            "a concise guided walkthrough when the work crosses phases or the user is building a "
-            "mental model of the subsystem:"
+            "After a substantial chunk of work, rerun `strata check` and the same map. Include a "
+            "user-facing walkthrough only when it materially clarifies a multi-module change. "
+            "Default to the smallest affected branch, normally three to eight lines:"
         ),
         "",
         "```text",
-        "1. run_command(...)                         cli/main/run.py",
-        "   Resolves the invocation and enters the workflow.",
-        "",
-        "2. build_result(...)                        domain/main/build.py",
-        "   ├── resolve_inputs(...)                  unchanged context",
-        "   ├── assemble_result(...)                 CHANGED: explain the completed work",
-        "   └── validate_result(...)                 VERIFIED: name the supporting check",
-        "",
-        "3. Back in run_command(...)",
-        "   Connect the changed flow to its final user-visible outcome.",
+        "build_result(...)                           domain/main/build.py:24",
+        "└── assemble_result(...)                    domain/helpers/assemble.py:41",
+        "    CHANGED: state the behavioral difference and why it was made.",
+        "VERIFIED: name the check that proves the changed boundary.",
         "```",
         "",
         (
-            "Replace the template with facts from the repository. Include the entrypoint, "
-            "important phases in execution order, file locations, changed nodes, verified "
-            "boundaries, relevant branch decisions, and where control returns. `DONE`, `PENDING`, "
-            "and `WE ARE HERE` are agent-authored work-state annotations, not Strata output."
+            "Replace the template with facts from the repository. Preserve enough parent context "
+            "to orient the user, but omit unchanged branches that do not aid understanding. Use a "
+            "full before/after walkthrough only when ownership or phase boundaries changed "
+            "substantially. `DONE`, `PENDING`, and `WE ARE HERE` are agent-authored work-state "
+            "annotations, not Strata output."
         ),
         "",
         (
-            "For narrow or familiar changes, show only the affected map branch with enough parent "
-            "context to orient the user. Do not paste the full call tree when a smaller view "
-            "communicates the work clearly."
+            "Every displayed function must include its repository-relative path and line when "
+            "available. Mark changed nodes with `CHANGED` and explain the behavioral difference "
+            "and reason, not merely that a file changed. Mark supporting evidence with `VERIFIED`. "
+            "When static mapping omits protocol or dynamic dispatch, stitch in the continuation "
+            "only after confirming it from source and label it `SOURCE-RESOLVED DYNAMIC BOUNDARY` "
+            "so the user can distinguish map output from inspected runtime wiring."
+        ),
+        "",
+        (
+            "Do not force a graph into a handoff when one sentence with a clickable `path:line` "
+            "communicates the change more clearly."
         ),
         "",
     )

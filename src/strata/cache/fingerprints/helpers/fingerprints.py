@@ -12,6 +12,7 @@ from pathlib import Path
 
 from strata.cache.fingerprints.models import CacheFingerprint
 from strata.cache.fingerprints.types import CanonicalValue
+from strata.cache.results.models import CachedFileResult, DependencyObservation
 from strata.cache.storage.constants import CACHE_SCHEMA_VERSION
 from strata.config.core.models import Config, RuleExceptionEntry
 from strata.rules.authoring.models import RuleSpec
@@ -112,12 +113,71 @@ def global_fingerprint(
     return canonical_fingerprint(payload)
 
 
+def file_result_fingerprint(
+    *,
+    global_fingerprint: CacheFingerprint,
+    result: CachedFileResult,
+) -> CacheFingerprint:
+    """Return the correctness identity for one reusable file result."""
+
+    payload: CanonicalValue = {
+        "dependencies": [_dependency_observation_value(item) for item in result.dependencies],
+        "global_fingerprint": global_fingerprint.value,
+        "path": result.path,
+        "source_fingerprint": result.source_fingerprint.value,
+    }
+    return canonical_fingerprint(payload)
+
+
+def file_result_record_fingerprint(result: CachedFileResult) -> CacheFingerprint:
+    """Return the integrity identity for every persisted file-result value."""
+
+    payload: CanonicalValue = {
+        "applied_exception_keys": [
+            {"path": item.path, "rule": item.rule, "symbol": item.symbol}
+            for item in result.applied_exception_keys
+        ],
+        "dependencies": [_dependency_observation_value(item) for item in result.dependencies],
+        "faults": [
+            {
+                "code": item.code,
+                "column": item.column,
+                "line": item.line,
+                "message": item.message,
+                "path": item.path,
+                "remediation": item.remediation,
+            }
+            for item in result.faults
+        ],
+        "path": result.path,
+        "source_fingerprint": result.source_fingerprint.value,
+    }
+    return canonical_fingerprint(payload)
+
+
 def _rule_exception_value(item: RuleExceptionEntry) -> CanonicalValue:
     return {
         "path": item.path,
         "reason": item.reason,
         "rule": item.rule,
         "symbols": list(item.symbols),
+    }
+
+
+def _dependency_observation_value(item: DependencyObservation) -> CanonicalValue:
+    answer: CanonicalValue
+    if isinstance(item.answer, tuple):
+        answer = list(item.answer)
+    else:
+        answer = item.answer
+    return {
+        "answer": answer,
+        "dependency_path": item.dependency_path,
+        "kind": item.kind.value,
+        "pattern": item.pattern,
+        "query_path": item.query_path,
+        "recursive": item.recursive,
+        "requester_path": item.requester_path,
     }
 
 

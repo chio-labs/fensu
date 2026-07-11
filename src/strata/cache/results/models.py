@@ -24,6 +24,7 @@ class CacheIndexEntry:
     path: str
     source_fingerprint: CacheFingerprint
     result_fingerprint: CacheFingerprint
+    record_fingerprint: CacheFingerprint
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,6 +33,17 @@ class CacheIndex:
 
     global_fingerprint: CacheFingerprint
     entries: tuple[CacheIndexEntry, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class CacheStats:
+    """Observable cache operation counts for one logical evaluation."""
+
+    hits: int = 0
+    misses: int = 0
+    invalidations: int = 0
+    writes: int = 0
+    non_cacheable: int = 0
 
 
 @dataclass(frozen=True, slots=True)

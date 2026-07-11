@@ -200,10 +200,12 @@ def _index_entry_value(entry: CacheIndexEntry) -> CanonicalValue:
         is_relative_path(entry.path)
         and is_fingerprint(entry.source_fingerprint.value)
         and is_fingerprint(entry.result_fingerprint.value)
+        and is_fingerprint(entry.record_fingerprint.value)
     ):
         raise CacheRecordError("Cache index entry contains invalid identity values.")
     return {
         "path": entry.path,
+        "record_fingerprint": entry.record_fingerprint.value,
         "result_fingerprint": entry.result_fingerprint.value,
         "source_fingerprint": entry.source_fingerprint.value,
     }
@@ -215,12 +217,19 @@ def _index_entry(value: CanonicalValue) -> CacheIndexEntry | None:
     path: CanonicalValue = value["path"]
     source_fingerprint: CacheFingerprint | None = fingerprint_or_none(value["source_fingerprint"])
     result_fingerprint: CacheFingerprint | None = fingerprint_or_none(value["result_fingerprint"])
-    if not is_relative_path(path) or source_fingerprint is None or result_fingerprint is None:
+    record_fingerprint: CacheFingerprint | None = fingerprint_or_none(value["record_fingerprint"])
+    if (
+        not is_relative_path(path)
+        or source_fingerprint is None
+        or result_fingerprint is None
+        or record_fingerprint is None
+    ):
         return None
     return CacheIndexEntry(
         path=cast(str, path),
         source_fingerprint=source_fingerprint,
         result_fingerprint=result_fingerprint,
+        record_fingerprint=record_fingerprint,
     )
 
 

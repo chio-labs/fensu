@@ -11,3 +11,4 @@ class PublicSurfaceTestCase:
 
     description: str
     expected_all: tuple[str, ...]
+    expected_threshold_value: str

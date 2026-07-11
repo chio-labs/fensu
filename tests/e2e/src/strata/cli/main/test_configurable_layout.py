@@ -86,8 +86,8 @@ from tests.e2e.src.strata.cli.main.helpers import run_configurable_layout_case
                 'roots = ["python/mypkg"]\n'
                 'tests = ["qa"]\n'
                 "tooling = []\n"
-                'select = ["SFT028", "SFT029", "SFT030", "SFT031", '
-                '"SFT032", "SFT033", "SFT034", "SFT035"]\n'
+                'select = ["SFT001", "SFT002", "SFT003", "SFT004", '
+                '"SFT005", "SFT006", "SFT007", "SFT008"]\n'
             ),
             files=(
                 CliProjectFile(
@@ -106,11 +106,11 @@ from tests.e2e.src.strata.cli.main.helpers import run_configurable_layout_case
         ),
         ConfigurableLayoutCliTestCase(
             description="narrow test root wins over broad runtime root",
-            config=('roots = ["."]\ntests = ["qa"]\ntooling = []\nselect = ["SFT006"]\n'),
+            config=('roots = ["."]\ntests = ["qa"]\ntooling = []\nselect = ["SFT301"]\n'),
             files=(CliProjectFile(relative_path="qa/unit/bad.py", source=""),),
             working_directory=".",
             expected_exit_code=1,
-            expected_stdout_fragments=("SFT006", "qa/unit/bad.py"),
+            expected_stdout_fragments=("SFT301", "qa/unit/bad.py"),
             expected_stderr_fragments=(),
         ),
         ConfigurableLayoutCliTestCase(
@@ -132,9 +132,10 @@ from tests.e2e.src.strata.cli.main.helpers import run_configurable_layout_case
                     source=(
                         "from __future__ import annotations\n\n"
                         "import ast\n\n"
-                        "from strata import Family, Fault, RuleContext, rule\n\n"
+                        "from strata import Family, Fault, RuleContext, Threshold, rule\n\n"
                         "@rule(code='XE2001', family=Family.CUSTOM, slug='e2e', message='e2e fault')\n"
                         "def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:\n"
+                        "    _ = ctx.threshold(Threshold.MAX_STATEMENTS)\n"
                         "    return [ctx.fault(module.body[0])]\n"
                     ),
                 ),

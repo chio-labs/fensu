@@ -83,7 +83,7 @@ def evaluate_configured_layout_test_case(
         tooling=test_case.tooling,
     )
     layout_rules: tuple[RuleSpec, ...] = tuple(
-        rule for rule in SFT_RULES if "SFT028" <= rule.code <= "SFT035"
+        rule for rule in SFT_RULES if "SFT001" <= rule.code <= "SFT008"
     )
     return evaluate(
         tree=discover_files(config),

@@ -15,6 +15,7 @@ from strata.evaluation.core.main.evaluate import evaluate
 from strata.evaluation.core.models import EvaluationResult, ParsedModule
 from strata.rules.authoring.types import Family, Threshold
 from tests.unit.src.strata.evaluation.core._test_types import (
+    AnalysisContextTestCase,
     AstHelperContextTestCase,
     ContextPropertyTestCase,
     ContextThresholdTestCase,
@@ -22,9 +23,11 @@ from tests.unit.src.strata.evaluation.core._test_types import (
     EvaluationFaultTestCase,
     EvaluationOperationTestCase,
     FaultFactoryTestCase,
+    ProjectDependencyEvaluationTestCase,
 )
 from tests.unit.src.strata.evaluation.core.helpers import (
     discover_test_tree,
+    make_analysis_context_rule,
     make_config_with_entry_threshold,
     make_context_ast_helper_rule,
     make_context_property_rule,
@@ -33,11 +36,84 @@ from tests.unit.src.strata.evaluation.core.helpers import (
     make_node_count_rule,
     make_none_location_rule,
     make_position_rule,
+    make_project_dependency_rule,
     make_runtime_fault_rule,
     make_static_fault_rule,
     make_threshold_rule,
     write_sources,
 )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ProjectDependencyEvaluationTestCase(
+            description="project query dependencies are returned by evaluation",
+            source="value: int = 1\n",
+            expected_dependency_name="missing.py",
+            expected_dependency_kind="is_file",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_project_query_when_evaluating_then_returns_observed_dependency(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: ProjectDependencyEvaluationTestCase,
+) -> None:
+    write_sources(
+        repo_root=tmp_path,
+        files=(("src/pkg/config/core/models.py", test_case.source),),
+    )
+    monkeypatch.chdir(tmp_path)
+    config: Config = Config(roots=("src/pkg",))
+
+    result: EvaluationResult = evaluate(
+        tree=discover_test_tree(config=config),
+        ruleset=(make_project_dependency_rule(),),
+        config=config,
+    )
+
+    assert tuple(item.requester.name for item in result.dependencies) == ("models.py",)
+    assert tuple(item.query_path.name for item in result.dependencies) == (
+        test_case.expected_dependency_name,
+    )
+    assert tuple(item.kind for item in result.dependencies) == (test_case.expected_dependency_kind,)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        AnalysisContextTestCase(
+            description="private analysis facade creates backend-neutral fault locations",
+            source="def run() -> None:\n    call()\n",
+            expected_line=2,
+            expected_column=4,
+            expected_message="call()",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_analysis_context_when_reporting_handle_then_fault_uses_source_location(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: AnalysisContextTestCase,
+) -> None:
+    write_sources(
+        repo_root=tmp_path,
+        files=(("src/pkg/config/core/main/load.py", test_case.source),),
+    )
+    monkeypatch.chdir(tmp_path)
+
+    result: EvaluationResult = evaluate(
+        tree=discover_test_tree(config=Config(roots=("src/pkg",))),
+        ruleset=(make_analysis_context_rule(),),
+        config=Config(roots=("src/pkg",)),
+    )
+
+    assert result.faults[0].line == test_case.expected_line
+    assert result.faults[0].column == test_case.expected_column
+    assert result.faults[0].message == test_case.expected_message
 
 
 @pytest.mark.parametrize(
@@ -80,7 +156,10 @@ def test_given_multiple_rules_when_evaluating_then_file_facts_are_computed_once(
         routing_counts[0] += 1
         return families_for_scope(scoped_file=scoped_file)
 
-    monkeypatch.setattr("strata.evaluation.core.main.evaluate.parse_scoped_file", count_parse)
+    monkeypatch.setattr(
+        "strata.evaluation.core.helpers.project_analysis.parse_scoped_file",
+        count_parse,
+    )
     monkeypatch.setattr("strata.evaluation.core.helpers.parsing.position_facts", count_position)
     monkeypatch.setattr("strata.evaluation.core.main.evaluate.families_for_scope", count_routing)
 

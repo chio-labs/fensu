@@ -6,9 +6,13 @@ import ast
 from pathlib import Path
 from types import MappingProxyType
 
+from strata.analysis.core.models import SourceRange, SyntaxHandle
+from strata.analysis.core.types import Analysis
 from strata.config.core.models import Config, RuleExceptionEntry
 from strata.discovery.core.main.discover_files import discover_files
-from strata.discovery.core.models import DiscoveredTree
+from strata.discovery.core.models import DiscoveredTree, ScopedFile
+from strata.evaluation.core.models import ParsedModule
+from strata.evaluation.core.types import EvaluationProjectAnalysis
 from strata.rules.authoring.models import Fault, RuleSpec
 from strata.rules.authoring.types import Family, RuleContext, Threshold
 
@@ -36,6 +40,27 @@ def discover_test_tree(*, config: Config) -> DiscoveredTree:
     """Discover files for an evaluation test config."""
 
     return discover_files(config)
+
+
+def exercise_project_parse_order(
+    *,
+    project: EvaluationProjectAnalysis,
+    scoped_file: ScopedFile,
+    query_first: bool,
+) -> tuple[Analysis | None, ParsedModule]:
+    """Run tolerant and strict project access in the selected order."""
+
+    if query_first:
+        analysis: Analysis | None = project.analysis(
+            requester=scoped_file.path,
+            path=scoped_file.path,
+        )
+        return analysis, project.parsed_module(scoped_file)
+    parsed: ParsedModule = project.parsed_module(scoped_file)
+    return (
+        project.analysis(requester=scoped_file.path, path=scoped_file.path),
+        parsed,
+    )
 
 
 def direct_module_walk_paths(*, root: Path) -> tuple[str, ...]:
@@ -226,4 +251,38 @@ def make_context_ast_helper_rule() -> RuleSpec:
 
     return RuleSpec(
         code="XAH001", family=Family.CUSTOM, slug="ast-helpers", message="ast", check=check
+    )
+
+
+def make_analysis_context_rule() -> RuleSpec:
+    """Build a fake rule that reports through the private analysis facade."""
+
+    def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+        handle: SyntaxHandle = ctx._analysis.syntax.handles(kind="Call")[0]
+        source_range: SourceRange = ctx._analysis.syntax.range(handle)
+        message: str = ctx._analysis.text.slice(source_range)
+        return [ctx.fault_at(handle, message=message)]
+
+    return RuleSpec(
+        code="XAN001", family=Family.CUSTOM, slug="analysis", message="analysis", check=check
+    )
+
+
+def make_project_dependency_rule() -> RuleSpec:
+    """Build a fake rule that observes one missing project file."""
+
+    def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+        del module
+        ctx._project.is_file(
+            requester=ctx.path,
+            path=ctx.repo_root / "missing.py",
+        )
+        return []
+
+    return RuleSpec(
+        code="XPD001",
+        family=Family.CUSTOM,
+        slug="project-dependency",
+        message="project dependency",
+        check=check,
     )

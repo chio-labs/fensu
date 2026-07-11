@@ -1,0 +1,1 @@
+"""Core source-analysis implementation."""

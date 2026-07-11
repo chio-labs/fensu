@@ -5,16 +5,17 @@ from __future__ import annotations
 from strata.config.core.exceptions import ConfigError
 from strata.config.core.models import Config
 from strata.discovery.core.main.route import families_for_scope
-from strata.discovery.core.models import DiscoveredTree, ScopedFile
+from strata.discovery.core.models import DiscoveredTree
 from strata.evaluation.core.helpers.collection import sort_faults
 from strata.evaluation.core.helpers.execution import execute_rule
-from strata.evaluation.core.helpers.parsing import parse_scoped_file
+from strata.evaluation.core.helpers.project_analysis import build_project_analysis
 from strata.evaluation.core.helpers.rule_exceptions import (
     configured_exception_keys,
     stale_exception_error,
     suppress_faults,
 )
 from strata.evaluation.core.models import EvaluationResult, ParsedModule, RuleExceptionKey
+from strata.evaluation.core.types import EvaluationProjectAnalysis
 from strata.rules.authoring.models import Fault, RuleSpec
 from strata.rules.authoring.types import Family
 
@@ -30,8 +31,10 @@ def evaluate(
     faults: list[Fault] = []
     applied_exceptions: set[RuleExceptionKey] = set()
     has_exceptions: bool = bool(config.rule_exceptions)
+    project: EvaluationProjectAnalysis = build_project_analysis(tree=tree)
     for scoped_file in tree.files:
-        parsed_module: ParsedModule = _parse_file(scoped_file=scoped_file)
+        parsed_module: ParsedModule = project.parsed_module(scoped_file)
+        file_cache: dict[str, object] = {}
         applicable_families: frozenset[Family] = families_for_scope(scoped_file=scoped_file)
         for rule in ruleset:
             if rule.family != Family.CUSTOM and rule.family not in applicable_families:
@@ -41,6 +44,8 @@ def evaluate(
                 parsed_module=parsed_module,
                 config=config,
                 repo_root=tree.repo_root,
+                project=project,
+                file_cache=file_cache,
             )
             if has_exceptions:
                 retained, applied = suppress_faults(
@@ -62,8 +67,5 @@ def evaluate(
     return EvaluationResult(
         faults=sort_faults(faults=faults, repo_root=tree.repo_root.path),
         applied_exception_count=len(applied_exceptions),
+        dependencies=project.dependencies(),
     )
-
-
-def _parse_file(*, scoped_file: ScopedFile) -> ParsedModule:
-    return parse_scoped_file(scoped_file)

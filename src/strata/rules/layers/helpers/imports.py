@@ -6,8 +6,6 @@ import ast
 from pathlib import Path
 
 from strata.discovery.core.types import RoleName
-from strata.rules.authoring.models import Fault
-from strata.rules.authoring.types import RuleContext
 
 _source_root_name: str = "src"
 _tooling_root_name: str = "scripts"
@@ -34,7 +32,7 @@ _owned_role_names: frozenset[str] = frozenset(
 def module_parts_for_path(*, path: Path, repo_root: Path) -> tuple[str, ...]:
     """Return importable module parts for a Python file under a src layout."""
 
-    relative_parts: tuple[str, ...] = path.resolve().relative_to(repo_root.resolve()).parts
+    relative_parts: tuple[str, ...] = path.relative_to(repo_root).parts
     if (
         len(relative_parts) >= _minimum_owned_module_parts
         and relative_parts[0] == _source_root_name
@@ -146,81 +144,6 @@ def import_path_targets_tooling(*, imported_parts: tuple[str, ...]) -> bool:
     return bool(imported_parts) and imported_parts[0] == _tooling_root_name
 
 
-def private_helper_class_import_faults(
-    *, module: ast.Module, ctx: RuleContext, message: str, remediation: str
-) -> list[Fault]:
-    """Return faults for cross-file references to helper-local private classes."""
-
-    faults: list[Fault] = []
-    helper_module_aliases: set[str] = set()
-    for node in ast.walk(module):
-        if isinstance(node, ast.ImportFrom):
-            imported_parts: tuple[str, ...] = import_from_parts(node)
-            import_from_faults, import_from_aliases = _helper_import_from_faults(
-                node=node,
-                imported_parts=imported_parts,
-                ctx=ctx,
-                message=message,
-                remediation=remediation,
-            )
-            faults.extend(import_from_faults)
-            helper_module_aliases.update(import_from_aliases)
-        elif isinstance(node, ast.Import):
-            import_faults, import_aliases = _helper_import_faults(
-                node=node,
-                ctx=ctx,
-                message=message,
-                remediation=remediation,
-            )
-            faults.extend(import_faults)
-            helper_module_aliases.update(import_aliases)
-        elif isinstance(node, ast.Attribute) and _is_private_class_name(node.attr):
-            if _attribute_base_name(node.value) in helper_module_aliases:
-                faults.append(ctx.fault(node, message=message, remediation=remediation))
-    return faults
-
-
-def _helper_import_from_faults(
-    *,
-    node: ast.ImportFrom,
-    imported_parts: tuple[str, ...],
-    ctx: RuleContext,
-    message: str,
-    remediation: str,
-) -> tuple[list[Fault], set[str]]:
-    faults: list[Fault] = []
-    helper_module_aliases: set[str] = set()
-    if not _is_helper_module_path(imported_parts):
-        return faults, helper_module_aliases
-    for alias in node.names:
-        imported_name: str = alias.name
-        if _is_private_class_name(imported_name):
-            faults.append(ctx.fault(node, message=message, remediation=remediation))
-            continue
-        helper_module_aliases.add(alias.asname or imported_name)
-    return faults, helper_module_aliases
-
-
-def _helper_import_faults(
-    *,
-    node: ast.Import,
-    ctx: RuleContext,
-    message: str,
-    remediation: str,
-) -> tuple[list[Fault], set[str]]:
-    faults: list[Fault] = []
-    helper_module_aliases: set[str] = set()
-    for alias in node.names:
-        imported_parts: tuple[str, ...] = import_alias_parts(alias)
-        if not _is_helper_module_path(imported_parts):
-            continue
-        if imported_parts and _is_private_class_name(imported_parts[-1]):
-            faults.append(ctx.fault(node, message=message, remediation=remediation))
-            continue
-        helper_module_aliases.add(alias.asname or imported_parts[-1])
-    return faults, helper_module_aliases
-
-
 def _is_allowed_sibling_public_surface(
     *, parent_package_parts: tuple[str, ...], imported_parts: tuple[str, ...]
 ) -> bool:
@@ -254,19 +177,3 @@ def _public_surface_segments() -> frozenset[str]:
 
 def _internal_surface_segments() -> frozenset[str]:
     return frozenset({RoleName.HELPERS, RoleName.SHARED})
-
-
-def _is_helper_module_path(parts: tuple[str, ...]) -> bool:
-    return RoleName.HELPERS in parts
-
-
-def _is_private_class_name(name: str) -> bool:
-    return len(name) > 1 and name.startswith("_") and name[1].isupper()
-
-
-def _attribute_base_name(node: ast.AST) -> str | None:
-    if isinstance(node, ast.Name):
-        return node.id
-    if isinstance(node, ast.Attribute):
-        return _attribute_base_name(node.value)
-    return None

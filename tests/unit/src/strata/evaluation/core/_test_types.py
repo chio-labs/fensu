@@ -111,6 +111,58 @@ class EvaluationOperationTestCase:
 
 
 @dataclass(frozen=True)
+class ProjectRetentionTestCase:
+    """Project-query order and expected strict parse count."""
+
+    description: str
+    file_name: str
+    query_first: bool
+    expected_parse_count: int
+
+
+@dataclass(frozen=True)
+class ProjectParseContractTestCase:
+    """Malformed discovered source and expected strict parse failure."""
+
+    description: str
+    source: str
+    expected_error_type: type[Exception]
+
+
+@dataclass(frozen=True)
+class ProjectDependencyTestCase:
+    """Missing module query and expected candidate dependencies."""
+
+    description: str
+    module_name: str
+    expected_dependency_paths: tuple[str, ...]
+    expected_dependency_kinds: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ProjectDependencyEvaluationTestCase:
+    """Source and expected dependency propagated through evaluation."""
+
+    description: str
+    source: str
+    expected_dependency_name: str
+    expected_dependency_kind: str
+
+
+@dataclass(frozen=True)
+class ProjectDirectoryQueryTestCase:
+    """Directory contents and expected aggregate dependency metadata."""
+
+    description: str
+    expected_entry_names: tuple[str, ...]
+    expected_direct_matches: tuple[str, ...]
+    expected_recursive_matches: tuple[str, ...]
+    expected_dependency_kinds: tuple[str, ...]
+    expected_patterns: tuple[str | None, ...]
+    expected_recursive: tuple[bool, ...]
+
+
+@dataclass(frozen=True)
 class AstHelperContextTestCase:
     """Source files and expected ctx AST helper message."""
 
@@ -142,3 +194,14 @@ class RuleExceptionTargetTestCase:
     symbol: str
     create_path: bool
     expected_error_fragment: str
+
+
+@dataclass(frozen=True)
+class AnalysisContextTestCase:
+    """Source and expected backend-neutral context fault."""
+
+    description: str
+    source: str
+    expected_line: int
+    expected_column: int
+    expected_message: str

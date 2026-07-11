@@ -29,19 +29,9 @@ class SftRuleTestCase:
 
 
 @dataclass(frozen=True)
-class DataclassCacheTestCase:
-    """Source and expected cached dataclass-name extraction facts."""
-
-    description: str
-    source: str
-    expected_names: frozenset[str]
-    expected_parse_count: int
-    expected_read_count: int
-
-
-@dataclass(frozen=True)
 class SftOperationTestCase:
     """Expected operation counts from evaluating the complete SFT family."""
 
     description: str
-    expected_local_type_load_count: int
+    expected_parse_count: int
+    expected_layout_count: int

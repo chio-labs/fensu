@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import ast
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from pathlib import Path
+from typing import Any
 
+from strata.analysis.core.models import SourceLocation, SourceRange, SyntaxHandle
+from strata.analysis.core.types import Analysis, ProjectAnalysis
 from strata.config.core.models import Config
 from strata.discovery.core.models import RepoRoot
 from strata.discovery.core.types import ScopeName
@@ -25,6 +28,8 @@ class EvaluationRuleContext:
         config: Config,
         repo_root: RepoRoot,
         rule: RuleSpec,
+        project: ProjectAnalysis,
+        file_cache: dict[str, object],
     ) -> None:
         """Bind context facts for one rule invocation."""
 
@@ -32,6 +37,27 @@ class EvaluationRuleContext:
         self._config: Config = config
         self._repo_root: RepoRoot = repo_root
         self._rule: RuleSpec = rule
+        self.__project: ProjectAnalysis = project
+        self._file_cache: dict[str, Any] = file_cache
+
+    @property
+    def _analysis(self) -> Analysis:
+        """Return the private replaceable analysis facade for the current file."""
+
+        return self._parsed_module.analysis
+
+    @property
+    def _project(self) -> ProjectAnalysis:
+        """Return the evaluation-scoped cross-file analysis facade."""
+
+        return self.__project
+
+    def _memoize[T](self, *, key: str, operation: Callable[[], T]) -> T:
+        """Return one value shared by all rules evaluating the current file."""
+
+        if key not in self._file_cache:
+            self._file_cache[key] = operation()
+        return self._file_cache[key]
 
     def fault(
         self,
@@ -48,6 +74,56 @@ class EvaluationRuleContext:
             message=self._rule.message if message is None else message,
             line=getattr(node, "lineno", None),
             column=getattr(node, "col_offset", None),
+            remediation=self._rule.remediation if remediation is None else remediation,
+        )
+
+    def fault_at(
+        self,
+        location: SyntaxHandle | SourceLocation | SourceRange,
+        *,
+        message: str | None = None,
+        remediation: str | None = None,
+    ) -> Fault:
+        """Construct a Fault from a backend-neutral syntax location."""
+
+        if isinstance(location, SyntaxHandle):
+            source_range: SourceRange = self._analysis.syntax.range(location)
+            path: Path = source_range.path
+            line: int = source_range.start.line
+            column: int = source_range.start.column
+        elif isinstance(location, SourceRange):
+            path = location.path
+            line = location.start.line
+            column = location.start.column
+        else:
+            path = location.path
+            line = location.line
+            column = location.column
+        return self.fault_for(
+            path=path,
+            line=line,
+            column=column,
+            message=message,
+            remediation=remediation,
+        )
+
+    def fault_for(
+        self,
+        *,
+        path: Path,
+        line: int,
+        column: int,
+        message: str | None = None,
+        remediation: str | None = None,
+    ) -> Fault:
+        """Construct a Fault from an explicit backend-neutral source location."""
+
+        return Fault(
+            code=self._rule.code,
+            path=path,
+            message=self._rule.message if message is None else message,
+            line=line,
+            column=column,
             remediation=self._rule.remediation if remediation is None else remediation,
         )
 

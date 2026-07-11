@@ -95,7 +95,7 @@ from tests.unit.src.strata.agentdocs.core.main.helpers import (
         GuidanceTestCase(
             description="foundation rules show reduced runtime and test skeletons",
             config=Config(roots=("src/acme",), tests=("tests",), tooling=("scripts",)),
-            rule_codes=("SFR306", "SFR307", "SFT028", "SFT029", "SFT030"),
+            rule_codes=("SFR306", "SFR307", "SFT001", "SFT002", "SFT003"),
             expected_fragments=(
                 "## Repository Structure",
                 "### Runtime",
@@ -141,14 +141,14 @@ from tests.unit.src.strata.agentdocs.core.main.helpers import (
             description="test layout without authoring evidence shows files but no code example",
             config=Config(roots=("src/acme",), tests=("tests",), tooling=()),
             rule_codes=(
+                "SFT301",
+                "SFT204",
+                "SFT001",
+                "SFT002",
+                "SFT003",
+                "SFT004",
+                "SFT005",
                 "SFT006",
-                "SFT026",
-                "SFT028",
-                "SFT029",
-                "SFT030",
-                "SFT031",
-                "SFT032",
-                "SFT033",
             ),
             expected_fragments=("### Tests", "_test_types.py", "test_feature.py"),
             expected_absent_fragments=("class ReadInvoiceTestCase:", "@pytest.mark.parametrize"),
@@ -186,7 +186,7 @@ from tests.unit.src.strata.agentdocs.core.main.helpers import (
         GuidanceTestCase(
             description="disabled test and tooling scopes suppress otherwise active guidance",
             config=Config(roots=("src/acme",), tests=(), tooling=()),
-            rule_codes=("SFR705", "SFT028", "SFT029", "SFT030"),
+            rule_codes=("SFR705", "SFT001", "SFT002", "SFT003"),
             expected_fragments=("## Active Rules",),
             expected_absent_fragments=(
                 "## Repository Structure",

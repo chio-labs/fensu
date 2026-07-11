@@ -11,6 +11,7 @@ from strata.cache.results.models import (
     CacheIndex,
     CacheMetadata,
 )
+from strata.cache.results.types import DependencyAnswer
 
 
 @dataclass(frozen=True)
@@ -50,4 +51,24 @@ class InvalidDependencyRecordTestCase:
 
     description: str
     dependency: CanonicalValue
+    expected_result: CachedFileResult | None
+
+
+@dataclass(frozen=True)
+class FileResultConversionTestCase:
+    """Runtime file evaluation and expected cache-safe values."""
+
+    description: str
+    relative_path: str
+    source_fingerprint: str
+    expected_fault_codes: tuple[str, ...]
+    expected_dependency_answers: tuple[DependencyAnswer, ...]
+
+
+@dataclass(frozen=True)
+class NonCacheableConversionTestCase:
+    """Unsupported runtime ownership and expected non-cacheable result."""
+
+    description: str
+    relative_path: str
     expected_result: CachedFileResult | None

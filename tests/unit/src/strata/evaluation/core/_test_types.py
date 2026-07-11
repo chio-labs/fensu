@@ -70,6 +70,16 @@ class ParseErrorTestCase:
 
 
 @dataclass(frozen=True)
+class SourceFingerprintTestCase:
+    """Raw source bytes and expected parsed source identity."""
+
+    description: str
+    source: bytes
+    expected_source: str
+    expected_fingerprint: str
+
+
+@dataclass(frozen=True)
 class ContextPropertyTestCase:
     """Source file and expected context property report."""
 
@@ -137,6 +147,7 @@ class ProjectDependencyTestCase:
     module_name: str
     expected_dependency_paths: tuple[str, ...]
     expected_dependency_kinds: tuple[str, ...]
+    expected_dependency_answers: tuple[bool, ...]
     runtime_roots: tuple[str, ...] = ("src/pkg",)
     test_roots: tuple[str, ...] = ()
 
@@ -149,6 +160,7 @@ class ProjectDependencyEvaluationTestCase:
     source: str
     expected_dependency_name: str
     expected_dependency_kind: str
+    expected_dependency_answer: bool
 
 
 @dataclass(frozen=True)
@@ -162,6 +174,48 @@ class ProjectDirectoryQueryTestCase:
     expected_dependency_kinds: tuple[str, ...]
     expected_patterns: tuple[str | None, ...]
     expected_recursive: tuple[bool, ...]
+
+
+@dataclass(frozen=True)
+class ProjectScalarQueryTestCase:
+    """Scalar filesystem queries and their expected frozen answers."""
+
+    description: str
+    expected_dependency_kinds: tuple[str, ...]
+    expected_dependency_answers: tuple[bool, ...]
+
+
+@dataclass(frozen=True)
+class ProjectSourceQueryTestCase:
+    """Repeated source query and expected frozen answer ownership."""
+
+    description: str
+    source: str
+    mutated_source: str
+    expected_dependency_count: int
+
+
+@dataclass(frozen=True)
+class FileEvaluationTestCase:
+    """One-file source and expected unrendered evaluation boundary."""
+
+    description: str
+    file_path: str
+    source: str
+    expected_fault_codes: tuple[str, ...]
+    expected_dependency_answers: tuple[bool, ...]
+    expected_applied_exception_keys: int
+
+
+@dataclass(frozen=True)
+class FileEvaluationExceptionTestCase:
+    """One-file exception and expected retained suppression state."""
+
+    description: str
+    file_path: str
+    source: str
+    expected_fault_count: int
+    expected_applied_symbols: tuple[str, ...]
 
 
 @dataclass(frozen=True)

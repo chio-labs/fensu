@@ -5,9 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Protocol
 
-from strata.analysis.core.types import Analysis
-from strata.discovery.core.models import ScopedFile
-from strata.evaluation.core.models import ParsedModule
+from strata.evaluation.core.models import ExternalAnalysisBuild, ParsedModule
 from strata.rules.authoring.models import Fault
 
 
@@ -20,5 +18,5 @@ class EvaluatorModule(Protocol):
 class ProjectAnalysisModule(Protocol):
     """Mutable project parser function instrumented by the benchmark profiler."""
 
-    parse_scoped_file: Callable[[ScopedFile], ParsedModule]
-    build_external_analysis: Callable[..., Analysis | None]
+    parse_scoped_file: Callable[..., ParsedModule]
+    build_external_analysis: Callable[..., ExternalAnalysisBuild]

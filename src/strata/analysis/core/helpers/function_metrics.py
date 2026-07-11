@@ -33,7 +33,9 @@ def function_facts(
     *,
     path: Path,
     module: ast.Module,
+    nodes: tuple[ast.AST, ...],
     node_index: Mapping[type[ast.AST], tuple[ast.AST, ...]],
+    parent_by_node: Mapping[ast.AST, ast.AST],
 ) -> FunctionFacts:
     """Return shared metrics for all functions and top-level functions."""
 
@@ -43,12 +45,21 @@ def function_facts(
     )
     if not function_nodes:
         return FunctionFacts(functions=(), top_level=())
+    metrics_by_node: dict[ast.AST, tuple[int, set[str], set[str]]] = _function_body_metrics(
+        nodes=nodes,
+        function_nodes=function_nodes,
+        parent_by_node=parent_by_node,
+    )
     fact_by_node: dict[ast.AST, FunctionMetricFact] = {}
     functions: list[FunctionMetricFact] = []
     for node in function_nodes:
         if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
             continue
-        fact: FunctionMetricFact = _function_metric_fact(path=path, node=node)
+        fact: FunctionMetricFact = _function_metric_fact(
+            path=path,
+            node=node,
+            body_metrics=metrics_by_node[node],
+        )
         fact_by_node[node] = fact
         functions.append(fact)
     top_level: tuple[FunctionMetricFact, ...] = tuple(
@@ -63,23 +74,9 @@ def _function_metric_fact(
     *,
     path: Path,
     node: ast.FunctionDef | ast.AsyncFunctionDef,
+    body_metrics: tuple[int, set[str], set[str]],
 ) -> FunctionMetricFact:
-    statement_count: int = -1
-    call_names: set[str] = set()
-    assigned_names: set[str] = set()
-    for descendant in ast.walk(node):
-        if isinstance(descendant, ast.stmt):
-            statement_count += 1
-        if isinstance(descendant, ast.Call):
-            call_name: str | None = _call_name(descendant)
-            if call_name is not None:
-                call_names.add(call_name)
-        if isinstance(descendant, ast.Assign):
-            for target in descendant.targets:
-                if isinstance(target, ast.Name):
-                    assigned_names.add(target.id)
-        if isinstance(descendant, ast.AnnAssign) and isinstance(descendant.target, ast.Name):
-            assigned_names.add(descendant.target.id)
+    statement_count, call_names, assigned_names = body_metrics
     parameter_names: frozenset[str] = _parameter_names(node)
     positional_parameter_count: int = len(
         [
@@ -98,6 +95,44 @@ def _function_metric_fact(
         positional_parameter_count=positional_parameter_count,
         dunder=node.name.startswith("__") and node.name.endswith("__"),
     )
+
+
+def _function_body_metrics(
+    *,
+    nodes: tuple[ast.AST, ...],
+    function_nodes: tuple[ast.AST, ...],
+    parent_by_node: Mapping[ast.AST, ast.AST],
+) -> dict[ast.AST, tuple[int, set[str], set[str]]]:
+    statement_counts: dict[ast.AST, int] = dict.fromkeys(function_nodes, 0)
+    call_names: dict[ast.AST, set[str]] = {node: set() for node in function_nodes}
+    assigned_names: dict[ast.AST, set[str]] = {node: set() for node in function_nodes}
+    for node in nodes:
+        statement: bool = isinstance(node, ast.stmt)
+        call_name: str | None = _call_name(node) if isinstance(node, ast.Call) else None
+        node_assigned_names: tuple[str, ...] = _assigned_names(node)
+        if not statement and call_name is None and not node_assigned_names:
+            continue
+        current: ast.AST | None = parent_by_node.get(node)
+        while current is not None:
+            if current in statement_counts:
+                if statement:
+                    statement_counts[current] += 1
+                if call_name is not None:
+                    call_names[current].add(call_name)
+                assigned_names[current].update(node_assigned_names)
+            current = parent_by_node.get(current)
+    return {
+        node: (statement_counts[node], call_names[node], assigned_names[node])
+        for node in function_nodes
+    }
+
+
+def _assigned_names(node: ast.AST) -> tuple[str, ...]:
+    if isinstance(node, ast.Assign):
+        return tuple(target.id for target in node.targets if isinstance(target, ast.Name))
+    if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+        return (node.target.id,)
+    return ()
 
 
 def _parameter_names(node: ast.FunctionDef | ast.AsyncFunctionDef) -> frozenset[str]:
@@ -205,10 +240,14 @@ def test_function_facts(
             (argument for argument in node.args.args if argument.arg == _test_case_name),
             None,
         )
-        references_expected_field, conditional_locations = _test_body_metadata(
-            path=path,
-            node=node,
-        )
+        parametrize: ParametrizeFact | None = _parametrize_fact(path=path, node=node)
+        references_expected_field: bool = False
+        conditional_locations: tuple[SourceLocation, ...] = ()
+        if parametrize is not None:
+            references_expected_field, conditional_locations = _test_body_metadata(
+                path=path,
+                node=node,
+            )
         facts.append(
             PytestFunctionFact(
                 name=node.name,
@@ -220,7 +259,7 @@ def test_function_facts(
                     and isinstance(test_case_argument.annotation, ast.Name)
                     else None
                 ),
-                parametrize=_parametrize_fact(path=path, node=node),
+                parametrize=parametrize,
                 references_expected_field=references_expected_field,
                 conditional_locations=conditional_locations,
             )

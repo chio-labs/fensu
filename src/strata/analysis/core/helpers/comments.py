@@ -8,10 +8,14 @@ from pathlib import Path
 
 from strata.analysis.core.models import CommentFact
 
+_comment_marker: str = "#"
+
 
 def comment_facts(*, path: Path, source: str) -> tuple[CommentFact, ...]:
     """Return source comments in token order, or no facts for incomplete tokens."""
 
+    if _comment_marker not in source:
+        return ()
     comments: list[CommentFact] = []
     try:
         for token in tokenize.generate_tokens(io.StringIO(source).readline):

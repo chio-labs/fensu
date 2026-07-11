@@ -78,7 +78,6 @@ class PythonFactAnalysis:
         if self._annotations is None:
             self._annotations = annotation_facts(
                 path=self._path,
-                source=self._source,
                 module=self._module,
                 node_index=self._node_index,
             )
@@ -152,7 +151,9 @@ class PythonFactAnalysis:
             self._functions = function_facts(
                 path=self._path,
                 module=self._module,
+                nodes=self._nodes,
                 node_index=self._node_index,
+                parent_by_node=self._parent_by_node,
             )
         return self._functions
 

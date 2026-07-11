@@ -6,7 +6,7 @@ import ast
 import os
 import re
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import cache, lru_cache
 from pathlib import Path
 
 from strata.analysis.core.models import ParametrizeFact, PytestFunctionFact, PytestModuleFacts
@@ -53,6 +53,12 @@ class _TestModuleContext:
     test_case_annotation_names: frozenset[str]
 
 
+@dataclass(frozen=True)
+class _LayoutIssue:
+    code: SftCode
+    message: str
+
+
 def test_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) -> list[Fault]:
     """Collect faults for a single tests-family rule."""
 
@@ -88,90 +94,83 @@ def test_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) -> list[
 def _layout_faults(*, ctx: RuleContext, code: SftCode) -> list[Fault]:
     if ctx.path.name in {TestPathName.INIT_MODULE, TestPathName.CONFTEST}:
         return []
+    issue: _LayoutIssue | None = _layout_issue(parent=ctx.path.parent, repo_root=ctx.repo_root)
+    if issue is None:
+        return []
+    return _selected_path_faults(
+        ctx=ctx,
+        code=code,
+        actual_code=issue.code,
+        message=issue.message,
+    )
+
+
+@cache
+def _layout_issue(*, parent: Path, repo_root: Path) -> _LayoutIssue | None:
     try:
-        relative_parts: tuple[str, ...] = (
-            ctx.path.parent.resolve().relative_to(ctx.repo_root.resolve()).parts
-        )
+        relative_parts: tuple[str, ...] = parent.resolve().relative_to(repo_root.resolve()).parts
     except ValueError:
-        return [_path_fault(ctx=ctx, code=SftCode.TEST_LAYOUT, message="test path is outside repo")]
+        return _LayoutIssue(code=SftCode.TEST_LAYOUT, message="test path is outside repo")
     if len(relative_parts) < _minimum_test_layout_parts or relative_parts[0] != TestPathName.TESTS:
-        return _selected_path_faults(
-            ctx=ctx,
-            code=code,
-            actual_code=SftCode.TEST_LAYOUT,
+        return _LayoutIssue(
+            code=SftCode.TEST_LAYOUT,
             message="test directories must live under tests/<scope>/...",
         )
     scope: str = relative_parts[1]
     if scope not in _valid_test_scopes:
-        return _selected_path_faults(
-            ctx=ctx,
-            code=code,
-            actual_code=SftCode.TEST_SCOPE,
+        return _LayoutIssue(
+            code=SftCode.TEST_SCOPE,
             message="test scope must be unit, integration, or e2e",
         )
     mirrored_root: str = relative_parts[2]
     if mirrored_root == TestPathName.SRC:
-        return _src_layout_faults(ctx=ctx, code=code, relative_parts=relative_parts)
+        return _src_layout_issue(repo_root=repo_root, relative_parts=relative_parts)
     if mirrored_root == TestPathName.SCRIPTS:
-        return _scripts_layout_faults(ctx=ctx, code=code, relative_parts=relative_parts)
-    return _selected_path_faults(
-        ctx=ctx,
-        code=code,
-        actual_code=SftCode.TEST_MIRRORED_ROOT,
+        return _scripts_layout_issue(repo_root=repo_root, relative_parts=relative_parts)
+    return _LayoutIssue(
+        code=SftCode.TEST_MIRRORED_ROOT,
         message="test directories must mirror src or scripts",
     )
 
 
-def _src_layout_faults(
-    *, ctx: RuleContext, code: SftCode, relative_parts: tuple[str, ...]
-) -> list[Fault]:
+def _src_layout_issue(*, repo_root: Path, relative_parts: tuple[str, ...]) -> _LayoutIssue | None:
     if len(relative_parts) < _minimum_src_layout_parts:
-        return _selected_path_faults(
-            ctx=ctx,
-            code=code,
-            actual_code=SftCode.SRC_MIRROR_DEPTH,
+        return _LayoutIssue(
+            code=SftCode.SRC_MIRROR_DEPTH,
             message="src-backed tests must live under tests/<scope>/src/<package>/<area>/...",
         )
-    package_path: Path = ctx.repo_root / "src" / relative_parts[3]
+    package_path: Path = repo_root / "src" / relative_parts[3]
     if not package_path.is_dir():
-        return _selected_path_faults(
-            ctx=ctx,
-            code=code,
-            actual_code=SftCode.SRC_PACKAGE_EXISTS,
+        return _LayoutIssue(
+            code=SftCode.SRC_PACKAGE_EXISTS,
             message="tests under tests/<scope>/src must mirror a real package under src/",
         )
     if relative_parts[3] == TestPathName.STRATA and relative_parts[4] == TestPathName.ROOT_SURFACE:
-        return []
+        return None
     area_path: Path = package_path / relative_parts[4]
     if not area_path.exists():
-        return _selected_path_faults(
-            ctx=ctx,
-            code=code,
-            actual_code=SftCode.SRC_AREA_EXISTS,
+        return _LayoutIssue(
+            code=SftCode.SRC_AREA_EXISTS,
             message="tests under tests/<scope>/src must mirror a real src package area",
         )
-    return []
+    return None
 
 
-def _scripts_layout_faults(
-    *, ctx: RuleContext, code: SftCode, relative_parts: tuple[str, ...]
-) -> list[Fault]:
+def _scripts_layout_issue(
+    *, repo_root: Path, relative_parts: tuple[str, ...]
+) -> _LayoutIssue | None:
     if len(relative_parts) < _minimum_scripts_layout_parts:
-        return _selected_path_faults(
-            ctx=ctx,
-            code=code,
-            actual_code=SftCode.SCRIPTS_MIRROR_DEPTH,
+        return _LayoutIssue(
+            code=SftCode.SCRIPTS_MIRROR_DEPTH,
             message="script-backed tests must live under tests/<scope>/scripts/<area>/...",
         )
-    area_path: Path = ctx.repo_root / "scripts" / relative_parts[3]
+    area_path: Path = repo_root / "scripts" / relative_parts[3]
     if not area_path.exists():
-        return _selected_path_faults(
-            ctx=ctx,
-            code=code,
-            actual_code=SftCode.SCRIPTS_AREA_EXISTS,
+        return _LayoutIssue(
+            code=SftCode.SCRIPTS_AREA_EXISTS,
             message="tests under tests/<scope>/scripts must mirror a real scripts area",
         )
-    return []
+    return None
 
 
 def _selected_path_faults(

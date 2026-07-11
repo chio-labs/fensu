@@ -27,7 +27,6 @@ class PythonFileAnalysis:
         nodes: tuple[ast.AST, ...],
         node_index: Mapping[type[ast.AST], tuple[ast.AST, ...]],
         parent_by_node: Mapping[ast.AST, ast.AST],
-        children_by_node: Mapping[ast.AST, tuple[ast.AST, ...]],
     ) -> None:
         """Bind indexed syntax and defer backend-neutral object materialization."""
 
@@ -36,7 +35,6 @@ class PythonFileAnalysis:
         self._nodes: tuple[ast.AST, ...] = nodes
         self._node_index: Mapping[type[ast.AST], tuple[ast.AST, ...]] = node_index
         self._parent_by_node: Mapping[ast.AST, ast.AST] = parent_by_node
-        self._children_by_node: Mapping[ast.AST, tuple[ast.AST, ...]] = children_by_node
         self._text: TextAnalysis | None = None
         self._syntax: SyntaxAnalysis | None = None
         self._relations: RelationAnalysis | None = None
@@ -91,12 +89,14 @@ class PythonFileAnalysis:
             handle_by_node[node]: handle_by_node[parent]
             for node, parent in self._parent_by_node.items()
         }
-        children_by_handle: dict[SyntaxHandle, tuple[SyntaxHandle, ...]] = {}
-        for node in self._nodes:
-            child_handles: list[SyntaxHandle] = []
-            for child in self._children_by_node[node]:
-                child_handles.append(handle_by_node[child])
-            children_by_handle[handle_by_node[node]] = tuple(child_handles)
+        child_handles_by_node: dict[ast.AST, list[SyntaxHandle]] = {
+            node: [] for node in self._nodes
+        }
+        for child, parent in self._parent_by_node.items():
+            child_handles_by_node[parent].append(handle_by_node[child])
+        children_by_handle: dict[SyntaxHandle, tuple[SyntaxHandle, ...]] = {
+            handle_by_node[node]: tuple(child_handles_by_node[node]) for node in self._nodes
+        }
         offsets: tuple[int, ...] = line_offsets(self._source)
         range_by_handle: dict[SyntaxHandle, SourceRange] = {
             handle_by_node[node]: source_range(

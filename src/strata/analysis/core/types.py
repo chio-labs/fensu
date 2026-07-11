@@ -15,6 +15,7 @@ from strata.analysis.core.models import (
     HygieneFacts,
     MeaningfulReturnFact,
     OuterStateMutationFact,
+    ParameterMutationFact,
     PytestFunctionFact,
     PytestModuleFacts,
     ReferenceFacts,
@@ -112,6 +113,10 @@ class FactAnalysis(Protocol):
 
     def outer_state_mutations(self) -> tuple[OuterStateMutationFact, ...]:
         """Return direct mutations resolving to state owned by an outer scope."""
+        ...
+
+    def parameter_mutations(self) -> tuple[ParameterMutationFact, ...]:
+        """Return first direct mutations of function parameters."""
         ...
 
     def references(self) -> ReferenceFacts:

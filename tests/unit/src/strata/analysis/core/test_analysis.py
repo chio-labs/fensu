@@ -20,6 +20,7 @@ from strata.analysis.core.models import (
     MeaningfulReturnFact,
     NodeId,
     OuterStateMutationFact,
+    ParameterMutationFact,
     ParametrizeFact,
     PytestFunctionFact,
     PytestModuleFacts,
@@ -38,6 +39,7 @@ from tests.unit.src.strata.analysis.core._test_types import (
     HygieneFactTestCase,
     MeaningfulReturnFactTestCase,
     OuterStateFactTestCase,
+    ParameterMutationFactTestCase,
     PytestFunctionFactTestCase,
     PytestModuleFactTestCase,
     ReferenceFactTestCase,
@@ -534,6 +536,75 @@ def test_given_outer_mutation_when_querying_facts_then_returns_exact_location(
     assert len(facts) == test_case.expected_fact_count
     assert facts[0].location.start.line == test_case.expected_line
     assert analysis.text.slice(facts[0].location) == test_case.expected_text
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ParameterMutationFactTestCase(
+            description="parameter mutation facts preserve first locations and return status",
+            source=(
+                "def update(left: list[int], right: list[int]) -> list[int]:\n"
+                "    left.append(1)\n"
+                "    left.append(2)\n"
+                "    right[0] = 1\n"
+                "    return left\n"
+            ),
+            expected_parameter_names=("right", "left"),
+            expected_lines=(4, 2),
+            expected_returned=(False, True),
+        ),
+        ParameterMutationFactTestCase(
+            description="nested function mutation is attributed to every parameter owner",
+            source=(
+                "def outer(values: list[int]) -> None:\n"
+                "    def inner(values: list[int]) -> None:\n"
+                "        values.append(1)\n"
+            ),
+            expected_parameter_names=("values", "values"),
+            expected_lines=(3, 3),
+            expected_returned=(False, False),
+        ),
+        ParameterMutationFactTestCase(
+            description="nested return preserves enclosing function return classification",
+            source=(
+                "def outer(values: list[int]) -> None:\n"
+                "    values.append(1)\n"
+                "    def inner() -> list[int]:\n"
+                "        return values\n"
+            ),
+            expected_parameter_names=("values",),
+            expected_lines=(2,),
+            expected_returned=(True,),
+        ),
+        ParameterMutationFactTestCase(
+            description="lambda body mutation is attributed to its enclosing function",
+            source=(
+                "def outer(values: list[int]) -> None:\n    mutate = lambda: values.append(1)\n"
+            ),
+            expected_parameter_names=("values",),
+            expected_lines=(2,),
+            expected_returned=(False,),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_parameter_mutations_when_querying_facts_then_returns_first_mutations(
+    tmp_path: Path,
+    test_case: ParameterMutationFactTestCase,
+) -> None:
+    path: Path = tmp_path / "module.py"
+    analysis: Analysis = build_analysis(
+        path=path,
+        source=test_case.source,
+        module=ast.parse(test_case.source),
+    ).analysis
+
+    facts: tuple[ParameterMutationFact, ...] = analysis.facts.parameter_mutations()
+
+    assert tuple(fact.parameter_name for fact in facts) == test_case.expected_parameter_names
+    assert tuple(fact.location.line for fact in facts) == test_case.expected_lines
+    assert tuple(fact.returned for fact in facts) == test_case.expected_returned
 
 
 @pytest.mark.parametrize(

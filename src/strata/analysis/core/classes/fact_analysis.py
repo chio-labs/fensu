@@ -19,7 +19,10 @@ from strata.analysis.core.helpers.function_metrics import (
 )
 from strata.analysis.core.helpers.hygiene import hygiene_facts
 from strata.analysis.core.helpers.locations import line_offsets, source_range
-from strata.analysis.core.helpers.outer_state import outer_state_mutation_nodes
+from strata.analysis.core.helpers.outer_state import (
+    outer_state_mutation_nodes,
+    parameter_mutation_facts,
+)
 from strata.analysis.core.helpers.references import reference_facts, test_module_facts
 from strata.analysis.core.helpers.returns import meaningful_return_facts
 from strata.analysis.core.models import (
@@ -31,6 +34,7 @@ from strata.analysis.core.models import (
     HygieneFacts,
     MeaningfulReturnFact,
     OuterStateMutationFact,
+    ParameterMutationFact,
     PytestFunctionFact,
     PytestModuleFacts,
     ReferenceFacts,
@@ -68,6 +72,7 @@ class PythonFactAnalysis:
         self._hygiene: HygieneFacts | None = None
         self._meaningful_returns: dict[tuple[str, ...], tuple[MeaningfulReturnFact, ...]] = {}
         self._outer_state_mutations: tuple[OuterStateMutationFact, ...] | None = None
+        self._parameter_mutations: tuple[ParameterMutationFact, ...] | None = None
         self._references: ReferenceFacts | None = None
         self._test_functions: tuple[PytestFunctionFact, ...] | None = None
         self._test_module: PytestModuleFacts | None = None
@@ -143,6 +148,18 @@ class PythonFactAnalysis:
                 node_index=self._node_index,
             )
         return self._function_conditionals
+
+    def parameter_mutations(self) -> tuple[ParameterMutationFact, ...]:
+        """Return first direct mutations of function parameters."""
+
+        if self._parameter_mutations is None:
+            self._parameter_mutations = parameter_mutation_facts(
+                path=self._path,
+                nodes=self._nodes,
+                node_index=self._node_index,
+                parent_by_node=self._parent_by_node,
+            )
+        return self._parameter_mutations
 
     def functions(self) -> FunctionFacts:
         """Return reusable structural function metrics."""

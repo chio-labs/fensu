@@ -11,10 +11,6 @@ from strata.discovery.core.types import RoleName
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import RuleContext, Threshold
 
-_mutator_methods: frozenset[str] = frozenset(
-    {"add", "append", "clear", "extend", "insert", "pop", "remove", "setdefault", "update"}
-)
-_exempt_parameters: frozenset[str] = frozenset({"cls", "self"})
 _no_return_annotation_names: frozenset[str] = frozenset({"Never", "NoReturn", "None"})
 _module_separator: str = "."
 
@@ -177,29 +173,12 @@ def mutable_result_model(*, module: ast.Module, ctx: RuleContext) -> list[Fault]
 def _parameter_mutation_faults(
     *, module: ast.Module, ctx: RuleContext, require_return: bool
 ) -> list[Fault]:
-    faults: list[Fault] = []
-    for function_node in _function_nodes(ctx):
-        if _function_is_exempt_from_mutation_return(function_node):
-            continue
-        parameter_names: frozenset[str] = _parameter_names(function_node)
-        mutated_names: dict[str, ast.AST] = {}
-        for node in ast.walk(function_node):
-            mutated_name: str | None = _parameter_mutated_by_node(
-                node=node, parameter_names=parameter_names
-            )
-            if mutated_name is not None:
-                mutated_names.setdefault(mutated_name, node)
-        if not mutated_names:
-            continue
-        if require_return:
-            returned_names: frozenset[str] = _returned_names(function_node)
-            mutated_names = {
-                name: node for name, node in mutated_names.items() if name not in returned_names
-            }
-            if not mutated_names:
-                continue
-        faults.extend(ctx.fault(node) for node in mutated_names.values())
-    return faults
+    del module
+    return [
+        ctx.fault_at(fact.location)
+        for fact in ctx._analysis.facts.parameter_mutations()
+        if not fact.dunder and not fact.setter and (not require_return or not fact.returned)
+    ]
 
 
 def _top_level_function_nodes(
@@ -208,14 +187,6 @@ def _top_level_function_nodes(
     return tuple(
         node
         for node in _non_docstring_body(module)
-        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
-    )
-
-
-def _function_nodes(ctx: RuleContext) -> tuple[ast.FunctionDef | ast.AsyncFunctionDef, ...]:
-    return tuple(
-        node
-        for node in (*ctx.nodes(ast.FunctionDef), *ctx.nodes(ast.AsyncFunctionDef))
         if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
     )
 
@@ -231,20 +202,6 @@ def _non_docstring_body(module: ast.Module) -> tuple[ast.stmt, ...]:
     ):
         return tuple(module.body[1:])
     return tuple(module.body)
-
-
-def _parameter_names(function_node: ast.FunctionDef | ast.AsyncFunctionDef) -> frozenset[str]:
-    args: ast.arguments = function_node.args
-    names: set[str] = {
-        arg.arg
-        for arg in (*args.posonlyargs, *args.args, *args.kwonlyargs)
-        if arg.arg not in _exempt_parameters
-    }
-    if args.vararg is not None and args.vararg.arg not in _exempt_parameters:
-        names.add(args.vararg.arg)
-    if args.kwarg is not None and args.kwarg.arg not in _exempt_parameters:
-        names.add(args.kwarg.arg)
-    return frozenset(names)
 
 
 def _bare_calls(
@@ -401,77 +358,3 @@ def _has_meaningful_return(function_node: ast.FunctionDef | ast.AsyncFunctionDef
     if isinstance(annotation, ast.Constant) and isinstance(annotation.value, str):
         return annotation.value.rsplit(".", maxsplit=1)[-1] not in _no_return_annotation_names
     return True
-
-
-def _parameter_mutated_by_node(*, node: ast.AST, parameter_names: frozenset[str]) -> str | None:
-    if isinstance(node, ast.Assign | ast.AnnAssign | ast.AugAssign):
-        return _parameter_mutated_by_assignment(node=node, parameter_names=parameter_names)
-    if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
-        if node.func.attr not in _mutator_methods:
-            return None
-        return _root_parameter_name(node=node.func.value, parameter_names=parameter_names)
-    return None
-
-
-def _parameter_mutated_by_assignment(
-    *, node: ast.Assign | ast.AnnAssign | ast.AugAssign, parameter_names: frozenset[str]
-) -> str | None:
-    targets: tuple[ast.expr, ...]
-    if isinstance(node, ast.Assign):
-        targets = tuple(node.targets)
-    else:
-        targets = (node.target,)
-    for target in targets:
-        parameter_name: str | None = _root_parameter_name(
-            node=target, parameter_names=parameter_names
-        )
-        if parameter_name is not None and not isinstance(target, ast.Name):
-            return parameter_name
-    return None
-
-
-def _root_parameter_name(*, node: ast.AST, parameter_names: frozenset[str]) -> str | None:
-    if isinstance(node, ast.Name):
-        return node.id if node.id in parameter_names else None
-    if isinstance(node, ast.Attribute):
-        return _root_parameter_name(node=node.value, parameter_names=parameter_names)
-    if isinstance(node, ast.Subscript):
-        return _root_parameter_name(node=node.value, parameter_names=parameter_names)
-    return None
-
-
-def _returned_names(function_node: ast.FunctionDef | ast.AsyncFunctionDef) -> frozenset[str]:
-    names: set[str] = set()
-    for node in ast.walk(function_node):
-        if isinstance(node, ast.Return) and node.value is not None:
-            names.update(_names_in_expr(node.value))
-    return frozenset(names)
-
-
-def _names_in_expr(node: ast.AST) -> frozenset[str]:
-    return frozenset(child.id for child in ast.walk(node) if isinstance(child, ast.Name))
-
-
-def _function_is_exempt_from_mutation_return(
-    function_node: ast.FunctionDef | ast.AsyncFunctionDef,
-) -> bool:
-    if _function_is_dunder(function_node):
-        return True
-    return any(
-        _decorator_name(decorator).endswith(".setter") for decorator in function_node.decorator_list
-    )
-
-
-def _function_is_dunder(function_node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
-    return function_node.name.startswith("__") and function_node.name.endswith("__")
-
-
-def _decorator_name(node: ast.expr) -> str:
-    if isinstance(node, ast.Name):
-        return node.id
-    if isinstance(node, ast.Attribute):
-        parent: str = _decorator_name(node.value)
-        return node.attr if not parent else f"{parent}.{node.attr}"
-    if isinstance(node, ast.Call):
-        return _decorator_name(node.func)
-    return ""

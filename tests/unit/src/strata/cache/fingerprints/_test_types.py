@@ -78,3 +78,18 @@ class GlobalFingerprintTestCase:
     first_version: str
     second_version: str
     expected_equal: bool
+
+
+@dataclass(frozen=True)
+class FileResultFingerprintTestCase:
+    """Two file results and expected correctness and integrity identities."""
+
+    description: str
+    first_global: str
+    second_global: str
+    first_dependency_answer: bool
+    second_dependency_answer: bool
+    first_fault_message: str
+    second_fault_message: str
+    expected_result_equal: bool
+    expected_record_equal: bool

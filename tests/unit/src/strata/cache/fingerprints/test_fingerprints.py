@@ -14,7 +14,13 @@ from strata.cache.fingerprints.helpers.fingerprints import (
     ruleset_fingerprint,
     source_fingerprint,
 )
-from strata.cache.fingerprints.models import CacheFingerprint
+from strata.cache.fingerprints.main.file_result import file_result_fingerprints
+from strata.cache.fingerprints.models import (
+    CacheFingerprint,
+    FileResultFingerprints,
+)
+from strata.cache.results.helpers.serialization import file_result_to_record
+from strata.cache.results.models import CachedFileResult
 from strata.config.core.models import Config
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.catalog.main.build_ruleset import build_ruleset
@@ -22,12 +28,14 @@ from tests.unit.src.strata.cache.fingerprints._test_types import (
     CanonicalFingerprintTestCase,
     ConfigFingerprintTestCase,
     ConfigLayoutFingerprintTestCase,
+    FileResultFingerprintTestCase,
     GlobalFingerprintTestCase,
     ImplementationFingerprintTestCase,
     RulesetFingerprintTestCase,
     SourceFingerprintTestCase,
 )
 from tests.unit.src.strata.cache.fingerprints.helpers import (
+    cached_file_result,
     config_with_statement_threshold,
     rule_with_message,
     write_custom_rule,
@@ -61,6 +69,83 @@ def test_given_canonical_values_when_fingerprinting_then_preserves_semantic_orde
 
     assert (first == second) is test_case.expected_equal
     assert len(first.value) == 64
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        FileResultFingerprintTestCase(
+            description="equivalent result preserves both identities",
+            first_global="g" * 64,
+            second_global="g" * 64,
+            first_dependency_answer=False,
+            second_dependency_answer=False,
+            first_fault_message="missing annotation",
+            second_fault_message="missing annotation",
+            expected_result_equal=True,
+            expected_record_equal=True,
+        ),
+        FileResultFingerprintTestCase(
+            description="dependency answer changes correctness and integrity",
+            first_global="g" * 64,
+            second_global="g" * 64,
+            first_dependency_answer=False,
+            second_dependency_answer=True,
+            first_fault_message="missing annotation",
+            second_fault_message="missing annotation",
+            expected_result_equal=False,
+            expected_record_equal=False,
+        ),
+        FileResultFingerprintTestCase(
+            description="fault mutation changes integrity but not correctness inputs",
+            first_global="g" * 64,
+            second_global="g" * 64,
+            first_dependency_answer=False,
+            second_dependency_answer=False,
+            first_fault_message="missing annotation",
+            second_fault_message="changed diagnostic",
+            expected_result_equal=True,
+            expected_record_equal=False,
+        ),
+        FileResultFingerprintTestCase(
+            description="global mutation changes correctness but not record integrity",
+            first_global="g" * 64,
+            second_global="h" * 64,
+            first_dependency_answer=False,
+            second_dependency_answer=False,
+            first_fault_message="missing annotation",
+            second_fault_message="missing annotation",
+            expected_result_equal=False,
+            expected_record_equal=True,
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_file_results_when_fingerprinting_then_separates_correctness_and_integrity(
+    test_case: FileResultFingerprintTestCase,
+) -> None:
+    first_result: CachedFileResult = cached_file_result(
+        dependency_answer=test_case.first_dependency_answer,
+        fault_message=test_case.first_fault_message,
+    )
+    second_result: CachedFileResult = cached_file_result(
+        dependency_answer=test_case.second_dependency_answer,
+        fault_message=test_case.second_fault_message,
+    )
+    first: FileResultFingerprints = file_result_fingerprints(
+        global_fingerprint=CacheFingerprint(test_case.first_global),
+        result=first_result,
+    )
+    second: FileResultFingerprints = file_result_fingerprints(
+        global_fingerprint=CacheFingerprint(test_case.second_global),
+        result=second_result,
+    )
+
+    assert (first.result == second.result) is test_case.expected_result_equal
+    assert (first.record == second.record) is test_case.expected_record_equal
+    assert first.record == canonical_fingerprint(file_result_to_record(first_result).payload)
+    assert len(first.result.value) == 64
+    assert len(first.record.value) == 64
 
 
 @pytest.mark.parametrize(

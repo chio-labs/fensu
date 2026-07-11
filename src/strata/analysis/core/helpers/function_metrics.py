@@ -11,8 +11,6 @@ from strata.analysis.core.models import (
     DataclassFact,
     FunctionFacts,
     FunctionMetricFact,
-    ModuleDeclarationFacts,
-    ModuleStatementFact,
     ParametrizeCaseFact,
     ParametrizeFact,
     PytestFunctionFact,
@@ -29,7 +27,6 @@ _description_name: str = "description"
 _ids_keyword_name: str = "ids"
 _minimum_parametrize_arguments: int = 2
 _minimum_expected_field_chain_parts: int = 2
-_model_class_base_names: frozenset[str] = frozenset({"BaseModel"})
 
 
 def function_facts(
@@ -200,81 +197,6 @@ def dataclass_facts(*, path: Path, module: ast.Module) -> tuple[DataclassFact, .
             )
         )
     return tuple(facts)
-
-
-def module_declaration_facts(
-    *,
-    path: Path,
-    module: ast.Module,
-    node_index: Mapping[type[ast.AST], tuple[ast.AST, ...]],
-) -> ModuleDeclarationFacts:
-    """Return top-level statement shape and classified class declarations."""
-
-    class_kinds: dict[ast.AST, tuple[bool, bool]] = {}
-    model_locations: list[SourceLocation] = []
-    exception_locations: list[SourceLocation] = []
-    for node in node_index.get(ast.ClassDef, ()):
-        if not isinstance(node, ast.ClassDef):
-            continue
-        model_class: bool = _is_model_class(node)
-        exception_class: bool = _is_exception_class(node)
-        class_kinds[node] = (model_class, exception_class)
-        location: SourceLocation = source_location(path=path, node=node)
-        if model_class:
-            model_locations.append(location)
-        if exception_class:
-            exception_locations.append(location)
-    body: list[ast.stmt] = module.body
-    if body and _is_docstring_statement(body[0]):
-        body = body[1:]
-    statements: list[ModuleStatementFact] = []
-    for node in body:
-        model_class, exception_class = class_kinds.get(node, (False, False))
-        statements.append(
-            ModuleStatementFact(
-                location=source_location(path=path, node=node),
-                import_statement=isinstance(node, ast.Import | ast.ImportFrom),
-                model_class=model_class,
-                exception_class=exception_class,
-            )
-        )
-    return ModuleDeclarationFacts(
-        statements=tuple(statements),
-        model_locations=tuple(model_locations),
-        exception_locations=tuple(exception_locations),
-    )
-
-
-def _is_model_class(node: ast.ClassDef) -> bool:
-    if node.name.startswith("_"):
-        return False
-    return any(
-        _decorator_name(decorator).endswith("dataclass") for decorator in node.decorator_list
-    ) or any(_base_name(base) in _model_class_base_names for base in node.bases)
-
-
-def _is_exception_class(node: ast.ClassDef) -> bool:
-    if node.name.endswith(("Error", "Exception")):
-        return True
-    return any((_base_name(base) or "").endswith(("Error", "Exception")) for base in node.bases)
-
-
-def _base_name(node: ast.expr) -> str | None:
-    if isinstance(node, ast.Name):
-        return node.id
-    if isinstance(node, ast.Attribute):
-        return node.attr
-    if isinstance(node, ast.Subscript):
-        return _base_name(node.value)
-    return None
-
-
-def _is_docstring_statement(node: ast.stmt) -> bool:
-    return (
-        isinstance(node, ast.Expr)
-        and isinstance(node.value, ast.Constant)
-        and isinstance(node.value.value, str)
-    )
 
 
 def _decorator_name(node: ast.expr) -> str:

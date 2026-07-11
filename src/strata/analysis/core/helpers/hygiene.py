@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import ast
+import io
+import tokenize
 from collections.abc import Mapping
 from pathlib import Path
 
 from strata.analysis.core.helpers.locations import source_location
-from strata.analysis.core.models import HygieneFacts, SourceLocation
+from strata.analysis.core.models import CommentFact, HygieneFacts, SourceLocation
 
 _raw_builtin_raise_names: frozenset[str] = frozenset(
     {
@@ -25,6 +27,29 @@ _frozenset_function_name: str = "frozenset"
 _module_name_variable: str = "__name__"
 _main_module_name: str = "__main__"
 _newline_character: str = "\n"
+_comment_marker: str = "#"
+
+
+def comment_facts(*, path: Path, source: str) -> tuple[CommentFact, ...]:
+    """Return source comments in token order, or no facts for incomplete tokens."""
+
+    if _comment_marker not in source:
+        return ()
+    comments: list[CommentFact] = []
+    try:
+        for token in tokenize.generate_tokens(io.StringIO(source).readline):
+            if token.type == tokenize.COMMENT:
+                comments.append(
+                    CommentFact(
+                        path=path,
+                        line=token.start[0],
+                        column=token.start[1],
+                        text=token.string.strip(),
+                    )
+                )
+    except tokenize.TokenError:
+        return ()
+    return tuple(comments)
 
 
 def hygiene_facts(

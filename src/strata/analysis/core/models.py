@@ -226,8 +226,27 @@ class ModuleStatementFact:
 
     location: SourceLocation
     import_statement: bool
+    assignment_statement: bool
+    explicit_type_alias: bool
+    type_checking_import_block: bool
     model_class: bool
+    type_class: bool
     exception_class: bool
+    assignment_target_names: tuple[str, ...]
+    function_name: str | None
+    class_name: str | None
+    dataclass_class: bool
+    docstring_statement: bool
+    all_assignment: bool
+    rule_decorated_function: bool
+
+
+@dataclass(frozen=True, slots=True)
+class TypeDeclarationFact:
+    """One type-layer declaration and its policy-relevant visibility."""
+
+    location: SourceLocation
+    private: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -235,7 +254,12 @@ class ModuleDeclarationFacts:
     """Top-level statements and classified declarations in one module."""
 
     statements: tuple[ModuleStatementFact, ...]
+    empty_or_docstring_only: bool
+    pure_reexport: bool
+    top_level_class_count: int
+    all_assignment_locations: tuple[SourceLocation, ...]
     model_locations: tuple[SourceLocation, ...]
+    type_declarations: tuple[TypeDeclarationFact, ...]
     exception_locations: tuple[SourceLocation, ...]
 
 

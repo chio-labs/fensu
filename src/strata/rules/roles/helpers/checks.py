@@ -5,18 +5,12 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from strata.analysis.core.models import ModuleStatementFact
 from strata.discovery.core.constants import INIT_MODULE_FILE_NAME, PYTHON_FILE_SUFFIX
 from strata.discovery.core.types import RoleName, ScopeName
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import RuleContext, Threshold
 from strata.rules.roles.helpers.classification import (
-    decorator_name,
-    is_dataclass_class,
-    is_model_class,
-    is_newtype_assignment,
-    is_public_type_alias,
-    is_type_checking_import_block,
-    is_type_class,
     non_docstring_body,
 )
 from strata.rules.roles.types import RoleCode, RoleSymbol
@@ -75,21 +69,16 @@ def types_only_types(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
 
     if ctx.role_of() != RoleName.TYPES:
         return []
-    faults: list[Fault] = []
-    allowed_nodes: tuple[type[ast.stmt], ...] = (
-        ast.Import,
-        ast.ImportFrom,
-        ast.Assign,
-        ast.AnnAssign,
-        ast.TypeAlias,
-    )
-    for node in non_docstring_body(module):
-        if isinstance(node, allowed_nodes) or is_type_checking_import_block(node):
-            continue
-        if isinstance(node, ast.ClassDef) and is_type_class(node):
-            continue
-        faults.append(ctx.fault(node))
-    return faults
+    del module
+    return [
+        ctx.fault_at(fact.location)
+        for fact in ctx._analysis.facts.module_declarations().statements
+        if not fact.import_statement
+        and not fact.assignment_statement
+        and not fact.explicit_type_alias
+        and not fact.type_checking_import_block
+        and not fact.type_class
+    ]
 
 
 def constants_only_constants(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
@@ -97,16 +86,11 @@ def constants_only_constants(*, module: ast.Module, ctx: RuleContext) -> list[Fa
 
     if ctx.role_of() != RoleName.CONSTANTS:
         return []
-    allowed_nodes: tuple[type[ast.stmt], ...] = (
-        ast.Import,
-        ast.ImportFrom,
-        ast.Assign,
-        ast.AnnAssign,
-    )
+    del module
     return [
-        ctx.fault(node)
-        for node in non_docstring_body(module)
-        if not isinstance(node, allowed_nodes)
+        ctx.fault_at(fact.location)
+        for fact in ctx._analysis.facts.module_declarations().statements
+        if not fact.import_statement and not fact.assignment_statement
     ]
 
 
@@ -140,23 +124,12 @@ def type_declaration_outside_types(*, module: ast.Module, ctx: RuleContext) -> l
 
     if ctx.role_of() == RoleName.TYPES:
         return []
-    faults: list[Fault] = []
-    nodes: tuple[ast.AST, ...] = (
-        *ctx.nodes(ast.ClassDef),
-        *ctx.nodes(ast.Assign),
-        *ctx.nodes(ast.AnnAssign),
-        *ctx.nodes(ast.TypeAlias),
-    )
-    for node in nodes:
-        if isinstance(node, ast.ClassDef) and is_type_class(node):
-            if node.name.startswith("_") and ctx.in_role(RoleName.HELPERS):
-                continue
-            faults.append(ctx.fault(node))
-        elif isinstance(node, ast.stmt) and (
-            is_public_type_alias(node) or is_newtype_assignment(node)
-        ):
-            faults.append(ctx.fault(node))
-    return faults
+    del module
+    return [
+        ctx.fault_at(fact.location)
+        for fact in ctx._analysis.facts.module_declarations().type_declarations
+        if not fact.private or not ctx.in_role(RoleName.HELPERS)
+    ]
 
 
 def constant_outside_constants(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
@@ -164,11 +137,12 @@ def constant_outside_constants(*, module: ast.Module, ctx: RuleContext) -> list[
 
     if ctx.role_of() == RoleName.CONSTANTS:
         return []
+    del module
     faults: list[Fault] = []
-    for node in non_docstring_body(module):
-        for target_name in _assignment_target_names(node):
+    for fact in ctx._analysis.facts.module_declarations().statements:
+        for target_name in fact.assignment_target_names:
             if not target_name.startswith("_") and target_name.isupper():
-                faults.append(ctx.fault(node))
+                faults.append(ctx.fault_at(fact.location))
     return faults
 
 
@@ -248,14 +222,15 @@ def helpers_classes_file_private(*, module: ast.Module, ctx: RuleContext) -> lis
 
     if not ctx.in_role(RoleName.HELPERS):
         return []
-    faults: list[Fault] = []
-    for node in module.body:
-        if not isinstance(node, ast.ClassDef) or node.name.startswith("_"):
-            continue
-        if is_model_class(node) or is_type_class(node):
-            continue
-        faults.append(ctx.fault(node))
-    return faults
+    del module
+    return [
+        ctx.fault_at(fact.location)
+        for fact in ctx._analysis.facts.module_declarations().statements
+        if fact.class_name is not None
+        and not fact.class_name.startswith("_")
+        and not fact.model_class
+        and not fact.type_class
+    ]
 
 
 def no_import_time_side_effects(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
@@ -430,17 +405,15 @@ def entry_module_shape(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
 
     if not ctx.is_entry_module():
         return []
-    body: tuple[ast.stmt, ...] = non_docstring_body(module)
-    public_functions: tuple[ast.FunctionDef | ast.AsyncFunctionDef, ...] = tuple(
-        node
-        for node in body
-        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
-        and not node.name.startswith("_")
+    del module
+    statements: tuple[ModuleStatementFact, ...] = (
+        ctx._analysis.facts.module_declarations().statements
     )
-    private_functions: tuple[ast.FunctionDef | ast.AsyncFunctionDef, ...] = tuple(
-        node
-        for node in body
-        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and node.name.startswith("_")
+    public_functions: tuple[ModuleStatementFact, ...] = tuple(
+        fact for fact in statements if fact.function_name and not fact.function_name.startswith("_")
+    )
+    private_functions: tuple[ModuleStatementFact, ...] = tuple(
+        fact for fact in statements if fact.function_name and fact.function_name.startswith("_")
     )
     faults: list[Fault] = []
     if len(public_functions) != 1:
@@ -453,17 +426,17 @@ def entry_module_shape(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
         )
     if len(private_functions) > _maximum_entry_private_functions:
         faults.append(
-            ctx.fault(
-                private_functions[2],
+            ctx.fault_at(
+                private_functions[2].location,
                 message="main/ entry modules may define at most two private glue functions",
             )
         )
-    for node in body:
-        if isinstance(node, ast.Import | ast.ImportFrom | ast.FunctionDef | ast.AsyncFunctionDef):
+    for fact in statements:
+        if fact.import_statement or fact.function_name is not None:
             continue
         faults.append(
-            ctx.fault(
-                node,
+            ctx.fault_at(
+                fact.location,
                 message="main/ entry modules may contain only imports and top-level functions",
             )
         )
@@ -475,7 +448,8 @@ def init_module_empty(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
 
     if ctx.path.name != INIT_MODULE_FILE_NAME or len(ctx.relative_parts()) == 1:
         return []
-    if not module.body or (len(module.body) == 1 and _is_docstring_statement(module.body[0])):
+    del module
+    if ctx._analysis.facts.module_declarations().empty_or_docstring_only:
         return []
     return [
         _path_fault(
@@ -489,7 +463,8 @@ def no_reexport_shim(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
 
     if ctx.path.name == INIT_MODULE_FILE_NAME or ctx.role_of() == RoleName.EXCEPTIONS:
         return []
-    if not _is_pure_reexport_module(module):
+    del module
+    if not ctx._analysis.facts.module_declarations().pure_reexport:
         return []
     return [
         _path_fault(
@@ -505,7 +480,11 @@ def no_internal_helper_exports(*, module: ast.Module, ctx: RuleContext) -> list[
 
     if not ctx.in_role(RoleName.HELPERS):
         return []
-    return [ctx.fault(node) for node in module.body if _is_all_assignment(node)]
+    del module
+    return [
+        ctx.fault_at(location)
+        for location in ctx._analysis.facts.module_declarations().all_assignment_locations
+    ]
 
 
 def main_entry_name_collision(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
@@ -528,17 +507,20 @@ def public_surface_shape(*, module: ast.Module, ctx: RuleContext) -> list[Fault]
 
     if ctx.path.name != INIT_MODULE_FILE_NAME or len(ctx.relative_parts()) != 1:
         return []
+    del module
     faults: list[Fault] = []
     saw_all: bool = False
-    for node in module.body:
-        if _is_docstring_statement(node) or isinstance(node, ast.Import | ast.ImportFrom):
+    for fact in ctx._analysis.facts.module_declarations().statements:
+        if fact.docstring_statement or fact.import_statement:
             continue
-        if _is_all_assignment(node):
+        if fact.all_assignment:
             if saw_all:
-                faults.append(ctx.fault(node, message="public surface may define __all__ once"))
+                faults.append(
+                    ctx.fault_at(fact.location, message="public surface may define __all__ once")
+                )
             saw_all = True
             continue
-        faults.append(ctx.fault(node))
+        faults.append(ctx.fault_at(fact.location))
     return faults
 
 
@@ -547,10 +529,8 @@ def classes_one_class_per_module(*, module: ast.Module, ctx: RuleContext) -> lis
 
     if not ctx.in_role(RoleName.CLASSES) or ctx.path.name == INIT_MODULE_FILE_NAME:
         return []
-    class_nodes: tuple[ast.ClassDef, ...] = tuple(
-        node for node in module.body if isinstance(node, ast.ClassDef)
-    )
-    if len(class_nodes) == 1:
+    del module
+    if ctx._analysis.facts.module_declarations().top_level_class_count == 1:
         return []
     return [
         _path_fault(
@@ -588,27 +568,24 @@ def private_definition_ordering(*, module: ast.Module, ctx: RuleContext) -> list
 
     faults: list[Fault] = []
     saw_function: bool = False
-    for node in module.body:
-        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+    del module
+    for fact in ctx._analysis.facts.module_declarations().statements:
+        if fact.function_name is not None:
             saw_function = True
             continue
         if not saw_function:
             continue
-        if (
-            isinstance(node, ast.ClassDef)
-            and node.name.startswith("_")
-            and is_dataclass_class(node)
-        ):
+        if fact.class_name is not None and fact.class_name.startswith("_") and fact.dataclass_class:
             faults.append(
-                ctx.fault(
-                    node,
+                ctx.fault_at(
+                    fact.location,
                     message="private dataclasses must appear before top-level functions",
                 )
             )
-        elif any(name.startswith("_") for name in _assignment_target_names(node)):
+        elif any(name.startswith("_") for name in fact.assignment_target_names):
             faults.append(
-                ctx.fault(
-                    node,
+                ctx.fault_at(
+                    fact.location,
                     message="private constants must appear before top-level functions",
                 )
             )
@@ -755,18 +732,16 @@ def rules_role_content(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
         or ctx.path.name == INIT_MODULE_FILE_NAME
     ):
         return []
+    del module
     faults: list[Fault] = []
-    for node in non_docstring_body(module):
-        if isinstance(node, ast.Import | ast.ImportFrom) or is_type_checking_import_block(node):
+    for fact in ctx._analysis.facts.module_declarations().statements:
+        if fact.import_statement or fact.type_checking_import_block:
             continue
-        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and any(
-            decorator_name(decorator).split(".")[-1] == RoleSymbol.RULE
-            for decorator in node.decorator_list
-        ):
+        if fact.rule_decorated_function:
             continue
         faults.append(
-            ctx.fault(
-                node,
+            ctx.fault_at(
+                fact.location,
                 message="rules/ modules may contain only imports and @rule functions",
             )
         )
@@ -795,45 +770,6 @@ def tooling_package_layout(*, module: ast.Module, ctx: RuleContext) -> list[Faul
     if not _is_package_name_anchor(path=ctx.path, package_dir=package_dir):
         return []
     return [ctx.path_fault(message=f"tool package child '{role_name}/' is not an approved role")]
-
-
-def _is_docstring_statement(node: ast.stmt) -> bool:
-    return (
-        isinstance(node, ast.Expr)
-        and isinstance(node.value, ast.Constant)
-        and isinstance(node.value.value, str)
-    )
-
-
-def _is_all_assignment(node: ast.stmt) -> bool:
-    if isinstance(node, ast.Assign):
-        return any(
-            isinstance(target, ast.Name) and target.id == _all_export_name
-            for target in node.targets
-        )
-    return (
-        isinstance(node, ast.AnnAssign)
-        and isinstance(node.target, ast.Name)
-        and node.target.id == _all_export_name
-    )
-
-
-def _is_pure_reexport_module(module: ast.Module) -> bool:
-    saw_import: bool = False
-    saw_all: bool = False
-    for node in module.body:
-        if _is_docstring_statement(node):
-            continue
-        if isinstance(node, ast.ImportFrom) and node.module == _future_module_name:
-            continue
-        if isinstance(node, ast.Import | ast.ImportFrom):
-            saw_import = True
-            continue
-        if _is_all_assignment(node):
-            saw_all = True
-            continue
-        return False
-    return saw_import and saw_all
 
 
 def _role_package_dir(*, path: Path, package_name: str) -> Path | None:

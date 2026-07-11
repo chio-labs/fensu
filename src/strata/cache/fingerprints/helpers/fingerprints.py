@@ -10,9 +10,9 @@ from collections.abc import Mapping
 from importlib.metadata import version
 from pathlib import Path
 
-from strata.cache.fingerprints.constants import CACHE_SCHEMA_VERSION
 from strata.cache.fingerprints.models import CacheFingerprint
 from strata.cache.fingerprints.types import CanonicalValue
+from strata.cache.storage.constants import CACHE_SCHEMA_VERSION
 from strata.config.core.models import Config, RuleExceptionEntry
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import RuleCheck, Threshold

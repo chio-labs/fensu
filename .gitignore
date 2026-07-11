@@ -220,3 +220,6 @@ __marimo__/
 # strata scratch/reference material (see .ai/07-source-material.md)
 _extracted/
 checkers.zip
+
+# Disposable repository-local Strata cache
+.strata/cache/

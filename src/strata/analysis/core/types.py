@@ -196,6 +196,10 @@ class ProjectAnalysis(Protocol):
         """Return deterministic requester-to-path dependencies observed so far."""
         ...
 
+    def dataclasses(self, *, requester: Path, path: Path) -> tuple[DataclassFact, ...]:
+        """Return top-level dataclass facts for a project path."""
+        ...
+
     def directory_entries(self, *, requester: Path, path: Path) -> tuple[Path, ...]:
         """Return direct children and record a directory namespace dependency."""
         ...

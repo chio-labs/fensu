@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from strata.analysis.core.models import ProjectDependency, ProjectFunctionFact
+from strata.analysis.core.models import DataclassFact, ProjectDependency, ProjectFunctionFact
 from strata.analysis.core.types import Analysis
 from strata.discovery.core.models import DiscoveredTree, RepoRoot, ScopedFile
 from strata.discovery.core.types import ScopeName
@@ -151,12 +151,6 @@ def test_given_directory_queries_when_observing_then_records_aggregate_dependenc
             query_first=False,
             expected_parse_count=2,
         ),
-        ProjectRetentionTestCase(
-            description="test types remain available for later sibling queries",
-            file_name="_test_types.py",
-            query_first=False,
-            expected_parse_count=1,
-        ),
     ],
     ids=lambda case: case.description,
 )
@@ -196,6 +190,60 @@ def test_given_project_query_order_when_parsing_then_retains_only_required_modul
 
     assert analysis is not None
     assert parsed.scoped_file.path == path
+    assert parse_counts[0] == test_case.expected_parse_count
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ProjectRetentionTestCase(
+            description="test types retain dataclass facts without retaining their parsed module",
+            file_name="_test_types.py",
+            query_first=False,
+            expected_parse_count=1,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_parsed_test_types_when_querying_dataclasses_then_reuses_fact_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: ProjectRetentionTestCase,
+) -> None:
+    path: Path = tmp_path / "tests/unit/src/pkg/domain" / test_case.file_name
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        "@dataclass(frozen=True)\nclass ExampleTestCase:\n    description: str\n",
+        encoding="utf-8",
+    )
+    scoped_file: ScopedFile = ScopedFile(
+        path=path,
+        root=tmp_path / "tests/unit/src/pkg",
+        scope=ScopeName.TEST,
+        relative_parts=("domain", test_case.file_name),
+    )
+    project: EvaluationProjectAnalysis = build_project_analysis(
+        tree=DiscoveredTree(files=(scoped_file,), repo_root=RepoRoot(tmp_path))
+    )
+    parse_counts: list[int] = [0]
+
+    def count_parse(candidate: ScopedFile) -> ParsedModule:
+        parse_counts[0] += 1
+        return parse_scoped_file(candidate)
+
+    monkeypatch.setattr(
+        "strata.evaluation.core.helpers.project_analysis.parse_scoped_file",
+        count_parse,
+    )
+
+    parsed: ParsedModule = project.parsed_module(scoped_file)
+    dataclasses: tuple[DataclassFact, ...] = project.dataclasses(
+        requester=path.parent / "test_example.py",
+        path=path,
+    )
+
+    assert parsed.scoped_file.path == path
+    assert tuple(fact.name for fact in dataclasses) == ("ExampleTestCase",)
     assert parse_counts[0] == test_case.expected_parse_count
 
 

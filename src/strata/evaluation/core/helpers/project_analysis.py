@@ -6,7 +6,7 @@ import ast
 from pathlib import Path
 
 from strata.analysis.core.main.build import build_analysis
-from strata.analysis.core.models import ProjectDependency, ProjectFunctionFact
+from strata.analysis.core.models import DataclassFact, ProjectDependency, ProjectFunctionFact
 from strata.analysis.core.types import Analysis, AnalysisBuild, ProjectDependencyKind
 from strata.discovery.core.models import DiscoveredTree, ScopedFile
 from strata.evaluation.core.exceptions import ParseError
@@ -29,6 +29,7 @@ class _EvaluationProjectAnalysis:
         }
         self._parsed_modules: dict[Path, ParsedModule] = {}
         self._external_analyses: dict[Path, Analysis] = {}
+        self._dataclasses: dict[Path, tuple[DataclassFact, ...]] = {}
         self._dependencies: list[ProjectDependency] = []
         self._dependency_set: set[ProjectDependency] = set()
         self._resolved_paths: dict[Path, Path] = {}
@@ -46,9 +47,8 @@ class _EvaluationProjectAnalysis:
         if parsed is None:
             parsed = parse_scoped_file(scoped_file)
         if scoped_file.path.name == _test_types_file_name:
-            self._parsed_modules[path] = parsed
-        else:
-            self._parsed_modules.pop(path, None)
+            self._dataclasses[path] = parsed.analysis.facts.dataclasses()
+        self._parsed_modules.pop(path, None)
         return parsed
 
     def analysis(self, *, requester: Path, path: Path) -> Analysis | None:
@@ -84,6 +84,23 @@ class _EvaluationProjectAnalysis:
         """Return deterministic requester-to-path dependencies observed so far."""
 
         return tuple(self._dependencies)
+
+    def dataclasses(self, *, requester: Path, path: Path) -> tuple[DataclassFact, ...]:
+        """Return top-level dataclass facts for a project path."""
+
+        resolved_path: Path = self._resolve(path)
+        if resolved_path not in self._dataclasses:
+            analysis: Analysis | None = self.analysis(requester=requester, path=path)
+            if analysis is None:
+                return ()
+            self._dataclasses[resolved_path] = analysis.facts.dataclasses()
+        else:
+            self._record(
+                requester=requester,
+                dependency=path,
+                kind=ProjectDependencyKind.SOURCE,
+            )
+        return self._dataclasses[resolved_path]
 
     def directory_entries(self, *, requester: Path, path: Path) -> tuple[Path, ...]:
         """Return direct children and record a directory namespace dependency."""

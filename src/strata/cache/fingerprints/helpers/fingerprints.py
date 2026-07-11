@@ -10,6 +10,13 @@ from collections.abc import Mapping
 from importlib.metadata import version
 from pathlib import Path
 
+from strata.cache.fingerprints.constants import (
+    BYTECODE_SUFFIX,
+    EVALUATION_FINGERPRINT_CONTRACT_VERSION,
+    NATIVE_MODULE_SUFFIXES,
+    PYTHON_CACHE_DIRECTORY_NAME,
+    PYTHON_SOURCE_SUFFIX,
+)
 from strata.cache.fingerprints.models import CacheFingerprint
 from strata.cache.fingerprints.types import CanonicalValue
 from strata.cache.results.models import CachedFileResult, DependencyObservation
@@ -83,7 +90,7 @@ def implementation_fingerprint(*, package_root: Path) -> CacheFingerprint:
     """Return a content identity for all Python implementation files."""
 
     files: list[CanonicalValue] = []
-    for path in sorted(package_root.rglob("*.py")):
+    for path in _implementation_paths(package_root):
         files.append(
             [
                 path.relative_to(package_root).as_posix(),
@@ -91,6 +98,12 @@ def implementation_fingerprint(*, package_root: Path) -> CacheFingerprint:
             ]
         )
     return canonical_fingerprint(files)
+
+
+def implementation_identity_is_complete(*, package_root: Path) -> bool:
+    """Return whether the loaded package exposes fingerprintable implementation files."""
+
+    return bool(_implementation_paths(package_root))
 
 
 def global_fingerprint(
@@ -104,7 +117,9 @@ def global_fingerprint(
 
     payload: CanonicalValue = {
         "config": config.value,
+        "evaluation_contract_version": EVALUATION_FINGERPRINT_CONTRACT_VERSION,
         "implementation": implementation.value,
+        "python_implementation": platform.python_implementation(),
         "python_version": platform.python_version(),
         "ruleset": ruleset.value,
         "schema_version": CACHE_SCHEMA_VERSION,
@@ -213,3 +228,20 @@ def _check_source_fingerprint(check: RuleCheck) -> CanonicalValue:
     if not path.is_file():
         return None
     return source_fingerprint(path.read_bytes()).value
+
+
+def _bytecode_source_path(bytecode_path: Path) -> Path:
+    if bytecode_path.parent.name == PYTHON_CACHE_DIRECTORY_NAME:
+        source_name: str = bytecode_path.name.split(".", maxsplit=1)[0]
+        return bytecode_path.parent.parent / f"{source_name}{PYTHON_SOURCE_SUFFIX}"
+    return bytecode_path.with_suffix(PYTHON_SOURCE_SUFFIX)
+
+
+def _implementation_paths(package_root: Path) -> tuple[Path, ...]:
+    paths: set[Path] = set(package_root.rglob(f"*{PYTHON_SOURCE_SUFFIX}"))
+    for bytecode_path in package_root.rglob(f"*{BYTECODE_SUFFIX}"):
+        if not _bytecode_source_path(bytecode_path).is_file():
+            paths.add(bytecode_path)
+    for suffix in NATIVE_MODULE_SUFFIXES:
+        paths.update(package_root.rglob(f"*{suffix}"))
+    return tuple(sorted(paths))

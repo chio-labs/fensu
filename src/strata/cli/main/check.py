@@ -8,6 +8,11 @@ from dataclasses import replace
 from pathlib import Path
 from typing import TextIO
 
+from strata.cache.fingerprints.main.build_global import build_global_fingerprint
+from strata.cache.fingerprints.models import CacheFingerprint
+from strata.cache.results.main.evaluate import evaluate_with_cache
+from strata.cache.results.models import CacheEvaluation, CacheStats
+from strata.cli.main.cache_status import write_cache_status
 from strata.config.core.exceptions import ConfigError
 from strata.config.core.main.load_project_config import load_project_config
 from strata.config.core.models import Config, LoadedConfig
@@ -32,6 +37,7 @@ def run_check(
 
     args: argparse.Namespace = _parser().parse_args(() if argv is None else argv)
     invocation_dir: Path = Path.cwd().resolve()
+    cache_stats: CacheStats | None = None
     try:
         loaded: LoadedConfig = load_project_config(invocation_dir)
         project_dir: Path = loaded.source.path.parent.resolve()
@@ -47,7 +53,20 @@ def run_check(
         tree: DiscoveredTree = discover_files(config, repo_root=project_dir)
         ruleset: tuple[RuleSpec, ...] = build_ruleset(config, repo_root=project_dir)
         validate_rule_exceptions(config=config, repo_root=tree.repo_root.path)
-        result: EvaluationResult = evaluate(tree=tree, ruleset=ruleset, config=config)
+        global_fingerprint: CacheFingerprint | None = (
+            build_global_fingerprint(config=config, ruleset=ruleset) if args.cache_enabled else None
+        )
+        if global_fingerprint is None:
+            result: EvaluationResult = evaluate(tree=tree, ruleset=ruleset, config=config)
+        else:
+            cached: CacheEvaluation = evaluate_with_cache(
+                tree=tree,
+                ruleset=ruleset,
+                config=config,
+                global_fingerprint=global_fingerprint,
+            )
+            result = cached.result
+            cache_stats = cached.stats
     except ConfigError as error:
         stderr.write(f"{error}\n")
         return 2
@@ -57,7 +76,7 @@ def run_check(
         use_color=not args.no_color and stdout.isatty(),
         applied_exception_count=result.applied_exception_count,
     )
-    stderr.flush()
+    write_cache_status(stderr=stderr, stats=cache_stats, show_stats=args.cache_stats)
     stdout.write(report.text)
     stdout.write("\n")
     return 1 if report.fault_count else 0
@@ -66,6 +85,25 @@ def run_check(
 def _parser() -> argparse.ArgumentParser:
     parser: argparse.ArgumentParser = argparse.ArgumentParser(prog="strata check")
     parser.add_argument("--no-color", action="store_true", help="disable ANSI color output")
+    cache_options: argparse._MutuallyExclusiveGroup = parser.add_mutually_exclusive_group()
+    cache_options.add_argument(
+        "--cache",
+        dest="cache_enabled",
+        action="store_true",
+        help="enable persistent result caching",
+    )
+    cache_options.add_argument(
+        "--no-cache",
+        dest="cache_enabled",
+        action="store_false",
+        help="disable persistent result caching",
+    )
+    parser.set_defaults(cache_enabled=False)
+    parser.add_argument(
+        "--cache-stats",
+        action="store_true",
+        help="write cache operation counts to stderr when caching is enabled",
+    )
     parser.add_argument("paths", nargs="*", help="configured root paths to check")
     return parser
 

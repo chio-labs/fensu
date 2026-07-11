@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+import strata.cache.fingerprints.helpers.fingerprints as fingerprint_module
 from strata.cache.fingerprints.helpers.fingerprints import (
     canonical_fingerprint,
     config_fingerprint,
@@ -14,6 +15,7 @@ from strata.cache.fingerprints.helpers.fingerprints import (
     ruleset_fingerprint,
     source_fingerprint,
 )
+from strata.cache.fingerprints.main.build_global import build_global_fingerprint
 from strata.cache.fingerprints.main.file_result import file_result_fingerprints
 from strata.cache.fingerprints.models import (
     CacheFingerprint,
@@ -29,7 +31,9 @@ from tests.unit.src.strata.cache.fingerprints._test_types import (
     ConfigFingerprintTestCase,
     ConfigLayoutFingerprintTestCase,
     FileResultFingerprintTestCase,
+    GlobalFingerprintBuilderTestCase,
     GlobalFingerprintTestCase,
+    GlobalRuntimeFingerprintTestCase,
     ImplementationFingerprintTestCase,
     RulesetFingerprintTestCase,
     SourceFingerprintTestCase,
@@ -37,6 +41,7 @@ from tests.unit.src.strata.cache.fingerprints._test_types import (
 from tests.unit.src.strata.cache.fingerprints.helpers import (
     cached_file_result,
     config_with_statement_threshold,
+    configure_package_availability,
     rule_with_message,
     write_custom_rule,
     write_implementation,
@@ -299,6 +304,63 @@ def test_given_package_sources_when_fingerprinting_then_captures_editable_change
 @pytest.mark.parametrize(
     "test_case",
     [
+        ImplementationFingerprintTestCase(
+            description="orphan bytecode mutation changes implementation identity",
+            first="first bytecode",
+            second="second bytecode",
+            expected_equal=False,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_orphan_bytecode_when_fingerprinting_then_captures_executable_changes(
+    tmp_path: Path,
+    test_case: ImplementationFingerprintTestCase,
+) -> None:
+    package_root: Path = tmp_path / "strata"
+    package_root.mkdir()
+    (package_root / "__init__.py").write_text("", encoding="utf-8")
+    bytecode: Path = package_root / "__pycache__/module.cpython-312.pyc"
+    bytecode.parent.mkdir()
+    bytecode.write_text(test_case.first, encoding="utf-8")
+    first: CacheFingerprint = implementation_fingerprint(package_root=package_root)
+    bytecode.write_text(test_case.second, encoding="utf-8")
+    second: CacheFingerprint = implementation_fingerprint(package_root=package_root)
+
+    assert (first == second) is test_case.expected_equal
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ImplementationFingerprintTestCase(
+            description="native module mutation changes implementation identity",
+            first="first native module",
+            second="second native module",
+            expected_equal=False,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_native_module_when_fingerprinting_then_captures_executable_changes(
+    tmp_path: Path,
+    test_case: ImplementationFingerprintTestCase,
+) -> None:
+    package_root: Path = tmp_path / "strata"
+    package_root.mkdir()
+    (package_root / "__init__.py").write_text("", encoding="utf-8")
+    native_module: Path = package_root / "module.so"
+    native_module.write_text(test_case.first, encoding="utf-8")
+    first: CacheFingerprint = implementation_fingerprint(package_root=package_root)
+    native_module.write_text(test_case.second, encoding="utf-8")
+    second: CacheFingerprint = implementation_fingerprint(package_root=package_root)
+
+    assert (first == second) is test_case.expected_equal
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
         RulesetFingerprintTestCase(
             description="rule metadata change invalidates ruleset identity",
             first_message="first message",
@@ -383,3 +445,121 @@ def test_given_global_inputs_when_fingerprinting_then_captures_version_contract(
     )
 
     assert (first == second) is test_case.expected_equal
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        GlobalRuntimeFingerprintTestCase(
+            description="Python implementation change invalidates global identity",
+            first_python_implementation="CPython",
+            second_python_implementation="PyPy",
+            first_contract_version=1,
+            second_contract_version=1,
+            expected_equal=False,
+        ),
+        GlobalRuntimeFingerprintTestCase(
+            description="evaluation contract change invalidates global identity",
+            first_python_implementation="CPython",
+            second_python_implementation="CPython",
+            first_contract_version=1,
+            second_contract_version=2,
+            expected_equal=False,
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_runtime_semantics_when_fingerprinting_then_captures_contract_identity(
+    monkeypatch: pytest.MonkeyPatch,
+    test_case: GlobalRuntimeFingerprintTestCase,
+) -> None:
+    common: CacheFingerprint = source_fingerprint(b"common")
+    monkeypatch.setattr(
+        fingerprint_module.platform,
+        "python_implementation",
+        lambda: test_case.first_python_implementation,
+    )
+    monkeypatch.setattr(
+        fingerprint_module,
+        "EVALUATION_FINGERPRINT_CONTRACT_VERSION",
+        test_case.first_contract_version,
+    )
+    first: CacheFingerprint = global_fingerprint(
+        implementation=common,
+        config=common,
+        ruleset=common,
+        strata_version="1.0.0",
+    )
+    monkeypatch.setattr(
+        fingerprint_module.platform,
+        "python_implementation",
+        lambda: test_case.second_python_implementation,
+    )
+    monkeypatch.setattr(
+        fingerprint_module,
+        "EVALUATION_FINGERPRINT_CONTRACT_VERSION",
+        test_case.second_contract_version,
+    )
+    second: CacheFingerprint = global_fingerprint(
+        implementation=common,
+        config=common,
+        ruleset=common,
+        strata_version="1.0.0",
+    )
+
+    assert (first == second) is test_case.expected_equal
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        GlobalFingerprintBuilderTestCase(
+            description="loaded source package builds repeatable complete identity",
+            package_available=True,
+            source_available=True,
+            complete_source=True,
+            expected_available=True,
+        ),
+        GlobalFingerprintBuilderTestCase(
+            description="unavailable package conservatively disables caching",
+            package_available=False,
+            source_available=False,
+            complete_source=False,
+            expected_available=False,
+        ),
+        GlobalFingerprintBuilderTestCase(
+            description="source-less package conservatively disables caching",
+            package_available=True,
+            source_available=False,
+            complete_source=False,
+            expected_available=False,
+        ),
+        GlobalFingerprintBuilderTestCase(
+            description="orphan bytecode participates in complete implementation identity",
+            package_available=True,
+            source_available=True,
+            complete_source=False,
+            expected_available=True,
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_loaded_package_when_building_global_then_requires_complete_source_identity(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: GlobalFingerprintBuilderTestCase,
+) -> None:
+    configure_package_availability(
+        monkeypatch=monkeypatch,
+        available=test_case.package_available,
+        source_available=test_case.source_available,
+        complete_source=test_case.complete_source,
+        empty_package_root=tmp_path / "strata",
+    )
+
+    first: CacheFingerprint | None = build_global_fingerprint(config=Config(roots=()), ruleset=())
+    second: CacheFingerprint | None = build_global_fingerprint(config=Config(roots=()), ruleset=())
+
+    assert (first is not None) is test_case.expected_available
+    assert first == second
+    assert not (tmp_path / ".strata").exists()

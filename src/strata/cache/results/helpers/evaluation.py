@@ -11,12 +11,14 @@ from strata.cache.results.classes.result_cache import ResultCache
 from strata.cache.results.helpers.conversion import restore_file_evaluation
 from strata.cache.results.helpers.paths import relative_repository_path
 from strata.cache.results.models import (
+    CachedFileResult,
     CacheEvaluation,
     CacheIndex,
     CacheIndexEntry,
     CacheLookup,
     CacheStats,
 )
+from strata.cache.results.types import DependencyStateCache
 from strata.config.core.models import Config
 from strata.discovery.core.models import DiscoveredTree
 from strata.evaluation.core.main.build_project import build_evaluation_project
@@ -57,8 +59,18 @@ def run_cached_evaluation(
         )
         if discovered_path is not None:
             discovered_paths.add(discovered_path)
+    loaded_entries: tuple[CacheIndexEntry, ...] = tuple(
+        entry for path, entry in entries.items() if path in discovered_paths
+    )
+    loaded_results: dict[str, CachedFileResult | None] = cache.load_results(
+        global_fingerprint=global_fingerprint,
+        entries=loaded_entries,
+    )
     project: EvaluationProjectAnalysis = build_evaluation_project(tree=tree)
     file_evaluations: list[FileEvaluation] = []
+    fresh_evaluations: list[FileEvaluation] = []
+    retained_entries: list[CacheIndexEntry] = []
+    dependency_states: DependencyStateCache = {}
     hits: int = 0
     misses: int = 0
     invalidations: int = sum(path not in discovered_paths for path in entries)
@@ -71,30 +83,33 @@ def run_cached_evaluation(
         entry: CacheIndexEntry | None = entries.get(path) if path is not None else None
         lookup: CacheLookup | None = None
         if entry is not None and source_fingerprint is not None:
-            lookup = cache.load_candidate(
-                global_fingerprint=global_fingerprint,
+            lookup = cache.loaded_candidate(
                 entry=entry,
                 source_fingerprint=source_fingerprint,
+                result=loaded_results.get(entry.path),
+                dependency_states=dependency_states,
             )
         if lookup is not None and lookup.result is not None:
             file_evaluations.append(
                 restore_file_evaluation(result=lookup.result, repo_root=tree.repo_root.path)
             )
             hits += 1
+            if entry is not None:
+                retained_entries.append(entry)
             continue
         if lookup is None or lookup.missed:
             misses += 1
         else:
             invalidations += 1
-        file_evaluations.append(
-            evaluate_discovered_file(
-                scoped_file=scoped_file,
-                ruleset=ruleset,
-                config=config,
-                tree=tree,
-                project=project,
-            )
+        fresh: FileEvaluation = evaluate_discovered_file(
+            scoped_file=scoped_file,
+            ruleset=ruleset,
+            config=config,
+            tree=tree,
+            project=project,
         )
+        file_evaluations.append(fresh)
+        fresh_evaluations.append(fresh)
     evaluations: tuple[FileEvaluation, ...] = tuple(file_evaluations)
     collected_dependencies: list[ProjectDependency] = []
     for file_evaluation in evaluations:
@@ -108,7 +123,8 @@ def run_cached_evaluation(
     )
     publication: CacheStats = cache.publish(
         global_fingerprint=global_fingerprint,
-        evaluations=evaluations,
+        evaluations=tuple(fresh_evaluations),
+        retained_entries=tuple(retained_entries),
     )
     return CacheEvaluation(
         result=result,
@@ -118,6 +134,7 @@ def run_cached_evaluation(
             invalidations=invalidations,
             writes=publication.writes,
             non_cacheable=publication.non_cacheable,
+            storage_failed=publication.storage_failed,
         ),
     )
 

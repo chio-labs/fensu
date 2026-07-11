@@ -15,14 +15,8 @@ from strata.cache.results.helpers.serialization import (
 )
 from strata.cache.results.models import CachedFault, CachedFileResult, DependencyObservation
 from strata.cache.storage.classes.cache_store import CacheStore
-from strata.cache.storage.constants import SECURE_CACHE_IO_SUPPORTED
 from strata.cache.storage.models import CacheRecord
 from tests.integration.src.strata.cache.results._test_types import PersistentTypedResultTestCase
-
-pytestmark: object = pytest.mark.skipif(
-    not SECURE_CACHE_IO_SUPPORTED,
-    reason="secure descriptor I/O unavailable",
-)
 
 _SOURCE_FINGERPRINT: str = "d" * 64
 

@@ -9,20 +9,56 @@ from strata.cache.fingerprints.main.source import fingerprint_source
 from strata.cache.results.helpers.paths import relative_repository_path
 from strata.cache.results.helpers.validation import is_dependency_observation, is_relative_path
 from strata.cache.results.models import DependencyObservation
-from strata.cache.results.types import DependencyAnswer
+from strata.cache.results.types import (
+    DependencyAnswer,
+    DependencyState,
+    DependencyStateCache,
+    DependencyStateKey,
+)
 
 
 def dependencies_are_current(
     *,
     observations: tuple[DependencyObservation, ...],
     repo_root: Path,
+    states: DependencyStateCache | None = None,
 ) -> bool:
     """Return whether every project-query answer and resolved target is unchanged."""
 
-    return all(
-        _reobserve(observation=observation, repo_root=repo_root) == observation
-        for observation in observations
+    active_states: DependencyStateCache = {} if states is None else states
+    for observation in observations:
+        current, active_states = _observation_is_current(
+            observation,
+            repo_root=repo_root,
+            states=active_states,
+        )
+        if not current:
+            return False
+    return True
+
+
+def _observation_is_current(
+    observation: DependencyObservation,
+    *,
+    repo_root: Path,
+    states: DependencyStateCache,
+) -> tuple[bool, DependencyStateCache]:
+    key: DependencyStateKey = (
+        observation.query_path,
+        observation.kind,
+        observation.pattern,
+        observation.recursive,
     )
+    if key in states:
+        state: DependencyState | None = states[key]
+    else:
+        reobserved: DependencyObservation | None = _reobserve(
+            observation=observation,
+            repo_root=repo_root,
+        )
+        state = None if reobserved is None else (reobserved.dependency_path, reobserved.answer)
+        states[key] = state
+    return state == (observation.dependency_path, observation.answer), states
 
 
 def _reobserve(

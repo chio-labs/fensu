@@ -40,6 +40,18 @@ class CheckErrorTestCase:
 
 
 @dataclass(frozen=True)
+class CheckCacheModeTestCase:
+    """Cached and uncached CLI modes with expected parity and storage behavior."""
+
+    description: str
+    cached_argv: tuple[str, ...]
+    uncached_argv: tuple[str, ...]
+    expected_exit_code: int
+    expected_output_fragment: str
+    expected_cache_exists: bool
+
+
+@dataclass(frozen=True)
 class MetadataCommandTestCase:
     """CLI metadata command inputs and expected output."""
 

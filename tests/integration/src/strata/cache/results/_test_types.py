@@ -43,11 +43,10 @@ class ResultCacheMissTestCase:
 
 @dataclass(frozen=True)
 class ResultCachePublicationFailureTestCase:
-    """One failed publication stage and expected unreachable result counts."""
+    """One failed transaction and expected unpublished result counts."""
 
     description: str
     relative_path: str
-    failed_path: str
     expected_writes: int
     expected_index: CacheIndex | None
 

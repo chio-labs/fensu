@@ -209,6 +209,24 @@ def test_given_class_assignments_when_checking_annotations_then_flags_only_unann
             expected_codes=("SFA103",),
             expected_lines=(4,),
         ),
+        AnnotationRuleTestCase(
+            description="locals nested in statement containers are flagged",
+            rule_code="SFA103",
+            source=(
+                "def run(value: int) -> None:\n"
+                "    if value:\n"
+                "        selected = value\n"
+                "    try:\n"
+                "        consume(value)\n"
+                "    except ValueError:\n"
+                "        recovered = value\n"
+                "    match value:\n"
+                "        case 1:\n"
+                "            matched = value\n"
+            ),
+            expected_codes=("SFA103", "SFA103", "SFA103"),
+            expected_lines=(3, 7, 10),
+        ),
     ],
     ids=lambda case: case.description,
 )

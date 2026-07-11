@@ -586,6 +586,20 @@ def test_given_function_parameters_when_checking_keyword_only_then_flags_excess_
             expected_lines=(3,),
         ),
         ShapeRuleTestCase(
+            description="global declarations do not make another function local assignment outer",
+            rule_code="SFS130",
+            source=(
+                "COUNT: int = 0\n\n"
+                "def local() -> None:\n"
+                "    value = 1\n\n"
+                "def update() -> None:\n"
+                "    global COUNT\n"
+                "    COUNT = 1\n"
+            ),
+            expected_codes=("SFS130",),
+            expected_lines=(8,),
+        ),
+        ShapeRuleTestCase(
             description="closure collection mutation is flagged",
             rule_code="SFS130",
             source=(

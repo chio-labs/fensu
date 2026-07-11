@@ -38,6 +38,7 @@ def outer_state_mutation_nodes(
     module_bindings: frozenset[str] = _scope_bindings(nodes=module.body, include_imports=False)
     binding_cache: dict[ast.AST, frozenset[str]] = {}
     declaration_cache: dict[ast.AST, tuple[frozenset[str], frozenset[str]]] = {}
+    enclosing_cache: dict[ast.AST, frozenset[str]] = {}
     mutations: list[ast.AST] = []
     for candidate in _mutation_candidates(node_index=node_index):
         owner: ast.AST | None = _owning_function(node=candidate, parent_by_node=parent_by_node)
@@ -54,11 +55,12 @@ def outer_state_mutation_nodes(
             owner=owner, declaration_cache=declaration_cache
         )
         global_names, nonlocal_names = declarations
-        enclosing_bindings, binding_cache, declaration_cache = _enclosing_bindings(
+        enclosing_bindings, binding_cache, declaration_cache, enclosing_cache = _enclosing_bindings(
             owner=owner,
             parent_by_node=parent_by_node,
             binding_cache=binding_cache,
             declaration_cache=declaration_cache,
+            enclosing_cache=enclosing_cache,
         )
         mutation: ast.AST | None = _outer_mutation(
             node=candidate,
@@ -79,15 +81,26 @@ def _mutation_candidates(
     *, node_index: Mapping[type[ast.AST], tuple[ast.AST, ...]]
 ) -> tuple[ast.AST, ...]:
     candidates: list[ast.AST] = []
+    declarations_present: bool = bool(
+        node_index.get(ast.Global, ()) or node_index.get(ast.Nonlocal, ())
+    )
     for node_type in _candidate_types:
         for node in node_index.get(node_type, ()):
-            if not isinstance(node, ast.Call) or _is_mutator_call(node):
+            if isinstance(node, ast.Call) and not _is_mutator_call(node):
+                continue
+            if declarations_present or _can_mutate_outer_without_declaration(node):
                 candidates.append(node)
     return tuple(candidates)
 
 
 def _is_mutator_call(node: ast.Call) -> bool:
     return isinstance(node.func, ast.Attribute) and node.func.attr in _mutator_methods
+
+
+def _can_mutate_outer_without_declaration(node: ast.AST) -> bool:
+    if isinstance(node, ast.Call):
+        return True
+    return any(not isinstance(target, ast.Name) for target in _mutation_targets(node))
 
 
 def _owning_function(*, node: ast.AST, parent_by_node: Mapping[ast.AST, ast.AST]) -> ast.AST | None:
@@ -173,11 +186,16 @@ def _enclosing_bindings(
     parent_by_node: Mapping[ast.AST, ast.AST],
     binding_cache: dict[ast.AST, frozenset[str]],
     declaration_cache: dict[ast.AST, tuple[frozenset[str], frozenset[str]]],
+    enclosing_cache: dict[ast.AST, frozenset[str]],
 ) -> tuple[
     frozenset[str],
     dict[ast.AST, frozenset[str]],
     dict[ast.AST, tuple[frozenset[str], frozenset[str]]],
+    dict[ast.AST, frozenset[str]],
 ]:
+    cached: frozenset[str] | None = enclosing_cache.get(owner)
+    if cached is not None:
+        return cached, binding_cache, declaration_cache, enclosing_cache
     bindings: set[str] = set()
     current: ast.AST | None = parent_by_node.get(owner)
     while current is not None:
@@ -189,7 +207,9 @@ def _enclosing_bindings(
             )
             bindings.update(scope_bindings)
         current = parent_by_node.get(current)
-    return frozenset(bindings), binding_cache, declaration_cache
+    result: frozenset[str] = frozenset(bindings)
+    enclosing_cache[owner] = result
+    return result, binding_cache, declaration_cache, enclosing_cache
 
 
 def _comprehension_bindings(
@@ -214,13 +234,7 @@ def _outer_mutation(
     nonlocal_names: frozenset[str],
     shadowed_names: frozenset[str],
 ) -> ast.AST | None:
-    targets: tuple[ast.expr, ...] = ()
-    if isinstance(node, ast.Assign):
-        targets = tuple(node.targets)
-    elif isinstance(node, ast.AnnAssign | ast.AugAssign | ast.NamedExpr):
-        targets = (node.target,)
-    elif isinstance(node, ast.Delete):
-        targets = tuple(node.targets)
+    targets: tuple[ast.expr, ...] = _mutation_targets(node)
     for target in targets:
         name: str | None = _mutation_root_name(target=target)
         if name is not None and _name_resolves_outer(
@@ -246,6 +260,16 @@ def _outer_mutation(
         ):
             return node
     return None
+
+
+def _mutation_targets(node: ast.AST) -> tuple[ast.expr, ...]:
+    if isinstance(node, ast.Assign):
+        return tuple(node.targets)
+    if isinstance(node, ast.AnnAssign | ast.AugAssign | ast.NamedExpr):
+        return (node.target,)
+    if isinstance(node, ast.Delete):
+        return tuple(node.targets)
+    return ()
 
 
 def _name_resolves_outer(

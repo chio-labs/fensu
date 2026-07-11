@@ -346,22 +346,23 @@ def _test_body_metadata(
 ) -> tuple[bool, tuple[SourceLocation, ...]]:
     references_expected_field: bool = False
     conditional_locations: list[SourceLocation] = []
-    for descendant in ast.walk(node):
-        if isinstance(descendant, ast.Attribute):
-            chain: tuple[str, ...] | None = _attribute_chain(descendant)
-            if (
-                chain
-                and len(chain) >= _minimum_expected_field_chain_parts
-                and chain[0] == _test_case_name
-                and chain[-1].startswith("expected_")
-            ):
-                references_expected_field = True
-        if isinstance(descendant, ast.If | ast.IfExp | ast.Match | ast.While):
-            conditional_locations.append(source_location(path=path, node=descendant))
-        elif isinstance(descendant, ast.comprehension):
-            conditional_locations.extend(
-                source_location(path=path, node=condition) for condition in descendant.ifs
-            )
+    for statement in node.body:
+        for descendant in ast.walk(statement):
+            if isinstance(descendant, ast.Attribute):
+                chain: tuple[str, ...] | None = _attribute_chain(descendant)
+                if (
+                    chain
+                    and len(chain) >= _minimum_expected_field_chain_parts
+                    and chain[0] == _test_case_name
+                    and chain[-1].startswith("expected_")
+                ):
+                    references_expected_field = True
+            if isinstance(descendant, ast.If | ast.IfExp | ast.Match | ast.While):
+                conditional_locations.append(source_location(path=path, node=descendant))
+            elif isinstance(descendant, ast.comprehension):
+                conditional_locations.extend(
+                    source_location(path=path, node=condition) for condition in descendant.ifs
+                )
     return references_expected_field, tuple(conditional_locations)
 
 

@@ -1,16 +1,22 @@
 """Helpers for persistent result-cache integration tests."""
 
+import ast
 from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 
+import strata.evaluation.core.helpers.file_evaluation as file_evaluation_module
 from strata.analysis.core.models import ProjectDependency
 from strata.analysis.core.types import ProjectDependencyKind
 from strata.cache.storage.classes.cache_store import CacheStore
 from strata.cache.storage.models import CacheRecord
+from strata.config.core.models import Config, RuleExceptionEntry
+from strata.discovery.core.main.discover_files import discover_files
+from strata.discovery.core.models import DiscoveredTree
 from strata.evaluation.core.models import FileEvaluation
-from strata.rules.authoring.models import Fault
+from strata.rules.authoring.models import Fault, RuleSpec
+from strata.rules.authoring.types import Family, RuleContext, RuleKind
 
 
 def file_evaluation(
@@ -88,3 +94,133 @@ def install_cache_write_failure(
         return original(store, relative_path=relative_path, record=record)
 
     monkeypatch.setattr(CacheStore, "write", write)
+
+
+def write_project_sources(
+    *,
+    repo_root: Path,
+    files: tuple[tuple[str, str], ...],
+) -> None:
+    """Write source files for cached evaluation integration tests."""
+
+    for relative_path, source in files:
+        path: Path = repo_root / relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(source, encoding="utf-8")
+
+
+def discover_project(*, repo_root: Path) -> tuple[Config, DiscoveredTree]:
+    """Return one configured and discovered runtime project."""
+
+    config: Config = Config(roots=("src/pkg",), tests=())
+    return config, discover_files(config, repo_root=repo_root)
+
+
+def source_fault_rule(*, kind: RuleKind = RuleKind.CORE) -> RuleSpec:
+    """Return a deterministic rule reporting the complete stripped source."""
+
+    def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+        del module
+        return [ctx.path_fault(message=ctx.source.strip())]
+
+    return RuleSpec(
+        code="XCR001",
+        family=Family.CUSTOM,
+        slug="cache-reuse",
+        message="cache reuse",
+        check=check,
+        kind=kind,
+    )
+
+
+def dependency_fault_rule() -> RuleSpec:
+    """Return a rule whose diagnostic consumes one negative existence query."""
+
+    def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+        del module
+        exists: bool = ctx._project.exists(
+            requester=ctx.path,
+            path=ctx.repo_root / "dependency.py",
+        )
+        return [ctx.path_fault(message="present" if exists else "missing")]
+
+    return RuleSpec(
+        code="XCR002",
+        family=Family.CUSTOM,
+        slug="cache-dependency",
+        message="cache dependency",
+        check=check,
+    )
+
+
+def exception_fault_rule() -> RuleSpec:
+    """Return a function-owned fault suitable for exception suppression."""
+
+    def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+        return [ctx.fault(module.body[0])]
+
+    return RuleSpec(
+        code="XCR003",
+        family=Family.CUSTOM,
+        slug="cache-exception",
+        message="cache exception",
+        check=check,
+    )
+
+
+def exception_config(*, relative_path: str) -> Config:
+    """Return config with one exact exception for the cached fault rule."""
+
+    return Config(
+        roots=("src/pkg",),
+        tests=(),
+        rule_exceptions=(
+            RuleExceptionEntry(
+                rule="XCR003",
+                path=relative_path,
+                symbols=("build",),
+                reason="cached exception proof",
+            ),
+        ),
+    )
+
+
+def failing_rule() -> RuleSpec:
+    """Return a deterministic rule that aborts evaluation."""
+
+    def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+        del module, ctx
+        raise AssertionError("evaluation failed")
+
+    return RuleSpec(
+        code="XCR004",
+        family=Family.CUSTOM,
+        slug="cache-failure",
+        message="cache failure",
+        check=check,
+    )
+
+
+def install_rule_execution_failure(*, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Reject any fresh rule execution while proving a warm cache hit."""
+
+    def fail_execute_rule(**kwargs: object) -> list[Fault]:
+        del kwargs
+        raise AssertionError("warm cache path executed a rule")
+
+    monkeypatch.setattr(file_evaluation_module, "execute_rule", fail_execute_rule)
+
+
+def install_cache_write_rejection(*, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Reject every persistent write while proving a fully warm generation."""
+
+    def reject_write(
+        store: CacheStore,
+        *,
+        relative_path: Path,
+        record: CacheRecord,
+    ) -> bool:
+        del store, relative_path, record
+        raise AssertionError("fully warm cache path attempted a persistent write")
+
+    monkeypatch.setattr(CacheStore, "write", reject_write)

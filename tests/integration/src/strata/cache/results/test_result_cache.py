@@ -19,12 +19,14 @@ from strata.cache.results.models import (
     CachedFileResult,
     CacheIndex,
     CacheIndexEntry,
+    CacheLookup,
     CacheStats,
 )
 from strata.cache.storage.classes.cache_store import CacheStore
 from strata.cache.storage.constants import SECURE_CACHE_IO_SUPPORTED
 from strata.evaluation.core.models import FileEvaluation
 from tests.integration.src.strata.cache.results._test_types import (
+    ResultCacheCandidateTestCase,
     ResultCacheMissTestCase,
     ResultCachePersistenceTestCase,
     ResultCachePublicationFailureTestCase,
@@ -169,6 +171,59 @@ def test_given_publication_stage_failure_when_publishing_then_reports_no_indexed
 @pytest.mark.parametrize(
     "test_case",
     [
+        ResultCacheCandidateTestCase(
+            description="candidate invalidates on source or observed dependency change",
+            relative_path="src/pkg/models.py",
+            expected_initial_invalidated=False,
+            expected_source_invalidated=True,
+            expected_dependency_invalidated=True,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_indexed_candidate_when_inputs_change_then_reports_invalidation(
+    tmp_path: Path,
+    test_case: ResultCacheCandidateTestCase,
+) -> None:
+    cache: ResultCache = ResultCache(repo_root=tmp_path)
+    _ = cache.publish(
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+        evaluations=(file_evaluation(repo_root=tmp_path, relative_path=test_case.relative_path),),
+    )
+    index: CacheIndex | None = cache.load_index(global_fingerprint=_GLOBAL_FINGERPRINT)
+    assert index is not None
+    entry: CacheIndexEntry = index.entries[0]
+
+    initial: CacheLookup = cache.load_candidate(
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+        entry=entry,
+        source_fingerprint=entry.source_fingerprint,
+    )
+    source_changed: CacheLookup = cache.load_candidate(
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+        entry=entry,
+        source_fingerprint=CacheFingerprint("d" * 64),
+    )
+    dependency_path: Path = tmp_path / "src/pkg/dependency.py"
+    dependency_path.parent.mkdir(parents=True, exist_ok=True)
+    dependency_path.write_text("value = 1\n", encoding="utf-8")
+    dependency_changed: CacheLookup = cache.load_candidate(
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+        entry=entry,
+        source_fingerprint=entry.source_fingerprint,
+    )
+
+    assert initial.invalidated is test_case.expected_initial_invalidated
+    assert initial.result is not None
+    assert source_changed.invalidated is test_case.expected_source_invalidated
+    assert source_changed.result is None
+    assert dependency_changed.invalidated is test_case.expected_dependency_invalidated
+    assert dependency_changed.result is None
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
         ResultCacheMissTestCase(
             description="different global identity rejects complete index",
             relative_path="src/pkg/models.py",
@@ -201,6 +256,8 @@ def test_given_different_global_identity_when_loading_index_then_returns_miss(
             description="valid JSON diagnostic mutation fails record integrity",
             relative_path="src/pkg/models.py",
             expected_result=None,
+            expected_missed=True,
+            expected_invalidated=False,
         )
     ],
     ids=lambda case: case.description,
@@ -253,6 +310,13 @@ def test_given_semantically_valid_result_corruption_when_loading_then_returns_mi
         global_fingerprint=_GLOBAL_FINGERPRINT,
         entry=entry,
     )
+    candidate: CacheLookup = cache.load_candidate(
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+        entry=entry,
+        source_fingerprint=entry.source_fingerprint,
+    )
 
     assert written is True
     assert result == test_case.expected_result
+    assert candidate.missed is test_case.expected_missed
+    assert candidate.invalidated is test_case.expected_invalidated

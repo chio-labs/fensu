@@ -37,6 +37,8 @@ class ResultCacheMissTestCase:
     description: str
     relative_path: str
     expected_result: CachedFileResult | None
+    expected_missed: bool = False
+    expected_invalidated: bool = False
 
 
 @dataclass(frozen=True)
@@ -48,3 +50,65 @@ class ResultCachePublicationFailureTestCase:
     failed_path: str
     expected_writes: int
     expected_index: CacheIndex | None
+
+
+@dataclass(frozen=True)
+class ResultCacheCandidateTestCase:
+    """One indexed candidate and expected validation transitions."""
+
+    description: str
+    relative_path: str
+    expected_initial_invalidated: bool
+    expected_source_invalidated: bool
+    expected_dependency_invalidated: bool
+
+
+@dataclass(frozen=True)
+class CachedEvaluationReuseTestCase:
+    """Cold and warm evaluation counts with expected diagnostic parity."""
+
+    description: str
+    relative_path: str
+    source: str
+    expected_cold_hits: int
+    expected_cold_misses: int
+    expected_warm_hits: int
+    expected_warm_misses: int
+    expected_warm_writes: int
+    expected_fault_count: int
+
+
+@dataclass(frozen=True)
+class CachedEvaluationInvalidationTestCase:
+    """One input mutation and expected recomputed diagnostic state."""
+
+    description: str
+    relative_path: str
+    first_source: str
+    second_source: str
+    expected_invalidations: int
+    expected_message: str
+
+
+@dataclass(frozen=True)
+class CachedEvaluationManifestTestCase:
+    """Changed discovered manifest and expected hit/miss composition."""
+
+    description: str
+    initial_files: tuple[str, ...]
+    final_files: tuple[str, ...]
+    expected_hits: int
+    expected_misses: int
+    expected_invalidations: int
+    expected_fault_paths: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class CachedEvaluationFailureTestCase:
+    """Evaluation failure and expected absence of published cache state."""
+
+    description: str
+    relative_path: str
+    source: str
+    expected_error_type: type[Exception]
+    expected_cache_exists: bool

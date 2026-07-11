@@ -7,11 +7,7 @@ from pathlib import Path
 from strata.analysis.core.models import ProjectDependency
 from strata.analysis.core.types import ProjectDependencyKind
 from strata.cache.fingerprints.models import CacheFingerprint
-from strata.cache.results.constants import (
-    PARENT_PATH_PART,
-    REPOSITORY_ROOT_PATH,
-    WINDOWS_PATH_SEPARATOR,
-)
+from strata.cache.results.helpers.paths import relative_repository_path
 from strata.cache.results.helpers.serialization import file_result_to_record
 from strata.cache.results.models import (
     CachedFault,
@@ -31,7 +27,7 @@ def build_cached_file_result(
 ) -> CachedFileResult | None:
     """Return a cache-safe file result or None for unsupported path ownership."""
 
-    path: str | None = _relative_repository_path(path=evaluation.path, repo_root=repo_root)
+    path: str | None = relative_repository_path(path=evaluation.path, repo_root=repo_root)
     if path is None:
         return None
     faults: list[CachedFault] = []
@@ -74,13 +70,49 @@ def build_cached_file_result(
     return result
 
 
+def restore_file_evaluation(*, result: CachedFileResult, repo_root: Path) -> FileEvaluation:
+    """Restore one validated backend-neutral result to runtime evaluation models."""
+
+    return FileEvaluation(
+        path=repo_root / result.path,
+        source_fingerprint=result.source_fingerprint.value,
+        faults=tuple(
+            Fault(
+                code=fault.code,
+                path=repo_root / fault.path,
+                message=fault.message,
+                line=fault.line,
+                column=fault.column,
+                remediation=fault.remediation,
+            )
+            for fault in result.faults
+        ),
+        applied_exception_keys=tuple(
+            RuleExceptionKey(rule=key.rule, path=key.path, symbol=key.symbol)
+            for key in result.applied_exception_keys
+        ),
+        dependencies=tuple(
+            ProjectDependency(
+                requester=repo_root / dependency.requester_path,
+                query_path=repo_root / dependency.query_path,
+                dependency=repo_root / dependency.dependency_path,
+                kind=dependency.kind,
+                answer=_restore_dependency_answer(answer=dependency.answer, repo_root=repo_root),
+                pattern=dependency.pattern,
+                recursive=dependency.recursive,
+            )
+            for dependency in result.dependencies
+        ),
+    )
+
+
 def _cached_fault(
     *,
     fault: Fault,
     requester_path: str,
     repo_root: Path,
 ) -> CachedFault | None:
-    path: str | None = _relative_repository_path(path=fault.path, repo_root=repo_root)
+    path: str | None = relative_repository_path(path=fault.path, repo_root=repo_root)
     if path is None or path != requester_path:
         return None
     return CachedFault(
@@ -109,16 +141,16 @@ def _dependency_observation(
     requester_path: str,
     repo_root: Path,
 ) -> DependencyObservation | None:
-    requester: str | None = _relative_repository_path(
+    requester: str | None = relative_repository_path(
         path=dependency.requester,
         repo_root=repo_root,
     )
-    query_path: str | None = _relative_repository_path(
+    query_path: str | None = relative_repository_path(
         path=dependency.query_path,
         repo_root=repo_root,
         allow_root=True,
     )
-    dependency_path: str | None = _relative_repository_path(
+    dependency_path: str | None = relative_repository_path(
         path=dependency.dependency,
         repo_root=repo_root,
         allow_root=True,
@@ -159,7 +191,7 @@ def _dependency_answer(
         return answer
     paths: list[str] = []
     for path in answer:
-        relative_path: str | None = _relative_repository_path(
+        relative_path: str | None = relative_repository_path(
             path=path,
             repo_root=repo_root,
             allow_root=True,
@@ -170,21 +202,11 @@ def _dependency_answer(
     return tuple(paths)
 
 
-def _relative_repository_path(
+def _restore_dependency_answer(
     *,
-    path: Path,
+    answer: DependencyAnswer,
     repo_root: Path,
-    allow_root: bool = False,
-) -> str | None:
-    root: Path = repo_root.absolute()
-    candidate: Path = path if path.is_absolute() else root / path
-    try:
-        relative: Path = candidate.relative_to(root)
-    except ValueError:
-        return None
-    value: str = relative.as_posix()
-    if not value or value == REPOSITORY_ROOT_PATH:
-        return REPOSITORY_ROOT_PATH if allow_root else None
-    if PARENT_PATH_PART in relative.parts or WINDOWS_PATH_SEPARATOR in value:
-        return None
-    return value
+) -> None | bool | str | tuple[Path, ...]:
+    if isinstance(answer, tuple):
+        return tuple(repo_root / path for path in answer)
+    return answer

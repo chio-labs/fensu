@@ -8,6 +8,7 @@ from strata.analysis.core.types import ProjectDependencyKind
 from strata.cache.fingerprints.models import CacheFingerprint
 from strata.cache.fingerprints.types import CanonicalValue
 from strata.cache.results.types import DependencyAnswer
+from strata.evaluation.core.models import EvaluationResult
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,6 +45,23 @@ class CacheStats:
     invalidations: int = 0
     writes: int = 0
     non_cacheable: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class CacheLookup:
+    """Integrity and dependency validation outcome for one indexed candidate."""
+
+    result: CachedFileResult | None
+    missed: bool
+    invalidated: bool
+
+
+@dataclass(frozen=True, slots=True)
+class CacheEvaluation:
+    """Complete logical evaluation plus observable cache operation counts."""
+
+    result: EvaluationResult
+    stats: CacheStats
 
 
 @dataclass(frozen=True, slots=True)

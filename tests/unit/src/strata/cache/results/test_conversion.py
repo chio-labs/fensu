@@ -8,7 +8,10 @@ import pytest
 
 from strata.analysis.core.models import ProjectDependency
 from strata.analysis.core.types import ProjectDependencyKind
-from strata.cache.results.helpers.conversion import build_cached_file_result
+from strata.cache.results.helpers.conversion import (
+    build_cached_file_result,
+    restore_file_evaluation,
+)
 from strata.cache.results.models import CachedFileResult
 from strata.evaluation.core.models import FileEvaluation, RuleExceptionKey
 from strata.rules.authoring.models import Fault
@@ -82,6 +85,7 @@ def test_given_runtime_file_result_when_converting_then_returns_cache_safe_recor
         tuple(item.answer for item in result.dependencies) == test_case.expected_dependency_answers
     )
     assert result.path == test_case.relative_path
+    assert restore_file_evaluation(result=result, repo_root=tmp_path) == evaluation
 
 
 @pytest.mark.parametrize(

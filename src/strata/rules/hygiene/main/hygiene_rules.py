@@ -84,9 +84,9 @@ def hygiene_rules() -> tuple[RuleSpec, ...]:
             message="nested or multi-generator comprehensions hide control flow and data shapes",
             check=no_complex_comprehensions_in_tooling,
             remediation=(
-                "Rewrite this as ordinary statements with named intermediate values. Use "
-                "explicit loops when needed, and extract a helper only when the transformation "
-                "is a distinct operation."
+                "Extract a named helper when the transformation has a coherent purpose. For "
+                "one-off local logic, use simple statements with named intermediate values "
+                "instead of nested comprehension control flow."
             ),
         ),
         RuleSpec(

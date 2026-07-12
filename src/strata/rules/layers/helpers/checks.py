@@ -10,10 +10,13 @@ from strata.discovery.types import ScopeName
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import RuleContext
 from strata.rules.layers.helpers.imports import (
+    classify_module_ownership,
     import_path_targets_tooling,
     is_cross_package_internal_import,
     is_sibling_internal_import,
+    normalized_import_targets,
 )
+from strata.rules.layers.models import ModuleOwnership
 
 _wildcard_import_name: str = "*"
 _helper_role_name: str = "helpers"
@@ -48,13 +51,19 @@ def no_sibling_package_internals(*, module: ast.Module, ctx: RuleContext) -> lis
 
     del module
     current_module_parts: tuple[str, ...] = ctx.module_parts()
+    current_initializer: bool = ctx.path.name == INIT_MODULE_FILE_NAME
+    current: ModuleOwnership = classify_module_ownership(
+        module_parts=current_module_parts, initializer=current_initializer
+    )
     faults: list[Fault] = []
     for fact in ctx._analysis.facts.references().imports:
-        if fact.from_import and fact.relative_level == 0:
-            imported_parts: tuple[str, ...] = fact.module_parts
-            if is_sibling_internal_import(
-                current_module_parts=current_module_parts, imported_parts=imported_parts
-            ):
+        for imported_parts in normalized_import_targets(
+            fact=fact,
+            current_module_parts=current_module_parts,
+            current_initializer=current_initializer,
+        ):
+            target: ModuleOwnership = _classify_import_target(ctx=ctx, module_parts=imported_parts)
+            if is_sibling_internal_import(current=current, target=target):
                 faults.append(
                     ctx.fault_at(
                         location=fact.location,
@@ -63,23 +72,7 @@ def no_sibling_package_internals(*, module: ast.Module, ctx: RuleContext) -> lis
                         ),
                     )
                 )
-        elif not fact.from_import:
-            for alias in fact.aliases:
-                imported_parts = alias.imported_parts
-                if is_sibling_internal_import(
-                    current_module_parts=current_module_parts,
-                    imported_parts=imported_parts,
-                ):
-                    faults.append(
-                        ctx.fault_at(
-                            location=fact.location,
-                            message=(
-                                f"import '{'.'.join(imported_parts)}' reaches into sibling "
-                                "internals"
-                            ),
-                        )
-                    )
-                    break
+                break
     return faults
 
 
@@ -88,13 +81,19 @@ def no_cross_package_internals(*, module: ast.Module, ctx: RuleContext) -> list[
 
     del module
     current_module_parts: tuple[str, ...] = ctx.module_parts()
+    current_initializer: bool = ctx.path.name == INIT_MODULE_FILE_NAME
+    current: ModuleOwnership = classify_module_ownership(
+        module_parts=current_module_parts, initializer=current_initializer
+    )
     faults: list[Fault] = []
     for fact in ctx._analysis.facts.references().imports:
-        if fact.from_import and fact.relative_level == 0:
-            imported_parts: tuple[str, ...] = fact.module_parts
-            if is_cross_package_internal_import(
-                current_module_parts=current_module_parts, imported_parts=imported_parts
-            ):
+        for imported_parts in normalized_import_targets(
+            fact=fact,
+            current_module_parts=current_module_parts,
+            current_initializer=current_initializer,
+        ):
+            target: ModuleOwnership = _classify_import_target(ctx=ctx, module_parts=imported_parts)
+            if is_cross_package_internal_import(current=current, target=target):
                 target_package: str = ".".join(imported_parts[:2])
                 faults.append(
                     ctx.fault_at(
@@ -105,25 +104,18 @@ def no_cross_package_internals(*, module: ast.Module, ctx: RuleContext) -> list[
                         ),
                     )
                 )
-        elif not fact.from_import:
-            for alias in fact.aliases:
-                imported_parts = alias.imported_parts
-                if is_cross_package_internal_import(
-                    current_module_parts=current_module_parts,
-                    imported_parts=imported_parts,
-                ):
-                    target_package = ".".join(imported_parts[:2])
-                    faults.append(
-                        ctx.fault_at(
-                            location=fact.location,
-                            message=(
-                                f"import '{'.'.join(imported_parts)}' reaches into internal "
-                                f"structure of '{target_package}'"
-                            ),
-                        )
-                    )
-                    break
+                break
     return faults
+
+
+def _classify_import_target(*, ctx: RuleContext, module_parts: tuple[str, ...]) -> ModuleOwnership:
+    return classify_module_ownership(
+        module_parts=module_parts,
+        initializer=ctx._project.exists(
+            requester=ctx.path,
+            path=ctx.scope_root().parent.joinpath(*module_parts) / INIT_MODULE_FILE_NAME,
+        ),
+    )
 
 
 def no_internal_public_surface_imports(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:

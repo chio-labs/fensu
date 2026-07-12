@@ -27,3 +27,27 @@ class ToolingImportRuleTestCase:
     tooling: tuple[str, ...]
     expected_codes: tuple[str, ...]
     expected_lines: tuple[int | None, ...]
+
+
+@dataclass(frozen=True)
+class OwnershipClassificationTestCase:
+    """Module path and expected structural ownership classification."""
+
+    description: str
+    module_parts: tuple[str, ...]
+    initializer: bool
+    expected_package: str | None
+    expected_owner_prefix: tuple[str, ...]
+    expected_domain: str | None
+    expected_first_role: str | None
+    expected_tail: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class LayoutImportConsistencyTestCase:
+    """Role-endorsed layout and expected combined role/layer diagnostics."""
+
+    description: str
+    role_code: str
+    files: tuple[tuple[str, str], ...]
+    expected_codes: tuple[str, ...]

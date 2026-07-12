@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from strata.analysis.core.classes.query_observer import QueryObserver
 from strata.analysis.core.types import ProjectDependencyKind
-from strata.cache.fingerprints.main.source import fingerprint_source
 from strata.cache.results.helpers.paths import relative_repository_path
 from strata.cache.results.helpers.validation import is_dependency_observation, is_relative_path
 from strata.cache.results.models import DependencyObservation
@@ -15,6 +15,8 @@ from strata.cache.results.types import (
     DependencyStateCache,
     DependencyStateKey,
 )
+
+_OBSERVER: QueryObserver = QueryObserver()
 
 
 def dependencies_are_current(
@@ -110,27 +112,27 @@ def _observe_answer(
     repo_root: Path,
 ) -> DependencyAnswer | None:
     if observation.kind is ProjectDependencyKind.SOURCE:
-        try:
-            return fingerprint_source(query_path.read_bytes()).value
-        except OSError:
-            return None
+        return _OBSERVER.source_fingerprint(path=query_path)
     if observation.kind is ProjectDependencyKind.EXISTS:
-        return resolved_path.exists()
+        return _OBSERVER.exists(resolved_path=resolved_path)
     if observation.kind is ProjectDependencyKind.IS_FILE:
-        return resolved_path.is_file()
+        return _OBSERVER.is_file(resolved_path=resolved_path)
     if observation.kind is ProjectDependencyKind.IS_DIR:
-        return resolved_path.is_dir()
+        return _OBSERVER.is_dir(resolved_path=resolved_path)
     if observation.kind is ProjectDependencyKind.DIRECTORY_ENTRIES:
         try:
-            return _relative_paths(paths=tuple(query_path.iterdir()), repo_root=repo_root)
+            return _relative_paths(
+                paths=_OBSERVER.directory_entries(query_path=query_path),
+                repo_root=repo_root,
+            )
         except OSError:
             return None
     if observation.kind is ProjectDependencyKind.GLOB and observation.pattern is not None:
         try:
-            paths: tuple[Path, ...] = tuple(
-                query_path.rglob(observation.pattern)
-                if observation.recursive
-                else query_path.glob(observation.pattern)
+            paths: tuple[Path, ...] = _OBSERVER.glob(
+                query_path=query_path,
+                pattern=observation.pattern,
+                recursive=observation.recursive,
             )
         except OSError:
             return None

@@ -21,6 +21,20 @@ class MappingProject:
 
     repo_root: Path
     sources: tuple[MappingSource, ...]
+    cache_enabled: bool = True
+
+
+@dataclass(frozen=True, slots=True)
+class SourceSnapshot:
+    """One discovered Python source and its exact invocation-local contents."""
+
+    path: Path
+    relative_path: str
+    import_root: Path
+    import_root_identity: str
+    module_name: str
+    source: bytes
+    source_fingerprint: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,6 +154,16 @@ class ProjectIndex:
 
     functions: dict[str, FunctionDefinition]
     classes: dict[str, ClassDefinition]
+
+    def get_function(self, key: str) -> FunctionDefinition | None:
+        """Return one function by canonical key."""
+
+        return self.functions.get(key)
+
+    def get_class(self, key: str) -> ClassDefinition | None:
+        """Return one class by canonical key."""
+
+        return self.classes.get(key)
 
 
 @dataclass(frozen=True, slots=True)

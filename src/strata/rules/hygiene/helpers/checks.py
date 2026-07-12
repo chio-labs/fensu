@@ -25,7 +25,8 @@ def single_line_docstrings(*, module: ast.Module, ctx: RuleContext) -> list[Faul
 
     del module
     return [
-        ctx.fault_at(location) for location in ctx._analysis.facts.hygiene().multiline_docstrings
+        ctx.fault_at(location=location)
+        for location in ctx._analysis.facts.hygiene().multiline_docstrings
     ]
 
 
@@ -45,14 +46,19 @@ def no_raw_builtin_raise(*, module: ast.Module, ctx: RuleContext) -> list[Fault]
     """Flag raises of generic built-in exception classes."""
 
     del module
-    return [ctx.fault_at(location) for location in ctx._analysis.facts.hygiene().raw_builtin_raises]
+    return [
+        ctx.fault_at(location=location)
+        for location in ctx._analysis.facts.hygiene().raw_builtin_raises
+    ]
 
 
 def no_assert_in_runtime(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag assert statements in runtime code."""
 
     del module
-    return [ctx.fault_at(location) for location in ctx._analysis.facts.hygiene().assertions]
+    return [
+        ctx.fault_at(location=location) for location in ctx._analysis.facts.hygiene().assertions
+    ]
 
 
 def no_swallowed_exception_probe(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
@@ -60,7 +66,7 @@ def no_swallowed_exception_probe(*, module: ast.Module, ctx: RuleContext) -> lis
 
     del module
     return [
-        ctx.fault_at(location)
+        ctx.fault_at(location=location)
         for location in ctx._analysis.facts.hygiene().swallowed_exception_probes
     ]
 
@@ -71,7 +77,9 @@ def no_complex_comprehensions_in_tooling(*, module: ast.Module, ctx: RuleContext
     del module
     if ctx.scope() is not ScopeName.TOOLING:
         return []
-    return [ctx.fault_at(location) for location in ctx._analysis.facts.complex_comprehensions()]
+    return [
+        ctx.fault_at(location=location) for location in ctx._analysis.facts.complex_comprehensions()
+    ]
 
 
 def no_unnamed_string_decisions(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
@@ -79,7 +87,7 @@ def no_unnamed_string_decisions(*, module: ast.Module, ctx: RuleContext) -> list
 
     del module
     return [
-        ctx.fault_at(location)
+        ctx.fault_at(location=location)
         for location in ctx._analysis.facts.hygiene().unnamed_string_decisions
     ]
 
@@ -89,6 +97,6 @@ def no_magic_numeric_comparisons(*, module: ast.Module, ctx: RuleContext) -> lis
 
     del module
     return [
-        ctx.fault_at(location)
+        ctx.fault_at(location=location)
         for location in ctx._analysis.facts.hygiene().magic_numeric_comparisons
     ]

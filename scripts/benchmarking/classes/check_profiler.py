@@ -64,13 +64,13 @@ class CheckProfiler:
 
     def _timed_parse(
         self,
-        scoped_file: ScopedFile,
         *,
+        scoped_file: ScopedFile,
         source_snapshot: SourceSnapshot | None = None,
     ) -> ParsedModule:
         started: float = time.perf_counter()
         result: ParsedModule = self._original_parse(
-            scoped_file,
+            scoped_file=scoped_file,
             source_snapshot=source_snapshot,
         )
         elapsed: float = time.perf_counter() - started
@@ -118,8 +118,8 @@ class CheckProfiler:
 
     def _run_phases(self, project: Path) -> ProfileReport:
         config, config_seconds = _timed(lambda: load_config(project))
-        tree, discovery_seconds = _timed(lambda: discover_files(config, repo_root=project))
-        ruleset, catalogue_seconds = _timed(lambda: build_ruleset(config, repo_root=project))
+        tree, discovery_seconds = _timed(lambda: discover_files(config=config, repo_root=project))
+        ruleset, catalogue_seconds = _timed(lambda: build_ruleset(config=config, repo_root=project))
         result, evaluation_seconds = _timed(
             lambda: evaluate(tree=tree, ruleset=ruleset, config=config)
         )

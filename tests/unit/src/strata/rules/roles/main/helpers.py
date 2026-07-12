@@ -44,7 +44,7 @@ def evaluate_role_test_case(
         thresholds=MappingProxyType(thresholds),
     )
     return evaluate(
-        tree=discover_files(config),
+        tree=discover_files(config=config),
         ruleset=(_rule_by_code(test_case.rule_code),),
         config=config,
     )

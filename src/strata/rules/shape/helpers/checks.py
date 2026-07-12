@@ -21,7 +21,9 @@ def too_many_statements(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     for fact in ctx._analysis.facts.functions().top_level:
         count: int = fact.statement_count
         if count > limit:
-            faults.append(ctx.fault_at(fact.location, message=f"function has {count} statements"))
+            faults.append(
+                ctx.fault_at(location=fact.location, message=f"function has {count} statements")
+            )
     return faults
 
 
@@ -37,7 +39,10 @@ def too_many_distinct_calls(*, module: ast.Module, ctx: RuleContext) -> list[Fau
         count: int = fact.distinct_call_count
         if count > limit:
             faults.append(
-                ctx.fault_at(fact.location, message=f"function calls {count} distinct functions")
+                ctx.fault_at(
+                    location=fact.location,
+                    message=f"function calls {count} distinct functions",
+                )
             )
     return faults
 
@@ -54,7 +59,10 @@ def too_many_locals(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
         count: int = fact.assigned_local_count
         if count > limit:
             faults.append(
-                ctx.fault_at(fact.location, message=f"function defines {count} local variables")
+                ctx.fault_at(
+                    location=fact.location,
+                    message=f"function defines {count} local variables",
+                )
             )
     return faults
 
@@ -68,7 +76,9 @@ def max_arguments(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     for fact in ctx._analysis.facts.functions().functions:
         count: int = fact.parameter_count
         if count > limit:
-            faults.append(ctx.fault_at(fact.location, message=f"function has {count} parameters"))
+            faults.append(
+                ctx.fault_at(location=fact.location, message=f"function has {count} parameters")
+            )
     return faults
 
 
@@ -81,7 +91,9 @@ def max_statements_global(*, module: ast.Module, ctx: RuleContext) -> list[Fault
     for fact in ctx._analysis.facts.functions().functions:
         count: int = fact.statement_count
         if count > limit:
-            faults.append(ctx.fault_at(fact.location, message=f"function has {count} statements"))
+            faults.append(
+                ctx.fault_at(location=fact.location, message=f"function has {count} statements")
+            )
     return faults
 
 
@@ -108,7 +120,7 @@ def meaningful_project_result_discarded(*, module: ast.Module, ctx: RuleContext)
                 function_name=call.function_name,
             )
         if function is not None and function.meaningful_result:
-            faults.append(ctx.fault_at(call.location))
+            faults.append(ctx.fault_at(location=call.location))
     return faults
 
 
@@ -127,7 +139,7 @@ def default_mutation_return(*, module: ast.Module, ctx: RuleContext) -> list[Fau
 
 
 def keyword_only_arguments(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
-    """Flag excess positional parameters that should be keyword-only."""
+    """Flag positional parameters on functions that exceed the configured threshold."""
 
     del module
     limit: int = ctx.threshold(Threshold.MAX_POSITIONAL_ARGS)
@@ -135,10 +147,16 @@ def keyword_only_arguments(*, module: ast.Module, ctx: RuleContext) -> list[Faul
     for fact in ctx._analysis.facts.functions().functions:
         if fact.dunder:
             continue
-        count: int = fact.positional_parameter_count
-        if count > limit:
+        positional_count: int = fact.positional_parameter_count
+        if fact.parameter_count > limit and positional_count > 0:
             faults.append(
-                ctx.fault_at(fact.location, message=f"function has {count} positional parameters")
+                ctx.fault_at(
+                    location=fact.location,
+                    message=(
+                        f"function with {fact.parameter_count} parameters has "
+                        f"{positional_count} positional parameters"
+                    ),
+                )
             )
     return faults
 
@@ -147,14 +165,18 @@ def no_outer_state_mutation(*, module: ast.Module, ctx: RuleContext) -> list[Fau
     """Flag function mutations of module-global or closure-captured state."""
 
     del module
-    return [ctx.fault_at(fact.location) for fact in ctx._analysis.facts.outer_state_mutations()]
+    return [
+        ctx.fault_at(location=fact.location) for fact in ctx._analysis.facts.outer_state_mutations()
+    ]
 
 
 def no_complex_comprehensions(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag comprehensions that combine generators or nest another comprehension."""
 
     del module
-    return [ctx.fault_at(location) for location in ctx._analysis.facts.complex_comprehensions()]
+    return [
+        ctx.fault_at(location=location) for location in ctx._analysis.facts.complex_comprehensions()
+    ]
 
 
 def mutable_result_model(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
@@ -164,7 +186,7 @@ def mutable_result_model(*, module: ast.Module, ctx: RuleContext) -> list[Fault]
     if ctx.role_of() != RoleName.MODELS:
         return []
     return [
-        ctx.fault_at(fact.location)
+        ctx.fault_at(location=fact.location)
         for fact in ctx._analysis.facts.dataclasses()
         if fact.shape_candidate and not fact.frozen
     ]
@@ -175,7 +197,7 @@ def _parameter_mutation_faults(
 ) -> list[Fault]:
     del module
     return [
-        ctx.fault_at(fact.location)
+        ctx.fault_at(location=fact.location)
         for fact in ctx._analysis.facts.parameter_mutations()
         if not fact.dunder and not fact.setter and (not require_return or not fact.returned)
     ]

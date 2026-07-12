@@ -179,7 +179,7 @@ def test_given_typed_records_when_round_tripping_storage_then_preserves_contract
         fact_to_record(test_case.fact),
     )
     stored: tuple[CacheRecord | None, ...] = tuple(
-        decode_cache_record(encode_cache_record(record), expected_kind=record.kind)
+        decode_cache_record(data=encode_cache_record(record), expected_kind=record.kind)
         for record in records
     )
     decoded: tuple[object | None, ...] = (

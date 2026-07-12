@@ -152,7 +152,7 @@ def test_given_multiple_rules_when_evaluating_then_file_facts_are_computed_once(
 
     def count_parse(scoped_file: ScopedFile) -> ParsedModule:
         parse_counts[0] += 1
-        return parse_scoped_file(scoped_file)
+        return parse_scoped_file(scoped_file=scoped_file)
 
     def count_position(scoped_file: ScopedFile) -> PositionFacts:
         position_counts[0] += 1

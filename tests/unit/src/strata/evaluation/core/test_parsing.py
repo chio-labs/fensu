@@ -41,10 +41,10 @@ def test_given_invalid_python_when_parsing_then_raises_clear_parse_error(
 ) -> None:
     write_sources(repo_root=tmp_path, files=(("src/pkg/broken.py", test_case.source),))
     monkeypatch.chdir(tmp_path)
-    scoped_file: ScopedFile = discover_files(make_config()).files[0]
+    scoped_file: ScopedFile = discover_files(config=make_config()).files[0]
 
     with pytest.raises(ParseError) as error:
-        parse_scoped_file(scoped_file)
+        parse_scoped_file(scoped_file=scoped_file)
 
     assert test_case.expected_error_fragment in str(error.value)
     assert error.value.path == scoped_file.path
@@ -78,7 +78,7 @@ def test_given_raw_source_bytes_when_parsing_then_preserves_exact_content_identi
         relative_parts=("models.py",),
     )
 
-    parsed: ParsedModule = parse_scoped_file(scoped_file)
+    parsed: ParsedModule = parse_scoped_file(scoped_file=scoped_file)
 
     assert parsed.source == test_case.expected_source
     assert parsed.source_fingerprint == test_case.expected_fingerprint

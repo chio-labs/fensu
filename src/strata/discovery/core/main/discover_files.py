@@ -11,7 +11,7 @@ from strata.discovery.core.helpers.scope import discover_scoped_files
 from strata.discovery.core.models import DiscoveredTree, ProjectLayout, RepoRoot, ScopedFile
 
 
-def discover_files(config: Config, *, repo_root: Path | None = None) -> DiscoveredTree:
+def discover_files(*, config: Config, repo_root: Path | None = None) -> DiscoveredTree:
     """Discover Python files under configured roots, tests, and tooling paths."""
 
     resolved_root: RepoRoot = resolve_repo_root(path=repo_root)

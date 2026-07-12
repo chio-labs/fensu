@@ -15,7 +15,7 @@ def annotation_faults(*, module: ast.Module, ctx: RuleContext, code: AnnotationC
     if code == AnnotationCode.PARAMETER_ANNOTATION:
         return [
             ctx.fault_at(
-                fact.location,
+                location=fact.location,
                 message=f"function parameter '{fact.name}' must define a type annotation",
             )
             for fact in ctx._analysis.facts.annotations().parameters
@@ -23,7 +23,7 @@ def annotation_faults(*, module: ast.Module, ctx: RuleContext, code: AnnotationC
     if code == AnnotationCode.RETURN_ANNOTATION:
         return [
             ctx.fault_at(
-                fact.location,
+                location=fact.location,
                 message=f"function '{fact.name}' must define a return type annotation",
             )
             for fact in ctx._analysis.facts.annotations().returns
@@ -31,7 +31,7 @@ def annotation_faults(*, module: ast.Module, ctx: RuleContext, code: AnnotationC
     if code == AnnotationCode.LOCAL_VARIABLE_ANNOTATION:
         return [
             ctx.fault_at(
-                fact.location,
+                location=fact.location,
                 message=(
                     f"local variable '{fact.name}' must define a type annotation on first binding"
                 ),
@@ -41,14 +41,14 @@ def annotation_faults(*, module: ast.Module, ctx: RuleContext, code: AnnotationC
     if code == AnnotationCode.MODULE_VARIABLE_ANNOTATION:
         return [
             ctx.fault_at(
-                fact.location,
+                location=fact.location,
                 message=f"module-level variable '{fact.name}' must define a type annotation",
             )
             for fact in ctx._analysis.facts.annotations().module_variables
         ]
     return [
         ctx.fault_at(
-            fact.location,
+            location=fact.location,
             message=f"class attribute '{fact.name}' must define a type annotation",
         )
         for fact in ctx._analysis.facts.annotations().class_attributes

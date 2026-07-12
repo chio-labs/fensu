@@ -134,7 +134,7 @@ def discover_project(*, repo_root: Path) -> tuple[Config, DiscoveredTree]:
     """Return one configured and discovered runtime project."""
 
     config: Config = Config(roots=("src/pkg",), tests=())
-    return config, discover_files(config, repo_root=repo_root)
+    return config, discover_files(config=config, repo_root=repo_root)
 
 
 def source_fault_rule(*, kind: RuleKind = RuleKind.CORE, cacheable: bool = False) -> RuleSpec:
@@ -179,7 +179,7 @@ def exception_fault_rule() -> RuleSpec:
     """Return a function-owned fault suitable for exception suppression."""
 
     def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
-        return [ctx.fault(module.body[0])]
+        return [ctx.fault(node=module.body[0])]
 
     return RuleSpec(
         code="XCR003",

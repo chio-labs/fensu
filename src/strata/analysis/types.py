@@ -13,6 +13,7 @@ from strata.analysis.models import (
     CommentFact,
     DataclassFact,
     FunctionConditionalFact,
+    FunctionContractFact,
     FunctionFacts,
     HygieneFacts,
     MeaningfulReturnFact,
@@ -41,6 +42,21 @@ class ProjectDependencyKind(StrEnum):
     DIRECTORY_ENTRIES = "directory_entries"
     GLOB = "glob"
     PYTHON_ANCHOR = "python_anchor"
+
+
+class ReturnAnnotationCategory(StrEnum):
+    """Normalized return-annotation shapes used by contract policies."""
+
+    MISSING = "missing"
+    NONE = "none"
+    BOOL = "bool"
+    TYPE_GUARD = "type-guard"
+    TYPE_IS = "type-is"
+    ITERATOR = "iterator"
+    GENERATOR = "generator"
+    ASYNC_ITERATOR = "async-iterator"
+    ASYNC_GENERATOR = "async-generator"
+    OTHER = "other"
 
 
 class TextAnalysis(Protocol):
@@ -117,6 +133,10 @@ class FactAnalysis(Protocol):
 
     def functions(self) -> FunctionFacts:
         """Return reusable structural function metrics."""
+        ...
+
+    def function_contracts(self) -> tuple[FunctionContractFact, ...]:
+        """Return descriptive name, annotation, yield, and return facts."""
         ...
 
     def hygiene(self) -> HygieneFacts:

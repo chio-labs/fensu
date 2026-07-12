@@ -10,42 +10,99 @@ from pathlib import Path
 from strata.analysis.helpers.locations import source_location
 from strata.analysis.models import (
     DiscardedProjectCallFact,
-    MeaningfulReturnFact,
+    FunctionContractFact,
     ProjectCallFacts,
     ProjectFunctionFact,
 )
+from strata.analysis.types import ReturnAnnotationCategory
 
 _no_return_annotation_names: frozenset[str] = frozenset({"Never", "NoReturn", "None"})
 _module_separator: str = "."
 
 
-def meaningful_return_facts(
+def function_contract_facts(
     *,
     path: Path,
     node_index: Mapping[type[ast.AST], tuple[ast.AST, ...]],
     name_patterns: tuple[str, ...] = (),
-) -> tuple[MeaningfulReturnFact, ...]:
-    """Return the first meaningful return owned by each function."""
+) -> tuple[FunctionContractFact, ...]:
+    """Return descriptive contracts from one owned-body walk per function."""
 
-    facts: list[MeaningfulReturnFact] = []
-    functions: tuple[ast.AST, ...] = (
+    facts: list[FunctionContractFact] = []
+    indexed_functions: tuple[ast.AST, ...] = (
         *node_index.get(ast.FunctionDef, ()),
         *node_index.get(ast.AsyncFunctionDef, ()),
     )
+    functions: tuple[ast.FunctionDef | ast.AsyncFunctionDef, ...] = tuple(
+        sorted(
+            (
+                node
+                for node in indexed_functions
+                if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+            ),
+            key=lambda node: (node.lineno, node.col_offset),
+        )
+    )
     for node in functions:
-        if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
-            continue
         if name_patterns and not any(fnmatchcase(node.name, pattern) for pattern in name_patterns):
             continue
-        meaningful_return: ast.Return | None = _owned_meaningful_return(node)
-        if meaningful_return is not None:
-            facts.append(
-                MeaningfulReturnFact(
-                    function_name=node.name,
-                    location=source_location(path=path, node=meaningful_return),
-                )
+        meaningful_return, contains_yield = _owned_return_shape(node)
+        annotation_category, annotation = _return_annotation(node.returns)
+        facts.append(
+            FunctionContractFact(
+                function_name=node.name,
+                location=source_location(path=path, node=node),
+                return_annotation_category=annotation_category,
+                return_annotation=annotation,
+                contains_yield=contains_yield,
+                meaningful_return_location=(
+                    source_location(path=path, node=meaningful_return)
+                    if meaningful_return is not None
+                    else None
+                ),
             )
+        )
     return tuple(facts)
+
+
+def _return_annotation(
+    annotation: ast.expr | None,
+) -> tuple[ReturnAnnotationCategory, str]:
+    if annotation is None:
+        return ReturnAnnotationCategory.MISSING, "missing"
+    normalized: ast.expr = annotation
+    display: str = ast.unparse(annotation)
+    if isinstance(annotation, ast.Constant) and isinstance(annotation.value, str):
+        display = annotation.value
+        try:
+            normalized = ast.parse(annotation.value, mode="eval").body
+        except SyntaxError:
+            return ReturnAnnotationCategory.OTHER, display
+    if isinstance(normalized, ast.Constant) and normalized.value is None:
+        return ReturnAnnotationCategory.NONE, display
+    terminal_name: str | None = _annotation_terminal_name(normalized)
+    categories: dict[str, ReturnAnnotationCategory] = {
+        "None": ReturnAnnotationCategory.NONE,
+        "NoReturn": ReturnAnnotationCategory.NONE,
+        "Never": ReturnAnnotationCategory.NONE,
+        "bool": ReturnAnnotationCategory.BOOL,
+        "TypeGuard": ReturnAnnotationCategory.TYPE_GUARD,
+        "TypeIs": ReturnAnnotationCategory.TYPE_IS,
+        "Iterator": ReturnAnnotationCategory.ITERATOR,
+        "Generator": ReturnAnnotationCategory.GENERATOR,
+        "AsyncIterator": ReturnAnnotationCategory.ASYNC_ITERATOR,
+        "AsyncGenerator": ReturnAnnotationCategory.ASYNC_GENERATOR,
+    }
+    return categories.get(terminal_name, ReturnAnnotationCategory.OTHER), display
+
+
+def _annotation_terminal_name(annotation: ast.expr) -> str | None:
+    value: ast.expr = annotation.value if isinstance(annotation, ast.Subscript) else annotation
+    if isinstance(value, ast.Name):
+        return value.id
+    if isinstance(value, ast.Attribute):
+        return value.attr
+    return None
 
 
 def project_call_facts(*, path: Path, module: ast.Module) -> ProjectCallFacts:
@@ -177,27 +234,35 @@ def _has_meaningful_result(function: ast.FunctionDef | ast.AsyncFunctionDef) -> 
     return True
 
 
-def _owned_meaningful_return(
+def _owned_return_shape(
     node: ast.FunctionDef | ast.AsyncFunctionDef,
-) -> ast.Return | None:
+) -> tuple[ast.Return | None, bool]:
+    meaningful_return: ast.Return | None = None
+    contains_yield: bool = False
     for statement in node.body:
-        found: ast.Return | None = _meaningful_return(statement)
-        if found is not None:
-            return found
-    return None
+        found, statement_yields = _return_shape(statement)
+        if meaningful_return is None and found is not None:
+            meaningful_return = found
+        contains_yield = contains_yield or statement_yields
+    return meaningful_return, contains_yield
 
 
-def _meaningful_return(node: ast.AST) -> ast.Return | None:
+def _return_shape(node: ast.AST) -> tuple[ast.Return | None, bool]:
     if isinstance(node, ast.Return):
         if node.value is None:
-            return None
+            return None, False
         if isinstance(node.value, ast.Constant) and node.value.value is None:
-            return None
-        return node
+            return None, False
+        return node, False
+    if isinstance(node, ast.Yield | ast.YieldFrom):
+        return None, True
     if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef | ast.Lambda):
-        return None
+        return None, False
+    meaningful_return: ast.Return | None = None
+    contains_yield: bool = False
     for child in ast.iter_child_nodes(node):
-        found: ast.Return | None = _meaningful_return(child)
-        if found is not None:
-            return found
-    return None
+        found, child_yields = _return_shape(child)
+        if meaningful_return is None and found is not None:
+            meaningful_return = found
+        contains_yield = contains_yield or child_yields
+    return meaningful_return, contains_yield

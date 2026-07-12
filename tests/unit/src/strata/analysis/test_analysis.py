@@ -15,6 +15,7 @@ from strata.analysis.models import (
     CommentFact,
     DataclassFact,
     FunctionConditionalFact,
+    FunctionContractFact,
     FunctionFacts,
     HygieneFacts,
     MeaningfulReturnFact,
@@ -38,6 +39,7 @@ from tests.unit.src.strata.analysis._test_types import (
     CommentFactTestCase,
     DataclassFactTestCase,
     FunctionConditionalFactTestCase,
+    FunctionContractFactTestCase,
     FunctionMetricFactTestCase,
     HygieneFactTestCase,
     MeaningfulReturnFactTestCase,
@@ -50,6 +52,7 @@ from tests.unit.src.strata.analysis._test_types import (
     ReferenceFactTestCase,
     SourceAnalysisTestCase,
 )
+from tests.unit.src.strata.analysis.helpers import meaningful_return_lines
 
 
 @pytest.mark.parametrize(
@@ -367,6 +370,47 @@ def test_given_function_returns_when_querying_facts_then_preserves_scope_ownersh
 @pytest.mark.parametrize(
     "test_case",
     [
+        FunctionContractFactTestCase(
+            description="contract facts normalize annotations and preserve owned body boundaries",
+            source=(
+                "def is_ready() -> 'typing.TypeGuard[int]':\n    return True\n"
+                "def iter_rows() -> Iterable[int]:\n"
+                "    def nested():\n        yield 0\n"
+                "    yield 1\n"
+                "async def get_value():\n    return None\n"
+            ),
+            expected_function_names=("is_ready", "iter_rows", "nested", "get_value"),
+            expected_categories=("type-guard", "other", "missing", "missing"),
+            expected_annotations=("typing.TypeGuard[int]", "Iterable[int]", "missing", "missing"),
+            expected_contains_yield=(False, True, True, False),
+            expected_meaningful_return_lines=(2, None, None, None),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_function_contracts_when_querying_facts_then_returns_descriptive_shapes(
+    tmp_path: Path,
+    test_case: FunctionContractFactTestCase,
+) -> None:
+    path: Path = tmp_path / "module.py"
+    analysis: Analysis = build_analysis(
+        path=path,
+        source=test_case.source,
+        module=ast.parse(test_case.source),
+    ).analysis
+
+    facts: tuple[FunctionContractFact, ...] = analysis.facts.function_contracts()
+
+    assert tuple(fact.function_name for fact in facts) == test_case.expected_function_names
+    assert tuple(fact.return_annotation_category for fact in facts) == test_case.expected_categories
+    assert tuple(fact.return_annotation for fact in facts) == test_case.expected_annotations
+    assert tuple(fact.contains_yield for fact in facts) == test_case.expected_contains_yield
+    assert meaningful_return_lines(facts) == test_case.expected_meaningful_return_lines
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
         HygieneFactTestCase(
             description="hygiene facts expose all syntax-policy locations",
             source=(
@@ -599,14 +643,16 @@ def test_given_function_conditionals_when_querying_facts_then_returns_owner_meta
                 "    def run(self, value, *, option: str):\n"
                 "        typed: int = 1\n"
                 "        typed = 2\n"
+                "        scalar = -1\n"
                 "        local = value\n"
             ),
             expected_parameter_names=("value",),
             expected_parameter_lines=(2,),
             expected_return_names=("run",),
             expected_return_lines=(2,),
-            expected_local_names=("local",),
-            expected_local_lines=(5,),
+            expected_local_names=("scalar", "local"),
+            expected_local_lines=(5, 6),
+            expected_local_scalar_literals=(True, False),
         )
     ],
     ids=lambda case: case.description,
@@ -632,6 +678,9 @@ def test_given_missing_annotations_when_querying_facts_then_returns_all_fact_gro
     assert tuple(fact.location.line for fact in facts.returns) == test_case.expected_return_lines
     assert tuple(fact.name for fact in facts.locals) == test_case.expected_local_names
     assert tuple(fact.location.line for fact in facts.locals) == test_case.expected_local_lines
+    assert tuple(fact.scalar_literal for fact in facts.locals) == (
+        test_case.expected_local_scalar_literals
+    )
 
 
 @pytest.mark.parametrize(

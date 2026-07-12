@@ -47,7 +47,7 @@ def selection_context_rule() -> RuleSpec:
             requester=ctx.path, path=context_path.parent
         )
         source: str = "missing" if analysis is None else analysis.text.source.strip()
-        names: str = ",".join(path.name for path in entries)
+        names: str = ",".join(sorted(path.name for path in entries))
         return [ctx.path_fault(message=f"{source}|{names}")]
 
     return RuleSpec(

@@ -25,7 +25,7 @@ from tests.unit.src.strata.evaluation.helpers import (
         EvaluationContextSelectionTestCase(
             description="included importer observes excluded source structure and ownership",
             expected_codes=("XES001", "SFL102"),
-            expected_context_message="CONTEXT: int = 1|parse.py,context.py",
+            expected_context_message="CONTEXT: int = 1|context.py,parse.py",
             expected_evaluated_paths=("src/pkg/domain_a/core/main/run.py",),
         )
     ],

@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.3.0](https://github.com/chio-labs/strata/compare/v0.2.0...v0.3.0) (2026-07-12)
+
+
+### Features
+
+* **analysis:** share dependency query observation ([3a18341](https://github.com/chio-labs/strata/commit/3a183418252095281934c18c836d6a20c396cb0e))
+* **cache:** add atomic record storage ([76dc8ae](https://github.com/chio-labs/strata/commit/76dc8aef604b6ec097d4187309ff2d6953ed1ad8))
+* **cache:** add fingerprint foundation ([040b9f8](https://github.com/chio-labs/strata/commit/040b9f852898fbe429da30c99aef839cf6e3d0da))
+* **cache:** add indexed result repository ([ce2ac82](https://github.com/chio-labs/strata/commit/ce2ac82c0663b48c7e0b2e7c6ed975e1a8bc2a8c))
+* **cache:** add typed result records ([1819841](https://github.com/chio-labs/strata/commit/181984166af6f4758ca07e95965ad11895fc3fac))
+* **cache:** capture file evaluation inputs ([fde9143](https://github.com/chio-labs/strata/commit/fde9143259aa0183c28e919dd286e1c368612429))
+* **cache:** enable persistent checks by default ([35e52d1](https://github.com/chio-labs/strata/commit/35e52d18d907b1d8c57dd15bfbd6a42ebca43b37))
+* **cache:** expose transactional persistent checks ([bd89f7d](https://github.com/chio-labs/strata/commit/bd89f7d6b59783a6eb6edea73439c23a03014b82))
+* **cache:** reuse dependency-aware file results ([74b2a86](https://github.com/chio-labs/strata/commit/74b2a868c25f2595e3f99df534a603dc8f453eb0))
+* **cache:** sweep generations and degrade publication failures ([115d9e5](https://github.com/chio-labs/strata/commit/115d9e520346cf03e9f1908818c4dd43e98b47f6))
+* **cache:** verify custom rules under a require-cacheable policy ([850928e](https://github.com/chio-labs/strata/commit/850928e32cdbaf07c7b5dc2650d8203f12b0e683))
+* **rules:** enforce hermetic rule execution ([0e2dedf](https://github.com/chio-labs/strata/commit/0e2dedf98e7c6fed04bc626bc1f454a5e6e5ccc5))
+* **rules:** organize test rule codes by concern ([def7a2b](https://github.com/chio-labs/strata/commit/def7a2bf2ba4ca3c1c2e4675342f188534a2843b))
+
+
+### Bug Fixes
+
+* **config:** honor configured project layouts ([44cf549](https://github.com/chio-labs/strata/commit/44cf549cae693905f4bc43e969baf7b89c3b5ba5))
+
 ## [0.2.0](https://github.com/chio-labs/strata/compare/v0.1.2...v0.2.0) (2026-07-11)
 
 

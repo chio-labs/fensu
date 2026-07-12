@@ -56,6 +56,10 @@ def config_fingerprint(config: Config) -> CacheFingerprint:
 
     payload: CanonicalValue = {
         "contracts": dict(sorted(config.contracts.items())),
+        "evaluation": {
+            "exclude": list(config.evaluation.exclude),
+            "include": list(config.evaluation.include),
+        },
         "ignore": list(config.ignore),
         "role_thresholds": _role_threshold_values(config.role_thresholds),
         "roots": list(config.roots),

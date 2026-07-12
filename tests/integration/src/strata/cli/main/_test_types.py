@@ -67,6 +67,17 @@ class CheckErrorTestCase:
 
 
 @dataclass(frozen=True)
+class EvaluationCheckTestCase:
+    """Configured evaluation filter and expected cached/uncached CLI output."""
+
+    description: str
+    expected_exit_code: int
+    expected_summary: str
+    expected_fault_fragment: str
+    expected_absent_fragment: str
+
+
+@dataclass(frozen=True)
 class CheckCacheModeTestCase:
     """Cached and uncached CLI modes with expected parity and storage behavior."""
 

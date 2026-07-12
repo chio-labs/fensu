@@ -66,6 +66,16 @@ class ExternalAnalysisBuild:
 
 
 @dataclass(frozen=True, slots=True)
+class EvaluationSelection:
+    """Direct evaluation targets selected from a complete discovered tree."""
+
+    files: tuple[ScopedFile, ...]
+    discovered_count: int
+    excluded_count: int
+    filtered: bool
+
+
+@dataclass(frozen=True, slots=True)
 class FileEvaluation:
     """Unrendered evaluation output and observed inputs for one source file."""
 
@@ -86,3 +96,4 @@ class EvaluationResult:
     dependencies: tuple[ProjectDependency, ...] = ()
     file_evaluations: tuple[FileEvaluation, ...] = ()
     threshold_override_uses: tuple[ThresholdOverrideUse, ...] = ()
+    selection: EvaluationSelection | None = None

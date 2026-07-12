@@ -91,6 +91,13 @@ def run_check(
         show_stats=args.cache_stats,
         disabled_reason=cache_disabled_reason,
     )
+    if result.selection is not None and result.selection.filtered:
+        stdout.write(
+            f"Evaluation: "
+            f"{result.selection.discovered_count - result.selection.excluded_count:,} of "
+            f"{result.selection.discovered_count:,} Python files "
+            f"({result.selection.excluded_count:,} excluded by config)\n"
+        )
     stdout.write(report.text)
     stdout.write("\n")
     return 1 if report.fault_count else 0

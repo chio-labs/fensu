@@ -30,3 +30,6 @@ class ContractBehavior(StrEnum):
     """Supported function-name contract behaviors."""
 
     NO_RETURN = "no-return"
+    RETURNS_BOOL = "returns-bool"
+    RETURNS_VALUE = "returns-value"
+    RETURNS_ITERATOR = "returns-iterator"

@@ -36,6 +36,7 @@ from tests.unit.src.strata.cache.fingerprints._test_types import (
     CanonicalFingerprintTestCase,
     ConfigFingerprintTestCase,
     ConfigLayoutFingerprintTestCase,
+    ContractFingerprintTestCase,
     CustomRulesFingerprintTestCase,
     FileResultFingerprintTestCase,
     GlobalFingerprintBuilderTestCase,
@@ -196,6 +197,37 @@ def test_given_validated_configs_when_fingerprinting_then_captures_policy_inputs
 
     first: CacheFingerprint = config_fingerprint(first_config)
     second: CacheFingerprint = config_fingerprint(second_config)
+
+    assert (first == second) is test_case.expected_equal
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ContractFingerprintTestCase(
+            description="contract behavior change invalidates global config identity",
+            first_behavior="returns-bool",
+            second_behavior="returns-value",
+            expected_equal=False,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_contract_behavior_change_when_fingerprinting_then_invalidates_config_identity(
+    test_case: ContractFingerprintTestCase,
+) -> None:
+    first: CacheFingerprint = config_fingerprint(
+        Config(
+            roots=("src/pkg",),
+            contracts=MappingProxyType({"is_*": test_case.first_behavior}),
+        )
+    )
+    second: CacheFingerprint = config_fingerprint(
+        Config(
+            roots=("src/pkg",),
+            contracts=MappingProxyType({"is_*": test_case.second_behavior}),
+        )
+    )
 
     assert (first == second) is test_case.expected_equal
 

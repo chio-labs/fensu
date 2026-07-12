@@ -26,6 +26,20 @@ _ESCAPED_OVERRIDE_REASON: str = 'Generated "API" path.\nKeep \\ escapes.'
     "test_case",
     [
         GuidanceTestCase(
+            description="selected naming behavior excludes unselected naming guidance",
+            config=Config(roots=("src/acme",), tests=(), tooling=()),
+            rule_codes=("SFN002",),
+            expected_fragments=(
+                "## SFN002: predicate-must-return-bool",
+                "Return bool (or TypeGuard/TypeIs)",
+            ),
+            expected_absent_fragments=(
+                "## SFN001:",
+                "## SFN003:",
+                "## SFN004:",
+            ),
+        ),
+        GuidanceTestCase(
             description="active rule exceptions show exact symbols and review reason",
             config=Config(
                 roots=("src/acme",),

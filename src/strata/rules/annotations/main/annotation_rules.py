@@ -43,9 +43,13 @@ def annotation_rules() -> tuple[RuleSpec, ...]:
         _rule(
             code=AnnotationCode.LOCAL_VARIABLE_ANNOTATION,
             slug="local-variable-annotation",
-            message="local variables must define type annotations on first binding",
+            message=(
+                "local variables must define type annotations on first binding unless assigned "
+                "a scalar literal"
+            ),
             remediation=(
-                "Add the inferred or declared type to the variable's first local assignment."
+                "Annotate first bindings whose type is not evident from a number, string, bool, "
+                "bytes, or f-string literal."
             ),
         ),
     )

@@ -77,6 +77,7 @@ class MissingLocalAnnotationFact:
 
     name: str
     location: SourceLocation
+    scalar_literal: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -232,6 +233,18 @@ class MeaningfulReturnFact:
 
     function_name: str
     location: SourceLocation
+
+
+@dataclass(frozen=True, slots=True)
+class FunctionContractFact:
+    """Descriptive return and generator facts for one function."""
+
+    function_name: str
+    location: SourceLocation
+    return_annotation_category: str
+    return_annotation: str
+    contains_yield: bool
+    meaningful_return_location: SourceLocation | None
 
 
 @dataclass(frozen=True, slots=True)

@@ -87,6 +87,17 @@ class CachedEvaluationReuseTestCase:
 
 
 @dataclass(frozen=True)
+class CachedNamingParityTestCase:
+    """Naming faults and expected cold/warm persistent cache parity."""
+
+    description: str
+    relative_path: str
+    source: str
+    expected_codes: tuple[str, ...]
+    expected_warm_hits: int
+
+
+@dataclass(frozen=True)
 class CachedEvaluationInvalidationTestCase:
     """One input mutation and expected recomputed diagnostic state."""
 

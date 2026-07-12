@@ -138,6 +138,12 @@ class _AnnotationVisitor(ast.NodeVisitor):
             return
         current_scope: set[str] = self._function_scopes[-1]
         targets: list[ast.expr] = node.targets if isinstance(node, ast.Assign) else [node.target]
+        scalar_literal: bool = (
+            isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+            and _is_scalar_literal(node.value)
+        )
         for target in targets:
             if (
                 not isinstance(target, ast.Name)
@@ -146,7 +152,11 @@ class _AnnotationVisitor(ast.NodeVisitor):
             ):
                 continue
             self._locals.append(
-                MissingLocalAnnotationFact(name=target.id, location=self._location(target))
+                MissingLocalAnnotationFact(
+                    name=target.id,
+                    location=self._location(target),
+                    scalar_literal=scalar_literal,
+                )
             )
             current_scope.add(target.id)
 
@@ -172,6 +182,17 @@ def annotation_facts(
             path=path,
             class_nodes=node_index.get(ast.ClassDef, ()),
         ),
+    )
+
+
+def _is_scalar_literal(node: ast.expr) -> bool:
+    if isinstance(node, ast.JoinedStr):
+        return True
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.UAdd | ast.USub):
+        return _is_scalar_literal(node.operand)
+    return isinstance(node, ast.Constant) and isinstance(
+        node.value,
+        int | float | complex | str | bytes | bool,
     )
 
 

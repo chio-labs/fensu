@@ -94,6 +94,7 @@ class AnnotationFactTestCase:
     expected_return_lines: tuple[int, ...]
     expected_local_names: tuple[str, ...]
     expected_local_lines: tuple[int, ...]
+    expected_local_scalar_literals: tuple[bool, ...]
 
 
 @dataclass(frozen=True)
@@ -166,6 +167,19 @@ class MeaningfulReturnFactTestCase:
     source: str
     expected_function_names: tuple[str, ...]
     expected_lines: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class FunctionContractFactTestCase:
+    """Source and expected descriptive function contract facts."""
+
+    description: str
+    source: str
+    expected_function_names: tuple[str, ...]
+    expected_categories: tuple[str, ...]
+    expected_annotations: tuple[str, ...]
+    expected_contains_yield: tuple[bool, ...]
+    expected_meaningful_return_lines: tuple[int | None, ...]
 
 
 @dataclass(frozen=True)

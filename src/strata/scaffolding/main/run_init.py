@@ -50,7 +50,12 @@ def run_init(
 
     try:
         resolved: Path = repository.resolve()
-        preflight_existing_config(repository=resolved)
+        existing_config: Path | None = preflight_existing_config(repository=resolved)
+        if existing_config is not None:
+            stdout.write(
+                f"Strata configuration already exists: {existing_config} (nothing to do)\n"
+            )
+            return 0
         detected: DetectedRepositoryLayout = detect_repository_layout(repository=resolved)
         validate_option_applicability(options=options, detected=detected)
         decision: InteractionDecision = interaction_decision(options=options, detected=detected)
@@ -66,7 +71,14 @@ def run_init(
         )
         runtime_count: int = count_runtime_python_files(repository=resolved, roots=plan.roots)
         config, execution = execute_init_plan(repository=resolved, plan=plan)
-    except (ScaffoldingError, ConfigError, ParseError, tomllib.TOMLDecodeError, OSError) as error:
+    except (
+        ScaffoldingError,
+        ConfigError,
+        ParseError,
+        tomllib.TOMLDecodeError,
+        OSError,
+        UnicodeError,
+    ) as error:
         stderr.write(f"{error}\n")
         return 2
     _write_success(

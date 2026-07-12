@@ -18,22 +18,50 @@ from tests.unit.src.strata.scaffolding.helpers import invoke_prompt
         PromptDefaultTestCase(
             description="blank generic confirmation accepts yes default",
             prompt_kind="generic",
+            input_text="\n",
             expected_result=True,
         ),
         PromptDefaultTestCase(
             description="blank layout confirmation accepts layout default",
             prompt_kind="layout",
+            input_text="\n",
             expected_result=True,
         ),
         PromptDefaultTestCase(
             description="blank root selection accepts every candidate",
             prompt_kind="root",
+            input_text="\n",
             expected_result=("src/alpha", "src/beta"),
         ),
         PromptDefaultTestCase(
             description="blank project name accepts normalized repository default",
             prompt_kind="name",
+            input_text="\n",
             expected_result="my_project",
+        ),
+        PromptDefaultTestCase(
+            description="case insensitive long yes accepts generic confirmation",
+            prompt_kind="generic",
+            input_text="YeS\n",
+            expected_result=True,
+        ),
+        PromptDefaultTestCase(
+            description="case insensitive long no declines generic confirmation",
+            prompt_kind="generic",
+            input_text="NO\n",
+            expected_result=False,
+        ),
+        PromptDefaultTestCase(
+            description="case insensitive long edit requests layout editing",
+            prompt_kind="layout",
+            input_text="EdIt\n",
+            expected_result=False,
+        ),
+        PromptDefaultTestCase(
+            description="long edit is invalid where editing is unavailable",
+            prompt_kind="generic",
+            input_text="edit\nno\n",
+            expected_result=False,
         ),
     ],
     ids=lambda case: case.description,
@@ -42,7 +70,7 @@ def test_given_explicit_blank_line_when_prompting_then_uses_displayed_default(
     test_case: PromptDefaultTestCase,
 ) -> None:
     result: bool | tuple[str, ...] | str = invoke_prompt(
-        prompt_kind=test_case.prompt_kind, input_text="\n"
+        prompt_kind=test_case.prompt_kind, input_text=test_case.input_text
     )
 
     assert result == test_case.expected_result

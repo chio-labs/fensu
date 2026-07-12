@@ -230,7 +230,20 @@ class InitRefusalTestCase:
     source: str
     scripted_input: str
     expected_error_fragment: str
+    argv: tuple[str, ...] = ()
     expected_exit_code: int = 2
+    expected_stdout_fragment: str = ""
+
+
+@dataclass(frozen=True)
+class InitRerunTestCase:
+    """Local config source and flags with expected idempotent success output."""
+
+    description: str
+    source: str
+    argv: tuple[str, ...]
+    expected_relative_config: str
+    expected_exit_code: int
 
 
 @dataclass(frozen=True)
@@ -296,6 +309,16 @@ class InitSymlinkRefusalTestCase:
     expected_exit_code: int
     expected_error_fragment: str
     expected_stdout: str
+
+
+@dataclass(frozen=True)
+class InitLocalTargetTestCase:
+    """Unsafe local config target and expected early refusal."""
+
+    description: str
+    target_kind: str
+    expected_error_fragment: str
+    expected_exit_code: int
 
 
 @dataclass(frozen=True)

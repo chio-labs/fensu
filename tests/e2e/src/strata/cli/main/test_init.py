@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from strata.scaffolding.constants import PYTHON_GITIGNORE_TEMPLATE, STRATA_GITIGNORE_BLOCK
 from tests.e2e.src.strata.cli.main._test_types import (
     CliProjectFile,
     InstalledInitCliTestCase,
@@ -39,6 +40,10 @@ from tests.e2e.src.strata.cli.main.helpers import (
             ),
             expected_exit_code=0,
             expected_files=(
+                CliProjectFile(
+                    relative_path=".gitignore",
+                    source=STRATA_GITIGNORE_BLOCK.decode(),
+                ),
                 CliProjectFile(
                     relative_path="pyproject.toml",
                     source=(
@@ -84,6 +89,10 @@ from tests.e2e.src.strata.cli.main.helpers import (
             initial_files=(),
             expected_exit_code=0,
             expected_files=(
+                CliProjectFile(
+                    relative_path=".gitignore",
+                    source=(PYTHON_GITIGNORE_TEMPLATE + STRATA_GITIGNORE_BLOCK).decode(),
+                ),
                 CliProjectFile(relative_path="src/my_project/__init__.py", source=""),
                 CliProjectFile(
                     relative_path="strata.toml",
@@ -135,6 +144,52 @@ from tests.e2e.src.strata.cli.main.helpers import (
             ),
             expected_absent_output_fragments=("Project name", "Accept?", "\x1b["),
             expected_stdout_is_empty=True,
+        ),
+        InstalledInitCliTestCase(
+            description="local config does not bypass argparse conflicts",
+            argv=("--full", "--gradual"),
+            input_text="",
+            initial_files=(
+                CliProjectFile(
+                    relative_path="strata.toml",
+                    source='roots = ["src/pkg"]\n',
+                ),
+            ),
+            expected_exit_code=2,
+            expected_files=(
+                CliProjectFile(
+                    relative_path="strata.toml",
+                    source='roots = ["src/pkg"]\n',
+                ),
+            ),
+            expected_config_values=(("roots", ("src/pkg",)),),
+            expected_stdout_fragments=(),
+            expected_stderr_fragments=("not allowed with argument --full",),
+            expected_absent_output_fragments=("nothing to do",),
+            expected_stdout_is_empty=True,
+        ),
+        InstalledInitCliTestCase(
+            description="local config does not bypass argparse help",
+            argv=("--help",),
+            input_text="",
+            initial_files=(
+                CliProjectFile(
+                    relative_path="strata.toml",
+                    source='roots = ["src/pkg"]\n',
+                ),
+            ),
+            expected_exit_code=0,
+            expected_files=(
+                CliProjectFile(
+                    relative_path="strata.toml",
+                    source='roots = ["src/pkg"]\n',
+                ),
+            ),
+            expected_config_values=(("roots", ("src/pkg",)),),
+            expected_stdout_fragments=("usage: strata init", "--help"),
+            expected_stderr_fragments=(),
+            expected_absent_output_fragments=("nothing to do",),
+            expected_stdout_is_empty=False,
         ),
         InstalledInitCliTestCase(
             description="empty repository refuses explicit runtime scope",

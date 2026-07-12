@@ -6,7 +6,23 @@ import sqlite3
 from pathlib import Path
 
 from strata.cache.storage.classes.cache_store import CacheStore
-from strata.cache.storage.models import CacheRecord
+from strata.cache.storage.models import CacheMutation, CacheRecord
+from strata.cache.storage.types import CacheMutator
+
+
+def recording_mutator(
+    *,
+    result: CacheMutation | None,
+) -> tuple[CacheMutator, list[tuple[CacheRecord | None, ...]]]:
+    """Return a mutator producing one fixed mutation while recording observed reads."""
+
+    observed: list[tuple[CacheRecord | None, ...]] = []
+
+    def mutate(records: tuple[CacheRecord | None, ...]) -> CacheMutation | None:
+        observed.append(records)
+        return result
+
+    return mutate, observed
 
 
 def write_raw_cache_entry(*, store: CacheStore, relative_path: str, data: bytes) -> None:

@@ -52,6 +52,17 @@ class CheckCacheModeTestCase:
 
 
 @dataclass(frozen=True)
+class CheckCacheWarningTestCase:
+    """One cache failure mode and the expected diagnostic-stream warning."""
+
+    description: str
+    argv: tuple[str, ...]
+    expected_exit_code: int
+    expected_output_fragment: str
+    expected_warning_fragment: str
+
+
+@dataclass(frozen=True)
 class MetadataCommandTestCase:
     """CLI metadata command inputs and expected output."""
 

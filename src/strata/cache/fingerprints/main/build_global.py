@@ -12,7 +12,7 @@ from strata.cache.fingerprints.helpers.fingerprints import (
     implementation_identity_is_complete,
     ruleset_fingerprint,
 )
-from strata.cache.fingerprints.models import CacheFingerprint
+from strata.cache.fingerprints.models import GlobalFingerprintBuild
 from strata.config.core.models import Config
 from strata.rules.authoring.models import RuleSpec
 
@@ -21,24 +21,35 @@ def build_global_fingerprint(
     *,
     config: Config,
     ruleset: tuple[RuleSpec, ...],
-) -> CacheFingerprint | None:
-    """Return a complete installed/editable identity or None when unavailable."""
+) -> GlobalFingerprintBuild:
+    """Return a complete installed/editable identity or the reason it is unavailable."""
 
     package_root: Path | None = _loaded_package_root()
     if package_root is None:
-        return None
+        return GlobalFingerprintBuild(
+            fingerprint=None,
+            disabled_reason="the loaded implementation location is unavailable",
+        )
     try:
         if not (package_root / "__init__.py").is_file() or not implementation_identity_is_complete(
             package_root=package_root
         ):
-            return None
-        return global_fingerprint(
-            implementation=implementation_fingerprint(package_root=package_root),
-            config=config_fingerprint(config),
-            ruleset=ruleset_fingerprint(ruleset),
+            return GlobalFingerprintBuild(
+                fingerprint=None,
+                disabled_reason="the loaded implementation files are unavailable",
+            )
+        return GlobalFingerprintBuild(
+            fingerprint=global_fingerprint(
+                implementation=implementation_fingerprint(package_root=package_root),
+                config=config_fingerprint(config),
+                ruleset=ruleset_fingerprint(ruleset),
+            )
         )
     except (OSError, PackageNotFoundError, TypeError, ValueError):
-        return None
+        return GlobalFingerprintBuild(
+            fingerprint=None,
+            disabled_reason="the implementation identity could not be fingerprinted",
+        )
 
 
 def _loaded_package_root() -> Path | None:

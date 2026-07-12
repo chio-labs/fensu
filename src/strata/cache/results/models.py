@@ -8,6 +8,7 @@ from strata.analysis.core.types import ProjectDependencyKind
 from strata.cache.fingerprints.models import CacheFingerprint
 from strata.cache.fingerprints.types import CanonicalValue
 from strata.cache.results.types import DependencyAnswer
+from strata.cache.storage.models import CacheRecord
 from strata.evaluation.core.models import EvaluationResult
 
 
@@ -46,6 +47,7 @@ class CacheStats:
     writes: int = 0
     non_cacheable: int = 0
     storage_failed: bool = False
+    internal_error: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,6 +110,23 @@ class CachedFileResult:
     faults: tuple[CachedFault, ...]
     applied_exception_keys: tuple[CachedRuleExceptionKey, ...]
     dependencies: tuple[DependencyObservation, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class PublicationCandidate:
+    """One fresh cacheable result prepared for transactional publication."""
+
+    entry: CacheIndexEntry
+    record: CacheRecord
+
+
+@dataclass(frozen=True, slots=True)
+class PublicationPreparation:
+    """Encoded publication candidates and per-file conversion outcomes."""
+
+    candidates: tuple[PublicationCandidate, ...]
+    non_cacheable: int
+    internal_error: bool
 
 
 @dataclass(frozen=True, slots=True)

@@ -20,6 +20,7 @@ from strata.cache.fingerprints.main.file_result import file_result_fingerprints
 from strata.cache.fingerprints.models import (
     CacheFingerprint,
     FileResultFingerprints,
+    GlobalFingerprintBuild,
 )
 from strata.cache.results.helpers.serialization import file_result_to_record
 from strata.cache.results.models import CachedFileResult
@@ -557,9 +558,10 @@ def test_given_loaded_package_when_building_global_then_requires_complete_source
         empty_package_root=tmp_path / "strata",
     )
 
-    first: CacheFingerprint | None = build_global_fingerprint(config=Config(roots=()), ruleset=())
-    second: CacheFingerprint | None = build_global_fingerprint(config=Config(roots=()), ruleset=())
+    first: GlobalFingerprintBuild = build_global_fingerprint(config=Config(roots=()), ruleset=())
+    second: GlobalFingerprintBuild = build_global_fingerprint(config=Config(roots=()), ruleset=())
 
-    assert (first is not None) is test_case.expected_available
+    assert (first.fingerprint is not None) is test_case.expected_available
+    assert (first.disabled_reason is None) is test_case.expected_available
     assert first == second
     assert not (tmp_path / ".strata").exists()

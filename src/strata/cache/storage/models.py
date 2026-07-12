@@ -30,3 +30,20 @@ class CacheRead:
 
     relative_path: Path
     expected_kind: str
+
+
+@dataclass(frozen=True, slots=True)
+class CacheMutation:
+    """One transactional publication with an optional unreferenced-record sweep."""
+
+    writes: tuple[CacheWrite, ...]
+    swept_prefix: Path | None = None
+    retained_paths: tuple[Path, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class CacheMutationOutcome:
+    """Storage availability and the mutation applied by one transaction."""
+
+    published: bool
+    mutation: CacheMutation | None

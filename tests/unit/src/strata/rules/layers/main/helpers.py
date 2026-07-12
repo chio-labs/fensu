@@ -12,7 +12,11 @@ from strata.evaluation.main.evaluate import evaluate
 from strata.evaluation.models import EvaluationResult
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.layers.constants import SFL_RULES
-from tests.unit.src.strata.rules.layers.main._test_types import LayerRuleTestCase
+from strata.rules.roles.constants import SFR_RULES
+from tests.unit.src.strata.rules.layers.main._test_types import (
+    LayerRuleTestCase,
+    LayoutImportConsistencyTestCase,
+)
 
 
 def write_files(*, root: Path, files: tuple[tuple[str, str], ...]) -> None:
@@ -47,8 +51,26 @@ def evaluate_layer_test_case(
     )
 
 
+def evaluate_layout_import_consistency(
+    *,
+    test_case: LayoutImportConsistencyTestCase,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> EvaluationResult:
+    """Evaluate one role layout together with same-domain ownership boundaries."""
+
+    write_files(root=tmp_path, files=test_case.files)
+    config: Config = Config(roots=("src/pkg",), tests=())
+    monkeypatch.chdir(tmp_path)
+    return evaluate(
+        tree=discover_files(config=config),
+        ruleset=(_rule_by_code(test_case.role_code), _rule_by_code("SFL101")),
+        config=config,
+    )
+
+
 def _rule_by_code(rule_code: str) -> RuleSpec:
-    for rule in SFL_RULES:
+    for rule in (*SFL_RULES, *SFR_RULES):
         if rule.code == rule_code:
             return rule
     raise AssertionError(f"Unknown SFL rule code {rule_code}")

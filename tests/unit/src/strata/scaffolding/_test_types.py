@@ -118,6 +118,7 @@ class ExecutionTestCase:
     project_name: str
     expected_created_paths: tuple[str, ...]
     expected_config_text: str
+    expected_file_mode: int
 
 
 @dataclass(frozen=True)
@@ -158,28 +159,6 @@ class AtomicRaceTestCase:
 
 
 @dataclass(frozen=True)
-class PostPublicationCleanupTestCase:
-    """Post-publication cleanup failure and expected successful artifacts."""
-
-    description: str
-    expected_created_paths: tuple[str, ...]
-    expected_config_text: str
-    expected_temp_count: int
-    expected_temp_aliases_config: bool
-
-
-@dataclass(frozen=True)
-class PrePublicationCleanupTestCase:
-    """Pre-publication and cleanup failures with expected safe refusal state."""
-
-    description: str
-    expected_error_type: type[Exception]
-    expected_error_fragment: str
-    expected_absent_paths: tuple[str, ...]
-    expected_temp_count: int
-
-
-@dataclass(frozen=True)
 class ScaffoldSymlinkTestCase:
     """Scaffold symlink placement and expected rollback state."""
 
@@ -189,6 +168,33 @@ class ScaffoldSymlinkTestCase:
     expected_error_fragment: str
     expected_absent_paths: tuple[str, ...]
     expected_symlink_paths: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ScaffoldModeTestCase:
+    """Process umask and expected modes for generated scaffold files."""
+
+    description: str
+    umask: int
+    expected_file_mode: int
+
+
+@dataclass(frozen=True)
+class PublicationFailureTestCase:
+    """Direct publication write failure and expected transaction cleanup."""
+
+    description: str
+    expected_error_fragment: str
+    expected_absent_paths: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ParentSwapTestCase:
+    """Swapped scaffold parent and expected containment result."""
+
+    description: str
+    expected_error_fragment: str
+    expected_absent_paths: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -221,6 +227,7 @@ class PromptDefaultTestCase:
 
     description: str
     prompt_kind: str
+    input_text: str
     expected_result: bool | tuple[str, ...] | str
 
 
@@ -246,6 +253,54 @@ class ScopeSymlinkTestCase:
     expected_error_type: type[Exception]
     expected_error_fragment: str
     expected_config_present: bool
+
+
+@dataclass(frozen=True)
+class GitIgnorePlanTestCase:
+    """Initial gitignore bytes and expected cache-ignore update."""
+
+    description: str
+    initial: bytes | None
+    greenfield: bool
+    expected_desired: bytes | None
+
+
+@dataclass(frozen=True)
+class GitIgnoreUnsafeTargetTestCase:
+    """Unsafe root gitignore target and expected refusal."""
+
+    description: str
+    target_kind: str
+    expected_error_fragment: str
+
+
+@dataclass(frozen=True)
+class GitIgnoreExecutionTestCase:
+    """Initial root gitignore and expected bytes after complete init execution."""
+
+    description: str
+    initial: bytes | None
+    expected_gitignore: bytes
+
+
+@dataclass(frozen=True)
+class GitIgnoreMatcherTestCase:
+    """Gitignore source and path with expected ordered matcher result."""
+
+    description: str
+    initial: bytes
+    relative_path: str
+    expected_ignored: bool
+
+
+@dataclass(frozen=True)
+class LocalConfigCaptureTestCase:
+    """Captured pyproject and racing pathname content with expected local result."""
+
+    description: str
+    initial: bytes
+    replacement: bytes
+    expected_found: bool
 
 
 @dataclass(frozen=True)

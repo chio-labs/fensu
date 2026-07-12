@@ -149,6 +149,7 @@ def test_given_init_arguments_when_running_adapter_then_delegates_typed_options(
 )
 def test_given_no_color_environment_when_running_init_then_delegates_plain_output(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
     test_case: InitNoColorTestCase,
 ) -> None:
     stdout: Mock = Mock(spec=TextIO)
@@ -171,7 +172,7 @@ def test_given_no_color_environment_when_running_init_then_delegates_plain_outpu
     monkeypatch.setenv("NO_COLOR", test_case.no_color)
     monkeypatch.setattr(init_module, "_run_init", record_init)
 
-    exit_code: int = init_module.run_init(stdout=stdout)
+    exit_code: int = init_module.run_init(stdout=stdout, working_directory=tmp_path)
 
     assert exit_code == test_case.expected_exit_code
     assert tuple(color_choices) == (test_case.expected_use_color,)

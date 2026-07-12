@@ -74,3 +74,13 @@ class InitExecution:
 
     config_path: str
     created_paths: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class GitIgnorePlan:
+    """Captured root gitignore state and the bytes init intends to publish."""
+
+    original: bytes | None
+    desired: bytes
+    device: int | None
+    inode: int | None

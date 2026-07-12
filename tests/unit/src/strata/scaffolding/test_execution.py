@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 from pathlib import Path
 
@@ -9,38 +10,60 @@ import pytest
 
 from strata.config.exceptions import ConfigError
 from strata.config.models import Config
+from strata.scaffolding.constants import (
+    PYTHON_GITIGNORE_LICENSE,
+    PYTHON_GITIGNORE_SHA256,
+    PYTHON_GITIGNORE_SOURCE,
+    PYTHON_GITIGNORE_TEMPLATE,
+    STRATA_GITIGNORE_BLOCK,
+)
 from strata.scaffolding.exceptions import InitError
+from strata.scaffolding.helpers import capabilities as capabilities_module
+from strata.scaffolding.helpers import execution as execution_module
+from strata.scaffolding.helpers import gitignore as gitignore_module
 from strata.scaffolding.helpers.execution import build_rendered_config, execute_init_plan
-from strata.scaffolding.models import InitExecution, InitPlan
+from strata.scaffolding.helpers.gitignore import is_gitignored, plan_gitignore_update
+from strata.scaffolding.models import GitIgnorePlan, InitExecution, InitPlan
 from strata.scaffolding.types import AdoptionMode
 from tests.unit.src.strata.scaffolding._test_types import (
     AtomicRaceTestCase,
     ConfigPathRefusalTestCase,
     ExecutionFailureTestCase,
     ExecutionTestCase,
-    PostPublicationCleanupTestCase,
-    PrePublicationCleanupTestCase,
+    GitIgnoreExecutionTestCase,
+    GitIgnoreMatcherTestCase,
+    GitIgnorePlanTestCase,
+    GitIgnoreUnsafeTargetTestCase,
+    ParentSwapTestCase,
+    PublicationFailureTestCase,
+    ScaffoldModeTestCase,
     ScaffoldSymlinkTestCase,
     ScopeSymlinkTestCase,
 )
 from tests.unit.src.strata.scaffolding.helpers import (
+    CountingFileOpener,
+    FailingPublicationWriter,
+    NoDirFdOpener,
+    RacingExclusiveOpener,
+    RacingGitIgnorePublisher,
+    SwappingDirectoryOpener,
     absent_paths,
-    atomic_link_racer,
     build_repository,
     config_destination_kind,
     config_destination_value,
     config_temp_paths,
-    fail_atomic_link,
     file_paths,
+    gitignore_bytes_or_none,
+    gitignore_plan_desired,
     lexisting_paths,
     prepare_config_path,
     prepare_execution_failure,
+    prepare_root_gitignore,
     prepare_scaffold_symlink,
     prepare_scope_python_symlink,
+    prepare_unsafe_gitignore,
     present_paths,
     symlink_paths,
-    temp_aliases_config,
-    temp_unlink_failure,
 )
 
 
@@ -52,6 +75,7 @@ from tests.unit.src.strata.scaffolding.helpers import (
             project_name="my_repo",
             expected_created_paths=("src/my_repo/__init__.py", "tests/.gitkeep"),
             expected_config_text='roots = ["src/my_repo"]\ntests = ["tests"]\nselect = ["SF"]\n',
+            expected_file_mode=0o644,
         )
     ],
     ids=lambda case: case.description,
@@ -80,6 +104,29 @@ def test_given_empty_repository_plan_when_executing_then_creates_exact_roundtrip
         == test_case.expected_created_paths
     )
     assert roundtripped == config
+    assert (tmp_path / ".gitignore").read_bytes() == (
+        PYTHON_GITIGNORE_TEMPLATE + STRATA_GITIGNORE_BLOCK
+    )
+    written_paths: tuple[Path, ...] = (
+        tmp_path / "src/my_repo/__init__.py",
+        tmp_path / "tests/.gitkeep",
+        tmp_path / "strata.toml",
+        tmp_path / ".gitignore",
+    )
+    assert tuple(path.stat().st_mode & 0o777 for path in written_paths) == (
+        test_case.expected_file_mode,
+    ) * len(written_paths)
+    assert hashlib.sha256(PYTHON_GITIGNORE_TEMPLATE).hexdigest() == (
+        "b2580eab7825b9f22f790fb0edb7a6e239616e79907004adf36023c7ec4b9a4c"
+    )
+    assert PYTHON_GITIGNORE_SHA256 == (
+        "b2580eab7825b9f22f790fb0edb7a6e239616e79907004adf36023c7ec4b9a4c"
+    )
+    assert PYTHON_GITIGNORE_SOURCE == (
+        "https://github.com/github/gitignore/blob/"
+        "576334520435382d6522f349b9d270eda1e79a25/Python.gitignore"
+    )
+    assert PYTHON_GITIGNORE_LICENSE == "CC0-1.0"
 
 
 @pytest.mark.parametrize(
@@ -91,7 +138,7 @@ def test_given_empty_repository_plan_when_executing_then_creates_exact_roundtrip
             roots=("missing/pkg",),
             blocking_directory=None,
             expected_error_type=ConfigError,
-            expected_absent_paths=("strata.toml",),
+            expected_absent_paths=("strata.toml", ".gitignore"),
             expected_preserved_paths=(),
         ),
         ExecutionFailureTestCase(
@@ -100,7 +147,13 @@ def test_given_empty_repository_plan_when_executing_then_creates_exact_roundtrip
             roots=("src/pkg",),
             blocking_directory="tests/.gitkeep",
             expected_error_type=InitError,
-            expected_absent_paths=("strata.toml", "src/pkg/__init__.py", "src/pkg", "src"),
+            expected_absent_paths=(
+                "strata.toml",
+                ".gitignore",
+                "src/pkg/__init__.py",
+                "src/pkg",
+                "src",
+            ),
             expected_preserved_paths=("tests", "tests/.gitkeep"),
         ),
     ],
@@ -196,7 +249,14 @@ def test_given_racing_config_destination_when_publishing_then_never_overwrites_a
     test_case: AtomicRaceTestCase, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     build_repository(root=tmp_path, files=(("src/pkg/__init__.py", ""),))
-    monkeypatch.setattr(os, "link", atomic_link_racer(destination_kind=test_case.destination_kind))
+    opener: RacingExclusiveOpener = RacingExclusiveOpener(
+        root=tmp_path,
+        destination_name="strata.toml",
+        user_content=test_case.expected_destination_value.encode(),
+        destination_kind=test_case.destination_kind,
+        open_file=os.open,
+    )
+    monkeypatch.setattr(os, "open", opener)
     plan: InitPlan = InitPlan(
         roots=("src/pkg",), tests=("tests",), tooling=(), adoption=AdoptionMode.FULL
     )
@@ -208,96 +268,7 @@ def test_given_racing_config_destination_when_publishing_then_never_overwrites_a
     assert config_temp_paths(root=tmp_path) == test_case.expected_temp_paths
     assert config_destination_kind(root=tmp_path) == test_case.expected_destination_kind
     assert config_destination_value(root=tmp_path) == test_case.expected_destination_value
-
-
-@pytest.mark.parametrize(
-    "test_case",
-    [
-        PostPublicationCleanupTestCase(
-            description="temp unlink failure after publication preserves successful empty scaffold",
-            expected_created_paths=("src/pkg/__init__.py", "tests/.gitkeep"),
-            expected_config_text='roots = ["src/pkg"]\ntests = ["tests"]\nselect = ["SF"]\n',
-            expected_temp_count=1,
-            expected_temp_aliases_config=True,
-        )
-    ],
-    ids=lambda case: case.description,
-)
-def test_given_temp_unlink_failure_after_publication_when_executing_empty_plan_then_succeeds(
-    test_case: PostPublicationCleanupTestCase,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(Path, "unlink", temp_unlink_failure(original=Path.unlink))
-    plan: InitPlan = InitPlan(
-        roots=("src/pkg",),
-        tests=("tests",),
-        tooling=(),
-        adoption=AdoptionMode.FULL,
-        project_name="pkg",
-    )
-
-    config: Config
-    execution: InitExecution
-    config, execution = execute_init_plan(repository=tmp_path, plan=plan)
-    text: str = (tmp_path / "strata.toml").read_text(encoding="utf-8")
-    roundtripped: Config = build_rendered_config(text=text)
-
-    assert execution.created_paths == test_case.expected_created_paths
-    assert (
-        file_paths(root=tmp_path, paths=test_case.expected_created_paths)
-        == test_case.expected_created_paths
-    )
-    assert text == test_case.expected_config_text
-    assert roundtripped == config
-    assert len(config_temp_paths(root=tmp_path)) == test_case.expected_temp_count
-    assert temp_aliases_config(root=tmp_path) is test_case.expected_temp_aliases_config
-
-
-@pytest.mark.parametrize(
-    "test_case",
-    [
-        PrePublicationCleanupTestCase(
-            description="temp unlink failure before publication remains an explicit safe failure",
-            expected_error_type=OSError,
-            expected_error_fragment="temporary config cleanup failed",
-            expected_absent_paths=(
-                "strata.toml",
-                "src/pkg/__init__.py",
-                "src/pkg",
-                "src",
-                "tests/.gitkeep",
-                "tests",
-            ),
-            expected_temp_count=1,
-        )
-    ],
-    ids=lambda case: case.description,
-)
-def test_given_publication_and_temp_cleanup_failures_when_executing_empty_plan_then_refuses_safely(
-    test_case: PrePublicationCleanupTestCase,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(os, "link", fail_atomic_link)
-    monkeypatch.setattr(Path, "unlink", temp_unlink_failure(original=Path.unlink))
-    plan: InitPlan = InitPlan(
-        roots=("src/pkg",),
-        tests=("tests",),
-        tooling=(),
-        adoption=AdoptionMode.FULL,
-        project_name="pkg",
-    )
-
-    with pytest.raises(test_case.expected_error_type) as error:
-        execute_init_plan(repository=tmp_path, plan=plan)
-
-    assert test_case.expected_error_fragment in str(error.value)
-    assert (
-        absent_paths(root=tmp_path, paths=test_case.expected_absent_paths)
-        == test_case.expected_absent_paths
-    )
-    assert len(config_temp_paths(root=tmp_path)) == test_case.expected_temp_count
+    assert not (tmp_path / ".gitignore").exists()
 
 
 @pytest.mark.parametrize(
@@ -357,6 +328,247 @@ def test_given_scaffold_symlink_when_executing_then_refuses_and_rolls_back_creat
 @pytest.mark.parametrize(
     "test_case",
     [
+        ParentSwapTestCase(
+            description="intermediate source swap cannot redirect scaffold outside repository",
+            expected_error_fragment="Scaffold directory path is not a directory",
+            expected_absent_paths=("outside/pkg/__init__.py", "strata.toml", ".gitignore"),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_intermediate_parent_swap_when_scaffolding_then_refuses_without_writing_outside(
+    test_case: ParentSwapTestCase,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    outside: Path = tmp_path / "outside"
+    outside.mkdir()
+    (tmp_path / "src").mkdir()
+    opener: SwappingDirectoryOpener = SwappingDirectoryOpener(
+        root=tmp_path, outside=outside, open_file=os.open
+    )
+    monkeypatch.setattr(os, "open", opener)
+    plan: InitPlan = InitPlan(
+        roots=("src/pkg",),
+        tests=("tests",),
+        tooling=(),
+        adoption=AdoptionMode.FULL,
+        project_name="pkg",
+    )
+
+    with pytest.raises(InitError) as error:
+        execute_init_plan(repository=tmp_path, plan=plan)
+
+    assert test_case.expected_error_fragment in str(error.value)
+    assert (
+        absent_paths(root=tmp_path, paths=test_case.expected_absent_paths)
+        == test_case.expected_absent_paths
+    )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ScaffoldModeTestCase(
+            description="restrictive umask applies to non-executable generated files",
+            umask=0o027,
+            expected_file_mode=0o640,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_restrictive_umask_when_scaffolding_then_regular_files_are_non_executable(
+    test_case: ScaffoldModeTestCase, tmp_path: Path
+) -> None:
+    previous_umask: int = os.umask(test_case.umask)
+    try:
+        plan: InitPlan = InitPlan(
+            roots=("src/pkg",),
+            tests=("tests",),
+            tooling=(),
+            adoption=AdoptionMode.FULL,
+            project_name="pkg",
+        )
+        _ = execute_init_plan(repository=tmp_path, plan=plan)
+    finally:
+        _ = os.umask(previous_umask)
+
+    paths: tuple[Path, ...] = (
+        tmp_path / "src/pkg/__init__.py",
+        tmp_path / "tests/.gitkeep",
+        tmp_path / "strata.toml",
+        tmp_path / ".gitignore",
+    )
+    assert tuple(path.stat().st_mode & 0o777 for path in paths) == (
+        test_case.expected_file_mode,
+    ) * len(paths)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        PublicationFailureTestCase(
+            description="partial config descriptor write removes init publications",
+            expected_error_fragment="direct publication write failed",
+            expected_absent_paths=(
+                "strata.toml",
+                ".gitignore",
+                "src/pkg/__init__.py",
+                "src/pkg",
+                "src",
+                "tests/.gitkeep",
+                "tests",
+            ),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_config_descriptor_write_failure_when_executing_then_cleans_partial_file_and_scaffold(
+    test_case: PublicationFailureTestCase,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    writer: FailingPublicationWriter = FailingPublicationWriter(write=os.write)
+    monkeypatch.setattr(execution_module, "_write_all", writer)
+    plan: InitPlan = InitPlan(
+        roots=("src/pkg",),
+        tests=("tests",),
+        tooling=(),
+        adoption=AdoptionMode.FULL,
+        project_name="pkg",
+    )
+
+    with pytest.raises(OSError) as error:
+        execute_init_plan(repository=tmp_path, plan=plan)
+
+    assert test_case.expected_error_fragment in str(error.value)
+    assert (
+        absent_paths(root=tmp_path, paths=test_case.expected_absent_paths)
+        == test_case.expected_absent_paths
+    )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        GitIgnoreExecutionTestCase(
+            description="no-dirfd brownfield creates a missing root gitignore",
+            initial=None,
+            expected_gitignore=STRATA_GITIGNORE_BLOCK,
+        ),
+        GitIgnoreExecutionTestCase(
+            description="no-dirfd brownfield appends an existing root gitignore",
+            initial=b"dist/\n",
+            expected_gitignore=b"dist/\n" + STRATA_GITIGNORE_BLOCK,
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_no_dirfd_capability_when_executing_brownfield_then_publishes_config_and_gitignore(
+    test_case: GitIgnoreExecutionTestCase,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    build_repository(root=tmp_path, files=(("src/pkg/__init__.py", ""),))
+    gitignore: Path = prepare_root_gitignore(root=tmp_path, initial=test_case.initial)
+    monkeypatch.setattr(capabilities_module, "supports_dir_fd_operations", lambda: False)
+    monkeypatch.setattr(os, "open", NoDirFdOpener(open_file=os.open))
+    plan: InitPlan = InitPlan(
+        roots=("src/pkg",), tests=("tests",), tooling=(), adoption=AdoptionMode.FULL
+    )
+
+    _ = execute_init_plan(repository=tmp_path, plan=plan)
+
+    assert (tmp_path / "strata.toml").read_text(encoding="utf-8") == (
+        'roots = ["src/pkg"]\ntests = ["tests"]\nselect = ["SF"]\n'
+    )
+    assert gitignore.read_bytes() == test_case.expected_gitignore
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ExecutionTestCase(
+            description="no-dirfd greenfield creates complete scaffold and templates",
+            project_name="pkg",
+            expected_created_paths=("src/pkg/__init__.py", "tests/.gitkeep"),
+            expected_config_text='roots = ["src/pkg"]\ntests = ["tests"]\nselect = ["SF"]\n',
+            expected_file_mode=0o644,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_no_dirfd_capability_when_executing_greenfield_then_creates_complete_scaffold(
+    test_case: ExecutionTestCase,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(capabilities_module, "supports_dir_fd_operations", lambda: False)
+    monkeypatch.setattr(os, "open", NoDirFdOpener(open_file=os.open))
+    plan: InitPlan = InitPlan(
+        roots=("src/pkg",),
+        tests=("tests",),
+        tooling=(),
+        adoption=AdoptionMode.FULL,
+        project_name=test_case.project_name,
+    )
+
+    _, execution = execute_init_plan(repository=tmp_path, plan=plan)
+
+    assert execution.created_paths == test_case.expected_created_paths
+    assert (tmp_path / "strata.toml").read_text(encoding="utf-8") == test_case.expected_config_text
+    assert (tmp_path / ".gitignore").read_bytes() == (
+        PYTHON_GITIGNORE_TEMPLATE + STRATA_GITIGNORE_BLOCK
+    )
+    assert (
+        file_paths(root=tmp_path, paths=test_case.expected_created_paths)
+        == test_case.expected_created_paths
+    )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ScaffoldSymlinkTestCase(
+            description="no-dirfd static parent validation refuses package symlink",
+            symlink_kind="package",
+            expected_error_type=InitError,
+            expected_error_fragment="Refusing to scaffold through symlink path",
+            expected_absent_paths=("outside/__init__.py", "strata.toml", ".gitignore"),
+            expected_symlink_paths=("src/pkg",),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_no_dirfd_capability_and_symlink_parent_when_scaffolding_then_refuses_static_path(
+    test_case: ScaffoldSymlinkTestCase,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    prepare_scaffold_symlink(root=tmp_path, test_case=test_case)
+    monkeypatch.setattr(capabilities_module, "supports_dir_fd_operations", lambda: False)
+    monkeypatch.setattr(os, "open", NoDirFdOpener(open_file=os.open))
+    plan: InitPlan = InitPlan(
+        roots=("src/pkg",),
+        tests=("tests",),
+        tooling=(),
+        adoption=AdoptionMode.FULL,
+        project_name="pkg",
+    )
+
+    with pytest.raises(test_case.expected_error_type) as error:
+        execute_init_plan(repository=tmp_path, plan=plan)
+
+    assert test_case.expected_error_fragment in str(error.value)
+    assert (
+        absent_paths(root=tmp_path, paths=test_case.expected_absent_paths)
+        == test_case.expected_absent_paths
+    )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
         ScopeSymlinkTestCase(
             description="runtime scope Python symlink is rejected before config publication",
             symlink_path="src/pkg/linked.py",
@@ -406,3 +618,403 @@ def test_given_selected_scope_python_symlink_when_executing_then_rejects_before_
 
     assert test_case.expected_error_fragment in str(error.value)
     assert (tmp_path / "strata.toml").exists() is test_case.expected_config_present
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        GitIgnorePlanTestCase(
+            description="greenfield without gitignore receives pinned Python template and Strata block",
+            initial=None,
+            greenfield=True,
+            expected_desired=PYTHON_GITIGNORE_TEMPLATE + STRATA_GITIGNORE_BLOCK,
+        ),
+        GitIgnorePlanTestCase(
+            description="brownfield without gitignore receives only Strata block",
+            initial=None,
+            greenfield=False,
+            expected_desired=STRATA_GITIGNORE_BLOCK,
+        ),
+        GitIgnorePlanTestCase(
+            description="existing LF file appends normalized block",
+            initial=b"dist/\n",
+            greenfield=False,
+            expected_desired=b"dist/\n" + STRATA_GITIGNORE_BLOCK,
+        ),
+        GitIgnorePlanTestCase(
+            description="existing CRLF bytes remain unchanged before normalized block",
+            initial=b"dist/\r\n",
+            greenfield=False,
+            expected_desired=b"dist/\r\n" + STRATA_GITIGNORE_BLOCK,
+        ),
+        GitIgnorePlanTestCase(
+            description="missing final newline is inserted before normalized block",
+            initial=b"dist/",
+            greenfield=False,
+            expected_desired=b"dist/\n" + STRATA_GITIGNORE_BLOCK,
+        ),
+        GitIgnorePlanTestCase(
+            description="directory pattern already covers cache database",
+            initial=b".strata/\r\n",
+            greenfield=False,
+            expected_desired=None,
+        ),
+        GitIgnorePlanTestCase(
+            description="anchored directory pattern already covers cache database",
+            initial=b"/.strata/\n",
+            greenfield=False,
+            expected_desired=None,
+        ),
+        GitIgnorePlanTestCase(
+            description="glob pattern already covers cache database",
+            initial=b".strata/cache/*.db\n",
+            greenfield=False,
+            expected_desired=None,
+        ),
+        GitIgnorePlanTestCase(
+            description="later negation uncovers cache database and requires append",
+            initial=b".strata/\n!.strata/cache/v1.db\n",
+            greenfield=False,
+            expected_desired=b".strata/\n!.strata/cache/v1.db\n" + STRATA_GITIGNORE_BLOCK,
+        ),
+        GitIgnorePlanTestCase(
+            description="leading whitespace is significant and does not cover root cache",
+            initial=b" .strata/\n",
+            greenfield=False,
+            expected_desired=b" .strata/\n" + STRATA_GITIGNORE_BLOCK,
+        ),
+        GitIgnorePlanTestCase(
+            description="escaped leading exclamation is literal rather than a negation",
+            initial=b".strata/\n\\!.strata/cache/v1.db\n",
+            greenfield=False,
+            expected_desired=None,
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_root_gitignore_when_planning_cache_exclusion_then_preserves_or_appends_exact_bytes(
+    tmp_path: Path,
+    test_case: GitIgnorePlanTestCase,
+) -> None:
+    path: Path = prepare_root_gitignore(root=tmp_path, initial=test_case.initial)
+
+    update: GitIgnorePlan | None = plan_gitignore_update(
+        repository=tmp_path, greenfield=test_case.greenfield
+    )
+
+    assert gitignore_plan_desired(plan=update) == test_case.expected_desired
+    assert gitignore_bytes_or_none(path=path) == test_case.initial
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        GitIgnoreMatcherTestCase(
+            description="leading space matches only a path whose segment has that space",
+            initial=b" .strata/\n",
+            relative_path=" .strata/cache/v1.db",
+            expected_ignored=True,
+        ),
+        GitIgnoreMatcherTestCase(
+            description="escaped exclamation matches a literal leading marker",
+            initial=b"\\!cache/\n",
+            relative_path="!cache/v1.db",
+            expected_ignored=True,
+        ),
+        GitIgnoreMatcherTestCase(
+            description="escaped hash matches a literal leading marker instead of a comment",
+            initial=b"\\#cache/\n",
+            relative_path="#cache/v1.db",
+            expected_ignored=True,
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_gitignore_marker_syntax_when_matching_then_treats_escaped_markers_as_literals(
+    tmp_path: Path,
+    test_case: GitIgnoreMatcherTestCase,
+) -> None:
+    _ = prepare_root_gitignore(root=tmp_path, initial=test_case.initial)
+
+    ignored: bool = is_gitignored(
+        repository=tmp_path,
+        path=tmp_path / test_case.relative_path,
+        is_directory=False,
+    )
+
+    assert ignored is test_case.expected_ignored
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        GitIgnorePlanTestCase(
+            description="covered cache uses exactly one descriptor capture and returns no plan",
+            initial=b"/.strata/\n",
+            greenfield=False,
+            expected_desired=None,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_covered_cache_when_planning_then_does_not_reopen_or_publish_gitignore(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    test_case: GitIgnorePlanTestCase,
+) -> None:
+    _ = prepare_root_gitignore(root=tmp_path, initial=test_case.initial)
+    opener: CountingFileOpener = CountingFileOpener(open_file=os.open)
+    monkeypatch.setattr(os, "open", opener)
+
+    update: GitIgnorePlan | None = plan_gitignore_update(
+        repository=tmp_path, greenfield=test_case.greenfield
+    )
+
+    assert gitignore_plan_desired(plan=update) == test_case.expected_desired
+    assert opener.calls == 1
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        GitIgnoreUnsafeTargetTestCase(
+            description="symlink gitignore is refused",
+            target_kind="symlink",
+            expected_error_fragment="not a regular file",
+        ),
+        GitIgnoreUnsafeTargetTestCase(
+            description="directory gitignore is refused",
+            target_kind="directory",
+            expected_error_fragment="not a regular file",
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_unsafe_root_gitignore_when_planning_then_refuses_target(
+    tmp_path: Path,
+    test_case: GitIgnoreUnsafeTargetTestCase,
+) -> None:
+    _ = prepare_unsafe_gitignore(root=tmp_path, target_kind=test_case.target_kind)
+
+    with pytest.raises(InitError) as error:
+        plan_gitignore_update(repository=tmp_path, greenfield=False)
+
+    assert test_case.expected_error_fragment in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        GitIgnoreExecutionTestCase(
+            description="brownfield without gitignore creates minimal Strata block",
+            initial=None,
+            expected_gitignore=STRATA_GITIGNORE_BLOCK,
+        ),
+        GitIgnoreExecutionTestCase(
+            description="brownfield uncovered gitignore appends Strata block",
+            initial=b"dist/\n",
+            expected_gitignore=b"dist/\n" + STRATA_GITIGNORE_BLOCK,
+        ),
+        GitIgnoreExecutionTestCase(
+            description="brownfield covered gitignore remains byte-for-byte unchanged",
+            initial=b"# existing\r\n/.strata/\r\n",
+            expected_gitignore=b"# existing\r\n/.strata/\r\n",
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_brownfield_gitignore_when_executing_then_publishes_expected_cache_exclusion(
+    tmp_path: Path,
+    test_case: GitIgnoreExecutionTestCase,
+) -> None:
+    build_repository(root=tmp_path, files=(("src/pkg/__init__.py", ""),))
+    path: Path = prepare_root_gitignore(root=tmp_path, initial=test_case.initial)
+    plan: InitPlan = InitPlan(
+        roots=("src/pkg",), tests=("tests",), tooling=(), adoption=AdoptionMode.FULL
+    )
+
+    _ = execute_init_plan(repository=tmp_path, plan=plan)
+
+    assert path.read_bytes() == test_case.expected_gitignore
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        AtomicRaceTestCase(
+            description="concurrent gitignore replacement is preserved and rolls back config",
+            destination_kind="regular",
+            expected_error_type=InitError,
+            expected_error_fragment="changed concurrently",
+            expected_temp_paths=(),
+            expected_destination_kind="regular",
+            expected_destination_value="user concurrent edit\n",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_racing_gitignore_when_publishing_then_preserves_user_edit_and_rolls_back_init(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    test_case: AtomicRaceTestCase,
+) -> None:
+    build_repository(root=tmp_path, files=(("src/pkg/__init__.py", ""),))
+    gitignore: Path = tmp_path / ".gitignore"
+    gitignore.write_text("dist/\n", encoding="utf-8")
+    publisher: RacingGitIgnorePublisher = RacingGitIgnorePublisher(
+        path=gitignore,
+        user_content=test_case.expected_destination_value.encode(),
+        publish=execution_module.publish_gitignore_update,
+    )
+    monkeypatch.setattr(execution_module, "publish_gitignore_update", publisher)
+    plan: InitPlan = InitPlan(
+        roots=("src/pkg",), tests=("tests",), tooling=(), adoption=AdoptionMode.FULL
+    )
+
+    with pytest.raises(test_case.expected_error_type) as error:
+        execute_init_plan(repository=tmp_path, plan=plan)
+
+    assert test_case.expected_error_fragment in str(error.value)
+    assert gitignore.read_text(encoding="utf-8") == test_case.expected_destination_value
+    assert not (tmp_path / "strata.toml").exists()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        AtomicRaceTestCase(
+            description="concurrent new gitignore rolls back greenfield config and scaffold",
+            destination_kind="regular",
+            expected_error_type=InitError,
+            expected_error_fragment="created concurrently",
+            expected_temp_paths=(),
+            expected_destination_kind="regular",
+            expected_destination_value="user greenfield ignore\n",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_racing_new_gitignore_when_publishing_then_preserves_user_file_and_rolls_back_scaffold(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    test_case: AtomicRaceTestCase,
+) -> None:
+    opener: RacingExclusiveOpener = RacingExclusiveOpener(
+        root=tmp_path,
+        destination_name=".gitignore",
+        user_content=test_case.expected_destination_value.encode(),
+        open_file=os.open,
+    )
+    monkeypatch.setattr(os, "open", opener)
+    plan: InitPlan = InitPlan(
+        roots=("src/pkg",),
+        tests=("tests",),
+        tooling=(),
+        adoption=AdoptionMode.FULL,
+        project_name="pkg",
+    )
+
+    with pytest.raises(test_case.expected_error_type) as error:
+        execute_init_plan(repository=tmp_path, plan=plan)
+
+    assert test_case.expected_error_fragment in str(error.value)
+    assert (tmp_path / ".gitignore").read_text() == test_case.expected_destination_value
+    assert not (tmp_path / "strata.toml").exists()
+    assert not (tmp_path / "src").exists()
+    assert not (tmp_path / "tests").exists()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        PublicationFailureTestCase(
+            description="partial new gitignore descriptor write rolls back complete init transaction",
+            expected_error_fragment="direct publication write failed",
+            expected_absent_paths=(
+                ".gitignore",
+                "strata.toml",
+                "src/pkg/__init__.py",
+                "src/pkg",
+                "src",
+                "tests/.gitkeep",
+                "tests",
+            ),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_new_gitignore_descriptor_write_failure_when_executing_then_cleans_partial_transaction(
+    test_case: PublicationFailureTestCase,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    writer: FailingPublicationWriter = FailingPublicationWriter(write=os.write)
+    monkeypatch.setattr(gitignore_module, "_write_all", writer)
+    plan: InitPlan = InitPlan(
+        roots=("src/pkg",),
+        tests=("tests",),
+        tooling=(),
+        adoption=AdoptionMode.FULL,
+        project_name="pkg",
+    )
+
+    with pytest.raises(OSError) as error:
+        execute_init_plan(repository=tmp_path, plan=plan)
+
+    assert test_case.expected_error_fragment in str(error.value)
+    assert (
+        absent_paths(root=tmp_path, paths=test_case.expected_absent_paths)
+        == test_case.expected_absent_paths
+    )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        AtomicRaceTestCase(
+            description="concurrent generated-file edits survive receipt-checked rollback",
+            destination_kind="regular",
+            expected_error_type=InitError,
+            expected_error_fragment="created concurrently",
+            expected_temp_paths=(),
+            expected_destination_kind="regular",
+            expected_destination_value="user config replacement\n",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_user_edits_to_published_files_when_later_publication_fails_then_rollback_preserves_them(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    test_case: AtomicRaceTestCase,
+) -> None:
+    source: Path = tmp_path / "src/pkg/__init__.py"
+    test_marker: Path = tmp_path / "tests/.gitkeep"
+    config: Path = tmp_path / "strata.toml"
+    source_content: bytes = b"USER_SOURCE: int = 1\n"
+    test_content: bytes = b"user test marker\n"
+    opener: RacingExclusiveOpener = RacingExclusiveOpener(
+        root=tmp_path,
+        destination_name=".gitignore",
+        user_content=b"user ignore\n",
+        open_file=os.open,
+        writes=((source, source_content), (test_marker, test_content)),
+        replacements=((config, test_case.expected_destination_value.encode()),),
+    )
+    monkeypatch.setattr(os, "open", opener)
+    plan: InitPlan = InitPlan(
+        roots=("src/pkg",),
+        tests=("tests",),
+        tooling=(),
+        adoption=AdoptionMode.FULL,
+        project_name="pkg",
+    )
+
+    with pytest.raises(test_case.expected_error_type) as error:
+        execute_init_plan(repository=tmp_path, plan=plan)
+
+    assert test_case.expected_error_fragment in str(error.value)
+    assert source.read_bytes() == source_content
+    assert test_marker.read_bytes() == test_content
+    assert config.read_text() == test_case.expected_destination_value
+    assert (tmp_path / ".gitignore").read_text() == "user ignore\n"

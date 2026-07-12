@@ -268,6 +268,20 @@ def write_broken_strata_symlink(*, root: Path, outside_target: Path) -> None:
     (root / "strata.toml").symlink_to(outside_target)
 
 
+def prepare_unsafe_local_config_target(*, root: Path, target_kind: str) -> Path:
+    """Create a symlink or nonregular local configuration candidate."""
+
+    name: str = "pyproject.toml" if target_kind.startswith("pyproject") else "strata.toml"
+    path: Path = root / name
+    if target_kind.endswith("symlink"):
+        outside: Path = root.parent / f"{root.name}-{name}"
+        outside.write_text('[tool.strata]\nroots = ["src/pkg"]\n', encoding="utf-8")
+        path.symlink_to(outside)
+    else:
+        path.mkdir()
+    return path
+
+
 def write_selected_root_python_symlink(*, root: Path, outside_target: Path) -> None:
     """Write an outside Python file and a selected-root symlink pointing to it."""
 

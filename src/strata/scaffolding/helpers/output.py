@@ -17,6 +17,7 @@ from strata.scaffolding.constants import (
     EDIT_RESPONSE,
     END_OF_INPUT,
     END_OF_INPUT_LABEL,
+    LONG_EDIT_RESPONSE,
     MAX_INVALID_ATTEMPTS,
     NO_RESPONSE,
     PARENT_PATH_PART,
@@ -182,7 +183,7 @@ def prompt_accept_layout(*, stdin: TextIO, stdout: TextIO, style: CliStyle) -> b
     value: str = _choice(
         stdin=stdin,
         stdout=stdout,
-        prompt=f"    Accept? {style.hint('[Y/n/e]')} ",
+        prompt=f"    Accept? {style.hint('[Y/n/e]')} {style.hint('e = edit paths')} ",
         allowed=(YES_RESPONSE, NO_RESPONSE, EDIT_RESPONSE),
         default=YES_RESPONSE,
         prompt_name="layout confirmation",
@@ -292,7 +293,11 @@ def _choice(
         stdout.flush()
         raw = _read_response(stdin=stdin, stdout=stdout, prompt_name=prompt_name).lower()
         value: str = raw or default
-        normalized: str = {"yes": YES_RESPONSE, "no": NO_RESPONSE}.get(value, value)
+        normalized: str = {
+            "yes": YES_RESPONSE,
+            "no": NO_RESPONSE,
+            LONG_EDIT_RESPONSE: EDIT_RESPONSE,
+        }.get(value, value)
         if normalized in allowed:
             return normalized
         _invalid(stdout=stdout, attempt=attempt, value=raw)

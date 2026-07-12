@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from io import StringIO
 from pathlib import Path
 
@@ -19,12 +20,14 @@ from strata.scaffolding.helpers.planning import (
     validate_option_applicability,
 )
 from strata.scaffolding.main.detect_repository_layout import detect_repository_layout
+from strata.scaffolding.main.find_local_config import find_local_config
 from strata.scaffolding.models import InitOptions, InitPlan
 from strata.scaffolding.types import AdoptionMode, InteractionDecision
 from tests.unit.src.strata.scaffolding._test_types import (
     EffectiveCandidateTestCase,
     InteractionDecisionTestCase,
     InvalidNameTestCase,
+    LocalConfigCaptureTestCase,
     MissingAnswerTestCase,
     NormalizeNameTestCase,
     OptionApplicabilityTestCase,
@@ -32,6 +35,7 @@ from tests.unit.src.strata.scaffolding._test_types import (
     RuntimeCountTestCase,
 )
 from tests.unit.src.strata.scaffolding.helpers import (
+    RacingDescriptorReader,
     applicability_options,
     build_repository,
     detected_layout,
@@ -418,3 +422,39 @@ def test_given_partial_explicit_scopes_when_building_plan_then_displays_effectiv
 
     assert plan.roots == test_case.expected_plan_roots
     assert all(fragment in transcript for fragment in test_case.expected_transcript_fragments)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        LocalConfigCaptureTestCase(
+            description="captured tool strata survives concurrent pathname replacement",
+            initial=b'[tool.strata]\nroots = ["src/pkg"]\n',
+            replacement=b'[project]\nname = "user-replacement"\n',
+            expected_found=True,
+        ),
+        LocalConfigCaptureTestCase(
+            description="captured plain pyproject ignores concurrent tool strata replacement",
+            initial=b'[project]\nname = "original"\n',
+            replacement=b'[tool.strata]\nroots = ["src/pkg"]\n',
+            expected_found=False,
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_racing_pyproject_path_when_finding_local_config_then_parses_captured_descriptor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    test_case: LocalConfigCaptureTestCase,
+) -> None:
+    path: Path = tmp_path / "pyproject.toml"
+    path.write_bytes(test_case.initial)
+    reader: RacingDescriptorReader = RacingDescriptorReader(
+        path=path, replacement=test_case.replacement, read=os.read
+    )
+    monkeypatch.setattr(os, "read", reader)
+
+    found: Path | None = find_local_config(repository=tmp_path)
+
+    assert (found is not None) is test_case.expected_found
+    assert path.read_bytes() == test_case.replacement

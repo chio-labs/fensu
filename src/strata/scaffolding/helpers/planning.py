@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+import errno
+import os
+import stat
+import tomllib
 from pathlib import Path
 from typing import TextIO
 
+from strata.config.exceptions import ConfigError
 from strata.config.main.find_config import find_config_source
 from strata.config.models import ConfigSource
 from strata.reporting.classes.cli_style import CliStyle
@@ -13,6 +18,7 @@ from strata.scaffolding.constants import (
     CURRENT_PATH_TEXT,
     DEFAULT_TEST_PATH,
     PARENT_PATH_PART,
+    PYPROJECT_FILE_NAME,
 )
 from strata.scaffolding.exceptions import InitError, InitRefusalError
 from strata.scaffolding.helpers.output import (
@@ -37,16 +43,74 @@ from strata.scaffolding.types import (
     InteractionDecision,
 )
 
+_FILE_READ_CHUNK_SIZE: int = 65_536
 
-def preflight_existing_config(*, repository: Path) -> None:
-    """Refuse initialization when this directory inherits any Strata config."""
 
-    local_path: Path = repository / CONFIG_FILE_NAME
-    if local_path.is_symlink():
-        raise InitRefusalError(f"Strata configuration path is a symlink: {local_path}")
-    source: ConfigSource | None = find_config_source(repository)
+def preflight_existing_config(*, repository: Path) -> Path | None:
+    """Return a local config, or refuse when this directory inherits one."""
+
+    local: Path | None = find_local_config(repository=repository)
+    if local is not None:
+        return local
+    source: ConfigSource | None = find_config_source(repository.parent)
     if source is not None:
         raise InitRefusalError(f"Strata configuration already exists: {source.path}")
+    return None
+
+
+def find_local_config(*, repository: Path) -> Path | None:
+    """Return a descriptor-captured local config while rejecting unsafe targets."""
+
+    local_path: Path = repository / CONFIG_FILE_NAME
+    local_content: bytes | None = _capture_local_file(path=local_path, label="Strata configuration")
+    if local_content is not None:
+        return local_path
+    pyproject_path: Path = repository / PYPROJECT_FILE_NAME
+    pyproject_content: bytes | None = _capture_local_file(
+        path=pyproject_path, label="Pyproject configuration"
+    )
+    if pyproject_content is not None and _has_tool_strata(
+        path=pyproject_path, content=pyproject_content
+    ):
+        return pyproject_path
+    return None
+
+
+def _capture_local_file(*, path: Path, label: str) -> bytes | None:
+    try:
+        descriptor: int = os.open(
+            path,
+            os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | os.O_NONBLOCK,
+        )
+    except FileNotFoundError:
+        return None
+    except OSError as error:
+        if error.errno == errno.ELOOP:
+            raise InitRefusalError(f"{label} path is a symlink: {path}") from error
+        raise
+    try:
+        metadata: os.stat_result = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode):
+            raise InitRefusalError(f"{label} path is not a regular file: {path}")
+        chunks: list[bytes] = []
+        while True:
+            chunk: bytes = os.read(descriptor, _FILE_READ_CHUNK_SIZE)
+            if not chunk:
+                return b"".join(chunks)
+            chunks.append(chunk)
+    finally:
+        os.close(descriptor)
+
+
+def _has_tool_strata(*, path: Path, content: bytes) -> bool:
+    try:
+        data: object = tomllib.loads(content.decode("utf-8"))
+    except (tomllib.TOMLDecodeError, UnicodeError) as error:
+        raise ConfigError(f"Could not parse {path}: {error}") from error
+    if not isinstance(data, dict):
+        return False
+    tool: object = data.get("tool")
+    return isinstance(tool, dict) and isinstance(tool.get("strata"), dict)
 
 
 def validate_option_applicability(

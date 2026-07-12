@@ -24,7 +24,6 @@ from strata.scaffolding.helpers import gitignore as gitignore_module
 from strata.scaffolding.helpers.execution import build_rendered_config, execute_init_plan
 from strata.scaffolding.helpers.gitignore import is_gitignored, plan_gitignore_update
 from strata.scaffolding.models import GitIgnorePlan, InitExecution, InitPlan
-from strata.scaffolding.types import AdoptionMode
 from tests.unit.src.strata.scaffolding._test_types import (
     AtomicRaceTestCase,
     ConfigPathRefusalTestCase,
@@ -87,7 +86,6 @@ def test_given_empty_repository_plan_when_executing_then_creates_exact_roundtrip
         roots=(f"src/{test_case.project_name}",),
         tests=("tests",),
         tooling=(),
-        adoption=AdoptionMode.FULL,
         project_name=test_case.project_name,
     )
 
@@ -167,7 +165,6 @@ def test_given_unsafe_plan_when_executing_then_refuses_without_partial_files(
         roots=test_case.roots,
         tests=("tests",),
         tooling=(),
-        adoption=AdoptionMode.FULL,
         project_name=test_case.project_name,
     )
 
@@ -209,9 +206,7 @@ def test_given_existing_config_path_when_executing_then_refuses_before_atomic_st
 ) -> None:
     build_repository(root=tmp_path, files=(("src/pkg/__init__.py", ""),))
     prepare_config_path(root=tmp_path, path_kind=test_case.path_kind)
-    plan: InitPlan = InitPlan(
-        roots=("src/pkg",), tests=("tests",), tooling=(), adoption=AdoptionMode.FULL
-    )
+    plan: InitPlan = InitPlan(roots=("src/pkg",), tests=("tests",), tooling=())
 
     with pytest.raises(test_case.expected_error_type) as error:
         execute_init_plan(repository=tmp_path, plan=plan)
@@ -257,9 +252,7 @@ def test_given_racing_config_destination_when_publishing_then_never_overwrites_a
         open_file=os.open,
     )
     monkeypatch.setattr(os, "open", opener)
-    plan: InitPlan = InitPlan(
-        roots=("src/pkg",), tests=("tests",), tooling=(), adoption=AdoptionMode.FULL
-    )
+    plan: InitPlan = InitPlan(roots=("src/pkg",), tests=("tests",), tooling=())
 
     with pytest.raises(test_case.expected_error_type) as error:
         execute_init_plan(repository=tmp_path, plan=plan)
@@ -307,7 +300,6 @@ def test_given_scaffold_symlink_when_executing_then_refuses_and_rolls_back_creat
         roots=("src/pkg",),
         tests=("tests",),
         tooling=(),
-        adoption=AdoptionMode.FULL,
         project_name="pkg",
     )
 
@@ -352,7 +344,6 @@ def test_given_intermediate_parent_swap_when_scaffolding_then_refuses_without_wr
         roots=("src/pkg",),
         tests=("tests",),
         tooling=(),
-        adoption=AdoptionMode.FULL,
         project_name="pkg",
     )
 
@@ -386,7 +377,6 @@ def test_given_restrictive_umask_when_scaffolding_then_regular_files_are_non_exe
             roots=("src/pkg",),
             tests=("tests",),
             tooling=(),
-            adoption=AdoptionMode.FULL,
             project_name="pkg",
         )
         _ = execute_init_plan(repository=tmp_path, plan=plan)
@@ -434,7 +424,6 @@ def test_given_config_descriptor_write_failure_when_executing_then_cleans_partia
         roots=("src/pkg",),
         tests=("tests",),
         tooling=(),
-        adoption=AdoptionMode.FULL,
         project_name="pkg",
     )
 
@@ -473,9 +462,7 @@ def test_given_no_dirfd_capability_when_executing_brownfield_then_publishes_conf
     gitignore: Path = prepare_root_gitignore(root=tmp_path, initial=test_case.initial)
     monkeypatch.setattr(capabilities_module, "supports_dir_fd_operations", lambda: False)
     monkeypatch.setattr(os, "open", NoDirFdOpener(open_file=os.open))
-    plan: InitPlan = InitPlan(
-        roots=("src/pkg",), tests=("tests",), tooling=(), adoption=AdoptionMode.FULL
-    )
+    plan: InitPlan = InitPlan(roots=("src/pkg",), tests=("tests",), tooling=())
 
     _ = execute_init_plan(repository=tmp_path, plan=plan)
 
@@ -509,7 +496,6 @@ def test_given_no_dirfd_capability_when_executing_greenfield_then_creates_comple
         roots=("src/pkg",),
         tests=("tests",),
         tooling=(),
-        adoption=AdoptionMode.FULL,
         project_name=test_case.project_name,
     )
 
@@ -552,7 +538,6 @@ def test_given_no_dirfd_capability_and_symlink_parent_when_scaffolding_then_refu
         roots=("src/pkg",),
         tests=("tests",),
         tooling=(),
-        adoption=AdoptionMode.FULL,
         project_name="pkg",
     )
 
@@ -610,7 +595,6 @@ def test_given_selected_scope_python_symlink_when_executing_then_rejects_before_
         roots=test_case.roots,
         tests=test_case.tests,
         tooling=test_case.tooling,
-        adoption=AdoptionMode.FULL,
     )
 
     with pytest.raises(test_case.expected_error_type) as error:
@@ -829,9 +813,7 @@ def test_given_brownfield_gitignore_when_executing_then_publishes_expected_cache
 ) -> None:
     build_repository(root=tmp_path, files=(("src/pkg/__init__.py", ""),))
     path: Path = prepare_root_gitignore(root=tmp_path, initial=test_case.initial)
-    plan: InitPlan = InitPlan(
-        roots=("src/pkg",), tests=("tests",), tooling=(), adoption=AdoptionMode.FULL
-    )
+    plan: InitPlan = InitPlan(roots=("src/pkg",), tests=("tests",), tooling=())
 
     _ = execute_init_plan(repository=tmp_path, plan=plan)
 
@@ -867,9 +849,7 @@ def test_given_racing_gitignore_when_publishing_then_preserves_user_edit_and_rol
         publish=execution_module.publish_gitignore_update,
     )
     monkeypatch.setattr(execution_module, "publish_gitignore_update", publisher)
-    plan: InitPlan = InitPlan(
-        roots=("src/pkg",), tests=("tests",), tooling=(), adoption=AdoptionMode.FULL
-    )
+    plan: InitPlan = InitPlan(roots=("src/pkg",), tests=("tests",), tooling=())
 
     with pytest.raises(test_case.expected_error_type) as error:
         execute_init_plan(repository=tmp_path, plan=plan)
@@ -910,7 +890,6 @@ def test_given_racing_new_gitignore_when_publishing_then_preserves_user_file_and
         roots=("src/pkg",),
         tests=("tests",),
         tooling=(),
-        adoption=AdoptionMode.FULL,
         project_name="pkg",
     )
 
@@ -954,7 +933,6 @@ def test_given_new_gitignore_descriptor_write_failure_when_executing_then_cleans
         roots=("src/pkg",),
         tests=("tests",),
         tooling=(),
-        adoption=AdoptionMode.FULL,
         project_name="pkg",
     )
 
@@ -1006,7 +984,6 @@ def test_given_user_edits_to_published_files_when_later_publication_fails_then_r
         roots=("src/pkg",),
         tests=("tests",),
         tooling=(),
-        adoption=AdoptionMode.FULL,
         project_name="pkg",
     )
 

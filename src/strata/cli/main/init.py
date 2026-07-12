@@ -14,7 +14,6 @@ from strata.scaffolding.exceptions import InitRefusalError
 from strata.scaffolding.main.find_local_config import find_local_config
 from strata.scaffolding.main.run_init import run_init as _run_init
 from strata.scaffolding.models import InitOptions
-from strata.scaffolding.types import AdoptionMode
 
 
 def run_init(
@@ -57,19 +56,6 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--root", dest="roots", action="extend", nargs="+")
     parser.add_argument("--tests", action="extend", nargs="+")
     parser.add_argument("--tooling", action="extend", nargs="+")
-    adoption: argparse._MutuallyExclusiveGroup = parser.add_mutually_exclusive_group()
-    adoption.add_argument(
-        "--full",
-        dest="adoption",
-        action="store_const",
-        const=AdoptionMode.FULL,
-    )
-    adoption.add_argument(
-        "--gradual",
-        dest="adoption",
-        action="store_const",
-        const=AdoptionMode.GRADUAL,
-    )
     skills: argparse._MutuallyExclusiveGroup = parser.add_mutually_exclusive_group()
     skills.add_argument("--skills", dest="skills", action="store_true")
     skills.add_argument("--no-skills", dest="skills", action="store_false")
@@ -84,7 +70,6 @@ def _options(*, args: argparse.Namespace) -> InitOptions:
         roots=None if args.roots is None else tuple(args.roots),
         tests=None if args.tests is None else tuple(args.tests),
         tooling=None if args.tooling is None else tuple(args.tooling),
-        adoption=args.adoption,
         skills=args.skills,
         name=args.name,
     )

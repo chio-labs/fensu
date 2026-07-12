@@ -24,13 +24,6 @@ class CandidateProvenance(StrEnum):
     DEFAULT_NOT_PRESENT = "not present yet"
 
 
-class AdoptionMode(StrEnum):
-    """Starting ruleset selected for a repository."""
-
-    FULL = "full"
-    GRADUAL = "gradual"
-
-
 class InteractionDecision(StrEnum):
     """Whether init can proceed without reading terminal input."""
 

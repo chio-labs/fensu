@@ -11,7 +11,6 @@ import pytest
 
 from strata.cli.main import init as init_module
 from strata.scaffolding.models import InitOptions
-from strata.scaffolding.types import AdoptionMode
 from tests.unit.src.strata.cli.main._test_types import InitAdapterTestCase, InitNoColorTestCase
 
 
@@ -27,7 +26,7 @@ from tests.unit.src.strata.cli.main._test_types import InitAdapterTestCase, Init
             expected_exit_code=17,
         ),
         InitAdapterTestCase(
-            description="explicit full options are translated and repeated paths are flattened",
+            description="explicit options are translated and repeated paths are flattened",
             argv=(
                 "--yes",
                 "--root",
@@ -43,7 +42,6 @@ from tests.unit.src.strata.cli.main._test_types import InitAdapterTestCase, Init
                 "--tooling",
                 "scripts",
                 "tools",
-                "--full",
                 "--skills",
                 "--name",
                 "sample",
@@ -54,7 +52,6 @@ from tests.unit.src.strata.cli.main._test_types import InitAdapterTestCase, Init
                 roots=("src", "packages/a", "packages/b"),
                 tests=("tests/unit", "tests/integration", "tests/e2e"),
                 tooling=("scripts", "tools"),
-                adoption=AdoptionMode.FULL,
                 skills=True,
                 name="sample",
             ),
@@ -62,11 +59,10 @@ from tests.unit.src.strata.cli.main._test_types import InitAdapterTestCase, Init
             expected_exit_code=17,
         ),
         InitAdapterTestCase(
-            description="gradual adoption and disabled skills remain explicit",
-            argv=("--gradual", "--no-skills"),
+            description="disabled skills remain explicit",
+            argv=("--no-skills",),
             stdout_isatty=True,
             expected_options=InitOptions(
-                adoption=AdoptionMode.GRADUAL,
                 skills=False,
             ),
             expected_use_color=True,

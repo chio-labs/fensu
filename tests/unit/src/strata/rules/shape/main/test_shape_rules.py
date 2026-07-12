@@ -578,9 +578,9 @@ def test_given_parameter_mutation_when_checking_returns_then_requires_all_mutate
     "test_case",
     [
         ShapeRuleTestCase(
-            description="positional parameter at default threshold is flagged",
+            description="two positional parameters at default threshold are flagged",
             rule_code="SFS120",
-            source="def run(value: int) -> None:\n    return None\n",
+            source="def run(first: int, second: int) -> None:\n    return None\n",
             expected_codes=("SFS120",),
             expected_lines=(1,),
             relative_path="domain/core/helpers/tools.py",
@@ -602,12 +602,11 @@ def test_given_parameter_mutation_when_checking_returns_then_requires_all_mutate
             relative_path="domain/core/helpers/tools.py",
         ),
         ShapeRuleTestCase(
-            description="threshold allows one positional parameter",
+            description="default threshold allows one positional parameter",
             rule_code="SFS120",
             source="def run(value: int) -> None:\n    return None\n",
             expected_codes=(),
             expected_lines=(),
-            thresholds={Threshold.MAX_POSITIONAL_ARGS: 1},
             relative_path="domain/core/helpers/tools.py",
         ),
         ShapeRuleTestCase(

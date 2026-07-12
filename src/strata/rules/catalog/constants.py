@@ -21,7 +21,7 @@ CORE_RULES: tuple[RuleSpec, ...] = (
     *SFN_RULES,
 )
 STRATA_PACKAGE_NAME: str = "strata"
-TRACKED_FACADE_ATTRIBUTE: str = "_project"
+TRACKED_FACADE_ATTRIBUTE: str = "project"
 CACHEABLE_ALLOWED_IMPORT_ROOTS: frozenset[str] = frozenset(
     {
         "__future__",

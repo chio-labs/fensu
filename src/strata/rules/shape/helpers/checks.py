@@ -23,7 +23,7 @@ def too_many_statements(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
         return []
     limit: int = ctx.threshold(name=Threshold.MAX_STATEMENTS)
     faults: list[Fault] = []
-    for fact in ctx._analysis.facts.functions().top_level:
+    for fact in ctx.facts.functions().top_level:
         count: int = fact.statement_count
         if count > limit:
             faults.append(
@@ -40,7 +40,7 @@ def too_many_distinct_calls(*, module: ast.Module, ctx: RuleContext) -> list[Fau
         return []
     limit: int = ctx.threshold(name=Threshold.MAX_DISTINCT_CALLS)
     faults: list[Fault] = []
-    for fact in ctx._analysis.facts.functions().top_level:
+    for fact in ctx.facts.functions().top_level:
         count: int = fact.distinct_call_count
         if count > limit:
             faults.append(
@@ -60,7 +60,7 @@ def too_many_locals(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
         return []
     limit: int = ctx.threshold(name=Threshold.MAX_LOCALS)
     faults: list[Fault] = []
-    for fact in ctx._analysis.facts.functions().top_level:
+    for fact in ctx.facts.functions().top_level:
         count: int = fact.assigned_local_count
         if count > limit:
             faults.append(
@@ -78,7 +78,7 @@ def max_arguments(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     del module
     limit: int = ctx.threshold(name=Threshold.MAX_ARGUMENTS)
     faults: list[Fault] = []
-    for fact in ctx._analysis.facts.functions().functions:
+    for fact in ctx.facts.functions().functions:
         count: int = fact.parameter_count
         if count > limit:
             faults.append(
@@ -92,7 +92,7 @@ def max_statements_global(*, module: ast.Module, ctx: RuleContext) -> list[Fault
 
     del module
     limit: int = ctx.threshold(name=Threshold.MAX_STATEMENTS_GLOBAL)
-    function_facts: FunctionFacts = ctx._analysis.facts.functions()
+    function_facts: FunctionFacts = ctx.facts.functions()
     main_top_level: tuple[FunctionMetricFact, ...] = (
         function_facts.top_level if ctx.is_main_module() else ()
     )
@@ -114,8 +114,8 @@ def meaningful_project_result_discarded(*, module: ast.Module, ctx: RuleContext)
     del module
     if not ctx.is_main_module():
         return []
-    facts: ProjectCallFacts = ctx._analysis.facts.project_calls()
-    functions: tuple[ProjectFunctionFact, ...] = ctx._analysis.facts.project_functions()
+    facts: ProjectCallFacts = ctx.facts.project_calls()
+    functions: tuple[ProjectFunctionFact, ...] = ctx.facts.project_functions()
     faults: list[Fault] = []
     for call in facts.discarded_calls:
         function: ProjectFunctionFact | None
@@ -125,7 +125,7 @@ def meaningful_project_result_discarded(*, module: ast.Module, ctx: RuleContext)
                 None,
             )
         else:
-            function = ctx._project.module_function(
+            function = ctx.project.module_function(
                 requester=ctx.path,
                 module_name=call.module_name,
                 function_name=call.function_name,
@@ -155,7 +155,7 @@ def keyword_only_arguments(*, module: ast.Module, ctx: RuleContext) -> list[Faul
     del module
     limit: int = ctx.threshold(name=Threshold.MAX_POSITIONAL_ARGS)
     faults: list[Fault] = []
-    for fact in ctx._analysis.facts.functions().functions:
+    for fact in ctx.facts.functions().functions:
         if fact.dunder:
             continue
         positional_count: int = fact.positional_parameter_count
@@ -176,18 +176,14 @@ def no_outer_state_mutation(*, module: ast.Module, ctx: RuleContext) -> list[Fau
     """Flag function mutations of module-global or closure-captured state."""
 
     del module
-    return [
-        ctx.fault_at(location=fact.location) for fact in ctx._analysis.facts.outer_state_mutations()
-    ]
+    return [ctx.fault_at(location=fact.location) for fact in ctx.facts.outer_state_mutations()]
 
 
 def no_complex_comprehensions(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag comprehensions that combine generators or nest another comprehension."""
 
     del module
-    return [
-        ctx.fault_at(location=location) for location in ctx._analysis.facts.complex_comprehensions()
-    ]
+    return [ctx.fault_at(location=location) for location in ctx.facts.complex_comprehensions()]
 
 
 def mutable_result_model(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
@@ -198,7 +194,7 @@ def mutable_result_model(*, module: ast.Module, ctx: RuleContext) -> list[Fault]
         return []
     return [
         ctx.fault_at(location=fact.location)
-        for fact in ctx._analysis.facts.dataclasses()
+        for fact in ctx.facts.dataclasses()
         if fact.shape_candidate and not fact.frozen
     ]
 
@@ -209,6 +205,6 @@ def _parameter_mutation_faults(
     del module
     return [
         ctx.fault_at(location=fact.location)
-        for fact in ctx._analysis.facts.parameter_mutations()
+        for fact in ctx.facts.parameter_mutations()
         if not fact.dunder and not fact.setter and (not require_return or not fact.returned)
     ]

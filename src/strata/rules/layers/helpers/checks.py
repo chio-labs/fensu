@@ -28,7 +28,7 @@ def absolute_imports_only(*, module: ast.Module, ctx: RuleContext) -> list[Fault
     del module
     return [
         ctx.fault_at(location=fact.location)
-        for fact in ctx._analysis.facts.references().imports
+        for fact in ctx.facts.references().imports
         if fact.from_import and fact.relative_level > 0
     ]
 
@@ -38,7 +38,7 @@ def no_star_imports(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
 
     del module
     faults: list[Fault] = []
-    for fact in ctx._analysis.facts.references().imports:
+    for fact in ctx.facts.references().imports:
         if fact.from_import and any(
             alias.imported_name == _wildcard_import_name for alias in fact.aliases
         ):
@@ -56,7 +56,7 @@ def no_sibling_package_internals(*, module: ast.Module, ctx: RuleContext) -> lis
         module_parts=current_module_parts, initializer=current_initializer
     )
     faults: list[Fault] = []
-    for fact in ctx._analysis.facts.references().imports:
+    for fact in ctx.facts.references().imports:
         for imported_parts in normalized_import_targets(
             fact=fact,
             current_module_parts=current_module_parts,
@@ -86,7 +86,7 @@ def no_cross_package_internals(*, module: ast.Module, ctx: RuleContext) -> list[
         module_parts=current_module_parts, initializer=current_initializer
     )
     faults: list[Fault] = []
-    for fact in ctx._analysis.facts.references().imports:
+    for fact in ctx.facts.references().imports:
         for imported_parts in normalized_import_targets(
             fact=fact,
             current_module_parts=current_module_parts,
@@ -111,7 +111,7 @@ def no_cross_package_internals(*, module: ast.Module, ctx: RuleContext) -> list[
 def _classify_import_target(*, ctx: RuleContext, module_parts: tuple[str, ...]) -> ModuleOwnership:
     return classify_module_ownership(
         module_parts=module_parts,
-        initializer=ctx._project.exists(
+        initializer=ctx.project.exists(
             requester=ctx.path,
             path=ctx.scope_root().parent.joinpath(*module_parts) / INIT_MODULE_FILE_NAME,
         ),
@@ -128,7 +128,7 @@ def no_internal_public_surface_imports(*, module: ast.Module, ctx: RuleContext) 
         return []
     package_name: str = ctx.module_parts()[0]
     faults: list[Fault] = []
-    for fact in ctx._analysis.facts.references().imports:
+    for fact in ctx.facts.references().imports:
         if fact.from_import and fact.relative_level == 0 and fact.module_parts == (package_name,):
             faults.append(ctx.fault_at(location=fact.location))
         elif not fact.from_import and any(
@@ -142,7 +142,7 @@ def no_cross_file_helper_private_classes(*, module: ast.Module, ctx: RuleContext
     """Reject cross-file use of helper-local private classes."""
 
     del module
-    return _private_helper_reference_faults(ctx=ctx, facts=ctx._analysis.facts.references())
+    return _private_helper_reference_faults(ctx=ctx, facts=ctx.facts.references())
 
 
 def no_runtime_imports_from_tooling(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
@@ -155,7 +155,7 @@ def no_runtime_imports_from_tooling(*, module: ast.Module, ctx: RuleContext) -> 
         root.name for root in ctx.scope_roots(ScopeName.TOOLING)
     )
     faults: list[Fault] = []
-    for fact in ctx._analysis.facts.references().imports:
+    for fact in ctx.facts.references().imports:
         if fact.from_import and fact.relative_level == 0:
             if import_path_targets_tooling(
                 imported_parts=fact.module_parts,

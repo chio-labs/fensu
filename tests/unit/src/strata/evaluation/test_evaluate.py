@@ -92,11 +92,11 @@ def test_given_project_query_when_evaluating_then_returns_observed_dependency(
     "test_case",
     [
         AnalysisContextTestCase(
-            description="private analysis facade creates backend-neutral fault locations",
+            description="public analysis zones create backend-neutral fault locations",
             source="def run() -> None:\n    call()\n",
             expected_line=2,
             expected_column=4,
-            expected_message="call()",
+            expected_message="call()|1|Expr",
         )
     ],
     ids=lambda case: case.description,

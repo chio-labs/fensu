@@ -2,20 +2,26 @@
 
 from __future__ import annotations
 
-import ast
 from pathlib import Path
 
 from strata.analysis.classes.query_observer import QueryObserver
+from strata.analysis.exceptions import PythonSourceParseError
 from strata.analysis.main.build import build_analysis
-from strata.analysis.models import DataclassFact, ProjectDependency, ProjectFunctionFact
-from strata.analysis.types import Analysis, AnalysisBuild, ProjectDependencyKind
+from strata.analysis.main.parse_source import parse_python_source
+from strata.analysis.models import (
+    DataclassFact,
+    ProjectDependency,
+    ProjectFunctionFact,
+)
+from strata.analysis.types import (
+    Analysis,
+    AnalysisBuild,
+    ProjectDependencyKind,
+    PythonSourceArtifact,
+)
 from strata.discovery.models import DiscoveredTree, ProjectSource, ScopedFile
 from strata.evaluation.exceptions import ParseError
-from strata.evaluation.helpers.parsing import (
-    decode_source_snapshot,
-    parse_scoped_file,
-    read_source_snapshot,
-)
+from strata.evaluation.helpers.parsing import parse_scoped_file, read_source_snapshot
 from strata.evaluation.models import ExternalAnalysisBuild, ParsedModule, SourceSnapshot
 from strata.evaluation.types import EvaluationProjectAnalysis
 
@@ -314,14 +320,19 @@ def build_external_analysis(*, path: Path) -> ExternalAnalysisBuild:
     except OSError:
         return ExternalAnalysisBuild(analysis=None, source_fingerprint=None)
     try:
-        source: str = decode_source_snapshot(snapshot)
-        module: ast.Module = ast.parse(source)
-    except (SyntaxError, UnicodeError):
+        artifact: PythonSourceArtifact = parse_python_source(
+            path=path,
+            content=snapshot.content,
+            source_fingerprint=snapshot.fingerprint,
+        )
+    except PythonSourceParseError:
         return ExternalAnalysisBuild(analysis=None, source_fingerprint=snapshot.fingerprint)
-    analysis_build: AnalysisBuild = build_analysis(path=path, source=source, module=module)
+    build: AnalysisBuild = build_analysis(
+        path=artifact.path, source=artifact.source, module=artifact.module
+    )
     return ExternalAnalysisBuild(
-        analysis=analysis_build.analysis,
-        source_fingerprint=snapshot.fingerprint,
+        analysis=build.analysis,
+        source_fingerprint=artifact.source_fingerprint,
     )
 
 
@@ -334,6 +345,6 @@ def _build_discovered_analysis(
         return None, None
     try:
         parsed: ParsedModule = parse_scoped_file(scoped_file=scoped_file, source_snapshot=snapshot)
-    except (ParseError, UnicodeError):
+    except ParseError:
         return None, snapshot.fingerprint
     return parsed, parsed.source_fingerprint

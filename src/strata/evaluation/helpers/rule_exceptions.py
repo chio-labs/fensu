@@ -5,6 +5,9 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from strata.analysis.exceptions import PythonSourceParseError
+from strata.analysis.main.parse_source import parse_python_source
+from strata.analysis.types import PythonSourceArtifact
 from strata.config.exceptions import ConfigError
 from strata.config.models import Config, RuleExceptionEntry
 from strata.evaluation.models import ParsedModule, RuleExceptionKey
@@ -100,8 +103,10 @@ def _validate_exception_path(*, path: Path, repo_root: Path, configured: str) ->
 
 def _parse_exception_path(path: Path) -> ast.Module:
     try:
-        return ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-    except (OSError, SyntaxError, UnicodeError) as error:
+        content: bytes = path.read_bytes()
+        artifact: PythonSourceArtifact = parse_python_source(path=path, content=content)
+        return artifact.module
+    except (OSError, PythonSourceParseError, UnicodeError) as error:
         raise ConfigError(f"Could not inspect rule exception path {path}: {error}") from error
 
 

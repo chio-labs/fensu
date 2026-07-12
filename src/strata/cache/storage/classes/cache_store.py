@@ -89,7 +89,7 @@ class CacheStore:
             if not _database_identity_is_current(connection):
                 return misses
             rows_by_key: dict[str, tuple[object, ...]] = _fetch_rows(
-                connection,
+                connection=connection,
                 keys=tuple(key for key, _ in keyed_reads),
             )
             return tuple(
@@ -148,7 +148,7 @@ class CacheStore:
                 _rollback_connection(connection)
                 return failed
             rows_by_key: dict[str, tuple[object, ...]] = _fetch_rows(
-                connection,
+                connection=connection,
                 keys=tuple(key for key, _ in keyed_reads),
             )
             records: tuple[CacheRecord | None, ...] = tuple(
@@ -163,7 +163,7 @@ class CacheStore:
             connection.executemany(_UPSERT_RECORD_SQL, rows)
             if mutation.swept_prefix is not None:
                 self._sweep_unreferenced(
-                    connection,
+                    connection=connection,
                     prefix=mutation.swept_prefix,
                     retained_paths=mutation.retained_paths,
                     written_keys=tuple(key for key, _, _ in rows),
@@ -203,8 +203,8 @@ class CacheStore:
 
     def _sweep_unreferenced(
         self,
-        connection: sqlite3.Connection,
         *,
+        connection: sqlite3.Connection,
         prefix: Path,
         retained_paths: tuple[Path, ...],
         written_keys: tuple[str, ...],
@@ -297,8 +297,8 @@ def _begin_writable_transaction(connection: sqlite3.Connection) -> bool:
 
 
 def _fetch_rows(
-    connection: sqlite3.Connection,
     *,
+    connection: sqlite3.Connection,
     keys: tuple[str, ...],
 ) -> dict[str, tuple[object, ...]]:
     rows_by_key: dict[str, tuple[object, ...]] = {}
@@ -338,7 +338,7 @@ def _decode_row(*, row: tuple[object, ...] | None, expected_kind: str) -> CacheR
     kind, data = row
     if kind != expected_kind or not isinstance(data, bytes):
         return None
-    return decode_cache_record(data, expected_kind=expected_kind)
+    return decode_cache_record(data=data, expected_kind=expected_kind)
 
 
 def _database_is_uninitialized(connection: sqlite3.Connection) -> bool:

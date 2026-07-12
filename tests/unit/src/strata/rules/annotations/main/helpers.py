@@ -26,7 +26,7 @@ def evaluate_annotation_test_case(
     monkeypatch.chdir(tmp_path)
     config: Config = Config(roots=("src/pkg",), tests=())
     return evaluate(
-        tree=discover_files(config),
+        tree=discover_files(config=config),
         ruleset=(_rule_by_code(test_case.rule_code),),
         config=config,
     )

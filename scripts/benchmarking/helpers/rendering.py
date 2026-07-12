@@ -5,7 +5,7 @@ from __future__ import annotations
 from scripts.benchmarking.models import ProfileReport
 
 
-def render_profile(report: ProfileReport, *, rule_limit: int = 20) -> str:
+def render_profile(*, report: ProfileReport, rule_limit: int = 20) -> str:
     """Render one profile with the most expensive rules first."""
 
     lines: list[str] = [

@@ -66,7 +66,7 @@ def test_given_scoped_file_when_routing_then_returns_expected_families(
     monkeypatch.chdir(tmp_path)
 
     tree: DiscoveredTree = discover_files(
-        make_config(roots=("src/pkg",), tests=("tests",), tooling=("scripts",))
+        config=make_config(roots=("src/pkg",), tests=("tests",), tooling=("scripts",))
     )
     scoped_file: ScopedFile = only_file(files=tree.files)
 

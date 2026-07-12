@@ -30,7 +30,7 @@ def dependencies_are_current(
     active_states: DependencyStateCache = {} if states is None else states
     for observation in observations:
         current, active_states = _observation_is_current(
-            observation,
+            observation=observation,
             repo_root=repo_root,
             states=active_states,
         )
@@ -40,8 +40,8 @@ def dependencies_are_current(
 
 
 def _observation_is_current(
-    observation: DependencyObservation,
     *,
+    observation: DependencyObservation,
     repo_root: Path,
     states: DependencyStateCache,
 ) -> tuple[bool, DependencyStateCache]:
@@ -69,7 +69,7 @@ def _reobserve(
     repo_root: Path,
 ) -> DependencyObservation | None:
     if not is_dependency_observation(observation) or not is_relative_path(
-        observation.query_path,
+        value=observation.query_path,
         allow_root=True,
     ):
         return None

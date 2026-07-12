@@ -66,7 +66,7 @@ class _EvaluationProjectAnalysis:
         path: Path = self._resolve(scoped_file.path)
         parsed: ParsedModule | None = self._parsed_modules.get(path)
         if parsed is None:
-            parsed = parse_scoped_file(scoped_file)
+            parsed = parse_scoped_file(scoped_file=scoped_file)
         self._source_answers[path] = parsed.source_fingerprint
         if scoped_file.path.name == _test_types_file_name:
             self._dataclasses[path] = parsed.analysis.facts.dataclasses()
@@ -333,7 +333,7 @@ def _build_discovered_analysis(
     except OSError:
         return None, None
     try:
-        parsed: ParsedModule = parse_scoped_file(scoped_file, source_snapshot=snapshot)
+        parsed: ParsedModule = parse_scoped_file(scoped_file=scoped_file, source_snapshot=snapshot)
     except (ParseError, UnicodeError):
         return None, snapshot.fingerprint
     return parsed, parsed.source_fingerprint

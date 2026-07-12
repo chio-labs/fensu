@@ -24,7 +24,7 @@ def absolute_imports_only(*, module: ast.Module, ctx: RuleContext) -> list[Fault
 
     del module
     return [
-        ctx.fault_at(fact.location)
+        ctx.fault_at(location=fact.location)
         for fact in ctx._analysis.facts.references().imports
         if fact.from_import and fact.relative_level > 0
     ]
@@ -39,7 +39,7 @@ def no_star_imports(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
         if fact.from_import and any(
             alias.imported_name == _wildcard_import_name for alias in fact.aliases
         ):
-            faults.append(ctx.fault_at(fact.location))
+            faults.append(ctx.fault_at(location=fact.location))
     return faults
 
 
@@ -57,7 +57,7 @@ def no_sibling_package_internals(*, module: ast.Module, ctx: RuleContext) -> lis
             ):
                 faults.append(
                     ctx.fault_at(
-                        fact.location,
+                        location=fact.location,
                         message=(
                             f"import '{'.'.join(imported_parts)}' reaches into sibling internals"
                         ),
@@ -72,7 +72,7 @@ def no_sibling_package_internals(*, module: ast.Module, ctx: RuleContext) -> lis
                 ):
                     faults.append(
                         ctx.fault_at(
-                            fact.location,
+                            location=fact.location,
                             message=(
                                 f"import '{'.'.join(imported_parts)}' reaches into sibling "
                                 "internals"
@@ -98,7 +98,7 @@ def no_cross_package_internals(*, module: ast.Module, ctx: RuleContext) -> list[
                 target_package: str = ".".join(imported_parts[:2])
                 faults.append(
                     ctx.fault_at(
-                        fact.location,
+                        location=fact.location,
                         message=(
                             f"import '{'.'.join(imported_parts)}' reaches into internal structure "
                             f"of '{target_package}'"
@@ -115,7 +115,7 @@ def no_cross_package_internals(*, module: ast.Module, ctx: RuleContext) -> list[
                     target_package = ".".join(imported_parts[:2])
                     faults.append(
                         ctx.fault_at(
-                            fact.location,
+                            location=fact.location,
                             message=(
                                 f"import '{'.'.join(imported_parts)}' reaches into internal "
                                 f"structure of '{target_package}'"
@@ -138,11 +138,11 @@ def no_internal_public_surface_imports(*, module: ast.Module, ctx: RuleContext) 
     faults: list[Fault] = []
     for fact in ctx._analysis.facts.references().imports:
         if fact.from_import and fact.relative_level == 0 and fact.module_parts == (package_name,):
-            faults.append(ctx.fault_at(fact.location))
+            faults.append(ctx.fault_at(location=fact.location))
         elif not fact.from_import and any(
             alias.imported_name == package_name for alias in fact.aliases
         ):
-            faults.append(ctx.fault_at(fact.location))
+            faults.append(ctx.fault_at(location=fact.location))
     return faults
 
 
@@ -169,14 +169,14 @@ def no_runtime_imports_from_tooling(*, module: ast.Module, ctx: RuleContext) -> 
                 imported_parts=fact.module_parts,
                 tooling_packages=tooling_packages,
             ):
-                faults.append(ctx.fault_at(fact.location))
+                faults.append(ctx.fault_at(location=fact.location))
         elif not fact.from_import:
             for alias in fact.aliases:
                 if import_path_targets_tooling(
                     imported_parts=alias.imported_parts,
                     tooling_packages=tooling_packages,
                 ):
-                    faults.append(ctx.fault_at(fact.location))
+                    faults.append(ctx.fault_at(location=fact.location))
                     break
     return faults
 
@@ -192,7 +192,9 @@ def _private_helper_reference_faults(*, ctx: RuleContext, facts: ReferenceFacts)
                 for alias in event.aliases:
                     if _is_private_class_name(alias.imported_name):
                         faults.append(
-                            ctx.fault_at(event.location, message=message, remediation=remediation)
+                            ctx.fault_at(
+                                location=event.location, message=message, remediation=remediation
+                            )
                         )
                     else:
                         helper_module_aliases.add(alias.bound_name)
@@ -202,7 +204,9 @@ def _private_helper_reference_faults(*, ctx: RuleContext, facts: ReferenceFacts)
                         continue
                     if alias.imported_parts and _is_private_class_name(alias.imported_parts[-1]):
                         faults.append(
-                            ctx.fault_at(event.location, message=message, remediation=remediation)
+                            ctx.fault_at(
+                                location=event.location, message=message, remediation=remediation
+                            )
                         )
                     else:
                         helper_module_aliases.add(alias.bound_name)
@@ -211,7 +215,9 @@ def _private_helper_reference_faults(*, ctx: RuleContext, facts: ReferenceFacts)
             and _is_private_class_name(event.attribute_name)
             and event.base_name in helper_module_aliases
         ):
-            faults.append(ctx.fault_at(event.location, message=message, remediation=remediation))
+            faults.append(
+                ctx.fault_at(location=event.location, message=message, remediation=remediation)
+            )
     return faults
 
 

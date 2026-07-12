@@ -22,8 +22,8 @@ def read_source_snapshot(*, path: Path) -> SourceSnapshot:
 
 
 def parse_scoped_file(
-    scoped_file: ScopedFile,
     *,
+    scoped_file: ScopedFile,
     source_snapshot: SourceSnapshot | None = None,
 ) -> ParsedModule:
     """Read and parse one discovered Python file."""

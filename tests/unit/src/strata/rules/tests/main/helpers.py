@@ -58,7 +58,7 @@ def evaluate_tests_rule_test_case(
         tooling=test_case.tooling,
     )
     return evaluate(
-        tree=discover_files(config),
+        tree=discover_files(config=config),
         ruleset=(_rule_by_code(test_case.rule_code),),
         config=config,
     )
@@ -86,7 +86,7 @@ def evaluate_configured_layout_test_case(
         rule for rule in SFT_RULES if "SFT001" <= rule.code <= "SFT008"
     )
     return evaluate(
-        tree=discover_files(config),
+        tree=discover_files(config=config),
         ruleset=layout_rules,
         config=config,
     )

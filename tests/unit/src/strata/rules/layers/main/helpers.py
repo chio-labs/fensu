@@ -30,7 +30,9 @@ def evaluate_layer_rule(
     """Evaluate a single SFL rule over discovered fixture files."""
 
     monkeypatch.chdir(repo_root)
-    return evaluate(tree=discover_files(config), ruleset=(_rule_by_code(rule_code),), config=config)
+    return evaluate(
+        tree=discover_files(config=config), ruleset=(_rule_by_code(rule_code),), config=config
+    )
 
 
 def evaluate_layer_test_case(

@@ -6,13 +6,13 @@ from pathlib import Path
 
 import pytest
 
-from strata.config.models import Config
+from strata.config.models import Config, ThresholdOverride
 from strata.discovery.main.position import position_facts
 from strata.discovery.main.route import families_for_scope
 from strata.discovery.models import PositionFacts, ScopedFile
 from strata.evaluation.helpers.parsing import parse_scoped_file
 from strata.evaluation.main.evaluate import evaluate
-from strata.evaluation.models import EvaluationResult, ParsedModule
+from strata.evaluation.models import EvaluationResult, ParsedModule, ThresholdOverrideUse
 from strata.rules.authoring.types import Family, Threshold
 from tests.unit.src.strata.evaluation._test_types import (
     AnalysisContextTestCase,
@@ -24,6 +24,7 @@ from tests.unit.src.strata.evaluation._test_types import (
     EvaluationOperationTestCase,
     FaultFactoryTestCase,
     ProjectDependencyEvaluationTestCase,
+    ThresholdObservationTestCase,
 )
 from tests.unit.src.strata.evaluation.helpers import (
     discover_test_tree,
@@ -374,6 +375,52 @@ def test_given_context_when_reading_threshold_then_returns_role_or_global_value(
     )
 
     assert result.faults[0].message == str(test_case.expected_threshold)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ThresholdObservationTestCase(
+            description=f"records actual use of {threshold.value}",
+            threshold=threshold,
+            expected_value=99,
+            expected_pattern="src/pkg/**/*.py",
+        )
+        for threshold in Threshold
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_matching_override_when_rule_reads_any_threshold_then_records_resolution(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: ThresholdObservationTestCase,
+) -> None:
+    file_path: str = "src/pkg/config/helpers/load.py"
+    write_sources(repo_root=tmp_path, files=((file_path, "x: int = 1\n"),))
+    monkeypatch.chdir(tmp_path)
+    config: Config = Config(
+        roots=("src/pkg",),
+        threshold_overrides=(
+            ThresholdOverride(
+                paths=(test_case.expected_pattern,),
+                thresholds={test_case.threshold: test_case.expected_value},
+                reason="Exhaustive threshold observation.",
+            ),
+        ),
+    )
+
+    result: EvaluationResult = evaluate(
+        tree=discover_test_tree(config=config),
+        ruleset=(make_threshold_rule(threshold=test_case.threshold),),
+        config=config,
+    )
+    use: ThresholdOverrideUse = result.threshold_override_uses[0]
+
+    assert len(result.threshold_override_uses) == 1
+    assert use.threshold is test_case.threshold
+    assert use.effective_value == test_case.expected_value
+    assert use.matched_pattern == test_case.expected_pattern
+    assert use.repository_path == file_path
 
 
 @pytest.mark.parametrize(

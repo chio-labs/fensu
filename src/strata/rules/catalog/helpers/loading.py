@@ -13,14 +13,13 @@ from types import ModuleType
 
 from strata.config.exceptions import ConfigError
 from strata.config.models import Config
-from strata.config.types import RuleSelector
 from strata.rules.authoring.main.inspect import rule_specs_in_module
+from strata.rules.authoring.main.is_rule_code import is_rule_code
+from strata.rules.authoring.main.matches_rule_selector import matches_rule_selector
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Family, RuleKind
 from strata.rules.catalog.constants import CORE_RULES
 from strata.rules.catalog.helpers.hermeticity import validate_cacheable_rules
-
-_minimum_core_rule_code_length: int = 3
 
 
 def build_ruleset_from_config(
@@ -56,6 +55,7 @@ def build_catalogue_from_config(
     if config.cache.require_cacheable:
         custom_rules = tuple(replace(rule, cacheable=True) for rule in custom_rules)
     all_rules: tuple[RuleSpec, ...] = (*CORE_RULES, *custom_rules)
+    _validate_rule_identities(rules=all_rules)
     _validate_unique_codes(rules=all_rules)
     _validate_exception_codes(config=config, rules=all_rules)
     return all_rules
@@ -181,9 +181,13 @@ def _module_is_within(*, module: ModuleType | None, root: Path) -> bool:
 def _with_custom_source(*, rules: tuple[RuleSpec, ...], source: str) -> tuple[RuleSpec, ...]:
     result: list[RuleSpec] = []
     for rule in rules:
-        if rule.code.startswith("SF"):
+        if not is_rule_code(rule.code):
+            raise ConfigError(
+                f"Custom rule {rule.code} from {source} must use one exact X* rule code."
+            )
+        if not rule.code.startswith("X") or rule.kind is not RuleKind.CUSTOM:
             raise ConfigError(f"Custom rule {rule.code} from {source} must use the X* namespace.")
-        if rule.kind is RuleKind.CUSTOM and rule.source is None:
+        if rule.source is None:
             result.append(
                 RuleSpec(
                     code=rule.code,
@@ -208,7 +212,7 @@ def _select_rules(
     *, rules: tuple[RuleSpec, ...], select: tuple[str, ...], ignore: tuple[str, ...]
 ) -> tuple[RuleSpec, ...]:
     selected: list[RuleSpec] = []
-    explicit_code_selects: set[str] = {item for item in select if _is_code_selector(item)}
+    explicit_code_selects: set[str] = {item for item in select if is_rule_code(item)}
     for rule in rules:
         if _rule_matches_select(rule=rule, select=ignore):
             continue
@@ -221,34 +225,7 @@ def _select_rules(
 
 
 def _rule_matches_select(*, rule: RuleSpec, select: tuple[str, ...]) -> bool:
-    for selector in select:
-        if selector == RuleSelector.ALL and rule.code.startswith(RuleSelector.ALL):
-            return True
-        if selector == rule.code:
-            return True
-        if selector == _family_selector(rule.family):
-            return True
-    return False
-
-
-def _family_selector(family: Family) -> RuleSelector:
-    family_selectors: dict[Family, RuleSelector] = {
-        Family.LAYERS: RuleSelector.LAYERS,
-        Family.ROLES: RuleSelector.ROLES,
-        Family.SHAPE: RuleSelector.SHAPE,
-        Family.NAMING: RuleSelector.NAMING,
-        Family.HYGIENE: RuleSelector.HYGIENE,
-        Family.TESTS: RuleSelector.TESTS,
-        Family.ANNOTATIONS: RuleSelector.ANNOTATIONS,
-        Family.CUSTOM: RuleSelector.CUSTOM,
-    }
-    return family_selectors[family]
-
-
-def _is_code_selector(selector: str) -> bool:
-    return (
-        selector.startswith(RuleSelector.ALL) and len(selector) > _minimum_core_rule_code_length
-    ) or selector.startswith(RuleSelector.CUSTOM)
+    return any(matches_rule_selector(code=rule.code, selector=selector) for selector in select)
 
 
 def _validate_unique_codes(*, rules: tuple[RuleSpec, ...]) -> None:
@@ -262,6 +239,17 @@ def _validate_unique_codes(*, rules: tuple[RuleSpec, ...]) -> None:
                 f"Duplicate rule code {rule.code}: {previous_source} and {current_source}"
             )
         rules_by_code[rule.code] = rule
+
+
+def _validate_rule_identities(*, rules: tuple[RuleSpec, ...]) -> None:
+    for rule in rules:
+        if not is_rule_code(rule.code):
+            raise ConfigError(f"Catalogue rule {rule.code} must use one exact rule code.")
+        if not isinstance(rule.family, Family):
+            raise ConfigError(f"Catalogue rule {rule.code} must use one valid Family member.")
+        expected_kind: RuleKind = RuleKind.CORE if rule.code.startswith("SF") else RuleKind.CUSTOM
+        if rule.kind is not expected_kind:
+            raise ConfigError(f"Catalogue rule {rule.code} must use kind {expected_kind.value}.")
 
 
 def _validate_exception_codes(*, config: Config, rules: tuple[RuleSpec, ...]) -> None:

@@ -9,8 +9,6 @@ from typing import cast
 from strata.analysis.types import ProjectDependencyKind
 from strata.cache.fingerprints.models import CacheFingerprint
 from strata.cache.results.constants import (
-    CORE_RULE_CODE_PATTERN,
-    CUSTOM_RULE_CODE_PATTERN,
     PARENT_PATH_PART,
     REPOSITORY_ROOT_PATH,
     RULE_EXCEPTION_SYMBOL_PATTERN,
@@ -46,15 +44,6 @@ def is_relative_path(*, value: object, allow_root: bool = False) -> bool:
     if path.is_absolute() or PARENT_PATH_PART in path.parts or path.as_posix() != value:
         return False
     return allow_root or value != REPOSITORY_ROOT_PATH
-
-
-def is_rule_code(value: object) -> bool:
-    """Return whether a value is one exact core or custom rule code."""
-
-    return isinstance(value, str) and (
-        re.fullmatch(CORE_RULE_CODE_PATTERN, value) is not None
-        or re.fullmatch(CUSTOM_RULE_CODE_PATTERN, value) is not None
-    )
 
 
 def is_rule_exception_symbol(value: object) -> bool:

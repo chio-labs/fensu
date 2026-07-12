@@ -14,6 +14,7 @@ from strata.evaluation.main.evaluate import evaluate
 from strata.evaluation.models import EvaluationResult
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Threshold
+from strata.rules.catalog.constants import CORE_RULES
 from strata.rules.roles.constants import SFR_RULES
 from tests.unit.src.strata.rules.roles.main._test_types import SfrRuleTestCase
 
@@ -45,10 +46,35 @@ def evaluate_role_test_case(
         tests=(),
         tooling=tooling,
         thresholds=MappingProxyType(thresholds),
+        threshold_overrides=test_case.threshold_overrides,
     )
+    if test_case.rule_code == "SF":
+        ruleset: tuple[RuleSpec, ...] = CORE_RULES
+    elif test_case.rule_code == "SFR":
+        ruleset = SFR_RULES
+    else:
+        ruleset = (_rule_by_code(test_case.rule_code),)
     return evaluate(
         tree=discover_files(config=config),
-        ruleset=(_rule_by_code(test_case.rule_code),),
+        ruleset=ruleset,
+        config=config,
+    )
+
+
+def evaluate_flat_helpers_scale(
+    *, project_root: Path, module_count: int, monkeypatch: pytest.MonkeyPatch
+) -> EvaluationResult:
+    """Evaluate one namespace helpers role with the requested flat width."""
+
+    helpers: Path = project_root / "src/pkg/domain/orders/helpers"
+    helpers.mkdir(parents=True)
+    for index in range(module_count):
+        (helpers / f"module_{index:03d}.py").write_text("", encoding="utf-8")
+    monkeypatch.chdir(project_root)
+    config: Config = Config(roots=("src/pkg",), tests=())
+    return evaluate(
+        tree=discover_files(config=config),
+        ruleset=(_rule_by_code("SFR301"),),
         config=config,
     )
 

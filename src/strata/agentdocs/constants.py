@@ -45,6 +45,7 @@ RUNTIME_FROZEN_MODEL_CODES: frozenset[str] = frozenset({ShapeCode.MUTABLE_RESULT
 RUNTIME_HELPERS_CONTENT_CODES: frozenset[str] = frozenset(
     {RoleCode.HELPERS_CLASSES_FILE_PRIVATE, RoleCode.PRIVATE_DEFINITION_ORDERING}
 )
+RUNTIME_ENTRY_CODES: frozenset[str] = frozenset({RoleCode.ENTRY_MODULE_SHAPE})
 
 TEST_BASIC_CODES: frozenset[str] = frozenset(
     {SftCode.TEST_LAYOUT, SftCode.TEST_SCOPE, SftCode.TEST_MIRRORED_ROOT}
@@ -71,9 +72,7 @@ TEST_AUTHORING_CODES: frozenset[str] = frozenset(
         SftCode.PARAMETRIZE_ARGUMENTS,
         SftCode.PARAMETRIZE_TEST_CASE,
         SftCode.PARAMETRIZE_IDS,
-        SftCode.NO_MODULE_TEST_CASE_LISTS,
         SftCode.INLINE_PARAMETRIZE_VALUES,
-        SftCode.INLINE_PARAMETRIZE_SEQUENCE,
         SftCode.NONEMPTY_PARAMETRIZE_VALUES,
         SftCode.NO_DICT_TEST_CASES,
         SftCode.LOCAL_TEST_CASE_CONSTRUCTORS,

@@ -12,13 +12,14 @@ from strata.config.exceptions import ConfigError
 from strata.config.models import Config, RuleExceptionEntry
 from strata.rules.authoring.main.define import rule
 from strata.rules.authoring.models import RuleSpec
-from strata.rules.authoring.types import Family
+from strata.rules.authoring.types import Family, RuleKind
 from strata.rules.catalog.constants import CORE_RULES
 from strata.rules.catalog.helpers import loading as loading_module
 from strata.rules.catalog.main.build_ruleset import build_ruleset
 from tests.unit.src.strata.rules.catalog.main._test_types import (
     CatalogueQualityTestCase,
     CustomRuleLoadTestCase,
+    DirectRuleSpecErrorTestCase,
     ModuleIsolationTestCase,
     RegistryErrorTestCase,
     RuleExceptionCodeTestCase,
@@ -28,6 +29,7 @@ from tests.unit.src.strata.rules.catalog.main.helpers import (
     catalogue_quality_issues,
     make_core_rule,
     write_custom_rule_file,
+    write_direct_custom_rule_file,
     write_importing_custom_rule_package,
     write_module_package,
 )
@@ -311,6 +313,109 @@ def test_given_custom_rule_file_with_sf_namespace_when_building_ruleset_then_rai
     "test_case",
     [
         RegistryErrorTestCase(
+            description="malformed direct custom code cannot bypass source policy",
+            rule_source="XDB-rule",
+            expected_error_fragment="exact X* rule code",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_direct_custom_spec_with_malformed_code_when_loading_then_raises_config_error(
+    tmp_path: Path,
+    test_case: RegistryErrorTestCase,
+) -> None:
+    path: Path = write_direct_custom_rule_file(
+        root=tmp_path,
+        rule_code=test_case.rule_source,
+        kind=RuleKind.CUSTOM,
+        cacheable=True,
+    )
+
+    with pytest.raises(ConfigError) as error:
+        build_ruleset(config=Config(roots=("src/pkg",), rule_paths=(str(path),)))
+
+    assert test_case.expected_error_fragment in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        RegistryErrorTestCase(
+            description="kind-inconsistent direct custom code cannot bypass source policy",
+            rule_source="XDB901",
+            expected_error_fragment="X* namespace",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_direct_custom_spec_with_core_kind_when_loading_then_raises_config_error(
+    tmp_path: Path,
+    test_case: RegistryErrorTestCase,
+) -> None:
+    path: Path = write_direct_custom_rule_file(
+        root=tmp_path,
+        rule_code=test_case.rule_source,
+        kind=RuleKind.CORE,
+        cacheable=True,
+    )
+
+    with pytest.raises(ConfigError) as error:
+        build_ruleset(config=Config(roots=("src/pkg",), rule_paths=(str(path),)))
+
+    assert test_case.expected_error_fragment in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        DirectRuleSpecErrorTestCase(
+            description="path-loaded direct spec with list code raises structured error",
+            rule_code=[],
+            family_expression="Family.CUSTOM",
+            expected_error_fragment="exact X* rule code",
+        ),
+        DirectRuleSpecErrorTestCase(
+            description="path-loaded direct spec with None code raises structured error",
+            rule_code=None,
+            family_expression="Family.CUSTOM",
+            expected_error_fragment="exact X* rule code",
+        ),
+        DirectRuleSpecErrorTestCase(
+            description="path-loaded direct spec with string family raises structured error",
+            rule_code="XDM002",
+            family_expression="'custom'",
+            expected_error_fragment="valid Family member",
+        ),
+        DirectRuleSpecErrorTestCase(
+            description="path-loaded direct spec with None family raises structured error",
+            rule_code="XDM003",
+            family_expression="None",
+            expected_error_fragment="valid Family member",
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_path_loaded_direct_spec_with_malformed_identity_when_building_then_config_error(
+    tmp_path: Path,
+    test_case: DirectRuleSpecErrorTestCase,
+) -> None:
+    path: Path = write_direct_custom_rule_file(
+        root=tmp_path,
+        rule_code=test_case.rule_code,
+        family_expression=test_case.family_expression,
+        kind=RuleKind.CUSTOM,
+    )
+
+    with pytest.raises(ConfigError) as error:
+        build_ruleset(config=Config(roots=("src/pkg",), rule_paths=(str(path),)))
+
+    assert test_case.expected_error_fragment in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        RegistryErrorTestCase(
             description="duplicate custom rule codes are rejected",
             rule_source="XDU001",
             expected_error_fragment="Duplicate rule code XDU001",
@@ -392,22 +497,22 @@ def test_given_foreign_decorated_rule_when_loading_custom_file_then_module_metad
             expected_codes=(),
         ),
         SelectCompositionTestCase(
-            description="obsolete hygiene family selector matches no rules",
+            description="valid unpopulated core selector matches no rules",
             select=("SFX",),
             ignore=(),
             expected_codes=(),
         ),
         SelectCompositionTestCase(
-            description="obsolete hygiene rule code matches no rules",
+            description="valid unpopulated exact core code matches no rules",
             select=("SFX001",),
             ignore=(),
             expected_codes=(),
         ),
         SelectCompositionTestCase(
-            description="family ignore removes only rules in that family",
+            description="core spelling ignore removes only core codes",
             select=("SF", "X"),
             ignore=("SFH",),
-            expected_codes=("XRG001",),
+            expected_codes=("XRG001", "XDB001"),
         ),
         SelectCompositionTestCase(
             description="custom family ignore removes custom rules",
@@ -416,10 +521,46 @@ def test_given_foreign_decorated_rule_when_loading_custom_file_then_module_metad
             expected_codes=("SFH001",),
         ),
         SelectCompositionTestCase(
-            description="custom family selector includes custom rules",
+            description="custom root selector includes all default-on custom namespaces",
             select=("X",),
             ignore=(),
-            expected_codes=("XRG001",),
+            expected_codes=("XRG001", "XDB001"),
+        ),
+        SelectCompositionTestCase(
+            description="core selector does not select custom rule declaring roles family",
+            select=("SFR",),
+            ignore=(),
+            expected_codes=(),
+        ),
+        SelectCompositionTestCase(
+            description="core root selector selects core codes only",
+            select=("SF",),
+            ignore=(),
+            expected_codes=("SFH001",),
+        ),
+        SelectCompositionTestCase(
+            description="custom namespace selector selects its default-on rules",
+            select=("XDB",),
+            ignore=(),
+            expected_codes=("XDB001",),
+        ),
+        SelectCompositionTestCase(
+            description="custom namespace prefix does not activate default-off descendant",
+            select=("XDB0",),
+            ignore=(),
+            expected_codes=("XDB001",),
+        ),
+        SelectCompositionTestCase(
+            description="exact custom code activates default-off rule",
+            select=("XDB099",),
+            ignore=(),
+            expected_codes=("XDB099",),
+        ),
+        SelectCompositionTestCase(
+            description="ignore prefix wins over exact default-off activation",
+            select=("XDB099",),
+            ignore=("XDB",),
+            expected_codes=(),
         ),
     ],
     ids=lambda case: case.description,
@@ -434,7 +575,9 @@ def test_given_select_and_ignore_when_building_ruleset_then_applies_expected_com
         (
             make_core_rule(code="SFH001", family=Family.HYGIENE),
             make_core_rule(code="SFH099", family=Family.HYGIENE, enabled_by_default=False),
-            make_core_rule(code="XRG001", family=Family.CUSTOM),
+            make_core_rule(code="XRG001", family=Family.ROLES),
+            make_core_rule(code="XDB001", family=Family.ROLES),
+            make_core_rule(code="XDB099", family=Family.CUSTOM, enabled_by_default=False),
         ),
     )
 

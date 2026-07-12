@@ -6,11 +6,20 @@ from pathlib import Path
 
 import pytest
 
+from strata.analysis.types import ProjectDependencyKind
+from strata.config.models import ThresholdOverride
 from strata.discovery.types import ScopeName
 from strata.evaluation.models import EvaluationResult
 from strata.rules.authoring.types import Threshold
-from tests.unit.src.strata.rules.roles.main._test_types import SfrRuleTestCase, SfrSupportFile
-from tests.unit.src.strata.rules.roles.main.helpers import evaluate_role_test_case
+from tests.unit.src.strata.rules.roles.main._test_types import (
+    ContainerScaleTestCase,
+    SfrRuleTestCase,
+    SfrSupportFile,
+)
+from tests.unit.src.strata.rules.roles.main.helpers import (
+    evaluate_flat_helpers_scale,
+    evaluate_role_test_case,
+)
 
 
 @pytest.mark.parametrize(
@@ -526,89 +535,6 @@ def test_given_role_names_and_helper_classes_when_checking_then_flags_only_viola
     "test_case",
     [
         SfrRuleTestCase(
-            description="module-level standalone call is flagged",
-            rule_code="SFR206",
-            relative_path="domain/core/helpers/startup.py",
-            source="register_plugins()\n",
-            expected_codes=("SFR206",),
-            expected_lines=(1,),
-        ),
-        SfrRuleTestCase(
-            description="assigned constructor call is allowed",
-            rule_code="SFR206",
-            relative_path="domain/core/helpers/logging.py",
-            source="LOGGER: object = get_logger()\n",
-            expected_codes=(),
-            expected_lines=(),
-        ),
-        SfrRuleTestCase(
-            description="call inside function body is allowed",
-            rule_code="SFR206",
-            relative_path="domain/core/helpers/startup.py",
-            source="def start() -> None:\n    register_plugins()\n",
-            expected_codes=(),
-            expected_lines=(),
-        ),
-        SfrRuleTestCase(
-            description="standalone call in class body is flagged",
-            rule_code="SFR206",
-            relative_path="domain/core/classes/service.py",
-            source="class Service:\n    register_plugins()\n",
-            expected_codes=("SFR206",),
-            expected_lines=(2,),
-        ),
-        SfrRuleTestCase(
-            description="call inside class method body is allowed",
-            rule_code="SFR206",
-            relative_path="domain/core/classes/service.py",
-            source="class Service:\n    def start(self) -> None:\n        register_plugins()\n",
-            expected_codes=(),
-            expected_lines=(),
-        ),
-        SfrRuleTestCase(
-            description="conditional import-time call is flagged",
-            rule_code="SFR206",
-            relative_path="domain/core/helpers/startup.py",
-            source="if enabled:\n    register_plugins()\n",
-            expected_codes=("SFR206",),
-            expected_lines=(2,),
-        ),
-        SfrRuleTestCase(
-            description="type-checking guarded call is not executed at import",
-            rule_code="SFR206",
-            relative_path="domain/core/helpers/startup.py",
-            source="if TYPE_CHECKING:\n    register_type_adapter()\n",
-            expected_codes=(),
-            expected_lines=(),
-        ),
-        SfrRuleTestCase(
-            description="main-guarded call is not executed during import",
-            rule_code="SFR206",
-            relative_path="domain/core/helpers/startup.py",
-            source="if __name__ == '__main__':\n    main()\n",
-            expected_codes=(),
-            expected_lines=(),
-        ),
-    ],
-    ids=lambda case: case.description,
-)
-def test_given_runtime_calls_when_checking_import_time_then_flags_executed_standalone_calls(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    test_case: SfrRuleTestCase,
-) -> None:
-    result: EvaluationResult = evaluate_role_test_case(
-        test_case=test_case, tmp_path=tmp_path, monkeypatch=monkeypatch
-    )
-
-    assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
-    assert tuple(fault.line for fault in result.faults) == test_case.expected_lines
-
-
-@pytest.mark.parametrize(
-    "test_case",
-    [
-        SfrRuleTestCase(
             description="helpers package mixing modules and subfolders is flagged",
             rule_code="SFR301",
             relative_path="domain/core/helpers/__init__.py",
@@ -645,7 +571,7 @@ def test_given_runtime_calls_when_checking_import_time_then_flags_executed_stand
                     source="value: int = 2\n",
                 ),
             ),
-            thresholds={Threshold.MAX_FLAT_HELPER_MODULES: 1},
+            thresholds={Threshold.MAX_HELPERS_CONTAINER_MODULES: 1},
             expected_codes=("SFR301",),
             expected_lines=(None,),
         ),
@@ -665,7 +591,7 @@ def test_given_runtime_calls_when_checking_import_time_then_flags_executed_stand
             expected_lines=(),
         ),
         SfrRuleTestCase(
-            description="main support folder is flagged",
+            description="main role-named bucket is flagged",
             rule_code="SFR302",
             relative_path="domain/core/main/helpers/value.py",
             source="value: int = 1\n",
@@ -893,6 +819,266 @@ def test_given_role_layouts_when_checking_then_flags_only_layout_violations(
     "test_case",
     [
         SfrRuleTestCase(
+            description="helpers bucket module cap reports observed and effective values",
+            rule_code="SFR301",
+            relative_path="domain/orders/helpers/__init__.py",
+            source="",
+            support_files=(
+                SfrSupportFile(
+                    description="bucket init",
+                    relative_path="domain/orders/helpers/parsing/__init__.py",
+                    source="",
+                ),
+                SfrSupportFile(
+                    description="first module",
+                    relative_path="domain/orders/helpers/parsing/first.py",
+                    source="",
+                ),
+                SfrSupportFile(
+                    description="second module",
+                    relative_path="domain/orders/helpers/parsing/second.py",
+                    source="",
+                ),
+            ),
+            thresholds={Threshold.MAX_HELPERS_CONTAINER_MODULES: 1},
+            expected_codes=("SFR301",),
+            expected_lines=(None,),
+            expected_messages=("helpers/ container has 2 modules; effective limit is 1",),
+            expected_paths=("domain/orders/helpers/parsing/__init__.py",),
+        ),
+        SfrRuleTestCase(
+            description="matching override raises bucket module cap at reported anchor",
+            rule_code="SFR301",
+            relative_path="domain/orders/helpers/__init__.py",
+            source="",
+            support_files=(
+                SfrSupportFile(
+                    description="bucket init",
+                    relative_path="domain/orders/helpers/parsing/__init__.py",
+                    source="",
+                ),
+                SfrSupportFile(
+                    description="first module",
+                    relative_path="domain/orders/helpers/parsing/first.py",
+                    source="",
+                ),
+                SfrSupportFile(
+                    description="second module",
+                    relative_path="domain/orders/helpers/parsing/second.py",
+                    source="",
+                ),
+            ),
+            thresholds={Threshold.MAX_HELPERS_CONTAINER_MODULES: 1},
+            threshold_overrides=(
+                ThresholdOverride(
+                    paths=("src/pkg/**/helpers/parsing/__init__.py",),
+                    thresholds={Threshold.MAX_HELPERS_CONTAINER_MODULES: 2},
+                    reason="Parser breadth.",
+                ),
+            ),
+            expected_codes=(),
+            expected_lines=(),
+            expected_messages=(),
+            expected_paths=(),
+        ),
+        SfrRuleTestCase(
+            description="namespace helpers root anchors one deep bucket fault",
+            rule_code="SFR301",
+            relative_path="domain/orders/helpers/parsing/text/read.py",
+            source="def read() -> None:\n    return None\n",
+            expected_codes=("SFR301",),
+            expected_lines=(None,),
+            expected_messages=("helpers/ bucket depth is 2; effective limit is 1",),
+            expected_paths=("domain/orders/helpers/parsing/text/read.py",),
+        ),
+        SfrRuleTestCase(
+            description="main grouped bucket enforces its own module cap",
+            rule_code="SFR302",
+            relative_path="domain/orders/main/__init__.py",
+            source="",
+            support_files=(
+                SfrSupportFile(
+                    description="bucket init",
+                    relative_path="domain/orders/main/commands/__init__.py",
+                    source="",
+                ),
+                SfrSupportFile(
+                    description="first command",
+                    relative_path="domain/orders/main/commands/first.py",
+                    source="",
+                ),
+                SfrSupportFile(
+                    description="second command",
+                    relative_path="domain/orders/main/commands/second.py",
+                    source="",
+                ),
+            ),
+            thresholds={Threshold.MAX_MAIN_CONTAINER_MODULES: 1},
+            expected_codes=("SFR302",),
+            expected_lines=(None,),
+            expected_messages=("main/ container has 2 modules; effective limit is 1",),
+            expected_paths=("domain/orders/main/commands/__init__.py",),
+        ),
+        SfrRuleTestCase(
+            description="role-named bucket is faulted once from the outer helpers root",
+            rule_code="SFR301",
+            relative_path="domain/orders/helpers/main/read.py",
+            source="def read() -> None:\n    return None\n",
+            expected_codes=("SFR301",),
+            expected_lines=(None,),
+            expected_messages=("helpers/ bucket 'main/' uses a runtime role name",),
+            expected_paths=("domain/orders/helpers/main/read.py",),
+        ),
+        SfrRuleTestCase(
+            description="namespace helpers root detects init-only role-named bucket",
+            rule_code="SFR301",
+            relative_path="domain/orders/helpers/main/__init__.py",
+            source="",
+            expected_codes=("SFR301",),
+            expected_lines=(None,),
+            expected_messages=("helpers/ bucket 'main/' uses a runtime role name",),
+            expected_paths=("domain/orders/helpers/main/__init__.py",),
+        ),
+        SfrRuleTestCase(
+            description="generic and asset buckets do not create SFR301 faults",
+            rule_code="SFR301",
+            relative_path="domain/orders/helpers/__init__.py",
+            source="",
+            support_files=(
+                SfrSupportFile(
+                    description="generic bucket",
+                    relative_path="domain/orders/helpers/misc/read.py",
+                    source="",
+                ),
+                SfrSupportFile(
+                    description="asset",
+                    relative_path="domain/orders/helpers/assets/logo.svg",
+                    source="<svg/>",
+                ),
+                SfrSupportFile(
+                    description="empty directory",
+                    relative_path="domain/orders/helpers/empty",
+                    source="",
+                    is_directory=True,
+                ),
+            ),
+            expected_codes=(),
+            expected_lines=(),
+            expected_messages=(),
+            expected_paths=(),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_role_containers_when_checking_layout_then_enforces_shared_model(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: SfrRuleTestCase,
+) -> None:
+    result: EvaluationResult = evaluate_role_test_case(
+        test_case=test_case, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
+    assert tuple(fault.line for fault in result.faults) == test_case.expected_lines
+    assert tuple(fault.message for fault in result.faults) == test_case.expected_messages
+    assert (
+        tuple(fault.path.relative_to(tmp_path / "src/pkg").as_posix() for fault in result.faults)
+        == test_case.expected_paths
+    )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ContainerScaleTestCase(
+            description="tenfold flat role width keeps aggregate project queries near linear",
+            small_module_count=10,
+            large_module_count=100,
+            expected_max_query_multiplier=11,
+            expected_small_fault_count=0,
+            expected_large_fault_count=1,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_wider_role_when_evaluating_containers_then_project_queries_grow_near_linearly(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: ContainerScaleTestCase,
+) -> None:
+    small: EvaluationResult = evaluate_flat_helpers_scale(
+        project_root=tmp_path / "small",
+        module_count=test_case.small_module_count,
+        monkeypatch=monkeypatch,
+    )
+    large: EvaluationResult = evaluate_flat_helpers_scale(
+        project_root=tmp_path / "large",
+        module_count=test_case.large_module_count,
+        monkeypatch=monkeypatch,
+    )
+    observed_kinds: frozenset[ProjectDependencyKind] = frozenset(
+        {
+            ProjectDependencyKind.DIRECTORY_ENTRIES,
+            ProjectDependencyKind.GLOB,
+            ProjectDependencyKind.IS_FILE,
+        }
+    )
+    small_query_count: int = sum(
+        dependency.kind in observed_kinds for dependency in small.dependencies
+    )
+    large_query_count: int = sum(
+        dependency.kind in observed_kinds for dependency in large.dependencies
+    )
+
+    assert len(small.faults) == test_case.expected_small_fault_count
+    assert len(large.faults) == test_case.expected_large_fault_count
+    assert large_query_count <= small_query_count * test_case.expected_max_query_multiplier
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SfrRuleTestCase(
+            description="helpers main bucket has no secondary entry or main-shape faults",
+            rule_code="SF",
+            relative_path="domain/orders/helpers/main/read.py",
+            source="def _prepare() -> None:\n    value: int = build()\n",
+            thresholds={
+                Threshold.MAX_STATEMENTS: 0,
+                Threshold.MAX_DISTINCT_CALLS: 0,
+                Threshold.MAX_LOCALS: 0,
+            },
+            expected_codes=("SFR301",),
+            expected_lines=(None,),
+            expected_messages=("helpers/ bucket 'main/' uses a runtime role name",),
+            expected_paths=("domain/orders/helpers/main/read.py",),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_invalid_role_named_bucket_when_running_full_rules_then_avoids_main_double_faults(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: SfrRuleTestCase,
+) -> None:
+    result: EvaluationResult = evaluate_role_test_case(
+        test_case=test_case, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
+    assert tuple(fault.line for fault in result.faults) == test_case.expected_lines
+    assert tuple(fault.message for fault in result.faults) == test_case.expected_messages
+    assert (
+        tuple(fault.path.relative_to(tmp_path / "src/pkg").as_posix() for fault in result.faults)
+        == test_case.expected_paths
+    )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SfrRuleTestCase(
             description="mixed domain anchors one fault at its init module",
             rule_code="SFR306",
             relative_path="domain/models.py",
@@ -978,6 +1164,22 @@ def test_given_mixed_top_level_domain_when_checking_then_anchors_one_determinist
             source="VALUE: int = 1\n\ndef run() -> None:\n    return None\n",
             expected_codes=("SFR401",),
             expected_lines=(1,),
+        ),
+        SfrRuleTestCase(
+            description="grouped main module is checked as an entry",
+            rule_code="SFR401",
+            relative_path="domain/core/main/commands/run.py",
+            source="def _prepare() -> None:\n    return None\n",
+            expected_codes=("SFR401",),
+            expected_lines=(None,),
+        ),
+        SfrRuleTestCase(
+            description="main.py under main is checked as an entry",
+            rule_code="SFR401",
+            relative_path="domain/core/main/main.py",
+            source="def _prepare() -> None:\n    return None\n",
+            expected_codes=("SFR401",),
+            expected_lines=(None,),
         ),
         SfrRuleTestCase(
             description="nested nonempty init is flagged",
@@ -1095,6 +1297,21 @@ def test_given_mixed_top_level_domain_when_checking_then_anchors_one_determinist
             expected_lines=(),
         ),
         SfrRuleTestCase(
+            description="grouped main entry colliding with package is flagged",
+            rule_code="SFR405",
+            relative_path="domain/core/main/commands/run.py",
+            source="def run() -> None:\n    return None\n",
+            support_files=(
+                SfrSupportFile(
+                    description="grouped colliding package",
+                    relative_path="domain/core/main/commands/run/__init__.py",
+                    source="",
+                ),
+            ),
+            expected_codes=("SFR405",),
+            expected_lines=(None,),
+        ),
+        SfrRuleTestCase(
             description="flat main entry sharing its name with a file is allowed",
             rule_code="SFR405",
             relative_path="domain/core/main/run.py",
@@ -1161,12 +1378,12 @@ def test_given_role_surfaces_when_checking_then_flags_only_surface_violations(
             expected_lines=(),
         ),
         SfrRuleTestCase(
-            description="deep helper concern module is flagged",
+            description="deep helper concern module depth belongs to SFR301",
             rule_code="SFR502",
             relative_path="domain/core/helpers/parsing/text/values.py",
             source="value: int = 1\n",
-            expected_codes=("SFR502",),
-            expected_lines=(None,),
+            expected_codes=(),
+            expected_lines=(),
         ),
         SfrRuleTestCase(
             description="private constant after function is flagged",

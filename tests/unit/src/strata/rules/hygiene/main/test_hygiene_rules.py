@@ -442,3 +442,90 @@ def test_given_numeric_literals_when_checking_comparisons_then_requires_named_th
 
     assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
     assert tuple(fault.line for fault in result.faults) == test_case.expected_lines
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        HygieneRuleTestCase(
+            description="runtime module standalone call is flagged",
+            rule_code="SFH009",
+            source="register_plugins()\n",
+            expected_codes=("SFH009",),
+            expected_lines=(1,),
+            relative_path="src/pkg/domain/core/helpers/startup.py",
+        ),
+        HygieneRuleTestCase(
+            description="tooling module standalone call is flagged",
+            rule_code="SFH009",
+            source="register_plugins()\n",
+            expected_codes=("SFH009",),
+            expected_lines=(1,),
+            relative_path="scripts/helpers/startup.py",
+            tooling=("scripts",),
+        ),
+        HygieneRuleTestCase(
+            description="test module standalone call remains outside hygiene scope",
+            rule_code="SFH009",
+            source="register_plugins()\n",
+            expected_codes=(),
+            expected_lines=(),
+            relative_path="tests/unit/test_startup.py",
+            tests=("tests",),
+        ),
+        HygieneRuleTestCase(
+            description="assigned constructor call is allowed",
+            rule_code="SFH009",
+            source="LOGGER: object = get_logger()\n",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        HygieneRuleTestCase(
+            description="call inside function body is allowed",
+            rule_code="SFH009",
+            source="def start() -> None:\n    register_plugins()\n",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        HygieneRuleTestCase(
+            description="standalone call in class body is flagged",
+            rule_code="SFH009",
+            source="class Service:\n    register_plugins()\n",
+            expected_codes=("SFH009",),
+            expected_lines=(2,),
+        ),
+        HygieneRuleTestCase(
+            description="conditional import-time call is flagged",
+            rule_code="SFH009",
+            source="if enabled:\n    register_plugins()\n",
+            expected_codes=("SFH009",),
+            expected_lines=(2,),
+        ),
+        HygieneRuleTestCase(
+            description="type-checking guarded call is not executed at import",
+            rule_code="SFH009",
+            source="if TYPE_CHECKING:\n    register_type_adapter()\n",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        HygieneRuleTestCase(
+            description="main-guarded call is not executed during import",
+            rule_code="SFH009",
+            source="if __name__ == '__main__':\n    main()\n",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_import_time_calls_when_checking_hygiene_then_preserves_effective_scope(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: HygieneRuleTestCase,
+) -> None:
+    result: EvaluationResult = evaluate_hygiene_test_case(
+        test_case=test_case, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
+    assert tuple(fault.line for fault in result.faults) == test_case.expected_lines

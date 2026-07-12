@@ -11,6 +11,7 @@ from strata.discovery.main.discover_files import discover_files
 from strata.evaluation.main.evaluate import evaluate
 from strata.evaluation.models import EvaluationResult
 from strata.rules.authoring.models import RuleSpec
+from strata.rules.catalog.constants import CORE_RULES
 from strata.rules.tests.constants import SFT_RULES
 from tests.unit.src.strata.rules.tests.main._test_types import (
     SftConfiguredLayoutTestCase,
@@ -57,9 +58,12 @@ def evaluate_tests_rule_test_case(
         tests=test_case.tests,
         tooling=test_case.tooling,
     )
+    ruleset: tuple[RuleSpec, ...] = (
+        CORE_RULES if test_case.rule_code == "SF" else (_rule_by_code(test_case.rule_code),)
+    )
     return evaluate(
         tree=discover_files(config=config),
-        ruleset=(_rule_by_code(test_case.rule_code),),
+        ruleset=ruleset,
         config=config,
     )
 

@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from strata.agentdocs.constants import GENERATED_MARKER
-from strata.agentdocs.helpers.guidance import repository_guidance_lines
+from strata.agentdocs.helpers.guidance import (
+    configured_threshold_override_lines,
+    repository_guidance_lines,
+)
 from strata.agentdocs.helpers.workflow import navigation_workflow_lines
 from strata.config.models import Config
 from strata.rules.authoring.models import RuleSpec
@@ -43,6 +46,7 @@ def generate_skill(*, config: Config, rules: tuple[RuleSpec, ...]) -> str:
     lines.extend(navigation_workflow_lines())
     active_codes: frozenset[str] = frozenset(rule.code for rule in rules)
     lines.extend(repository_guidance_lines(config=config, active_codes=active_codes))
+    lines.extend(configured_threshold_override_lines(config=config, active_codes=active_codes))
     if config.rule_exceptions:
         lines.extend(
             (

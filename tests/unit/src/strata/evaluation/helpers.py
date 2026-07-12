@@ -20,7 +20,7 @@ from strata.discovery.models import (
 from strata.evaluation.models import ParsedModule
 from strata.evaluation.types import EvaluationProjectAnalysis
 from strata.rules.authoring.models import Fault, RuleSpec
-from strata.rules.authoring.types import Family, RuleContext, Threshold
+from strata.rules.authoring.types import Family, RuleContext, RuleKind, Threshold
 
 
 def write_sources(*, repo_root: Path, files: tuple[tuple[str, str], ...]) -> None:
@@ -197,7 +197,7 @@ def make_threshold_rule(*, threshold: Threshold) -> RuleSpec:
 
     def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
         node: ast.AST = module.body[0]
-        return [ctx.fault(node=node, message=str(ctx.threshold(threshold)))]
+        return [ctx.fault(node=node, message=str(ctx.threshold(name=threshold)))]
 
     return RuleSpec(
         code="XTH001", family=Family.CUSTOM, slug="threshold", message="threshold", check=check
@@ -230,13 +230,22 @@ def make_loop_rule() -> RuleSpec:
     return RuleSpec(code="XLP001", family=Family.CUSTOM, slug="loop", message="loop", check=check)
 
 
-def make_static_fault_rule(*, code: str, line: int, message: str) -> RuleSpec:
+def make_static_fault_rule(
+    *, code: str, line: int, message: str, family: Family = Family.CUSTOM
+) -> RuleSpec:
     """Build a fake rule that returns a static line-positioned fault."""
 
     def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
         return [Fault(code=code, path=ctx.path, message=message, line=line, column=0)]
 
-    return RuleSpec(code=code, family=Family.CUSTOM, slug=message, message=message, check=check)
+    return RuleSpec(
+        code=code,
+        family=family,
+        slug=message,
+        message=message,
+        check=check,
+        kind=RuleKind.CUSTOM if code.startswith("X") else RuleKind.CORE,
+    )
 
 
 def make_none_location_rule() -> RuleSpec:

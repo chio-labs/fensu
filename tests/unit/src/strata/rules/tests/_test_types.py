@@ -12,6 +12,7 @@ class SftCatalogueTestCase:
     description: str
     expected_codes: tuple[str, ...]
     expected_unique_count: int
+    expected_removed_codes: tuple[str, ...]
 
 
 @dataclass(frozen=True)

@@ -354,11 +354,11 @@ def test_given_test_layout_when_checking_tests_then_flags_only_bad_mirroring(
             runtime_paths=("src/strata/rules/__init__.py",),
         ),
         SftRuleTestCase(
-            description="module test case list is flagged",
+            description="unused module test case list is not independently flagged",
             rule_code="SFT408",
             files=good_test_files(test_source=f"TEST_CASES = []\n{GOOD_TEST_SOURCE}"),
-            expected_codes=("SFT408",),
-            expected_lines=(1,),
+            expected_codes=(),
+            expected_lines=(),
             runtime_paths=("src/strata/rules/__init__.py",),
         ),
         SftRuleTestCase(
@@ -805,25 +805,77 @@ def test_given_test_comprehensions_when_checking_then_flags_only_complex_forms(
         ),
         SftRuleTestCase(
             description="named parametrized values are flagged",
-            rule_code="SFT409",
+            rule_code="SFT408",
             files=good_test_files(
                 test_source=f"CASES = [ExampleTestCase(description='example', expected_value=1)]\n{GOOD_TEST_SOURCE.replace('[ExampleTestCase(description="example", expected_value=1)]', 'CASES')}"
             ),
-            expected_codes=("SFT409",),
+            expected_codes=("SFT408",),
             expected_lines=(11,),
             runtime_paths=("src/strata/rules/__init__.py",),
         ),
         SftRuleTestCase(
-            description="non sequence parametrized values are flagged",
-            rule_code="SFT410",
+            description="opaque call parametrized values are flagged",
+            rule_code="SFT408",
             files=good_test_files(
                 test_source=GOOD_TEST_SOURCE.replace(
                     '[ExampleTestCase(description="example", expected_value=1)]', "make_cases()"
                 )
             ),
-            expected_codes=("SFT410",),
+            expected_codes=("SFT408",),
             expected_lines=(10,),
             runtime_paths=("src/strata/rules/__init__.py",),
+        ),
+        SftRuleTestCase(
+            description="opaque attribute expression parametrized values are flagged",
+            rule_code="SFT408",
+            files=good_test_files(
+                test_source=GOOD_TEST_SOURCE.replace(
+                    '[ExampleTestCase(description="example", expected_value=1)]', "cases.values"
+                )
+            ),
+            expected_codes=("SFT408",),
+            expected_lines=(10,),
+            runtime_paths=("src/strata/rules/__init__.py",),
+        ),
+        SftRuleTestCase(
+            description="inline tuple parametrized values are visible",
+            rule_code="SFT408",
+            files=good_test_files(
+                test_source=GOOD_TEST_SOURCE.replace(
+                    '[ExampleTestCase(description="example", expected_value=1)]',
+                    '(ExampleTestCase(description="example", expected_value=1),)',
+                )
+            ),
+            expected_codes=(),
+            expected_lines=(),
+            runtime_paths=("src/strata/rules/__init__.py",),
+        ),
+        SftRuleTestCase(
+            description="inline generator comprehension parametrized values are visible",
+            rule_code="SFT408",
+            files=good_test_files(
+                test_source=GOOD_TEST_SOURCE.replace(
+                    '[ExampleTestCase(description="example", expected_value=1)]',
+                    "(ExampleTestCase(description=str(value), expected_value=value) for value in (1, 2))",
+                )
+            ),
+            expected_codes=(),
+            expected_lines=(),
+            runtime_paths=("src/strata/rules/__init__.py",),
+        ),
+        SftRuleTestCase(
+            description="full ruleset reports named values once at the parametrized function",
+            rule_code="SF",
+            files=good_test_files(
+                test_source=(
+                    "CASES: list[ExampleTestCase] = "
+                    "[ExampleTestCase(description='example', expected_value=1)]\n"
+                    f"{GOOD_TEST_SOURCE.replace('[ExampleTestCase(description="example", expected_value=1)]', 'CASES')}"
+                )
+            ),
+            expected_codes=("SFT408",),
+            expected_lines=(11,),
+            runtime_paths=("src/strata/rules/core/constants.py",),
         ),
         SftRuleTestCase(
             description="empty parametrized values are flagged",

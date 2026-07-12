@@ -44,14 +44,15 @@ class RuleKind(StrEnum):
 
 
 class Threshold(StrEnum):
-    """Named, config-overridable numeric limits resolved per file at check time."""
+    """Named, config-overridable numeric limits resolved per reported path."""
 
     MAX_STATEMENTS = "max_statements"
     MAX_DISTINCT_CALLS = "max_distinct_calls"
     MAX_LOCALS = "max_locals"
     MAX_FILE_LINES = "max_file_lines"
-    MAX_FLAT_HELPER_MODULES = "max_flat_helper_modules"
-    MAX_FLAT_MAIN_MODULES = "max_flat_main_modules"
+    MAX_HELPERS_CONTAINER_MODULES = "max_helpers_container_modules"
+    MAX_MAIN_CONTAINER_MODULES = "max_main_container_modules"
+    MAX_ROLE_DEPTH = "max_role_depth"
     MAX_POSITIONAL_ARGS = "max_positional_args"
     MAX_ARGUMENTS = "max_arguments"
     MAX_STATEMENTS_GLOBAL = "max_statements_global"
@@ -107,7 +108,13 @@ class RuleContext(Protocol):
         """Construct a Fault from an explicit backend-neutral source location."""
         ...
 
-    def path_fault(self, *, message: str | None = None, remediation: str | None = None) -> Fault:
+    def path_fault(
+        self,
+        *,
+        path: Path | None = None,
+        message: str | None = None,
+        remediation: str | None = None,
+    ) -> Fault:
         """Construct a file-level Fault using the active rule metadata."""
         ...
 
@@ -214,8 +221,8 @@ class RuleContext(Protocol):
         """Whether a node is lexically inside a loop."""
         ...
 
-    def threshold(self, name: Threshold) -> int:
-        """The applicable value for a named threshold on the current file."""
+    def threshold(self, *, name: Threshold, path: Path | None = None) -> int:
+        """The applicable value for a named threshold on the reported path."""
         ...
 
     def contracts(self) -> Mapping[str, str]:

@@ -19,6 +19,8 @@ from tests.integration.src.strata.cli.main._test_types import (
     CheckCommandTestCase,
     CheckErrorTestCase,
     CheckNoFaultTestCase,
+    NestedContainerCacheTestCase,
+    ThresholdOverrideCheckTestCase,
 )
 from tests.integration.src.strata.cli.main.helpers import (
     CaptureOutput,
@@ -70,6 +72,174 @@ def test_given_custom_rule_fault_when_running_check_then_outputs_report_and_exit
     assert exit_code == test_case.expected_exit_code
     assert test_case.expected_output_fragment in stdout.getvalue()
     assert test_case.expected_no_output_fragment not in stdout.getvalue()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CheckNoFaultTestCase(
+            description="legal raised container override is reported with effective count",
+            argv=("--no-color", "--no-cache"),
+            expected_exit_code=0,
+            expected_output_fragment=(
+                "Applied 1 threshold override\n"
+                "Threshold override: max_helpers_container_modules=2 "
+                "path=src/pkg/orders/helpers/parsing/__init__.py "
+                "pattern=src/pkg/**/helpers/parsing/__init__.py order=0 "
+                "reason=Parser breadth."
+            ),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_legal_threshold_override_when_running_check_then_reports_usage(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: CheckNoFaultTestCase,
+) -> None:
+    config_path: Path = tmp_path / "strata.toml"
+    config_path.write_text(
+        'roots = ["src/pkg"]\nselect = ["SFR301"]\n'
+        "[thresholds]\nmax_helpers_container_modules = 1\n"
+        "[[threshold_overrides]]\n"
+        'paths = ["src/pkg/**/helpers/parsing/__init__.py"]\n'
+        'reason = "Parser breadth."\n'
+        "thresholds = { max_helpers_container_modules = 2 }\n",
+        encoding="utf-8",
+    )
+    bucket: Path = tmp_path / "src/pkg/orders/helpers/parsing"
+    bucket.mkdir(parents=True)
+    for name in ("__init__.py", "first.py", "second.py"):
+        (bucket / name).write_text("", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    stdout: CaptureOutput = CaptureOutput(is_terminal=True)
+
+    exit_code: int = run_check(argv=test_case.argv, stdout=stdout)
+
+    assert exit_code == test_case.expected_exit_code
+    assert test_case.expected_output_fragment in stdout.getvalue()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ThresholdOverrideCheckTestCase(
+            description="active threshold rule preserves override use across cold and warm cache",
+            selected_rule="SFR301",
+            override_value=2,
+            expected_output_fragment="Applied 1 threshold override",
+            expected_additional_fragment="max_helpers_container_modules=2",
+            expected_absent_fragment="Applied 2 threshold overrides",
+            expected_exit_code=0,
+        ),
+        ThresholdOverrideCheckTestCase(
+            description="inactive threshold rule records no override use",
+            selected_rule="SFA101",
+            override_value=2,
+            expected_output_fragment="Found 0 faults",
+            expected_additional_fragment="Found 0 faults",
+            expected_absent_fragment="Threshold override:",
+            expected_exit_code=0,
+        ),
+        ThresholdOverrideCheckTestCase(
+            description="faulting threshold override reports actual use across cache",
+            selected_rule="SFR301",
+            override_value=1,
+            expected_output_fragment="Applied 1 threshold override",
+            expected_additional_fragment="SFR301  helpers/ container has 2 modules",
+            expected_absent_fragment="Applied 2 threshold overrides",
+            expected_exit_code=1,
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_threshold_override_when_running_cached_check_then_reports_only_actual_uses(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: ThresholdOverrideCheckTestCase,
+) -> None:
+    config_path: Path = tmp_path / "strata.toml"
+    config_path.write_text(
+        f'roots = ["src/pkg"]\nselect = ["{test_case.selected_rule}"]\n'
+        "[[threshold_overrides]]\n"
+        'paths = ["src/pkg/**/helpers/parsing/__init__.py"]\n'
+        'reason = "Parser breadth."\n'
+        f"thresholds = {{ max_helpers_container_modules = {test_case.override_value} }}\n",
+        encoding="utf-8",
+    )
+    bucket: Path = tmp_path / "src/pkg/orders/helpers/parsing"
+    bucket.mkdir(parents=True)
+    for name in ("__init__.py", "first.py", "second.py"):
+        (bucket / name).write_text("", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    cold_stdout: CaptureOutput = CaptureOutput()
+    warm_stdout: CaptureOutput = CaptureOutput()
+
+    cold_exit: int = run_check(argv=("--no-color", "--cache"), stdout=cold_stdout)
+    warm_exit: int = run_check(argv=("--no-color", "--cache"), stdout=warm_stdout)
+
+    assert cold_exit == test_case.expected_exit_code
+    assert warm_exit == test_case.expected_exit_code
+    assert warm_stdout.getvalue() == cold_stdout.getvalue()
+    assert test_case.expected_output_fragment in cold_stdout.getvalue()
+    assert test_case.expected_additional_fragment in cold_stdout.getvalue()
+    assert test_case.expected_absent_fragment not in cold_stdout.getvalue()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        NestedContainerCacheTestCase(
+            description="nested bucket fault remains fully cacheable with identical output",
+            expected_exit_code=1,
+            expected_fault_fragment="SFR301  helpers/ container has 2 modules",
+            expected_summary_fragment="Found 1 fault",
+            expected_cold_stats_fragment="hits=0 misses=4",
+            expected_warm_stats_fragment="hits=4 misses=0",
+            expected_non_cacheable_fragment="non_cacheable=0",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_nested_container_fault_when_running_cold_and_warm_then_reuses_all_results(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: NestedContainerCacheTestCase,
+) -> None:
+    (tmp_path / "strata.toml").write_text(
+        'roots = ["src/pkg"]\nselect = ["SFR301"]\n'
+        "[thresholds]\nmax_helpers_container_modules = 1\n",
+        encoding="utf-8",
+    )
+    helpers: Path = tmp_path / "src/pkg/orders/helpers"
+    bucket: Path = helpers / "parsing"
+    bucket.mkdir(parents=True)
+    for path in (
+        helpers / "__init__.py",
+        bucket / "__init__.py",
+        bucket / "first.py",
+        bucket / "second.py",
+    ):
+        path.write_text("", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    cold_stdout: CaptureOutput = CaptureOutput()
+    cold_stderr: CaptureOutput = CaptureOutput()
+    warm_stdout: CaptureOutput = CaptureOutput()
+    warm_stderr: CaptureOutput = CaptureOutput()
+    argv: tuple[str, ...] = ("--no-color", "--cache", "--cache-stats")
+
+    cold_exit: int = run_check(argv=argv, stdout=cold_stdout, stderr=cold_stderr)
+    warm_exit: int = run_check(argv=argv, stdout=warm_stdout, stderr=warm_stderr)
+
+    assert cold_exit == test_case.expected_exit_code
+    assert warm_exit == test_case.expected_exit_code
+    assert warm_stdout.getvalue() == cold_stdout.getvalue()
+    assert test_case.expected_fault_fragment in cold_stdout.getvalue()
+    assert test_case.expected_summary_fragment in cold_stdout.getvalue()
+    assert test_case.expected_cold_stats_fragment in cold_stderr.getvalue()
+    assert test_case.expected_warm_stats_fragment in warm_stderr.getvalue()
+    assert test_case.expected_non_cacheable_fragment in cold_stderr.getvalue()
+    assert test_case.expected_non_cacheable_fragment in warm_stderr.getvalue()
 
 
 @pytest.mark.parametrize(

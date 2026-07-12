@@ -102,6 +102,18 @@ class CachedRuleExceptionKey:
 
 
 @dataclass(frozen=True, slots=True)
+class CachedThresholdOverrideUse:
+    """Persisted representation of one consulted matching threshold override."""
+
+    threshold: str
+    effective_value: int
+    matched_pattern: str
+    reason: str
+    override_order: int
+    repository_path: str
+
+
+@dataclass(frozen=True, slots=True)
 class CachedFileResult:
     """Complete reusable output and observed inputs for one source file."""
 
@@ -110,6 +122,7 @@ class CachedFileResult:
     faults: tuple[CachedFault, ...]
     applied_exception_keys: tuple[CachedRuleExceptionKey, ...]
     dependencies: tuple[DependencyObservation, ...]
+    threshold_override_uses: tuple[CachedThresholdOverrideUse, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

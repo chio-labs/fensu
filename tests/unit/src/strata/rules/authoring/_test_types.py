@@ -66,6 +66,16 @@ class ModuleMetadataTestCase:
 
 
 @dataclass(frozen=True)
+class DirectModuleRuleCodeTestCase:
+    """Direct module specs and their expected inspection result."""
+
+    description: str
+    code: object
+    definition_count: int
+    expected_rule_count: int
+
+
+@dataclass(frozen=True)
 class HermeticityTestCase:
     """One rule-execution hermeticity scan and its expected clean outcome."""
 
@@ -73,3 +83,23 @@ class HermeticityTestCase:
     excluded_packages: tuple[str, ...]
     expected_minimum_modules: int
     expected_violations: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class RuleGrammarTestCase:
+    """One spelling and its expected exact-code and selector classifications."""
+
+    description: str
+    value: object
+    expected_is_code: bool
+    expected_is_selector: bool
+
+
+@dataclass(frozen=True)
+class RuleSelectorMatchTestCase:
+    """One code and selector pair with its expected spelling-only match."""
+
+    description: str
+    code: str
+    selector: str
+    expected_matches: bool

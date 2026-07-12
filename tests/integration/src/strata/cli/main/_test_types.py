@@ -30,6 +30,32 @@ class CheckNoFaultTestCase:
 
 
 @dataclass(frozen=True)
+class ThresholdOverrideCheckTestCase:
+    """Threshold override selection and expected cold/warm reporting."""
+
+    description: str
+    selected_rule: str
+    override_value: int
+    expected_output_fragment: str
+    expected_additional_fragment: str
+    expected_absent_fragment: str
+    expected_exit_code: int
+
+
+@dataclass(frozen=True)
+class NestedContainerCacheTestCase:
+    """Nested container fault and expected cold/warm cache behavior."""
+
+    description: str
+    expected_exit_code: int
+    expected_fault_fragment: str
+    expected_summary_fragment: str
+    expected_cold_stats_fragment: str
+    expected_warm_stats_fragment: str
+    expected_non_cacheable_fragment: str
+
+
+@dataclass(frozen=True)
 class CheckErrorTestCase:
     """CLI check input and expected configuration error output."""
 

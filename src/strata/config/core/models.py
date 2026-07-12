@@ -7,7 +7,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
 
-from strata.config.core.constants import DEFAULT_CONTRACTS, DEFAULT_THRESHOLDS
+from strata.config.core.constants import (
+    DEFAULT_CACHE_ENABLED,
+    DEFAULT_CONTRACTS,
+    DEFAULT_THRESHOLDS,
+)
 from strata.config.core.types import ConfigSourceKind
 from strata.rules.authoring.types import Threshold
 
@@ -39,6 +43,13 @@ class RuleExceptionEntry:
 
 
 @dataclass(frozen=True, slots=True)
+class CacheConfig:
+    """Operational persistent-cache preferences."""
+
+    enabled: bool
+
+
+@dataclass(frozen=True, slots=True)
 class Config:
     """Validated strata configuration."""
 
@@ -50,6 +61,7 @@ class Config:
     rule_paths: tuple[str, ...] = ()
     rule_modules: tuple[str, ...] = ()
     rule_exceptions: tuple[RuleExceptionEntry, ...] = ()
+    cache: CacheConfig = field(default_factory=lambda: CacheConfig(enabled=DEFAULT_CACHE_ENABLED))
     thresholds: Mapping[Threshold, int] = field(
         default_factory=lambda: MappingProxyType(dict(DEFAULT_THRESHOLDS))
     )

@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from types import MappingProxyType
 
 from strata.config.core.constants import (
+    DEFAULT_CACHE_ENABLED,
     DEFAULT_CONTRACTS,
     DEFAULT_IGNORE,
     DEFAULT_SELECT,
@@ -13,7 +14,7 @@ from strata.config.core.constants import (
     DEFAULT_THRESHOLDS,
     DEFAULT_TOOLING_PATHS,
 )
-from strata.config.core.models import Config, RuleExceptionEntry
+from strata.config.core.models import CacheConfig, Config, RuleExceptionEntry
 from strata.rules.authoring.types import Threshold
 
 
@@ -47,9 +48,19 @@ def build_config(raw: Mapping[str, object]) -> Config:
         rule_paths=_string_tuple(value=raw.get("rule_paths")),
         rule_modules=_string_tuple(value=raw.get("rule_modules")),
         rule_exceptions=_rule_exceptions(raw.get("rule_exceptions")),
+        cache=_cache_config(raw.get("cache")),
         thresholds=MappingProxyType(thresholds),
         role_thresholds=MappingProxyType(role_thresholds),
         contracts=MappingProxyType(contracts),
+    )
+
+
+def _cache_config(value: object) -> CacheConfig:
+    if not isinstance(value, dict):
+        return CacheConfig(enabled=DEFAULT_CACHE_ENABLED)
+    enabled: object = value.get("enabled")
+    return CacheConfig(
+        enabled=enabled if isinstance(enabled, bool) else DEFAULT_CACHE_ENABLED,
     )
 
 

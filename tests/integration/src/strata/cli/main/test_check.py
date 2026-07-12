@@ -9,10 +9,12 @@ import pytest
 from strata.cache.fingerprints.models import GlobalFingerprintBuild
 from strata.cache.results.classes.result_cache import ResultCache
 from strata.cache.results.models import CacheStats
+from strata.cache.storage.constants import CACHE_DATABASE_RELATIVE_PATH
 from strata.cache.storage.exceptions import CacheRecordError
 from strata.cli.main.check import run_check
 from tests.integration.src.strata.cli.main._test_types import (
     CheckCacheModeTestCase,
+    CheckCachePreferenceTestCase,
     CheckCacheWarningTestCase,
     CheckCommandTestCase,
     CheckErrorTestCase,
@@ -226,6 +228,55 @@ def test_given_cacheable_project_when_running_modes_then_preserves_output_and_wa
     assert bool(cold_snapshot) is test_case.expected_cache_exists
     assert warm_snapshot == cold_snapshot
     assert uncached_snapshot == cold_snapshot
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CheckCachePreferenceTestCase(
+            description="configured default enables cache without a CLI flag",
+            configured_enabled=True,
+            argv=("--no-color",),
+            expected_exit_code=1,
+            expected_cache_exists=True,
+        ),
+        CheckCachePreferenceTestCase(
+            description="configured preference disables cache without a CLI flag",
+            configured_enabled=False,
+            argv=("--no-color",),
+            expected_exit_code=1,
+            expected_cache_exists=False,
+        ),
+        CheckCachePreferenceTestCase(
+            description="cache flag overrides disabled configured preference",
+            configured_enabled=False,
+            argv=("--no-color", "--cache"),
+            expected_exit_code=1,
+            expected_cache_exists=True,
+        ),
+        CheckCachePreferenceTestCase(
+            description="no-cache flag overrides enabled configured preference",
+            configured_enabled=True,
+            argv=("--no-color", "--no-cache"),
+            expected_exit_code=1,
+            expected_cache_exists=False,
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_cache_preference_when_running_check_then_cli_override_has_precedence(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: CheckCachePreferenceTestCase,
+) -> None:
+    write_cli_core_fault_project(tmp_path, cache_enabled=test_case.configured_enabled)
+    monkeypatch.chdir(tmp_path)
+    stdout: CaptureOutput = CaptureOutput()
+
+    exit_code: int = run_check(argv=test_case.argv, stdout=stdout)
+
+    assert exit_code == test_case.expected_exit_code
+    assert (tmp_path / CACHE_DATABASE_RELATIVE_PATH).exists() is test_case.expected_cache_exists
 
 
 @pytest.mark.parametrize(

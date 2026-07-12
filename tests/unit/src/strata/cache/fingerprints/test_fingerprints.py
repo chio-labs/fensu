@@ -24,10 +24,11 @@ from strata.cache.fingerprints.models import (
 )
 from strata.cache.results.helpers.serialization import file_result_to_record
 from strata.cache.results.models import CachedFileResult
-from strata.config.core.models import Config
+from strata.config.core.models import CacheConfig, Config
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.catalog.main.build_ruleset import build_ruleset
 from tests.unit.src.strata.cache.fingerprints._test_types import (
+    CachePreferenceFingerprintTestCase,
     CanonicalFingerprintTestCase,
     ConfigFingerprintTestCase,
     ConfigLayoutFingerprintTestCase,
@@ -188,6 +189,37 @@ def test_given_validated_configs_when_fingerprinting_then_captures_policy_inputs
 
     first: CacheFingerprint = config_fingerprint(first_config)
     second: CacheFingerprint = config_fingerprint(second_config)
+
+    assert (first == second) is test_case.expected_equal
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CachePreferenceFingerprintTestCase(
+            description="cache preference does not alter diagnostic identity",
+            first_enabled=True,
+            second_enabled=False,
+            expected_equal=True,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_cache_preferences_when_fingerprinting_then_excludes_operational_mode(
+    test_case: CachePreferenceFingerprintTestCase,
+) -> None:
+    first: CacheFingerprint = config_fingerprint(
+        Config(
+            roots=("src/pkg",),
+            cache=CacheConfig(enabled=test_case.first_enabled),
+        )
+    )
+    second: CacheFingerprint = config_fingerprint(
+        Config(
+            roots=("src/pkg",),
+            cache=CacheConfig(enabled=test_case.second_enabled),
+        )
+    )
 
     assert (first == second) is test_case.expected_equal
 

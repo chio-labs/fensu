@@ -10,6 +10,7 @@ from strata.config.core.main.load_config import load_config
 from strata.config.core.models import Config, RuleExceptionEntry
 from strata.rules.authoring.types import Threshold
 from tests.unit.src.strata.config.core._test_types import (
+    CacheConfigTestCase,
     ConfigContractTestCase,
     ConfigDefaultsTestCase,
     ConfigListFieldTestCase,
@@ -17,6 +18,33 @@ from tests.unit.src.strata.config.core._test_types import (
     RuleExceptionConfigTestCase,
 )
 from tests.unit.src.strata.config.core.helpers import write_strata_toml
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CacheConfigTestCase(
+            description="cache is enabled by the shipped default",
+            config_text='roots = ["src/pkg"]\n',
+            expected_enabled=True,
+        ),
+        CacheConfigTestCase(
+            description="cache table disables persistent evaluation",
+            config_text='roots = ["src/pkg"]\n[cache]\nenabled = false\n',
+            expected_enabled=False,
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_cache_preference_when_loading_then_applies_default_or_override(
+    tmp_path: Path,
+    test_case: CacheConfigTestCase,
+) -> None:
+    write_strata_toml(root=tmp_path, contents=test_case.config_text)
+
+    config: Config = load_config(tmp_path)
+
+    assert config.cache.enabled is test_case.expected_enabled
 
 
 @pytest.mark.parametrize(

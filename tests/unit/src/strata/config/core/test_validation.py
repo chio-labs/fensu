@@ -163,6 +163,42 @@ def test_given_invalid_roots_or_top_level_key_when_loading_then_raises_expected_
     "test_case",
     [
         InvalidConfigTestCase(
+            description="cache preference must be a table",
+            config_text='roots = ["src/pkg"]\ncache = false\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="cache must be a table",
+        ),
+        InvalidConfigTestCase(
+            description="cache table rejects unknown options",
+            config_text='roots = ["src/pkg"]\n[cache]\nenable = false\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="enable",
+        ),
+        InvalidConfigTestCase(
+            description="cache enabled preference must be boolean",
+            config_text='roots = ["src/pkg"]\n[cache]\nenabled = "yes"\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="boolean",
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_invalid_cache_preference_when_loading_then_raises_validation_error(
+    tmp_path: Path,
+    test_case: InvalidConfigTestCase,
+) -> None:
+    write_strata_toml(root=tmp_path, contents=test_case.config_text)
+
+    with pytest.raises(test_case.expected_error_type) as error:
+        load_config(tmp_path)
+
+    assert test_case.expected_error_fragment in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        InvalidConfigTestCase(
             description="tests must be a list",
             config_text='roots = ["src/pkg"]\ntests = "tests"\n',
             expected_error_type=ConfigError,

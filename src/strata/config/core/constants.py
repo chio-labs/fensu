@@ -30,6 +30,8 @@ DEFAULT_TEST_PATHS: tuple[str, ...] = ("tests",)
 DEFAULT_TOOLING_PATHS: tuple[str, ...] = ()
 DEFAULT_SELECT: tuple[str, ...] = (RuleSelector.ALL,)
 DEFAULT_IGNORE: tuple[str, ...] = ()
+DEFAULT_CACHE_ENABLED: bool = True
+CACHE_ENABLED_CONFIG_KEY: str = "enabled"
 
 CONFIG_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
     {
@@ -44,6 +46,7 @@ CONFIG_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
         "roles",
         "contracts",
         "rule_exceptions",
+        "cache",
     }
 )
 CONFIG_ROLE_NAMES: frozenset[str] = frozenset(RoleName)

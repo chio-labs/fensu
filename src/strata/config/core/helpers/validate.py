@@ -8,6 +8,7 @@ from pathlib import PurePosixPath
 from typing import cast
 
 from strata.config.core.constants import (
+    CACHE_ENABLED_CONFIG_KEY,
     CONFIG_ROLE_NAMES,
     CONFIG_TOP_LEVEL_KEYS,
     CONTRACT_BEHAVIORS,
@@ -42,6 +43,7 @@ def validate_config(raw: Mapping[str, object]) -> None:
     _validate_role_thresholds(value=raw.get("roles"))
     _validate_contracts(value=raw.get("contracts"))
     _validate_rule_exceptions(value=raw.get("rule_exceptions"))
+    _validate_cache(value=raw.get("cache"))
 
 
 def _validate_top_level_keys(*, raw: Mapping[str, object]) -> None:
@@ -49,6 +51,22 @@ def _validate_top_level_keys(*, raw: Mapping[str, object]) -> None:
     if unknown_keys:
         names: str = ", ".join(sorted(unknown_keys))
         raise ConfigValidationError(f"Unknown config key(s): {names}.")
+
+
+def _validate_cache(*, value: object) -> None:
+    if value is None:
+        return
+    if not isinstance(value, dict):
+        raise ConfigValidationError("Config key cache must be a table.")
+    typed_value: dict[object, object] = cast(dict[object, object], value)
+    unknown_keys: set[object] = set(typed_value) - {CACHE_ENABLED_CONFIG_KEY}
+    if unknown_keys:
+        names: str = ", ".join(sorted(str(key) for key in unknown_keys))
+        raise ConfigValidationError(f"Unknown cache config key(s): {names}.")
+    if CACHE_ENABLED_CONFIG_KEY in typed_value and not isinstance(
+        typed_value[CACHE_ENABLED_CONFIG_KEY], bool
+    ):
+        raise ConfigValidationError("Config key cache.enabled must be a boolean.")
 
 
 def _validate_string_sequence(*, name: str, value: object) -> tuple[str, ...]:

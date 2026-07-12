@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Callable
 from io import StringIO
 from pathlib import Path
+from typing import BinaryIO
 
 import pytest
 
 from strata.cache.storage.constants import CACHE_DATABASE_RELATIVE_PATH
+from strata.config.core.main.load_config import load_config
+from strata.config.core.models import Config
 
 
 class CaptureOutput(StringIO):
@@ -22,12 +26,253 @@ class CaptureOutput(StringIO):
         return self._is_terminal
 
 
+class TerminalBuffer(StringIO):
+    """Scripted text terminal with independently configurable TTY support."""
+
+    def __init__(self, content: str = "", *, is_terminal: bool = True) -> None:
+        super().__init__(content)
+        self._is_terminal: bool = is_terminal
+
+    def isatty(self) -> bool:
+        return self._is_terminal
+
+
+class FailingSkillPublisher:
+    """Publish staged skills in order and fail at one configured commit."""
+
+    def __init__(self, *, failure_at: int, publish: Callable[..., object]) -> None:
+        self._failure_at: int = failure_at
+        self._publish: Callable[..., object] = publish
+        self._calls: int = 0
+
+    def __call__(self, *, staged_file: object) -> object:
+        self._calls += 1
+        if self._calls == self._failure_at:
+            raise OSError("simulated skill replacement failure")
+        return self._publish(staged_file=staged_file)
+
+
+class RacingSkillLinker:
+    """Create a user file after validation before one staged publication."""
+
+    def __init__(
+        self,
+        *,
+        race_at: int,
+        user_content: str,
+        link: Callable[..., None],
+    ) -> None:
+        self._race_at: int = race_at
+        self._user_content: str = user_content
+        self._link: Callable[..., None] = link
+        self._calls: int = 0
+
+    def __call__(self, source: Path, target: Path, *, follow_symlinks: bool) -> None:
+        self._calls += 1
+        if self._calls == self._race_at:
+            target.write_text(self._user_content, encoding="utf-8")
+        self._link(source, target, follow_symlinks=follow_symlinks)
+
+
+class RacingExistingSkillWriter:
+    """Replace a target pathname after its writable descriptor is verified."""
+
+    def __init__(
+        self,
+        *,
+        race_at: int,
+        target_path: Path,
+        user_content: str,
+        write: Callable[..., None],
+    ) -> None:
+        self._race_at: int = race_at
+        self._target_path: Path = target_path
+        self._user_content: str = user_content
+        self._write: Callable[..., None] = write
+        self._calls: int = 0
+
+    def __call__(self, *, target_file: BinaryIO, content: bytes) -> None:
+        self._calls += 1
+        if self._calls == self._race_at:
+            replacement: Path = self._target_path.with_name("racing-user-skill")
+            replacement.write_text(self._user_content, encoding="utf-8")
+            _ = replacement.replace(self._target_path)
+        self._write(target_file=target_file, content=content)
+
+
 def configure_no_color(*, monkeypatch: pytest.MonkeyPatch, enabled: bool) -> None:
     """Set or clear the conventional terminal color opt-out."""
 
     monkeypatch.delenv("NO_COLOR", raising=False)
     if enabled:
         monkeypatch.setenv("NO_COLOR", "1")
+
+
+def write_init_hatch_project(
+    *,
+    root: Path,
+    package_paths: tuple[str, ...] = ("src/acme",),
+    tooling_paths: tuple[str, ...] = (),
+    include_fault: bool = True,
+) -> None:
+    """Write an existing Hatch package with optional Python tooling directories."""
+
+    packages: str = ", ".join(f'"{path}"' for path in package_paths)
+    (root / "pyproject.toml").write_text(
+        f'[project]\nname = "acme"\n[tool.hatch.build.targets.wheel]\npackages = [{packages}]\n',
+        encoding="utf-8",
+    )
+    for package_path in package_paths:
+        package: Path = root / package_path
+        package.mkdir(parents=True)
+        (package / "__init__.py").write_text("", encoding="utf-8")
+        source: str = "VALUE = 1\n" if include_fault else "VALUE: int = 1\n"
+        (package / "models.py").write_text(source, encoding="utf-8")
+    (root / "tests").mkdir()
+    for tooling_path in tooling_paths:
+        tooling: Path = root / tooling_path
+        tooling.mkdir(parents=True)
+        (tooling / "task.py").write_text("def run() -> None:\n    pass\n", encoding="utf-8")
+
+
+def write_init_single_python_file_project(*, root: Path) -> None:
+    """Write a Hatch package whose sole Python file has one gradual-rule fault."""
+
+    package: Path = root / "src/acme"
+    package.mkdir(parents=True)
+    (root / "tests").mkdir()
+    (package / "__init__.py").write_text("VALUE = 1\n", encoding="utf-8")
+    (root / "pyproject.toml").write_text(
+        '[project]\nname = "acme"\n[tool.hatch.build.targets.wheel]\npackages = ["src/acme"]\n',
+        encoding="utf-8",
+    )
+
+
+def write_init_invalid_python_project(*, root: Path) -> None:
+    """Write a detectable Hatch package whose drift evaluation cannot parse Python."""
+
+    write_init_hatch_project(root=root)
+    (root / "src/acme/models.py").write_text("def broken(:\n", encoding="utf-8")
+
+
+def write_init_invalid_utf8_project(*, root: Path) -> None:
+    """Write a detectable Hatch package containing invalid UTF-8 Python bytes."""
+
+    write_init_hatch_project(root=root)
+    (root / "src/acme/models.py").write_bytes(b"\xff\xfe\x00")
+
+
+def write_init_editable_project(*, root: Path) -> None:
+    """Write detected and alternate roots and tests for aggregate editing."""
+
+    write_init_hatch_project(root=root)
+    alternate: Path = root / "vendor/lib/other"
+    alternate.mkdir(parents=True)
+    (alternate / "__init__.py").write_text("", encoding="utf-8")
+    (alternate / "models.py").write_text("VALUE: int = 1\n", encoding="utf-8")
+    (root / "specs").mkdir()
+
+
+def write_init_existing_config(*, root: Path, source: str) -> Path:
+    """Write one supported existing config source and return its path."""
+
+    if source == "strata.toml":
+        path: Path = root / "strata.toml"
+        path.write_text('roots = ["src/acme"]\n', encoding="utf-8")
+        return path
+    path = root / "pyproject.toml"
+    existing: str = path.read_text(encoding="utf-8") if path.exists() else ""
+    path.write_text(f'{existing}\n[tool.strata]\nroots = ["src/acme"]\n', encoding="utf-8")
+    return path
+
+
+def project_file_snapshot(root: Path) -> tuple[str, ...]:
+    """Return all repository-relative files in stable order."""
+
+    return tuple(
+        path.relative_to(root).as_posix() for path in sorted(root.rglob("*")) if path.is_file()
+    )
+
+
+def prepare_init_execution_project(*, root: Path, existing_project: bool) -> tuple[str, ...]:
+    """Optionally write an existing project and return its initial file snapshot."""
+
+    if existing_project:
+        write_init_hatch_project(root=root)
+    return project_file_snapshot(root)
+
+
+def assert_init_execution_files(
+    *,
+    root: Path,
+    before: tuple[str, ...],
+    expected_config: str | None,
+    expected_created_paths: tuple[str, ...],
+) -> None:
+    """Assert atomic refusal or exact successful init filesystem state."""
+
+    if expected_config is None:
+        assert project_file_snapshot(root) == before
+    else:
+        assert (root / "strata.toml").read_text(encoding="utf-8") == expected_config
+    if expected_created_paths:
+        assert project_file_snapshot(root) == expected_created_paths
+
+
+def configured_roots_or_none(root: Path) -> tuple[str, ...] | None:
+    """Return configured roots when init wrote a config."""
+
+    if not (root / "strata.toml").is_file():
+        return None
+    config: Config = load_config(root)
+    return config.roots
+
+
+def existing_relative_paths(*, root: Path, paths: tuple[str, ...]) -> tuple[str, ...]:
+    """Return expected relative paths that currently exist."""
+
+    return tuple(path for path in paths if (root / path).is_file())
+
+
+def prepare_init_refusal_project(*, root: Path, source: str) -> tuple[Path, tuple[str, ...]]:
+    """Write one refusal fixture and return its repository and initial snapshot."""
+
+    repository: Path = root / "repo" if source == "parent" else root
+    repository.mkdir(exist_ok=True)
+    write_init_hatch_project(root=repository)
+    if source in {"strata.toml", "tool.strata"}:
+        _ = write_init_existing_config(root=repository, source=source)
+    if source == "parent":
+        _ = write_init_existing_config(root=root, source="strata.toml")
+    return repository, project_file_snapshot(repository)
+
+
+def prepare_init_applicability_project(*, root: Path, existing_project: bool) -> tuple[str, ...]:
+    """Prepare an existing or empty repository for option-applicability refusal tests."""
+
+    if existing_project:
+        write_init_hatch_project(root=root)
+    return project_file_snapshot(root)
+
+
+def prepare_init_transcript_project(*, root: Path, existing_project: bool) -> None:
+    """Prepare the representative repository shape for an exact transcript."""
+
+    if existing_project:
+        write_init_single_python_file_project(root=root)
+
+
+def write_broken_strata_symlink(*, root: Path, outside_target: Path) -> None:
+    """Write a local config symlink whose outside target does not exist."""
+
+    (root / "strata.toml").symlink_to(outside_target)
+
+
+def write_selected_root_python_symlink(*, root: Path, outside_target: Path) -> None:
+    """Write an outside Python file and a selected-root symlink pointing to it."""
+
+    outside_target.write_text("OUTSIDE_VALUE: int = 1\n", encoding="utf-8")
+    (root / "src/acme/external.py").symlink_to(outside_target)
 
 
 def write_cli_fixture_project(

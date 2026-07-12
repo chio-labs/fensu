@@ -7,13 +7,23 @@ from pathlib import Path
 import pytest
 
 from strata.agentdocs.core.constants import GENERATED_MARKER
+from strata.agentdocs.core.helpers import installation
 from strata.cli.main.skills import run_skills
 from strata.config.core.main.load_config import load_config
 from strata.config.core.models import Config
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.catalog.main.build_ruleset import build_ruleset
-from tests.integration.src.strata.cli.main._test_types import SkillCommandTestCase
-from tests.integration.src.strata.cli.main.helpers import CaptureOutput, write_cli_fixture_project
+from tests.integration.src.strata.cli.main._test_types import (
+    SkillCommandTestCase,
+    SkillTransactionFailureTestCase,
+)
+from tests.integration.src.strata.cli.main.helpers import (
+    CaptureOutput,
+    FailingSkillPublisher,
+    RacingExistingSkillWriter,
+    RacingSkillLinker,
+    write_cli_fixture_project,
+)
 
 
 @pytest.mark.parametrize(
@@ -195,3 +205,223 @@ def test_given_existing_user_skill_when_updating_then_requires_explicit_force(
     assert all(fragment in combined_output for fragment in test_case.expected_output_fragments)
     content: str = skill_path.read_text(encoding="utf-8")
     assert test_case.expected_file_fragment in content
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SkillCommandTestCase(
+            description="later user-authored target prevents every default target write",
+            argv=("update",),
+            expected_exit_code=2,
+            expected_output_fragments=("refusing to overwrite non-generated skill file",),
+            expected_written_paths=(
+                ".opencode/skills/strata/SKILL.md",
+                ".claude/skills/strata/SKILL.md",
+                ".agents/skills/strata/SKILL.md",
+            ),
+            expected_file_fragment=f"{GENERATED_MARKER}\nstale generated guidance\n",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_later_user_skill_when_updating_all_targets_then_writes_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: SkillCommandTestCase,
+) -> None:
+    write_cli_fixture_project(root=tmp_path, rule_code="XCK001", include_core_rules=True)
+    first_path: Path = tmp_path / test_case.expected_written_paths[0]
+    first_path.parent.mkdir(parents=True)
+    first_path.write_text(test_case.expected_file_fragment, encoding="utf-8")
+    second_path: Path = tmp_path / test_case.expected_written_paths[1]
+    second_path.parent.mkdir(parents=True)
+    second_path.write_text("user-authored guidance\n", encoding="utf-8")
+    third_path: Path = tmp_path / test_case.expected_written_paths[2]
+    monkeypatch.chdir(tmp_path)
+    stdout: CaptureOutput = CaptureOutput()
+    stderr: CaptureOutput = CaptureOutput()
+
+    exit_code: int = run_skills(argv=test_case.argv, stdout=stdout, stderr=stderr)
+
+    assert exit_code == test_case.expected_exit_code
+    combined_output: str = f"{stdout.getvalue()}{stderr.getvalue()}"
+    assert all(fragment in combined_output for fragment in test_case.expected_output_fragments)
+    assert first_path.read_text(encoding="utf-8") == test_case.expected_file_fragment
+    assert second_path.read_text(encoding="utf-8") == "user-authored guidance\n"
+    assert not third_path.exists()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SkillCommandTestCase(
+            description="symlinked opencode parent cannot escape the repository",
+            argv=("update",),
+            expected_exit_code=2,
+            expected_output_fragments=("refusing to write unsafe skill target",),
+            expected_written_paths=(
+                ".opencode/skills/strata/SKILL.md",
+                ".claude/skills/strata/SKILL.md",
+                ".agents/skills/strata/SKILL.md",
+            ),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_symlinked_agent_parent_when_updating_then_rejects_escape_without_writes(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: SkillCommandTestCase,
+) -> None:
+    write_cli_fixture_project(root=tmp_path, rule_code="XCK001", include_core_rules=True)
+    escaped_directory: Path = tmp_path / "escaped"
+    escaped_directory.mkdir()
+    (tmp_path / ".opencode").symlink_to(escaped_directory, target_is_directory=True)
+    monkeypatch.chdir(tmp_path)
+    stderr: CaptureOutput = CaptureOutput()
+
+    exit_code: int = run_skills(argv=test_case.argv, stderr=stderr)
+
+    assert exit_code == test_case.expected_exit_code
+    assert all(fragment in stderr.getvalue() for fragment in test_case.expected_output_fragments)
+    assert not (escaped_directory / "skills").exists()
+    assert not (tmp_path / test_case.expected_written_paths[1]).exists()
+    assert not (tmp_path / test_case.expected_written_paths[2]).exists()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SkillTransactionFailureTestCase(
+            description="second replacement failure rolls back the first target",
+            failure_at=2,
+            expected_exit_code=2,
+            expected_error_fragment="simulated skill replacement failure",
+        ),
+        SkillTransactionFailureTestCase(
+            description="third replacement failure rolls back two targets",
+            failure_at=3,
+            expected_exit_code=2,
+            expected_error_fragment="simulated skill replacement failure",
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_write_time_failure_when_updating_then_restores_entire_target_set(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: SkillTransactionFailureTestCase,
+) -> None:
+    write_cli_fixture_project(root=tmp_path, rule_code="XCK001", include_core_rules=True)
+    first_path: Path = tmp_path / ".opencode/skills/strata/SKILL.md"
+    first_path.parent.mkdir(parents=True)
+    first_content: str = f"{GENERATED_MARKER}\nold opencode guidance\n"
+    first_path.write_text(first_content, encoding="utf-8")
+    second_path: Path = tmp_path / ".claude/skills/strata/SKILL.md"
+    third_path: Path = tmp_path / ".agents/skills/strata/SKILL.md"
+    third_path.parent.mkdir(parents=True)
+    third_content: str = f"{GENERATED_MARKER}\nold agents guidance\n"
+    third_path.write_text(third_content, encoding="utf-8")
+    publisher: FailingSkillPublisher = FailingSkillPublisher(
+        failure_at=test_case.failure_at,
+        publish=installation._publish_staged_file,
+    )
+    monkeypatch.setattr(installation, "_publish_staged_file", publisher)
+    monkeypatch.chdir(tmp_path)
+    stderr: CaptureOutput = CaptureOutput()
+
+    exit_code: int = run_skills(argv=("update",), stderr=stderr)
+
+    assert exit_code == test_case.expected_exit_code
+    assert test_case.expected_error_fragment in stderr.getvalue()
+    assert first_path.read_text(encoding="utf-8") == first_content
+    assert not second_path.exists()
+    assert third_path.read_text(encoding="utf-8") == third_content
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SkillTransactionFailureTestCase(
+            description="user creates absent second target immediately before publication",
+            failure_at=1,
+            expected_exit_code=2,
+            expected_error_fragment="failed to install skill files",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_user_file_race_when_publishing_absent_target_then_preserves_user_file(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: SkillTransactionFailureTestCase,
+) -> None:
+    write_cli_fixture_project(root=tmp_path, rule_code="XCK001", include_core_rules=True)
+    first_path: Path = tmp_path / ".opencode/skills/strata/SKILL.md"
+    first_path.parent.mkdir(parents=True)
+    first_content: str = f"{GENERATED_MARKER}\nold opencode guidance\n"
+    first_path.write_text(first_content, encoding="utf-8")
+    raced_path: Path = tmp_path / ".claude/skills/strata/SKILL.md"
+    user_content: str = "user guidance created during publication\n"
+    linker: RacingSkillLinker = RacingSkillLinker(
+        race_at=test_case.failure_at,
+        user_content=user_content,
+        link=installation.os.link,
+    )
+    monkeypatch.setattr(installation.os, "link", linker)
+    monkeypatch.chdir(tmp_path)
+    stderr: CaptureOutput = CaptureOutput()
+
+    exit_code: int = run_skills(argv=("update",), stderr=stderr)
+
+    assert exit_code == test_case.expected_exit_code
+    assert test_case.expected_error_fragment in stderr.getvalue()
+    assert first_path.read_text(encoding="utf-8") == first_content
+    assert raced_path.read_text(encoding="utf-8") == user_content
+    assert not (tmp_path / ".agents/skills/strata/SKILL.md").exists()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SkillTransactionFailureTestCase(
+            description="user replaces existing second target after descriptor validation",
+            failure_at=2,
+            expected_exit_code=2,
+            expected_error_fragment="skill target changed during update",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_existing_target_race_when_publishing_then_preserves_user_replacement(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: SkillTransactionFailureTestCase,
+) -> None:
+    write_cli_fixture_project(root=tmp_path, rule_code="XCK001", include_core_rules=True)
+    first_path: Path = tmp_path / ".opencode/skills/strata/SKILL.md"
+    first_path.parent.mkdir(parents=True)
+    first_content: str = f"{GENERATED_MARKER}\nold opencode guidance\n"
+    first_path.write_text(first_content, encoding="utf-8")
+    raced_path: Path = tmp_path / ".claude/skills/strata/SKILL.md"
+    raced_path.parent.mkdir(parents=True)
+    raced_path.write_text(f"{GENERATED_MARKER}\nold claude guidance\n", encoding="utf-8")
+    user_content: str = "user replacement created during publication\n"
+    writer: RacingExistingSkillWriter = RacingExistingSkillWriter(
+        race_at=test_case.failure_at,
+        target_path=raced_path,
+        user_content=user_content,
+        write=installation._write_skill_descriptor,
+    )
+    monkeypatch.setattr(installation, "_write_skill_descriptor", writer)
+    monkeypatch.chdir(tmp_path)
+    stderr: CaptureOutput = CaptureOutput()
+
+    exit_code: int = run_skills(argv=("update",), stderr=stderr)
+
+    assert exit_code == test_case.expected_exit_code
+    assert test_case.expected_error_fragment in stderr.getvalue()
+    assert first_path.read_text(encoding="utf-8") == first_content
+    assert raced_path.read_text(encoding="utf-8") == user_content
+    assert not (tmp_path / ".agents/skills/strata/SKILL.md").exists()

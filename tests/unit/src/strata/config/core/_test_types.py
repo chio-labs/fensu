@@ -122,3 +122,33 @@ class RuleExceptionConfigTestCase:
     expected_path: str
     expected_symbols: tuple[str, ...]
     expected_reason: str
+
+
+@dataclass(frozen=True)
+class InMemoryConfigBuildTestCase:
+    """A raw mapping and its expected normalized config values."""
+
+    description: str
+    raw_config: dict[str, object]
+    expected_roots: tuple[str, ...]
+    expected_select: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class InvalidInMemoryConfigTestCase:
+    """An invalid raw mapping and its expected validation error."""
+
+    description: str
+    raw_config: dict[str, object]
+    expected_error_type: type[Exception]
+    expected_error_fragment: str
+
+
+@dataclass(frozen=True)
+class MissingConfigGuidanceTestCase:
+    """Expected stable prefix and actionable missing-config guidance."""
+
+    description: str
+    expected_prefix: str
+    expected_guidance: str
+    expected_source: None

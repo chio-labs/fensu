@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.0](https://github.com/chio-labs/strata/compare/v0.7.0...v0.8.0) (2026-07-12)
+
+
+### Features
+
+* **evaluation:** add include and exclude paths ([465fee7](https://github.com/chio-labs/strata/commit/465fee7f5fe4961b9b24bed4cfde9703de8d7317))
+* **evaluation:** add include and exclude paths ([ae95857](https://github.com/chio-labs/strata/commit/ae95857e9708fe5585fb31f471d88d388d0bae52))
+
 ## [0.7.0](https://github.com/chio-labs/strata/compare/v0.6.0...v0.7.0) (2026-07-12)
 
 

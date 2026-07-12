@@ -27,6 +27,16 @@ class ConfigFingerprintTestCase:
 
 
 @dataclass(frozen=True)
+class ContractFingerprintTestCase:
+    """Two contract behaviors and expected config identity relationship."""
+
+    description: str
+    first_behavior: str
+    second_behavior: str
+    expected_equal: bool
+
+
+@dataclass(frozen=True)
 class ConfigLayoutFingerprintTestCase:
     """Two configured layouts and whether their fingerprints must match."""
 

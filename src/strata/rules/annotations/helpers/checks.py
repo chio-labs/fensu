@@ -37,6 +37,7 @@ def annotation_faults(*, module: ast.Module, ctx: RuleContext, code: AnnotationC
                 ),
             )
             for fact in ctx.facts.annotations().locals
+            if not fact.scalar_literal
         ]
     if code == AnnotationCode.MODULE_VARIABLE_ANNOTATION:
         return [

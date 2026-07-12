@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 from collections.abc import Mapping
+from fnmatch import fnmatchcase
 from pathlib import Path
 
 from strata.analysis.helpers.annotations import annotation_facts
@@ -25,7 +26,7 @@ from strata.analysis.helpers.outer_state import (
 )
 from strata.analysis.helpers.references import reference_facts, test_module_facts
 from strata.analysis.helpers.returns import (
-    meaningful_return_facts,
+    function_contract_facts,
     project_call_facts,
     project_function_facts,
 )
@@ -34,6 +35,7 @@ from strata.analysis.models import (
     CommentFact,
     DataclassFact,
     FunctionConditionalFact,
+    FunctionContractFact,
     FunctionFacts,
     HygieneFacts,
     MeaningfulReturnFact,
@@ -75,6 +77,7 @@ class PythonFactAnalysis:
         self._dataclasses: tuple[DataclassFact, ...] | None = None
         self._complex_comprehensions: tuple[SourceLocation, ...] | None = None
         self._function_conditionals: tuple[FunctionConditionalFact, ...] | None = None
+        self._function_contracts: tuple[FunctionContractFact, ...] | None = None
         self._functions: FunctionFacts | None = None
         self._hygiene: HygieneFacts | None = None
         self._meaningful_returns: dict[tuple[str, ...], tuple[MeaningfulReturnFact, ...]] = {}
@@ -198,6 +201,16 @@ class PythonFactAnalysis:
             )
         return self._functions
 
+    def function_contracts(self) -> tuple[FunctionContractFact, ...]:
+        """Return descriptive function contract facts."""
+
+        if self._function_contracts is None:
+            self._function_contracts = function_contract_facts(
+                path=self._path,
+                node_index=self._node_index,
+            )
+        return self._function_contracts
+
     def hygiene(self) -> HygieneFacts:
         """Return syntax-based hygiene facts."""
 
@@ -215,11 +228,20 @@ class PythonFactAnalysis:
         """Return the first meaningful return owned by each function."""
 
         if name_patterns not in self._meaningful_returns:
-            self._meaningful_returns[name_patterns] = meaningful_return_facts(
-                path=self._path,
-                node_index=self._node_index,
-                name_patterns=name_patterns,
-            )
+            facts: list[MeaningfulReturnFact] = []
+            for fact in self.function_contracts():
+                location: SourceLocation | None = fact.meaningful_return_location
+                matches: bool = not name_patterns or any(
+                    fnmatchcase(fact.function_name, pattern) for pattern in name_patterns
+                )
+                if location is not None and matches:
+                    facts.append(
+                        MeaningfulReturnFact(
+                            function_name=fact.function_name,
+                            location=location,
+                        )
+                    )
+            self._meaningful_returns[name_patterns] = tuple(facts)
         return self._meaningful_returns[name_patterns]
 
     def module_declarations(self) -> ModuleDeclarationFacts:

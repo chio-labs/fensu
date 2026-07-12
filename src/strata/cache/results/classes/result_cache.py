@@ -48,7 +48,7 @@ from strata.cache.storage.models import (
     CacheWrite,
 )
 from strata.cache.storage.types import CacheStorage
-from strata.evaluation.core.models import FileEvaluation
+from strata.evaluation.models import FileEvaluation
 
 
 class ResultCache:

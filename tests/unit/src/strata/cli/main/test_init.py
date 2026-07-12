@@ -10,8 +10,8 @@ from unittest.mock import Mock
 import pytest
 
 from strata.cli.main import init as init_module
-from strata.scaffolding.core.models import InitOptions
-from strata.scaffolding.core.types import AdoptionMode
+from strata.scaffolding.models import InitOptions
+from strata.scaffolding.types import AdoptionMode
 from tests.unit.src.strata.cli.main._test_types import InitAdapterTestCase, InitNoColorTestCase
 
 

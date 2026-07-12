@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from strata.evaluation.core.models import EvaluationResult
+from strata.evaluation.models import EvaluationResult
 from tests.unit.src.strata.rules.annotations.main._test_types import AnnotationRuleTestCase
 from tests.unit.src.strata.rules.annotations.main.helpers import evaluate_annotation_test_case
 

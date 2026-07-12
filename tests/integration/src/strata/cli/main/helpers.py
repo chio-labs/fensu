@@ -11,8 +11,8 @@ from typing import BinaryIO
 import pytest
 
 from strata.cache.storage.constants import CACHE_DATABASE_RELATIVE_PATH
-from strata.config.core.main.load_config import load_config
-from strata.config.core.models import Config
+from strata.config.main.load_config import load_config
+from strata.config.models import Config
 
 
 class CaptureOutput(StringIO):

@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from strata.config.core.exceptions import ConfigError
-from strata.config.core.models import CacheConfig, Config
+from strata.config.exceptions import ConfigError
+from strata.config.models import CacheConfig, Config
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.catalog.helpers.loading import (
     build_catalogue_from_config,

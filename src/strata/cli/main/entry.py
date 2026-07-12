@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import sys
 
-from strata.cli.core.types import CliCommand
 from strata.cli.main.check import run_check
 from strata.cli.main.init import run_init
 from strata.cli.main.map import run_map
 from strata.cli.main.rule import run_rule
 from strata.cli.main.skills import run_skills
+from strata.cli.types import CliCommand
 
 
 def main(argv: tuple[str, ...] | None = None) -> int:

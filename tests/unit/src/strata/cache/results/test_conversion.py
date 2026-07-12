@@ -6,14 +6,14 @@ from pathlib import Path
 
 import pytest
 
-from strata.analysis.core.models import ProjectDependency
-from strata.analysis.core.types import ProjectDependencyKind
+from strata.analysis.models import ProjectDependency
+from strata.analysis.types import ProjectDependencyKind
 from strata.cache.results.helpers.conversion import (
     build_cached_file_result,
     restore_file_evaluation,
 )
 from strata.cache.results.models import CachedFileResult
-from strata.evaluation.core.models import FileEvaluation, RuleExceptionKey
+from strata.evaluation.models import FileEvaluation, RuleExceptionKey
 from strata.rules.authoring.models import Fault
 from tests.unit.src.strata.cache.results._test_types import (
     FileResultConversionTestCase,

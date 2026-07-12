@@ -6,7 +6,7 @@ import ast
 import inspect
 from pathlib import Path
 
-from strata.config.core.exceptions import ConfigError
+from strata.config.exceptions import ConfigError
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import RuleKind
 from strata.rules.catalog.constants import (

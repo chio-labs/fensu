@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from strata.evaluation.core.models import EvaluationResult
+from strata.evaluation.models import EvaluationResult
 from tests.unit.src.strata.rules.hygiene.main._test_types import HygieneRuleTestCase
 from tests.unit.src.strata.rules.hygiene.main.helpers import evaluate_hygiene_test_case
 

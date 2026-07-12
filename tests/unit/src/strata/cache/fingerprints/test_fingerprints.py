@@ -25,7 +25,7 @@ from strata.cache.fingerprints.models import (
 )
 from strata.cache.results.helpers.serialization import file_result_to_record
 from strata.cache.results.models import CachedFileResult
-from strata.config.core.models import CacheConfig, Config
+from strata.config.models import CacheConfig, Config
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.catalog.main.build_ruleset import build_ruleset
 from tests.unit.src.strata.cache.fingerprints._test_types import (

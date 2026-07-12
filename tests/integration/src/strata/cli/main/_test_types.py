@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from strata.agentdocs.core.constants import GENERATED_MARKER
+from strata.agentdocs.constants import GENERATED_MARKER
 
 
 @dataclass(frozen=True)
@@ -104,6 +104,7 @@ class SkillCommandTestCase:
     expected_exit_code: int
     expected_output_fragments: tuple[str, ...]
     expected_written_paths: tuple[str, ...] = ()
+    expected_file_fragments: tuple[str, ...] = ()
     expected_absent_fragments: tuple[str, ...] = ()
     expected_file_fragment: str = GENERATED_MARKER
 

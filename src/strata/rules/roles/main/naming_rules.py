@@ -48,7 +48,7 @@ def naming_rules() -> tuple[RuleSpec, ...]:
             code=RoleCode.BANNED_GENERIC_PACKAGE_NAME,
             family=Family.ROLES,
             slug="banned-generic-package-name",
-            message="domain and subdomain packages must identify an owner",
+            message="runtime package directories must identify an owner",
             remediation=(
                 "Rename the package after the business domain or technical capability it owns."
             ),

@@ -3,8 +3,8 @@
 from strata.cache.fingerprints.models import CacheFingerprint
 from strata.cache.results.helpers.evaluation import run_cached_evaluation
 from strata.cache.results.models import CacheEvaluation
-from strata.config.core.models import Config
-from strata.discovery.core.models import DiscoveredTree
+from strata.config.models import Config
+from strata.discovery.models import DiscoveredTree
 from strata.rules.authoring.models import RuleSpec
 
 

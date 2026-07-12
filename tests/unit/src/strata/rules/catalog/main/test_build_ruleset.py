@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from strata.config.core.exceptions import ConfigError
-from strata.config.core.models import Config, RuleExceptionEntry
+from strata.config.exceptions import ConfigError
+from strata.config.models import Config, RuleExceptionEntry
 from strata.rules.authoring.main.define import rule
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Family

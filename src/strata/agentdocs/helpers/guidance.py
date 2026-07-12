@@ -1,0 +1,275 @@
+"""Render only repository structures proven by active core rules and config."""
+
+from __future__ import annotations
+
+from strata.agentdocs.constants import (
+    RUNTIME_BASIC_CODES,
+    RUNTIME_CLASSES_CODES,
+    RUNTIME_CONSTANTS_CODES,
+    RUNTIME_EXCEPTIONS_CODES,
+    RUNTIME_HELPERS_CODES,
+    RUNTIME_MAIN_CODES,
+    RUNTIME_MODELS_CODES,
+    RUNTIME_NESTED_CODES,
+    RUNTIME_PACKAGE_NAMING_CODES,
+    RUNTIME_TYPES_CODES,
+    TEST_AUTHORING_CODES,
+    TEST_BASIC_CODES,
+    TEST_CASE_FILE_CODES,
+    TEST_RUNTIME_MIRROR_CODES,
+    TEST_TOOLING_MIRROR_CODES,
+    TOOLING_ADAPTER_CODES,
+    TOOLING_PACKAGE_CODES,
+    TOOLING_RULES_CODES,
+)
+from strata.agentdocs.helpers.role_examples import runtime_role_example_lines
+from strata.config.models import Config
+
+
+def repository_guidance_lines(*, config: Config, active_codes: frozenset[str]) -> tuple[str, ...]:
+    """Return structure guidance supported by the active rule evidence."""
+
+    sections: list[str] = []
+    sections.extend(_runtime_guidance(config=config, active_codes=active_codes))
+    sections.extend(_test_guidance(config=config, active_codes=active_codes))
+    sections.extend(_tooling_guidance(config=config, active_codes=active_codes))
+    if not sections:
+        return ()
+    return (
+        "## Repository Structure",
+        "",
+        (
+            "Only structures established by this repository's active core rules are shown. "
+            "Omitted structures are not implied."
+        ),
+        "",
+        *sections,
+    )
+
+
+def _runtime_guidance(*, config: Config, active_codes: frozenset[str]) -> tuple[str, ...]:
+    if not RUNTIME_BASIC_CODES.issubset(active_codes):
+        return ()
+    nested_enabled: bool = RUNTIME_NESTED_CODES.issubset(active_codes)
+    entries: tuple[str, ...] = _runtime_role_entries(active_codes=active_codes)
+    lines: list[str] = ["### Runtime", ""]
+    for configured_root in config.roots:
+        root: str = _display_path(configured_root)
+        if nested_enabled:
+            lines.extend(("Leaf domain:", ""))
+        lines.extend(("```text", f"{root}/", "└── <domain>/"))
+        if not nested_enabled:
+            lines.extend(("```", ""))
+            continue
+        lines.extend(_tree_entries(entries=entries, indent="    "))
+        lines.extend(("```", "", "Branch domain:", "", "```text", f"{root}/", "└── <domain>/"))
+        lines.append("    └── <subdomain>/")
+        lines.extend(_tree_entries(entries=entries, indent="        "))
+        lines.extend(("```", ""))
+    lines.extend(_domain_shape_lines(active_codes=active_codes))
+    if not nested_enabled:
+        return tuple(lines)
+    lines.extend(
+        runtime_role_example_lines(
+            runtime_root=_display_path(config.roots[0]),
+            active_codes=active_codes,
+        )
+    )
+    return tuple(lines)
+
+
+def _runtime_role_entries(*, active_codes: frozenset[str]) -> tuple[str, ...]:
+    return (
+        *_entry_when(label="main/", evidence=RUNTIME_MAIN_CODES, active=active_codes),
+        *_entry_when(label="helpers/", evidence=RUNTIME_HELPERS_CODES, active=active_codes),
+        *_entry_when(label="classes/", evidence=RUNTIME_CLASSES_CODES, active=active_codes),
+        *_entry_when(label="models.py", evidence=RUNTIME_MODELS_CODES, active=active_codes),
+        *_entry_when(label="types.py", evidence=RUNTIME_TYPES_CODES, active=active_codes),
+        *_entry_when(label="constants.py", evidence=RUNTIME_CONSTANTS_CODES, active=active_codes),
+        *_entry_when(label="exceptions.py", evidence=RUNTIME_EXCEPTIONS_CODES, active=active_codes),
+    )
+
+
+def _domain_shape_lines(*, active_codes: frozenset[str]) -> tuple[str, ...]:
+    lines: list[str] = [
+        "### Domain Shape",
+        "",
+        (
+            "Domains may be leaves with role content directly beneath `<domain>/`, or branches "
+            "containing named subdomains. Do not mix the two shapes."
+        ),
+        "",
+        (
+            "For a singleton capability, prefer a leaf instead of creating a placeholder "
+            "`core` subdomain."
+        ),
+        "",
+        "Promote a leaf to a branch only when multiple real capabilities exist.",
+        "",
+    ]
+    if RUNTIME_PACKAGE_NAMING_CODES.issubset(active_codes):
+        lines.extend(
+            (
+                (
+                    "Generic package names are banned, including `base`, `common`, `lib`, "
+                    "`misc`, `shared`, `util`, and `utils`. Name the business domain or "
+                    "technical capability owner instead."
+                ),
+                "",
+            )
+        )
+    return tuple(lines)
+
+
+def _test_guidance(*, config: Config, active_codes: frozenset[str]) -> tuple[str, ...]:
+    if not config.tests or not TEST_BASIC_CODES.issubset(active_codes):
+        return ()
+    runtime_mirrors_enabled: bool = TEST_RUNTIME_MIRROR_CODES.issubset(active_codes)
+    entries: tuple[str, ...] = (
+        ("_test_types.py", "test_feature.py") if TEST_CASE_FILE_CODES.issubset(active_codes) else ()
+    )
+    lines: list[str] = ["### Tests", ""]
+    for configured_test_root in config.tests:
+        test_root: str = _display_path(configured_test_root)
+        if not runtime_mirrors_enabled:
+            lines.extend(
+                (
+                    "```text",
+                    f"{test_root}/",
+                    "└── <scope>/",
+                    "    └── <mirrored-root>/...",
+                    "```",
+                    "",
+                )
+            )
+            continue
+        for configured_runtime_root in config.roots:
+            runtime_root: str = _display_path(configured_runtime_root)
+            lines.extend(
+                (
+                    "```text",
+                    f"{test_root}/",
+                    "└── <scope>/",
+                    f"    └── {runtime_root}/<domain>[/<subdomain>]/",
+                )
+            )
+            lines.extend(_tree_entries(entries=entries, indent="        "))
+            lines.extend(("```", ""))
+    if not runtime_mirrors_enabled:
+        return tuple(lines)
+    if config.tooling and TEST_TOOLING_MIRROR_CODES.issubset(active_codes):
+        for configured_test_root in config.tests:
+            for configured_tooling_root in config.tooling:
+                lines.extend(
+                    (
+                        "Tooling-backed tests mirror under "
+                        f"`{_display_path(configured_test_root)}/<scope>/"
+                        f"{_display_path(configured_tooling_root)}/<area>/`.",
+                        "",
+                    )
+                )
+    if TEST_AUTHORING_CODES.issubset(active_codes) and RUNTIME_MAIN_CODES.issubset(active_codes):
+        lines.extend(
+            _test_authoring_example(
+                runtime_root=_display_path(config.roots[0]),
+                test_root=_display_path(config.tests[0]),
+            )
+        )
+    return tuple(lines)
+
+
+def _test_authoring_example(*, runtime_root: str, test_root: str) -> tuple[str, ...]:
+    runtime_package: str = _module_path(runtime_root).rsplit(".", maxsplit=1)[-1]
+    test_case_module: str = (
+        f"{_module_path(test_root)}.unit.{_module_path(runtime_root)}.invoices._test_types"
+    )
+    return (
+        "`_test_types.py`:",
+        "",
+        "```python",
+        "from dataclasses import dataclass",
+        "",
+        "@dataclass(frozen=True)",
+        "class ReadInvoiceTestCase:",
+        "    description: str",
+        "    invoice_id: str",
+        "    expected_identifier: str",
+        "```",
+        "",
+        "`test_feature.py`:",
+        "",
+        "```python",
+        "import pytest",
+        "",
+        f"from {runtime_package}.invoices.main.read_invoice import read_invoice",
+        f"from {runtime_package}.invoices.models import Invoice",
+        f"from {test_case_module} import ReadInvoiceTestCase",
+        "",
+        "@pytest.mark.parametrize(",
+        '    "test_case",',
+        "    [",
+        "        ReadInvoiceTestCase(",
+        '            description="returns the requested invoice",',
+        '            invoice_id="invoice-1",',
+        '            expected_identifier="invoice-1",',
+        "        )",
+        "    ],",
+        "    ids=lambda case: case.description,",
+        ")",
+        "def test_given_invoice_id_when_reading_invoice_then_returns_expected_invoice(",
+        "    test_case: ReadInvoiceTestCase,",
+        ") -> None:",
+        "    result: Invoice = read_invoice(test_case.invoice_id)",
+        "",
+        "    assert result.identifier == test_case.expected_identifier",
+        "```",
+        "",
+    )
+
+
+def _tooling_guidance(*, config: Config, active_codes: frozenset[str]) -> tuple[str, ...]:
+    if not config.tooling:
+        return ()
+    adapter_enabled: bool = TOOLING_ADAPTER_CODES.issubset(active_codes)
+    package_enabled: bool = TOOLING_PACKAGE_CODES.issubset(active_codes)
+    if not adapter_enabled and not package_enabled:
+        return ()
+    entries: list[str] = []
+    if adapter_enabled:
+        entries.append("run_tool.py")
+    if package_enabled:
+        entries.append("<tool>/")
+    role_entries: tuple[str, ...] = (
+        *_entry_when(label="main/", evidence=RUNTIME_MAIN_CODES, active=active_codes),
+        *_entry_when(label="helpers/", evidence=RUNTIME_HELPERS_CODES, active=active_codes),
+        *_entry_when(label="classes/", evidence=RUNTIME_CLASSES_CODES, active=active_codes),
+        *_entry_when(label="rules/", evidence=TOOLING_RULES_CODES, active=active_codes),
+    )
+    lines: list[str] = ["### Tooling", ""]
+    for configured_tooling_root in config.tooling:
+        lines.extend(("```text", f"{_display_path(configured_tooling_root)}/"))
+        lines.extend(_tree_entries(entries=tuple(entries), indent=""))
+        if package_enabled:
+            lines.extend(_tree_entries(entries=role_entries, indent="    "))
+        lines.extend(("```", ""))
+    return tuple(lines)
+
+
+def _entry_when(*, label: str, evidence: frozenset[str], active: frozenset[str]) -> tuple[str, ...]:
+    return (label,) if evidence.issubset(active) else ()
+
+
+def _tree_entries(*, entries: tuple[str, ...], indent: str) -> tuple[str, ...]:
+    rendered: list[str] = []
+    for index, entry in enumerate(entries):
+        connector: str = "└── " if index == len(entries) - 1 else "├── "
+        rendered.append(f"{indent}{connector}{entry}")
+    return tuple(rendered)
+
+
+def _display_path(path: str) -> str:
+    return path.rstrip("/") or "."
+
+
+def _module_path(path: str) -> str:
+    return path.strip("/").replace("/", ".")

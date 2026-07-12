@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import ast
 
-from strata.analysis.core.models import ProjectCallFacts, ProjectFunctionFact
-from strata.discovery.core.types import RoleName
+from strata.analysis.models import ProjectCallFacts, ProjectFunctionFact
+from strata.discovery.types import RoleName
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import RuleContext, Threshold
 

@@ -7,11 +7,11 @@ from types import MappingProxyType
 
 import pytest
 
-from strata.config.core.constants import DEFAULT_THRESHOLDS
-from strata.config.core.models import Config
-from strata.discovery.core.main.discover_files import discover_files
-from strata.evaluation.core.main.evaluate import evaluate
-from strata.evaluation.core.models import EvaluationResult
+from strata.config.constants import DEFAULT_THRESHOLDS
+from strata.config.models import Config
+from strata.discovery.main.discover_files import discover_files
+from strata.evaluation.main.evaluate import evaluate
+from strata.evaluation.models import EvaluationResult
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Threshold
 from strata.rules.roles.constants import SFR_RULES
@@ -29,6 +29,9 @@ def evaluate_role_test_case(
     path.write_text(test_case.source, encoding="utf-8")
     for support_file in test_case.support_files:
         support_path: Path = scope_root / support_file.relative_path
+        if support_file.is_directory:
+            support_path.mkdir(parents=True, exist_ok=True)
+            continue
         support_path.parent.mkdir(parents=True, exist_ok=True)
         support_path.write_text(support_file.source, encoding="utf-8")
     monkeypatch.chdir(tmp_path)

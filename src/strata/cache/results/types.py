@@ -1,6 +1,6 @@
 """Persistent evaluation-result record types."""
 
-from strata.analysis.core.types import ProjectDependencyKind
+from strata.analysis.types import ProjectDependencyKind
 
 type DependencyAnswer = None | bool | str | tuple[str, ...]
 type DependencyStateKey = tuple[str, ProjectDependencyKind, str | None, bool]

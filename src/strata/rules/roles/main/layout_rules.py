@@ -10,7 +10,7 @@ from strata.rules.roles.helpers.checks import (
     nested_direct_modules,
     nested_direct_subpackages,
     top_level_direct_modules,
-    top_level_role_placement,
+    top_level_domain_shape,
 )
 from strata.rules.roles.helpers.metadata import role_rule_details
 from strata.rules.roles.types import RoleCode
@@ -41,9 +41,9 @@ def layout_rules() -> tuple[RuleSpec, ...]:
             check=nested_direct_subpackages,
         ),
         _rule(
-            code=RoleCode.TOP_LEVEL_ROLE_PLACEMENT,
-            slug="top-level-role-placement",
-            check=top_level_role_placement,
+            code=RoleCode.TOP_LEVEL_DOMAIN_SHAPE,
+            slug="top-level-domain-shape",
+            check=top_level_domain_shape,
         ),
         _rule(
             code=RoleCode.TOP_LEVEL_DIRECT_MODULES,

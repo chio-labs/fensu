@@ -37,7 +37,15 @@ The distribution name is `stratalint`; the installed command is `strata`.
 
 ## Quick Start
 
-Add `strata.toml` at the repository root:
+Detect the repository layout, choose a starting ruleset, and write a validated
+configuration:
+
+```bash
+strata init
+```
+
+For non-interactive setup, use `strata init --yes`. To configure manually instead,
+add `strata.toml` at the repository root:
 
 ```toml
 roots = ["src/my_package"]
@@ -92,14 +100,16 @@ under `scripts/<tool>/<role>/`.
 ## Core Commands
 
 ```bash
+strata init
 strata check
 strata rule SFS131
 strata map run_plan --depth 3
 ```
 
-`strata check` enforces the configured architecture, `strata rule` explains one
-rule and its remediation, and `strata map` renders a conservative downstream call
-tree. Mapping follows project functions and class methods when imports,
+`strata init` detects and validates an onboarding configuration, `strata check`
+enforces the configured architecture, `strata rule` explains one rule and its
+remediation, and `strata map` renders a conservative downstream call tree. Mapping
+follows project functions and class methods when imports,
 annotations, constructors, or return types prove the receiver. Calls through
 protocols and untyped parameters remain visible as unresolved dispatch seams
 rather than guessed implementations. Mapping does not require Strata

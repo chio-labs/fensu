@@ -8,12 +8,14 @@ from pathlib import Path
 import pytest
 
 from strata.config.core.exceptions import ConfigError
+from strata.config.core.main.find_config import find_config_source
 from strata.config.core.main.load_config import load_config
-from strata.config.core.models import Config
+from strata.config.core.models import Config, ConfigSource
 from tests.unit.src.strata.config.core._test_types import (
     ConfigDiscoveryTestCase,
     ConfigSourceLoadTestCase,
     InvalidConfigSourceTestCase,
+    MissingConfigGuidanceTestCase,
 )
 from tests.unit.src.strata.config.core.helpers import (
     write_pyproject_toml,
@@ -156,6 +158,51 @@ def test_given_missing_source_when_loading_then_raises_config_error(
         load_config(tmp_path)
 
     assert test_case.expected_error_fragment in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        MissingConfigGuidanceTestCase(
+            description="missing config keeps prefix and suggests init",
+            expected_prefix="No strata config found",
+            expected_guidance="Run 'strata init' to create one.",
+            expected_source=None,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_missing_source_when_loading_then_preserves_prefix_and_suggests_init(
+    tmp_path: Path,
+    test_case: MissingConfigGuidanceTestCase,
+) -> None:
+    with pytest.raises(ConfigError) as error:
+        load_config(tmp_path)
+
+    message: str = str(error.value)
+    assert message.startswith(test_case.expected_prefix)
+    assert test_case.expected_guidance in message
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        MissingConfigGuidanceTestCase(
+            description="missing config remains optional during discovery",
+            expected_prefix="No strata config found",
+            expected_guidance="Run 'strata init' to create one.",
+            expected_source=None,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_missing_source_when_finding_optional_config_then_returns_none(
+    tmp_path: Path,
+    test_case: MissingConfigGuidanceTestCase,
+) -> None:
+    source: ConfigSource | None = find_config_source(tmp_path)
+
+    assert source is test_case.expected_source
 
 
 @pytest.mark.parametrize(

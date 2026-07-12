@@ -6,11 +6,16 @@ import os
 import sqlite3
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
+from typing import cast
 
 from strata.cache.results.constants import CACHE_FILE_RESULT_KIND
 from strata.cache.storage.constants import CACHE_DATABASE_RELATIVE_PATH
-from tests.e2e.src.strata.cli.main._test_types import ConfigurableLayoutCliTestCase
+from tests.e2e.src.strata.cli.main._test_types import (
+    CliProjectFile,
+    ConfigurableLayoutCliTestCase,
+)
 
 
 def run_configurable_layout_case(
@@ -50,6 +55,58 @@ def run_cli_check(*, root: Path, argv: tuple[str, ...]) -> subprocess.CompletedP
         text=True,
         check=False,
     )
+
+
+def run_cli_init(
+    *, root: Path, argv: tuple[str, ...], input_text: str
+) -> subprocess.CompletedProcess[str]:
+    """Run installed-console init with captured non-TTY standard streams."""
+
+    environment: dict[str, str] = dict(os.environ)
+    environment["NO_COLOR"] = "1"
+    return subprocess.run(
+        (str(Path(sys.executable).with_name("strata")), "init", *argv),
+        cwd=root,
+        env=environment,
+        input=input_text,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def write_project_files(*, root: Path, files: tuple[CliProjectFile, ...]) -> None:
+    """Write repository fixture files for an installed-console invocation."""
+
+    for file in files:
+        path: Path = root / file.relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(file.source, encoding="utf-8")
+
+
+def repository_text_snapshot(root: Path) -> tuple[tuple[str, str], ...]:
+    """Return every repository file and its text in deterministic order."""
+
+    return tuple(
+        (path.relative_to(root).as_posix(), path.read_text(encoding="utf-8"))
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+    )
+
+
+def config_values(root: Path) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    """Parse generated config and return its ordered list-valued settings."""
+
+    path: Path = root / "strata.toml"
+    if not path.is_file():
+        return ()
+    parsed: dict[str, object] = tomllib.loads(path.read_text(encoding="utf-8"))
+    values: list[tuple[str, tuple[str, ...]]] = []
+    for key in ("roots", "tests", "tooling", "select"):
+        value: object | None = parsed.get(key)
+        if value is not None:
+            values.append((key, tuple(cast("list[str]", value))))
+    return tuple(values)
 
 
 def write_cli_project(

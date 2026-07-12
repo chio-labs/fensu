@@ -10,6 +10,7 @@ import strata.cache.fingerprints.helpers.fingerprints as fingerprint_module
 from strata.cache.fingerprints.helpers.fingerprints import (
     canonical_fingerprint,
     config_fingerprint,
+    custom_rules_fingerprint,
     global_fingerprint,
     implementation_fingerprint,
     ruleset_fingerprint,
@@ -28,10 +29,12 @@ from strata.config.core.models import CacheConfig, Config
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.catalog.main.build_ruleset import build_ruleset
 from tests.unit.src.strata.cache.fingerprints._test_types import (
+    CacheBlockedRulesetTestCase,
     CachePreferenceFingerprintTestCase,
     CanonicalFingerprintTestCase,
     ConfigFingerprintTestCase,
     ConfigLayoutFingerprintTestCase,
+    CustomRulesFingerprintTestCase,
     FileResultFingerprintTestCase,
     GlobalFingerprintBuilderTestCase,
     GlobalFingerprintTestCase,
@@ -44,6 +47,7 @@ from tests.unit.src.strata.cache.fingerprints.helpers import (
     cached_file_result,
     config_with_statement_threshold,
     configure_package_availability,
+    custom_fingerprint_rule,
     rule_with_message,
     write_custom_rule,
     write_implementation,
@@ -468,12 +472,14 @@ def test_given_global_inputs_when_fingerprinting_then_captures_version_contract(
         implementation=common,
         config=common,
         ruleset=common,
+        custom_rules=common,
         strata_version=test_case.first_version,
     )
     second: CacheFingerprint = global_fingerprint(
         implementation=common,
         config=common,
         ruleset=common,
+        custom_rules=common,
         strata_version=test_case.second_version,
     )
 
@@ -521,6 +527,7 @@ def test_given_runtime_semantics_when_fingerprinting_then_captures_contract_iden
         implementation=common,
         config=common,
         ruleset=common,
+        custom_rules=common,
         strata_version="1.0.0",
     )
     monkeypatch.setattr(
@@ -537,6 +544,7 @@ def test_given_runtime_semantics_when_fingerprinting_then_captures_contract_iden
         implementation=common,
         config=common,
         ruleset=common,
+        custom_rules=common,
         strata_version="1.0.0",
     )
 
@@ -590,10 +598,98 @@ def test_given_loaded_package_when_building_global_then_requires_complete_source
         empty_package_root=tmp_path / "strata",
     )
 
-    first: GlobalFingerprintBuild = build_global_fingerprint(config=Config(roots=()), ruleset=())
-    second: GlobalFingerprintBuild = build_global_fingerprint(config=Config(roots=()), ruleset=())
+    first: GlobalFingerprintBuild = build_global_fingerprint(
+        config=Config(roots=()), ruleset=(), repo_root=tmp_path
+    )
+    second: GlobalFingerprintBuild = build_global_fingerprint(
+        config=Config(roots=()), ruleset=(), repo_root=tmp_path
+    )
 
     assert (first.fingerprint is not None) is test_case.expected_available
     assert (first.disabled_reason is None) is test_case.expected_available
     assert first == second
     assert not (tmp_path / ".strata").exists()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CustomRulesFingerprintTestCase(
+            description="rule helper file edit changes the custom implementation identity",
+            first_helper_source="LIMIT: int = 1\n",
+            second_helper_source="LIMIT: int = 2\n",
+            expected_equal=False,
+            expected_missing_none=True,
+        ),
+        CustomRulesFingerprintTestCase(
+            description="unchanged rule sources keep a stable custom implementation identity",
+            first_helper_source="LIMIT: int = 1\n",
+            second_helper_source="LIMIT: int = 1\n",
+            expected_equal=True,
+            expected_missing_none=True,
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_rule_path_sources_when_fingerprinting_then_tracks_every_file(
+    tmp_path: Path,
+    test_case: CustomRulesFingerprintTestCase,
+) -> None:
+    rules_dir: Path = tmp_path / "rules"
+    rules_dir.mkdir()
+    (rules_dir / "custom.py").write_text("RULE: int = 0\n", encoding="utf-8")
+    helper: Path = rules_dir / "helper.py"
+    helper.write_text(test_case.first_helper_source, encoding="utf-8")
+    config: Config = Config(roots=(), rule_paths=("rules",))
+
+    first: CacheFingerprint | None = custom_rules_fingerprint(config=config, repo_root=tmp_path)
+    helper.write_text(test_case.second_helper_source, encoding="utf-8")
+    second: CacheFingerprint | None = custom_rules_fingerprint(config=config, repo_root=tmp_path)
+    missing: CacheFingerprint | None = custom_rules_fingerprint(
+        config=Config(roots=(), rule_paths=("absent",)),
+        repo_root=tmp_path,
+    )
+
+    assert first is not None
+    assert second is not None
+    assert (first == second) is test_case.expected_equal
+    assert (missing is None) is test_case.expected_missing_none
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CacheBlockedRulesetTestCase(
+            description="non-cacheable custom rule disables caching with named reason",
+            cacheable=False,
+            expected_blocked=True,
+            expected_reason_fragment="cache.require_cacheable is set: XFP001",
+        ),
+        CacheBlockedRulesetTestCase(
+            description="declared cacheable custom rule does not block the identity",
+            cacheable=True,
+            expected_blocked=False,
+            expected_reason_fragment="not declared cacheable",
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_custom_ruleset_when_building_global_then_names_blocking_rules(
+    tmp_path: Path,
+    test_case: CacheBlockedRulesetTestCase,
+) -> None:
+    ruleset: tuple[RuleSpec, ...] = (
+        custom_fingerprint_rule(code="XFP001", cacheable=test_case.cacheable),
+    )
+
+    build: GlobalFingerprintBuild = build_global_fingerprint(
+        config=Config(roots=()),
+        ruleset=ruleset,
+        repo_root=tmp_path,
+    )
+
+    blocked: bool = (
+        build.disabled_reason is not None
+        and test_case.expected_reason_fragment in build.disabled_reason
+    )
+    assert blocked is test_case.expected_blocked

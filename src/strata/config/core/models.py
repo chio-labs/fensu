@@ -47,6 +47,7 @@ class CacheConfig:
     """Operational persistent-cache preferences."""
 
     enabled: bool
+    require_cacheable: bool = False
 
 
 @dataclass(frozen=True, slots=True)

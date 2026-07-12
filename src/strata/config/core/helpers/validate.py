@@ -9,6 +9,7 @@ from typing import cast
 
 from strata.config.core.constants import (
     CACHE_ENABLED_CONFIG_KEY,
+    CACHE_REQUIRE_CACHEABLE_CONFIG_KEY,
     CONFIG_ROLE_NAMES,
     CONFIG_TOP_LEVEL_KEYS,
     CONTRACT_BEHAVIORS,
@@ -59,7 +60,10 @@ def _validate_cache(*, value: object) -> None:
     if not isinstance(value, dict):
         raise ConfigValidationError("Config key cache must be a table.")
     typed_value: dict[object, object] = cast(dict[object, object], value)
-    unknown_keys: set[object] = set(typed_value) - {CACHE_ENABLED_CONFIG_KEY}
+    unknown_keys: set[object] = set(typed_value) - {
+        CACHE_ENABLED_CONFIG_KEY,
+        CACHE_REQUIRE_CACHEABLE_CONFIG_KEY,
+    }
     if unknown_keys:
         names: str = ", ".join(sorted(str(key) for key in unknown_keys))
         raise ConfigValidationError(f"Unknown cache config key(s): {names}.")
@@ -67,6 +71,10 @@ def _validate_cache(*, value: object) -> None:
         typed_value[CACHE_ENABLED_CONFIG_KEY], bool
     ):
         raise ConfigValidationError("Config key cache.enabled must be a boolean.")
+    if CACHE_REQUIRE_CACHEABLE_CONFIG_KEY in typed_value and not isinstance(
+        typed_value[CACHE_REQUIRE_CACHEABLE_CONFIG_KEY], bool
+    ):
+        raise ConfigValidationError("Config key cache.require_cacheable must be a boolean.")
 
 
 def _validate_string_sequence(*, name: str, value: object) -> tuple[str, ...]:

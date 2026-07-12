@@ -60,7 +60,7 @@ def run_check(
         ruleset: tuple[RuleSpec, ...] = build_ruleset(config, repo_root=project_dir)
         validate_rule_exceptions(config=config, repo_root=tree.repo_root.path)
         fingerprint_build: GlobalFingerprintBuild | None = (
-            build_global_fingerprint(config=config, ruleset=ruleset)
+            build_global_fingerprint(config=config, ruleset=ruleset, repo_root=project_dir)
             if config.cache.enabled
             else None
         )

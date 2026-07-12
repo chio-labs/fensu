@@ -126,3 +126,24 @@ class GlobalFingerprintBuilderTestCase:
     source_available: bool
     complete_source: bool
     expected_available: bool
+
+
+@dataclass(frozen=True)
+class CustomRulesFingerprintTestCase:
+    """Custom-rule file contents and expected identity sensitivity."""
+
+    description: str
+    first_helper_source: str
+    second_helper_source: str
+    expected_equal: bool
+    expected_missing_none: bool
+
+
+@dataclass(frozen=True)
+class CacheBlockedRulesetTestCase:
+    """One custom-rule cacheability declaration and expected disabled reason."""
+
+    description: str
+    cacheable: bool
+    expected_blocked: bool
+    expected_reason_fragment: str

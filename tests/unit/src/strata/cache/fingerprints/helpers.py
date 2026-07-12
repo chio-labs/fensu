@@ -15,7 +15,7 @@ from strata.cache.results.models import CachedFault, CachedFileResult, Dependenc
 from strata.config.core.constants import DEFAULT_THRESHOLDS
 from strata.config.core.models import Config
 from strata.rules.authoring.models import Fault, RuleSpec
-from strata.rules.authoring.types import Family, RuleContext, Threshold
+from strata.rules.authoring.types import Family, RuleContext, RuleKind, Threshold
 
 
 def config_with_statement_threshold(*, value: int, reverse_mapping_order: bool) -> Config:
@@ -131,3 +131,21 @@ def configure_package_availability(
             "_loaded_package_root",
             lambda: empty_package_root,
         )
+
+
+def custom_fingerprint_rule(*, code: str, cacheable: bool) -> RuleSpec:
+    """Return one custom rule spec with an explicit cacheability declaration."""
+
+    def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+        del module, ctx
+        return []
+
+    return RuleSpec(
+        code=code,
+        family=Family.CUSTOM,
+        slug="fingerprint-custom",
+        message="fingerprint custom",
+        check=check,
+        kind=RuleKind.CUSTOM,
+        cacheable=cacheable,
+    )

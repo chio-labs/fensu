@@ -6,7 +6,10 @@ from collections.abc import Mapping
 from types import MappingProxyType
 
 from strata.config.core.constants import (
+    CACHE_ENABLED_CONFIG_KEY,
+    CACHE_REQUIRE_CACHEABLE_CONFIG_KEY,
     DEFAULT_CACHE_ENABLED,
+    DEFAULT_CACHE_REQUIRE_CACHEABLE,
     DEFAULT_CONTRACTS,
     DEFAULT_IGNORE,
     DEFAULT_SELECT,
@@ -58,9 +61,15 @@ def build_config(raw: Mapping[str, object]) -> Config:
 def _cache_config(value: object) -> CacheConfig:
     if not isinstance(value, dict):
         return CacheConfig(enabled=DEFAULT_CACHE_ENABLED)
-    enabled: object = value.get("enabled")
+    enabled: object = value.get(CACHE_ENABLED_CONFIG_KEY)
+    require_cacheable: object = value.get(CACHE_REQUIRE_CACHEABLE_CONFIG_KEY)
     return CacheConfig(
         enabled=enabled if isinstance(enabled, bool) else DEFAULT_CACHE_ENABLED,
+        require_cacheable=(
+            require_cacheable
+            if isinstance(require_cacheable, bool)
+            else DEFAULT_CACHE_REQUIRE_CACHEABLE
+        ),
     )
 
 

@@ -239,6 +239,57 @@ def test_given_changed_manifest_when_evaluating_then_combines_hits_and_new_files
     "test_case",
     [
         CachedEvaluationReuseTestCase(
+            description="declared cacheable custom rule publishes and reuses results",
+            relative_path="src/pkg/models.py",
+            source="value: int = 1\n",
+            expected_cold_hits=0,
+            expected_cold_misses=1,
+            expected_warm_hits=1,
+            expected_warm_misses=0,
+            expected_warm_writes=0,
+            expected_fault_count=1,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_cacheable_custom_rule_when_evaluating_then_reuses_published_result(
+    tmp_path: Path,
+    test_case: CachedEvaluationReuseTestCase,
+) -> None:
+    write_project_sources(
+        repo_root=tmp_path,
+        files=((test_case.relative_path, test_case.source),),
+    )
+    config, tree = discover_project(repo_root=tmp_path)
+    ruleset: tuple[RuleSpec, ...] = (source_fault_rule(kind=RuleKind.CUSTOM, cacheable=True),)
+
+    cold: CacheEvaluation = evaluate_with_cache(
+        tree=tree,
+        ruleset=ruleset,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+    warm: CacheEvaluation = evaluate_with_cache(
+        tree=tree,
+        ruleset=ruleset,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+
+    assert cold.stats.hits == test_case.expected_cold_hits
+    assert cold.stats.misses == test_case.expected_cold_misses
+    assert warm.stats.hits == test_case.expected_warm_hits
+    assert warm.stats.misses == test_case.expected_warm_misses
+    assert warm.stats.writes == test_case.expected_warm_writes
+    assert len(warm.result.faults) == test_case.expected_fault_count
+    assert warm.result.faults == cold.result.faults
+    assert (tmp_path / ".strata").exists()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CachedEvaluationReuseTestCase(
             description="custom rules remain non-cacheable and create no storage",
             relative_path="src/pkg/models.py",
             source="value: int = 1\n",

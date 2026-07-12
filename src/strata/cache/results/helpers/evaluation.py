@@ -41,7 +41,7 @@ def run_cached_evaluation(
 ) -> CacheEvaluation:
     """Return a complete evaluation using only fully validated file-result hits."""
 
-    if any(rule.kind is RuleKind.CUSTOM for rule in ruleset):
+    if any(rule.kind is RuleKind.CUSTOM and not rule.cacheable for rule in ruleset):
         result: EvaluationResult = evaluate(tree=tree, ruleset=ruleset, config=config)
         return CacheEvaluation(
             result=result,

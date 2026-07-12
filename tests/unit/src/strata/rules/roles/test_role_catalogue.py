@@ -42,6 +42,7 @@ def test_given_roles_rule_catalogue_when_reading_codes_then_matches_role_code_en
 
     assert codes == test_case.expected_codes
     assert len(set(codes)) == test_case.expected_unique_count
+    assert "SFR206" not in codes
     assert RoleCode("SFR306").name == test_case.expected_sfr306_symbolic_name
     rules_by_code: dict[str, RuleSpec] = {rule.code: rule for rule in SFR_RULES}
     assert rules_by_code["SFR204"].message == test_case.expected_sfr204_message

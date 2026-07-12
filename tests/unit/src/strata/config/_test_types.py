@@ -38,6 +38,16 @@ class InvalidConfigTestCase:
 
 
 @dataclass(frozen=True)
+class RuleSelectorConfigTestCase:
+    """Configured selectors and their expected normalized values."""
+
+    description: str
+    config_text: str
+    expected_select: tuple[str, ...]
+    expected_ignore: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class InvalidConfigSourceTestCase:
     """Invalid or missing config source and the expected error."""
 
@@ -91,6 +101,52 @@ class ConfigThresholdTestCase:
     config_text: str
     expected_threshold_name: str
     expected_threshold_value: int
+
+
+@dataclass(frozen=True)
+class ThresholdOverrideConfigTestCase:
+    """A path threshold override and its expected normalized fields."""
+
+    description: str
+    config_text: str
+    expected_paths: tuple[str, ...]
+    expected_threshold_name: str
+    expected_threshold_value: int
+    expected_reason: str
+
+
+@dataclass(frozen=True)
+class ThresholdResolutionTestCase:
+    """Threshold layers and the expected path-aware resolution result."""
+
+    description: str
+    config_text: str
+    path: str
+    role: str | None
+    threshold_name: str
+    expected_value: int
+    expected_pattern: str | None
+    expected_reason: str | None = None
+    expected_override_order: int | None = None
+
+
+@dataclass(frozen=True)
+class PathPatternTestCase:
+    """A repository path glob and expected anchored match result."""
+
+    description: str
+    pattern: str
+    path: str
+    expected_matches: bool
+
+
+@dataclass(frozen=True)
+class PathPatternSpecificityTestCase:
+    """A normalized path glob and its expected semantic specificity tuple."""
+
+    description: str
+    pattern: str
+    expected_specificity: tuple[int, int, int, int]
 
 
 @dataclass(frozen=True)

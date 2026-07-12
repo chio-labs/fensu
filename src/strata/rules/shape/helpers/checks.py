@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import ast
 
-from strata.analysis.models import ProjectCallFacts, ProjectFunctionFact
+from strata.analysis.models import (
+    FunctionFacts,
+    FunctionMetricFact,
+    ProjectCallFacts,
+    ProjectFunctionFact,
+)
 from strata.discovery.types import RoleName
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import RuleContext, Threshold
@@ -16,7 +21,7 @@ def too_many_statements(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     del module
     if not ctx.is_main_module():
         return []
-    limit: int = ctx.threshold(Threshold.MAX_STATEMENTS)
+    limit: int = ctx.threshold(name=Threshold.MAX_STATEMENTS)
     faults: list[Fault] = []
     for fact in ctx._analysis.facts.functions().top_level:
         count: int = fact.statement_count
@@ -33,7 +38,7 @@ def too_many_distinct_calls(*, module: ast.Module, ctx: RuleContext) -> list[Fau
     del module
     if not ctx.is_main_module():
         return []
-    limit: int = ctx.threshold(Threshold.MAX_DISTINCT_CALLS)
+    limit: int = ctx.threshold(name=Threshold.MAX_DISTINCT_CALLS)
     faults: list[Fault] = []
     for fact in ctx._analysis.facts.functions().top_level:
         count: int = fact.distinct_call_count
@@ -53,7 +58,7 @@ def too_many_locals(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     del module
     if not ctx.is_main_module():
         return []
-    limit: int = ctx.threshold(Threshold.MAX_LOCALS)
+    limit: int = ctx.threshold(name=Threshold.MAX_LOCALS)
     faults: list[Fault] = []
     for fact in ctx._analysis.facts.functions().top_level:
         count: int = fact.assigned_local_count
@@ -71,7 +76,7 @@ def max_arguments(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag functions exceeding the configured argument limit."""
 
     del module
-    limit: int = ctx.threshold(Threshold.MAX_ARGUMENTS)
+    limit: int = ctx.threshold(name=Threshold.MAX_ARGUMENTS)
     faults: list[Fault] = []
     for fact in ctx._analysis.facts.functions().functions:
         count: int = fact.parameter_count
@@ -86,9 +91,15 @@ def max_statements_global(*, module: ast.Module, ctx: RuleContext) -> list[Fault
     """Flag any function exceeding the loose global statement threshold."""
 
     del module
-    limit: int = ctx.threshold(Threshold.MAX_STATEMENTS_GLOBAL)
+    limit: int = ctx.threshold(name=Threshold.MAX_STATEMENTS_GLOBAL)
+    function_facts: FunctionFacts = ctx._analysis.facts.functions()
+    main_top_level: tuple[FunctionMetricFact, ...] = (
+        function_facts.top_level if ctx.is_main_module() else ()
+    )
     faults: list[Fault] = []
-    for fact in ctx._analysis.facts.functions().functions:
+    for fact in function_facts.functions:
+        if fact in main_top_level:
+            continue
         count: int = fact.statement_count
         if count > limit:
             faults.append(
@@ -142,7 +153,7 @@ def keyword_only_arguments(*, module: ast.Module, ctx: RuleContext) -> list[Faul
     """Flag positional parameters on functions that exceed the configured threshold."""
 
     del module
-    limit: int = ctx.threshold(Threshold.MAX_POSITIONAL_ARGS)
+    limit: int = ctx.threshold(name=Threshold.MAX_POSITIONAL_ARGS)
     faults: list[Fault] = []
     for fact in ctx._analysis.facts.functions().functions:
         if fact.dunder:

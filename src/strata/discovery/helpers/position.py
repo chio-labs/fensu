@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from strata.config.constants import RUNTIME_STRUCTURAL_ROLE_NAMES
 from strata.discovery.constants import (
     INIT_MODULE_FILE_NAME,
-    MAIN_MODULE_FILE_NAME,
     MINIMUM_NESTED_PATH_PARTS,
     PYTHON_FILE_SUFFIX,
     ROLE_DIR_NAMES,
@@ -68,15 +68,18 @@ def in_role(*, scoped_file: ScopedFile, role: str) -> bool:
 
 
 def is_entry_module(scoped_file: ScopedFile) -> bool:
-    """Return whether the file is directly under a main/ package as an entry module."""
+    """Return whether the first runtime role is main and the file is not an initializer."""
 
     parts: tuple[str, ...] = scoped_file.relative_parts
-    if len(parts) < MINIMUM_NESTED_PATH_PARTS or parts[-2] != RoleName.MAIN:
-        return False
-    return parts[-1] not in {INIT_MODULE_FILE_NAME, MAIN_MODULE_FILE_NAME}
+    first_role: str | None = _first_runtime_role(parts)
+    return first_role == RoleName.MAIN and parts[-1] != INIT_MODULE_FILE_NAME
 
 
 def is_main_module(scoped_file: ScopedFile) -> bool:
-    """Return whether the file lives anywhere inside a main/ package."""
+    """Return whether the first runtime structural role is main."""
 
-    return RoleName.MAIN in scoped_file.relative_parts[:-1]
+    return _first_runtime_role(scoped_file.relative_parts) == RoleName.MAIN
+
+
+def _first_runtime_role(parts: tuple[str, ...]) -> str | None:
+    return next((part for part in parts[:-1] if part in RUNTIME_STRUCTURAL_ROLE_NAMES), None)

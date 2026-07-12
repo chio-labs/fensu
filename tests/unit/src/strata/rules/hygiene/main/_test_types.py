@@ -16,4 +16,5 @@ class HygieneRuleTestCase:
     expected_lines: tuple[int | None, ...]
     relative_path: str = "src/pkg/domain/core/models.py"
     roots: tuple[str, ...] = ("src/pkg",)
+    tests: tuple[str, ...] = ()
     tooling: tuple[str, ...] = ()

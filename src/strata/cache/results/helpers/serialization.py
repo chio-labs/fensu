@@ -21,13 +21,13 @@ from strata.cache.results.constants import (
     INDEX_PAYLOAD_KEYS,
     METADATA_PAYLOAD_KEYS,
     RULE_EXCEPTION_KEY_KEYS,
+    THRESHOLD_OVERRIDE_USE_KEYS,
 )
 from strata.cache.results.helpers.validation import (
     fingerprint_or_none,
     is_dependency_observation,
     is_fingerprint,
     is_relative_path,
-    is_rule_code,
     is_rule_exception_symbol,
 )
 from strata.cache.results.models import (
@@ -35,6 +35,7 @@ from strata.cache.results.models import (
     CachedFault,
     CachedFileResult,
     CachedRuleExceptionKey,
+    CachedThresholdOverrideUse,
     CacheIndex,
     CacheIndexEntry,
     CacheMetadata,
@@ -43,6 +44,8 @@ from strata.cache.results.models import (
 from strata.cache.results.types import DependencyAnswer
 from strata.cache.storage.exceptions import CacheRecordError
 from strata.cache.storage.models import CacheRecord
+from strata.rules.authoring.main.is_rule_code import is_rule_code
+from strata.rules.authoring.types import Threshold
 
 
 def metadata_to_record(metadata: CacheMetadata) -> CacheRecord:
@@ -121,12 +124,14 @@ def file_result_from_record(record: CacheRecord) -> CachedFileResult | None:
     raw_faults: CanonicalValue = payload["faults"]
     raw_exceptions: CanonicalValue = payload["applied_exception_keys"]
     raw_dependencies: CanonicalValue = payload["dependencies"]
+    raw_override_uses: CanonicalValue = payload["threshold_override_uses"]
     if not (
         is_relative_path(value=path)
         and fingerprint is not None
         and isinstance(raw_faults, list)
         and isinstance(raw_exceptions, list)
         and isinstance(raw_dependencies, list)
+        and isinstance(raw_override_uses, list)
     ):
         return None
     faults: tuple[CachedFault, ...] | None = _decode_sequence(values=raw_faults, decoder=_fault)
@@ -136,7 +141,10 @@ def file_result_from_record(record: CacheRecord) -> CachedFileResult | None:
     dependencies: tuple[DependencyObservation, ...] | None = _decode_sequence(
         values=raw_dependencies, decoder=_dependency
     )
-    if faults is None or exceptions is None or dependencies is None:
+    override_uses: tuple[CachedThresholdOverrideUse, ...] | None = _decode_sequence(
+        values=raw_override_uses, decoder=_threshold_override_use
+    )
+    if faults is None or exceptions is None or dependencies is None or override_uses is None:
         return None
     result: CachedFileResult = CachedFileResult(
         path=cast(str, path),
@@ -144,6 +152,7 @@ def file_result_from_record(record: CacheRecord) -> CachedFileResult | None:
         faults=faults,
         applied_exception_keys=exceptions,
         dependencies=dependencies,
+        threshold_override_uses=override_uses,
     )
     return result if _file_result_relationships_are_valid(result) else None
 
@@ -244,6 +253,10 @@ def _file_result_relationships_are_valid(result: CachedFileResult) -> bool:
     )
     if exception_identities != tuple(sorted(set(exception_identities))):
         return False
+    if result.threshold_override_uses != tuple(
+        sorted(set(result.threshold_override_uses), key=_threshold_override_use_sort_key)
+    ):
+        return False
     return (
         all(fault.path == result.path for fault in result.faults)
         and all(key.path == result.path for key in result.applied_exception_keys)
@@ -261,6 +274,9 @@ def _file_result_value(result: CachedFileResult) -> CanonicalValue:
         "faults": [_fault_value(item) for item in result.faults],
         "path": result.path,
         "source_fingerprint": result.source_fingerprint.value,
+        "threshold_override_uses": [
+            _threshold_override_use_value(item) for item in result.threshold_override_uses
+        ],
     }
 
 
@@ -306,6 +322,63 @@ def _fault(value: CanonicalValue) -> CachedFault | None:
 
 def _exception_key_value(key: CachedRuleExceptionKey) -> CanonicalValue:
     return {"path": key.path, "rule": key.rule, "symbol": key.symbol}
+
+
+def _threshold_override_use_value(use: CachedThresholdOverrideUse) -> CanonicalValue:
+    return {
+        "effective_value": use.effective_value,
+        "matched_pattern": use.matched_pattern,
+        "override_order": use.override_order,
+        "reason": use.reason,
+        "repository_path": use.repository_path,
+        "threshold": use.threshold,
+    }
+
+
+def _threshold_override_use(value: CanonicalValue) -> CachedThresholdOverrideUse | None:
+    if not isinstance(value, dict) or set(value) != THRESHOLD_OVERRIDE_USE_KEYS:
+        return None
+    threshold: CanonicalValue = value["threshold"]
+    effective_value: CanonicalValue = value["effective_value"]
+    matched_pattern: CanonicalValue = value["matched_pattern"]
+    reason: CanonicalValue = value["reason"]
+    override_order: CanonicalValue = value["override_order"]
+    repository_path: CanonicalValue = value["repository_path"]
+    if not (
+        isinstance(threshold, str)
+        and threshold in {item.value for item in Threshold}
+        and type(effective_value) is int
+        and effective_value >= 0
+        and isinstance(matched_pattern, str)
+        and bool(matched_pattern)
+        and isinstance(reason, str)
+        and bool(reason.strip())
+        and type(override_order) is int
+        and override_order >= 0
+        and is_relative_path(value=repository_path)
+    ):
+        return None
+    return CachedThresholdOverrideUse(
+        threshold=threshold,
+        effective_value=effective_value,
+        matched_pattern=matched_pattern,
+        reason=reason,
+        override_order=override_order,
+        repository_path=cast(str, repository_path),
+    )
+
+
+def _threshold_override_use_sort_key(
+    use: CachedThresholdOverrideUse,
+) -> tuple[str, str, int, str, str, int]:
+    return (
+        use.repository_path,
+        use.threshold,
+        use.override_order,
+        use.matched_pattern,
+        use.reason,
+        use.effective_value,
+    )
 
 
 def _exception_key(value: CanonicalValue) -> CachedRuleExceptionKey | None:

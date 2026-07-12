@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from strata.agentdocs.main.generate import generate_skill
-from strata.config.models import Config, RuleExceptionEntry
+from strata.config.models import Config, RuleExceptionEntry, ThresholdOverride
 from strata.rules.authoring.models import RuleSpec
+from strata.rules.authoring.types import Threshold
 from strata.rules.catalog.constants import CORE_RULES
 from tests.unit.src.strata.agentdocs.main._test_types import GuidanceTestCase
 from tests.unit.src.strata.agentdocs.main.helpers import (
@@ -14,6 +17,9 @@ from tests.unit.src.strata.agentdocs.main.helpers import (
     core_rules_for_codes,
     structure_fragment_is_absent,
 )
+
+_ESCAPED_OVERRIDE_PATH: str = 'src/"quoted"/back\\slash\n/**/*.py'
+_ESCAPED_OVERRIDE_REASON: str = 'Generated "API" path.\nKeep \\ escapes.'
 
 
 @pytest.mark.parametrize(
@@ -73,6 +79,16 @@ from tests.unit.src.strata.agentdocs.main.helpers import (
                 "models.py",
                 "exceptions.py",
                 "### Role Examples",
+                "### Role Containers",
+                "#### `helpers/`: Flat Or Grouped",
+                "configured role base is 10",
+                "#### `main/`: Flat Or Grouped",
+                "configured role base is 20",
+                "Configured base `max_role_depth` is 1",
+                "Runtime role names are banned as buckets",
+                "Generic bucket names remain SFR204 concerns",
+                "Every non-`__init__.py` module whose first structural role is `main`",
+                "Entry shape and container depth are orthogonal",
                 "Expose exactly one public entry function and keep phase work in helpers.",
                 "return normalize_invoice(loaded)",
                 "@dataclass(frozen=True, slots=True)",
@@ -94,7 +110,68 @@ from tests.unit.src.strata.agentdocs.main.helpers import (
                 "run_tool.py",
                 "rules/",
             ),
-            expected_absent_fragments=("Never use `core`",),
+            expected_absent_fragments=(
+                "Never use `core`",
+                "main/ packages must remain flat orchestration surfaces",
+                "Keep entry modules directly under main/",
+            ),
+        ),
+        GuidanceTestCase(
+            description="configured threshold override appears with exact precedence syntax",
+            config=Config(
+                roots=("src/acme",),
+                tests=(),
+                tooling=(),
+                threshold_overrides=(
+                    ThresholdOverride(
+                        paths=("src/acme/**/main/commands/*.py",),
+                        thresholds={Threshold.MAX_MAIN_CONTAINER_MODULES: 36},
+                        reason="Product-width command surface.",
+                    ),
+                ),
+            ),
+            rule_codes=("SFR204", "SFR301", "SFR302", "SFR306", "SFR307", "SFR401"),
+            expected_fragments=(
+                "### Role Containers",
+                "or group every module:",
+                "Every container holds direct Python modules or Python-containing buckets",
+                "Empty and asset-only directories do not count as buckets.",
+                "## Configured Threshold Overrides",
+                "`(literal segments, literal characters, -globstars, -wildcards, declaration order)`",
+                "[[threshold_overrides]]",
+                'paths = ["src/acme/**/main/commands/*.py"]',
+                'reason = "Product-width command surface."',
+                "thresholds = { max_main_container_modules = 36 }",
+                "A `main` bucket below another role is not an entry boundary.",
+            ),
+            expected_absent_fragments=(
+                "main/ packages must remain flat orchestration surfaces",
+                "Keep entry modules directly under main/",
+            ),
+        ),
+        GuidanceTestCase(
+            description="non-container rule shows safely quoted configured threshold override",
+            config=Config(
+                roots=("src/acme",),
+                tests=(),
+                tooling=(),
+                threshold_overrides=(
+                    ThresholdOverride(
+                        paths=(_ESCAPED_OVERRIDE_PATH,),
+                        thresholds={Threshold.MAX_FILE_LINES: 3000},
+                        reason=_ESCAPED_OVERRIDE_REASON,
+                    ),
+                ),
+            ),
+            rule_codes=("SFA101",),
+            expected_fragments=(
+                "## Configured Threshold Overrides",
+                "[[threshold_overrides]]",
+                f"paths = [{json.dumps(_ESCAPED_OVERRIDE_PATH)}]",
+                f"reason = {json.dumps(_ESCAPED_OVERRIDE_REASON)}",
+                "thresholds = { max_file_lines = 3000 }",
+            ),
+            expected_absent_fragments=("### Role Containers", "## Repository Structure"),
         ),
         GuidanceTestCase(
             description="foundation rules show reduced runtime and test skeletons",

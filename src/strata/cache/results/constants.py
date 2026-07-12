@@ -16,8 +16,6 @@ SHA256_HEX_DIGITS: frozenset[str] = frozenset("0123456789abcdef")
 WINDOWS_PATH_SEPARATOR: str = "\\"
 PARENT_PATH_PART: str = ".."
 REPOSITORY_ROOT_PATH: str = "."
-CORE_RULE_CODE_PATTERN: str = r"SF[A-Z][0-9]{3}"
-CUSTOM_RULE_CODE_PATTERN: str = r"X[A-Za-z0-9][A-Za-z0-9_-]*"
 RULE_EXCEPTION_SYMBOL_PATTERN: str = r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?"
 METADATA_PAYLOAD_KEYS: frozenset[str] = frozenset({"global_fingerprint"})
 INDEX_PAYLOAD_KEYS: frozenset[str] = frozenset({"entries", "global_fingerprint"})
@@ -25,13 +23,30 @@ INDEX_ENTRY_KEYS: frozenset[str] = frozenset(
     {"path", "record_fingerprint", "result_fingerprint", "source_fingerprint"}
 )
 FILE_RESULT_PAYLOAD_KEYS: frozenset[str] = frozenset(
-    {"applied_exception_keys", "dependencies", "faults", "path", "source_fingerprint"}
+    {
+        "applied_exception_keys",
+        "dependencies",
+        "faults",
+        "path",
+        "source_fingerprint",
+        "threshold_override_uses",
+    }
 )
 FACT_PAYLOAD_KEYS: frozenset[str] = frozenset(
     {"fact_kind", "path", "payload", "source_fingerprint"}
 )
 FAULT_KEYS: frozenset[str] = frozenset({"code", "column", "line", "message", "path", "remediation"})
 RULE_EXCEPTION_KEY_KEYS: frozenset[str] = frozenset({"path", "rule", "symbol"})
+THRESHOLD_OVERRIDE_USE_KEYS: frozenset[str] = frozenset(
+    {
+        "effective_value",
+        "matched_pattern",
+        "override_order",
+        "reason",
+        "repository_path",
+        "threshold",
+    }
+)
 DEPENDENCY_OBSERVATION_KEYS: frozenset[str] = frozenset(
     {
         "answer",

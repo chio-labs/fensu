@@ -28,7 +28,6 @@ _test_function_rule_codes: frozenset[SftCode] = frozenset(
         SftCode.PARAMETRIZE_TEST_CASE,
         SftCode.PARAMETRIZE_IDS,
         SftCode.INLINE_PARAMETRIZE_VALUES,
-        SftCode.INLINE_PARAMETRIZE_SEQUENCE,
         SftCode.NONEMPTY_PARAMETRIZE_VALUES,
         SftCode.NO_DICT_TEST_CASES,
         SftCode.LOCAL_TEST_CASE_CONSTRUCTORS,
@@ -364,8 +363,6 @@ def _module_shape_faults(*, ctx: RuleContext, code: SftCode) -> list[Fault]:
     facts: PytestModuleFacts = ctx._analysis.facts.test_module()
     if code == SftCode.NO_TOP_LEVEL_HELPERS:
         return [ctx.fault_at(location=location) for location in facts.top_level_helper_locations]
-    if code == SftCode.NO_MODULE_TEST_CASE_LISTS:
-        return [ctx.fault_at(location=location) for location in facts.test_case_list_locations]
     if code == SftCode.PRIVATE_CONSTANT_ORDER:
         return [ctx.fault_at(location=location) for location in facts.private_after_test_locations]
     return []
@@ -449,13 +446,13 @@ def _parametrize_faults(
         faults.append(ctx.fault_at(location=function.location))
     if code == SftCode.PARAMETRIZE_IDS and not decorator.ids_present:
         faults.append(ctx.fault_at(location=function.location))
-    if decorator.values_is_name:
+    if not decorator.values_is_sequence and not decorator.values_is_comprehension:
         return faults + (
             [ctx.fault_at(location=function.location)]
             if code == SftCode.INLINE_PARAMETRIZE_VALUES
             else []
         )
-    if decorator.values_is_list_comprehension:
+    if decorator.values_is_comprehension:
         if code == SftCode.LOCAL_TEST_CASE_CONSTRUCTORS and not _is_local_constructor(
             constructor_name=decorator.cases[0].constructor_name, context=module_context
         ):
@@ -463,12 +460,6 @@ def _parametrize_faults(
         if code == SftCode.DESCRIPTION_LAMBDA_IDS and not decorator.description_lambda_ids:
             faults.append(ctx.fault_at(location=function.location))
         return faults
-    if not decorator.values_is_sequence:
-        return faults + (
-            [ctx.fault_at(location=function.location)]
-            if code == SftCode.INLINE_PARAMETRIZE_SEQUENCE
-            else []
-        )
     if code == SftCode.NONEMPTY_PARAMETRIZE_VALUES and decorator.values_empty:
         faults.append(ctx.fault_at(location=function.location))
     for case in decorator.cases:

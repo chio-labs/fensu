@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from strata.config.models import ThresholdOverride
 from strata.evaluation.models import EvaluationResult
 from strata.rules.authoring.types import Threshold
 from tests.unit.src.strata.rules.shape.main._test_types import ShapeRuleTestCase
@@ -13,6 +14,8 @@ from tests.unit.src.strata.rules.shape.main.helpers import (
     calls_source,
     evaluate_shape_test_case,
     locals_source,
+    method_statements_source,
+    pass_statements_source,
     statements_source,
 )
 
@@ -195,11 +198,78 @@ def test_given_functions_when_checking_arguments_then_flags_only_over_limit(
             relative_path="domain/core/helpers/tools.py",
         ),
         ShapeRuleTestCase(
-            description="main function above tight limit but below global floor is allowed",
+            description="top-level main function is skipped when global rule is selected alone",
             rule_code="SFS011",
-            source=statements_source(45),
+            source=statements_source(71),
             expected_codes=(),
             expected_lines=(),
+        ),
+        ShapeRuleTestCase(
+            description="oversized method in main module remains globally checked",
+            rule_code="SFS011",
+            source=method_statements_source(71),
+            expected_codes=("SFS011",),
+            expected_lines=(2,),
+        ),
+        ShapeRuleTestCase(
+            description="oversized nested function in main module remains globally checked",
+            rule_code="SFS011",
+            source=(
+                "def run() -> None:\n"
+                + statements_source(71)
+                .replace("def run", "    def nested")
+                .replace("\n    value", "\n        value")
+                .replace("\n    return", "\n        return")
+                + "    nested()\n"
+            ),
+            expected_codes=("SFS011",),
+            expected_lines=(2,),
+        ),
+        ShapeRuleTestCase(
+            description="full shape rules report oversized top-level main function once",
+            rule_code="SFS",
+            source=pass_statements_source(71),
+            expected_codes=("SFS001",),
+            expected_lines=(1,),
+        ),
+        ShapeRuleTestCase(
+            description="main ownership remains with SFS001 when global floor is lower",
+            rule_code="SFS",
+            source=pass_statements_source(71),
+            expected_codes=(),
+            expected_lines=(),
+            thresholds={
+                Threshold.MAX_STATEMENTS: 80,
+                Threshold.MAX_STATEMENTS_GLOBAL: 50,
+            },
+        ),
+        ShapeRuleTestCase(
+            description="main role threshold takes precedence without reviving SFS011",
+            rule_code="SFS",
+            source=pass_statements_source(71),
+            expected_codes=(),
+            expected_lines=(),
+            thresholds={
+                Threshold.MAX_STATEMENTS: 40,
+                Threshold.MAX_STATEMENTS_GLOBAL: 50,
+            },
+            role_thresholds={"main": {Threshold.MAX_STATEMENTS: 80}},
+        ),
+        ShapeRuleTestCase(
+            description="path threshold override wins without reviving SFS011",
+            rule_code="SFS",
+            source=pass_statements_source(71),
+            expected_codes=(),
+            expected_lines=(),
+            thresholds={Threshold.MAX_STATEMENTS_GLOBAL: 50},
+            role_thresholds={"main": {Threshold.MAX_STATEMENTS: 40}},
+            threshold_overrides=(
+                ThresholdOverride(
+                    paths=("src/pkg/domain/core/main/run.py",),
+                    thresholds={Threshold.MAX_STATEMENTS: 80},
+                    reason="Wide generated coordinator fixture.",
+                ),
+            ),
         ),
     ],
     ids=lambda case: case.description,

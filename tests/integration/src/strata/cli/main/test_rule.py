@@ -73,7 +73,25 @@ def test_given_known_custom_rule_when_inspecting_then_renders_single_sourced_met
             argv=("UNKNOWN",),
             expected_exit_code=2,
             expected_output_fragments=("Unknown rule code: UNKNOWN",),
-        )
+        ),
+        MetadataCommandTestCase(
+            description="lowercase exact rule spelling is rejected",
+            argv=("sfs131",),
+            expected_exit_code=2,
+            expected_output_fragments=("Unknown rule code: sfs131",),
+        ),
+        MetadataCommandTestCase(
+            description="core selector-only spelling is rejected",
+            argv=("SFR3",),
+            expected_exit_code=2,
+            expected_output_fragments=("Unknown rule code: SFR3",),
+        ),
+        MetadataCommandTestCase(
+            description="custom selector-only spelling is rejected",
+            argv=("XCK",),
+            expected_exit_code=2,
+            expected_output_fragments=("Unknown rule code: XCK",),
+        ),
     ],
     ids=lambda case: case.description,
 )

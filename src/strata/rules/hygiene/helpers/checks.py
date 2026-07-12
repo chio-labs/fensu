@@ -100,3 +100,13 @@ def no_magic_numeric_comparisons(*, module: ast.Module, ctx: RuleContext) -> lis
         ctx.fault_at(location=location)
         for location in ctx._analysis.facts.hygiene().magic_numeric_comparisons
     ]
+
+
+def no_import_time_side_effects(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Flag standalone calls that execute while a runtime or tooling module is imported."""
+
+    del module
+    return [
+        ctx.fault_at(location=location)
+        for location in ctx._analysis.facts.module_declarations().import_time_call_locations
+    ]

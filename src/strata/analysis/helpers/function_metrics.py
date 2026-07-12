@@ -291,16 +291,17 @@ def _parametrize_fact(
             parameter_name=_extract_string(decorator.args[0]) if decorator.args else None,
             ids_present=ids_expression is not None,
             description_lambda_ids=_is_description_lambda_ids(ids_expression),
-            values_is_name=False,
-            values_is_list_comprehension=False,
+            values_is_comprehension=False,
             values_is_sequence=False,
             values_empty=False,
             cases=(),
         )
     values_expression: ast.expr = decorator.args[1]
     case_nodes: tuple[ast.expr, ...] = ()
-    if isinstance(values_expression, ast.ListComp):
+    if isinstance(values_expression, ast.ListComp | ast.SetComp | ast.GeneratorExp):
         case_nodes = (values_expression.elt,)
+    elif isinstance(values_expression, ast.DictComp):
+        case_nodes = (values_expression.key,)
     elif isinstance(values_expression, ast.List | ast.Tuple):
         case_nodes = tuple(values_expression.elts)
     return ParametrizeFact(
@@ -308,8 +309,9 @@ def _parametrize_fact(
         parameter_name=_extract_string(decorator.args[0]),
         ids_present=ids_expression is not None,
         description_lambda_ids=_is_description_lambda_ids(ids_expression),
-        values_is_name=isinstance(values_expression, ast.Name),
-        values_is_list_comprehension=isinstance(values_expression, ast.ListComp),
+        values_is_comprehension=isinstance(
+            values_expression, ast.ListComp | ast.SetComp | ast.DictComp | ast.GeneratorExp
+        ),
         values_is_sequence=isinstance(values_expression, ast.List | ast.Tuple),
         values_empty=isinstance(values_expression, ast.List | ast.Tuple)
         and not values_expression.elts,

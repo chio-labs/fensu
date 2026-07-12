@@ -6,7 +6,7 @@ from strata.analysis.types import ProjectAnalysis
 from strata.config.models import Config
 from strata.discovery.models import ProjectLayout, RepoRoot
 from strata.evaluation.classes.rule_context import EvaluationRuleContext
-from strata.evaluation.models import ParsedModule
+from strata.evaluation.models import ParsedModule, ThresholdOverrideUse
 from strata.rules.authoring.models import Fault, RuleSpec
 
 
@@ -19,6 +19,7 @@ def execute_rule(
     layout: ProjectLayout,
     project: ProjectAnalysis,
     file_cache: dict[str, object],
+    threshold_override_uses: list[ThresholdOverrideUse],
 ) -> list[Fault]:
     """Run one rule against one parsed module."""
 
@@ -30,5 +31,6 @@ def execute_rule(
         rule=rule,
         project=project,
         file_cache=file_cache,
+        threshold_override_uses=threshold_override_uses,
     )
     return rule.check(module=parsed_module.module, ctx=ctx)

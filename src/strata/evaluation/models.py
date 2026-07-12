@@ -11,6 +11,7 @@ from strata.analysis.models import ProjectDependency
 from strata.analysis.types import Analysis
 from strata.discovery.models import PositionFacts, ScopedFile
 from strata.rules.authoring.models import Fault
+from strata.rules.authoring.types import Threshold
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,6 +35,18 @@ class RuleExceptionKey:
     rule: str
     path: str
     symbol: str
+
+
+@dataclass(frozen=True, slots=True)
+class ThresholdOverrideUse:
+    """One matching threshold override actually consulted by an active rule."""
+
+    threshold: Threshold
+    effective_value: int
+    matched_pattern: str
+    reason: str
+    override_order: int
+    repository_path: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,6 +74,7 @@ class FileEvaluation:
     faults: tuple[Fault, ...]
     applied_exception_keys: tuple[RuleExceptionKey, ...]
     dependencies: tuple[ProjectDependency, ...]
+    threshold_override_uses: tuple[ThresholdOverrideUse, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,3 +85,4 @@ class EvaluationResult:
     applied_exception_count: int = 0
     dependencies: tuple[ProjectDependency, ...] = ()
     file_evaluations: tuple[FileEvaluation, ...] = ()
+    threshold_override_uses: tuple[ThresholdOverrideUse, ...] = ()

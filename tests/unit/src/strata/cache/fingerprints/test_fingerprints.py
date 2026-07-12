@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import MappingProxyType
 
 import pytest
 
@@ -25,8 +26,9 @@ from strata.cache.fingerprints.models import (
 )
 from strata.cache.results.helpers.serialization import file_result_to_record
 from strata.cache.results.models import CachedFileResult
-from strata.config.models import CacheConfig, Config
+from strata.config.models import CacheConfig, Config, ThresholdOverride
 from strata.rules.authoring.models import RuleSpec
+from strata.rules.authoring.types import Threshold
 from strata.rules.catalog.main.build_ruleset import build_ruleset
 from tests.unit.src.strata.cache.fingerprints._test_types import (
     CacheBlockedRulesetTestCase,
@@ -42,6 +44,7 @@ from tests.unit.src.strata.cache.fingerprints._test_types import (
     ImplementationFingerprintTestCase,
     RulesetFingerprintTestCase,
     SourceFingerprintTestCase,
+    ThresholdOverrideFingerprintTestCase,
 )
 from tests.unit.src.strata.cache.fingerprints.helpers import (
     cached_file_result,
@@ -223,6 +226,42 @@ def test_given_cache_preferences_when_fingerprinting_then_excludes_operational_m
             roots=("src/pkg",),
             cache=CacheConfig(enabled=test_case.second_enabled),
         )
+    )
+
+    assert (first == second) is test_case.expected_equal
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ThresholdOverrideFingerprintTestCase(
+            description="threshold override declaration order changes semantic identity",
+            expected_equal=False,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_threshold_overrides_when_fingerprinting_then_preserves_declaration_order(
+    test_case: ThresholdOverrideFingerprintTestCase,
+) -> None:
+    first_override: ThresholdOverride = ThresholdOverride(
+        paths=("src/pkg/**/*.py",),
+        thresholds=MappingProxyType({Threshold.MAX_ROLE_DEPTH: 2}),
+        reason="first",
+    )
+    second_override: ThresholdOverride = ThresholdOverride(
+        paths=("src/pkg/**/main/*.py",),
+        thresholds=MappingProxyType({Threshold.MAX_MAIN_CONTAINER_MODULES: 30}),
+        reason="second",
+    )
+    first_order: tuple[ThresholdOverride, ...] = (first_override, second_override)
+    second_order: tuple[ThresholdOverride, ...] = (second_override, first_override)
+
+    first: CacheFingerprint = config_fingerprint(
+        Config(roots=("src/pkg",), threshold_overrides=first_order)
+    )
+    second: CacheFingerprint = config_fingerprint(
+        Config(roots=("src/pkg",), threshold_overrides=second_order)
     )
 
     assert (first == second) is test_case.expected_equal

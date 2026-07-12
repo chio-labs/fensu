@@ -137,6 +137,25 @@ def direct_module_walk_paths(*, root: Path) -> tuple[str, ...]:
     return tuple(paths)
 
 
+def private_context_zone_paths(*, root: Path) -> tuple[str, ...]:
+    """Return rule files that access private context analysis zones."""
+
+    paths: list[str] = []
+    private_attributes: frozenset[str] = frozenset({"_analysis", "_project"})
+    for path in sorted(root.rglob("*.py")):
+        module: ast.Module = ast.parse(path.read_text(encoding="utf-8"))
+        has_private_zone: bool = any(
+            isinstance(node, ast.Attribute)
+            and node.attr in private_attributes
+            and isinstance(node.value, ast.Name)
+            and node.value.id == "ctx"
+            for node in ast.walk(module)
+        )
+        if has_private_zone:
+            paths.append(str(path))
+    return tuple(paths)
+
+
 def make_config_with_entry_threshold(*, roots: tuple[str, ...] = ("src/pkg",)) -> Config:
     """Build config with a role override for entry-module threshold tests."""
 
@@ -316,12 +335,15 @@ def make_context_ast_helper_rule() -> RuleSpec:
 
 
 def make_analysis_context_rule() -> RuleSpec:
-    """Build a fake rule that reports through the private analysis facade."""
+    """Build a fake rule that reports through the public analysis zones."""
 
     def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
-        handle: SyntaxHandle = ctx._analysis.syntax.handles(kind="Call")[0]
-        source_range: SourceRange = ctx._analysis.syntax.range(handle)
-        message: str = ctx._analysis.text.slice(source_range)
+        handle: SyntaxHandle = ctx.syntax.handles(kind="Call")[0]
+        source_range: SourceRange = ctx.syntax.range(handle)
+        parent: SyntaxHandle | None = ctx.relations.parent(handle)
+        function_count: int = len(ctx.facts.functions().functions)
+        parent_kind: str = "" if parent is None else ctx.syntax.kind(parent)
+        message: str = f"{ctx.text.slice(source_range)}|{function_count}|{parent_kind}"
         return [ctx.fault_at(location=handle, message=message)]
 
     return RuleSpec(
@@ -334,7 +356,7 @@ def make_project_dependency_rule() -> RuleSpec:
 
     def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
         del module
-        ctx._project.is_file(
+        ctx.project.is_file(
             requester=ctx.path,
             path=ctx.repo_root / "missing.py",
         )

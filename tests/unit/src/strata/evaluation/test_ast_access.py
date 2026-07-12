@@ -14,9 +14,13 @@ from strata.evaluation.helpers import ast_access
 from tests.unit.src.strata.evaluation._test_types import (
     AstAccessTestCase,
     AstIndexTestCase,
+    CoreContextZoneTestCase,
     CoreWalkTestCase,
 )
-from tests.unit.src.strata.evaluation.helpers import direct_module_walk_paths
+from tests.unit.src.strata.evaluation.helpers import (
+    direct_module_walk_paths,
+    private_context_zone_paths,
+)
 
 
 @pytest.mark.parametrize(
@@ -108,3 +112,21 @@ def test_given_core_rules_when_inspecting_walks_then_only_holistic_analysis_walk
     direct_walk_paths: tuple[str, ...] = direct_module_walk_paths(root=Path("src/strata/rules"))
 
     assert direct_walk_paths == test_case.expected_paths
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CoreContextZoneTestCase(
+            description="core rules use only public context analysis zones",
+            expected_paths=(),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_core_rules_when_inspecting_context_then_no_private_analysis_zones_are_used(
+    test_case: CoreContextZoneTestCase,
+) -> None:
+    private_zone_paths: tuple[str, ...] = private_context_zone_paths(root=Path("src/strata/rules"))
+
+    assert private_zone_paths == test_case.expected_paths

@@ -189,6 +189,29 @@ class PytestFunctionFactTestCase:
 
 
 @dataclass(frozen=True)
+class ObserverFingerprintParityTestCase:
+    """Source bytes and expected fingerprint parity across implementations."""
+
+    description: str
+    source: bytes
+    expected_available: bool
+
+
+@dataclass(frozen=True)
+class ObserverQueryTestCase:
+    """One small layout and expected shared observation answers."""
+
+    description: str
+    file_names: tuple[str, ...]
+    directory_names: tuple[str, ...]
+    glob_pattern: str
+    glob_recursive: bool
+    expected_entry_names: tuple[str, ...]
+    expected_glob_names: tuple[str, ...]
+    expected_missing_source: bool
+
+
+@dataclass(frozen=True)
 class PytestModuleFactTestCase:
     """Source and expected test module-shape metadata."""
 

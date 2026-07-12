@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from strata.analysis.core.classes.query_observer import QueryObserver
 from strata.analysis.core.main.build import build_analysis
 from strata.analysis.core.models import DataclassFact, ProjectDependency, ProjectFunctionFact
 from strata.analysis.core.types import Analysis, AnalysisBuild, ProjectDependencyKind
@@ -28,6 +29,7 @@ class _EvaluationProjectAnalysis:
         """Index discovered files without parsing them eagerly."""
 
         self._repo_root: Path = tree.repo_root.path
+        self._observer: QueryObserver = QueryObserver()
         self._sources: tuple[ProjectSource, ...] = (
             *tree.layout.runtime_sources,
             *tree.layout.tooling_sources,
@@ -140,7 +142,9 @@ class _EvaluationProjectAnalysis:
 
         query_path: Path = path.absolute()
         if query_path not in self._directory_entries:
-            self._directory_entries[query_path] = tuple(query_path.iterdir())
+            self._directory_entries[query_path] = self._observer.directory_entries(
+                query_path=query_path
+            )
         entries: tuple[Path, ...] = self._directory_entries[query_path]
         self._record(
             requester=requester,
@@ -174,7 +178,7 @@ class _EvaluationProjectAnalysis:
 
         resolved_path: Path = self._resolve(path)
         if resolved_path not in self._exists:
-            self._exists[resolved_path] = resolved_path.exists()
+            self._exists[resolved_path] = self._observer.exists(resolved_path=resolved_path)
         answer: bool = self._exists[resolved_path]
         self._record(
             requester=requester,
@@ -189,7 +193,7 @@ class _EvaluationProjectAnalysis:
 
         resolved_path: Path = self._resolve(path)
         if resolved_path not in self._directories:
-            self._directories[resolved_path] = resolved_path.is_dir()
+            self._directories[resolved_path] = self._observer.is_dir(resolved_path=resolved_path)
         answer: bool = self._directories[resolved_path]
         self._record(
             requester=requester,
@@ -204,7 +208,7 @@ class _EvaluationProjectAnalysis:
 
         resolved_path: Path = self._resolve(path)
         if resolved_path not in self._files:
-            self._files[resolved_path] = resolved_path.is_file()
+            self._files[resolved_path] = self._observer.is_file(resolved_path=resolved_path)
         answer: bool = self._files[resolved_path]
         self._record(
             requester=requester,
@@ -227,8 +231,10 @@ class _EvaluationProjectAnalysis:
         query_path: Path = path.absolute()
         cache_key: tuple[Path, str, bool] = (query_path, pattern, recursive)
         if cache_key not in self._globs:
-            self._globs[cache_key] = tuple(
-                query_path.rglob(pattern) if recursive else query_path.glob(pattern)
+            self._globs[cache_key] = self._observer.glob(
+                query_path=query_path,
+                pattern=pattern,
+                recursive=recursive,
             )
         matches: tuple[Path, ...] = self._globs[cache_key]
         self._record(

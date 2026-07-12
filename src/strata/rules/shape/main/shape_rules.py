@@ -109,9 +109,10 @@ def shape_rules() -> tuple[RuleSpec, ...]:
             code=ShapeCode.KEYWORD_ONLY_ARGUMENTS,
             family=Family.SHAPE,
             slug="keyword-only-arguments",
-            message="function parameters must be keyword-only beyond the configured threshold",
+            message="functions beyond the parameter threshold must be entirely keyword-only",
             remediation=(
-                "Insert * before optional or secondary parameters so call sites name their meaning."
+                "Insert * before the first non-receiver parameter so every call argument names "
+                "its meaning."
             ),
             check=keyword_only_arguments,
         ),

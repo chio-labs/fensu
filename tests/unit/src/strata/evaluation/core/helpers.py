@@ -45,7 +45,7 @@ def write_exception_target(*, repo_root: Path, path: str, create_path: bool) -> 
 def discover_test_tree(*, config: Config) -> DiscoveredTree:
     """Discover files for an evaluation test config."""
 
-    return discover_files(config)
+    return discover_files(config=config)
 
 
 def make_project_layout(
@@ -160,7 +160,7 @@ def make_node_count_rule() -> RuleSpec:
     """Build a fake rule that reports all call nodes via ctx.nodes."""
 
     def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
-        return [ctx.fault(node, message="call found") for node in ctx.nodes(ast.Call)]
+        return [ctx.fault(node=node, message="call found") for node in ctx.nodes(ast.Call)]
 
     return RuleSpec(
         code="XEV001", family=Family.CUSTOM, slug="node-count", message="call found", check=check
@@ -171,7 +171,7 @@ def make_runtime_fault_rule() -> RuleSpec:
     """Build a fake runtime-only rule that reports the first module node."""
 
     def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
-        return [ctx.fault(module.body[0])]
+        return [ctx.fault(node=module.body[0])]
 
     return RuleSpec(
         code="SFX999",
@@ -187,7 +187,7 @@ def make_threshold_rule(*, threshold: Threshold) -> RuleSpec:
 
     def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
         node: ast.AST = module.body[0]
-        return [ctx.fault(node, message=str(ctx.threshold(threshold)))]
+        return [ctx.fault(node=node, message=str(ctx.threshold(threshold)))]
 
     return RuleSpec(
         code="XTH001", family=Family.CUSTOM, slug="threshold", message="threshold", check=check
@@ -200,7 +200,7 @@ def make_position_rule() -> RuleSpec:
     def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
         node: ast.AST = module.body[0]
         message: str = f"{ctx.domain()}:{ctx.subdomain()}:{ctx.role_of()}:{ctx.is_main_module()}"
-        return [ctx.fault(node, message=message)]
+        return [ctx.fault(node=node, message=message)]
 
     return RuleSpec(
         code="XPO001", family=Family.CUSTOM, slug="position", message="position", check=check
@@ -214,7 +214,7 @@ def make_loop_rule() -> RuleSpec:
         faults: list[Fault] = []
         for node in ctx.nodes(ast.Call):
             if isinstance(node, ast.Call) and ctx.inside_loop(node):
-                faults.append(ctx.fault(node, message=ctx.call_name(node) or "call"))
+                faults.append(ctx.fault(node=node, message=ctx.call_name(node) or "call"))
         return faults
 
     return RuleSpec(code="XLP001", family=Family.CUSTOM, slug="loop", message="loop", check=check)
@@ -249,7 +249,7 @@ def make_context_property_rule() -> RuleSpec:
             f"{ctx.path.name}|{ctx.repo_root.name}|{len(ctx.source)}|"
             f"{'/'.join(ctx.relative_parts())}"
         )
-        return [ctx.fault(node, message=message)]
+        return [ctx.fault(node=node, message=message)]
 
     return RuleSpec(
         code="XCP001", family=Family.CUSTOM, slug="ctx-props", message="ctx", check=check
@@ -262,8 +262,8 @@ def make_fault_factory_rule() -> RuleSpec:
     def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
         node: ast.AST = module.body[0]
         return [
-            ctx.fault(node),
-            ctx.fault(node, message="custom message", remediation="custom remediation"),
+            ctx.fault(node=node),
+            ctx.fault(node=node, message="custom message", remediation="custom remediation"),
         ]
 
     return RuleSpec(
@@ -289,7 +289,7 @@ def make_context_ast_helper_rule() -> RuleSpec:
             f"{ctx.base_name(call.func) or ''}|{len(ctx.non_docstring_body(module))}|"
             f"{len(ctx.nodes(ast.If))}|{','.join(sorted(ctx.parameter_names(fn)))}"
         )
-        return [ctx.fault(fn, message=message)]
+        return [ctx.fault(node=fn, message=message)]
 
     return RuleSpec(
         code="XAH001", family=Family.CUSTOM, slug="ast-helpers", message="ast", check=check
@@ -303,7 +303,7 @@ def make_analysis_context_rule() -> RuleSpec:
         handle: SyntaxHandle = ctx._analysis.syntax.handles(kind="Call")[0]
         source_range: SourceRange = ctx._analysis.syntax.range(handle)
         message: str = ctx._analysis.text.slice(source_range)
-        return [ctx.fault_at(handle, message=message)]
+        return [ctx.fault_at(location=handle, message=message)]
 
     return RuleSpec(
         code="XAN001", family=Family.CUSTOM, slug="analysis", message="analysis", check=check

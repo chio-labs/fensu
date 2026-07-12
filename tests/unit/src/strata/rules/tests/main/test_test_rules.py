@@ -105,7 +105,7 @@ def test_given_complete_tests_family_when_evaluating_then_bounds_local_type_load
 
     def count_parse(scoped_file: ScopedFile) -> ParsedModule:
         parse_counts[0] += 1
-        return parse_scoped_file(scoped_file)
+        return parse_scoped_file(scoped_file=scoped_file)
 
     def count_layout_issue(*, ctx: RuleContext) -> test_checks._LayoutIssue | None:
         layout_counts[0] += 1
@@ -118,7 +118,7 @@ def test_given_complete_tests_family_when_evaluating_then_bounds_local_type_load
     monkeypatch.setattr(test_checks, "_layout_issue", count_layout_issue)
 
     _result: EvaluationResult = evaluate(
-        tree=discover_files(config), ruleset=SFT_RULES, config=config
+        tree=discover_files(config=config), ruleset=SFT_RULES, config=config
     )
 
     assert parse_counts[0] == test_case.expected_parse_count

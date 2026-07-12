@@ -43,7 +43,7 @@ def evaluate_shape_test_case(
         ),
     )
     return evaluate(
-        tree=discover_files(config),
+        tree=discover_files(config=config),
         ruleset=(_rule_by_code(test_case.rule_code),),
         config=config,
     )

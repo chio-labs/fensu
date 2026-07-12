@@ -50,7 +50,9 @@ def _child_lines(
     for index, entry in enumerate(node.entries):
         last: bool = index == len(node.entries) - 1
         connector: str = "└── " if last else "├── "
-        rendered_connector: str = _color(f"{prefix}{connector}", style=ANSI_DIM, enabled=use_color)
+        rendered_connector: str = _color(
+            text=f"{prefix}{connector}", style=ANSI_DIM, enabled=use_color
+        )
         if isinstance(entry, UnresolvedCall):
             location: str = _location(
                 path=node.definition.path,
@@ -58,10 +60,12 @@ def _child_lines(
                 repo_root=repo_root,
                 path_mode=path_mode,
             )
-            label: str = _color(f"{entry.name}(...)", style=ANSI_FUNCTION, enabled=use_color)
-            rendered_location: str = _color(location, style=ANSI_DIM, enabled=use_color)
+            label: str = _color(text=f"{entry.name}(...)", style=ANSI_FUNCTION, enabled=use_color)
+            rendered_location: str = _color(text=location, style=ANSI_DIM, enabled=use_color)
             marker: str = _color(
-                f"(unresolved {entry.reason})", style=ANSI_UNRESOLVED, enabled=use_color
+                text=f"(unresolved {entry.reason})",
+                style=ANSI_UNRESOLVED,
+                enabled=use_color,
             )
             lines.append(f"{rendered_connector}{label}{rendered_location}  {marker}")
             continue
@@ -86,18 +90,20 @@ def _child_lines(
 
 
 def _label(*, node: CallMapNode, repo_root: Path, path_mode: PathMode, use_color: bool) -> str:
-    function: str = _color(f"{node.definition.name}(...)", style=ANSI_FUNCTION, enabled=use_color)
+    function: str = _color(
+        text=f"{node.definition.name}(...)", style=ANSI_FUNCTION, enabled=use_color
+    )
     location: str = _location(
         path=node.definition.path,
         line=node.definition.node.lineno,
         repo_root=repo_root,
         path_mode=path_mode,
     )
-    rendered_location: str = _color(location, style=ANSI_DIM, enabled=use_color)
+    rendered_location: str = _color(text=location, style=ANSI_DIM, enabled=use_color)
     if node.cycle:
-        marker: str = _color("  (cycle)", style=ANSI_CYCLE, enabled=use_color)
+        marker: str = _color(text="  (cycle)", style=ANSI_CYCLE, enabled=use_color)
     elif node.truncated:
-        marker = _color("  (depth limit)", style=ANSI_DIM, enabled=use_color)
+        marker = _color(text="  (depth limit)", style=ANSI_DIM, enabled=use_color)
     else:
         marker = ""
     return f"{function}{rendered_location}{marker}"
@@ -122,7 +128,7 @@ def _compact_path(path: str) -> str:
     return str(Path(*parts[:2], "…", *parts[-2:]))
 
 
-def _color(text: str, *, style: str, enabled: bool) -> str:
+def _color(*, text: str, style: str, enabled: bool) -> str:
     if not text or not enabled:
         return text
     return f"{style}{text}{ANSI_RESET}"

@@ -35,8 +35,8 @@ def run_rule(
         loaded: LoadedConfig = load_project_config(Path.cwd())
         project_dir: Path = loaded.source.path.parent.resolve()
         config: Config = loaded.config
-        catalogue: tuple[RuleSpec, ...] = build_catalogue(config, repo_root=project_dir)
-        tree: DiscoveredTree = discover_files(config, repo_root=project_dir)
+        catalogue: tuple[RuleSpec, ...] = build_catalogue(config=config, repo_root=project_dir)
+        tree: DiscoveredTree = discover_files(config=config, repo_root=project_dir)
         validate_rule_exceptions(config=config, repo_root=tree.repo_root.path)
     except ConfigError as error:
         stderr.write(f"{error}\n")
@@ -52,13 +52,13 @@ def run_rule(
     exceptions: tuple[RuleExceptionEntry, ...] = tuple(
         exception for exception in config.rule_exceptions if exception.rule == rule.code
     )
-    stdout.write(_render_rule(rule, exceptions=exceptions, use_color=use_color))
+    stdout.write(_render_rule(rule=rule, exceptions=exceptions, use_color=use_color))
     stdout.write("\n")
     return 0
 
 
 def _render_rule(
-    rule: RuleSpec, *, exceptions: tuple[RuleExceptionEntry, ...], use_color: bool
+    *, rule: RuleSpec, exceptions: tuple[RuleExceptionEntry, ...], use_color: bool
 ) -> str:
     remediation: str = rule.remediation or "None provided."
     source: str = rule.source or "core"

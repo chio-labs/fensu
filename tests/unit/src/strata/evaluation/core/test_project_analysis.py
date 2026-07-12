@@ -319,12 +319,12 @@ def test_given_project_query_order_when_parsing_then_retains_only_required_modul
     parse_counts: list[int] = [0]
 
     def count_parse(
-        candidate: ScopedFile,
         *,
+        scoped_file: ScopedFile,
         source_snapshot: SourceSnapshot | None = None,
     ) -> ParsedModule:
         parse_counts[0] += 1
-        return parse_scoped_file(candidate, source_snapshot=source_snapshot)
+        return parse_scoped_file(scoped_file=scoped_file, source_snapshot=source_snapshot)
 
     monkeypatch.setattr(
         "strata.evaluation.core.helpers.project_analysis.parse_scoped_file",
@@ -380,9 +380,9 @@ def test_given_parsed_test_types_when_querying_dataclasses_then_reuses_fact_snap
     )
     parse_counts: list[int] = [0]
 
-    def count_parse(candidate: ScopedFile) -> ParsedModule:
+    def count_parse(*, scoped_file: ScopedFile) -> ParsedModule:
         parse_counts[0] += 1
-        return parse_scoped_file(candidate)
+        return parse_scoped_file(scoped_file=scoped_file)
 
     monkeypatch.setattr(
         "strata.evaluation.core.helpers.project_analysis.parse_scoped_file",

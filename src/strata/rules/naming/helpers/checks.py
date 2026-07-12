@@ -20,5 +20,5 @@ def validator_must_not_return(*, module: ast.Module, ctx: RuleContext) -> list[F
     )
     faults: list[Fault] = []
     for fact in ctx._analysis.facts.meaningful_returns(name_patterns=patterns):
-        faults.append(ctx.fault_at(fact.location))
+        faults.append(ctx.fault_at(location=fact.location))
     return faults

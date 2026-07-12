@@ -93,7 +93,7 @@ def test_given_scope_and_targets_when_updating_skills_then_installs_active_rule_
     stdout: CaptureOutput = CaptureOutput()
     stderr: CaptureOutput = CaptureOutput()
     config: Config = load_config(tmp_path)
-    active_rules: tuple[RuleSpec, ...] = build_ruleset(config)
+    active_rules: tuple[RuleSpec, ...] = build_ruleset(config=config)
     active_rule_headings: tuple[str, ...] = tuple(
         f"## {rule.code}: {rule.slug}" for rule in active_rules
     )

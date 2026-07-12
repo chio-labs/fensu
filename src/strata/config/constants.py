@@ -69,6 +69,14 @@ CONTRACT_BEHAVIORS: frozenset[str] = frozenset(ContractBehavior)
 DEFAULT_CONTRACTS: dict[str, str] = {
     "validate_*": ContractBehavior.NO_RETURN,
     "enforce_*": ContractBehavior.NO_RETURN,
+    "is_*": ContractBehavior.RETURNS_BOOL,
+    "has_*": ContractBehavior.RETURNS_BOOL,
+    "can_*": ContractBehavior.RETURNS_BOOL,
+    "supports_*": ContractBehavior.RETURNS_BOOL,
+    "get_*": ContractBehavior.RETURNS_VALUE,
+    "to_*": ContractBehavior.RETURNS_VALUE,
+    "as_*": ContractBehavior.RETURNS_VALUE,
+    "iter_*": ContractBehavior.RETURNS_ITERATOR,
 }
 
 MAX_ENTRY_PUBLIC_FUNCTIONS: int = 1

@@ -182,9 +182,77 @@ def test_given_class_assignments_when_checking_annotations_then_flags_only_unann
     "test_case",
     [
         AnnotationRuleTestCase(
-            description="local variable first assignment is flagged",
+            description="local variable assigned a call is flagged",
             rule_code="SFA103",
-            source="def run() -> None:\n    value = 1\n",
+            source="def run() -> None:\n    value = build_value()\n",
+            expected_codes=("SFA103",),
+            expected_lines=(2,),
+        ),
+        AnnotationRuleTestCase(
+            description="scalar literal local assignments are exempt",
+            rule_code="SFA103",
+            source=(
+                "def run(number: int) -> None:\n"
+                "    integer = 1\n"
+                "    floating = 1.5\n"
+                "    negative = -1.5\n"
+                "    positive = +3\n"
+                "    imaginary = 2j\n"
+                "    text = 'value'\n"
+                "    binary = b'value'\n"
+                "    enabled = True\n"
+                "    formatted = f'value-{number}'\n"
+                "    nested_unary = --1\n"
+            ),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        AnnotationRuleTestCase(
+            description="none and ellipsis local assignments require annotations",
+            rule_code="SFA103",
+            source="def run() -> None:\n    missing = None\n    omitted = ...\n",
+            expected_codes=("SFA103", "SFA103"),
+            expected_lines=(2, 3),
+        ),
+        AnnotationRuleTestCase(
+            description="container local assignments require annotations",
+            rule_code="SFA103",
+            source=(
+                "def run() -> None:\n"
+                "    empty_list = []\n"
+                "    empty_dict = {}\n"
+                "    empty_set = set()\n"
+                "    empty_tuple = ()\n"
+                "    populated = [1, 2]\n"
+            ),
+            expected_codes=("SFA103", "SFA103", "SFA103", "SFA103", "SFA103"),
+            expected_lines=(2, 3, 4, 5, 6),
+        ),
+        AnnotationRuleTestCase(
+            description="computed local assignments require annotations",
+            rule_code="SFA103",
+            source=(
+                "def run(value: int, obj: object, values: dict[str, int]) -> None:\n"
+                "    attribute = obj.value\n"
+                "    item = values['key']\n"
+                "    comprehension = [item for item in values]\n"
+                "    conditional = 1 if value else 2\n"
+                "    concatenated = 'a' + 'b'\n"
+            ),
+            expected_codes=("SFA103", "SFA103", "SFA103", "SFA103", "SFA103"),
+            expected_lines=(2, 3, 4, 5, 6),
+        ),
+        AnnotationRuleTestCase(
+            description="multiple assignment of scalar literal requires annotations",
+            rule_code="SFA103",
+            source="def run() -> None:\n    first = second = 1\n",
+            expected_codes=("SFA103", "SFA103"),
+            expected_lines=(2, 2),
+        ),
+        AnnotationRuleTestCase(
+            description="augmented first assignment requires annotation",
+            rule_code="SFA103",
+            source="def run() -> None:\n    value += 1\n",
             expected_codes=("SFA103",),
             expected_lines=(2,),
         ),
@@ -205,7 +273,12 @@ def test_given_class_assignments_when_checking_annotations_then_flags_only_unann
         AnnotationRuleTestCase(
             description="nested class attribute does not bind its enclosing function local",
             rule_code="SFA103",
-            source=("def run() -> None:\n    class Config:\n        value = 1\n    value = 2\n"),
+            source=(
+                "def run() -> None:\n"
+                "    class Config:\n"
+                "        value = 1\n"
+                "    value = build_value()\n"
+            ),
             expected_codes=("SFA103",),
             expected_lines=(4,),
         ),

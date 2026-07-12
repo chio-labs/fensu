@@ -13,6 +13,7 @@ from strata.config.models import Config
 from strata.discovery.models import DiscoveredTree
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import RuleKind
+from strata.rules.naming.constants import SFN_RULES
 from tests.integration.src.strata.cache.results._test_types import (
     CachedDomainShapeInvalidationTestCase,
     CachedEvaluationDegradationTestCase,
@@ -22,6 +23,7 @@ from tests.integration.src.strata.cache.results._test_types import (
     CachedEvaluationRetentionTestCase,
     CachedEvaluationReuseTestCase,
     CachedEvaluationSweepTestCase,
+    CachedNamingParityTestCase,
 )
 from tests.integration.src.strata.cache.results.helpers import (
     dependency_fault_rule,
@@ -40,6 +42,52 @@ from tests.integration.src.strata.cache.results.helpers import (
 )
 
 _GLOBAL_FINGERPRINT: CacheFingerprint = CacheFingerprint("e" * 64)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CachedNamingParityTestCase(
+            description="all naming behaviors have byte-identical cold and warm faults",
+            relative_path="src/pkg/domain/helpers/contracts.py",
+            source=(
+                "def validate_item() -> int:\n    return 1\n"
+                "def is_ready() -> Status:\n    return Status()\n"
+                "def get_item() -> None:\n    return None\n"
+                "def iter_items() -> list[int]:\n    return []\n"
+            ),
+            expected_codes=("SFN001", "SFN002", "SFN003", "SFN004"),
+            expected_warm_hits=1,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_cached_naming_facts_when_evaluating_warm_then_preserves_exact_faults(
+    tmp_path: Path,
+    test_case: CachedNamingParityTestCase,
+) -> None:
+    write_project_sources(
+        repo_root=tmp_path,
+        files=((test_case.relative_path, test_case.source),),
+    )
+    config, tree = discover_project(repo_root=tmp_path)
+
+    cold: CacheEvaluation = evaluate_with_cache(
+        tree=tree,
+        ruleset=SFN_RULES,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+    warm: CacheEvaluation = evaluate_with_cache(
+        tree=tree,
+        ruleset=SFN_RULES,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+
+    assert tuple(fault.code for fault in cold.result.faults) == test_case.expected_codes
+    assert warm.stats.hits == test_case.expected_warm_hits
+    assert warm.result.faults == cold.result.faults
 
 
 @pytest.mark.parametrize(

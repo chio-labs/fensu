@@ -181,6 +181,325 @@ def write_cli_map_project(
         (package / "other.py").write_text("def run() -> None:\n    return None\n", encoding="utf-8")
 
 
+def write_cli_method_map_project(root: Path) -> None:
+    """Write a configured project exercising conservative method resolution."""
+
+    package: Path = root / "src/methods"
+    package.mkdir(parents=True)
+    (root / "strata.toml").write_text('roots = ["src/methods"]\n', encoding="utf-8")
+    (package / "support.py").write_text(
+        "class Helper:\n    def finish(self) -> None:\n        return None\n",
+        encoding="utf-8",
+    )
+    (package / "imported.py").write_text(
+        "class ImportedWorker:\n    def imported_method(self) -> None:\n        return None\n",
+        encoding="utf-8",
+    )
+    (package / "workers.py").write_text(
+        "from methods.support import Helper\n"
+        "\n"
+        "\n"
+        "class Worker:\n"
+        "    def __init__(self) -> None:\n"
+        "        self.helper: Helper = Helper()\n"
+        "\n"
+        "    def execute(self) -> None:\n"
+        "        self.prepare()\n"
+        "\n"
+        "    def prepare(self) -> None:\n"
+        "        self.helper.finish()\n"
+        "\n"
+        "    @classmethod\n"
+        "    def create(cls) -> Worker:\n"
+        "        cls.class_step()\n"
+        "        return cls()\n"
+        "\n"
+        "    @classmethod\n"
+        "    def class_step(cls) -> None:\n"
+        "        return None\n"
+        "\n"
+        "    def cycle_one(self) -> None:\n"
+        "        self.cycle_two()\n"
+        "\n"
+        "    def cycle_two(self) -> None:\n"
+        "        self.cycle_one()\n"
+        "\n"
+        "\n"
+        "class Alpha:\n"
+        "    def select(self) -> None:\n"
+        "        return None\n"
+        "\n"
+        "\n"
+        "class Beta:\n"
+        "    def select(self) -> None:\n"
+        "        return None\n",
+        encoding="utf-8",
+    )
+    (package / "entry.py").write_text(
+        "from pathlib import Path\n"
+        "from typing import Protocol\n"
+        "\n"
+        "import methods.imported as imported\n"
+        "from methods.workers import Worker\n"
+        "\n"
+        "\n"
+        "class RunnerProtocol(Protocol):\n"
+        "    def execute(self) -> None:\n"
+        "        ...\n"
+        "\n"
+        "\n"
+        "class LocalWorker:\n"
+        "    def local_method(self) -> None:\n"
+        "        return None\n"
+        "\n"
+        "\n"
+        "def make_worker() -> Worker:\n"
+        "    return Worker()\n"
+        "\n"
+        "\n"
+        "def run(protocol: RunnerProtocol, dynamic, path: Path) -> None:\n"
+        "    worker = Worker()\n"
+        "    worker.execute()\n"
+        "    Worker().prepare()\n"
+        "    make_worker().execute()\n"
+        "    Worker.create()\n"
+        "    imported.ImportedWorker().imported_method()\n"
+        "    local = LocalWorker()\n"
+        "    local.local_method()\n"
+        "    protocol.execute()\n"
+        "    dynamic.parameter_method()\n"
+        "    path.exists()\n"
+        "\n"
+        "\n"
+        "def infer_order() -> None:\n"
+        "    late.prepare()\n"
+        "    late = Worker()\n"
+        "    stable = Worker()\n"
+        "    stable.execute()\n"
+        "    stable = object()\n"
+        "    stable.prepare()\n"
+        "    invalid = object()\n"
+        "    invalid.execute()\n"
+        "\n"
+        "\n"
+        "def direct_dispatch() -> None:\n"
+        "    Worker().prepare()\n"
+        "\n"
+        "\n"
+        "def factory_dispatch() -> None:\n"
+        "    make_worker().execute()\n",
+        encoding="utf-8",
+    )
+    (package / "generic_protocol.py").write_text(
+        "from typing import Protocol, TypeVar\n"
+        "\n"
+        'T = TypeVar("T")\n'
+        "\n"
+        "\n"
+        "class GenericRunner(Protocol[T]):\n"
+        "    def execute(self) -> T:\n"
+        "        ...\n"
+        "\n"
+        "\n"
+        "def run_generic(runner: GenericRunner[int]) -> None:\n"
+        "    runner.execute()\n",
+        encoding="utf-8",
+    )
+    (package / "inference_cases.py").write_text(
+        "from methods.entry import make_worker\n"
+        "from methods.workers import Worker\n"
+        "\n"
+        "\n"
+        "def conditional_rebind(flag: bool) -> None:\n"
+        "    worker = Worker()\n"
+        "    if flag:\n"
+        "        worker = object()\n"
+        "    worker.prepare()\n"
+        "\n"
+        "\n"
+        "def assigned_factory() -> None:\n"
+        "    worker = make_worker()\n"
+        "    worker.execute()\n",
+        encoding="utf-8",
+    )
+    (package / "inheritance.py").write_text(
+        "class Base:\n"
+        "    def run(self) -> None:\n"
+        "        self.hook()\n"
+        "\n"
+        "    def hook(self) -> None:\n"
+        "        return None\n"
+        "\n"
+        "\n"
+        "class Child(Base):\n"
+        "    def hook(self) -> None:\n"
+        "        return None\n"
+        "\n"
+        "\n"
+        "class Sibling(Base):\n"
+        "    def hook(self) -> None:\n"
+        "        return None\n"
+        "\n"
+        "\n"
+        "def run_children() -> None:\n"
+        "    Child().run()\n"
+        "    Sibling().run()\n"
+        "\n"
+        "\n"
+        "class Left:\n"
+        "    def collide(self) -> None:\n"
+        "        return None\n"
+        "\n"
+        "\n"
+        "class Right:\n"
+        "    def collide(self) -> None:\n"
+        "        return None\n"
+        "\n"
+        "\n"
+        "class Ambiguous(Left, Right):\n"
+        "    pass\n"
+        "\n"
+        "\n"
+        "def run_ambiguous() -> None:\n"
+        "    Ambiguous().collide()\n",
+        encoding="utf-8",
+    )
+    (package / "type_order.py").write_text(
+        "from typing import TYPE_CHECKING\n"
+        "\n"
+        "if TYPE_CHECKING:\n"
+        "    from methods.workers import Alpha as Selected\n"
+        "\n"
+        "from methods.imported import ImportedWorker as Selected\n"
+        "\n"
+        "\n"
+        "def run_selected() -> None:\n"
+        "    Selected().imported_method()\n",
+        encoding="utf-8",
+    )
+    (package / "parameter_collision.py").write_text(
+        "from methods.workers import Worker\n"
+        "\n"
+        "\n"
+        "def run_collision(Worker) -> None:\n"
+        "    Worker.execute()\n",
+        encoding="utf-8",
+    )
+    (package / "shadow_target.py").write_text(
+        "def imported_call() -> None:\n    return None\n",
+        encoding="utf-8",
+    )
+    (package / "alias_shadow.py").write_text(
+        "import methods.shadow_target as target\n"
+        "\n"
+        "\n"
+        "def run_shadowed() -> None:\n"
+        "    target = object()\n"
+        "    target.imported_call()\n",
+        encoding="utf-8",
+    )
+    (package / "self_attribute_flow.py").write_text(
+        "from methods.support import Helper\n"
+        "\n"
+        "\n"
+        "class Owner:\n"
+        "    def __init__(self) -> None:\n"
+        "        self.helper = Helper()\n"
+        "\n"
+        "    def invalidate(self, flag: bool) -> None:\n"
+        "        if flag:\n"
+        "            self.helper = object()\n"
+        "\n"
+        "    def use(self) -> None:\n"
+        "        self.helper.finish()\n"
+        "\n"
+        "\n"
+        "def run_owner() -> None:\n"
+        "    Owner().use()\n",
+        encoding="utf-8",
+    )
+    (package / "type_else.py").write_text(
+        "from typing import TYPE_CHECKING\n"
+        "\n"
+        "if TYPE_CHECKING:\n"
+        "    from methods.workers import Alpha as Selected\n"
+        "else:\n"
+        "    from methods.imported import ImportedWorker as Selected\n"
+        "\n"
+        "\n"
+        "def run_else_selected() -> None:\n"
+        "    Selected().imported_method()\n",
+        encoding="utf-8",
+    )
+    (package / "constructor_assignment_shadow.py").write_text(
+        "from methods.workers import Worker\n"
+        "\n"
+        "\n"
+        "def run_constructor_shadow(Worker) -> None:\n"
+        "    receiver = Worker()\n"
+        "    receiver.execute()\n",
+        encoding="utf-8",
+    )
+    (package / "factory_target.py").write_text(
+        "from methods.workers import Worker\n"
+        "\n"
+        "\n"
+        "def make_worker() -> Worker:\n"
+        "    return Worker()\n",
+        encoding="utf-8",
+    )
+    (package / "factory_alias_shadow.py").write_text(
+        "import methods.factory_target as factories\n"
+        "\n"
+        "\n"
+        "def run_factory_shadow() -> None:\n"
+        "    factories = object()\n"
+        "    worker = factories.make_worker()\n"
+        "    worker.execute()\n",
+        encoding="utf-8",
+    )
+    (package / "type_mixed.py").write_text(
+        "from typing import TYPE_CHECKING\n"
+        "\n"
+        "if TYPE_CHECKING:\n"
+        "    from methods.entry import RunnerProtocol as Selected\n"
+        "else:\n"
+        "    from methods.workers import Worker as Selected\n"
+        "\n"
+        "\n"
+        "def run_mixed(receiver: Selected) -> None:\n"
+        "    receiver.execute()\n"
+        "    Selected().execute()\n",
+        encoding="utf-8",
+    )
+    (package / "class_attribute_flow.py").write_text(
+        "from methods.support import Helper\n"
+        "\n"
+        "\n"
+        "class DirectOwner:\n"
+        "    helper: Helper\n"
+        "    helper = object()\n"
+        "\n"
+        "    def use(self) -> None:\n"
+        "        self.helper.finish()\n"
+        "\n"
+        "\n"
+        "class ConditionalOwner:\n"
+        "    helper: Helper\n"
+        "    if True:\n"
+        "        helper = object()\n"
+        "\n"
+        "    def use(self) -> None:\n"
+        "        self.helper.finish()\n"
+        "\n"
+        "\n"
+        "def run_attributes() -> None:\n"
+        "    DirectOwner().use()\n"
+        "    ConditionalOwner().use()\n",
+        encoding="utf-8",
+    )
+
+
 def write_multi_root_map_project(root: Path) -> None:
     """Write two import roots connected by one direct project call."""
 

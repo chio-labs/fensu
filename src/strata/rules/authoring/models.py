@@ -45,3 +45,4 @@ class RuleSpec:
     kind: RuleKind = RuleKind.CORE
     source: str | None = None
     enabled_by_default: bool = True
+    cacheable: bool = False

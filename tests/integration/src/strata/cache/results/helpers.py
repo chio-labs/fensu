@@ -137,7 +137,7 @@ def discover_project(*, repo_root: Path) -> tuple[Config, DiscoveredTree]:
     return config, discover_files(config, repo_root=repo_root)
 
 
-def source_fault_rule(*, kind: RuleKind = RuleKind.CORE) -> RuleSpec:
+def source_fault_rule(*, kind: RuleKind = RuleKind.CORE, cacheable: bool = False) -> RuleSpec:
     """Return a deterministic rule reporting the complete stripped source."""
 
     def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
@@ -151,6 +151,7 @@ def source_fault_rule(*, kind: RuleKind = RuleKind.CORE) -> RuleSpec:
         message="cache reuse",
         check=check,
         kind=kind,
+        cacheable=cacheable,
     )
 
 

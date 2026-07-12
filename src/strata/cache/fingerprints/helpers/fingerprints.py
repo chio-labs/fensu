@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import inspect
 import json
 import platform
 from collections.abc import Mapping
+from importlib.machinery import ModuleSpec
 from importlib.metadata import version
 from pathlib import Path
 
@@ -14,6 +16,7 @@ from strata.cache.fingerprints.constants import (
     BYTECODE_SUFFIX,
     EVALUATION_FINGERPRINT_CONTRACT_VERSION,
     NATIVE_MODULE_SUFFIXES,
+    PACKAGE_INIT_FILE_NAME,
     PYTHON_CACHE_DIRECTORY_NAME,
     PYTHON_SOURCE_SUFFIX,
 )
@@ -45,7 +48,7 @@ def source_fingerprint(source: bytes) -> CacheFingerprint:
 
 
 def config_fingerprint(config: Config) -> CacheFingerprint:
-    """Return a deterministic identity for the complete validated configuration."""
+    """Return a deterministic identity for semantic evaluation configuration."""
 
     payload: CanonicalValue = {
         "contracts": dict(sorted(config.contracts.items())),
@@ -68,6 +71,7 @@ def ruleset_fingerprint(ruleset: tuple[RuleSpec, ...]) -> CacheFingerprint:
 
     payload: CanonicalValue = [
         {
+            "cacheable": rule.cacheable,
             "check_module": rule.check.__module__,
             "check_name": _check_name(rule.check),
             "code": rule.code,
@@ -84,6 +88,64 @@ def ruleset_fingerprint(ruleset: tuple[RuleSpec, ...]) -> CacheFingerprint:
         for rule in ruleset
     ]
     return canonical_fingerprint(payload)
+
+
+def custom_rules_fingerprint(*, config: Config, repo_root: Path) -> CacheFingerprint | None:
+    """Return a content identity for every configured custom-rule file or None."""
+
+    files: list[CanonicalValue] = []
+    for rule_path in sorted(config.rule_paths):
+        configured: Path = Path(rule_path)
+        resolved: Path = (
+            configured.resolve() if configured.is_absolute() else (repo_root / configured).resolve()
+        )
+        entries: tuple[Path, ...] | None = _rule_source_files(resolved)
+        if entries is None:
+            return None
+        files.extend(_fingerprinted_file(path=path, label=rule_path) for path in entries)
+    for module_name in sorted(config.rule_modules):
+        module_root: Path | None = _rule_module_location(module_name, repo_root=repo_root)
+        entries = None if module_root is None else _rule_source_files(module_root)
+        if entries is None:
+            return None
+        files.extend(_fingerprinted_file(path=path, label=module_name) for path in entries)
+    return canonical_fingerprint(files)
+
+
+def _fingerprinted_file(*, path: Path, label: str) -> CanonicalValue:
+    return [label, path.name, source_fingerprint(path.read_bytes()).value]
+
+
+def _rule_source_files(location: Path) -> tuple[Path, ...] | None:
+    if location.is_file():
+        return (location,)
+    if location.is_dir():
+        return tuple(sorted(location.rglob(f"*{PYTHON_SOURCE_SUFFIX}")))
+    return None
+
+
+def _rule_module_location(module_name: str, *, repo_root: Path) -> Path | None:
+    module_parts: tuple[str, ...] = tuple(module_name.split("."))
+    candidate: Path = repo_root.joinpath(*module_parts)
+    if candidate.is_dir() and (candidate / "__init__.py").is_file():
+        return candidate
+    module_file: Path = candidate.with_suffix(PYTHON_SOURCE_SUFFIX)
+    if module_file.is_file():
+        return module_file
+    return _installed_module_location(module_name)
+
+
+def _installed_module_location(module_name: str) -> Path | None:
+    try:
+        spec: ModuleSpec | None = importlib.util.find_spec(module_name)
+    except (ImportError, ValueError):
+        return None
+    if spec is None or spec.origin is None:
+        return None
+    origin: Path = Path(spec.origin)
+    if not origin.is_file():
+        return None
+    return origin.parent if origin.name == PACKAGE_INIT_FILE_NAME else origin
 
 
 def implementation_fingerprint(*, package_root: Path) -> CacheFingerprint:
@@ -111,12 +173,14 @@ def global_fingerprint(
     implementation: CacheFingerprint,
     config: CacheFingerprint,
     ruleset: CacheFingerprint,
+    custom_rules: CacheFingerprint,
     strata_version: str | None = None,
 ) -> CacheFingerprint:
     """Return the complete process-independent global cache identity."""
 
     payload: CanonicalValue = {
         "config": config.value,
+        "custom_rules": custom_rules.value,
         "evaluation_contract_version": EVALUATION_FINGERPRINT_CONTRACT_VERSION,
         "implementation": implementation.value,
         "python_implementation": platform.python_implementation(),

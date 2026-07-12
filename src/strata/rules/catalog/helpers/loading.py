@@ -6,6 +6,7 @@ import hashlib
 import importlib
 import importlib.util
 import sys
+from dataclasses import replace
 from importlib.machinery import ModuleSpec
 from pathlib import Path
 from types import ModuleType
@@ -17,6 +18,7 @@ from strata.rules.authoring.main.inspect import rule_specs_in_module
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Family, RuleKind
 from strata.rules.catalog.constants import CORE_RULES
+from strata.rules.catalog.helpers.hermeticity import validate_cacheable_rules
 
 _minimum_core_rule_code_length: int = 3
 
@@ -27,7 +29,16 @@ def build_ruleset_from_config(
     """Load custom rules, merge with core rules, and apply select/ignore config."""
 
     all_rules: tuple[RuleSpec, ...] = build_catalogue_from_config(config, repo_root=repo_root)
-    return _select_rules(rules=all_rules, select=config.select, ignore=config.ignore)
+    selected: tuple[RuleSpec, ...] = _select_rules(
+        rules=all_rules,
+        select=config.select,
+        ignore=config.ignore,
+    )
+    validate_cacheable_rules(
+        rules=selected,
+        allowed_packages=frozenset(name.partition(".")[0] for name in config.rule_modules),
+    )
+    return selected
 
 
 def build_catalogue_from_config(
@@ -40,6 +51,8 @@ def build_catalogue_from_config(
         *_load_rule_modules(config.rule_modules, repo_root=repository_root),
         *_load_rule_paths(config.rule_paths, repo_root=repository_root),
     )
+    if config.cache.require_cacheable:
+        custom_rules = tuple(replace(rule, cacheable=True) for rule in custom_rules)
     all_rules: tuple[RuleSpec, ...] = (*CORE_RULES, *custom_rules)
     _validate_unique_codes(rules=all_rules)
     _validate_exception_codes(config=config, rules=all_rules)
@@ -181,6 +194,7 @@ def _with_custom_source(*, rules: tuple[RuleSpec, ...], source: str) -> tuple[Ru
                     kind=rule.kind,
                     source=source,
                     enabled_by_default=rule.enabled_by_default,
+                    cacheable=rule.cacheable,
                 )
             )
         else:

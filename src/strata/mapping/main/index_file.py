@@ -1,0 +1,10 @@
+"""Index one immutable mapping source snapshot."""
+
+from strata.mapping.helpers.index import build_file_index
+from strata.mapping.models import ProjectIndex, SourceSnapshot
+
+
+def index_mapping_file(*, snapshot: SourceSnapshot) -> ProjectIndex:
+    """Extract declarations and AST-backed facts from one source."""
+
+    return build_file_index(snapshot=snapshot)

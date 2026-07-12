@@ -217,6 +217,7 @@ def make_rule_exception_config(*, path: str, symbols: tuple[str, ...], reason: s
         roots=("src/pkg",),
         tests=(),
         select=("SFS120",),
+        thresholds=MappingProxyType({Threshold.MAX_POSITIONAL_ARGS: 0}),
         rule_exceptions=(
             RuleExceptionEntry(
                 rule="SFS120",

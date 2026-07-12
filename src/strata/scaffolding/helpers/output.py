@@ -26,7 +26,6 @@ from strata.scaffolding.constants import (
 )
 from strata.scaffolding.exceptions import InitError, InitRefusalError
 from strata.scaffolding.models import DriftSummary, InitPlan, PathCandidate
-from strata.scaffolding.types import AdoptionMode
 
 
 def write_header(*, stdout: TextIO, style: CliStyle, text: str, success: bool = False) -> None:
@@ -99,9 +98,7 @@ def write_classification(
         f"{style.header_marker()} {style.header_text(classification)} "
         f"{style.provenance(f'- {python_file_count:,} Python {file_word}')}\n"
     )
-    rules: str = "SF" if plan.adoption is AdoptionMode.FULL else "SFL, SFH, SFA, SFN"
-    label: str = "full" if plan.adoption is AdoptionMode.FULL else "gradual"
-    stdout.write(f"\n    Starting with the {label} ruleset: {style.value(rules)}\n")
+    stdout.write(f"\n    Enabling the full Strata ruleset: {style.value('SF')}\n")
     stdout.write(f"    Wrote {style.success('strata.toml')}\n")
 
 

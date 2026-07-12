@@ -127,7 +127,7 @@ def write_init_hatch_project(
         package.mkdir(parents=True)
         (package / "__init__.py").write_text("", encoding="utf-8")
         source: str = "VALUE = 1\n" if include_fault else "VALUE: int = 1\n"
-        (package / "models.py").write_text(source, encoding="utf-8")
+        (package / "constants.py").write_text(source, encoding="utf-8")
     (root / "tests").mkdir()
     for tooling_path in tooling_paths:
         tooling: Path = root / tooling_path
@@ -169,7 +169,7 @@ def write_init_editable_project(*, root: Path) -> None:
     alternate: Path = root / "vendor/lib/other"
     alternate.mkdir(parents=True)
     (alternate / "__init__.py").write_text("", encoding="utf-8")
-    (alternate / "models.py").write_text("VALUE: int = 1\n", encoding="utf-8")
+    (alternate / "constants.py").write_text("VALUE: int = 1\n", encoding="utf-8")
     (root / "specs").mkdir()
 
 
@@ -345,6 +345,8 @@ def write_cli_exception_project(root: Path) -> None:
     (root / "strata.toml").write_text(
         'roots = ["src/pkg"]\n'
         'select = ["SFS120"]\n'
+        "[thresholds]\n"
+        "max_positional_args = 0\n"
         "[[rule_exceptions]]\n"
         'rule = "SFS120"\n'
         'path = "src/pkg/external.py"\n'

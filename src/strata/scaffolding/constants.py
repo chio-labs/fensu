@@ -25,8 +25,7 @@ END_OF_INPUT_LABEL: str = "<EOF>"
 TEST_MARKER_PATH: str = "tests/.gitkeep"
 CANDIDATE_PATH_WIDTH: int = 14
 DRIFT_FAMILY_NAME_WIDTH: int = 11
-FULL_SELECT: tuple[str, ...] = ("SF",)
-GRADUAL_SELECT: tuple[str, ...] = ("SFL", "SFH", "SFA", "SFN")
+DEFAULT_SELECT: tuple[str, ...] = ("SF",)
 FAMILY_LABELS: tuple[tuple[str, str], ...] = (
     ("SFA", "annotations"),
     ("SFL", "layers"),
@@ -39,7 +38,7 @@ FAMILY_LABELS: tuple[tuple[str, str], ...] = (
 TEST_DIRECTORY_NAMES: tuple[str, ...] = ("tests", "test")
 TOOLING_DIRECTORY_NAMES: tuple[str, ...] = ("scripts", "tools", "bin", "tasks")
 SOURCE_CONTAINER_NAMES: tuple[str, ...] = ("src", "lib", "libs", "python")
-STRATA_GITIGNORE_BLOCK: bytes = b"# Strata\n.strata/\n"
+STRATA_GITIGNORE_BLOCK: bytes = b"# Strata\n.strata/cache/\n"
 PYTHON_GITIGNORE_SOURCE: str = (
     "https://github.com/github/gitignore/blob/"
     "576334520435382d6522f349b9d270eda1e79a25/Python.gitignore"

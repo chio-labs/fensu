@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from strata.scaffolding.types import AdoptionMode, CandidateProvenance
+from strata.scaffolding.types import CandidateProvenance
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,7 +43,6 @@ class InitOptions:
     roots: tuple[str, ...] | None = None
     tests: tuple[str, ...] | None = None
     tooling: tuple[str, ...] | None = None
-    adoption: AdoptionMode | None = None
     skills: bool | None = None
     name: str | None = None
 
@@ -55,7 +54,6 @@ class InitPlan:
     roots: tuple[str, ...]
     tests: tuple[str, ...]
     tooling: tuple[str, ...]
-    adoption: AdoptionMode
     project_name: str | None = None
 
 

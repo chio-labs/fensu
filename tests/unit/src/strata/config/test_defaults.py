@@ -157,9 +157,9 @@ def test_given_valid_config_when_loading_then_applies_defaults(
         ),
         ConfigListFieldTestCase(
             description="ignore override is normalized",
-            config_text='roots = ["src/pkg"]\nignore = ["SFX002"]\n',
+            config_text='roots = ["src/pkg"]\nignore = ["SFH002"]\n',
             expected_field_name="ignore",
-            expected_value=("SFX002",),
+            expected_value=("SFH002",),
         ),
         ConfigListFieldTestCase(
             description="rule paths override is normalized",

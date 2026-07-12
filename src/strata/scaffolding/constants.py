@@ -26,11 +26,11 @@ TEST_MARKER_PATH: str = "tests/.gitkeep"
 CANDIDATE_PATH_WIDTH: int = 14
 DRIFT_FAMILY_NAME_WIDTH: int = 11
 FULL_SELECT: tuple[str, ...] = ("SF",)
-GRADUAL_SELECT: tuple[str, ...] = ("SFL", "SFX", "SFA", "SFN")
+GRADUAL_SELECT: tuple[str, ...] = ("SFL", "SFH", "SFA", "SFN")
 FAMILY_LABELS: tuple[tuple[str, str], ...] = (
     ("SFA", "annotations"),
     ("SFL", "layers"),
-    ("SFX", "hygiene"),
+    ("SFH", "hygiene"),
     ("SFN", "naming"),
     ("SFR", "roles"),
     ("SFS", "shape"),

@@ -62,14 +62,14 @@ from tests.e2e.src.strata.cli.main.helpers import (
                         'roots = ["src/tiny"]\n'
                         'tests = ["tests"]\n'
                         "# Adoption guide: https://docs.stratalint.com/adoption\n"
-                        'select = ["SFL", "SFX", "SFA", "SFN"]\n'
+                        'select = ["SFL", "SFH", "SFA", "SFN"]\n'
                     ),
                 ),
             ),
             expected_config_values=(
                 ("roots", ("src/tiny",)),
                 ("tests", ("tests",)),
-                ("select", ("SFL", "SFX", "SFA", "SFN")),
+                ("select", ("SFL", "SFH", "SFA", "SFN")),
             ),
             expected_stdout_fragments=(
                 "Existing codebase - 1 Python file",

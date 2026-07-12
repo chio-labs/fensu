@@ -298,7 +298,7 @@ def write_cli_fixture_project(
     (root / "rules").mkdir()
     (root / "src" / "pkg" / "target.py").write_text("value: int = 1\n", encoding="utf-8")
     selected_rules: str = f'"SF", "{rule_code}"' if include_core_rules else f'"{rule_code}"'
-    ignored_rules: str = 'ignore = ["SFX002"]\n' if include_core_rules else ""
+    ignored_rules: str = 'ignore = ["SFH002"]\n' if include_core_rules else ""
     config: str = (
         f'roots = ["src/pkg"]\nselect = [{selected_rules}]\n{ignored_rules}'
         'rule_paths = ["rules/custom_rule.py"]\n'

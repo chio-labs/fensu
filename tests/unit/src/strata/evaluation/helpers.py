@@ -174,7 +174,7 @@ def make_runtime_fault_rule() -> RuleSpec:
         return [ctx.fault(node=module.body[0])]
 
     return RuleSpec(
-        code="SFX999",
+        code="SFH999",
         family=Family.HYGIENE,
         slug="runtime-fault",
         message="runtime fault",

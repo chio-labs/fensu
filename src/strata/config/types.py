@@ -20,7 +20,7 @@ class RuleSelector(StrEnum):
     ROLES = "SFR"
     SHAPE = "SFS"
     NAMING = "SFN"
-    HYGIENE = "SFX"
+    HYGIENE = "SFH"
     TESTS = "SFT"
     ANNOTATIONS = "SFA"
     CUSTOM = "X"

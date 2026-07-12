@@ -40,6 +40,7 @@ class ProjectDependencyKind(StrEnum):
     IS_DIR = "is_dir"
     DIRECTORY_ENTRIES = "directory_entries"
     GLOB = "glob"
+    PYTHON_ANCHOR = "python_anchor"
 
 
 class TextAnalysis(Protocol):
@@ -212,6 +213,10 @@ class ProjectAnalysis(Protocol):
         self, *, requester: Path, module_name: str, function_name: str
     ) -> ProjectFunctionFact | None:
         """Return a function contract from a resolvable project module."""
+        ...
+
+    def python_anchor(self, *, requester: Path, path: Path) -> Path | None:
+        """Return the deterministic Python ownership anchor for a package directory."""
         ...
 
     def exists(self, *, requester: Path, path: Path) -> bool:

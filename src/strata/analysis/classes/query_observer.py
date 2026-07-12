@@ -42,3 +42,15 @@ class QueryObserver:
         """Return direct or recursive pattern matches in observation order."""
 
         return tuple(query_path.rglob(pattern) if recursive else query_path.glob(pattern))
+
+    def python_anchor(self, *, query_path: Path) -> Path | None:
+        """Return init, first direct module, or first descendant module in that order."""
+
+        init_path: Path = query_path / "__init__.py"
+        if init_path.is_file():
+            return init_path
+        direct_modules: tuple[Path, ...] = tuple(sorted(query_path.glob("*.py")))
+        if direct_modules:
+            return direct_modules[0]
+        descendant_modules: tuple[Path, ...] = tuple(sorted(query_path.rglob("*.py")))
+        return descendant_modules[0] if descendant_modules else None

@@ -55,6 +55,8 @@ def write_profile_project(root: Path) -> None:
     source.parent.mkdir(parents=True)
     source.write_text("VALUE: int = 1\n", encoding="utf-8")
     (root / "strata.toml").write_text(
-        'roots = ["src/pkg"]\ntests = []\ntooling = []\nselect = ["SFA101"]\n',
+        'roots = ["src/pkg"]\ntests = []\ntooling = []\nselect = ["SFR601"]\n'
+        '[[threshold_overrides]]\npaths = ["src/pkg/**/*.py"]\n'
+        'reason = "Profile rendering."\nthresholds = { max_file_lines = 2 }\n',
         encoding="utf-8",
     )

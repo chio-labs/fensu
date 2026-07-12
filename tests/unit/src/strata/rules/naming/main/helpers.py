@@ -28,4 +28,4 @@ def evaluate_naming_test_case(
     contracts.update(test_case.contracts)
     monkeypatch.chdir(tmp_path)
     config: Config = Config(roots=("src/pkg",), tests=(), contracts=MappingProxyType(contracts))
-    return evaluate(tree=discover_files(config), ruleset=SFN_RULES, config=config)
+    return evaluate(tree=discover_files(config=config), ruleset=SFN_RULES, config=config)

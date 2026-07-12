@@ -444,9 +444,9 @@ def test_given_custom_rule_source_when_fingerprinting_then_captures_implementati
     )
     (tmp_path / "src/pkg").mkdir(parents=True)
     write_custom_rule(path=rule_path, returns_fault=False)
-    first: CacheFingerprint = ruleset_fingerprint(build_ruleset(config, repo_root=tmp_path))
+    first: CacheFingerprint = ruleset_fingerprint(build_ruleset(config=config, repo_root=tmp_path))
     write_custom_rule(path=rule_path, returns_fault=True)
-    second: CacheFingerprint = ruleset_fingerprint(build_ruleset(config, repo_root=tmp_path))
+    second: CacheFingerprint = ruleset_fingerprint(build_ruleset(config=config, repo_root=tmp_path))
 
     assert (first == second) is test_case.expected_equal
 

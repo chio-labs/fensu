@@ -60,7 +60,7 @@ def test_given_unknown_exception_code_when_building_catalogue_then_raises_config
     )
 
     with pytest.raises(ConfigError) as error:
-        build_ruleset(config)
+        build_ruleset(config=config)
 
     assert test_case.expected_error_fragment in str(error.value)
 
@@ -119,7 +119,7 @@ def test_given_rule_path_when_building_ruleset_then_loads_custom_rule_with_sourc
         roots=("src/pkg",), rule_paths=(str(path),), select=(test_case.rule_code,)
     )
 
-    ruleset: tuple[RuleSpec, ...] = build_ruleset(config)
+    ruleset: tuple[RuleSpec, ...] = build_ruleset(config=config)
 
     assert tuple(rule.code for rule in ruleset) == (test_case.expected_code,)
     assert test_case.expected_source_fragment in (ruleset[0].source or "")
@@ -149,7 +149,7 @@ def test_given_rule_path_when_building_ruleset_then_does_not_add_rule_dir_to_sys
         roots=("src/pkg",), rule_paths=(str(path),), select=(test_case.rule_code,)
     )
 
-    ruleset: tuple[RuleSpec, ...] = build_ruleset(config)
+    ruleset: tuple[RuleSpec, ...] = build_ruleset(config=config)
 
     assert tuple(rule.code for rule in ruleset) == (test_case.expected_code,)
     assert str(path.parent) not in sys.path
@@ -179,7 +179,7 @@ def test_given_rule_path_with_package_import_when_building_then_resolves_reposit
         roots=("src/pkg",), rule_paths=(str(path),), select=(test_case.rule_code,)
     )
 
-    ruleset: tuple[RuleSpec, ...] = build_ruleset(config)
+    ruleset: tuple[RuleSpec, ...] = build_ruleset(config=config)
 
     assert tuple(rule.code for rule in ruleset) == (test_case.expected_code,)
     assert test_case.expected_source_fragment in (ruleset[0].source or "")
@@ -216,7 +216,7 @@ def test_given_rule_path_when_executing_then_synthetic_module_is_temporary(
         roots=("src/pkg",), rule_paths=(str(path),), select=(test_case.rule_code,)
     )
 
-    ruleset: tuple[RuleSpec, ...] = build_ruleset(config)
+    ruleset: tuple[RuleSpec, ...] = build_ruleset(config=config)
 
     assert tuple(rule.code for rule in ruleset) == (test_case.expected_code,)
     assert test_case.expected_source_fragment in (ruleset[0].source or "")
@@ -248,7 +248,7 @@ def test_given_rule_module_when_building_ruleset_then_loads_custom_rule_with_sou
         roots=("src/pkg",), rule_modules=(module_name,), select=(test_case.rule_code,)
     )
 
-    ruleset: tuple[RuleSpec, ...] = build_ruleset(config)
+    ruleset: tuple[RuleSpec, ...] = build_ruleset(config=config)
 
     assert tuple(rule.code for rule in ruleset) == (test_case.expected_code,)
     assert ruleset[0].source == test_case.expected_source_fragment
@@ -275,7 +275,7 @@ def test_given_syntax_error_custom_rule_file_when_building_ruleset_then_raises_c
     config: Config = Config(roots=("src/pkg",), rule_paths=(str(path),))
 
     with pytest.raises(ConfigError) as error:
-        build_ruleset(config)
+        build_ruleset(config=config)
 
     assert test_case.expected_error_fragment in str(error.value)
     assert loading_module._synthetic_module_name(path) not in sys.modules
@@ -302,7 +302,7 @@ def test_given_custom_rule_file_with_sf_namespace_when_building_ruleset_then_rai
     config: Config = Config(roots=("src/pkg",), rule_paths=(str(path),))
 
     with pytest.raises(ConfigError) as error:
-        build_ruleset(config)
+        build_ruleset(config=config)
 
     assert test_case.expected_error_fragment in str(error.value)
 
@@ -331,7 +331,7 @@ def test_given_duplicate_custom_codes_when_building_ruleset_then_raises_config_e
     config: Config = Config(roots=("src/pkg",), rule_paths=(str(first_path), str(second_path)))
 
     with pytest.raises(ConfigError) as error:
-        build_ruleset(config)
+        build_ruleset(config=config)
 
     assert test_case.expected_error_fragment in str(error.value)
 
@@ -360,7 +360,7 @@ def test_given_foreign_decorated_rule_when_loading_custom_file_then_module_metad
     )
 
     ruleset: tuple[RuleSpec, ...] = build_ruleset(
-        Config(
+        config=Config(
             roots=("src/pkg",),
             rule_paths=(str(path),),
             select=(test_case.stale_rule_code, test_case.loaded_rule_code),
@@ -427,7 +427,7 @@ def test_given_select_and_ignore_when_building_ruleset_then_applies_expected_com
     )
 
     ruleset: tuple[RuleSpec, ...] = build_ruleset(
-        Config(roots=("src/pkg",), select=test_case.select, ignore=test_case.ignore)
+        config=Config(roots=("src/pkg",), select=test_case.select, ignore=test_case.ignore)
     )
 
     assert tuple(rule.code for rule in ruleset) == test_case.expected_codes

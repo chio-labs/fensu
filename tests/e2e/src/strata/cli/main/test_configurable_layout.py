@@ -136,7 +136,7 @@ from tests.e2e.src.strata.cli.main.helpers import run_configurable_layout_case
                         "@rule(code='XE2001', family=Family.CUSTOM, slug='e2e', message='e2e fault')\n"
                         "def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:\n"
                         "    _ = ctx.threshold(Threshold.MAX_STATEMENTS)\n"
-                        "    return [ctx.fault(module.body[0])]\n"
+                        "    return [ctx.fault(node=module.body[0])]\n"
                     ),
                 ),
             ),

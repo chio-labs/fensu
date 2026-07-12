@@ -74,7 +74,7 @@ def test_given_exact_rule_exceptions_when_evaluating_then_suppresses_only_matchi
         path=_source_path, symbols=test_case.symbols, reason=_reason
     )
     tree: DiscoveredTree = discover_test_tree(config=config)
-    ruleset: tuple[RuleSpec, ...] = build_ruleset(config)
+    ruleset: tuple[RuleSpec, ...] = build_ruleset(config=config)
     validate_rule_exceptions(config=config, repo_root=tree.repo_root.path)
 
     result: EvaluationResult = evaluate(tree=tree, ruleset=ruleset, config=config)
@@ -111,7 +111,7 @@ def test_given_inactive_rule_exception_when_evaluating_then_raises_stale_error(
     validate_rule_exceptions(config=config, repo_root=tree.repo_root.path)
 
     with pytest.raises(ConfigError) as error:
-        evaluate(tree=tree, ruleset=build_ruleset(config), config=config)
+        evaluate(tree=tree, ruleset=build_ruleset(config=config), config=config)
 
     assert test_case.expected_error_fragment is not None
     assert test_case.expected_error_fragment in str(error.value)

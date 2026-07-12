@@ -9,7 +9,7 @@ from strata.rules.authoring.models import RuleSpec
 from strata.rules.catalog.helpers.loading import build_catalogue_from_config
 
 
-def build_catalogue(config: Config, *, repo_root: Path | None = None) -> tuple[RuleSpec, ...]:
+def build_catalogue(*, config: Config, repo_root: Path | None = None) -> tuple[RuleSpec, ...]:
     """Build all core and configured custom rules without selection filtering."""
 
-    return build_catalogue_from_config(config, repo_root=repo_root)
+    return build_catalogue_from_config(config=config, repo_root=repo_root)

@@ -79,7 +79,7 @@ def test_given_scoped_file_when_reading_position_then_returns_expected_facts(
     write_python_files(root=tmp_path, relative_paths=(test_case.file_path,))
     monkeypatch.chdir(tmp_path)
 
-    tree: DiscoveredTree = discover_files(make_config())
+    tree: DiscoveredTree = discover_files(config=make_config())
     scoped_file: ScopedFile = only_file(files=tree.files)
 
     assert scoped_file.relative_parts == test_case.expected_relative_parts
@@ -132,7 +132,7 @@ def test_given_scoped_file_when_checking_main_position_then_returns_expected_fla
     write_python_files(root=tmp_path, relative_paths=(test_case.file_path,))
     monkeypatch.chdir(tmp_path)
 
-    tree: DiscoveredTree = discover_files(make_config())
+    tree: DiscoveredTree = discover_files(config=make_config())
     scoped_file: ScopedFile = only_file(files=tree.files)
 
     assert is_entry_module(scoped_file) is test_case.expected_is_entry_module
@@ -161,7 +161,7 @@ def test_given_scoped_file_when_checking_role_membership_then_matches_expected_r
     write_python_files(root=tmp_path, relative_paths=(test_case.file_path,))
     monkeypatch.chdir(tmp_path)
 
-    tree: DiscoveredTree = discover_files(make_config())
+    tree: DiscoveredTree = discover_files(config=make_config())
     scoped_file: ScopedFile = only_file(files=tree.files)
 
     assert in_role(scoped_file=scoped_file, role=test_case.expected_role or "") is True

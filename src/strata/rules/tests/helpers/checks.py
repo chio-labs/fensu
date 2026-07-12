@@ -15,9 +15,7 @@ from strata.rules.tests.types import SftCode, TestPathName, TestScope, TestSymbo
 
 _test_name_pattern: re.Pattern[str] = re.compile(r"^test_given_.+_when_.+_then_.+$")
 _valid_test_scopes: frozenset[str] = frozenset(TestScope)
-_minimum_test_layout_parts: int = 3
-_minimum_src_layout_parts: int = 5
-_minimum_scripts_layout_parts: int = 4
+_minimum_test_layout_parts: int = 2
 _minimum_parametrize_arguments: int = 2
 _test_function_rule_codes: frozenset[SftCode] = frozenset(
     {
@@ -55,6 +53,14 @@ class _TestModuleContext:
 class _LayoutIssue:
     code: SftCode
     message: str
+
+
+@dataclass(frozen=True)
+class _LayoutMatch:
+    """Whether configured source matching handled a mirrored test path."""
+
+    matched: bool
+    issue: _LayoutIssue | None
 
 
 def test_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) -> list[Fault]:
@@ -107,70 +113,144 @@ def _layout_faults(*, ctx: RuleContext, code: SftCode) -> list[Fault]:
 
 
 def _layout_issue(*, ctx: RuleContext) -> _LayoutIssue | None:
-    try:
-        relative_parts: tuple[str, ...] = ctx.path.parent.relative_to(ctx.repo_root).parts
-    except ValueError:
-        return _LayoutIssue(code=SftCode.TEST_LAYOUT, message="test path is outside repo")
-    if len(relative_parts) < _minimum_test_layout_parts or relative_parts[0] != TestPathName.TESTS:
+    relative_parts: tuple[str, ...] = ctx.relative_parts()[:-1]
+    if len(relative_parts) < _minimum_test_layout_parts:
         return _LayoutIssue(
             code=SftCode.TEST_LAYOUT,
-            message="test directories must live under tests/<scope>/...",
+            message="test directories must live under <configured-tests>/<scope>/...",
         )
-    scope: str = relative_parts[1]
+    scope: str = relative_parts[0]
     if scope not in _valid_test_scopes:
         return _LayoutIssue(
             code=SftCode.TEST_SCOPE,
             message="test scope must be unit, integration, or e2e",
         )
-    mirrored_root: str = relative_parts[2]
-    if mirrored_root == TestPathName.SRC:
-        return _src_layout_issue(ctx=ctx, relative_parts=relative_parts)
-    if mirrored_root == TestPathName.SCRIPTS:
-        return _scripts_layout_issue(ctx=ctx, relative_parts=relative_parts)
+    mirrored_parts: tuple[str, ...] = relative_parts[1:]
+    source_match: _LayoutMatch = _configured_source_layout_issue(
+        ctx=ctx,
+        mirrored_parts=mirrored_parts,
+    )
+    if source_match.matched:
+        return source_match.issue
     return _LayoutIssue(
         code=SftCode.TEST_MIRRORED_ROOT,
-        message="test directories must mirror src or scripts",
+        message="test directories must mirror a configured runtime or tooling root",
     )
 
 
-def _src_layout_issue(*, ctx: RuleContext, relative_parts: tuple[str, ...]) -> _LayoutIssue | None:
-    if len(relative_parts) < _minimum_src_layout_parts:
+def _configured_source_layout_issue(
+    *, ctx: RuleContext, mirrored_parts: tuple[str, ...]
+) -> _LayoutMatch:
+    runtime_roots: tuple[Path, ...] = ctx.scope_roots(ScopeName.ROOT)
+    tooling_roots: tuple[Path, ...] = ctx.scope_roots(ScopeName.TOOLING)
+    matched_runtime: Path | None = _longest_matching_root(
+        ctx=ctx,
+        mirrored_parts=mirrored_parts,
+        roots=runtime_roots,
+    )
+    matched_tooling: Path | None = _longest_matching_root(
+        ctx=ctx,
+        mirrored_parts=mirrored_parts,
+        roots=tooling_roots,
+    )
+    if matched_runtime is not None and (
+        matched_tooling is None
+        or len(matched_runtime.relative_to(ctx.repo_root).parts)
+        >= len(matched_tooling.relative_to(ctx.repo_root).parts)
+    ):
+        return _LayoutMatch(
+            matched=True,
+            issue=_runtime_layout_issue(
+                ctx=ctx,
+                mirrored_parts=mirrored_parts,
+                source_root=matched_runtime,
+            ),
+        )
+    if matched_tooling is not None:
+        return _LayoutMatch(
+            matched=True,
+            issue=_tooling_layout_issue(
+                ctx=ctx,
+                mirrored_parts=mirrored_parts,
+                source_root=matched_tooling,
+            ),
+        )
+    issue: _LayoutIssue | None = _unmatched_runtime_layout_issue(
+        ctx=ctx,
+        mirrored_parts=mirrored_parts,
+        runtime_roots=runtime_roots,
+    )
+    return _LayoutMatch(matched=issue is not None, issue=issue)
+
+
+def _runtime_layout_issue(
+    *, ctx: RuleContext, mirrored_parts: tuple[str, ...], source_root: Path
+) -> _LayoutIssue | None:
+    source_parts: tuple[str, ...] = source_root.relative_to(ctx.repo_root).parts
+    if len(mirrored_parts) <= len(source_parts):
         return _LayoutIssue(
             code=SftCode.SRC_MIRROR_DEPTH,
-            message="src-backed tests must live under tests/<scope>/src/<package>/<area>/...",
+            message="runtime tests must include an area beneath the configured source root",
         )
-    package_path: Path = ctx.repo_root / "src" / relative_parts[3]
-    if not ctx._project.is_dir(requester=ctx.path, path=package_path):
-        return _LayoutIssue(
-            code=SftCode.SRC_PACKAGE_EXISTS,
-            message="tests under tests/<scope>/src must mirror a real package under src/",
-        )
-    if relative_parts[3] == TestPathName.STRATA and relative_parts[4] == TestPathName.ROOT_SURFACE:
+    area_name: str = mirrored_parts[len(source_parts)]
+    if area_name == TestPathName.ROOT_SURFACE:
         return None
-    area_path: Path = package_path / relative_parts[4]
+    area_path: Path = source_root / area_name
     if not ctx._project.exists(requester=ctx.path, path=area_path):
         return _LayoutIssue(
             code=SftCode.SRC_AREA_EXISTS,
-            message="tests under tests/<scope>/src must mirror a real src package area",
+            message="runtime tests must mirror a real configured source package area",
         )
     return None
 
 
-def _scripts_layout_issue(
-    *, ctx: RuleContext, relative_parts: tuple[str, ...]
+def _tooling_layout_issue(
+    *, ctx: RuleContext, mirrored_parts: tuple[str, ...], source_root: Path
 ) -> _LayoutIssue | None:
-    if len(relative_parts) < _minimum_scripts_layout_parts:
+    source_parts: tuple[str, ...] = source_root.relative_to(ctx.repo_root).parts
+    if len(mirrored_parts) <= len(source_parts):
         return _LayoutIssue(
             code=SftCode.SCRIPTS_MIRROR_DEPTH,
-            message="script-backed tests must live under tests/<scope>/scripts/<area>/...",
+            message="tooling tests must include an area beneath the configured tooling root",
         )
-    area_path: Path = ctx.repo_root / "scripts" / relative_parts[3]
+    area_path: Path = source_root / mirrored_parts[len(source_parts)]
     if not ctx._project.exists(requester=ctx.path, path=area_path):
         return _LayoutIssue(
             code=SftCode.SCRIPTS_AREA_EXISTS,
-            message="tests under tests/<scope>/scripts must mirror a real scripts area",
+            message="tooling tests must mirror a real configured tooling area",
         )
     return None
+
+
+def _unmatched_runtime_layout_issue(
+    *, ctx: RuleContext, mirrored_parts: tuple[str, ...], runtime_roots: tuple[Path, ...]
+) -> _LayoutIssue | None:
+    for root in runtime_roots:
+        source_parts: tuple[str, ...] = root.relative_to(ctx.repo_root).parts
+        container_parts: tuple[str, ...] = source_parts[:-1]
+        if mirrored_parts[: len(container_parts)] != container_parts:
+            continue
+        if len(mirrored_parts) <= len(container_parts):
+            return _LayoutIssue(
+                code=SftCode.SRC_MIRROR_DEPTH,
+                message="runtime tests must mirror a configured package and area",
+            )
+        return _LayoutIssue(
+            code=SftCode.SRC_PACKAGE_EXISTS,
+            message="runtime tests must mirror a configured source package",
+        )
+    return None
+
+
+def _longest_matching_root(
+    *, ctx: RuleContext, mirrored_parts: tuple[str, ...], roots: tuple[Path, ...]
+) -> Path | None:
+    matches: list[Path] = []
+    for root in roots:
+        root_parts: tuple[str, ...] = root.relative_to(ctx.repo_root).parts
+        if mirrored_parts[: len(root_parts)] == root_parts:
+            matches.append(root)
+    return max(matches, key=lambda root: len(root.parts), default=None)
 
 
 def _selected_path_faults(

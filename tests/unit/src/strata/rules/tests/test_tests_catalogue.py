@@ -14,8 +14,43 @@ from tests.unit.src.strata.rules.tests._test_types import SftCatalogueTestCase, 
     "test_case",
     [
         SftCatalogueTestCase(
-            description="tests rule catalogue matches tests code enum",
-            expected_codes=tuple(code.value for code in SftCode),
+            description="tests rule catalogue preserves semantic numbering bands",
+            expected_codes=(
+                "SFT001",
+                "SFT002",
+                "SFT003",
+                "SFT004",
+                "SFT005",
+                "SFT006",
+                "SFT007",
+                "SFT008",
+                "SFT101",
+                "SFT102",
+                "SFT103",
+                "SFT104",
+                "SFT105",
+                "SFT106",
+                "SFT201",
+                "SFT202",
+                "SFT203",
+                "SFT204",
+                "SFT301",
+                "SFT302",
+                "SFT401",
+                "SFT402",
+                "SFT403",
+                "SFT404",
+                "SFT405",
+                "SFT406",
+                "SFT407",
+                "SFT408",
+                "SFT409",
+                "SFT410",
+                "SFT411",
+                "SFT412",
+                "SFT413",
+                "SFT414",
+            ),
             expected_unique_count=len(SftCode),
         )
     ],
@@ -43,15 +78,15 @@ def test_given_tests_rule_catalogue_when_reading_codes_then_matches_tests_code_e
             ),
         ),
         SftGuidanceTestCase(
-            description="complex comprehension guidance recommends ordinary staged code",
+            description="complex comprehension guidance recommends a named transformation",
             rule_code=SftCode.NO_COMPLEX_COMPREHENSIONS,
             expected_message=(
                 "nested or multi-generator comprehensions hide control flow and data shapes"
             ),
             expected_remediation=(
-                "Rewrite this as ordinary statements with named intermediate values. Use "
-                "explicit loops when needed, and extract a helper only when the transformation "
-                "is a distinct operation."
+                "Extract a named helper when the transformation has a coherent purpose. For "
+                "one-off local logic, use simple statements with named intermediate values "
+                "instead of nested comprehension control flow."
             ),
         ),
     ],

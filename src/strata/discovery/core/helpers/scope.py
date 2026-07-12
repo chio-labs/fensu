@@ -4,18 +4,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from strata.config.core.models import Config
 from strata.discovery.core.helpers.position import relative_parts
-from strata.discovery.core.models import RepoRoot, ScopedFile
+from strata.discovery.core.models import ProjectLayout, ScopedFile
 from strata.discovery.core.types import ScopeName
 
 
-def discover_scoped_files(*, config: Config, repo_root: RepoRoot) -> tuple[ScopedFile, ...]:
+def discover_scoped_files(*, layout: ProjectLayout) -> tuple[ScopedFile, ...]:
     """Return sorted Python files under configured scan scopes."""
 
-    scope_roots: tuple[tuple[ScopeName, Path], ...] = _configured_scope_roots(
-        config=config, repo_root=repo_root
-    )
+    scope_roots: tuple[tuple[ScopeName, Path], ...] = _configured_scope_roots(layout=layout)
     discovered: dict[Path, ScopedFile] = {}
     for scope, root in scope_roots:
         if not root.is_dir():
@@ -33,24 +30,20 @@ def discover_scoped_files(*, config: Config, repo_root: RepoRoot) -> tuple[Scope
     return tuple(discovered[path] for path in sorted(discovered))
 
 
-def _configured_scope_roots(
-    *, config: Config, repo_root: RepoRoot
-) -> tuple[tuple[ScopeName, Path], ...]:
+def _configured_scope_roots(*, layout: ProjectLayout) -> tuple[tuple[ScopeName, Path], ...]:
     root_scopes: tuple[tuple[ScopeName, Path], ...] = tuple(
-        (ScopeName.ROOT, _resolve_path(repo_root=repo_root, value=root)) for root in config.roots
+        (ScopeName.ROOT, source.path) for source in layout.runtime_sources
     )
     test_scopes: tuple[tuple[ScopeName, Path], ...] = tuple(
-        (ScopeName.TEST, _resolve_path(repo_root=repo_root, value=root)) for root in config.tests
+        (ScopeName.TEST, root.path) for root in layout.test_roots
     )
     tooling_scopes: tuple[tuple[ScopeName, Path], ...] = tuple(
-        (ScopeName.TOOLING, _resolve_path(repo_root=repo_root, value=root))
-        for root in config.tooling
+        (ScopeName.TOOLING, source.path) for source in layout.tooling_sources
     )
-    return (*root_scopes, *test_scopes, *tooling_scopes)
-
-
-def _resolve_path(*, repo_root: RepoRoot, value: str) -> Path:
-    path: Path = Path(value)
-    if path.is_absolute():
-        return path.resolve()
-    return (repo_root.path / path).resolve()
+    return tuple(
+        sorted(
+            (*root_scopes, *test_scopes, *tooling_scopes),
+            key=lambda item: len(item[1].parts),
+            reverse=True,
+        )
+    )

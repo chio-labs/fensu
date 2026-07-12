@@ -6,6 +6,7 @@ import hashlib
 import importlib
 import importlib.util
 import sys
+from dataclasses import replace
 from importlib.machinery import ModuleSpec
 from pathlib import Path
 from types import ModuleType
@@ -17,60 +18,86 @@ from strata.rules.authoring.main.inspect import rule_specs_in_module
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Family, RuleKind
 from strata.rules.catalog.constants import CORE_RULES
+from strata.rules.catalog.helpers.hermeticity import validate_cacheable_rules
 
 _minimum_core_rule_code_length: int = 3
 
 
-def build_ruleset_from_config(config: Config) -> tuple[RuleSpec, ...]:
+def build_ruleset_from_config(
+    config: Config, *, repo_root: Path | None = None
+) -> tuple[RuleSpec, ...]:
     """Load custom rules, merge with core rules, and apply select/ignore config."""
 
-    all_rules: tuple[RuleSpec, ...] = build_catalogue_from_config(config)
-    return _select_rules(rules=all_rules, select=config.select, ignore=config.ignore)
+    all_rules: tuple[RuleSpec, ...] = build_catalogue_from_config(config, repo_root=repo_root)
+    selected: tuple[RuleSpec, ...] = _select_rules(
+        rules=all_rules,
+        select=config.select,
+        ignore=config.ignore,
+    )
+    validate_cacheable_rules(
+        rules=selected,
+        allowed_packages=frozenset(name.partition(".")[0] for name in config.rule_modules),
+    )
+    return selected
 
 
-def build_catalogue_from_config(config: Config) -> tuple[RuleSpec, ...]:
+def build_catalogue_from_config(
+    config: Config, *, repo_root: Path | None = None
+) -> tuple[RuleSpec, ...]:
     """Load the complete core and configured custom rule catalogue."""
 
+    repository_root: Path = (Path.cwd() if repo_root is None else repo_root).resolve()
     custom_rules: tuple[RuleSpec, ...] = (
-        *_load_rule_modules(config.rule_modules),
-        *_load_rule_paths(config.rule_paths),
+        *_load_rule_modules(config.rule_modules, repo_root=repository_root),
+        *_load_rule_paths(config.rule_paths, repo_root=repository_root),
     )
+    if config.cache.require_cacheable:
+        custom_rules = tuple(replace(rule, cacheable=True) for rule in custom_rules)
     all_rules: tuple[RuleSpec, ...] = (*CORE_RULES, *custom_rules)
     _validate_unique_codes(rules=all_rules)
     _validate_exception_codes(config=config, rules=all_rules)
     return all_rules
 
 
-def _load_rule_modules(module_names: tuple[str, ...]) -> tuple[RuleSpec, ...]:
+def _load_rule_modules(module_names: tuple[str, ...], *, repo_root: Path) -> tuple[RuleSpec, ...]:
     loaded: list[RuleSpec] = []
-    for module_name in module_names:
-        try:
-            module: ModuleType = importlib.import_module(module_name)
-        except Exception as error:
-            raise ConfigError(
-                f"Could not import custom rule module {module_name}: {error}"
-            ) from error
-        loaded.extend(
-            _with_custom_source(
-                rules=rule_specs_in_module(module=module), source=f"module:{module_name}"
+    repository_path: str = _add_repository_import_path(repo_root)
+    try:
+        for module_name in module_names:
+            try:
+                module: ModuleType = importlib.import_module(module_name)
+            except Exception as error:
+                raise ConfigError(
+                    f"Could not import custom rule module {module_name}: {error}"
+                ) from error
+            loaded.extend(
+                _with_custom_source(
+                    rules=rule_specs_in_module(module=module), source=f"module:{module_name}"
+                )
             )
-        )
+    finally:
+        _remove_repository_import_path(repository_path)
     return tuple(loaded)
 
 
-def _load_rule_paths(rule_paths: tuple[str, ...]) -> tuple[RuleSpec, ...]:
+def _load_rule_paths(rule_paths: tuple[str, ...], *, repo_root: Path) -> tuple[RuleSpec, ...]:
     loaded: list[RuleSpec] = []
     for rule_path in rule_paths:
-        path: Path = Path(rule_path).resolve()
+        configured_path: Path = Path(rule_path)
+        path: Path = (
+            configured_path.resolve()
+            if configured_path.is_absolute()
+            else (repo_root / configured_path).resolve()
+        )
         if path.is_dir():
             for file_path in sorted(path.rglob("*.py")):
-                loaded.extend(_load_rule_file(file_path))
+                loaded.extend(_load_rule_file(file_path, repo_root=repo_root))
         else:
-            loaded.extend(_load_rule_file(path))
+            loaded.extend(_load_rule_file(path, repo_root=repo_root))
     return tuple(loaded)
 
 
-def _load_rule_file(path: Path) -> tuple[RuleSpec, ...]:
+def _load_rule_file(path: Path, *, repo_root: Path) -> tuple[RuleSpec, ...]:
     if not path.is_file():
         raise ConfigError(f"Custom rule path does not exist: {path}")
     module_name: str = _synthetic_module_name(path)
@@ -79,10 +106,9 @@ def _load_rule_file(path: Path) -> tuple[RuleSpec, ...]:
         raise ConfigError(f"Could not load custom rule file {path}")
     module: ModuleType = importlib.util.module_from_spec(spec)
     previous_module: ModuleType | None = sys.modules.get(module_name)
-    repository_path: str = str(Path.cwd().resolve())
-    added_repository_path: bool = repository_path not in sys.path
-    if added_repository_path:
-        sys.path.insert(0, repository_path)
+    repository_path: str = _add_repository_import_path(repo_root)
+    previous_names: set[str] = set(sys.modules)
+    displaced_modules: dict[str, ModuleType] = _displace_conflicting_modules(repo_root)
     sys.modules[module_name] = module
     try:
         spec.loader.exec_module(module)
@@ -93,14 +119,61 @@ def _load_rule_file(path: Path) -> tuple[RuleSpec, ...]:
             _ = sys.modules.pop(module_name, None)
         else:
             sys.modules[module_name] = previous_module
-        if added_repository_path:
-            sys.path.remove(repository_path)
+        _remove_loaded_repository_modules(
+            repo_root=repo_root,
+            previous_names=previous_names,
+        )
+        sys.modules.update(displaced_modules)
+        _remove_repository_import_path(repository_path)
     return _with_custom_source(rules=rule_specs_in_module(module=module), source=str(path))
 
 
 def _synthetic_module_name(path: Path) -> str:
     digest: str = hashlib.sha256(str(path).encode("utf-8")).hexdigest()[:16]
     return f"strata._loaded_rules.{digest}"
+
+
+def _add_repository_import_path(repo_root: Path) -> str:
+    repository_path: str = str(repo_root)
+    if repository_path not in sys.path:
+        sys.path.insert(0, repository_path)
+        return repository_path
+    return ""
+
+
+def _remove_repository_import_path(repository_path: str) -> None:
+    if repository_path:
+        sys.path.remove(repository_path)
+
+
+def _displace_conflicting_modules(repo_root: Path) -> dict[str, ModuleType]:
+    package_names: frozenset[str] = frozenset(
+        path.name for path in repo_root.iterdir() if (path / "__init__.py").is_file()
+    )
+    displaced: dict[str, ModuleType] = {}
+    for name, module in tuple(sys.modules.items()):
+        if (
+            module is None
+            or name.partition(".")[0] not in package_names
+            or _module_is_within(module, root=repo_root)
+        ):
+            continue
+        displaced[name] = module
+        _ = sys.modules.pop(name, None)
+    return displaced
+
+
+def _remove_loaded_repository_modules(*, repo_root: Path, previous_names: set[str]) -> None:
+    for name in set(sys.modules) - previous_names:
+        if _module_is_within(sys.modules.get(name), root=repo_root):
+            _ = sys.modules.pop(name, None)
+
+
+def _module_is_within(module: ModuleType | None, *, root: Path) -> bool:
+    module_file: object = getattr(module, "__file__", None)
+    if not isinstance(module_file, str):
+        return False
+    return Path(module_file).resolve().is_relative_to(root)
 
 
 def _with_custom_source(*, rules: tuple[RuleSpec, ...], source: str) -> tuple[RuleSpec, ...]:
@@ -121,6 +194,7 @@ def _with_custom_source(*, rules: tuple[RuleSpec, ...], source: str) -> tuple[Ru
                     kind=rule.kind,
                     source=source,
                     enabled_by_default=rule.enabled_by_default,
+                    cacheable=rule.cacheable,
                 )
             )
         else:

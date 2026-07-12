@@ -16,6 +16,33 @@ class RepoRoot:
 
 
 @dataclass(frozen=True, slots=True)
+class ProjectPath:
+    """One configured path resolved within the repository."""
+
+    path: Path
+    relative_parts: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectSource:
+    """One configured Python package root and its import identity."""
+
+    path: Path
+    relative_parts: tuple[str, ...]
+    import_root: Path
+    package_name: str
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectLayout:
+    """Authoritative resolved runtime, test, and tooling layout."""
+
+    runtime_sources: tuple[ProjectSource, ...]
+    test_roots: tuple[ProjectPath, ...]
+    tooling_sources: tuple[ProjectSource, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class ScopedFile:
     """A Python file classified into one configured scan scope."""
 
@@ -43,3 +70,4 @@ class DiscoveredTree:
 
     files: tuple[ScopedFile, ...]
     repo_root: RepoRoot
+    layout: ProjectLayout

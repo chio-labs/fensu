@@ -63,3 +63,13 @@ class ModuleMetadataTestCase:
 
     description: str
     expected_codes: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class HermeticityTestCase:
+    """One rule-execution hermeticity scan and its expected clean outcome."""
+
+    description: str
+    excluded_packages: tuple[str, ...]
+    expected_minimum_modules: int
+    expected_violations: tuple[str, ...]

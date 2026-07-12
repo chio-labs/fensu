@@ -6,6 +6,7 @@ from pathlib import Path
 
 from strata.config.core.models import Config
 from strata.discovery.core.models import ScopedFile
+from tests.unit.src.strata.discovery.core._test_types import LayoutConfigErrorTestCase
 
 
 def write_python_files(*, root: Path, relative_paths: tuple[str, ...]) -> None:
@@ -40,3 +41,15 @@ def relative_file_names(*, repo_root: Path, files: tuple[ScopedFile, ...]) -> tu
     """Return repo-relative POSIX file paths for stable assertions."""
 
     return tuple(file.path.relative_to(repo_root).as_posix() for file in files)
+
+
+def layout_error_config(*, test_case: LayoutConfigErrorTestCase, external_root: Path) -> Config:
+    """Build the invalid layout selected by a discovery test case."""
+
+    if test_case.uses_external_root:
+        return make_config(roots=(str(external_root),))
+    return make_config(
+        roots=test_case.roots,
+        tests=test_case.tests,
+        tooling=test_case.tooling,
+    )

@@ -8,6 +8,8 @@ from strata.config.core.exceptions import ConfigError
 from strata.config.core.main.find_config import find_config_source
 from strata.config.core.main.load_config import load_config
 from strata.config.core.models import Config, ConfigSource
+from strata.discovery.core.main.build_project_layout import build_project_layout
+from strata.discovery.core.models import ProjectLayout, ProjectSource, RepoRoot
 from strata.mapping.core.exceptions import MapError
 from strata.mapping.core.models import MappingProject, MappingSource
 
@@ -46,20 +48,20 @@ def _configured_project(source: ConfigSource) -> MappingProject:
     repo_root: Path = source.path.parent.resolve()
     try:
         config: Config = load_config(repo_root)
+        layout: ProjectLayout = build_project_layout(
+            config=config,
+            repo_root=RepoRoot(repo_root),
+        )
     except ConfigError as error:
         raise MapError(str(error)) from error
     sources: tuple[MappingSource, ...] = tuple(
-        _configured_source(value=value, repo_root=repo_root) for value in config.roots
+        _mapping_source(source) for source in layout.runtime_sources
     )
     return MappingProject(repo_root=repo_root, sources=sources)
 
 
-def _configured_source(*, value: str, repo_root: Path) -> MappingSource:
-    path: Path = Path(value)
-    scan_path: Path = path.resolve() if path.is_absolute() else (repo_root / path).resolve()
-    if not scan_path.is_dir():
-        raise MapError(f"Configured root path does not exist: {value}")
-    return MappingSource(scan_path=scan_path, import_root=scan_path.parent)
+def _mapping_source(source: ProjectSource) -> MappingSource:
+    return MappingSource(scan_path=source.path, import_root=source.import_root)
 
 
 def _explicit_source(*, value: str, cwd: Path) -> MappingSource:

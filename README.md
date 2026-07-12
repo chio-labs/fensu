@@ -43,6 +43,9 @@ Add `strata.toml` at the repository root:
 roots = ["src/my_package"]
 tests = ["tests"]
 tooling = ["scripts"]
+
+[cache]
+enabled = true
 ```
 
 Then run:
@@ -97,6 +100,15 @@ strata map run_plan --depth 3
 `strata check` enforces the configured architecture, `strata rule` explains one
 rule and its remediation, and `strata map` renders a conservative downstream call
 tree. Mapping does not require Strata configuration or rule adoption.
+
+`strata check` stores disposable evaluation results in a repository-local
+SQLite database under `.strata/cache/`
+and reuses them only after validating source, configuration, rule, implementation,
+and project-query inputs. Caching is enabled by default; set `cache.enabled = false`
+in configuration or pass `--no-cache` for an explicit uncached check. `--cache`
+overrides a disabled project preference for one invocation.
+Deleting `.strata/cache/` is always safe; ignore that directory rather than the
+complete `.strata/` namespace, which is reserved for other Strata-owned state.
 
 ## Enforce It, Then See It
 

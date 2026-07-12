@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from strata.analysis.core.types import ProjectAnalysis
 from strata.config.core.models import Config
-from strata.discovery.core.models import RepoRoot
+from strata.discovery.core.models import ProjectLayout, RepoRoot
 from strata.evaluation.core.classes.rule_context import EvaluationRuleContext
 from strata.evaluation.core.models import ParsedModule
 from strata.rules.authoring.models import Fault, RuleSpec
@@ -16,6 +16,7 @@ def execute_rule(
     parsed_module: ParsedModule,
     config: Config,
     repo_root: RepoRoot,
+    layout: ProjectLayout,
     project: ProjectAnalysis,
     file_cache: dict[str, object],
 ) -> list[Fault]:
@@ -25,6 +26,7 @@ def execute_rule(
         parsed_module=parsed_module,
         config=config,
         repo_root=repo_root,
+        layout=layout,
         rule=rule,
         project=project,
         file_cache=file_cache,

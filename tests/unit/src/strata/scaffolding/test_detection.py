@@ -42,6 +42,22 @@ from tests.unit.src.strata.scaffolding.helpers import (
             expected_python_state=(1, 1, False),
         ),
         DetectionTestCase(
+            description="conventional tooling package is removed from runtime roots",
+            files=(
+                (
+                    "pyproject.toml",
+                    '[tool.hatch.build.targets.wheel]\npackages = ["jravan_scraper", "bin"]\n',
+                ),
+                ("jravan_scraper/__init__.py", ""),
+                ("bin/__init__.py", ""),
+            ),
+            directories=(),
+            expected_roots=(("jravan_scraper", "pyproject: hatch packages"),),
+            expected_tests=(("tests", "not present yet", False),),
+            expected_tooling=("bin",),
+            expected_python_state=(1, 1, False),
+        ),
+        DetectionTestCase(
             description="setuptools find and package-dir preserve declaration precedence",
             files=(
                 (

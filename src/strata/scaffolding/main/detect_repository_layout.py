@@ -45,7 +45,6 @@ def detect_repository_layout(*, repository: Path) -> DetectedRepositoryLayout:
     roots: tuple[PathCandidate, ...] = ordered_candidates(
         repository=resolved_repository, inputs=root_inputs
     )
-    _validate_package_markers(repository=resolved_repository, roots=roots)
     tests: tuple[PathCandidate, ...] = _detect_tests(
         repository=resolved_repository, pyproject=pyproject
     )
@@ -53,6 +52,9 @@ def detect_repository_layout(*, repository: Path) -> DetectedRepositoryLayout:
         repository=resolved_repository,
         inputs=tooling_inputs(repository=resolved_repository),
     )
+    tooling_paths: frozenset[str] = frozenset(candidate.path for candidate in tooling)
+    roots = tuple(candidate for candidate in roots if candidate.path not in tooling_paths)
+    _validate_package_markers(repository=resolved_repository, roots=roots)
     inspected: PythonState = inspect_python_state(repository=resolved_repository)
     python: PythonState = PythonState(
         file_count=inspected.file_count,

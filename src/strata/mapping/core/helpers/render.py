@@ -86,7 +86,12 @@ def _child_lines(
 
 
 def _label(*, node: CallMapNode, repo_root: Path, path_mode: PathMode, use_color: bool) -> str:
-    function: str = _color(f"{node.definition.name}(...)", style=ANSI_FUNCTION, enabled=use_color)
+    display_name: str = (
+        f"{node.dispatch_class_name}.{node.definition.name}"
+        if node.dispatch_class_name is not None
+        else node.definition.display_name
+    )
+    function: str = _color(f"{display_name}(...)", style=ANSI_FUNCTION, enabled=use_color)
     location: str = _location(
         path=node.definition.path,
         line=node.definition.node.lineno,

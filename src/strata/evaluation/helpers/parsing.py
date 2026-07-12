@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-import ast
 import hashlib
 from pathlib import Path
 
+from strata.analysis.exceptions import PythonSourceParseError
 from strata.analysis.main.build import build_analysis
-from strata.analysis.types import AnalysisBuild
+from strata.analysis.main.parse_source import parse_python_source
+from strata.analysis.types import AnalysisBuild, PythonSourceArtifact
 from strata.discovery.main.position import position_facts
 from strata.discovery.models import ScopedFile
 from strata.evaluation.exceptions import ParseError
@@ -29,35 +30,31 @@ def parse_scoped_file(
     """Read and parse one discovered Python file."""
 
     snapshot: SourceSnapshot = source_snapshot or read_source_snapshot(path=scoped_file.path)
-    source: str = decode_source_snapshot(snapshot)
     try:
-        module: ast.Module = ast.parse(source, filename=str(scoped_file.path))
-    except SyntaxError as error:
+        artifact: PythonSourceArtifact = parse_python_source(
+            path=scoped_file.path,
+            content=snapshot.content,
+            source_fingerprint=snapshot.fingerprint,
+        )
+    except PythonSourceParseError as error:
         message: str = (
             f"Could not parse {scoped_file.path}: syntax is not valid for the Python "
             "interpreter running strata. Run strata under the target project's Python "
             "version or newer."
         )
         raise ParseError(
-            path=scoped_file.path, message=message, line=error.lineno, column=error.offset
+            path=scoped_file.path, message=message, line=error.line, column=error.column
         ) from error
-    analysis_build: AnalysisBuild = build_analysis(
-        path=scoped_file.path, source=source, module=module
+    build: AnalysisBuild = build_analysis(
+        path=artifact.path, source=artifact.source, module=artifact.module
     )
     return ParsedModule(
         scoped_file=scoped_file,
-        module=module,
-        source=source,
-        source_fingerprint=snapshot.fingerprint,
-        node_index=analysis_build.node_index,
-        parent_by_node=analysis_build.parent_by_node,
+        module=artifact.module,
+        source=artifact.source,
+        source_fingerprint=artifact.source_fingerprint,
+        node_index=build.node_index,
+        parent_by_node=build.parent_by_node,
         position=position_facts(scoped_file),
-        analysis=analysis_build.analysis,
+        analysis=build.analysis,
     )
-
-
-def decode_source_snapshot(snapshot: SourceSnapshot) -> str:
-    """Decode source bytes with the universal newline behavior used by text reads."""
-
-    source: str = snapshot.content.decode("utf-8")
-    return source.replace("\r\n", "\n").replace("\r", "\n")

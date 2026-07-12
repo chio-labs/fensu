@@ -5,6 +5,9 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from strata.analysis.exceptions import PythonSourceParseError
+from strata.analysis.main.parse_source import parse_python_source
+from strata.analysis.types import PythonSourceArtifact
 from strata.cache.fingerprints.main.source import fingerprint_source
 from strata.mapping.constants import (
     EXCLUDED_DIRECTORY_NAMES,
@@ -68,9 +71,14 @@ def build_file_index(*, snapshot: SourceSnapshot) -> ProjectIndex:
     """Extract map declarations from one immutable source snapshot."""
 
     try:
-        module: ast.Module = ast.parse(snapshot.source, filename=str(snapshot.path))
-    except SyntaxError as error:
-        raise MapError(f"Could not parse {snapshot.path}: {error.msg}") from error
+        artifact: PythonSourceArtifact = parse_python_source(
+            path=snapshot.path,
+            content=snapshot.source,
+            source_fingerprint=snapshot.source_fingerprint,
+        )
+    except PythonSourceParseError as error:
+        raise MapError(f"Could not parse {snapshot.path}: {error.message}") from error
+    module: ast.Module = artifact.module
     functions: dict[str, FunctionDefinition] = {}
     classes: dict[str, ClassDefinition] = {}
     imports: ModuleImports = _imports(

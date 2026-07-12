@@ -32,6 +32,16 @@ def write_sources(*, repo_root: Path, files: tuple[tuple[str, str], ...]) -> Non
         path.write_text(source, encoding="utf-8")
 
 
+def direct_ast_parse_paths(*, root: Path) -> tuple[str, ...]:
+    """Return Python modules containing direct ast.parse calls."""
+
+    return tuple(
+        str(candidate.relative_to(root))
+        for candidate in root.rglob("*.py")
+        if "ast.parse" in candidate.read_text(encoding="utf-8")
+    )
+
+
 def write_exception_target(*, repo_root: Path, path: str, create_path: bool) -> None:
     """Write a target function only when an exception-target test requests it."""
 

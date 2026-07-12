@@ -25,6 +25,34 @@ class MapCacheInvalidationTestCase:
 
 
 @dataclass(frozen=True)
+class MapParseParityTestCase:
+    """Invalid map source and expected shared-factory parity."""
+
+    description: str
+    changed_source: bytes
+    expected_error: str
+    expected_direct_parse_paths: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class MapSourceEncodingTestCase:
+    """Encoded Python source and expected cached map output."""
+
+    description: str
+    source: bytes
+    expected_output_fragment: str
+
+
+@dataclass(frozen=True)
+class MapAnalysisOwnershipTestCase:
+    """Expected map behavior without full analysis construction."""
+
+    description: str
+    expected_output_fragment: str
+    expected_analysis_build_count: int
+
+
+@dataclass(frozen=True)
 class MapCacheSerializationTestCase:
     """One strict declaration decoding behavior."""
 

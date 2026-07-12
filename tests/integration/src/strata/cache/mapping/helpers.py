@@ -59,6 +59,16 @@ def cached_symbol_map(*, root: Path, source: MappingSource, symbol: str) -> Cach
     return build_cached_call_map(sources=(source,), symbol=symbol, depth=2, repo_root=root)
 
 
+def direct_ast_parse_paths(*, root: Path) -> tuple[str, ...]:
+    """Return Python modules containing direct ast.parse calls."""
+
+    return tuple(
+        str(candidate.relative_to(root))
+        for candidate in root.rglob("*.py")
+        if "ast.parse" in candidate.read_text(encoding="utf-8")
+    )
+
+
 def mutate_manifest(*, root: Path, mutation: str) -> None:
     """Publish an integrity-valid but cross-inconsistent project manifest."""
 

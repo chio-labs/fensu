@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import json
+from collections.abc import Mapping
+
 from strata.agentdocs.constants import (
     RUNTIME_BASIC_CODES,
     RUNTIME_CLASSES_CODES,
     RUNTIME_CONSTANTS_CODES,
+    RUNTIME_ENTRY_CODES,
     RUNTIME_EXCEPTIONS_CODES,
     RUNTIME_HELPERS_CODES,
     RUNTIME_MAIN_CODES,
@@ -24,6 +28,9 @@ from strata.agentdocs.constants import (
 )
 from strata.agentdocs.helpers.role_examples import runtime_role_example_lines
 from strata.config.models import Config
+from strata.discovery.types import RoleName
+from strata.rules.authoring.types import Threshold
+from strata.rules.roles.types import RoleCode
 
 
 def repository_guidance_lines(*, config: Config, active_codes: frozenset[str]) -> tuple[str, ...]:
@@ -47,6 +54,20 @@ def repository_guidance_lines(*, config: Config, active_codes: frozenset[str]) -
     )
 
 
+def configured_threshold_override_lines(
+    *, config: Config, active_codes: frozenset[str]
+) -> tuple[str, ...]:
+    """Render configured overrides whenever at least one active rule can consult them."""
+
+    if not config.threshold_overrides or not active_codes:
+        return ()
+    return (
+        "## Configured Threshold Overrides",
+        "",
+        *_threshold_override_lines(config=config),
+    )
+
+
 def _runtime_guidance(*, config: Config, active_codes: frozenset[str]) -> tuple[str, ...]:
     if not RUNTIME_BASIC_CODES.issubset(active_codes):
         return ()
@@ -67,6 +88,7 @@ def _runtime_guidance(*, config: Config, active_codes: frozenset[str]) -> tuple[
         lines.extend(_tree_entries(entries=entries, indent="        "))
         lines.extend(("```", ""))
     lines.extend(_domain_shape_lines(active_codes=active_codes))
+    lines.extend(_container_guidance(config=config, active_codes=active_codes))
     if not nested_enabled:
         return tuple(lines)
     lines.extend(
@@ -118,6 +140,140 @@ def _domain_shape_lines(*, active_codes: frozenset[str]) -> tuple[str, ...]:
                 "",
             )
         )
+    return tuple(lines)
+
+
+def _container_guidance(*, config: Config, active_codes: frozenset[str]) -> tuple[str, ...]:
+    enabled_roles: tuple[RoleName, ...] = tuple(
+        role
+        for role, code in (
+            (RoleName.HELPERS, RoleCode.HELPERS_PACKAGE_LAYOUT),
+            (RoleName.MAIN, RoleCode.MAIN_PACKAGE_LAYOUT),
+        )
+        if code in active_codes
+    )
+    if not enabled_roles:
+        return ()
+    lines: list[str] = ["### Role Containers", ""]
+    for role in enabled_roles:
+        threshold: Threshold = (
+            Threshold.MAX_HELPERS_CONTAINER_MODULES
+            if role is RoleName.HELPERS
+            else Threshold.MAX_MAIN_CONTAINER_MODULES
+        )
+        role_thresholds: Mapping[Threshold, int] | None = config.role_thresholds.get(role.value)
+        limit: int = (
+            role_thresholds[threshold]
+            if role_thresholds is not None and threshold in role_thresholds
+            else config.thresholds[threshold]
+        )
+        lines.extend(_role_container_lines(role=role, limit=limit))
+    lines.extend(
+        (
+            (
+                "Every container holds direct Python modules or Python-containing buckets, never "
+                "both. Empty and asset-only directories do not count as buckets."
+            ),
+            "",
+            (
+                "Configured base `max_role_depth` is "
+                f"{config.thresholds[Threshold.MAX_ROLE_DEPTH]}. "
+                "Role tables and matching path overrides can provide the effective per-path value."
+            ),
+            "",
+            (
+                "Runtime role names are banned as buckets: `main`, `helpers`, `classes`, `models`, "
+                "`types`, `constants`, and `exceptions`."
+            ),
+            "",
+        )
+    )
+    if RoleCode.BANNED_GENERIC_PACKAGE_NAME in active_codes:
+        lines.extend(
+            (
+                "Generic bucket names remain SFR204 concerns and do not receive a second "
+                "container-layout fault.",
+                "",
+            )
+        )
+    if RoleName.MAIN in enabled_roles and RUNTIME_ENTRY_CODES.issubset(active_codes):
+        lines.extend(
+            (
+                (
+                    "Every non-`__init__.py` module whose first structural role is `main` is an "
+                    "entry module, including grouped main modules. Entry shape and container depth "
+                    "are orthogonal, so an over-depth main path may independently receive both "
+                    "layout and entry-shape diagnostics. A `main` bucket below another role is not "
+                    "an entry boundary."
+                ),
+                "",
+            )
+        )
+    return tuple(lines)
+
+
+def _role_container_lines(*, role: RoleName, limit: int) -> tuple[str, ...]:
+    noun: str = "helper" if role is RoleName.HELPERS else "entry"
+    return (
+        f"#### `{role}/`: Flat Or Grouped",
+        "",
+        (
+            f"Each `{role}/` container has an effective module limit; "
+            f"its configured role base is {limit}."
+        ),
+        "",
+        "```text",
+        f"{role}/",
+        f"├── first_{noun}.py",
+        f"└── second_{noun}.py",
+        "```",
+        "",
+        "or group every module:",
+        "",
+        "```text",
+        f"{role}/",
+        "├── reading/",
+        f"│   └── read_{noun}.py",
+        "└── writing/",
+        f"    └── write_{noun}.py",
+        "```",
+        "",
+    )
+
+
+def _threshold_override_lines(*, config: Config) -> tuple[str, ...]:
+    lines: list[str] = []
+    lines.extend(
+        (
+            (
+                "Patterns match reported repository paths. Specificity is compared as "
+                "`(literal segments, literal characters, -globstars, -wildcards, declaration "
+                "order)`; the greatest tuple wins. Literal segments contain no `*`, literal "
+                "characters exclude `/` and `*`, globstars count `**` segments, and wildcards "
+                "count remaining `*` tokens."
+            ),
+            "",
+            "```toml",
+        )
+    )
+    for override in config.threshold_overrides:
+        paths: str = ", ".join(json.dumps(path) for path in override.paths)
+        thresholds: str = ", ".join(
+            f"{threshold.value} = {value}"
+            for threshold, value in sorted(
+                override.thresholds.items(), key=lambda item: item[0].value
+            )
+        )
+        lines.extend(
+            (
+                "[[threshold_overrides]]",
+                f"paths = [{paths}]",
+                f"reason = {json.dumps(override.reason)}",
+                f"thresholds = {{ {thresholds} }}",
+                "",
+            )
+        )
+    lines.extend(("```", ""))
     return tuple(lines)
 
 

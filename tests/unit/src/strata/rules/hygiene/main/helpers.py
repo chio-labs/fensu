@@ -23,8 +23,14 @@ def evaluate_hygiene_test_case(
     path: Path = tmp_path / test_case.relative_path
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(test_case.source, encoding="utf-8")
+    for root in test_case.roots:
+        (tmp_path / root).mkdir(parents=True, exist_ok=True)
     monkeypatch.chdir(tmp_path)
-    config: Config = Config(roots=test_case.roots, tests=(), tooling=test_case.tooling)
+    config: Config = Config(
+        roots=test_case.roots,
+        tests=test_case.tests,
+        tooling=test_case.tooling,
+    )
     return evaluate(
         tree=discover_files(config=config),
         ruleset=(_rule_by_code(test_case.rule_code),),

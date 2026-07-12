@@ -19,6 +19,15 @@ class PersistentTypedResultTestCase:
 
 
 @dataclass(frozen=True)
+class InvalidCachedRuleCodeTestCase:
+    """One invalid cached fault code and expected serialization error."""
+
+    description: str
+    rule_code: str
+    expected_error_type: type[Exception]
+
+
+@dataclass(frozen=True)
 class ResultCachePersistenceTestCase:
     """One published file evaluation and expected repository behavior."""
 

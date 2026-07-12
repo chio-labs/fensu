@@ -10,14 +10,14 @@ def role_rule_details(code: RoleCode) -> tuple[str, str]:
 
     details: dict[RoleCode, tuple[str, str]] = {
         RoleCode.HELPERS_PACKAGE_LAYOUT: (
-            "helpers/ packages must use one consistent shallow layout",
-            "Keep a small flat helpers/ package or group all concerns into shallow subfolders; "
-            "do not mix both shapes.",
+            "helpers/ packages must use bounded flat-or-grouped containers",
+            "Keep helpers/ flat or group every module into bounded shallow buckets; do not mix "
+            "modules and Python-containing buckets in one container.",
         ),
         RoleCode.MAIN_PACKAGE_LAYOUT: (
-            "main/ packages must remain flat orchestration surfaces",
-            "Keep entry modules directly under main/ and move support logic to the sibling "
-            "helpers/ package.",
+            "main/ packages must use bounded flat-or-grouped orchestration containers",
+            "Keep main/ flat or group every entry into bounded shallow buckets; do not mix "
+            "modules and Python-containing buckets in one container.",
         ),
         RoleCode.NESTED_DIRECT_MODULES: (
             "nested runtime packages may contain only role-oriented direct modules",
@@ -71,9 +71,9 @@ def role_rule_details(code: RoleCode) -> tuple[str, str]:
             "Split additional classes into separately named modules under classes/.",
         ),
         RoleCode.HELPERS_PACKAGE_SHAPE: (
-            "helpers/ packages must stay shallow and contain no orchestration entrypoints",
-            "Remove main.py and nested feature packages; use direct role-oriented helper modules "
-            "or one shallow grouping level.",
+            "helpers/ packages must contain no main.py orchestration entrypoints",
+            "Move main.py orchestration into the sibling main/ role; helper depth is enforced by "
+            "SFR301.",
         ),
         RoleCode.PRIVATE_DEFINITION_ORDERING: (
             "private constants and dataclasses must appear before top-level functions",

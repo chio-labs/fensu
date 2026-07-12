@@ -12,6 +12,7 @@ from strata.cache.fingerprints.main.build_global import build_global_fingerprint
 from strata.cache.fingerprints.models import GlobalFingerprintBuild
 from strata.cache.results.main.evaluate import evaluate_with_cache
 from strata.cache.results.models import CacheEvaluation, CacheStats
+from strata.cli.helpers.check_reporting import render_check_result
 from strata.cli.main.cache_status import write_cache_status
 from strata.config.exceptions import ConfigError
 from strata.config.main.load_project_config import load_project_config
@@ -21,7 +22,6 @@ from strata.discovery.models import DiscoveredTree
 from strata.evaluation.main.evaluate import evaluate
 from strata.evaluation.main.validate_rule_exceptions import validate_rule_exceptions
 from strata.evaluation.models import EvaluationResult
-from strata.reporting.main.render import render
 from strata.reporting.models import RenderedReport
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.catalog.main.build_ruleset import build_ruleset
@@ -80,11 +80,10 @@ def run_check(
     except ConfigError as error:
         stderr.write(f"{error}\n")
         return 2
-    report: RenderedReport = render(
-        faults=result.faults,
-        root=tree.repo_root.path,
+    report: RenderedReport = render_check_result(
+        result=result,
+        tree=tree,
         use_color=not args.no_color and stdout.isatty(),
-        applied_exception_count=result.applied_exception_count,
     )
     write_cache_status(
         stderr=stderr,

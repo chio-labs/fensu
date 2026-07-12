@@ -7,6 +7,7 @@ from strata.rules.authoring.types import Family
 from strata.rules.hygiene.helpers.checks import (
     no_assert_in_runtime,
     no_complex_comprehensions_in_tooling,
+    no_import_time_side_effects,
     no_magic_numeric_comparisons,
     no_raw_builtin_raise,
     no_standalone_comments,
@@ -110,5 +111,15 @@ def hygiene_rules() -> tuple[RuleSpec, ...]:
                 "only -1, 0, and 1 are self-explanatory comparison values."
             ),
             check=no_magic_numeric_comparisons,
+        ),
+        RuleSpec(
+            code=HygieneCode.NO_IMPORT_TIME_SIDE_EFFECTS,
+            family=Family.HYGIENE,
+            slug="no-import-time-side-effects",
+            message="runtime and tooling modules must not execute standalone calls during import",
+            remediation=(
+                "Move the operation into an explicit function or assign a pure constructor result."
+            ),
+            check=no_import_time_side_effects,
         ),
     )

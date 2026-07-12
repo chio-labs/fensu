@@ -13,9 +13,14 @@ from strata.evaluation.helpers.file_evaluation import evaluate_file
 from strata.evaluation.helpers.project_analysis import build_project_analysis
 from strata.evaluation.models import FileEvaluation
 from strata.evaluation.types import EvaluationProjectAnalysis
+from strata.rules.authoring.models import RuleSpec
+from strata.rules.authoring.types import Family
+from strata.rules.catalog.helpers import loading as loading_module
+from strata.rules.catalog.main.build_ruleset import build_ruleset
 from tests.unit.src.strata.evaluation._test_types import (
     FileEvaluationExceptionTestCase,
     FileEvaluationTestCase,
+    ScopeFamilySelectionTestCase,
 )
 from tests.unit.src.strata.evaluation.helpers import (
     discover_test_tree,
@@ -119,3 +124,56 @@ def test_given_matching_exception_when_evaluating_file_then_returns_applied_key(
     assert tuple(key.symbol for key in result.applied_exception_keys) == (
         test_case.expected_applied_symbols
     )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ScopeFamilySelectionTestCase(
+            description="X selects custom code while tests family limits execution to test scope",
+            runtime_path="src/pkg/runtime.py",
+            test_path="tests/test_runtime.py",
+            expected_selected_codes=("XSC001",),
+            expected_fault_paths=("tests/test_runtime.py",),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_custom_code_with_tests_family_when_selecting_x_then_executes_only_test_scope(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: ScopeFamilySelectionTestCase,
+) -> None:
+    write_sources(
+        repo_root=tmp_path,
+        files=((test_case.runtime_path, "value = 1\n"), (test_case.test_path, "value = 1\n")),
+    )
+    monkeypatch.chdir(tmp_path)
+    custom_rule: RuleSpec = make_static_fault_rule(
+        code="XSC001",
+        line=1,
+        message="scope fault",
+        family=Family.TESTS,
+    )
+    monkeypatch.setattr(loading_module, "CORE_RULES", (custom_rule,))
+    config: Config = Config(roots=("src/pkg",), tests=("tests",), select=("X",))
+    tree: DiscoveredTree = discover_test_tree(config=config)
+    project: EvaluationProjectAnalysis = build_project_analysis(tree=tree)
+    ruleset: tuple[RuleSpec, ...] = build_ruleset(config=config, repo_root=tmp_path)
+    results: tuple[FileEvaluation, ...] = tuple(
+        evaluate_file(
+            scoped_file=scoped_file,
+            ruleset=ruleset,
+            config=config,
+            tree=tree,
+            project=project,
+        )
+        for scoped_file in tree.files
+    )
+    fault_paths: list[str] = []
+    for result in results:
+        for fault in result.faults:
+            fault_paths.append(fault.path.relative_to(tmp_path).as_posix())
+
+    assert tuple(rule.code for rule in ruleset) == test_case.expected_selected_codes
+    assert tuple(fault_paths) == test_case.expected_fault_paths

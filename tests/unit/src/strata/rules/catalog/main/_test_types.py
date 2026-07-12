@@ -25,6 +25,16 @@ class RegistryErrorTestCase:
 
 
 @dataclass(frozen=True)
+class DirectRuleSpecErrorTestCase:
+    """Malformed direct RuleSpec metadata and its expected loading error."""
+
+    description: str
+    rule_code: object
+    family_expression: str
+    expected_error_fragment: str
+
+
+@dataclass(frozen=True)
 class ModuleIsolationTestCase:
     """Foreign and loaded rule codes for module-local discovery tests."""
 

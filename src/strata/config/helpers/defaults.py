@@ -17,7 +17,7 @@ from strata.config.constants import (
     DEFAULT_THRESHOLDS,
     DEFAULT_TOOLING_PATHS,
 )
-from strata.config.models import CacheConfig, Config, RuleExceptionEntry
+from strata.config.models import CacheConfig, Config, RuleExceptionEntry, ThresholdOverride
 from strata.rules.authoring.types import Threshold
 
 
@@ -54,6 +54,7 @@ def build_config(raw: Mapping[str, object]) -> Config:
         cache=_cache_config(raw.get("cache")),
         thresholds=MappingProxyType(thresholds),
         role_thresholds=MappingProxyType(role_thresholds),
+        threshold_overrides=_threshold_overrides(raw.get("threshold_overrides")),
         contracts=MappingProxyType(contracts),
     )
 
@@ -113,6 +114,27 @@ def _rule_exceptions(value: object) -> tuple[RuleExceptionEntry, ...]:
                     rule=rule,
                     path=path,
                     symbols=tuple(symbol for symbol in symbols if isinstance(symbol, str)),
+                    reason=reason,
+                )
+            )
+    return tuple(result)
+
+
+def _threshold_overrides(value: object) -> tuple[ThresholdOverride, ...]:
+    if not isinstance(value, list):
+        return ()
+    result: list[ThresholdOverride] = []
+    for entry in value:
+        if not isinstance(entry, dict):
+            continue
+        paths: object = entry.get("paths")
+        reason: object = entry.get("reason")
+        thresholds: object = entry.get("thresholds")
+        if isinstance(paths, list) and isinstance(reason, str):
+            result.append(
+                ThresholdOverride(
+                    paths=tuple(path for path in paths if isinstance(path, str)),
+                    thresholds=MappingProxyType(_threshold_values(value=thresholds)),
                     reason=reason,
                 )
             )

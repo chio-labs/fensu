@@ -329,8 +329,7 @@ class ParametrizeFact:
     parameter_name: str | None
     ids_present: bool
     description_lambda_ids: bool
-    values_is_name: bool
-    values_is_list_comprehension: bool
+    values_is_comprehension: bool
     values_is_sequence: bool
     values_empty: bool
     cases: tuple[ParametrizeCaseFact, ...]

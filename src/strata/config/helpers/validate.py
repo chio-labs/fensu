@@ -13,9 +13,14 @@ from strata.config.constants import (
     CONFIG_ROLE_NAMES,
     CONFIG_TOP_LEVEL_KEYS,
     CONTRACT_BEHAVIORS,
+    DOUBLE_PATH_SEPARATOR,
+    PATH_SEPARATOR,
+    RECURSIVE_GLOB,
+    THRESHOLD_OVERRIDE_KEYS,
 )
 from strata.config.exceptions import ConfigError, ConfigValidationError
-from strata.config.types import RuleSelector
+from strata.rules.authoring.main.is_rule_code import is_rule_code
+from strata.rules.authoring.main.is_rule_selector import is_rule_selector
 from strata.rules.authoring.types import Threshold
 
 _empty_string: str = ""
@@ -42,6 +47,7 @@ def validate_config(raw: Mapping[str, object]) -> None:
     _validate_selection(name="ignore", value=raw.get("ignore"))
     _validate_thresholds(value=raw.get("thresholds"), owner="thresholds")
     _validate_role_thresholds(value=raw.get("roles"))
+    _validate_threshold_overrides(value=raw.get("threshold_overrides"))
     _validate_contracts(value=raw.get("contracts"))
     _validate_rule_exceptions(value=raw.get("rule_exceptions"))
     _validate_cache(value=raw.get("cache"))
@@ -114,23 +120,8 @@ def _validate_selection(*, name: str, value: object) -> None:
         return
     entries: tuple[str, ...] = _validate_string_sequence(name=name, value=value)
     for entry in entries:
-        if not _selection_entry_is_well_formed(entry):
+        if not is_rule_selector(entry):
             raise ConfigValidationError(f"Config key {name} contains invalid selector {entry}.")
-
-
-def _selection_entry_is_well_formed(entry: str) -> bool:
-    if entry == RuleSelector.ALL:
-        return True
-    family_selectors: set[str] = {
-        selector for selector in RuleSelector if selector is not RuleSelector.ALL
-    }
-    if entry in family_selectors:
-        return True
-    family_letters: str = "".join(selector[-1] for selector in sorted(family_selectors))
-    return (
-        re.fullmatch(rf"SF[{family_letters}][0-9]{{3}}", entry) is not None
-        or re.fullmatch(r"X[A-Za-z0-9][A-Za-z0-9_-]*", entry) is not None
-    )
 
 
 def _validate_thresholds(*, value: object, owner: str) -> None:
@@ -157,6 +148,59 @@ def _validate_role_thresholds(*, value: object) -> None:
         if not isinstance(role_name, str) or role_name not in CONFIG_ROLE_NAMES:
             raise ConfigValidationError(f"Unknown role name in roles: {role_name}.")
         _validate_thresholds(value=thresholds, owner=f"roles.{role_name}")
+
+
+def _validate_threshold_overrides(*, value: object) -> None:
+    if value is None:
+        return
+    if not isinstance(value, list):
+        raise ConfigValidationError("Config key threshold_overrides must be an array of tables.")
+    for entry in value:
+        if not isinstance(entry, dict) or set(entry) != THRESHOLD_OVERRIDE_KEYS:
+            raise ConfigValidationError(
+                "Each threshold_overrides entry must define only paths, thresholds, and reason."
+            )
+        paths: tuple[str, ...] = _validate_string_sequence(
+            name="threshold_overrides.paths", value=entry.get("paths")
+        )
+        if not paths:
+            raise ConfigValidationError("Threshold override paths must not be empty.")
+        for pattern in paths:
+            _validate_path_pattern(pattern)
+        reason: object = entry.get("reason")
+        if not isinstance(reason, str) or not reason.strip():
+            raise ConfigValidationError("Threshold override reason must be non-empty.")
+        thresholds: object = entry.get("thresholds")
+        if not isinstance(thresholds, dict) or not thresholds:
+            raise ConfigValidationError(
+                "Threshold override thresholds must be a non-empty inline table."
+            )
+        _validate_thresholds(value=thresholds, owner="threshold_overrides.thresholds")
+
+
+def _validate_path_pattern(pattern: str) -> None:
+    parsed: PurePosixPath = PurePosixPath(pattern)
+    malformed: bool = (
+        pattern.startswith("/")
+        or pattern.endswith("/")
+        or DOUBLE_PATH_SEPARATOR in pattern
+        or any(character in pattern for character in {"?", "[", "]"})
+        or any(
+            RECURSIVE_GLOB in part and part != RECURSIVE_GLOB
+            for part in pattern.split(PATH_SEPARATOR)
+        )
+        or f"{RECURSIVE_GLOB}{PATH_SEPARATOR}{RECURSIVE_GLOB}" in pattern
+    )
+    if (
+        parsed.is_absolute()
+        or _windows_path_separator in pattern
+        or pattern != parsed.as_posix()
+        or malformed
+        or any(part in {_current_path_part, _parent_path_part} for part in parsed.parts)
+    ):
+        raise ConfigValidationError(
+            f"Threshold override path must be a repository-relative POSIX glob: {pattern}."
+        )
 
 
 def _validate_contracts(*, value: object) -> None:
@@ -197,7 +241,7 @@ def _validate_rule_exception_entry(
     reason: str = _exception_string(entry=typed_entry, key="reason")
     if reason.strip() == _empty_string:
         raise ConfigValidationError("Rule exception reason must be non-empty.")
-    if not _exact_rule_code(rule):
+    if not is_rule_code(rule):
         raise ConfigValidationError(f"Rule exception must use one exact rule code: {rule}.")
     _validate_exception_path(path)
     symbols: tuple[str, ...] = _validate_string_sequence(
@@ -220,13 +264,6 @@ def _exception_string(*, entry: Mapping[object, object], key: str) -> str:
     if not isinstance(value, str) or value == _empty_string:
         raise ConfigValidationError(f"Rule exception {key} must be a non-empty string.")
     return value
-
-
-def _exact_rule_code(rule: str) -> bool:
-    return (
-        re.fullmatch(r"SF[A-Z][0-9]{3}", rule) is not None
-        or re.fullmatch(r"X[A-Za-z0-9][A-Za-z0-9_-]*", rule) is not None
-    )
 
 
 def _validate_exception_path(path: str) -> None:

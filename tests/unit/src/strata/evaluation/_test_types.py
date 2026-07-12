@@ -59,6 +59,16 @@ class ContextThresholdTestCase:
 
 
 @dataclass(frozen=True)
+class ThresholdObservationTestCase:
+    """A threshold name and expected recorded override resolution."""
+
+    description: str
+    threshold: Threshold
+    expected_value: int
+    expected_pattern: str
+
+
+@dataclass(frozen=True)
 class ParseErrorTestCase:
     """Invalid source and expected parse diagnostic fragment."""
 
@@ -226,6 +236,17 @@ class FileEvaluationTestCase:
     expected_fault_codes: tuple[str, ...]
     expected_dependency_answers: tuple[bool, ...]
     expected_applied_exception_keys: int
+
+
+@dataclass(frozen=True)
+class ScopeFamilySelectionTestCase:
+    """Code selection and declared-family execution scope expectations."""
+
+    description: str
+    runtime_path: str
+    test_path: str
+    expected_selected_codes: tuple[str, ...]
+    expected_fault_paths: tuple[str, ...]
 
 
 @dataclass(frozen=True)

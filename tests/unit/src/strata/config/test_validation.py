@@ -8,8 +8,112 @@ import pytest
 
 from strata.config.exceptions import ConfigError, ConfigValidationError
 from strata.config.main.load_config import load_config
-from tests.unit.src.strata.config._test_types import InvalidConfigTestCase
+from strata.config.models import Config
+from tests.unit.src.strata.config._test_types import (
+    InvalidConfigTestCase,
+    RuleSelectorConfigTestCase,
+)
 from tests.unit.src.strata.config.helpers import write_strata_toml
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        InvalidConfigTestCase(
+            description="threshold override requires paths",
+            config_text=(
+                'roots = ["src/pkg"]\n[[threshold_overrides]]\npaths = []\n'
+                'reason = "required"\nthresholds = { max_role_depth = 2 }\n'
+            ),
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="paths must not be empty",
+        ),
+        InvalidConfigTestCase(
+            description="threshold override requires a nonempty reason",
+            config_text=(
+                'roots = ["src/pkg"]\n[[threshold_overrides]]\npaths = ["src/**/*.py"]\n'
+                'reason = "  "\nthresholds = { max_role_depth = 2 }\n'
+            ),
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="reason",
+        ),
+        InvalidConfigTestCase(
+            description="threshold override requires nonempty inline thresholds",
+            config_text=(
+                'roots = ["src/pkg"]\n[[threshold_overrides]]\npaths = ["src/**/*.py"]\n'
+                'reason = "required"\nthresholds = {}\n'
+            ),
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="non-empty inline table",
+        ),
+        InvalidConfigTestCase(
+            description="threshold override rejects unknown entry keys",
+            config_text=(
+                'roots = ["src/pkg"]\n[[threshold_overrides]]\npaths = ["src/**/*.py"]\n'
+                'reason = "required"\nnote = "extra"\n'
+                "thresholds = { max_role_depth = 2 }\n"
+            ),
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="only paths, thresholds, and reason",
+        ),
+        InvalidConfigTestCase(
+            description="threshold override rejects old threshold names",
+            config_text=(
+                'roots = ["src/pkg"]\n[[threshold_overrides]]\npaths = ["src/**/*.py"]\n'
+                'reason = "required"\nthresholds = { max_flat_main_modules = 30 }\n'
+            ),
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="max_flat_main_modules",
+        ),
+        InvalidConfigTestCase(
+            description="threshold override rejects traversal glob",
+            config_text=(
+                'roots = ["src/pkg"]\n[[threshold_overrides]]\npaths = ["../src/**/*.py"]\n'
+                'reason = "required"\nthresholds = { max_role_depth = 2 }\n'
+            ),
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="repository-relative POSIX glob",
+        ),
+        InvalidConfigTestCase(
+            description="threshold override rejects unsupported glob syntax",
+            config_text=(
+                'roots = ["src/pkg"]\n[[threshold_overrides]]\npaths = ["src/?/main.py"]\n'
+                'reason = "required"\nthresholds = { max_role_depth = 2 }\n'
+            ),
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="repository-relative POSIX glob",
+        ),
+        InvalidConfigTestCase(
+            description="threshold override rejects non-normalized relative glob",
+            config_text=(
+                'roots = ["src/pkg"]\n[[threshold_overrides]]\npaths = ["./src/**/*.py"]\n'
+                'reason = "required"\nthresholds = { max_role_depth = 2 }\n'
+            ),
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="repository-relative POSIX glob",
+        ),
+        InvalidConfigTestCase(
+            description="threshold override rejects redundant adjacent globstars",
+            config_text=(
+                'roots = ["src/pkg"]\n[[threshold_overrides]]\n'
+                'paths = ["src/**/**/main/*.py"]\nreason = "required"\n'
+                "thresholds = { max_role_depth = 2 }\n"
+            ),
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="repository-relative POSIX glob",
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_invalid_threshold_override_when_loading_then_raises_validation_error(
+    tmp_path: Path, test_case: InvalidConfigTestCase
+) -> None:
+    write_strata_toml(root=tmp_path, contents=test_case.config_text)
+
+    with pytest.raises(test_case.expected_error_type) as error:
+        load_config(tmp_path)
+
+    assert test_case.expected_error_fragment in str(error.value)
 
 
 @pytest.mark.parametrize(
@@ -19,6 +123,24 @@ from tests.unit.src.strata.config.helpers import write_strata_toml
             description="family rule exception selector is rejected",
             config_text=(
                 'roots = ["src/pkg"]\n[[rule_exceptions]]\nrule = "SFS"\n'
+                'path = "src/pkg/a.py"\nsymbols = ["run"]\nreason = "required"\n'
+            ),
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="exact rule code",
+        ),
+        InvalidConfigTestCase(
+            description="custom namespace rule exception selector is rejected",
+            config_text=(
+                'roots = ["src/pkg"]\n[[rule_exceptions]]\nrule = "XDB"\n'
+                'path = "src/pkg/a.py"\nsymbols = ["run"]\nreason = "required"\n'
+            ),
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="exact rule code",
+        ),
+        InvalidConfigTestCase(
+            description="legacy custom rule exception code is rejected",
+            config_text=(
+                'roots = ["src/pkg"]\n[[rule_exceptions]]\nrule = "XDB-001"\n'
                 'path = "src/pkg/a.py"\nsymbols = ["run"]\nreason = "required"\n'
             ),
             expected_error_type=ConfigValidationError,
@@ -259,18 +381,6 @@ def test_given_invalid_list_field_when_loading_then_raises_expected_error(
             expected_error_fragment="BAD",
         ),
         InvalidConfigTestCase(
-            description="unknown core family selector is rejected",
-            config_text='roots = ["src/pkg"]\nselect = ["SFZ001"]\n',
-            expected_error_type=ConfigValidationError,
-            expected_error_fragment="SFZ001",
-        ),
-        InvalidConfigTestCase(
-            description="short core code selector is rejected",
-            config_text='roots = ["src/pkg"]\nselect = ["SFL1"]\n',
-            expected_error_type=ConfigValidationError,
-            expected_error_fragment="SFL1",
-        ),
-        InvalidConfigTestCase(
             description="long core code selector is rejected",
             config_text='roots = ["src/pkg"]\nselect = ["SFL0001"]\n',
             expected_error_type=ConfigValidationError,
@@ -281,6 +391,18 @@ def test_given_invalid_list_field_when_loading_then_raises_expected_error(
             config_text='roots = ["src/pkg"]\nignore = ["NOPE"]\n',
             expected_error_type=ConfigValidationError,
             expected_error_fragment="NOPE",
+        ),
+        InvalidConfigTestCase(
+            description="legacy lowercase custom selector is rejected",
+            config_text='roots = ["src/pkg"]\nselect = ["Xdb"]\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="Xdb",
+        ),
+        InvalidConfigTestCase(
+            description="legacy hyphenated custom selector is rejected",
+            config_text='roots = ["src/pkg"]\nselect = ["XDB-001"]\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="XDB-001",
         ),
     ],
     ids=lambda case: case.description,
@@ -295,6 +417,33 @@ def test_given_invalid_selector_when_loading_then_raises_config_validation_error
         load_config(tmp_path)
 
     assert test_case.expected_error_fragment in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        RuleSelectorConfigTestCase(
+            description="core buckets and custom namespaces are valid selectors",
+            config_text=(
+                'roots = ["src/pkg"]\nselect = ["SF", "SFR", "SFR3", "SFZ001", "XDB"]\n'
+                'ignore = ["SFR30", "XDB001"]\n'
+            ),
+            expected_select=("SF", "SFR", "SFR3", "SFZ001", "XDB"),
+            expected_ignore=("SFR30", "XDB001"),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_valid_prefix_selectors_when_loading_then_preserves_spellings(
+    tmp_path: Path,
+    test_case: RuleSelectorConfigTestCase,
+) -> None:
+    write_strata_toml(root=tmp_path, contents=test_case.config_text)
+
+    config: Config = load_config(tmp_path)
+
+    assert config.select == test_case.expected_select
+    assert config.ignore == test_case.expected_ignore
 
 
 @pytest.mark.parametrize(

@@ -44,14 +44,13 @@ from tests.unit.src.strata.rules.tests._test_types import SftCatalogueTestCase, 
                 "SFT406",
                 "SFT407",
                 "SFT408",
-                "SFT409",
-                "SFT410",
                 "SFT411",
                 "SFT412",
                 "SFT413",
                 "SFT414",
             ),
             expected_unique_count=len(SftCode),
+            expected_removed_codes=("SFT409", "SFT410"),
         )
     ],
     ids=lambda case: case.description,
@@ -63,11 +62,23 @@ def test_given_tests_rule_catalogue_when_reading_codes_then_matches_tests_code_e
 
     assert codes == test_case.expected_codes
     assert len(set(codes)) == test_case.expected_unique_count
+    assert all(code not in codes for code in test_case.expected_removed_codes)
 
 
 @pytest.mark.parametrize(
     "test_case",
     [
+        SftGuidanceTestCase(
+            description="inline parametrize guidance requires visibly local values",
+            rule_code=SftCode.INLINE_PARAMETRIZE_VALUES,
+            expected_message=(
+                "pytest parametrize values must be a visible list, tuple, or local comprehension"
+            ),
+            expected_remediation=(
+                "Inline the case sequence in @pytest.mark.parametrize so its cases are visible "
+                "beside the test."
+            ),
+        ),
         SftGuidanceTestCase(
             description="conditional test guidance recommends cases and local helpers",
             rule_code=SftCode.NO_IF_IN_TESTS,

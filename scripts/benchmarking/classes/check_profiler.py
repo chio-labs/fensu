@@ -19,7 +19,12 @@ from strata.config.models import Config
 from strata.discovery.main.discover_files import discover_files
 from strata.discovery.models import ProjectLayout, RepoRoot, ScopedFile
 from strata.evaluation.main.evaluate import evaluate
-from strata.evaluation.models import ExternalAnalysisBuild, ParsedModule, SourceSnapshot
+from strata.evaluation.models import (
+    ExternalAnalysisBuild,
+    ParsedModule,
+    SourceSnapshot,
+    ThresholdOverrideUse,
+)
 from strata.reporting.main.render import render
 from strata.rules.authoring.models import Fault, RuleSpec
 from strata.rules.catalog.main.build_ruleset import build_ruleset
@@ -96,6 +101,7 @@ class CheckProfiler:
         layout: ProjectLayout,
         project: ProjectAnalysis,
         file_cache: dict[str, object],
+        threshold_override_uses: list[ThresholdOverrideUse],
     ) -> list[Fault]:
         started: float = time.perf_counter()
         previous_inside_rule: bool = self._inside_rule
@@ -109,6 +115,7 @@ class CheckProfiler:
                 layout=layout,
                 project=project,
                 file_cache=file_cache,
+                threshold_override_uses=threshold_override_uses,
             )
         finally:
             self._inside_rule = previous_inside_rule

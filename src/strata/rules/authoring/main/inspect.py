@@ -17,7 +17,11 @@ def rule_specs_in_module(*, module: ModuleType) -> tuple[RuleSpec, ...]:
         if getattr(value, "__module__", None) != module.__name__:
             continue
         spec: object = getattr(value, _RULE_SPEC_ATTRIBUTE, None)
-        if isinstance(spec, RuleSpec) and spec.code not in seen_codes:
-            rules.append(spec)
+        if not isinstance(spec, RuleSpec):
+            continue
+        if isinstance(spec.code, str):
+            if spec.code in seen_codes:
+                continue
             seen_codes.add(spec.code)
+        rules.append(spec)
     return tuple(rules)

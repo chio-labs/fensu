@@ -20,6 +20,95 @@ from tests.unit.src.strata.config.helpers import write_strata_toml
     "test_case",
     [
         InvalidConfigTestCase(
+            description="evaluation must be a table",
+            config_text='roots = ["src/pkg"]\nevaluation = ["src/**"]\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="evaluation must be a table",
+        ),
+        InvalidConfigTestCase(
+            description="evaluation rejects unknown keys",
+            config_text='roots = ["src/pkg"]\n[evaluation]\npaths = ["src/**"]\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="Unknown evaluation config key(s): paths",
+        ),
+        InvalidConfigTestCase(
+            description="evaluation include must be a list",
+            config_text='roots = ["src/pkg"]\n[evaluation]\ninclude = "src/**"\n',
+            expected_error_type=ConfigError,
+            expected_error_fragment="evaluation.include must be a list",
+        ),
+        InvalidConfigTestCase(
+            description="evaluation exclude list must not be empty",
+            config_text='roots = ["src/pkg"]\n[evaluation]\nexclude = []\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="evaluation.exclude must not be empty",
+        ),
+        InvalidConfigTestCase(
+            description="evaluation patterns must be nonempty strings",
+            config_text='roots = ["src/pkg"]\n[evaluation]\ninclude = [""]\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="evaluation.include must contain non-empty strings",
+        ),
+        InvalidConfigTestCase(
+            description="evaluation rejects absolute POSIX glob",
+            config_text='roots = ["src/pkg"]\n[evaluation]\ninclude = ["/src/**"]\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="repository-relative POSIX glob",
+        ),
+        InvalidConfigTestCase(
+            description="evaluation rejects backslash glob",
+            config_text='roots = ["src/pkg"]\n[evaluation]\ninclude = ["src\\\\pkg\\\\**"]\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="repository-relative POSIX glob",
+        ),
+        InvalidConfigTestCase(
+            description="evaluation rejects current-directory glob",
+            config_text='roots = ["src/pkg"]\n[evaluation]\ninclude = ["./src/**"]\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="repository-relative POSIX glob",
+        ),
+        InvalidConfigTestCase(
+            description="evaluation rejects parent-directory glob",
+            config_text='roots = ["src/pkg"]\n[evaluation]\ninclude = ["../src/**"]\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="repository-relative POSIX glob",
+        ),
+        InvalidConfigTestCase(
+            description="evaluation rejects question-mark glob",
+            config_text='roots = ["src/pkg"]\n[evaluation]\ninclude = ["src/?/file.py"]\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="repository-relative POSIX glob",
+        ),
+        InvalidConfigTestCase(
+            description="evaluation rejects character-class glob",
+            config_text='roots = ["src/pkg"]\n[evaluation]\ninclude = ["src/[ab]/file.py"]\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="repository-relative POSIX glob",
+        ),
+        InvalidConfigTestCase(
+            description="evaluation rejects adjacent globstars",
+            config_text='roots = ["src/pkg"]\n[evaluation]\ninclude = ["src/**/**/file.py"]\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="repository-relative POSIX glob",
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_invalid_evaluation_config_when_loading_then_raises_validation_error(
+    tmp_path: Path, test_case: InvalidConfigTestCase
+) -> None:
+    write_strata_toml(root=tmp_path, contents=test_case.config_text)
+
+    with pytest.raises(test_case.expected_error_type) as error:
+        load_config(tmp_path)
+
+    assert test_case.expected_error_fragment in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        InvalidConfigTestCase(
             description="threshold override requires paths",
             config_text=(
                 'roots = ["src/pkg"]\n[[threshold_overrides]]\npaths = []\n'

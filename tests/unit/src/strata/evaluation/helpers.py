@@ -6,6 +6,9 @@ import ast
 from pathlib import Path
 from types import MappingProxyType
 
+import pytest
+
+import strata.evaluation.helpers.project_analysis as project_analysis_module
 from strata.analysis.models import SourceRange, SyntaxHandle
 from strata.analysis.types import Analysis
 from strata.config.models import Config, RuleExceptionEntry
@@ -21,6 +24,7 @@ from strata.evaluation.models import ParsedModule
 from strata.evaluation.types import EvaluationProjectAnalysis
 from strata.rules.authoring.models import Fault, RuleSpec
 from strata.rules.authoring.types import Family, RuleContext, RuleKind, Threshold
+from strata.rules.layers.constants import SFL_RULES
 
 
 def write_sources(*, repo_root: Path, files: tuple[tuple[str, str], ...]) -> None:
@@ -30,6 +34,45 @@ def write_sources(*, repo_root: Path, files: tuple[tuple[str, str], ...]) -> Non
         path: Path = repo_root / relative_path
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(source, encoding="utf-8")
+
+
+def selection_context_rule() -> RuleSpec:
+    """Return a rule observing source and directory context outside its target set."""
+
+    def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+        del module
+        context_path: Path = ctx.repo_root / "src/pkg/domain_b/core/helpers/context.py"
+        analysis: Analysis | None = ctx.project.analysis(requester=ctx.path, path=context_path)
+        entries: tuple[Path, ...] = ctx.project.directory_entries(
+            requester=ctx.path, path=context_path.parent
+        )
+        source: str = "missing" if analysis is None else analysis.text.source.strip()
+        names: str = ",".join(path.name for path in entries)
+        return [ctx.path_fault(message=f"{source}|{names}")]
+
+    return RuleSpec(
+        code="XES001",
+        family=Family.CUSTOM,
+        slug="evaluation-selection-context",
+        message="evaluation selection context",
+        check=check,
+        kind=RuleKind.CUSTOM,
+    )
+
+
+def layer_rule(*, code: str) -> RuleSpec:
+    """Return one layer rule by stable code."""
+
+    return next(rule for rule in SFL_RULES if rule.code == code)
+
+
+def install_external_analysis_failure(*, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Reject fallback analysis so discovered context must retain its scoped identity."""
+
+    def fail_external_analysis(*, path: Path) -> None:
+        raise AssertionError(f"discovered context treated as external: {path}")
+
+    monkeypatch.setattr(project_analysis_module, "build_external_analysis", fail_external_analysis)
 
 
 def direct_ast_parse_paths(*, root: Path) -> tuple[str, ...]:

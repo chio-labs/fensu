@@ -84,6 +84,16 @@ class CacheConfigTestCase:
 
 
 @dataclass(frozen=True)
+class EvaluationConfigTestCase:
+    """Evaluation path configuration and its expected normalized values."""
+
+    description: str
+    config_text: str
+    expected_include: tuple[str, ...]
+    expected_exclude: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class ConfigListFieldTestCase:
     """A list-valued config field and the expected normalized tuple."""
 

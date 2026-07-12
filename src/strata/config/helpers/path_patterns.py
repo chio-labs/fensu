@@ -13,6 +13,12 @@ def path_pattern_matches(*, pattern: str, path: str) -> bool:
     return re.fullmatch(_pattern_expression(pattern), path) is not None
 
 
+def matches_any_path_pattern(*, patterns: tuple[str, ...], path: str) -> bool:
+    """Return whether any configured path pattern matches one repository path."""
+
+    return any(path_pattern_matches(pattern=pattern, path=path) for pattern in patterns)
+
+
 def path_pattern_specificity(pattern: str) -> tuple[int, int, int, int]:
     """Return literal-segment, literal-character, globstar, and wildcard specificity."""
 

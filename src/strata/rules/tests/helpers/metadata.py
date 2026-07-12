@@ -66,17 +66,10 @@ def test_rule_details(code: SftCode) -> tuple[str, str]:
             "pytest parametrize decorators must define readable case ids",
             "Set ids to the case descriptions, normally with ids=lambda case: case.description.",
         ),
-        SftCode.NO_MODULE_TEST_CASE_LISTS: (
-            "test-case collections must stay beside their parametrize decorator",
-            "Inline the case sequence in @pytest.mark.parametrize instead of a module-level list.",
-        ),
         SftCode.INLINE_PARAMETRIZE_VALUES: (
-            "pytest parametrize values must be declared beside the test",
-            "Replace the module-level case collection name with an inline list of test cases.",
-        ),
-        SftCode.INLINE_PARAMETRIZE_SEQUENCE: (
             "pytest parametrize values must be a visible list, tuple, or local comprehension",
-            "Replace the opaque call or expression with cases visible in the decorator.",
+            "Inline the case sequence in @pytest.mark.parametrize so its cases are visible beside "
+            "the test.",
         ),
         SftCode.NONEMPTY_PARAMETRIZE_VALUES: (
             "pytest parametrize case sequences must not be empty",

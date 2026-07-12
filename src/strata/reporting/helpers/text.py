@@ -5,6 +5,7 @@ from __future__ import annotations
 import textwrap
 from pathlib import Path
 
+from strata.evaluation.models import ThresholdOverrideUse
 from strata.reporting.constants import (
     ANSI_BOLD_GREEN,
     ANSI_BOLD_RED,
@@ -21,6 +22,7 @@ def render_text(
     root: Path,
     use_color: bool,
     applied_exception_count: int,
+    threshold_override_uses: tuple[ThresholdOverrideUse, ...],
 ) -> str:
     """Render faults as stable text lines with a summary."""
 
@@ -37,6 +39,15 @@ def render_text(
     if applied_exception_count:
         exception_noun: str = "exception" if applied_exception_count == 1 else "exceptions"
         lines.append(f"Applied {applied_exception_count} rule {exception_noun}")
+    if threshold_override_uses:
+        override_noun: str = "override" if len(threshold_override_uses) == 1 else "overrides"
+        lines.append(f"Applied {len(threshold_override_uses)} threshold {override_noun}")
+    for use in threshold_override_uses:
+        lines.append(
+            f"Threshold override: {use.threshold.value}={use.effective_value} "
+            f"path={use.repository_path} pattern={use.matched_pattern} "
+            f"order={use.override_order} reason={use.reason}"
+        )
     return "\n".join(lines)
 
 

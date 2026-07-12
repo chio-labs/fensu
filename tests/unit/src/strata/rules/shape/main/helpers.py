@@ -41,10 +41,14 @@ def evaluate_shape_test_case(
         role_thresholds=MappingProxyType(
             {role: MappingProxyType(values) for role, values in test_case.role_thresholds.items()}
         ),
+        threshold_overrides=test_case.threshold_overrides,
+    )
+    ruleset: tuple[RuleSpec, ...] = (
+        SFS_RULES if test_case.rule_code == "SFS" else (_rule_by_code(test_case.rule_code),)
     )
     return evaluate(
         tree=discover_files(config=config),
-        ruleset=(_rule_by_code(test_case.rule_code),),
+        ruleset=ruleset,
         config=config,
     )
 
@@ -53,6 +57,20 @@ def statements_source(count: int) -> str:
     """Build a function with the requested number of body statements."""
 
     body: str = "".join(f"    value_{index}: int = {index}\n" for index in range(count - 1))
+    return f"def run() -> None:\n{body}    return None\n"
+
+
+def method_statements_source(count: int) -> str:
+    """Build a class method with the requested number of body statements."""
+
+    method: str = "".join(f"    {line}\n" for line in statements_source(count).splitlines())
+    return f"class Service:\n{method}"
+
+
+def pass_statements_source(count: int) -> str:
+    """Build a function with the requested number of statements and no local bindings."""
+
+    body: str = "    pass\n" * (count - 1)
     return f"def run() -> None:\n{body}    return None\n"
 
 

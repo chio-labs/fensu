@@ -120,7 +120,7 @@ from tests.e2e.src.strata.cli.main.helpers import run_configurable_layout_case
                 "tests = []\n"
                 "tooling = []\n"
                 'rule_paths = ["rules/custom.py"]\n'
-                'select = ["XE2001"]\n'
+                'select = ["XEDB"]\n'
             ),
             files=(
                 CliProjectFile(
@@ -133,16 +133,16 @@ from tests.e2e.src.strata.cli.main.helpers import run_configurable_layout_case
                         "from __future__ import annotations\n\n"
                         "import ast\n\n"
                         "from strata import Family, Fault, RuleContext, Threshold, rule\n\n"
-                        "@rule(code='XE2001', family=Family.CUSTOM, slug='e2e', message='e2e fault')\n"
+                        "@rule(code='XEDB2001', family=Family.ROLES, slug='e2e', message='e2e fault')\n"
                         "def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:\n"
-                        "    _ = ctx.threshold(Threshold.MAX_STATEMENTS)\n"
+                        "    _ = ctx.threshold(name=Threshold.MAX_STATEMENTS)\n"
                         "    return [ctx.fault(node=module.body[0])]\n"
                     ),
                 ),
             ),
             working_directory="python/mypkg/nested",
             expected_exit_code=1,
-            expected_stdout_fragments=("XE2001", "python/mypkg/target.py:1:0", "e2e fault"),
+            expected_stdout_fragments=("XEDB2001", "python/mypkg/target.py:1:0", "e2e fault"),
             expected_stderr_fragments=(),
         ),
         ConfigurableLayoutCliTestCase(

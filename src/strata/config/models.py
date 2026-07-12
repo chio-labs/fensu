@@ -51,6 +51,32 @@ class CacheConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class ThresholdOverride:
+    """Path-scoped threshold values with an explicit justification."""
+
+    paths: tuple[str, ...]
+    thresholds: Mapping[Threshold, int]
+    reason: str
+
+    def __post_init__(self) -> None:
+        """Freeze a defensive copy of threshold values supplied by public callers."""
+
+        object.__setattr__(self, "thresholds", MappingProxyType(dict(self.thresholds)))
+
+
+@dataclass(frozen=True, slots=True)
+class ThresholdResolution:
+    """One effective threshold resolution for a repository-relative reported path."""
+
+    threshold: Threshold
+    effective_value: int
+    repository_path: str
+    matched_pattern: str | None = None
+    reason: str | None = None
+    override_order: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class Config:
     """Validated strata configuration."""
 
@@ -69,6 +95,7 @@ class Config:
     role_thresholds: Mapping[str, Mapping[Threshold, int]] = field(
         default_factory=lambda: MappingProxyType({})
     )
+    threshold_overrides: tuple[ThresholdOverride, ...] = ()
     contracts: Mapping[str, str] = field(
         default_factory=lambda: MappingProxyType(dict(DEFAULT_CONTRACTS))
     )

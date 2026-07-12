@@ -9,12 +9,13 @@ from typing import Any
 
 from strata.analysis.models import SourceLocation, SourceRange, SyntaxHandle
 from strata.analysis.types import Analysis, ProjectAnalysis
-from strata.config.models import Config
-from strata.discovery.constants import INIT_MODULE_FILE_NAME
+from strata.config.main.resolve_threshold import resolve_threshold
+from strata.config.models import Config, ThresholdResolution
+from strata.discovery.constants import INIT_MODULE_FILE_NAME, ROLE_FILE_TO_NAME
 from strata.discovery.models import ProjectLayout, RepoRoot
-from strata.discovery.types import ScopeName
+from strata.discovery.types import RoleName, ScopeName
 from strata.evaluation.helpers import ast_access
-from strata.evaluation.models import ParsedModule
+from strata.evaluation.models import ParsedModule, ThresholdOverrideUse
 from strata.rules.authoring.models import Fault, RuleSpec
 from strata.rules.authoring.types import Threshold
 
@@ -32,6 +33,7 @@ class EvaluationRuleContext:
         rule: RuleSpec,
         project: ProjectAnalysis,
         file_cache: dict[str, object],
+        threshold_override_uses: list[ThresholdOverrideUse],
     ) -> None:
         """Bind context facts for one rule invocation."""
 
@@ -42,6 +44,7 @@ class EvaluationRuleContext:
         self._rule: RuleSpec = rule
         self.__project: ProjectAnalysis = project
         self._file_cache: dict[str, Any] = file_cache
+        self._threshold_override_uses: list[ThresholdOverrideUse] = threshold_override_uses
 
     @property
     def _analysis(self) -> Analysis:
@@ -130,12 +133,18 @@ class EvaluationRuleContext:
             remediation=self._rule.remediation if remediation is None else remediation,
         )
 
-    def path_fault(self, *, message: str | None = None, remediation: str | None = None) -> Fault:
+    def path_fault(
+        self,
+        *,
+        path: Path | None = None,
+        message: str | None = None,
+        remediation: str | None = None,
+    ) -> Fault:
         """Construct a file-level Fault using the active rule metadata."""
 
         return Fault(
             code=self._rule.code,
-            path=self.path,
+            path=self.path if path is None else path,
             message=self._rule.message if message is None else message,
             remediation=self._rule.remediation if remediation is None else remediation,
         )
@@ -280,17 +289,46 @@ class EvaluationRuleContext:
 
         return ast_access.inside_loop(node=node, parent_by_node=self._parsed_module.parent_by_node)
 
-    def threshold(self, name: Threshold) -> int:
-        """The applicable global or per-role threshold for the current file."""
+    def threshold(self, *, name: Threshold, path: Path | None = None) -> int:
+        """The applicable path, role, or global threshold for a reported path."""
 
-        role: str | None = self.role_of()
-        if role is not None:
-            role_thresholds: Mapping[Threshold, int] | None = self._config.role_thresholds.get(role)
-            if role_thresholds is not None and name in role_thresholds:
-                return role_thresholds[name]
-        return self._config.thresholds[name]
+        reported_path: Path = self.path if path is None else path
+        relative_path: str = reported_path.relative_to(self.repo_root).as_posix()
+        role: str | None = (
+            self.role_of()
+            if path is None
+            else _role_for_path(path=reported_path, scope_root=self.scope_root())
+        )
+        resolution: ThresholdResolution = resolve_threshold(
+            config=self._config, name=name, path=relative_path, role=role
+        )
+        if (
+            resolution.matched_pattern is not None
+            and resolution.reason is not None
+            and resolution.override_order is not None
+        ):
+            self._threshold_override_uses.append(
+                ThresholdOverrideUse(
+                    threshold=resolution.threshold,
+                    effective_value=resolution.effective_value,
+                    matched_pattern=resolution.matched_pattern,
+                    reason=resolution.reason,
+                    override_order=resolution.override_order,
+                    repository_path=resolution.repository_path,
+                )
+            )
+        return resolution.effective_value
 
     def contracts(self) -> Mapping[str, str]:
         """Return configured function-name behavior contracts."""
 
         return self._config.contracts
+
+
+def _role_for_path(*, path: Path, scope_root: Path) -> str | None:
+    parts: tuple[str, ...] = path.relative_to(scope_root).parts
+    role_names: frozenset[str] = frozenset(role.value for role in RoleName)
+    for part in parts[:-1]:
+        if part in role_names:
+            return part
+    return ROLE_FILE_TO_NAME.get(parts[-1])

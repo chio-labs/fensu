@@ -18,6 +18,7 @@ from strata.discovery.main.discover_files import discover_files
 from strata.discovery.models import DiscoveredTree
 from strata.evaluation.main.validate_rule_exceptions import validate_rule_exceptions
 from strata.reporting.constants import ANSI_BOLD_CYAN, ANSI_DIM, ANSI_RESET, REPORT_LINE_WIDTH
+from strata.rules.authoring.main.is_rule_code import is_rule_code
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.catalog.main.build_catalogue import build_catalogue
 
@@ -42,7 +43,7 @@ def run_rule(
         stderr.write(f"{error}\n")
         return 2
     rules_by_code: dict[str, RuleSpec] = {rule.code: rule for rule in catalogue}
-    rule: RuleSpec | None = rules_by_code.get(args.code.upper())
+    rule: RuleSpec | None = rules_by_code.get(args.code) if is_rule_code(args.code) else None
     if rule is None:
         stderr.write(f"Unknown rule code: {args.code}\n")
         return 2

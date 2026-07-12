@@ -6,7 +6,7 @@ import ast
 from pathlib import Path
 
 from strata.rules.authoring.models import Fault, RuleSpec
-from strata.rules.authoring.types import Family, RuleContext
+from strata.rules.authoring.types import Family, RuleContext, RuleKind
 
 
 def write_custom_rule_file(
@@ -23,6 +23,45 @@ def write_custom_rule_file(
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         _custom_rule_source(rule_code=rule_code, prelude=prelude, check_body=check_body),
+        encoding="utf-8",
+    )
+    return path
+
+
+def write_direct_custom_rule_file(
+    *,
+    root: Path,
+    rule_code: object,
+    kind: RuleKind,
+    family_expression: str = "Family.CUSTOM",
+    cacheable: bool = False,
+) -> Path:
+    """Write a custom source that attaches a directly constructed RuleSpec."""
+
+    path: Path = root / "rules/direct_rule.py"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        f"""from __future__ import annotations
+
+from strata import Family
+from strata.rules.authoring.models import RuleSpec
+from strata.rules.authoring.types import RuleKind
+
+
+def check(module, ctx):
+    return []
+
+
+check.__strata_rule_spec__ = RuleSpec(
+    code={rule_code!r},
+    family={family_expression},
+    slug="direct-rule",
+    message="direct rule",
+    check=check,
+    kind=RuleKind.{kind.name},
+    cacheable={cacheable!r},
+)
+""",
         encoding="utf-8",
     )
     return path
@@ -93,6 +132,7 @@ def make_core_rule(*, code: str, family: Family, enabled_by_default: bool = True
         slug=f"rule-{code.lower()}",
         message=code,
         check=check,
+        kind=RuleKind.CORE if code.startswith("SF") else RuleKind.CUSTOM,
         enabled_by_default=enabled_by_default,
     )
 

@@ -16,7 +16,9 @@ from tests.unit.src.strata.rules.hygiene._test_types import HygieneCatalogueTest
             description="hygiene rule catalogue matches hygiene code enum",
             expected_codes=tuple(code.value for code in HygieneCode),
             expected_unique_count=len(HygieneCode),
-            expected_enabled_by_default=(True, True, True, True, True, True, True, True),
+            expected_enabled_by_default=(True, True, True, True, True, True, True, True, True),
+            expected_migrated_code="SFH009",
+            expected_removed_code="SFR206",
         )
     ],
     ids=lambda case: case.description,
@@ -31,3 +33,5 @@ def test_given_hygiene_rule_catalogue_when_reading_codes_then_matches_hygiene_co
     assert tuple(rule.enabled_by_default for rule in SFH_RULES) == (
         test_case.expected_enabled_by_default
     )
+    assert test_case.expected_migrated_code in codes
+    assert test_case.expected_removed_code not in codes

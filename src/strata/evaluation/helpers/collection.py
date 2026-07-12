@@ -11,7 +11,12 @@ from strata.evaluation.helpers.rule_exceptions import (
     configured_exception_keys,
     stale_exception_error,
 )
-from strata.evaluation.models import EvaluationResult, FileEvaluation, RuleExceptionKey
+from strata.evaluation.models import (
+    EvaluationResult,
+    FileEvaluation,
+    RuleExceptionKey,
+    ThresholdOverrideUse,
+)
 from strata.rules.authoring.models import Fault
 
 
@@ -34,9 +39,11 @@ def collect_evaluation_result(
 
     faults: list[Fault] = []
     applied_exceptions: set[RuleExceptionKey] = set()
+    threshold_override_uses: set[ThresholdOverrideUse] = set()
     for file_evaluation in file_evaluations:
         faults.extend(file_evaluation.faults)
         applied_exceptions.update(file_evaluation.applied_exception_keys)
+        threshold_override_uses.update(file_evaluation.threshold_override_uses)
     stale_error: ConfigError | None = stale_exception_error(
         configured=configured_exception_keys(config),
         applied=frozenset(applied_exceptions),
@@ -48,6 +55,7 @@ def collect_evaluation_result(
         applied_exception_count=len(applied_exceptions),
         dependencies=dependencies,
         file_evaluations=file_evaluations,
+        threshold_override_uses=tuple(sorted(threshold_override_uses, key=_override_use_key)),
     )
 
 
@@ -59,3 +67,14 @@ def _fault_sort_key(*, fault: Fault, repo_root: Path) -> tuple[str, int, int, st
     line: int = -1 if fault.line is None else fault.line
     column: int = -1 if fault.column is None else fault.column
     return (relative_path.as_posix(), line, column, fault.code)
+
+
+def _override_use_key(use: ThresholdOverrideUse) -> tuple[str, str, int, str, str, int]:
+    return (
+        use.repository_path,
+        use.threshold.value,
+        use.override_order,
+        use.matched_pattern,
+        use.reason,
+        use.effective_value,
+    )

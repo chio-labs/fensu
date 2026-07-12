@@ -13,11 +13,13 @@ from strata.cache.results.models import (
     CachedFault,
     CachedFileResult,
     CachedRuleExceptionKey,
+    CachedThresholdOverrideUse,
     DependencyObservation,
 )
 from strata.cache.results.types import DependencyAnswer
-from strata.evaluation.models import FileEvaluation, RuleExceptionKey
+from strata.evaluation.models import FileEvaluation, RuleExceptionKey, ThresholdOverrideUse
 from strata.rules.authoring.models import Fault
+from strata.rules.authoring.types import Threshold
 
 
 def build_cached_file_result(
@@ -65,6 +67,9 @@ def build_cached_file_result(
         faults=tuple(faults),
         applied_exception_keys=tuple(exception_keys),
         dependencies=tuple(dependencies),
+        threshold_override_uses=tuple(
+            _cached_threshold_override_use(use) for use in evaluation.threshold_override_uses
+        ),
     )
     _ = file_result_to_record(result)
     return result
@@ -103,6 +108,28 @@ def restore_file_evaluation(*, result: CachedFileResult, repo_root: Path) -> Fil
             )
             for dependency in result.dependencies
         ),
+        threshold_override_uses=tuple(
+            ThresholdOverrideUse(
+                threshold=Threshold(use.threshold),
+                effective_value=use.effective_value,
+                matched_pattern=use.matched_pattern,
+                reason=use.reason,
+                override_order=use.override_order,
+                repository_path=use.repository_path,
+            )
+            for use in result.threshold_override_uses
+        ),
+    )
+
+
+def _cached_threshold_override_use(use: ThresholdOverrideUse) -> CachedThresholdOverrideUse:
+    return CachedThresholdOverrideUse(
+        threshold=use.threshold.value,
+        effective_value=use.effective_value,
+        matched_pattern=use.matched_pattern,
+        reason=use.reason,
+        override_order=use.override_order,
+        repository_path=use.repository_path,
     )
 
 

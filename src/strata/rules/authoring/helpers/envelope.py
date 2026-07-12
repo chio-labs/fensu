@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 
 from strata.rules.authoring.exceptions import RuleDefinitionError
+from strata.rules.authoring.helpers.code_grammar import rule_code_is_exact
 from strata.rules.authoring.types import Family, RuleKind
 
 _KEBAB_CASE_PATTERN: re.Pattern[str] = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
@@ -30,6 +31,7 @@ def resolve_envelope(*, code: str, slug: str, message: str, family: Family | str
 
     resolved_family: Family = resolve_family(family)
     _validate_non_empty(field_name="code", value=code)
+    _validate_code(code)
     _validate_slug(slug)
     _validate_non_empty(field_name="message", value=message)
     _validate_family_code_consistency(code=code, family=resolved_family)
@@ -37,13 +39,16 @@ def resolve_envelope(*, code: str, slug: str, message: str, family: Family | str
 
 
 def infer_kind(code: str) -> RuleKind:
-    """Infer whether a code is core (SF prefix) or custom (any other prefix)."""
+    """Infer whether an already validated code is core or custom."""
 
     return RuleKind.CORE if code.startswith(_CORE_CODE_PREFIX) else RuleKind.CUSTOM
 
 
 def validate_code_namespace(*, code: str, kind: RuleKind) -> None:
-    """Enforce that core codes use the SF prefix and custom codes the X prefix."""
+    """Enforce that exact codes use the namespace required by their kind."""
+
+    if not rule_code_is_exact(code):
+        raise RuleDefinitionError(f"rule code {code!r} must be one exact core or custom rule code")
 
     if kind is RuleKind.CUSTOM:
         if code.startswith(_CORE_CODE_PREFIX):
@@ -67,6 +72,11 @@ def _validate_family_code_consistency(*, code: str, family: Family) -> None:
             f"{_CORE_CODE_PREFIX!r} namespace; custom rules must use the {_CUSTOM_CODE_PREFIX!r} "
             f"namespace"
         )
+
+
+def _validate_code(code: str) -> None:
+    if not rule_code_is_exact(code):
+        raise RuleDefinitionError(f"rule code {code!r} must be one exact core or custom rule code")
 
 
 def _validate_non_empty(*, field_name: str, value: str) -> None:

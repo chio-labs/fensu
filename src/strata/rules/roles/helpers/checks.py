@@ -50,7 +50,6 @@ _minimum_nested_module_parts: int = 3
 _minimum_nested_subpackage_parts: int = 4
 _top_level_role_parts: int = 2
 _maximum_entry_private_functions: int = 2
-_shallow_helper_depth: int = 2
 
 
 def models_only_models(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
@@ -238,69 +237,33 @@ def helpers_classes_file_private(*, module: ast.Module, ctx: RuleContext) -> lis
     ]
 
 
-def no_import_time_side_effects(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
-    """Flag standalone calls that execute while a runtime module is imported."""
-
-    del module
-    return [
-        ctx.fault_at(location=location)
-        for location in ctx._analysis.facts.module_declarations().import_time_call_locations
-    ]
-
-
 def helpers_package_layout(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
-    """Flag mixed or oversized flat helpers package layouts."""
+    """Flag helpers containers that violate the shared role-container model."""
 
     del module
-    package_dir: Path | None = _role_package_dir(path=ctx.path, package_name="helpers")
-    if package_dir is None or not _is_package_layout_anchor(
-        ctx=ctx,
-        path=ctx.path,
-        package_dir=package_dir,
-    ):
+    package_dir: Path | None = _role_package_dir(ctx=ctx, role=RoleName.HELPERS)
+    if package_dir is None:
         return []
     return _package_layout_faults(
         ctx=ctx,
         package_dir=package_dir,
-        ignored_subfolders=frozenset(),
-        threshold=Threshold.MAX_FLAT_HELPER_MODULES,
+        role=RoleName.HELPERS,
+        threshold=Threshold.MAX_HELPERS_CONTAINER_MODULES,
     )
 
 
 def main_package_layout(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
-    """Flag mixed, oversized, or support-nested main package layouts."""
+    """Flag main containers that violate the shared role-container model."""
 
     del module
-    parts: tuple[str, ...] = ctx.relative_parts()
-    for index, part in enumerate(parts[:-1]):
-        if (
-            part == RoleName.MAIN
-            and index + 1 < len(parts)
-            and parts[index + 1]
-            in {
-                RoleName.HELPERS,
-                RoleName.CLASSES,
-            }
-        ):
-            return [
-                _path_fault(
-                    ctx=ctx,
-                    code=RoleCode.MAIN_PACKAGE_LAYOUT,
-                    message="main packages must not contain support folders",
-                )
-            ]
-    package_dir: Path | None = _role_package_dir(path=ctx.path, package_name="main")
-    if package_dir is None or not _is_package_layout_anchor(
-        ctx=ctx,
-        path=ctx.path,
-        package_dir=package_dir,
-    ):
+    package_dir: Path | None = _role_package_dir(ctx=ctx, role=RoleName.MAIN)
+    if package_dir is None:
         return []
     return _package_layout_faults(
         ctx=ctx,
         package_dir=package_dir,
-        ignored_subfolders=frozenset({"helpers", "classes"}),
-        threshold=Threshold.MAX_FLAT_MAIN_MODULES,
+        role=RoleName.MAIN,
+        threshold=Threshold.MAX_MAIN_CONTAINER_MODULES,
     )
 
 
@@ -589,23 +552,19 @@ def classes_one_class_per_module(*, module: ast.Module, ctx: RuleContext) -> lis
 
 
 def helpers_package_shape(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
-    """Flag orchestration and deep nesting below helpers packages."""
+    """Flag orchestration entrypoints below helpers packages."""
 
     del module
     parts: tuple[str, ...] = ctx.relative_parts()
     if RoleName.HELPERS not in parts[:-1]:
         return []
-    helpers_index: int = parts.index(RoleName.HELPERS)
-    depth: int = len(parts) - helpers_index - 1
-    if depth == 1 and ctx.path.name != _main_module_file_name:
-        return []
-    if depth == _shallow_helper_depth and ctx.path.name != _main_module_file_name:
+    if ctx.path.name != _main_module_file_name:
         return []
     return [
         _path_fault(
             ctx=ctx,
             code=RoleCode.HELPERS_PACKAGE_SHAPE,
-            message="helpers packages must stay shallow",
+            message="helpers packages must not contain main.py orchestration",
         )
     ]
 
@@ -644,7 +603,7 @@ def source_file_line_count(*, module: ast.Module, ctx: RuleContext) -> list[Faul
 
     del module
     line_count: int = len(ctx.source.splitlines())
-    if line_count <= ctx.threshold(Threshold.MAX_FILE_LINES):
+    if line_count <= ctx.threshold(name=Threshold.MAX_FILE_LINES):
         return []
     return [
         _path_fault(
@@ -749,7 +708,7 @@ def tooling_entrypoint_line_count(*, module: ast.Module, ctx: RuleContext) -> li
     if not _is_direct_tooling_entrypoint(ctx):
         return []
     line_count: int = len(ctx.source.splitlines())
-    limit: int = ctx.threshold(Threshold.MAX_SCRIPT_ENTRYPOINT_LINES)
+    limit: int = ctx.threshold(name=Threshold.MAX_SCRIPT_ENTRYPOINT_LINES)
     if line_count <= limit:
         return []
     return [ctx.path_fault(message=f"direct script has {line_count} lines (limit: {limit})")]
@@ -804,11 +763,13 @@ def tooling_package_layout(*, module: ast.Module, ctx: RuleContext) -> list[Faul
     return [ctx.path_fault(message=f"tool package child '{role_name}/' is not an approved role")]
 
 
-def _role_package_dir(*, path: Path, package_name: str) -> Path | None:
-    if path.parent.name == package_name:
-        return path.parent
-    if path.parent.parent.name == package_name:
-        return path.parent.parent
+def _role_package_dir(*, ctx: RuleContext, role: RoleName) -> Path | None:
+    parts: tuple[str, ...] = ctx.relative_parts()
+    for index, part in enumerate(parts[:-1]):
+        if part in _role_names:
+            if part != role:
+                return None
+            return ctx.scope_root().joinpath(*parts[: index + 1])
     return None
 
 
@@ -820,24 +781,6 @@ def _is_direct_tooling_entrypoint(ctx: RuleContext) -> bool:
         and ctx.path.suffix == PYTHON_FILE_SUFFIX
         and ctx.path.name != INIT_MODULE_FILE_NAME
     )
-
-
-def _is_package_layout_anchor(*, ctx: RuleContext, path: Path, package_dir: Path) -> bool:
-    init_path: Path = package_dir / "__init__.py"
-    if ctx._project.exists(requester=ctx.path, path=init_path):
-        return path == init_path
-    direct_modules: tuple[Path, ...] = tuple(
-        sorted(
-            child
-            for child in ctx._project.glob(
-                requester=ctx.path,
-                path=package_dir,
-                pattern="*.py",
-            )
-            if child.name != INIT_MODULE_FILE_NAME
-        )
-    )
-    return bool(direct_modules) and path == direct_modules[0]
 
 
 def _is_package_name_anchor(*, ctx: RuleContext, path: Path, package_dir: Path) -> bool:
@@ -861,45 +804,96 @@ def _package_layout_faults(
     *,
     ctx: RuleContext,
     package_dir: Path,
-    ignored_subfolders: frozenset[str],
+    role: RoleName,
     threshold: Threshold,
 ) -> list[Fault]:
-    direct_modules: tuple[Path, ...] = tuple(
-        child
-        for child in ctx._project.glob(
-            requester=ctx.path,
-            path=package_dir,
-            pattern="*.py",
-        )
-        if child.name != INIT_MODULE_FILE_NAME
-        and ctx._project.is_file(requester=ctx.path, path=child)
-    )
-    concern_subfolders: tuple[Path, ...] = tuple(
-        child
-        for child in ctx._project.directory_entries(requester=ctx.path, path=package_dir)
-        if ctx._project.is_dir(requester=ctx.path, path=child)
-        and child.name != _python_cache_directory_name
-        and child.name not in ignored_subfolders
-    )
+    relative_parts: tuple[str, ...] = ctx.path.relative_to(package_dir).parts
+    container: Path = package_dir if len(relative_parts) == 1 else ctx.path.parent
+    direct_modules: tuple[Path, ...] | None = _anchored_direct_modules(ctx=ctx, container=container)
+    if direct_modules is None:
+        return []
     faults: list[Fault] = []
     code: RoleCode = (
         RoleCode.HELPERS_PACKAGE_LAYOUT
-        if threshold == Threshold.MAX_FLAT_HELPER_MODULES
+        if role is RoleName.HELPERS
         else RoleCode.MAIN_PACKAGE_LAYOUT
     )
-    if direct_modules and concern_subfolders:
+    depth: int = len(container.relative_to(package_dir).parts)
+    module_limit: int = ctx.threshold(name=threshold, path=ctx.path)
+    if direct_modules and _has_python_bucket(ctx=ctx, container=container):
         faults.append(
             _path_fault(
                 ctx=ctx,
                 code=code,
-                message="role package mixes flat modules and subfolders",
+                message=f"{role}/ container mixes direct modules and Python buckets",
             )
         )
-    if len(direct_modules) > ctx.threshold(threshold):
+    if len(direct_modules) > module_limit:
         faults.append(
-            _path_fault(ctx=ctx, code=code, message="role package has too many flat modules")
+            _path_fault(
+                ctx=ctx,
+                code=code,
+                message=(
+                    f"{role}/ container has {len(direct_modules)} modules; "
+                    f"effective limit is {module_limit}"
+                ),
+            )
         )
+    if depth > 0:
+        depth_limit: int = ctx.threshold(name=Threshold.MAX_ROLE_DEPTH, path=ctx.path)
+        if depth > depth_limit:
+            faults.append(
+                _path_fault(
+                    ctx=ctx,
+                    code=code,
+                    message=f"{role}/ bucket depth is {depth}; effective limit is {depth_limit}",
+                )
+            )
+        if container.name in _role_names:
+            faults.append(
+                _path_fault(
+                    ctx=ctx,
+                    code=code,
+                    message=f"{role}/ bucket '{container.name}/' uses a runtime role name",
+                )
+            )
     return faults
+
+
+def _anchored_direct_modules(*, ctx: RuleContext, container: Path) -> tuple[Path, ...] | None:
+    if ctx.path.parent != container:
+        return None
+    init_path: Path = container / INIT_MODULE_FILE_NAME
+    if ctx.path.name != INIT_MODULE_FILE_NAME and ctx._project.exists(
+        requester=ctx.path, path=init_path
+    ):
+        return None
+    direct_modules: tuple[Path, ...] = tuple(
+        sorted(
+            path
+            for path in ctx._project.glob(
+                requester=ctx.path,
+                path=container,
+                pattern="*.py",
+            )
+            if path.name != INIT_MODULE_FILE_NAME
+        )
+    )
+    if ctx.path.name == INIT_MODULE_FILE_NAME:
+        return direct_modules
+    return direct_modules if direct_modules and ctx.path == direct_modules[0] else None
+
+
+def _has_python_bucket(*, ctx: RuleContext, container: Path) -> bool:
+    return any(
+        path.parent != container
+        for path in ctx._project.glob(
+            requester=ctx.path,
+            path=container,
+            pattern="*.py",
+            recursive=True,
+        )
+    )
 
 
 def _path_fault(*, ctx: RuleContext, code: RoleCode, message: str) -> Fault:

@@ -87,6 +87,19 @@ class CachedEvaluationReuseTestCase:
 
 
 @dataclass(frozen=True)
+class CachedEvaluationSelectionTestCase:
+    """Selected target and excluded dependency with expected cache transitions."""
+
+    description: str
+    expected_discovered_count: int
+    expected_target_count: int
+    expected_cold_misses: int
+    expected_warm_hits: int
+    expected_invalidations: int
+    expected_changed_message: str
+
+
+@dataclass(frozen=True)
 class CachedNamingParityTestCase:
     """Naming faults and expected cold/warm persistent cache parity."""
 

@@ -13,6 +13,7 @@ from strata.evaluation.helpers.rule_exceptions import (
 )
 from strata.evaluation.models import (
     EvaluationResult,
+    EvaluationSelection,
     FileEvaluation,
     RuleExceptionKey,
     ThresholdOverrideUse,
@@ -34,6 +35,7 @@ def collect_evaluation_result(
     dependencies: tuple[ProjectDependency, ...],
     config: Config,
     repo_root: Path,
+    selection: EvaluationSelection | None = None,
 ) -> EvaluationResult:
     """Combine cached or fresh file outputs through the existing global contracts."""
 
@@ -44,8 +46,16 @@ def collect_evaluation_result(
         faults.extend(file_evaluation.faults)
         applied_exceptions.update(file_evaluation.applied_exception_keys)
         threshold_override_uses.update(file_evaluation.threshold_override_uses)
+    configured_exceptions: frozenset[RuleExceptionKey] = configured_exception_keys(config)
+    if selection is not None and selection.filtered:
+        target_paths: frozenset[str] = frozenset(
+            scoped_file.path.relative_to(repo_root).as_posix() for scoped_file in selection.files
+        )
+        configured_exceptions = frozenset(
+            key for key in configured_exceptions if key.path in target_paths
+        )
     stale_error: ConfigError | None = stale_exception_error(
-        configured=configured_exception_keys(config),
+        configured=configured_exceptions,
         applied=frozenset(applied_exceptions),
     )
     if stale_error is not None:
@@ -56,6 +66,7 @@ def collect_evaluation_result(
         dependencies=dependencies,
         file_evaluations=file_evaluations,
         threshold_override_uses=tuple(sorted(threshold_override_uses, key=_override_use_key)),
+        selection=selection,
     )
 
 

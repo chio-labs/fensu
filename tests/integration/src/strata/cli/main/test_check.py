@@ -19,6 +19,7 @@ from tests.integration.src.strata.cli.main._test_types import (
     CheckCommandTestCase,
     CheckErrorTestCase,
     CheckNoFaultTestCase,
+    EvaluationCheckTestCase,
     NestedContainerCacheTestCase,
     ThresholdOverrideCheckTestCase,
 )
@@ -31,6 +32,89 @@ from tests.integration.src.strata.cli.main.helpers import (
     write_cli_no_fault_project,
     write_cli_stale_exception_project,
 )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        EvaluationCheckTestCase(
+            description="configured filter has byte-identical cached and uncached reporting",
+            expected_exit_code=1,
+            expected_summary="Evaluation: 1 of 2 Python files (1 excluded by config)\n",
+            expected_fault_fragment="src/pkg/target.py",
+            expected_absent_fragment="src/pkg/context.py",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_evaluation_filter_when_running_check_then_reports_exact_cached_parity(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: EvaluationCheckTestCase,
+) -> None:
+    (tmp_path / "strata.toml").write_text(
+        'roots = ["src/pkg"]\ntests = []\nselect = ["SFA101"]\n'
+        "[evaluation]\n"
+        'include = ["src/pkg/target.py"]\n'
+        'exclude = ["**/generated/**"]\n',
+        encoding="utf-8",
+    )
+    package: Path = tmp_path / "src/pkg"
+    package.mkdir(parents=True)
+    (package / "target.py").write_text("TARGET = 1\n", encoding="utf-8")
+    (package / "context.py").write_text("CONTEXT = 1\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    cached_stdout: CaptureOutput = CaptureOutput()
+    uncached_stdout: CaptureOutput = CaptureOutput()
+
+    cached_exit: int = run_check(
+        argv=("--no-color", "--cache"), stdout=cached_stdout, stderr=CaptureOutput()
+    )
+    uncached_exit: int = run_check(
+        argv=("--no-color", "--no-cache"), stdout=uncached_stdout, stderr=CaptureOutput()
+    )
+
+    assert cached_exit == test_case.expected_exit_code
+    assert uncached_exit == test_case.expected_exit_code
+    assert cached_stdout.getvalue() == uncached_stdout.getvalue()
+    assert cached_stdout.getvalue().startswith(test_case.expected_summary)
+    assert test_case.expected_fault_fragment in cached_stdout.getvalue()
+    assert test_case.expected_absent_fragment not in cached_stdout.getvalue()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CheckErrorTestCase(
+            description="zero evaluation targets exit two with actionable error",
+            argv=("--no-color", "--no-cache"),
+            expected_exit_code=2,
+            expected_error_fragment="selects zero Python files",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_zero_evaluation_targets_when_running_check_then_exits_two(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: CheckErrorTestCase,
+) -> None:
+    (tmp_path / "strata.toml").write_text(
+        'roots = ["src/pkg"]\ntests = []\n[evaluation]\nexclude = ["**"]\n',
+        encoding="utf-8",
+    )
+    package: Path = tmp_path / "src/pkg"
+    package.mkdir(parents=True)
+    (package / "target.py").write_text("TARGET: int = 1\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    stdout: CaptureOutput = CaptureOutput()
+    stderr: CaptureOutput = CaptureOutput()
+
+    exit_code: int = run_check(argv=test_case.argv, stdout=stdout, stderr=stderr)
+
+    assert exit_code == test_case.expected_exit_code
+    assert test_case.expected_error_fragment in stderr.getvalue()
+    assert stdout.getvalue() == ""
 
 
 @pytest.mark.parametrize(

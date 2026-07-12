@@ -14,6 +14,7 @@ from strata.config.constants import (
     CONFIG_TOP_LEVEL_KEYS,
     CONTRACT_BEHAVIORS,
     DOUBLE_PATH_SEPARATOR,
+    EVALUATION_CONFIG_KEYS,
     PATH_SEPARATOR,
     RECURSIVE_GLOB,
     THRESHOLD_OVERRIDE_KEYS,
@@ -51,6 +52,7 @@ def validate_config(raw: Mapping[str, object]) -> None:
     _validate_contracts(value=raw.get("contracts"))
     _validate_rule_exceptions(value=raw.get("rule_exceptions"))
     _validate_cache(value=raw.get("cache"))
+    _validate_evaluation(value=raw.get("evaluation"))
 
 
 def _validate_top_level_keys(*, raw: Mapping[str, object]) -> None:
@@ -81,6 +83,28 @@ def _validate_cache(*, value: object) -> None:
         typed_value[CACHE_REQUIRE_CACHEABLE_CONFIG_KEY], bool
     ):
         raise ConfigValidationError("Config key cache.require_cacheable must be a boolean.")
+
+
+def _validate_evaluation(*, value: object) -> None:
+    if value is None:
+        return
+    if not isinstance(value, dict):
+        raise ConfigValidationError("Config key evaluation must be a table.")
+    typed_value: dict[object, object] = cast(dict[object, object], value)
+    unknown_keys: set[object] = set(typed_value) - EVALUATION_CONFIG_KEYS
+    if unknown_keys:
+        names: str = ", ".join(sorted(str(key) for key in unknown_keys))
+        raise ConfigValidationError(f"Unknown evaluation config key(s): {names}.")
+    for key in EVALUATION_CONFIG_KEYS:
+        if key not in typed_value:
+            continue
+        patterns: tuple[str, ...] = _validate_string_sequence(
+            name=f"evaluation.{key}", value=typed_value[key]
+        )
+        if not patterns:
+            raise ConfigValidationError(f"Config key evaluation.{key} must not be empty.")
+        for pattern in patterns:
+            _validate_path_pattern(pattern=pattern, owner=f"Evaluation {key}")
 
 
 def _validate_string_sequence(*, name: str, value: object) -> tuple[str, ...]:
@@ -166,7 +190,7 @@ def _validate_threshold_overrides(*, value: object) -> None:
         if not paths:
             raise ConfigValidationError("Threshold override paths must not be empty.")
         for pattern in paths:
-            _validate_path_pattern(pattern)
+            _validate_path_pattern(pattern=pattern, owner="Threshold override path")
         reason: object = entry.get("reason")
         if not isinstance(reason, str) or not reason.strip():
             raise ConfigValidationError("Threshold override reason must be non-empty.")
@@ -178,7 +202,7 @@ def _validate_threshold_overrides(*, value: object) -> None:
         _validate_thresholds(value=thresholds, owner="threshold_overrides.thresholds")
 
 
-def _validate_path_pattern(pattern: str) -> None:
+def _validate_path_pattern(*, pattern: str, owner: str) -> None:
     parsed: PurePosixPath = PurePosixPath(pattern)
     malformed: bool = (
         pattern.startswith("/")
@@ -198,9 +222,7 @@ def _validate_path_pattern(pattern: str) -> None:
         or malformed
         or any(part in {_current_path_part, _parent_path_part} for part in parsed.parts)
     ):
-        raise ConfigValidationError(
-            f"Threshold override path must be a repository-relative POSIX glob: {pattern}."
-        )
+        raise ConfigValidationError(f"{owner} must be a repository-relative POSIX glob: {pattern}.")
 
 
 def _validate_contracts(*, value: object) -> None:

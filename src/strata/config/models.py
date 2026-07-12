@@ -51,6 +51,14 @@ class CacheConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class EvaluationConfig:
+    """Repository-relative paths eligible for direct rule evaluation."""
+
+    include: tuple[str, ...] = ()
+    exclude: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class ThresholdOverride:
     """Path-scoped threshold values with an explicit justification."""
 
@@ -89,6 +97,7 @@ class Config:
     rule_modules: tuple[str, ...] = ()
     rule_exceptions: tuple[RuleExceptionEntry, ...] = ()
     cache: CacheConfig = field(default_factory=lambda: CacheConfig(enabled=DEFAULT_CACHE_ENABLED))
+    evaluation: EvaluationConfig = field(default_factory=EvaluationConfig)
     thresholds: Mapping[Threshold, int] = field(
         default_factory=lambda: MappingProxyType(dict(DEFAULT_THRESHOLDS))
     )

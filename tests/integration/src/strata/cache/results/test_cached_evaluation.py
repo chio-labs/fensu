@@ -9,7 +9,7 @@ import pytest
 from strata.cache.fingerprints.models import CacheFingerprint
 from strata.cache.results.main.evaluate import evaluate_with_cache
 from strata.cache.results.models import CacheEvaluation
-from strata.config.models import Config
+from strata.config.models import Config, EvaluationConfig
 from strata.discovery.models import DiscoveredTree
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import RuleKind
@@ -22,10 +22,12 @@ from tests.integration.src.strata.cache.results._test_types import (
     CachedEvaluationManifestTestCase,
     CachedEvaluationRetentionTestCase,
     CachedEvaluationReuseTestCase,
+    CachedEvaluationSelectionTestCase,
     CachedEvaluationSweepTestCase,
     CachedNamingParityTestCase,
 )
 from tests.integration.src.strata.cache.results.helpers import (
+    context_source_fault_rule,
     dependency_fault_rule,
     discover_project,
     exception_config,
@@ -42,6 +44,74 @@ from tests.integration.src.strata.cache.results.helpers import (
 )
 
 _GLOBAL_FINGERPRINT: CacheFingerprint = CacheFingerprint("e" * 64)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CachedEvaluationSelectionTestCase(
+            description="warm cache counts targets and invalidates on excluded context change",
+            expected_discovered_count=2,
+            expected_target_count=1,
+            expected_cold_misses=1,
+            expected_warm_hits=1,
+            expected_invalidations=1,
+            expected_changed_message="CONTEXT: int = 2",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_excluded_cached_dependency_when_changed_then_invalidates_selected_target(
+    tmp_path: Path,
+    test_case: CachedEvaluationSelectionTestCase,
+) -> None:
+    write_project_sources(
+        repo_root=tmp_path,
+        files=(
+            ("src/pkg/target.py", "TARGET: int = 1\n"),
+            ("src/pkg/context.py", "CONTEXT: int = 1\n"),
+        ),
+    )
+    config: Config = Config(
+        roots=("src/pkg",),
+        tests=(),
+        evaluation=EvaluationConfig(include=("src/pkg/target.py",)),
+    )
+    tree: DiscoveredTree = discover_project(repo_root=tmp_path)[1]
+    ruleset: tuple[RuleSpec, ...] = (context_source_fault_rule(),)
+
+    cold: CacheEvaluation = evaluate_with_cache(
+        tree=tree,
+        ruleset=ruleset,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+    warm: CacheEvaluation = evaluate_with_cache(
+        tree=tree,
+        ruleset=ruleset,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+    write_project_sources(
+        repo_root=tmp_path,
+        files=(("src/pkg/context.py", "CONTEXT: int = 2\n"),),
+    )
+    changed_tree: DiscoveredTree = discover_project(repo_root=tmp_path)[1]
+    changed: CacheEvaluation = evaluate_with_cache(
+        tree=changed_tree,
+        ruleset=ruleset,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+
+    assert cold.result.selection is not None
+    assert cold.result.selection.discovered_count == test_case.expected_discovered_count
+    assert len(cold.result.selection.files) == test_case.expected_target_count
+    assert cold.stats.misses == test_case.expected_cold_misses
+    assert warm.stats.hits == test_case.expected_warm_hits
+    assert warm.result.faults == cold.result.faults
+    assert changed.stats.invalidations == test_case.expected_invalidations
+    assert changed.result.faults[0].message == test_case.expected_changed_message
 
 
 @pytest.mark.parametrize(

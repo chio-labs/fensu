@@ -21,11 +21,56 @@ from tests.unit.src.strata.config._test_types import (
     ConfigDefaultsTestCase,
     ConfigListFieldTestCase,
     ConfigThresholdTestCase,
+    EvaluationConfigTestCase,
     RuleExceptionConfigTestCase,
     ThresholdOverrideConfigTestCase,
     ThresholdResolutionTestCase,
 )
 from tests.unit.src.strata.config.helpers import write_strata_toml
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        EvaluationConfigTestCase(
+            description="omitted evaluation table selects all paths by default",
+            config_text='roots = ["src/pkg"]\n',
+            expected_include=(),
+            expected_exclude=(),
+        ),
+        EvaluationConfigTestCase(
+            description="include-only evaluation table preserves patterns",
+            config_text='roots = ["src/pkg"]\n[evaluation]\ninclude = ["src/pkg/**"]\n',
+            expected_include=("src/pkg/**",),
+            expected_exclude=(),
+        ),
+        EvaluationConfigTestCase(
+            description="exclude-only evaluation table preserves patterns",
+            config_text='roots = ["src/pkg"]\n[evaluation]\nexclude = ["**/generated/**"]\n',
+            expected_include=(),
+            expected_exclude=("**/generated/**",),
+        ),
+        EvaluationConfigTestCase(
+            description="combined evaluation table preserves both pattern lists",
+            config_text=(
+                'roots = ["src/pkg"]\n[evaluation]\ninclude = ["src/**", "tests/**"]\n'
+                'exclude = ["**/legacy/**"]\n'
+            ),
+            expected_include=("src/**", "tests/**"),
+            expected_exclude=("**/legacy/**",),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_evaluation_paths_when_loading_then_applies_optional_semantics(
+    tmp_path: Path, test_case: EvaluationConfigTestCase
+) -> None:
+    write_strata_toml(root=tmp_path, contents=test_case.config_text)
+
+    config: Config = load_config(tmp_path)
+
+    assert config.evaluation.include == test_case.expected_include
+    assert config.evaluation.exclude == test_case.expected_exclude
 
 
 @pytest.mark.parametrize(

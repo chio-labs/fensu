@@ -69,6 +69,16 @@ class CachePreferenceFingerprintTestCase:
 
 
 @dataclass(frozen=True)
+class EvaluationFingerprintTestCase:
+    """Two evaluation selections and their expected global config identity."""
+
+    description: str
+    first_include: tuple[str, ...]
+    second_include: tuple[str, ...]
+    expected_equal: bool
+
+
+@dataclass(frozen=True)
 class SourceFingerprintTestCase:
     """Two source payloads and whether their fingerprints must match."""
 

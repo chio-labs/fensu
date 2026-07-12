@@ -62,6 +62,7 @@ CONFIG_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
         "rule_exceptions",
         "threshold_overrides",
         "cache",
+        "evaluation",
     }
 )
 CONFIG_ROLE_NAMES: frozenset[str] = frozenset(RoleName)
@@ -86,3 +87,4 @@ DOUBLE_PATH_SEPARATOR: str = "//"
 SINGLE_COMPONENT_GLOB: str = "*"
 RECURSIVE_GLOB: str = "**"
 THRESHOLD_OVERRIDE_KEYS: frozenset[str] = frozenset({"paths", "thresholds", "reason"})
+EVALUATION_CONFIG_KEYS: frozenset[str] = frozenset({"include", "exclude"})

@@ -8,7 +8,7 @@ import pytest
 
 import strata.evaluation.helpers.file_evaluation as file_evaluation_module
 from strata.analysis.models import ProjectDependency
-from strata.analysis.types import ProjectDependencyKind
+from strata.analysis.types import Analysis, ProjectDependencyKind
 from strata.cache.results.classes.result_cache import ResultCache
 from strata.cache.results.models import CacheStats
 from strata.cache.storage.classes.cache_store import CacheStore
@@ -179,6 +179,26 @@ def dependency_fault_rule() -> RuleSpec:
         slug="cache-dependency",
         message="cache dependency",
         check=check,
+    )
+
+
+def context_source_fault_rule() -> RuleSpec:
+    """Return a cacheable rule whose diagnostic reads one discovered context file."""
+
+    def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+        del module
+        context_path: Path = ctx.repo_root / "src/pkg/context.py"
+        analysis: Analysis | None = ctx.project.analysis(requester=ctx.path, path=context_path)
+        message: str = "missing" if analysis is None else analysis.text.source.strip()
+        return [ctx.path_fault(message=message)]
+
+    return RuleSpec(
+        code="XCR006",
+        family=Family.CUSTOM,
+        slug="cache-context-source",
+        message="cache context source",
+        check=check,
+        kind=RuleKind.CORE,
     )
 
 

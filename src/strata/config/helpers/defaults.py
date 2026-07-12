@@ -17,7 +17,13 @@ from strata.config.constants import (
     DEFAULT_THRESHOLDS,
     DEFAULT_TOOLING_PATHS,
 )
-from strata.config.models import CacheConfig, Config, RuleExceptionEntry, ThresholdOverride
+from strata.config.models import (
+    CacheConfig,
+    Config,
+    EvaluationConfig,
+    RuleExceptionEntry,
+    ThresholdOverride,
+)
 from strata.rules.authoring.types import Threshold
 
 
@@ -52,10 +58,20 @@ def build_config(raw: Mapping[str, object]) -> Config:
         rule_modules=_string_tuple(value=raw.get("rule_modules")),
         rule_exceptions=_rule_exceptions(raw.get("rule_exceptions")),
         cache=_cache_config(raw.get("cache")),
+        evaluation=_evaluation_config(raw.get("evaluation")),
         thresholds=MappingProxyType(thresholds),
         role_thresholds=MappingProxyType(role_thresholds),
         threshold_overrides=_threshold_overrides(raw.get("threshold_overrides")),
         contracts=MappingProxyType(contracts),
+    )
+
+
+def _evaluation_config(value: object) -> EvaluationConfig:
+    if not isinstance(value, dict):
+        return EvaluationConfig()
+    return EvaluationConfig(
+        include=_string_tuple(value=value.get("include")),
+        exclude=_string_tuple(value=value.get("exclude")),
     )
 
 

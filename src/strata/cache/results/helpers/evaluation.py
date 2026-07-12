@@ -26,7 +26,8 @@ from strata.evaluation.main.build_project import build_evaluation_project
 from strata.evaluation.main.collect_result import collect_file_evaluations
 from strata.evaluation.main.evaluate import evaluate
 from strata.evaluation.main.evaluate_file import evaluate_discovered_file
-from strata.evaluation.models import EvaluationResult, FileEvaluation
+from strata.evaluation.main.select_files import select_evaluation_files
+from strata.evaluation.models import EvaluationResult, EvaluationSelection, FileEvaluation
 from strata.evaluation.types import EvaluationProjectAnalysis
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import RuleKind
@@ -41,27 +42,28 @@ def run_cached_evaluation(
 ) -> CacheEvaluation:
     """Return a complete evaluation using only fully validated file-result hits."""
 
+    selection: EvaluationSelection = select_evaluation_files(tree=tree, config=config.evaluation)
     if any(rule.kind is RuleKind.CUSTOM and not rule.cacheable for rule in ruleset):
         result: EvaluationResult = evaluate(tree=tree, ruleset=ruleset, config=config)
         return CacheEvaluation(
             result=result,
-            stats=CacheStats(non_cacheable=len(tree.files)),
+            stats=CacheStats(non_cacheable=len(selection.files)),
         )
     cache: ResultCache = ResultCache(repo_root=tree.repo_root.path)
     index: CacheIndex | None = cache.load_index(global_fingerprint=global_fingerprint)
     entries: dict[str, CacheIndexEntry] = (
         {entry.path: entry for entry in index.entries} if index is not None else {}
     )
-    discovered_paths: set[str] = set()
-    for scoped_file in tree.files:
+    target_paths: set[str] = set()
+    for scoped_file in selection.files:
         discovered_path: str | None = relative_repository_path(
             path=scoped_file.path,
             repo_root=tree.repo_root.path,
         )
         if discovered_path is not None:
-            discovered_paths.add(discovered_path)
+            target_paths.add(discovered_path)
     loaded_entries: tuple[CacheIndexEntry, ...] = tuple(
-        entry for path, entry in entries.items() if path in discovered_paths
+        entry for path, entry in entries.items() if path in target_paths
     )
     loaded_results: dict[str, CachedFileResult | None] = cache.load_results(
         global_fingerprint=global_fingerprint,
@@ -74,8 +76,8 @@ def run_cached_evaluation(
     dependency_states: DependencyStateCache = {}
     hits: int = 0
     misses: int = 0
-    invalidations: int = sum(path not in discovered_paths for path in entries)
-    for scoped_file in tree.files:
+    invalidations: int = sum(path not in target_paths for path in entries)
+    for scoped_file in selection.files:
         path: str | None = relative_repository_path(
             path=scoped_file.path,
             repo_root=tree.repo_root.path,
@@ -121,6 +123,7 @@ def run_cached_evaluation(
         dependencies=dependencies,
         config=config,
         repo_root=tree.repo_root.path,
+        selection=selection,
     )
     publication: CacheStats = _publish_results(
         cache=cache,

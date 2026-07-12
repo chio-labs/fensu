@@ -5,7 +5,7 @@ from pathlib import Path
 from strata.analysis.models import ProjectDependency
 from strata.config.models import Config
 from strata.evaluation.helpers.collection import collect_evaluation_result
-from strata.evaluation.models import EvaluationResult, FileEvaluation
+from strata.evaluation.models import EvaluationResult, EvaluationSelection, FileEvaluation
 
 
 def collect_file_evaluations(
@@ -14,6 +14,7 @@ def collect_file_evaluations(
     dependencies: tuple[ProjectDependency, ...],
     config: Config,
     repo_root: Path,
+    selection: EvaluationSelection | None = None,
 ) -> EvaluationResult:
     """Return the complete sorted result for cached or fresh file outputs."""
 
@@ -22,4 +23,5 @@ def collect_file_evaluations(
         dependencies=dependencies,
         config=config,
         repo_root=repo_root,
+        selection=selection,
     )

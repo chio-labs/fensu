@@ -26,7 +26,7 @@ from strata.cache.fingerprints.models import (
 )
 from strata.cache.results.helpers.serialization import file_result_to_record
 from strata.cache.results.models import CachedFileResult
-from strata.config.models import CacheConfig, Config, ThresholdOverride
+from strata.config.models import CacheConfig, Config, EvaluationConfig, ThresholdOverride
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Threshold
 from strata.rules.catalog.main.build_ruleset import build_ruleset
@@ -38,6 +38,7 @@ from tests.unit.src.strata.cache.fingerprints._test_types import (
     ConfigLayoutFingerprintTestCase,
     ContractFingerprintTestCase,
     CustomRulesFingerprintTestCase,
+    EvaluationFingerprintTestCase,
     FileResultFingerprintTestCase,
     GlobalFingerprintBuilderTestCase,
     GlobalFingerprintTestCase,
@@ -257,6 +258,37 @@ def test_given_cache_preferences_when_fingerprinting_then_excludes_operational_m
         Config(
             roots=("src/pkg",),
             cache=CacheConfig(enabled=test_case.second_enabled),
+        )
+    )
+
+    assert (first == second) is test_case.expected_equal
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        EvaluationFingerprintTestCase(
+            description="evaluation selection change invalidates global config identity",
+            first_include=("src/pkg/new/**",),
+            second_include=("src/pkg/**",),
+            expected_equal=False,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_evaluation_selection_when_fingerprinting_then_changes_config_identity(
+    test_case: EvaluationFingerprintTestCase,
+) -> None:
+    first: CacheFingerprint = config_fingerprint(
+        Config(
+            roots=("src/pkg",),
+            evaluation=EvaluationConfig(include=test_case.first_include),
+        )
+    )
+    second: CacheFingerprint = config_fingerprint(
+        Config(
+            roots=("src/pkg",),
+            evaluation=EvaluationConfig(include=test_case.second_include),
         )
     )
 

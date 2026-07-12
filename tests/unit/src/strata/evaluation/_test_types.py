@@ -8,6 +8,37 @@ from strata.rules.authoring.types import Threshold
 
 
 @dataclass(frozen=True)
+class EvaluationSelectionTestCase:
+    """Discovered paths, selection policy, and expected direct targets."""
+
+    description: str
+    include: tuple[str, ...]
+    exclude: tuple[str, ...]
+    expected_paths: tuple[str, ...]
+    expected_filtered: bool
+
+
+@dataclass(frozen=True)
+class EvaluationSelectionErrorTestCase:
+    """Invalid runtime selection and its expected configuration error."""
+
+    description: str
+    include: tuple[str, ...]
+    exclude: tuple[str, ...]
+    expected_error_fragment: str
+
+
+@dataclass(frozen=True)
+class EvaluationContextSelectionTestCase:
+    """Selected requester, excluded context, and expected cross-file behavior."""
+
+    description: str
+    expected_codes: tuple[str, ...]
+    expected_context_message: str
+    expected_evaluated_paths: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class AstAccessTestCase:
     """Source text plus expected AST helper results."""
 

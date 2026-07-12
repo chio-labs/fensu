@@ -19,6 +19,6 @@ def validator_must_not_return(*, module: ast.Module, ctx: RuleContext) -> list[F
         if behavior == ContractBehavior.NO_RETURN
     )
     faults: list[Fault] = []
-    for fact in ctx._analysis.facts.meaningful_returns(name_patterns=patterns):
+    for fact in ctx.facts.meaningful_returns(name_patterns=patterns):
         faults.append(ctx.fault_at(location=fact.location))
     return faults

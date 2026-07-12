@@ -12,7 +12,13 @@ from strata.discovery.types import ScopeName
 
 if TYPE_CHECKING:
     from strata.analysis.models import SourceLocation, SourceRange, SyntaxHandle
-    from strata.analysis.types import Analysis, ProjectAnalysis
+    from strata.analysis.types import (
+        FactAnalysis,
+        ProjectAnalysis,
+        RelationAnalysis,
+        SyntaxAnalysis,
+        TextAnalysis,
+    )
     from strata.rules.authoring.models import Fault
 
 
@@ -63,13 +69,28 @@ class RuleContext(Protocol):
     """Convenience AST/position toolbox passed to a rule check; may be ignored."""
 
     @property
-    def _analysis(self) -> Analysis:
-        """Return Strata's private, unstable backend-neutral analysis facade."""
+    def facts(self) -> FactAnalysis:
+        """Return semantic facts for the current file."""
         ...
 
     @property
-    def _project(self) -> ProjectAnalysis:
-        """Return Strata's private, unstable cross-file analysis facade."""
+    def project(self) -> ProjectAnalysis:
+        """Return dependency-recording cross-file and filesystem queries."""
+        ...
+
+    @property
+    def text(self) -> TextAnalysis:
+        """Return source-text queries for the current file."""
+        ...
+
+    @property
+    def syntax(self) -> SyntaxAnalysis:
+        """Return backend-neutral syntax queries for the current file."""
+        ...
+
+    @property
+    def relations(self) -> RelationAnalysis:
+        """Return backend-neutral syntax relationships for the current file."""
         ...
 
     def _memoize[T](self, *, key: str, operation: Callable[[], T]) -> T:

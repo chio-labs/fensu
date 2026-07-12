@@ -71,17 +71,14 @@ def test_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) -> list[
         if not _is_test_module(ctx.path):
             return []
         faults: list[Fault] = []
-        for fact in ctx._analysis.facts.test_functions():
+        for fact in ctx.facts.test_functions():
             if fact.parametrize is not None:
                 faults.extend(
                     ctx.fault_at(location=location) for location in fact.conditional_locations
                 )
         return faults
     if code == SftCode.NO_COMPLEX_COMPREHENSIONS:
-        return [
-            ctx.fault_at(location=location)
-            for location in ctx._analysis.facts.complex_comprehensions()
-        ]
+        return [ctx.fault_at(location=location) for location in ctx.facts.complex_comprehensions()]
     if ctx.path.name == TestPathName.SCENARIO_MODELS and code == SftCode.TEST_LAYOUT:
         return _scenario_models_faults(module=module, ctx=ctx)
     if code in _layout_codes():
@@ -200,7 +197,7 @@ def _runtime_layout_issue(
     if area_name == TestPathName.ROOT_SURFACE:
         return None
     area_path: Path = source_root / area_name
-    if not ctx._project.exists(requester=ctx.path, path=area_path):
+    if not ctx.project.exists(requester=ctx.path, path=area_path):
         return _LayoutIssue(
             code=SftCode.SRC_AREA_EXISTS,
             message="runtime tests must mirror a real configured source package area",
@@ -218,7 +215,7 @@ def _tooling_layout_issue(
             message="tooling tests must include an area beneath the configured tooling root",
         )
     area_path: Path = source_root / mirrored_parts[len(source_parts)]
-    if not ctx._project.exists(requester=ctx.path, path=area_path):
+    if not ctx.project.exists(requester=ctx.path, path=area_path):
         return _LayoutIssue(
             code=SftCode.SCRIPTS_AREA_EXISTS,
             message="tooling tests must mirror a real configured tooling area",
@@ -272,10 +269,7 @@ def _path_fault(*, ctx: RuleContext, code: SftCode, message: str) -> Fault:
 
 def _init_module_faults(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     del module
-    if (
-        ctx.path.name != TestPathName.INIT_MODULE
-        or ctx._analysis.facts.test_module().empty_or_docstring_only
-    ):
+    if ctx.path.name != TestPathName.INIT_MODULE or ctx.facts.test_module().empty_or_docstring_only:
         return []
     return [ctx.path_fault(message="__init__.py must be empty or docstring-only")]
 
@@ -284,7 +278,7 @@ def _relative_import_faults(*, module: ast.Module, ctx: RuleContext) -> list[Fau
     del module
     return [
         ctx.fault_at(location=fact.location)
-        for fact in ctx._analysis.facts.references().imports
+        for fact in ctx.facts.references().imports
         if fact.from_import and fact.relative_level > 0
     ]
 
@@ -292,7 +286,7 @@ def _relative_import_faults(*, module: ast.Module, ctx: RuleContext) -> list[Fau
 def _test_types_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) -> list[Fault]:
     del module
     faults: list[Fault] = []
-    for fact in ctx._analysis.facts.dataclasses():
+    for fact in ctx.facts.dataclasses():
         if (
             code == SftCode.TEST_TYPES_DESCRIPTION
             and TestSymbol.DESCRIPTION not in fact.field_names
@@ -309,7 +303,7 @@ def _scenario_models_faults(*, module: ast.Module, ctx: RuleContext) -> list[Fau
     del module
     return [
         ctx.fault_at(location=location)
-        for location in ctx._analysis.facts.test_module().scenario_invalid_locations
+        for location in ctx.facts.test_module().scenario_invalid_locations
     ]
 
 
@@ -330,7 +324,7 @@ def _test_file_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) ->
     if (
         code == SftCode.LOCAL_TEST_TYPES_FILE
         and _is_test_module(ctx.path)
-        and not ctx._project.is_file(
+        and not ctx.project.is_file(
             requester=ctx.path,
             path=ctx.path.parent / "_test_types.py",
         )
@@ -345,7 +339,7 @@ def _test_file_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) ->
     faults.extend(_module_shape_faults(ctx=ctx, code=code))
     faults.extend(_local_import_faults(ctx=ctx, code=code, local_test_types=local_test_types))
     if code in _test_function_rule_codes:
-        for fact in ctx._analysis.facts.test_functions():
+        for fact in ctx.facts.test_functions():
             faults.extend(
                 _test_function_faults(
                     fact=fact,
@@ -360,7 +354,7 @@ def _test_file_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) ->
 def _module_shape_faults(*, ctx: RuleContext, code: SftCode) -> list[Fault]:
     if not _is_test_module(ctx.path):
         return []
-    facts: PytestModuleFacts = ctx._analysis.facts.test_module()
+    facts: PytestModuleFacts = ctx.facts.test_module()
     if code == SftCode.NO_TOP_LEVEL_HELPERS:
         return [ctx.fault_at(location=location) for location in facts.top_level_helper_locations]
     if code == SftCode.PRIVATE_CONSTANT_ORDER:
@@ -378,7 +372,7 @@ def _local_import_faults(
         return []
     faults: list[Fault] = []
     expected_module: str = local_test_types.module_name
-    for fact in ctx._analysis.facts.references().imports:
+    for fact in ctx.facts.references().imports:
         module_name: str = ".".join(fact.module_parts)
         if (
             fact.top_level
@@ -480,7 +474,7 @@ def _local_test_types(*, ctx: RuleContext, inspect_dataclasses: bool) -> _LocalT
     if inspect_dataclasses:
         dataclass_names = frozenset(
             fact.name
-            for fact in ctx._project.dataclasses(
+            for fact in ctx.project.dataclasses(
                 requester=ctx.path,
                 path=test_types_path,
             )
@@ -500,7 +494,7 @@ def _module_context(
             test_case_annotation_names=frozenset(),
         )
     imported: set[str] = set()
-    for fact in ctx._analysis.facts.references().imports:
+    for fact in ctx.facts.references().imports:
         if (
             fact.top_level
             and fact.from_import

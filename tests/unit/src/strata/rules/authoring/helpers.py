@@ -88,7 +88,7 @@ _BANNED_OPERATION_ATTRIBUTES: frozenset[str] = frozenset(
         "write_text",
     }
 )
-_TRACKED_FACADE_ATTRIBUTE: str = "_project"
+_TRACKED_FACADE_ATTRIBUTE: str = "project"
 
 
 @dataclass(frozen=True)

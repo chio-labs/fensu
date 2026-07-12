@@ -60,7 +60,7 @@ def models_only_models(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     del module
     return [
         ctx.fault_at(location=fact.location)
-        for fact in ctx._analysis.facts.module_declarations().statements
+        for fact in ctx.facts.module_declarations().statements
         if not fact.import_statement and not fact.model_class
     ]
 
@@ -73,7 +73,7 @@ def types_only_types(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     del module
     return [
         ctx.fault_at(location=fact.location)
-        for fact in ctx._analysis.facts.module_declarations().statements
+        for fact in ctx.facts.module_declarations().statements
         if not fact.import_statement
         and not fact.assignment_statement
         and not fact.explicit_type_alias
@@ -90,7 +90,7 @@ def constants_only_constants(*, module: ast.Module, ctx: RuleContext) -> list[Fa
     del module
     return [
         ctx.fault_at(location=fact.location)
-        for fact in ctx._analysis.facts.module_declarations().statements
+        for fact in ctx.facts.module_declarations().statements
         if not fact.import_statement and not fact.assignment_statement
     ]
 
@@ -103,7 +103,7 @@ def exceptions_only_exceptions(*, module: ast.Module, ctx: RuleContext) -> list[
     del module
     return [
         ctx.fault_at(location=fact.location)
-        for fact in ctx._analysis.facts.module_declarations().statements
+        for fact in ctx.facts.module_declarations().statements
         if not fact.import_statement and not fact.exception_class
     ]
 
@@ -116,7 +116,7 @@ def model_declaration_outside_models(*, module: ast.Module, ctx: RuleContext) ->
     del module
     return [
         ctx.fault_at(location=location)
-        for location in ctx._analysis.facts.module_declarations().model_locations
+        for location in ctx.facts.module_declarations().model_locations
     ]
 
 
@@ -128,7 +128,7 @@ def type_declaration_outside_types(*, module: ast.Module, ctx: RuleContext) -> l
     del module
     return [
         ctx.fault_at(location=fact.location)
-        for fact in ctx._analysis.facts.module_declarations().type_declarations
+        for fact in ctx.facts.module_declarations().type_declarations
         if not fact.private or not ctx.in_role(RoleName.HELPERS)
     ]
 
@@ -140,7 +140,7 @@ def constant_outside_constants(*, module: ast.Module, ctx: RuleContext) -> list[
         return []
     del module
     faults: list[Fault] = []
-    for fact in ctx._analysis.facts.module_declarations().statements:
+    for fact in ctx.facts.module_declarations().statements:
         for target_name in fact.assignment_target_names:
             if not target_name.startswith("_") and target_name.isupper():
                 faults.append(ctx.fault_at(location=fact.location))
@@ -157,7 +157,7 @@ def exception_declaration_outside_exceptions(
     del module
     return [
         ctx.fault_at(location=location)
-        for location in ctx._analysis.facts.module_declarations().exception_locations
+        for location in ctx.facts.module_declarations().exception_locations
     ]
 
 
@@ -229,7 +229,7 @@ def helpers_classes_file_private(*, module: ast.Module, ctx: RuleContext) -> lis
     del module
     return [
         ctx.fault_at(location=fact.location)
-        for fact in ctx._analysis.facts.module_declarations().statements
+        for fact in ctx.facts.module_declarations().statements
         if fact.class_name is not None
         and not fact.class_name.startswith("_")
         and not fact.model_class
@@ -338,7 +338,7 @@ def top_level_domain_shape(*, module: ast.Module, ctx: RuleContext) -> list[Faul
     if len(parts) < _top_level_role_parts:
         return []
     domain_dir: Path = ctx.path.parents[len(parts) - _top_level_role_parts]
-    entries: tuple[Path, ...] = ctx._project.directory_entries(
+    entries: tuple[Path, ...] = ctx.project.directory_entries(
         requester=ctx.path,
         path=domain_dir,
     )
@@ -353,8 +353,8 @@ def top_level_domain_shape(*, module: ast.Module, ctx: RuleContext) -> list[Faul
         for entry in entries
         if entry.name not in _role_names
         and entry.name != _python_cache_directory_name
-        and ctx._project.is_dir(requester=ctx.path, path=entry)
-        and ctx._project.glob(
+        and ctx.project.is_dir(requester=ctx.path, path=entry)
+        and ctx.project.glob(
             requester=ctx.path,
             path=entry,
             pattern="*.py",
@@ -364,12 +364,12 @@ def top_level_domain_shape(*, module: ast.Module, ctx: RuleContext) -> list[Faul
     if not direct_role_content or not named_subdomains:
         return []
     init_path: Path = domain_dir / INIT_MODULE_FILE_NAME
-    if ctx._project.is_file(requester=ctx.path, path=init_path):
+    if ctx.project.is_file(requester=ctx.path, path=init_path):
         anchor: Path = init_path
     else:
         python_files: tuple[Path, ...] = tuple(
             sorted(
-                ctx._project.glob(
+                ctx.project.glob(
                     requester=ctx.path,
                     path=domain_dir,
                     pattern="*.py",
@@ -412,9 +412,7 @@ def entry_module_shape(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     if not ctx.is_entry_module():
         return []
     del module
-    statements: tuple[ModuleStatementFact, ...] = (
-        ctx._analysis.facts.module_declarations().statements
-    )
+    statements: tuple[ModuleStatementFact, ...] = ctx.facts.module_declarations().statements
     public_functions: tuple[ModuleStatementFact, ...] = tuple(
         fact for fact in statements if fact.function_name and not fact.function_name.startswith("_")
     )
@@ -455,7 +453,7 @@ def init_module_empty(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     if ctx.path.name != INIT_MODULE_FILE_NAME or len(ctx.relative_parts()) == 1:
         return []
     del module
-    if ctx._analysis.facts.module_declarations().empty_or_docstring_only:
+    if ctx.facts.module_declarations().empty_or_docstring_only:
         return []
     return [
         _path_fault(
@@ -470,7 +468,7 @@ def no_reexport_shim(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     if ctx.path.name == INIT_MODULE_FILE_NAME or ctx.role_of() == RoleName.EXCEPTIONS:
         return []
     del module
-    if not ctx._analysis.facts.module_declarations().pure_reexport:
+    if not ctx.facts.module_declarations().pure_reexport:
         return []
     return [
         _path_fault(
@@ -489,7 +487,7 @@ def no_internal_helper_exports(*, module: ast.Module, ctx: RuleContext) -> list[
     del module
     return [
         ctx.fault_at(location=location)
-        for location in ctx._analysis.facts.module_declarations().all_assignment_locations
+        for location in ctx.facts.module_declarations().all_assignment_locations
     ]
 
 
@@ -497,7 +495,7 @@ def main_entry_name_collision(*, module: ast.Module, ctx: RuleContext) -> list[F
     """Flag a main entry module sharing its name with a sibling package."""
 
     del module
-    if not ctx.is_entry_module() or not ctx._project.is_dir(
+    if not ctx.is_entry_module() or not ctx.project.is_dir(
         requester=ctx.path,
         path=ctx.path.with_suffix(""),
     ):
@@ -519,7 +517,7 @@ def public_surface_shape(*, module: ast.Module, ctx: RuleContext) -> list[Fault]
     del module
     faults: list[Fault] = []
     saw_all: bool = False
-    for fact in ctx._analysis.facts.module_declarations().statements:
+    for fact in ctx.facts.module_declarations().statements:
         if fact.docstring_statement or fact.import_statement:
             continue
         if fact.all_assignment:
@@ -542,7 +540,7 @@ def classes_one_class_per_module(*, module: ast.Module, ctx: RuleContext) -> lis
     if not ctx.in_role(RoleName.CLASSES) or ctx.path.name == INIT_MODULE_FILE_NAME:
         return []
     del module
-    if ctx._analysis.facts.module_declarations().top_level_class_count == 1:
+    if ctx.facts.module_declarations().top_level_class_count == 1:
         return []
     return [
         _path_fault(
@@ -577,7 +575,7 @@ def private_definition_ordering(*, module: ast.Module, ctx: RuleContext) -> list
     faults: list[Fault] = []
     saw_function: bool = False
     del module
-    for fact in ctx._analysis.facts.module_declarations().statements:
+    for fact in ctx.facts.module_declarations().statements:
         if fact.function_name is not None:
             saw_function = True
             continue
@@ -622,9 +620,7 @@ def tooling_entrypoint_shape(*, module: ast.Module, ctx: RuleContext) -> list[Fa
     if not _is_direct_tooling_entrypoint(ctx):
         return []
     del module
-    statements: tuple[ModuleStatementFact, ...] = (
-        ctx._analysis.facts.module_declarations().statements
-    )
+    statements: tuple[ModuleStatementFact, ...] = ctx.facts.module_declarations().statements
     public_functions: tuple[ModuleStatementFact, ...] = tuple(
         fact for fact in statements if fact.function_name and not fact.function_name.startswith("_")
     )
@@ -671,7 +667,7 @@ def tooling_entrypoint_delegation(*, module: ast.Module, ctx: RuleContext) -> li
     if not _is_direct_tooling_entrypoint(ctx):
         return []
     del module
-    facts: ModuleDeclarationFacts = ctx._analysis.facts.module_declarations()
+    facts: ModuleDeclarationFacts = ctx.facts.module_declarations()
     main_present: bool = any(fact.function_name == RoleName.MAIN for fact in facts.statements)
     if not main_present:
         return [
@@ -727,7 +723,7 @@ def rules_role_content(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
         return []
     del module
     faults: list[Fault] = []
-    for fact in ctx._analysis.facts.module_declarations().statements:
+    for fact in ctx.facts.module_declarations().statements:
         if fact.import_statement or fact.type_checking_import_block:
             continue
         if fact.rule_decorated_function:
@@ -787,11 +783,11 @@ def _is_direct_tooling_entrypoint(ctx: RuleContext) -> bool:
 
 def _is_package_name_anchor(*, ctx: RuleContext, path: Path, package_dir: Path) -> bool:
     init_path: Path = package_dir / "__init__.py"
-    if ctx._project.exists(requester=ctx.path, path=init_path):
+    if ctx.project.exists(requester=ctx.path, path=init_path):
         return path == init_path
     modules: tuple[Path, ...] = tuple(
         sorted(
-            ctx._project.glob(
+            ctx.project.glob(
                 requester=ctx.path,
                 path=package_dir,
                 pattern="*.py",
@@ -854,7 +850,7 @@ def _package_layout_faults(
         delegated_bucket_names: list[str] = []
         ancestor: Path = container.parent
         while ancestor != package_dir:
-            if ctx._project.python_anchor(requester=ctx.path, path=ancestor) != ctx.path:
+            if ctx.project.python_anchor(requester=ctx.path, path=ancestor) != ctx.path:
                 break
             if _is_forbidden_role_bucket_name(ancestor.name):
                 delegated_bucket_names.append(ancestor.name)
@@ -878,14 +874,14 @@ def _anchored_direct_modules(*, ctx: RuleContext, container: Path) -> tuple[Path
     if ctx.path.parent != container:
         return None
     init_path: Path = container / INIT_MODULE_FILE_NAME
-    if ctx.path.name != INIT_MODULE_FILE_NAME and ctx._project.exists(
+    if ctx.path.name != INIT_MODULE_FILE_NAME and ctx.project.exists(
         requester=ctx.path, path=init_path
     ):
         return None
     direct_modules: tuple[Path, ...] = tuple(
         sorted(
             path
-            for path in ctx._project.glob(
+            for path in ctx.project.glob(
                 requester=ctx.path,
                 path=container,
                 pattern="*.py",
@@ -901,7 +897,7 @@ def _anchored_direct_modules(*, ctx: RuleContext, container: Path) -> tuple[Path
 def _has_python_bucket(*, ctx: RuleContext, container: Path) -> bool:
     return any(
         path.parent != container
-        for path in ctx._project.glob(
+        for path in ctx.project.glob(
             requester=ctx.path,
             path=container,
             pattern="*.py",

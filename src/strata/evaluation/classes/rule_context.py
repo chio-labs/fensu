@@ -8,7 +8,13 @@ from pathlib import Path
 from typing import Any
 
 from strata.analysis.models import SourceLocation, SourceRange, SyntaxHandle
-from strata.analysis.types import Analysis, ProjectAnalysis
+from strata.analysis.types import (
+    FactAnalysis,
+    ProjectAnalysis,
+    RelationAnalysis,
+    SyntaxAnalysis,
+    TextAnalysis,
+)
 from strata.config.main.resolve_threshold import resolve_threshold
 from strata.config.models import Config, ThresholdResolution
 from strata.discovery.constants import INIT_MODULE_FILE_NAME, ROLE_FILE_TO_NAME
@@ -47,16 +53,34 @@ class EvaluationRuleContext:
         self._threshold_override_uses: list[ThresholdOverrideUse] = threshold_override_uses
 
     @property
-    def _analysis(self) -> Analysis:
-        """Return the private replaceable analysis facade for the current file."""
+    def facts(self) -> FactAnalysis:
+        """Return semantic facts for the current file."""
 
-        return self._parsed_module.analysis
+        return self._parsed_module.analysis.facts
 
     @property
-    def _project(self) -> ProjectAnalysis:
-        """Return the evaluation-scoped cross-file analysis facade."""
+    def project(self) -> ProjectAnalysis:
+        """Return dependency-recording cross-file and filesystem queries."""
 
         return self.__project
+
+    @property
+    def text(self) -> TextAnalysis:
+        """Return source-text queries for the current file."""
+
+        return self._parsed_module.analysis.text
+
+    @property
+    def syntax(self) -> SyntaxAnalysis:
+        """Return backend-neutral syntax queries for the current file."""
+
+        return self._parsed_module.analysis.syntax
+
+    @property
+    def relations(self) -> RelationAnalysis:
+        """Return backend-neutral syntax relationships for the current file."""
+
+        return self._parsed_module.analysis.relations
 
     def _memoize[T](self, *, key: str, operation: Callable[[], T]) -> T:
         """Return one value shared by all rules evaluating the current file."""
@@ -93,7 +117,7 @@ class EvaluationRuleContext:
         """Construct a Fault from a backend-neutral syntax location."""
 
         if isinstance(location, SyntaxHandle):
-            source_range: SourceRange = self._analysis.syntax.range(location)
+            source_range: SourceRange = self.syntax.range(location)
             path: Path = source_range.path
             line: int = source_range.start.line
             column: int = source_range.start.column

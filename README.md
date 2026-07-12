@@ -196,7 +196,11 @@ Existing user-authored skill files are preserved unless `--force` is supplied.
 
 Custom checks use `X...` codes and the same `RuleContext` as core rules. Once
 configured, they participate in `strata check`, `strata rule`, and generated agent
-skills. See the
+skills. Rules can use `ctx.facts`, `ctx.project`, `ctx.text`, `ctx.syntax`, and
+`ctx.relations`; these are the same backend-neutral analysis zones used by Strata's
+built-in rules. Project and filesystem reads made through `ctx.project` are tracked
+for cache invalidation. Raw `ast.Module` access remains available for checks that need
+unrestricted Python syntax traversal. See the
 [custom-rule guide](https://github.com/chio-labs/strata-docs/blob/main/concepts/custom-rules.mdx)
 for the complete API and configuration.
 

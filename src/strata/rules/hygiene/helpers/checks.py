@@ -25,8 +25,7 @@ def single_line_docstrings(*, module: ast.Module, ctx: RuleContext) -> list[Faul
 
     del module
     return [
-        ctx.fault_at(location=location)
-        for location in ctx._analysis.facts.hygiene().multiline_docstrings
+        ctx.fault_at(location=location) for location in ctx.facts.hygiene().multiline_docstrings
     ]
 
 
@@ -35,7 +34,7 @@ def no_standalone_comments(*, module: ast.Module, ctx: RuleContext) -> list[Faul
 
     del module
     faults: list[Fault] = []
-    for fact in ctx._analysis.facts.comments():
+    for fact in ctx.facts.comments():
         if fact.text.startswith(_comment_allowed_prefixes):
             continue
         faults.append(ctx.fault_for(path=fact.path, line=fact.line, column=fact.column))
@@ -46,19 +45,14 @@ def no_raw_builtin_raise(*, module: ast.Module, ctx: RuleContext) -> list[Fault]
     """Flag raises of generic built-in exception classes."""
 
     del module
-    return [
-        ctx.fault_at(location=location)
-        for location in ctx._analysis.facts.hygiene().raw_builtin_raises
-    ]
+    return [ctx.fault_at(location=location) for location in ctx.facts.hygiene().raw_builtin_raises]
 
 
 def no_assert_in_runtime(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag assert statements in runtime code."""
 
     del module
-    return [
-        ctx.fault_at(location=location) for location in ctx._analysis.facts.hygiene().assertions
-    ]
+    return [ctx.fault_at(location=location) for location in ctx.facts.hygiene().assertions]
 
 
 def no_swallowed_exception_probe(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
@@ -67,7 +61,7 @@ def no_swallowed_exception_probe(*, module: ast.Module, ctx: RuleContext) -> lis
     del module
     return [
         ctx.fault_at(location=location)
-        for location in ctx._analysis.facts.hygiene().swallowed_exception_probes
+        for location in ctx.facts.hygiene().swallowed_exception_probes
     ]
 
 
@@ -77,9 +71,7 @@ def no_complex_comprehensions_in_tooling(*, module: ast.Module, ctx: RuleContext
     del module
     if ctx.scope() is not ScopeName.TOOLING:
         return []
-    return [
-        ctx.fault_at(location=location) for location in ctx._analysis.facts.complex_comprehensions()
-    ]
+    return [ctx.fault_at(location=location) for location in ctx.facts.complex_comprehensions()]
 
 
 def no_unnamed_string_decisions(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
@@ -87,8 +79,7 @@ def no_unnamed_string_decisions(*, module: ast.Module, ctx: RuleContext) -> list
 
     del module
     return [
-        ctx.fault_at(location=location)
-        for location in ctx._analysis.facts.hygiene().unnamed_string_decisions
+        ctx.fault_at(location=location) for location in ctx.facts.hygiene().unnamed_string_decisions
     ]
 
 
@@ -98,7 +89,7 @@ def no_magic_numeric_comparisons(*, module: ast.Module, ctx: RuleContext) -> lis
     del module
     return [
         ctx.fault_at(location=location)
-        for location in ctx._analysis.facts.hygiene().magic_numeric_comparisons
+        for location in ctx.facts.hygiene().magic_numeric_comparisons
     ]
 
 
@@ -108,5 +99,5 @@ def no_import_time_side_effects(*, module: ast.Module, ctx: RuleContext) -> list
     del module
     return [
         ctx.fault_at(location=location)
-        for location in ctx._analysis.facts.module_declarations().import_time_call_locations
+        for location in ctx.facts.module_declarations().import_time_call_locations
     ]

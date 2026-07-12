@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.6.0](https://github.com/chio-labs/strata/compare/v0.5.0...v0.6.0) (2026-07-12)
+
+
+### Features
+
+* **taxonomy:** settle pre-release rule contracts ([bbb24f7](https://github.com/chio-labs/strata/commit/bbb24f79e28ba2536f9a608ad3e9de8ff74e20dc))
+* **taxonomy:** settle pre-release rule contracts ([5f39ad8](https://github.com/chio-labs/strata/commit/5f39ad8eb167c9579dd441889dbdd57e91feeca9))
+
+
+### Bug Fixes
+
+* **layers:** infer structural import ownership ([733c4cb](https://github.com/chio-labs/strata/commit/733c4cb1dad85c2c425b7320700f4fd366ccbd0f))
+* **layers:** infer structural import ownership ([0fde46a](https://github.com/chio-labs/strata/commit/0fde46a81dfd2d78bc4c1a890c8b03c4a4dbf998))
+* **taxonomy:** close container and override gaps ([0fb18d8](https://github.com/chio-labs/strata/commit/0fb18d87d0112da1c67bbae5fdc64bcbbbd61de2))
+* **taxonomy:** close container and override gaps ([7da5d4e](https://github.com/chio-labs/strata/commit/7da5d4e38cfe32be29c02cbc5a7ccdbceac1c212))
+
+
+### Performance Improvements
+
+* **map:** cache project declaration indexes ([4d58c75](https://github.com/chio-labs/strata/commit/4d58c75ba376992260291485c53ba3827d5d8b26))
+* **map:** cache project declaration indexes ([cb72ac1](https://github.com/chio-labs/strata/commit/cb72ac143754798ed6fba3207882529893d50d71))
+
 ## [0.5.0](https://github.com/chio-labs/strata/compare/v0.4.0...v0.5.0) (2026-07-12)
 
 

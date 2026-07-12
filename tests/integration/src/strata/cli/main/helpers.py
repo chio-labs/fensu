@@ -62,7 +62,7 @@ from strata import Family, Fault, RuleContext, rule
     remediation="apply the custom remediation",
 )
 def always(module: ast.Module, ctx: RuleContext) -> list[Fault]:
-    return [ctx.fault(module.body[0])]
+    return [ctx.fault(node=module.body[0])]
 ''',
         encoding="utf-8",
     )

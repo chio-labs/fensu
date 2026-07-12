@@ -24,7 +24,7 @@ def run_benchmark(
     try:
         if profile:
             report: ProfileReport = profile_check(resolved_project)
-            sys.stdout.write(render_profile(report))
+            sys.stdout.write(render_profile(report=report))
         else:
             resolved_executable: Path = (
                 Path(sys.executable).with_name("strata")

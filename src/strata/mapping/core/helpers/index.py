@@ -142,7 +142,7 @@ def _class_definition(
         ),
         class_attributes=_class_attributes(node),
         instance_attributes=_instance_attributes(
-            node,
+            node=node,
             imports=imports,
         ),
     )
@@ -165,12 +165,12 @@ def _class_attributes(node: ast.ClassDef) -> dict[str, ClassReference]:
 
 
 def _instance_attributes(
-    node: ast.ClassDef,
     *,
+    node: ast.ClassDef,
     imports: ModuleImports,
 ) -> dict[str, ClassReference]:
     attributes: dict[str, ClassReference] = _property_attributes(
-        node,
+        node=node,
         imports=imports,
     )
     invalid: set[str] = set()
@@ -205,8 +205,8 @@ def _instance_attributes(
 
 
 def _property_attributes(
-    node: ast.ClassDef,
     *,
+    node: ast.ClassDef,
     imports: ModuleImports,
 ) -> dict[str, ClassReference]:
     attributes: dict[str, ClassReference] = {}
@@ -214,7 +214,7 @@ def _property_attributes(
         if not isinstance(method, ast.FunctionDef | ast.AsyncFunctionDef) or method.returns is None:
             continue
         if _is_property(
-            method,
+            method=method,
             imports=imports,
         ):
             attributes[method.name] = ClassReference(method.returns, annotation=True)
@@ -222,8 +222,8 @@ def _property_attributes(
 
 
 def _is_property(
-    method: ast.FunctionDef | ast.AsyncFunctionDef,
     *,
+    method: ast.FunctionDef | ast.AsyncFunctionDef,
     imports: ModuleImports,
 ) -> bool:
     for decorator in method.decorator_list:
@@ -403,7 +403,7 @@ def _collect_imports(
                 view=annotation,
             )
         elif isinstance(node, ast.If) and _is_type_checking_guard(
-            node.test,
+            expression=node.test,
             imports=runtime,
         ):
             guarded_imports: tuple[ast.stmt, ...] = tuple(
@@ -474,8 +474,8 @@ def _updated_import_view(
 
 
 def _is_type_checking_guard(
-    expression: ast.expr,
     *,
+    expression: ast.expr,
     imports: ImportView,
 ) -> bool:
     spelling: str = _expression_name(expression)

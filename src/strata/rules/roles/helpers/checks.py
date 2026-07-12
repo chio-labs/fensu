@@ -51,7 +51,7 @@ def models_only_models(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
         return []
     del module
     return [
-        ctx.fault_at(fact.location)
+        ctx.fault_at(location=fact.location)
         for fact in ctx._analysis.facts.module_declarations().statements
         if not fact.import_statement and not fact.model_class
     ]
@@ -64,7 +64,7 @@ def types_only_types(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
         return []
     del module
     return [
-        ctx.fault_at(fact.location)
+        ctx.fault_at(location=fact.location)
         for fact in ctx._analysis.facts.module_declarations().statements
         if not fact.import_statement
         and not fact.assignment_statement
@@ -81,7 +81,7 @@ def constants_only_constants(*, module: ast.Module, ctx: RuleContext) -> list[Fa
         return []
     del module
     return [
-        ctx.fault_at(fact.location)
+        ctx.fault_at(location=fact.location)
         for fact in ctx._analysis.facts.module_declarations().statements
         if not fact.import_statement and not fact.assignment_statement
     ]
@@ -94,7 +94,7 @@ def exceptions_only_exceptions(*, module: ast.Module, ctx: RuleContext) -> list[
         return []
     del module
     return [
-        ctx.fault_at(fact.location)
+        ctx.fault_at(location=fact.location)
         for fact in ctx._analysis.facts.module_declarations().statements
         if not fact.import_statement and not fact.exception_class
     ]
@@ -107,7 +107,7 @@ def model_declaration_outside_models(*, module: ast.Module, ctx: RuleContext) ->
         return []
     del module
     return [
-        ctx.fault_at(location)
+        ctx.fault_at(location=location)
         for location in ctx._analysis.facts.module_declarations().model_locations
     ]
 
@@ -119,7 +119,7 @@ def type_declaration_outside_types(*, module: ast.Module, ctx: RuleContext) -> l
         return []
     del module
     return [
-        ctx.fault_at(fact.location)
+        ctx.fault_at(location=fact.location)
         for fact in ctx._analysis.facts.module_declarations().type_declarations
         if not fact.private or not ctx.in_role(RoleName.HELPERS)
     ]
@@ -135,7 +135,7 @@ def constant_outside_constants(*, module: ast.Module, ctx: RuleContext) -> list[
     for fact in ctx._analysis.facts.module_declarations().statements:
         for target_name in fact.assignment_target_names:
             if not target_name.startswith("_") and target_name.isupper():
-                faults.append(ctx.fault_at(fact.location))
+                faults.append(ctx.fault_at(location=fact.location))
     return faults
 
 
@@ -148,7 +148,7 @@ def exception_declaration_outside_exceptions(
         return []
     del module
     return [
-        ctx.fault_at(location)
+        ctx.fault_at(location=location)
         for location in ctx._analysis.facts.module_declarations().exception_locations
     ]
 
@@ -217,7 +217,7 @@ def helpers_classes_file_private(*, module: ast.Module, ctx: RuleContext) -> lis
         return []
     del module
     return [
-        ctx.fault_at(fact.location)
+        ctx.fault_at(location=fact.location)
         for fact in ctx._analysis.facts.module_declarations().statements
         if fact.class_name is not None
         and not fact.class_name.startswith("_")
@@ -231,7 +231,7 @@ def no_import_time_side_effects(*, module: ast.Module, ctx: RuleContext) -> list
 
     del module
     return [
-        ctx.fault_at(location)
+        ctx.fault_at(location=location)
         for location in ctx._analysis.facts.module_declarations().import_time_call_locations
     ]
 
@@ -432,7 +432,7 @@ def entry_module_shape(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     if len(private_functions) > _maximum_entry_private_functions:
         faults.append(
             ctx.fault_at(
-                private_functions[2].location,
+                location=private_functions[2].location,
                 message="main/ entry modules may define at most two private glue functions",
             )
         )
@@ -441,7 +441,7 @@ def entry_module_shape(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
             continue
         faults.append(
             ctx.fault_at(
-                fact.location,
+                location=fact.location,
                 message="main/ entry modules may contain only imports and top-level functions",
             )
         )
@@ -487,7 +487,7 @@ def no_internal_helper_exports(*, module: ast.Module, ctx: RuleContext) -> list[
         return []
     del module
     return [
-        ctx.fault_at(location)
+        ctx.fault_at(location=location)
         for location in ctx._analysis.facts.module_declarations().all_assignment_locations
     ]
 
@@ -524,11 +524,14 @@ def public_surface_shape(*, module: ast.Module, ctx: RuleContext) -> list[Fault]
         if fact.all_assignment:
             if saw_all:
                 faults.append(
-                    ctx.fault_at(fact.location, message="public surface may define __all__ once")
+                    ctx.fault_at(
+                        location=fact.location,
+                        message="public surface may define __all__ once",
+                    )
                 )
             saw_all = True
             continue
-        faults.append(ctx.fault_at(fact.location))
+        faults.append(ctx.fault_at(location=fact.location))
     return faults
 
 
@@ -586,14 +589,14 @@ def private_definition_ordering(*, module: ast.Module, ctx: RuleContext) -> list
         if fact.class_name is not None and fact.class_name.startswith("_") and fact.dataclass_class:
             faults.append(
                 ctx.fault_at(
-                    fact.location,
+                    location=fact.location,
                     message="private dataclasses must appear before top-level functions",
                 )
             )
         elif any(name.startswith("_") for name in fact.assignment_target_names):
             faults.append(
                 ctx.fault_at(
-                    fact.location,
+                    location=fact.location,
                     message="private constants must appear before top-level functions",
                 )
             )
@@ -647,7 +650,7 @@ def tooling_entrypoint_shape(*, module: ast.Module, ctx: RuleContext) -> list[Fa
                 continue
             faults.append(
                 ctx.fault_at(
-                    fact.location,
+                    location=fact.location,
                     message=(
                         "direct scripts may define only main(), _parse_args(), and _build_parser()"
                     ),
@@ -658,7 +661,7 @@ def tooling_entrypoint_shape(*, module: ast.Module, ctx: RuleContext) -> list[Fa
             continue
         faults.append(
             ctx.fault_at(
-                fact.location,
+                location=fact.location,
                 message="direct scripts may contain only imports, command functions, and guards",
             )
         )
@@ -694,7 +697,7 @@ def tooling_entrypoint_delegation(*, module: ast.Module, ctx: RuleContext) -> li
             continue
         faults.append(
             ctx.fault_at(
-                call.location,
+                location=call.location,
                 message=(
                     "direct script main() may call only _parse_args() and imported main/ entries"
                 ),
@@ -734,7 +737,7 @@ def rules_role_content(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
             continue
         faults.append(
             ctx.fault_at(
-                fact.location,
+                location=fact.location,
                 message="rules/ modules may contain only imports and @rule functions",
             )
         )

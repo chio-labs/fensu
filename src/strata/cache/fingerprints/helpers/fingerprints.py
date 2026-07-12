@@ -104,7 +104,9 @@ def custom_rules_fingerprint(*, config: Config, repo_root: Path) -> CacheFingerp
             return None
         files.extend(_fingerprinted_file(path=path, label=rule_path) for path in entries)
     for module_name in sorted(config.rule_modules):
-        module_root: Path | None = _rule_module_location(module_name, repo_root=repo_root)
+        module_root: Path | None = _rule_module_location(
+            module_name=module_name, repo_root=repo_root
+        )
         entries = None if module_root is None else _rule_source_files(module_root)
         if entries is None:
             return None
@@ -124,7 +126,7 @@ def _rule_source_files(location: Path) -> tuple[Path, ...] | None:
     return None
 
 
-def _rule_module_location(module_name: str, *, repo_root: Path) -> Path | None:
+def _rule_module_location(*, module_name: str, repo_root: Path) -> Path | None:
     module_parts: tuple[str, ...] = tuple(module_name.split("."))
     candidate: Path = repo_root.joinpath(*module_parts)
     if candidate.is_dir() and (candidate / "__init__.py").is_file():

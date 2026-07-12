@@ -77,8 +77,8 @@ class RuleContext(Protocol):
 
     def fault(
         self,
-        node: ast.AST,
         *,
+        node: ast.AST,
         message: str | None = None,
         remediation: str | None = None,
     ) -> Fault:
@@ -87,8 +87,8 @@ class RuleContext(Protocol):
 
     def fault_at(
         self,
-        location: SyntaxHandle | SourceLocation | SourceRange,
         *,
+        location: SyntaxHandle | SourceLocation | SourceRange,
         message: str | None = None,
         remediation: str | None = None,
     ) -> Fault:

@@ -26,7 +26,7 @@ def evaluate_hygiene_test_case(
     monkeypatch.chdir(tmp_path)
     config: Config = Config(roots=test_case.roots, tests=(), tooling=test_case.tooling)
     return evaluate(
-        tree=discover_files(config),
+        tree=discover_files(config=config),
         ruleset=(_rule_by_code(test_case.rule_code),),
         config=config,
     )

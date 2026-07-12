@@ -40,7 +40,7 @@ def encode_cache_record(record: CacheRecord) -> bytes:
     ).encode("utf-8")
 
 
-def decode_cache_record(data: bytes, *, expected_kind: str) -> CacheRecord | None:
+def decode_cache_record(*, data: bytes, expected_kind: str) -> CacheRecord | None:
     """Return a validated record or None for any unsupported cache data."""
 
     try:

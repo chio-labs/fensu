@@ -37,7 +37,7 @@ def fingerprint_or_none(value: object) -> CacheFingerprint | None:
     return CacheFingerprint(value=cast(str, value)) if is_fingerprint(value) else None
 
 
-def is_relative_path(value: object, *, allow_root: bool = False) -> bool:
+def is_relative_path(*, value: object, allow_root: bool = False) -> bool:
     """Return whether a value is a normalized repository-relative POSIX path."""
 
     if not isinstance(value, str) or not value or WINDOWS_PATH_SEPARATOR in value:
@@ -67,9 +67,9 @@ def is_dependency_observation(observation: DependencyObservation) -> bool:
     """Return whether an observation carries the answer required by its query kind."""
 
     if not (
-        is_relative_path(observation.requester_path)
-        and is_relative_path(observation.query_path, allow_root=True)
-        and is_relative_path(observation.dependency_path, allow_root=True)
+        is_relative_path(value=observation.requester_path)
+        and is_relative_path(value=observation.query_path, allow_root=True)
+        and is_relative_path(value=observation.dependency_path, allow_root=True)
     ):
         return False
     if observation.kind is ProjectDependencyKind.GLOB:
@@ -87,4 +87,4 @@ def is_dependency_observation(observation: DependencyObservation) -> bool:
         return type(observation.answer) is bool
     if not isinstance(observation.answer, tuple):
         return False
-    return all(is_relative_path(path, allow_root=True) for path in observation.answer)
+    return all(is_relative_path(value=path, allow_root=True) for path in observation.answer)

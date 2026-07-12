@@ -145,10 +145,10 @@ def test_given_detected_hatch_layout_when_answering_prompts_then_writes_selected
                 'roots = ["src/acme"]\n'
                 'tests = ["tests"]\n'
                 "# Adoption guide: https://docs.stratalint.com/adoption\n"
-                'select = ["SFL", "SFX", "SFA", "SFN"]\n'
+                'select = ["SFL", "SFH", "SFA", "SFN"]\n'
             ),
             expected_output_fragments=(
-                "Starting with the gradual ruleset: SFL, SFX, SFA, SFN",
+                "Starting with the gradual ruleset: SFL, SFH, SFA, SFN",
                 "SFA  annotations",
                 "Found 1 fault across 1 file against the starting ruleset.",
             ),
@@ -198,7 +198,7 @@ def test_given_detected_hatch_layout_when_answering_prompts_then_writes_selected
                 'roots = ["src/acme"]\n'
                 'tests = ["tests"]\n'
                 "# Adoption guide: https://docs.stratalint.com/adoption\n"
-                'select = ["SFL", "SFX", "SFA", "SFN"]\n'
+                'select = ["SFL", "SFH", "SFA", "SFN"]\n'
             ),
             expected_output_fragments=("Wrote strata.toml",),
             expected_absent_fragments=("Accept?", "Project name"),
@@ -432,7 +432,7 @@ def test_given_multiple_runtime_roots_when_selecting_then_defaults_retries_and_e
             expected_roots=("src/acme",),
             expected_tests=("tests",),
             expected_tooling=("scripts",),
-            expected_select=("SFL", "SFX", "SFA", "SFN"),
+            expected_select=("SFL", "SFH", "SFA", "SFN"),
             expected_skill_paths=(),
         ),
     ],
@@ -1010,14 +1010,14 @@ def test_given_unsafe_local_config_target_when_initializing_then_refuses_without
                 "\n"
                 "--> Existing codebase - 1 Python file\n"
                 "\n"
-                "    Starting with the gradual ruleset: SFL, SFX, SFA, SFN\n"
+                "    Starting with the gradual ruleset: SFL, SFH, SFA, SFN\n"
                 "    Wrote strata.toml\n"
                 "\n"
                 "--> Measuring current drift\n"
                 "\n"
                 "    SFA  annotations       1\n"
                 "    SFL  layers            0\n"
-                "    SFX  hygiene           0\n"
+                "    SFH  hygiene           0\n"
                 "    SFN  naming            0\n"
                 "\n"
                 "    Found 1 fault across 1 file against the starting ruleset.\n"

@@ -32,7 +32,7 @@ _SOURCE_FINGERPRINT: str = "d" * 64
                 source_fingerprint=CacheFingerprint(_SOURCE_FINGERPRINT),
                 faults=(
                     CachedFault(
-                        code="SFX001",
+                        code="SFH001",
                         path="src/example.py",
                         message="multiline docstring",
                         line=1,
@@ -56,7 +56,7 @@ _SOURCE_FINGERPRINT: str = "d" * 64
                 source_fingerprint=CacheFingerprint(_SOURCE_FINGERPRINT),
                 faults=(
                     CachedFault(
-                        code="SFX001",
+                        code="SFH001",
                         path="src/example.py",
                         message="multiline docstring",
                         line=1,

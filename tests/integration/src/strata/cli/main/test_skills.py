@@ -87,7 +87,7 @@ def test_given_missing_or_mistyped_subcommand_when_running_then_explains_update_
                 "Generic package names are banned",
                 "src/pkg/<domain>[/<subdomain>]/",
             ),
-            expected_absent_fragments=("## SFX002:", "Never use `core`"),
+            expected_absent_fragments=("## SFH002:", "Never use `core`"),
         ),
         SkillCommandTestCase(
             description="global target filter writes selected home locations",
@@ -108,7 +108,7 @@ def test_given_missing_or_mistyped_subcommand_when_running_then_explains_update_
                 "Generic package names are banned",
                 "src/pkg/<domain>[/<subdomain>]/",
             ),
-            expected_absent_fragments=("## SFX002:", "Never use `core`"),
+            expected_absent_fragments=("## SFH002:", "Never use `core`"),
         ),
     ],
     ids=lambda case: case.description,
@@ -145,7 +145,7 @@ def test_given_scope_and_targets_when_updating_skills_then_installs_active_rule_
         assert "## Repository Structure" in content
         assert "### Runtime" in content
         assert "### Tests" in content
-        assert "## SFX001:" in content
+        assert "## SFH001:" in content
         assert "## XCK001: always" in content
         assert "custom fault" in content
         assert all(heading in content for heading in active_rule_headings)

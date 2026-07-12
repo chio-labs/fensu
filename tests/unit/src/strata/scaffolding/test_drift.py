@@ -19,8 +19,8 @@ from tests.unit.src.strata.scaffolding.helpers import build_repository
         DriftTestCase(
             description="gradual rules aggregate selected annotation and hygiene families",
             source_text="def run(value):\n    assert value\n",
-            select=("SFA", "SFX"),
-            expected_family_codes=("SFA", "SFX"),
+            select=("SFA", "SFH"),
+            expected_family_codes=("SFA", "SFH"),
             expected_family_counts=(2, 1),
             expected_fault_count=3,
             expected_file_count=1,

@@ -16,30 +16,30 @@ from tests.unit.src.strata.rules.hygiene.main.helpers import evaluate_hygiene_te
     [
         HygieneRuleTestCase(
             description="multiline module docstring is flagged",
-            rule_code="SFX001",
+            rule_code="SFH001",
             source='"""Summary.\n\nDetails.\n"""\nvalue: int = 1\n',
-            expected_codes=("SFX001",),
+            expected_codes=("SFH001",),
             expected_lines=(1,),
         ),
         HygieneRuleTestCase(
             description="single-line function docstring is allowed",
-            rule_code="SFX001",
+            rule_code="SFH001",
             source='def run() -> None:\n    """Run the task."""\n    return None\n',
             expected_codes=(),
             expected_lines=(),
         ),
         HygieneRuleTestCase(
             description="multiline class docstring is flagged",
-            rule_code="SFX001",
+            rule_code="SFH001",
             source='class Service:\n    """Summary.\n\n    Details.\n    """\n',
-            expected_codes=("SFX001",),
+            expected_codes=("SFH001",),
             expected_lines=(2,),
         ),
         HygieneRuleTestCase(
             description="multiline async function docstring is flagged",
-            rule_code="SFX001",
+            rule_code="SFH001",
             source='async def run() -> None:\n    """Summary.\n\n    Details.\n    """\n',
-            expected_codes=("SFX001",),
+            expected_codes=("SFH001",),
             expected_lines=(2,),
         ),
     ],
@@ -63,14 +63,14 @@ def test_given_docstrings_when_checking_hygiene_then_flags_only_multiline_docstr
     [
         HygieneRuleTestCase(
             description="standalone explanatory comment is flagged",
-            rule_code="SFX002",
+            rule_code="SFH002",
             source="value: int = 1\n# explain the branch\nother: int = 2\n",
-            expected_codes=("SFX002",),
+            expected_codes=("SFH002",),
             expected_lines=(2,),
         ),
         HygieneRuleTestCase(
             description="allowed tooling prefixes are ignored",
-            rule_code="SFX002",
+            rule_code="SFH002",
             source=(
                 "#!/usr/bin/env python\n"
                 "# -*- coding: utf-8 -*-\n"
@@ -105,21 +105,21 @@ def test_given_comments_when_checking_hygiene_then_flags_only_disallowed_comment
     [
         HygieneRuleTestCase(
             description="raw builtin exception raise is flagged",
-            rule_code="SFX003",
+            rule_code="SFH003",
             source="def run() -> None:\n    raise ValueError('bad')\n",
-            expected_codes=("SFX003",),
+            expected_codes=("SFH003",),
             expected_lines=(2,),
         ),
         HygieneRuleTestCase(
             description="raw builtin exception class raise is flagged",
-            rule_code="SFX003",
+            rule_code="SFH003",
             source="def run() -> None:\n    raise ValueError\n",
-            expected_codes=("SFX003",),
+            expected_codes=("SFH003",),
             expected_lines=(2,),
         ),
         HygieneRuleTestCase(
             description="structured exception raise is allowed",
-            rule_code="SFX003",
+            rule_code="SFH003",
             source=(
                 "class ConfigError(Exception):\n"
                 "    pass\n\n"
@@ -150,14 +150,14 @@ def test_given_raises_when_checking_hygiene_then_flags_only_raw_builtin_exceptio
     [
         HygieneRuleTestCase(
             description="assert statement is flagged",
-            rule_code="SFX004",
+            rule_code="SFH004",
             source="def run(value: int) -> None:\n    assert value > 0\n",
-            expected_codes=("SFX004",),
+            expected_codes=("SFH004",),
             expected_lines=(2,),
         ),
         HygieneRuleTestCase(
             description="explicit guard without assert is allowed",
-            rule_code="SFX004",
+            rule_code="SFH004",
             source="def run(value: int) -> None:\n    if value <= 0:\n        return None\n",
             expected_codes=(),
             expected_lines=(),
@@ -183,7 +183,7 @@ def test_given_asserts_when_checking_hygiene_then_flags_assert_statements(
     [
         HygieneRuleTestCase(
             description="bare broad exception returning None is flagged",
-            rule_code="SFX005",
+            rule_code="SFH005",
             source=(
                 "def exists() -> bool | None:\n"
                 "    try:\n"
@@ -191,12 +191,12 @@ def test_given_asserts_when_checking_hygiene_then_flags_assert_statements(
                 "    except Exception:\n"
                 "        return None\n"
             ),
-            expected_codes=("SFX005",),
+            expected_codes=("SFH005",),
             expected_lines=(4,),
         ),
         HygieneRuleTestCase(
             description="bare broad exception continuing loop is flagged",
-            rule_code="SFX005",
+            rule_code="SFH005",
             source=(
                 "def run(items: list[int]) -> None:\n"
                 "    for item in items:\n"
@@ -205,12 +205,12 @@ def test_given_asserts_when_checking_hygiene_then_flags_assert_statements(
                 "        except Exception:\n"
                 "            continue\n"
             ),
-            expected_codes=("SFX005",),
+            expected_codes=("SFH005",),
             expected_lines=(5,),
         ),
         HygieneRuleTestCase(
             description="bare broad exception returning False is flagged",
-            rule_code="SFX005",
+            rule_code="SFH005",
             source=(
                 "def exists() -> bool:\n"
                 "    try:\n"
@@ -218,12 +218,12 @@ def test_given_asserts_when_checking_hygiene_then_flags_assert_statements(
                 "    except Exception:\n"
                 "        return False\n"
             ),
-            expected_codes=("SFX005",),
+            expected_codes=("SFH005",),
             expected_lines=(4,),
         ),
         HygieneRuleTestCase(
             description="bare broad exception returning empty dict is flagged",
-            rule_code="SFX005",
+            rule_code="SFH005",
             source=(
                 "def load() -> dict[str, str]:\n"
                 "    try:\n"
@@ -231,12 +231,12 @@ def test_given_asserts_when_checking_hygiene_then_flags_assert_statements(
                 "    except Exception:\n"
                 "        return {}\n"
             ),
-            expected_codes=("SFX005",),
+            expected_codes=("SFH005",),
             expected_lines=(4,),
         ),
         HygieneRuleTestCase(
             description="bare broad exception returning empty tuple is flagged",
-            rule_code="SFX005",
+            rule_code="SFH005",
             source=(
                 "def load() -> tuple[str, ...]:\n"
                 "    try:\n"
@@ -244,12 +244,12 @@ def test_given_asserts_when_checking_hygiene_then_flags_assert_statements(
                 "    except Exception:\n"
                 "        return ()\n"
             ),
-            expected_codes=("SFX005",),
+            expected_codes=("SFH005",),
             expected_lines=(4,),
         ),
         HygieneRuleTestCase(
             description="named broad exception with handling is allowed",
-            rule_code="SFX005",
+            rule_code="SFH005",
             source=(
                 "def exists() -> bool:\n"
                 "    try:\n"
@@ -281,9 +281,9 @@ def test_given_exception_handlers_when_checking_hygiene_then_flags_only_probe_sw
     [
         HygieneRuleTestCase(
             description="multi-generator comprehension in tooling is flagged",
-            rule_code="SFX006",
+            rule_code="SFH006",
             source="pairs: list[tuple[int, int]] = [(left, right) for left in (1, 2) for right in (3, 4)]\n",
-            expected_codes=("SFX006",),
+            expected_codes=("SFH006",),
             expected_lines=(1,),
             relative_path="scripts/check.py",
             roots=(),
@@ -291,7 +291,7 @@ def test_given_exception_handlers_when_checking_hygiene_then_flags_only_probe_sw
         ),
         HygieneRuleTestCase(
             description="product comprehension is owned by shape counterpart",
-            rule_code="SFX006",
+            rule_code="SFH006",
             source="pairs: list[tuple[int, int]] = [(left, right) for left in (1, 2) for right in (3, 4)]\n",
             expected_codes=(),
             expected_lines=(),
@@ -317,42 +317,42 @@ def test_given_comprehensions_when_checking_tooling_then_applies_only_to_tooling
     [
         HygieneRuleTestCase(
             description="string equality decision is flagged",
-            rule_code="SFX007",
+            rule_code="SFH007",
             source="def ready(status: str) -> bool:\n    return status == 'ready'\n",
-            expected_codes=("SFX007",),
+            expected_codes=("SFH007",),
             expected_lines=(2,),
         ),
         HygieneRuleTestCase(
             description="string membership values are each flagged",
-            rule_code="SFX007",
+            rule_code="SFH007",
             source="def ready(status: str) -> bool:\n    return status in {'ready', 'done'}\n",
-            expected_codes=("SFX007", "SFX007"),
+            expected_codes=("SFH007", "SFH007"),
             expected_lines=(2, 2),
         ),
         HygieneRuleTestCase(
             description="frozenset string membership value is flagged",
-            rule_code="SFX007",
+            rule_code="SFH007",
             source="def ready(status: str) -> bool:\n    return status in frozenset({'ready'})\n",
-            expected_codes=("SFX007",),
+            expected_codes=("SFH007",),
             expected_lines=(2,),
         ),
         HygieneRuleTestCase(
             description="named string decision is allowed",
-            rule_code="SFX007",
+            rule_code="SFH007",
             source="READY: str = 'ready'\n\ndef ready(status: str) -> bool:\n    return status == READY\n",
             expected_codes=(),
             expected_lines=(),
         ),
         HygieneRuleTestCase(
             description="string outside comparison is allowed",
-            rule_code="SFX007",
+            rule_code="SFH007",
             source="def message() -> str:\n    return 'ready'\n",
             expected_codes=(),
             expected_lines=(),
         ),
         HygieneRuleTestCase(
             description="canonical main execution guard is allowed",
-            rule_code="SFX007",
+            rule_code="SFH007",
             source="if __name__ == '__main__':\n    main()\n",
             expected_codes=(),
             expected_lines=(),
@@ -378,28 +378,28 @@ def test_given_string_literals_when_checking_decisions_then_requires_named_value
     [
         HygieneRuleTestCase(
             description="numeric threshold comparison is flagged",
-            rule_code="SFX008",
+            rule_code="SFH008",
             source="def enough(count: int) -> bool:\n    return count >= 3\n",
-            expected_codes=("SFX008",),
+            expected_codes=("SFH008",),
             expected_lines=(2,),
         ),
         HygieneRuleTestCase(
             description="chained numeric bounds are each flagged",
-            rule_code="SFX008",
+            rule_code="SFH008",
             source="def valid(value: int) -> bool:\n    return 5 < value <= 10\n",
-            expected_codes=("SFX008", "SFX008"),
+            expected_codes=("SFH008", "SFH008"),
             expected_lines=(2, 2),
         ),
         HygieneRuleTestCase(
             description="numeric membership values are each flagged",
-            rule_code="SFX008",
+            rule_code="SFH008",
             source="def valid(value: int) -> bool:\n    return value in {2, 3}\n",
-            expected_codes=("SFX008", "SFX008"),
+            expected_codes=("SFH008", "SFH008"),
             expected_lines=(2, 2),
         ),
         HygieneRuleTestCase(
             description="canonical numeric sentinels are allowed",
-            rule_code="SFX008",
+            rule_code="SFH008",
             source=(
                 "def valid(value: int) -> bool:\n"
                 "    return value >= -1 and value != 0 and value <= 1\n"
@@ -409,21 +409,21 @@ def test_given_string_literals_when_checking_decisions_then_requires_named_value
         ),
         HygieneRuleTestCase(
             description="named numeric threshold is allowed",
-            rule_code="SFX008",
+            rule_code="SFH008",
             source="LIMIT: int = 3\n\ndef enough(count: int) -> bool:\n    return count >= LIMIT\n",
             expected_codes=(),
             expected_lines=(),
         ),
         HygieneRuleTestCase(
             description="numeric literal outside comparison is allowed",
-            rule_code="SFX008",
+            rule_code="SFH008",
             source="def increment(value: int) -> int:\n    return value + 3\n",
             expected_codes=(),
             expected_lines=(),
         ),
         HygieneRuleTestCase(
             description="boolean comparison is not a numeric decision",
-            rule_code="SFX008",
+            rule_code="SFH008",
             source="def enabled(value: bool) -> bool:\n    return value is True\n",
             expected_codes=(),
             expected_lines=(),

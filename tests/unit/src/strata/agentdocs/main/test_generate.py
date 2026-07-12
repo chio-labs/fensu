@@ -213,12 +213,12 @@ from tests.unit.src.strata.agentdocs.main.helpers import (
         GuidanceTestCase(
             description="unrelated active rule omits unsupported repository examples",
             config=Config(roots=("src/acme",), tests=("tests",), tooling=("scripts",)),
-            rule_codes=("SFX001",),
+            rule_codes=("SFH001",),
             expected_fragments=(
                 "Use whenever Strata is mentioned or used",
                 "## Navigation And Work Handoffs",
                 "## Active Rules",
-                "## SFX001: single-line-docstrings",
+                "## SFH001: single-line-docstrings",
             ),
             expected_absent_fragments=(
                 "## Repository Structure",

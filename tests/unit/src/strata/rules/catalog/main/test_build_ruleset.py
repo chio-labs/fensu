@@ -375,33 +375,45 @@ def test_given_foreign_decorated_rule_when_loading_custom_file_then_module_metad
     [
         SelectCompositionTestCase(
             description="family select respects default-off while explicit code enables it",
-            select=("SFX",),
+            select=("SFH",),
             ignore=(),
-            expected_codes=("SFX001",),
+            expected_codes=("SFH001",),
         ),
         SelectCompositionTestCase(
             description="explicit code select enables default-off rule",
-            select=("SFX099",),
+            select=("SFH099",),
             ignore=(),
-            expected_codes=("SFX099",),
+            expected_codes=("SFH099",),
         ),
         SelectCompositionTestCase(
             description="ignore removes default-on rule",
+            select=("SFH",),
+            ignore=("SFH001",),
+            expected_codes=(),
+        ),
+        SelectCompositionTestCase(
+            description="obsolete hygiene family selector matches no rules",
             select=("SFX",),
-            ignore=("SFX001",),
+            ignore=(),
+            expected_codes=(),
+        ),
+        SelectCompositionTestCase(
+            description="obsolete hygiene rule code matches no rules",
+            select=("SFX001",),
+            ignore=(),
             expected_codes=(),
         ),
         SelectCompositionTestCase(
             description="family ignore removes only rules in that family",
             select=("SF", "X"),
-            ignore=("SFX",),
+            ignore=("SFH",),
             expected_codes=("XRG001",),
         ),
         SelectCompositionTestCase(
             description="custom family ignore removes custom rules",
             select=("SF", "X"),
             ignore=("X",),
-            expected_codes=("SFX001",),
+            expected_codes=("SFH001",),
         ),
         SelectCompositionTestCase(
             description="custom family selector includes custom rules",
@@ -420,8 +432,8 @@ def test_given_select_and_ignore_when_building_ruleset_then_applies_expected_com
         loading_module,
         "CORE_RULES",
         (
-            make_core_rule(code="SFX001", family=Family.HYGIENE),
-            make_core_rule(code="SFX099", family=Family.HYGIENE, enabled_by_default=False),
+            make_core_rule(code="SFH001", family=Family.HYGIENE),
+            make_core_rule(code="SFH099", family=Family.HYGIENE, enabled_by_default=False),
             make_core_rule(code="XRG001", family=Family.CUSTOM),
         ),
     )

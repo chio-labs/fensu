@@ -11,6 +11,15 @@ INIT_MODULE_FILE_NAME: str = "__init__.py"
 INIT_MODULE_NAME: str = "__init__"
 MAX_COMPACT_PATH_PARTS: int = 4
 PATH_SYMBOL_SEPARATOR: str = "::"
+QUALIFIED_NAME_SEPARATOR: str = "."
+SELF_RECEIVER_NAME: str = "self"
+CLASS_RECEIVER_NAME: str = "cls"
+METHOD_RECEIVER_NAMES: frozenset[str] = frozenset({SELF_RECEIVER_NAME, CLASS_RECEIVER_NAME})
+PROTOCOL_BASE_NAMES: frozenset[str] = frozenset(
+    {"Protocol", "typing.Protocol", "typing_extensions.Protocol"}
+)
+PROPERTY_DECORATOR_NAMES: frozenset[str] = frozenset({"property", "builtins.property"})
+TYPE_CHECKING_NAMES: frozenset[str] = frozenset({"TYPE_CHECKING", "typing.TYPE_CHECKING"})
 
 EXCLUDED_DIRECTORY_NAMES: frozenset[str] = frozenset(
     {

@@ -65,6 +65,7 @@ class _EvaluationProjectAnalysis:
         self._files: dict[Path, bool] = {}
         self._directory_entries: dict[Path, tuple[Path, ...]] = {}
         self._globs: dict[tuple[Path, str, bool], tuple[Path, ...]] = {}
+        self._python_anchors: dict[Path, Path | None] = {}
 
     def parsed_module(self, scoped_file: ScopedFile) -> ParsedModule:
         """Return one strict discovered-file parse, reusing project queries."""
@@ -252,6 +253,22 @@ class _EvaluationProjectAnalysis:
             recursive=recursive,
         )
         return matches
+
+    def python_anchor(self, *, requester: Path, path: Path) -> Path | None:
+        """Return and record one compact deterministic Python ownership anchor."""
+
+        query_path: Path = path.absolute()
+        if query_path not in self._python_anchors:
+            self._python_anchors[query_path] = self._observer.python_anchor(query_path=query_path)
+        anchor: Path | None = self._python_anchors[query_path]
+        answer: tuple[Path, ...] = () if anchor is None else (anchor,)
+        self._record(
+            requester=requester,
+            dependency=query_path,
+            kind=ProjectDependencyKind.PYTHON_ANCHOR,
+            answer=answer,
+        )
+        return anchor
 
     def _module_path(self, *, requester: Path, module_name: str) -> Path | None:
         module_parts: tuple[str, ...] = tuple(module_name.split("."))

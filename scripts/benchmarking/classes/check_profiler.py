@@ -14,6 +14,7 @@ import strata.evaluation.helpers.project_analysis as project_analysis_module
 from scripts.benchmarking.models import ProfileReport
 from scripts.benchmarking.types import EvaluatorModule, ProjectAnalysisModule
 from strata.analysis.types import ProjectAnalysis
+from strata.cli.helpers.check_reporting import render_check_result
 from strata.config.main.load_config import load_config
 from strata.config.models import Config
 from strata.discovery.main.discover_files import discover_files
@@ -25,7 +26,6 @@ from strata.evaluation.models import (
     SourceSnapshot,
     ThresholdOverrideUse,
 )
-from strata.reporting.main.render import render
 from strata.rules.authoring.models import Fault, RuleSpec
 from strata.rules.catalog.main.build_ruleset import build_ruleset
 
@@ -131,7 +131,7 @@ class CheckProfiler:
             lambda: evaluate(tree=tree, ruleset=ruleset, config=config)
         )
         report, render_seconds = _timed(
-            lambda: render(faults=result.faults, root=tree.repo_root.path, use_color=False)
+            lambda: render_check_result(result=result, tree=tree, use_color=False)
         )
         rule_seconds: float = sum(self._rule_seconds.values())
         family_totals: dict[str, float] = defaultdict(float)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import textwrap
 from pathlib import Path
 
@@ -46,7 +47,7 @@ def render_text(
         lines.append(
             f"Threshold override: {use.threshold.value}={use.effective_value} "
             f"path={use.repository_path} pattern={use.matched_pattern} "
-            f"order={use.override_order} reason={use.reason}"
+            f"order={use.override_order} reason={json.dumps(use.reason)}"
         )
     return "\n".join(lines)
 

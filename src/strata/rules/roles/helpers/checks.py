@@ -311,6 +311,8 @@ def nested_direct_subpackages(*, module: ast.Module, ctx: RuleContext) -> list[F
         }
     )
     package_parts: tuple[str, ...] = parts[:-1]
+    if any(part in {RoleName.HELPERS, RoleName.MAIN} for part in package_parts):
+        return []
     for index in range(2, len(package_parts)):
         parent: str = package_parts[index - 1]
         child: str = package_parts[index]
@@ -849,12 +851,24 @@ def _package_layout_faults(
                     message=f"{role}/ bucket depth is {depth}; effective limit is {depth_limit}",
                 )
             )
-        if container.name in _role_names:
+        delegated_bucket_names: list[str] = []
+        ancestor: Path = container.parent
+        while ancestor != package_dir:
+            if ctx._project.python_anchor(requester=ctx.path, path=ancestor) != ctx.path:
+                break
+            if _is_forbidden_role_bucket_name(ancestor.name):
+                delegated_bucket_names.append(ancestor.name)
+            ancestor = ancestor.parent
+        bucket_names: tuple[str, ...] = (
+            *reversed(delegated_bucket_names),
+            *((container.name,) if _is_forbidden_role_bucket_name(container.name) else ()),
+        )
+        for bucket_name in bucket_names:
             faults.append(
                 _path_fault(
                     ctx=ctx,
                     code=code,
-                    message=f"{role}/ bucket '{container.name}/' uses a runtime role name",
+                    message=f"{role}/ bucket '{bucket_name}/' uses a runtime role name",
                 )
             )
     return faults
@@ -894,6 +908,10 @@ def _has_python_bucket(*, ctx: RuleContext, container: Path) -> bool:
             recursive=True,
         )
     )
+
+
+def _is_forbidden_role_bucket_name(name: str) -> bool:
+    return name in _role_names
 
 
 def _path_fault(*, ctx: RuleContext, code: RoleCode, message: str) -> Fault:

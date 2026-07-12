@@ -133,7 +133,7 @@ def _validate_thresholds(*, value: object, owner: str) -> None:
     for key, threshold_value in value.items():
         if not isinstance(key, str) or key not in valid_thresholds:
             raise ConfigValidationError(f"Unknown threshold key in {owner}: {key}.")
-        if not isinstance(threshold_value, int):
+        if type(threshold_value) is not int:
             raise ConfigValidationError(f"Threshold {key} in {owner} must be an integer.")
         if threshold_value < 0:
             raise ConfigValidationError(f"Threshold {key} in {owner} must be non-negative.")

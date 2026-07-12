@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.4.0](https://github.com/chio-labs/strata/compare/v0.3.0...v0.4.0) (2026-07-12)
+
+
+### Features
+
+* **map:** resolve concrete method calls ([333b1da](https://github.com/chio-labs/strata/commit/333b1da71f75fac3713bcc90fb64d187417db3a8))
+* **map:** resolve concrete method calls ([d3d96ff](https://github.com/chio-labs/strata/commit/d3d96ff7c553bef0bdddc71ec2a92b0d1cedec76))
+
+
+### Bug Fixes
+
+* **shape:** enforce keyword-only threshold placement ([edaa69a](https://github.com/chio-labs/strata/commit/edaa69a32f45639e34f61a50a48c34124912157a))
+
 ## [0.3.0](https://github.com/chio-labs/strata/compare/v0.2.0...v0.3.0) (2026-07-12)
 
 

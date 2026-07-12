@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.5.0](https://github.com/chio-labs/strata/compare/v0.4.0...v0.5.0) (2026-07-12)
+
+
+### Features
+
+* **init:** add guided project setup ([77d1d72](https://github.com/chio-labs/strata/commit/77d1d7252f1a62318f28458e6889027e436a439c))
+* **init:** make setup idempotent and cache-clean ([2c1fa25](https://github.com/chio-labs/strata/commit/2c1fa25a5c7303b127b49bc5fbd5b029b8e0b299))
+* **roles:** enforce leaf-or-branch domains ([539169e](https://github.com/chio-labs/strata/commit/539169e129684971d557666057a1d362ba0f1eeb))
+
 ## [0.4.0](https://github.com/chio-labs/strata/compare/v0.3.0...v0.4.0) (2026-07-12)
 
 

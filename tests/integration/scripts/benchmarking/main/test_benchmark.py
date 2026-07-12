@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import subprocess
+from io import StringIO
 from pathlib import Path
 
 import pytest
 
 from scripts.benchmarking.classes.check_profiler import CheckProfiler
 from scripts.benchmarking.models import ProfileReport
+from strata.cli.main.check import run_check
 from tests.integration.scripts.benchmarking.main._test_types import (
     BenchmarkErrorTestCase,
     ProcessBenchmarkTestCase,
@@ -93,12 +95,18 @@ def test_given_changing_check_when_running_benchmark_then_returns_clear_error(
     ids=lambda case: case.description,
 )
 def test_given_profile_project_when_running_profiler_then_completes_instrumented_check(
+    monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     test_case: ProfileBenchmarkTestCase,
 ) -> None:
     write_profile_project(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    stdout: StringIO = StringIO()
+    exit_code: int = run_check(argv=("--no-color", "--no-cache"), stdout=stdout)
 
     report: ProfileReport = CheckProfiler().run(tmp_path)
 
+    assert exit_code == 0
     assert report.file_count == test_case.expected_file_count
     assert report.rule_count == test_case.expected_rule_count
+    assert report.rendered_bytes == len(stdout.getvalue().removesuffix("\n").encode("utf-8"))

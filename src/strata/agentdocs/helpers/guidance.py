@@ -22,12 +22,13 @@ from strata.agentdocs.constants import (
     TEST_CASE_FILE_CODES,
     TEST_RUNTIME_MIRROR_CODES,
     TEST_TOOLING_MIRROR_CODES,
+    THRESHOLD_RULE_CODES,
     TOOLING_ADAPTER_CODES,
     TOOLING_PACKAGE_CODES,
     TOOLING_RULES_CODES,
 )
 from strata.agentdocs.helpers.role_examples import runtime_role_example_lines
-from strata.config.models import Config
+from strata.config.models import Config, ThresholdOverride
 from strata.discovery.types import RoleName
 from strata.rules.authoring.types import Threshold
 from strata.rules.roles.types import RoleCode
@@ -59,12 +60,17 @@ def configured_threshold_override_lines(
 ) -> tuple[str, ...]:
     """Render configured overrides whenever at least one active rule can consult them."""
 
-    if not config.threshold_overrides or not active_codes:
+    applicable: list[ThresholdOverride] = []
+    for override in config.threshold_overrides:
+        if any(THRESHOLD_RULE_CODES[threshold] & active_codes for threshold in override.thresholds):
+            applicable.append(override)
+    applicable_overrides: tuple[ThresholdOverride, ...] = tuple(applicable)
+    if not applicable_overrides:
         return ()
     return (
         "## Configured Threshold Overrides",
         "",
-        *_threshold_override_lines(config=config),
+        *_threshold_override_lines(overrides=applicable_overrides),
     )
 
 
@@ -241,7 +247,7 @@ def _role_container_lines(*, role: RoleName, limit: int) -> tuple[str, ...]:
     )
 
 
-def _threshold_override_lines(*, config: Config) -> tuple[str, ...]:
+def _threshold_override_lines(*, overrides: tuple[ThresholdOverride, ...]) -> tuple[str, ...]:
     lines: list[str] = []
     lines.extend(
         (
@@ -256,7 +262,7 @@ def _threshold_override_lines(*, config: Config) -> tuple[str, ...]:
             "```toml",
         )
     )
-    for override in config.threshold_overrides:
+    for override in overrides:
         paths: str = ", ".join(json.dumps(path) for path in override.paths)
         thresholds: str = ", ".join(
             f"{threshold.value} = {value}"

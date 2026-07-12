@@ -137,6 +137,13 @@ def _observe_answer(
         except OSError:
             return None
         return _relative_paths(paths=paths, repo_root=repo_root)
+    if observation.kind is ProjectDependencyKind.PYTHON_ANCHOR:
+        try:
+            anchor: Path | None = _OBSERVER.python_anchor(query_path=query_path)
+        except OSError:
+            return None
+        paths = () if anchor is None else (anchor,)
+        return _relative_paths(paths=paths, repo_root=repo_root)
     return None
 
 

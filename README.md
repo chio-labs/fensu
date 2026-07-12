@@ -99,7 +99,11 @@ strata map run_plan --depth 3
 
 `strata check` enforces the configured architecture, `strata rule` explains one
 rule and its remediation, and `strata map` renders a conservative downstream call
-tree. Mapping does not require Strata configuration or rule adoption.
+tree. Mapping follows project functions and class methods when imports,
+annotations, constructors, or return types prove the receiver. Calls through
+protocols and untyped parameters remain visible as unresolved dispatch seams
+rather than guessed implementations. Mapping does not require Strata
+configuration or rule adoption.
 
 `strata check` stores disposable evaluation results in a repository-local
 SQLite database under `.strata/cache/`
@@ -114,7 +118,8 @@ complete `.strata/` namespace, which is reserved for other Strata-owned state.
 
 Because Strata enforces the structure, it can also render it. `strata map`
 produces a deterministic downstream call tree with clickable `path:line`
-locations, marking unresolved dynamic calls, depth limits, and cycles.
+locations, class-qualified method names, and explicit protocol seams while
+marking unresolved dynamic calls, depth limits, and cycles.
 
 ```text
 $ strata map run_map --depth 4

@@ -119,6 +119,17 @@ class MapCommandTestCase:
 
 
 @dataclass(frozen=True)
+class MethodMapTestCase:
+    """Method map selector and expected presence or absence contracts."""
+
+    description: str
+    argv: tuple[str, ...]
+    expected_exit_code: int
+    expected_output_fragments: tuple[str, ...]
+    expected_absent_fragments: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class StandaloneMapTestCase:
     """Map behavior for a repository without Strata configuration."""
 

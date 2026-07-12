@@ -4,6 +4,41 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
+class PythonSourceFactoryTestCase:
+    """Exact source bytes and expected normalized analysis artifact."""
+
+    description: str
+    content: bytes
+    expected_source: str
+    expected_fingerprint: str
+    expected_assignment_count: int
+
+
+@dataclass(frozen=True)
+class PythonSourceFactoryErrorTestCase:
+    """Invalid source bytes and expected structured failure."""
+
+    description: str
+    content: bytes
+    expected_error_type: type[Exception]
+    expected_message: str | None
+    expected_line: int | None
+    expected_column: int | None
+
+
+@dataclass(frozen=True)
+class PythonSourceFactoryOperationTestCase:
+    """Expected parse and fingerprint operation counts."""
+
+    description: str
+    content: bytes
+    source_fingerprint: str | None
+    expected_fingerprint: str
+    expected_parse_count: int
+    expected_hash_count: int
+
+
+@dataclass(frozen=True)
 class SourceAnalysisTestCase:
     """Source and expected syntax, relation, and text facts."""
 

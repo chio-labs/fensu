@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from strata.agentdocs.core.helpers.installation import build_install_targets, write_skill_file
+from strata.agentdocs.core.helpers.installation import (
+    build_install_targets,
+    write_skill_files,
+)
 from strata.agentdocs.core.main.generate import generate_skill
 from strata.agentdocs.core.models import SkillInstallTarget, SkillUpdateResult
 from strata.agentdocs.core.types import SkillTarget
@@ -31,8 +34,6 @@ def update_skills(
         global_install=global_install,
         home_dir=home_dir,
     )
-    written_paths: list[Path] = []
-    for install_target in install_targets:
-        write_skill_file(path=install_target.path, content=content, force=force)
-        written_paths.append(install_target.path)
-    return SkillUpdateResult(written_paths=tuple(written_paths))
+    written_paths: tuple[Path, ...] = tuple(target.path for target in install_targets)
+    write_skill_files(paths=written_paths, content=content, force=force)
+    return SkillUpdateResult(written_paths=written_paths)

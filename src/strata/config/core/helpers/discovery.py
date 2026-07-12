@@ -22,7 +22,10 @@ def locate_config(start: Path | None = None) -> ConfigSource:
         pyproject: Path = candidate_directory / "pyproject.toml"
         if pyproject.is_file() and _pyproject_has_strata_config(pyproject):
             return ConfigSource(path=pyproject, kind=ConfigSourceKind.PYPROJECT)
-    raise ConfigError("No strata config found; create strata.toml or [tool.strata].")
+    raise ConfigError(
+        "No strata config found; create strata.toml or [tool.strata]. "
+        "Run 'strata init' to create one."
+    )
 
 
 def _pyproject_has_strata_config(path: Path) -> bool:

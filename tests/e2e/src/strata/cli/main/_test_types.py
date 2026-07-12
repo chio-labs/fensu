@@ -1,4 +1,4 @@
-"""Test case types for configurable-layout CLI end-to-end coverage."""
+"""Test case types for CLI end-to-end coverage."""
 
 from __future__ import annotations
 
@@ -82,3 +82,20 @@ class CacheDependencyCliTestCase:
     expected_second_exit_code: int
     expected_first_fragment: str
     expected_second_fragment: str
+
+
+@dataclass(frozen=True)
+class InstalledInitCliTestCase:
+    """Installed init invocation and expected repository and process state."""
+
+    description: str
+    argv: tuple[str, ...]
+    input_text: str
+    initial_files: tuple[CliProjectFile, ...]
+    expected_exit_code: int
+    expected_files: tuple[CliProjectFile, ...]
+    expected_config_values: tuple[tuple[str, tuple[str, ...]], ...]
+    expected_stdout_fragments: tuple[str, ...]
+    expected_stderr_fragments: tuple[str, ...]
+    expected_absent_output_fragments: tuple[str, ...]
+    expected_stdout_is_empty: bool

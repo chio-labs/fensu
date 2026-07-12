@@ -20,11 +20,16 @@ def resolve_mapping_project(*, cwd: Path, explicit_roots: tuple[str, ...]) -> Ma
     resolved_cwd: Path = cwd.resolve()
     if explicit_roots:
         repo_root: Path = _find_project_root(resolved_cwd)
+        config_source: ConfigSource | None = _optional_explicit_config_source(resolved_cwd)
         sources: tuple[MappingSource, ...] = tuple(
             _explicit_source(value=value, cwd=resolved_cwd) for value in explicit_roots
         )
-        return MappingProject(repo_root=repo_root, sources=sources)
-    config_source: ConfigSource | None = _optional_config_source(resolved_cwd)
+        return MappingProject(
+            repo_root=repo_root,
+            sources=sources,
+            cache_enabled=_configured_cache_enabled(config_source),
+        )
+    config_source = _optional_config_source(resolved_cwd)
     if config_source is not None:
         return _configured_project(config_source)
     repo_root = _find_project_root(resolved_cwd)
@@ -44,6 +49,13 @@ def _optional_config_source(cwd: Path) -> ConfigSource | None:
         raise MapError(str(error)) from error
 
 
+def _optional_explicit_config_source(cwd: Path) -> ConfigSource | None:
+    try:
+        return find_config_source(cwd)
+    except ConfigError:
+        return None
+
+
 def _configured_project(source: ConfigSource) -> MappingProject:
     repo_root: Path = source.path.parent.resolve()
     try:
@@ -57,7 +69,16 @@ def _configured_project(source: ConfigSource) -> MappingProject:
     sources: tuple[MappingSource, ...] = tuple(
         _mapping_source(source) for source in layout.runtime_sources
     )
-    return MappingProject(repo_root=repo_root, sources=sources)
+    return MappingProject(repo_root=repo_root, sources=sources, cache_enabled=config.cache.enabled)
+
+
+def _configured_cache_enabled(source: ConfigSource | None) -> bool:
+    if source is None:
+        return True
+    try:
+        return load_config(source.path.parent.resolve()).cache.enabled
+    except ConfigError:
+        return True
 
 
 def _mapping_source(source: ProjectSource) -> MappingSource:

@@ -5,7 +5,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Protocol
 
-from strata.mapping.models import CallMapNode, MappingSource
+from strata.mapping.models import CallMapNode, ClassDefinition, FunctionDefinition, MappingSource
 
 
 class PathMode(StrEnum):
@@ -24,4 +24,16 @@ class CallMapProvider(Protocol):
         self, *, sources: tuple[MappingSource, ...], symbol: str, depth: int
     ) -> CallMapNode:
         """Build a downstream call map for one symbol."""
+        ...
+
+
+class SymbolResolver(Protocol):
+    """Point-lookup interface used while resolving a call tree."""
+
+    def get_function(self, key: str) -> FunctionDefinition | None:
+        """Return one function by canonical key."""
+        ...
+
+    def get_class(self, key: str) -> ClassDefinition | None:
+        """Return one class by canonical key."""
         ...

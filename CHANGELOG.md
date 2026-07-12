@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.7.0](https://github.com/chio-labs/strata/compare/v0.6.0...v0.7.0) (2026-07-12)
+
+
+### Features
+
+* **rules:** expand naming and local annotation contracts ([9088012](https://github.com/chio-labs/strata/commit/90880124ee679304a03402bbfc0234f381cdaaec))
+* **rules:** expand naming and local annotation contracts ([9d9184f](https://github.com/chio-labs/strata/commit/9d9184feaaa95f5c8d515414c6c8fb939a6b72fd))
+* **rules:** expose public analysis zones ([7a8d15a](https://github.com/chio-labs/strata/commit/7a8d15a9deeea772236783d2724add08fe6c4171))
+* **rules:** expose public analysis zones ([57c12d0](https://github.com/chio-labs/strata/commit/57c12d040b158bef3fa1182bbfaf09717fe51697))
+
 ## [0.6.0](https://github.com/chio-labs/strata/compare/v0.5.0...v0.6.0) (2026-07-12)
 
 

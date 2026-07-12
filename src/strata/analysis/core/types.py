@@ -196,6 +196,10 @@ class ProjectAnalysis(Protocol):
         """Return deterministic requester-to-path dependencies observed so far."""
         ...
 
+    def dependencies_for(self, *, requester: Path) -> tuple[ProjectDependency, ...]:
+        """Return deterministic dependencies observed for one requester."""
+        ...
+
     def dataclasses(self, *, requester: Path, path: Path) -> tuple[DataclassFact, ...]:
         """Return top-level dataclass facts for a project path."""
         ...

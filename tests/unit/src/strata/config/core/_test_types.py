@@ -65,6 +65,15 @@ class ConfigDefaultsTestCase:
 
 
 @dataclass(frozen=True)
+class CacheConfigTestCase:
+    """A cache preference and its expected normalized value."""
+
+    description: str
+    config_text: str
+    expected_enabled: bool
+
+
+@dataclass(frozen=True)
 class ConfigListFieldTestCase:
     """A list-valued config field and the expected normalized tuple."""
 

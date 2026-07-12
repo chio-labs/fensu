@@ -13,7 +13,6 @@ from strata.rules.layers.helpers.imports import (
     import_path_targets_tooling,
     is_cross_package_internal_import,
     is_sibling_internal_import,
-    module_parts_for_path,
 )
 
 _wildcard_import_name: str = "*"
@@ -48,9 +47,7 @@ def no_sibling_package_internals(*, module: ast.Module, ctx: RuleContext) -> lis
     """Reject imports that reach into sibling package internals."""
 
     del module
-    current_module_parts: tuple[str, ...] = module_parts_for_path(
-        path=ctx.path, repo_root=ctx.repo_root
-    )
+    current_module_parts: tuple[str, ...] = ctx.module_parts()
     faults: list[Fault] = []
     for fact in ctx._analysis.facts.references().imports:
         if fact.from_import and fact.relative_level == 0:
@@ -90,9 +87,7 @@ def no_cross_package_internals(*, module: ast.Module, ctx: RuleContext) -> list[
     """Reject imports that reach into another package's internal structure."""
 
     del module
-    current_module_parts: tuple[str, ...] = module_parts_for_path(
-        path=ctx.path, repo_root=ctx.repo_root
-    )
+    current_module_parts: tuple[str, ...] = ctx.module_parts()
     faults: list[Fault] = []
     for fact in ctx._analysis.facts.references().imports:
         if fact.from_import and fact.relative_level == 0:
@@ -139,7 +134,7 @@ def no_internal_public_surface_imports(*, module: ast.Module, ctx: RuleContext) 
         ctx.path.name == INIT_MODULE_FILE_NAME and len(ctx.relative_parts()) == 1
     ):
         return []
-    package_name: str = ctx.path.parents[len(ctx.relative_parts()) - 1].name
+    package_name: str = ctx.module_parts()[0]
     faults: list[Fault] = []
     for fact in ctx._analysis.facts.references().imports:
         if fact.from_import and fact.relative_level == 0 and fact.module_parts == (package_name,):
@@ -164,14 +159,23 @@ def no_runtime_imports_from_tooling(*, module: ast.Module, ctx: RuleContext) -> 
     del module
     if ctx.scope() is not ScopeName.ROOT:
         return []
+    tooling_packages: frozenset[str] = frozenset(
+        root.name for root in ctx.scope_roots(ScopeName.TOOLING)
+    )
     faults: list[Fault] = []
     for fact in ctx._analysis.facts.references().imports:
         if fact.from_import and fact.relative_level == 0:
-            if import_path_targets_tooling(imported_parts=fact.module_parts):
+            if import_path_targets_tooling(
+                imported_parts=fact.module_parts,
+                tooling_packages=tooling_packages,
+            ):
                 faults.append(ctx.fault_at(fact.location))
         elif not fact.from_import:
             for alias in fact.aliases:
-                if import_path_targets_tooling(imported_parts=alias.imported_parts):
+                if import_path_targets_tooling(
+                    imported_parts=alias.imported_parts,
+                    tooling_packages=tooling_packages,
+                ):
                     faults.append(ctx.fault_at(fact.location))
                     break
     return faults

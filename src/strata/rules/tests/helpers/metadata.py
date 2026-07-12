@@ -103,24 +103,23 @@ def test_rule_details(code: SftCode) -> tuple[str, str]:
             "Move reusable functions into the local helpers.py module.",
         ),
         SftCode.TEST_LAYOUT: (
-            "tests must live under tests/<scope>/src or tests/<scope>/scripts",
-            "Move the test into the unit, integration, or e2e tree that mirrors its source area.",
+            "tests must live under a configured test root and supported scope",
+            "Move the test beneath a configured test root and unit, integration, or e2e scope.",
         ),
         SftCode.TEST_SCOPE: (
             "test scope must be unit, integration, or e2e",
             "Move the test under tests/unit, tests/integration, or tests/e2e.",
         ),
         SftCode.TEST_MIRRORED_ROOT: (
-            "test directories must mirror a src or scripts tree",
-            "Place runtime tests under tests/<scope>/src and tooling tests under "
-            "tests/<scope>/scripts.",
+            "test directories must mirror a configured runtime or tooling root",
+            "Mirror the complete configured source or tooling path beneath the test scope.",
         ),
         SftCode.SRC_MIRROR_DEPTH: (
-            "runtime tests must mirror tests/<scope>/src/<package>/<area>",
+            "runtime tests must include an area beneath the configured source root",
             "Move the test beneath the package and source area it exercises.",
         ),
         SftCode.SRC_PACKAGE_EXISTS: (
-            "runtime tests must mirror an existing package under src",
+            "runtime tests must mirror a configured source package",
             "Correct the mirrored package name or move the test to the package it exercises.",
         ),
         SftCode.SRC_AREA_EXISTS: (
@@ -128,12 +127,12 @@ def test_rule_details(code: SftCode) -> tuple[str, str]:
             "Correct the mirrored area path so it matches the runtime module location.",
         ),
         SftCode.SCRIPTS_MIRROR_DEPTH: (
-            "tooling tests must mirror tests/<scope>/scripts/<area>",
-            "Move the test beneath the scripts area it exercises.",
+            "tooling tests must include an area beneath the configured tooling root",
+            "Move the test beneath the configured tooling area it exercises.",
         ),
         SftCode.SCRIPTS_AREA_EXISTS: (
-            "tooling tests must mirror an existing scripts area",
-            "Correct the mirrored area path so it matches the script location.",
+            "tooling tests must mirror an existing configured tooling area",
+            "Correct the mirrored area path so it matches the tooling location.",
         ),
         SftCode.NO_IF_IN_TESTS: (
             "test bodies must not contain conditional control flow",
@@ -147,9 +146,9 @@ def test_rule_details(code: SftCode) -> tuple[str, str]:
         ),
         SftCode.NO_COMPLEX_COMPREHENSIONS: (
             "nested or multi-generator comprehensions hide control flow and data shapes",
-            "Rewrite this as ordinary statements with named intermediate values. Use explicit "
-            "loops when needed, and extract a helper only when the transformation is a distinct "
-            "operation.",
+            "Extract a named helper when the transformation has a coherent purpose. For one-off "
+            "local logic, use simple statements with named intermediate values instead of nested "
+            "comprehension control flow.",
         ),
     }
     return details[code]

@@ -3,12 +3,9 @@
 from __future__ import annotations
 
 import ast
-from pathlib import Path
 
 from strata.discovery.core.types import RoleName
 
-_source_root_name: str = "src"
-_tooling_root_name: str = "scripts"
 _init_module_name: str = "__init__"
 _minimum_owned_module_parts: int = 3
 _minimum_subdomain_module_parts: int = 5
@@ -27,18 +24,6 @@ _owned_role_names: frozenset[str] = frozenset(
         RoleName.EXCEPTIONS,
     }
 )
-
-
-def module_parts_for_path(*, path: Path, repo_root: Path) -> tuple[str, ...]:
-    """Return importable module parts for a Python file under a src layout."""
-
-    relative_parts: tuple[str, ...] = path.relative_to(repo_root).parts
-    if (
-        len(relative_parts) >= _minimum_owned_module_parts
-        and relative_parts[0] == _source_root_name
-    ):
-        return (*relative_parts[1:-1], path.stem)
-    return (*relative_parts[:-1], path.stem)
 
 
 def import_from_parts(node: ast.ImportFrom) -> tuple[str, ...]:
@@ -138,10 +123,12 @@ def is_cross_package_internal_import(
     return _has_internal_segment(imported_parts[2:])
 
 
-def import_path_targets_tooling(*, imported_parts: tuple[str, ...]) -> bool:
-    """Return whether an absolute import targets the conventional tooling package."""
+def import_path_targets_tooling(
+    *, imported_parts: tuple[str, ...], tooling_packages: frozenset[str]
+) -> bool:
+    """Return whether an absolute import targets configured tooling."""
 
-    return bool(imported_parts) and imported_parts[0] == _tooling_root_name
+    return bool(imported_parts) and imported_parts[0] in tooling_packages
 
 
 def _is_allowed_sibling_public_surface(

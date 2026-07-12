@@ -10,13 +10,21 @@ from strata.rules.authoring.types import Family, RuleContext
 
 
 def write_custom_rule_file(
-    *, root: Path, relative_path: str, rule_code: str, prelude: str = ""
+    *,
+    root: Path,
+    relative_path: str,
+    rule_code: str,
+    prelude: str = "",
+    check_body: str = "    return []",
 ) -> Path:
     """Write a custom rule file that registers one no-op rule."""
 
     path: Path = root / relative_path
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(_custom_rule_source(rule_code=rule_code, prelude=prelude), encoding="utf-8")
+    path.write_text(
+        _custom_rule_source(rule_code=rule_code, prelude=prelude, check_body=check_body),
+        encoding="utf-8",
+    )
     return path
 
 
@@ -66,6 +74,13 @@ def custom_rule(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     return rules_path.parent
 
 
+def rule_by_code(*, rules: tuple[RuleSpec, ...], code: str) -> RuleSpec:
+    """Return the single catalogue rule carrying one exact code."""
+
+    matches: list[RuleSpec] = [rule for rule in rules if rule.code == code]
+    return matches[0]
+
+
 def make_core_rule(*, code: str, family: Family, enabled_by_default: bool = True) -> RuleSpec:
     """Build a fake core rule for selection-composition tests."""
 
@@ -105,7 +120,9 @@ def catalogue_quality_issues(
     return tuple(issues)
 
 
-def _custom_rule_source(*, rule_code: str, prelude: str = "") -> str:
+def _custom_rule_source(
+    *, rule_code: str, prelude: str = "", check_body: str = "    return []"
+) -> str:
     family: str = "Family.CUSTOM" if rule_code.startswith("X") else "Family.LAYERS"
     return f'''
 from __future__ import annotations
@@ -118,5 +135,5 @@ from strata import Family, Fault, RuleContext, rule
 
 @rule(code="{rule_code}", family={family}, slug="custom-rule", message="custom message")
 def custom_rule(module: ast.Module, ctx: RuleContext) -> list[Fault]:
-    return []
+{check_body}
 '''

@@ -1,0 +1,155 @@
+"""Test case types for persistent typed cache records."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from strata.cache.results.models import CachedFileResult, CacheIndex
+
+
+@dataclass(frozen=True)
+class PersistentTypedResultTestCase:
+    """One typed result and expected cross-store persistence behavior."""
+
+    description: str
+    relative_path: str
+    result: CachedFileResult
+    expected_write: bool
+    expected_result: CachedFileResult
+
+
+@dataclass(frozen=True)
+class ResultCachePersistenceTestCase:
+    """One published file evaluation and expected repository behavior."""
+
+    description: str
+    relative_path: str
+    expected_index_entries: int
+    expected_misses: int
+    expected_writes: int
+    expected_non_cacheable: int
+
+
+@dataclass(frozen=True)
+class ResultCacheMissTestCase:
+    """One cache mismatch and expected safe miss."""
+
+    description: str
+    relative_path: str
+    expected_result: CachedFileResult | None
+    expected_missed: bool = False
+    expected_invalidated: bool = False
+
+
+@dataclass(frozen=True)
+class ResultCachePublicationFailureTestCase:
+    """One failed transaction and expected unpublished result counts."""
+
+    description: str
+    relative_path: str
+    expected_writes: int
+    expected_index: CacheIndex | None
+
+
+@dataclass(frozen=True)
+class ResultCacheCandidateTestCase:
+    """One indexed candidate and expected validation transitions."""
+
+    description: str
+    relative_path: str
+    expected_initial_invalidated: bool
+    expected_source_invalidated: bool
+    expected_dependency_invalidated: bool
+
+
+@dataclass(frozen=True)
+class CachedEvaluationReuseTestCase:
+    """Cold and warm evaluation counts with expected diagnostic parity."""
+
+    description: str
+    relative_path: str
+    source: str
+    expected_cold_hits: int
+    expected_cold_misses: int
+    expected_warm_hits: int
+    expected_warm_misses: int
+    expected_warm_writes: int
+    expected_fault_count: int
+
+
+@dataclass(frozen=True)
+class CachedEvaluationInvalidationTestCase:
+    """One input mutation and expected recomputed diagnostic state."""
+
+    description: str
+    relative_path: str
+    first_source: str
+    second_source: str
+    expected_invalidations: int
+    expected_message: str
+
+
+@dataclass(frozen=True)
+class CachedEvaluationManifestTestCase:
+    """Changed discovered manifest and expected hit/miss composition."""
+
+    description: str
+    initial_files: tuple[str, ...]
+    final_files: tuple[str, ...]
+    expected_hits: int
+    expected_misses: int
+    expected_invalidations: int
+    expected_fault_paths: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class CachedEvaluationRetentionTestCase:
+    """One mixed hit/invalidation publication and expected later full reuse."""
+
+    description: str
+    relative_paths: tuple[str, ...]
+    edited_path: str
+    second_source: str
+    expected_third_hits: int
+    expected_third_misses: int
+    expected_third_invalidations: int
+    expected_third_writes: int
+
+
+@dataclass(frozen=True)
+class CachedEvaluationSweepTestCase:
+    """One invalidating edit and the expected single-generation storage state."""
+
+    description: str
+    relative_path: str
+    first_source: str
+    second_source: str
+    expected_first_record_count: int
+    expected_second_record_count: int
+    expected_shared_keys: int
+
+
+@dataclass(frozen=True)
+class CachedEvaluationDegradationTestCase:
+    """One internal cache failure and expected degraded publication stats."""
+
+    description: str
+    relative_path: str
+    source: str
+    expected_misses: int
+    expected_writes: int
+    expected_non_cacheable: int
+    expected_internal_error: bool
+    expected_storage_failed: bool
+    expected_fault_count: int
+
+
+@dataclass(frozen=True)
+class CachedEvaluationFailureTestCase:
+    """Evaluation failure and expected absence of published cache state."""
+
+    description: str
+    relative_path: str
+    source: str
+    expected_error_type: type[Exception]
+    expected_cache_exists: bool

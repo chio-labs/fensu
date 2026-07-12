@@ -62,3 +62,14 @@ class RuleExceptionCodeTestCase:
     description: str
     rule_code: str
     expected_error_fragment: str
+
+
+@dataclass(frozen=True)
+class CacheableRuleValidationTestCase:
+    """One cacheable rule source and its expected catalogue validation outcome."""
+
+    description: str
+    prelude: str
+    check_body: str
+    expected_error_fragment: str | None
+    expected_cacheable: bool

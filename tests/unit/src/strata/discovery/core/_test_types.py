@@ -91,3 +91,15 @@ class MissingRootTestCase:
     description: str
     roots: tuple[str, ...]
     expected_error_fragment: str
+
+
+@dataclass(frozen=True)
+class LayoutConfigErrorTestCase:
+    """Configured scope paths expected to fail project-layout validation."""
+
+    description: str
+    roots: tuple[str, ...]
+    tests: tuple[str, ...]
+    tooling: tuple[str, ...]
+    uses_external_root: bool
+    expected_error_fragment: str

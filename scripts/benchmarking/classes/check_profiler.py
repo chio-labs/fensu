@@ -9,17 +9,17 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import cast
 
+import strata.evaluation.core.helpers.file_evaluation as file_evaluation_module
 import strata.evaluation.core.helpers.project_analysis as project_analysis_module
-import strata.evaluation.core.main.evaluate as evaluate_module
 from scripts.benchmarking.models import ProfileReport
 from scripts.benchmarking.types import EvaluatorModule, ProjectAnalysisModule
-from strata.analysis.core.types import Analysis, ProjectAnalysis
+from strata.analysis.core.types import ProjectAnalysis
 from strata.config.core.main.load_config import load_config
 from strata.config.core.models import Config
 from strata.discovery.core.main.discover_files import discover_files
-from strata.discovery.core.models import RepoRoot, ScopedFile
+from strata.discovery.core.models import ProjectLayout, RepoRoot, ScopedFile
 from strata.evaluation.core.main.evaluate import evaluate
-from strata.evaluation.core.models import ParsedModule
+from strata.evaluation.core.models import ExternalAnalysisBuild, ParsedModule, SourceSnapshot
 from strata.reporting.core.main.render import render
 from strata.rules.authoring.models import Fault, RuleSpec
 from strata.rules.catalog.main.build_ruleset import build_ruleset
@@ -36,14 +36,12 @@ class CheckProfiler:
         self._inside_rule: bool = False
         self._rule_seconds: dict[str, float] = defaultdict(float)
         self._rule_calls: dict[str, int] = defaultdict(int)
-        self._evaluator: EvaluatorModule = cast(EvaluatorModule, evaluate_module)
+        self._evaluator: EvaluatorModule = cast(EvaluatorModule, file_evaluation_module)
         self._project_analysis: ProjectAnalysisModule = cast(
             ProjectAnalysisModule, project_analysis_module
         )
-        self._original_parse: Callable[[ScopedFile], ParsedModule] = (
-            self._project_analysis.parse_scoped_file
-        )
-        self._original_external_analysis: Callable[..., Analysis | None] = (
+        self._original_parse: Callable[..., ParsedModule] = self._project_analysis.parse_scoped_file
+        self._original_external_analysis: Callable[..., ExternalAnalysisBuild] = (
             self._project_analysis.build_external_analysis
         )
         self._original_execute: Callable[..., list[Fault]] = self._evaluator.execute_rule
@@ -64,9 +62,17 @@ class CheckProfiler:
             self._evaluator.execute_rule = self._original_execute
             os.chdir(previous_directory)
 
-    def _timed_parse(self, scoped_file: ScopedFile) -> ParsedModule:
+    def _timed_parse(
+        self,
+        scoped_file: ScopedFile,
+        *,
+        source_snapshot: SourceSnapshot | None = None,
+    ) -> ParsedModule:
         started: float = time.perf_counter()
-        result: ParsedModule = self._original_parse(scoped_file)
+        result: ParsedModule = self._original_parse(
+            scoped_file,
+            source_snapshot=source_snapshot,
+        )
         elapsed: float = time.perf_counter() - started
         if self._inside_rule:
             self._query_parse_seconds += elapsed
@@ -74,9 +80,9 @@ class CheckProfiler:
             self._parse_seconds += elapsed
         return result
 
-    def _timed_external_analysis(self, *, path: Path) -> Analysis | None:
+    def _timed_external_analysis(self, *, path: Path) -> ExternalAnalysisBuild:
         started: float = time.perf_counter()
-        result: Analysis | None = self._original_external_analysis(path=path)
+        result: ExternalAnalysisBuild = self._original_external_analysis(path=path)
         self._query_parse_seconds += time.perf_counter() - started
         return result
 
@@ -87,6 +93,7 @@ class CheckProfiler:
         parsed_module: ParsedModule,
         config: Config,
         repo_root: RepoRoot,
+        layout: ProjectLayout,
         project: ProjectAnalysis,
         file_cache: dict[str, object],
     ) -> list[Fault]:
@@ -99,6 +106,7 @@ class CheckProfiler:
                 parsed_module=parsed_module,
                 config=config,
                 repo_root=repo_root,
+                layout=layout,
                 project=project,
                 file_cache=file_cache,
             )
@@ -110,8 +118,8 @@ class CheckProfiler:
 
     def _run_phases(self, project: Path) -> ProfileReport:
         config, config_seconds = _timed(lambda: load_config(project))
-        tree, discovery_seconds = _timed(lambda: discover_files(config))
-        ruleset, catalogue_seconds = _timed(lambda: build_ruleset(config))
+        tree, discovery_seconds = _timed(lambda: discover_files(config, repo_root=project))
+        ruleset, catalogue_seconds = _timed(lambda: build_ruleset(config, repo_root=project))
         result, evaluation_seconds = _timed(
             lambda: evaluate(tree=tree, ruleset=ruleset, config=config)
         )

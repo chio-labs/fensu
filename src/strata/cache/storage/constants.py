@@ -1,0 +1,27 @@
+"""Persistent cache schema and location constants."""
+
+from pathlib import Path
+
+CACHE_SCHEMA_VERSION: int = 1
+CACHE_ROOT_RELATIVE_PATH: Path = Path(".strata/cache")
+CACHE_DATABASE_NAME: str = f"v{CACHE_SCHEMA_VERSION}.db"
+CACHE_DATABASE_RELATIVE_PATH: Path = CACHE_ROOT_RELATIVE_PATH / CACHE_DATABASE_NAME
+CACHE_DATABASE_APPLICATION_ID: int = 0x53545241
+CACHE_DATABASE_SCHEMA_VERSION: int = 1
+CACHE_DATABASE_BUSY_TIMEOUT_MS: int = 1_000
+CACHE_DATABASE_WAL_MODE: str = "wal"
+CACHE_DATABASE_ROW_COLUMN_COUNT: int = 2
+CACHE_DATABASE_SELECTED_COLUMN_COUNT: int = 3
+CACHE_DATABASE_RECORD_COLUMNS: tuple[tuple[str, str, int, int], ...] = (
+    ("key", "TEXT", 1, 1),
+    ("kind", "TEXT", 1, 0),
+    ("data", "BLOB", 1, 0),
+)
+CACHE_DATABASE_READ_CHUNK_SIZE: int = 500
+CACHE_RECORD_KIND_KEY: str = "kind"
+CACHE_RECORD_PAYLOAD_KEY: str = "payload"
+CACHE_RECORD_SCHEMA_KEY: str = "schema_version"
+CACHE_RECORD_KEYS: frozenset[str] = frozenset(
+    {CACHE_RECORD_KIND_KEY, CACHE_RECORD_PAYLOAD_KEY, CACHE_RECORD_SCHEMA_KEY}
+)
+PARENT_PATH_PART: str = ".."

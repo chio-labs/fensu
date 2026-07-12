@@ -52,6 +52,7 @@ from tests.unit.src.strata.evaluation.core.helpers import (
             source="value: int = 1\n",
             expected_dependency_name="missing.py",
             expected_dependency_kind="is_file",
+            expected_dependency_answer=False,
         )
     ],
     ids=lambda case: case.description,
@@ -79,6 +80,11 @@ def test_given_project_query_when_evaluating_then_returns_observed_dependency(
         test_case.expected_dependency_name,
     )
     assert tuple(item.kind for item in result.dependencies) == (test_case.expected_dependency_kind,)
+    assert tuple(item.answer for item in result.dependencies) == (
+        test_case.expected_dependency_answer,
+    )
+    assert tuple(item.path.name for item in result.file_evaluations) == ("models.py",)
+    assert result.file_evaluations[0].dependencies == result.dependencies
 
 
 @pytest.mark.parametrize(
@@ -161,7 +167,10 @@ def test_given_multiple_rules_when_evaluating_then_file_facts_are_computed_once(
         count_parse,
     )
     monkeypatch.setattr("strata.evaluation.core.helpers.parsing.position_facts", count_position)
-    monkeypatch.setattr("strata.evaluation.core.main.evaluate.families_for_scope", count_routing)
+    monkeypatch.setattr(
+        "strata.evaluation.core.helpers.file_evaluation.families_for_scope",
+        count_routing,
+    )
 
     _result: EvaluationResult = evaluate(
         tree=discover_test_tree(config=config),

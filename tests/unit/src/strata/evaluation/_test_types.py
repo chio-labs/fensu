@@ -80,6 +80,27 @@ class SourceFingerprintTestCase:
 
 
 @dataclass(frozen=True)
+class ParseDelegationTestCase:
+    """Expected shared-factory delegation and direct-parse ownership."""
+
+    description: str
+    source: bytes
+    expected_factory_calls: int
+    expected_direct_parse_paths: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class EncodedParseErrorTestCase:
+    """Invalid encoded source and expected evaluation parse contract."""
+
+    description: str
+    source: bytes
+    expected_error_fragment: str
+    expected_line: int | None
+    expected_column: int | None
+
+
+@dataclass(frozen=True)
 class ContextPropertyTestCase:
     """Source file and expected context property report."""
 

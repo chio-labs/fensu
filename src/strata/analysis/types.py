@@ -244,3 +244,12 @@ class AnalysisBuild(NamedTuple):
     analysis: Analysis
     node_index: Mapping[type[ast.AST], tuple[ast.AST, ...]]
     parent_by_node: Mapping[ast.AST, ast.AST]
+
+
+class PythonSourceArtifact(NamedTuple):
+    """One exact decoded and parsed Python source snapshot."""
+
+    path: Path
+    source: str
+    source_fingerprint: str
+    module: ast.Module

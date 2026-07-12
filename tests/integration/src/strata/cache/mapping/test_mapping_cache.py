@@ -2,9 +2,11 @@
 
 from io import StringIO
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
+from strata.analysis.helpers import building
 from strata.cache.mapping.models import CachedCallMap
 from strata.cli.main.map import run_map
 from strata.mapping.exceptions import MapError
@@ -17,16 +19,20 @@ from tests.integration.src.strata.cache.mapping._test_types import (
     ExplicitRootCachePreferenceTestCase,
     InvalidExplicitRootConfigTestCase,
     ManifestAdversarialTestCase,
+    MapAnalysisOwnershipTestCase,
     MapCacheInvalidationTestCase,
     MapCacheTestCase,
     MapNoCacheTestCase,
+    MapParseParityTestCase,
     MappingIdentityFailureTestCase,
+    MapSourceEncodingTestCase,
     PathSelectorParityTestCase,
 )
 from tests.integration.src.strata.cache.mapping.helpers import (
     cached_map,
     cached_symbol_map,
     current_file_record_count,
+    direct_ast_parse_paths,
     explicit_root_argv,
     fail_mapping_identity,
     install_generation_sweep_interleaving,
@@ -286,6 +292,89 @@ def test_given_invalid_changed_source_when_mapping_then_raises_map_error(
 
     with pytest.raises(MapError, match=test_case.expected_output_fragment):
         _ = cached_map(root=tmp_path, source=source)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        MapParseParityTestCase(
+            description="cached map translates invalid encoded bytes through shared factory",
+            changed_source=b"value = '\xff'\n",
+            expected_error="invalid or missing encoding declaration",
+            expected_direct_parse_paths=("helpers/tree.py",),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_invalid_snapshot_when_mapping_then_preserves_error_and_shared_parse_ownership(
+    tmp_path: Path, test_case: MapParseParityTestCase
+) -> None:
+    source: MappingSource = write_mapping_project(tmp_path)
+    invalid_path: Path = tmp_path / "src/pkg/steps.py"
+    invalid_path.write_bytes(test_case.changed_source)
+
+    with pytest.raises(MapError) as error:
+        _ = cached_map(root=tmp_path, source=source)
+    direct_parse_paths: tuple[str, ...] = direct_ast_parse_paths(root=Path("src/strata/mapping"))
+
+    assert str(error.value) == f"Could not parse {invalid_path}: {test_case.expected_error}"
+    assert direct_parse_paths == test_case.expected_direct_parse_paths
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        MapSourceEncodingTestCase(
+            description="cached map accepts UTF-8 BOM source",
+            source=(b"\xef\xbb\xbffrom pkg.steps import step\n\ndef run():\n    step()\n"),
+            expected_output_fragment="run(...)  src/pkg/entry.py:3",
+        ),
+        MapSourceEncodingTestCase(
+            description="cached map accepts PEP 263 Latin-1 source",
+            source=(
+                b"# coding: latin-1\nfrom pkg.steps import step\n\ndef run():\n"
+                b"    label = 'caf\xe9'\n    step()\n"
+            ),
+            expected_output_fragment="run(...)  src/pkg/entry.py:4",
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_python_encoded_source_when_mapping_cached_then_preserves_output(
+    tmp_path: Path, test_case: MapSourceEncodingTestCase
+) -> None:
+    source: MappingSource = write_mapping_project(tmp_path)
+    (tmp_path / "src/pkg/entry.py").write_bytes(test_case.source)
+
+    result: CachedCallMap = cached_map(root=tmp_path, source=source)
+
+    assert test_case.expected_output_fragment in render_cached(root=tmp_path, cached=result)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        MapAnalysisOwnershipTestCase(
+            description="mapping consumes parsed module without building full analysis",
+            expected_output_fragment="run(...)  src/pkg/entry.py:3",
+            expected_analysis_build_count=0,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_mapping_snapshot_when_indexing_then_does_not_build_analysis(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: MapAnalysisOwnershipTestCase,
+) -> None:
+    source: MappingSource = write_mapping_project(tmp_path)
+    analysis_build_spy: Mock = Mock(side_effect=AssertionError("mapping built full analysis"))
+    monkeypatch.setattr(building, "_index_nodes", analysis_build_spy)
+
+    result: CachedCallMap = cached_map(root=tmp_path, source=source)
+
+    assert analysis_build_spy.call_count == test_case.expected_analysis_build_count
+    assert test_case.expected_output_fragment in render_cached(root=tmp_path, cached=result)
 
 
 @pytest.mark.parametrize(

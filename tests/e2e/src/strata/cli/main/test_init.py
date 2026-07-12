@@ -24,7 +24,7 @@ from tests.e2e.src.strata.cli.main.helpers import (
     "test_case",
     [
         InstalledInitCliTestCase(
-            description="existing Hatch package writes gradual config despite drift",
+            description="existing Hatch package writes full config despite drift",
             argv=("--yes", "--no-skills"),
             input_text="",
             initial_files=(
@@ -36,7 +36,8 @@ from tests.e2e.src.strata.cli.main.helpers import (
                         'packages = ["src/tiny"]\n'
                     ),
                 ),
-                CliProjectFile(relative_path="src/tiny/__init__.py", source="VALUE = 1\n"),
+                CliProjectFile(relative_path="src/tiny/__init__.py", source=""),
+                CliProjectFile(relative_path="src/tiny/constants.py", source="VALUE = 1\n"),
             ),
             expected_exit_code=0,
             expected_files=(
@@ -54,26 +55,22 @@ from tests.e2e.src.strata.cli.main.helpers import (
                 ),
                 CliProjectFile(
                     relative_path="src/tiny/__init__.py",
-                    source="VALUE = 1\n",
+                    source="",
                 ),
+                CliProjectFile(relative_path="src/tiny/constants.py", source="VALUE = 1\n"),
                 CliProjectFile(
                     relative_path="strata.toml",
-                    source=(
-                        'roots = ["src/tiny"]\n'
-                        'tests = ["tests"]\n'
-                        "# Adoption guide: https://docs.stratalint.com/adoption\n"
-                        'select = ["SFL", "SFH", "SFA", "SFN"]\n'
-                    ),
+                    source=('roots = ["src/tiny"]\ntests = ["tests"]\nselect = ["SF"]\n'),
                 ),
             ),
             expected_config_values=(
                 ("roots", ("src/tiny",)),
                 ("tests", ("tests",)),
-                ("select", ("SFL", "SFH", "SFA", "SFN")),
+                ("select", ("SF",)),
             ),
             expected_stdout_fragments=(
-                "Existing codebase - 1 Python file",
-                "Starting with the gradual ruleset",
+                "Existing codebase - 2 Python files",
+                "Enabling the full Strata ruleset",
                 "Measuring current drift",
                 "Found 1 fault across 1 file",
                 "Wrote strata.toml",
@@ -130,8 +127,8 @@ from tests.e2e.src.strata.cli.main.helpers import (
             expected_stdout_is_empty=True,
         ),
         InstalledInitCliTestCase(
-            description="full and gradual options are rejected by argparse",
-            argv=("--full", "--gradual"),
+            description="removed gradual option is rejected by argparse",
+            argv=("--gradual",),
             input_text="",
             initial_files=(),
             expected_exit_code=2,
@@ -140,14 +137,14 @@ from tests.e2e.src.strata.cli.main.helpers import (
             expected_stdout_fragments=(),
             expected_stderr_fragments=(
                 "usage: strata init",
-                "--gradual: not allowed with argument --full",
+                "unrecognized arguments: --gradual",
             ),
             expected_absent_output_fragments=("Project name", "Accept?", "\x1b["),
             expected_stdout_is_empty=True,
         ),
         InstalledInitCliTestCase(
-            description="local config does not bypass argparse conflicts",
-            argv=("--full", "--gradual"),
+            description="local config does not bypass removed option validation",
+            argv=("--full",),
             input_text="",
             initial_files=(
                 CliProjectFile(
@@ -164,7 +161,7 @@ from tests.e2e.src.strata.cli.main.helpers import (
             ),
             expected_config_values=(("roots", ("src/pkg",)),),
             expected_stdout_fragments=(),
-            expected_stderr_fragments=("not allowed with argument --full",),
+            expected_stderr_fragments=("unrecognized arguments: --full",),
             expected_absent_output_fragments=("nothing to do",),
             expected_stdout_is_empty=True,
         ),

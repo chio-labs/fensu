@@ -22,7 +22,7 @@ from strata.scaffolding.helpers.planning import (
 from strata.scaffolding.main.detect_repository_layout import detect_repository_layout
 from strata.scaffolding.main.find_local_config import find_local_config
 from strata.scaffolding.models import InitOptions, InitPlan
-from strata.scaffolding.types import AdoptionMode, InteractionDecision
+from strata.scaffolding.types import InteractionDecision
 from tests.unit.src.strata.scaffolding._test_types import (
     EffectiveCandidateTestCase,
     InteractionDecisionTestCase,
@@ -52,7 +52,6 @@ from tests.unit.src.strata.scaffolding.helpers import (
             roots=("src/pkg",),
             tests=("tests",),
             tooling=(),
-            adoption=AdoptionMode.FULL,
             expected_text='roots = ["src/pkg"]\ntests = ["tests"]\nselect = ["SF"]\n',
             expected_select=("SF",),
         ),
@@ -61,27 +60,8 @@ from tests.unit.src.strata.scaffolding.helpers import (
             roots=("pkg",),
             tests=("test",),
             tooling=("scripts", "tasks"),
-            adoption=AdoptionMode.FULL,
             expected_text='roots = ["pkg"]\ntests = ["test"]\ntooling = ["scripts", "tasks"]\nselect = ["SF"]\n',
             expected_select=("SF",),
-        ),
-        RenderConfigTestCase(
-            description="minimal gradual config includes adoption guide",
-            roots=("lib/pkg",),
-            tests=("spec",),
-            tooling=(),
-            adoption=AdoptionMode.GRADUAL,
-            expected_text='roots = ["lib/pkg"]\ntests = ["spec"]\n# Adoption guide: https://docs.stratalint.com/adoption\nselect = ["SFL", "SFH", "SFA", "SFN"]\n',
-            expected_select=("SFL", "SFH", "SFA", "SFN"),
-        ),
-        RenderConfigTestCase(
-            description="gradual config with optional tooling",
-            roots=("src/a", "src/b"),
-            tests=("tests",),
-            tooling=("tools",),
-            adoption=AdoptionMode.GRADUAL,
-            expected_text='roots = ["src/a", "src/b"]\ntests = ["tests"]\ntooling = ["tools"]\n# Adoption guide: https://docs.stratalint.com/adoption\nselect = ["SFL", "SFH", "SFA", "SFN"]\n',
-            expected_select=("SFL", "SFH", "SFA", "SFN"),
         ),
     ],
     ids=lambda case: case.description,
@@ -93,7 +73,6 @@ def test_given_init_plan_when_rendering_then_emits_exact_minimal_roundtrippable_
         roots=test_case.roots,
         tests=test_case.tests,
         tooling=test_case.tooling,
-        adoption=test_case.adoption,
     )
 
     text: str = render_config(plan=plan)

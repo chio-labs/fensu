@@ -2,6 +2,3 @@ roots = ["src/strata"]
 tests = ["tests"]
 tooling = ["scripts"]
 select = ["SF"]
-
-[thresholds]
-max_positional_args = 1

@@ -14,7 +14,7 @@ DEFAULT_THRESHOLDS: dict[Threshold, int] = {
     Threshold.MAX_HELPERS_CONTAINER_MODULES: 10,
     Threshold.MAX_MAIN_CONTAINER_MODULES: 20,
     Threshold.MAX_ROLE_DEPTH: 1,
-    Threshold.MAX_POSITIONAL_ARGS: 0,
+    Threshold.MAX_POSITIONAL_ARGS: 1,
     Threshold.MAX_ARGUMENTS: 10,
     Threshold.MAX_STATEMENTS_GLOBAL: 70,
     Threshold.MAX_SCRIPT_ENTRYPOINT_LINES: 80,

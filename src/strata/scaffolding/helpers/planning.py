@@ -37,11 +37,7 @@ from strata.scaffolding.models import (
     InitPlan,
     PathCandidate,
 )
-from strata.scaffolding.types import (
-    AdoptionMode,
-    CandidateProvenance,
-    InteractionDecision,
-)
+from strata.scaffolding.types import CandidateProvenance, InteractionDecision
 
 _FILE_READ_CHUNK_SIZE: int = 65_536
 
@@ -207,13 +203,14 @@ def build_init_plan(
         style=style,
     )
     tooling: tuple[str, ...] = _tooling_scope(
-        detected=detected, options=options, stdin=stdin, stdout=stdout, style=style
+        detected=detected,
+        roots=roots,
+        options=options,
+        stdin=stdin,
+        stdout=stdout,
+        style=style,
     )
-    count: int = count_runtime_python_files(repository=repository, roots=roots)
-    adoption: AdoptionMode = options.adoption or (
-        AdoptionMode.GRADUAL if count else AdoptionMode.FULL
-    )
-    return InitPlan(roots=roots, tests=tests, tooling=tooling, adoption=adoption)
+    return InitPlan(roots=roots, tests=tests, tooling=tooling)
 
 
 def count_runtime_python_files(*, repository: Path, roots: tuple[str, ...]) -> int:
@@ -266,7 +263,6 @@ def _empty_plan(
         roots=(f"src/{project_name}",),
         tests=(DEFAULT_TEST_PATH,),
         tooling=(),
-        adoption=options.adoption or AdoptionMode.FULL,
         project_name=project_name,
     )
 
@@ -322,6 +318,7 @@ def _confirm_layout(
 def _tooling_scope(
     *,
     detected: DetectedRepositoryLayout,
+    roots: tuple[str, ...],
     options: InitOptions,
     stdin: TextIO,
     stdout: TextIO,
@@ -329,7 +326,9 @@ def _tooling_scope(
 ) -> tuple[str, ...]:
     if options.tooling is not None:
         return _validate_paths(values=options.tooling, field="tooling", allow_empty=True)
-    candidates: tuple[str, ...] = tuple(candidate.path for candidate in detected.tooling)
+    candidates: tuple[str, ...] = tuple(
+        candidate.path for candidate in detected.tooling if candidate.path not in roots
+    )
     if not candidates or options.yes:
         return candidates
     write_header(stdout=stdout, style=style, text="Tooling scope")

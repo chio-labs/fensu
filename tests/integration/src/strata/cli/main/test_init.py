@@ -14,7 +14,6 @@ from strata.discovery.models import ProjectLayout, RepoRoot
 from strata.reporting.constants import ANSI_BOLD_RED, ANSI_ORANGE
 from strata.scaffolding.helpers.execution import build_rendered_config, render_config
 from strata.scaffolding.models import InitPlan
-from strata.scaffolding.types import AdoptionMode
 from tests.integration.src.strata.cli.main._test_types import (
     InitApplicabilityTestCase,
     InitDriftWarningTestCase,
@@ -135,24 +134,22 @@ def test_given_detected_hatch_layout_when_answering_prompts_then_writes_selected
     "test_case",
     [
         InitExecutionTestCase(
-            description="yes initializes existing faults gradually and only summarizes drift",
+            description="yes initializes existing faults with all rules and only summarizes drift",
             argv=("--yes", "--no-skills"),
             existing_project=True,
             stdin_isatty=False,
             stdout_isatty=False,
             expected_exit_code=0,
-            expected_config=(
-                'roots = ["src/acme"]\n'
-                'tests = ["tests"]\n'
-                "# Adoption guide: https://docs.stratalint.com/adoption\n"
-                'select = ["SFL", "SFH", "SFA", "SFN"]\n'
-            ),
+            expected_config=('roots = ["src/acme"]\ntests = ["tests"]\nselect = ["SF"]\n'),
             expected_output_fragments=(
-                "Starting with the gradual ruleset: SFL, SFH, SFA, SFN",
+                "Enabling the full Strata ruleset: SF",
                 "SFA  annotations",
                 "Found 1 fault across 1 file against the starting ruleset.",
             ),
-            expected_absent_fragments=("SFA101  module-level variables", " --> src/acme/models.py"),
+            expected_absent_fragments=(
+                "SFA101  module-level variables",
+                " --> src/acme/constants.py",
+            ),
         ),
         InitExecutionTestCase(
             description="named empty repository scaffolds exact files and full zero-drift config",
@@ -194,12 +191,7 @@ def test_given_detected_hatch_layout_when_answering_prompts_then_writes_selected
             stdin_isatty=False,
             stdout_isatty=False,
             expected_exit_code=0,
-            expected_config=(
-                'roots = ["src/acme"]\n'
-                'tests = ["tests"]\n'
-                "# Adoption guide: https://docs.stratalint.com/adoption\n"
-                'select = ["SFL", "SFH", "SFA", "SFN"]\n'
-            ),
+            expected_config=('roots = ["src/acme"]\ntests = ["tests"]\nselect = ["SF"]\n'),
             expected_output_fragments=("Wrote strata.toml",),
             expected_absent_fragments=("Accept?", "Project name"),
         ),
@@ -394,10 +386,9 @@ def test_given_multiple_runtime_roots_when_selecting_then_defaults_retries_and_e
     "test_case",
     [
         InitOptionTestCase(
-            description="full explicit scopes and skills install all defaults",
+            description="explicit scopes and skills install all defaults",
             argv=(
                 "--yes",
-                "--full",
                 "--root",
                 "src/acme",
                 "src/beta",
@@ -419,10 +410,9 @@ def test_given_multiple_runtime_roots_when_selecting_then_defaults_retries_and_e
             ),
         ),
         InitOptionTestCase(
-            description="gradual explicit scopes and no-skills preserve detected tooling",
+            description="explicit scopes and no-skills preserve detected tooling",
             argv=(
                 "--yes",
-                "--gradual",
                 "--root",
                 "src/acme",
                 "--tests",
@@ -432,7 +422,7 @@ def test_given_multiple_runtime_roots_when_selecting_then_defaults_retries_and_e
             expected_roots=("src/acme",),
             expected_tests=("tests",),
             expected_tooling=("scripts",),
-            expected_select=("SFL", "SFH", "SFA", "SFN"),
+            expected_select=("SF",),
             expected_skill_paths=(),
         ),
     ],
@@ -519,7 +509,7 @@ def test_given_decline_or_existing_configuration_when_initializing_then_refuses_
         InitRerunTestCase(
             description="local strata toml ignores valid different init flags",
             source="strata.toml",
-            argv=("--full", "--name", "ignored"),
+            argv=("--name", "ignored"),
             expected_relative_config="strata.toml",
             expected_exit_code=0,
         ),
@@ -1010,7 +1000,7 @@ def test_given_unsafe_local_config_target_when_initializing_then_refuses_without
                 "\n"
                 "--> Existing codebase - 1 Python file\n"
                 "\n"
-                "    Starting with the gradual ruleset: SFL, SFH, SFA, SFN\n"
+                "    Enabling the full Strata ruleset: SF\n"
                 "    Wrote strata.toml\n"
                 "\n"
                 "--> Measuring current drift\n"
@@ -1019,8 +1009,11 @@ def test_given_unsafe_local_config_target_when_initializing_then_refuses_without
                 "    SFL  layers            0\n"
                 "    SFH  hygiene           0\n"
                 "    SFN  naming            0\n"
+                "    SFR  roles             2\n"
+                "    SFS  shape             0\n"
+                "    SFT  tests             0\n"
                 "\n"
-                "    Found 1 fault across 1 file against the starting ruleset.\n"
+                "    Found 3 faults across 1 file against the starting ruleset.\n"
                 "    See docs.stratalint.com/adoption for rolling out gradually.\n"
                 "\n"
                 "--> Install agent skill files? [Y/n] \n"
@@ -1246,7 +1239,6 @@ def test_given_init_plan_when_rendering_and_building_layout_then_round_trips_val
         roots=test_case.expected_roots,
         tests=test_case.expected_tests,
         tooling=test_case.expected_tooling,
-        adoption=AdoptionMode.FULL,
     )
 
     config: Config = build_rendered_config(text=render_config(plan=plan))

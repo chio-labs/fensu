@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from strata.scaffolding.types import AdoptionMode, InteractionDecision
+from strata.scaffolding.types import InteractionDecision
 
 
 @dataclass(frozen=True)
@@ -38,7 +38,6 @@ class RenderConfigTestCase:
     roots: tuple[str, ...]
     tests: tuple[str, ...]
     tooling: tuple[str, ...]
-    adoption: AdoptionMode
     expected_text: str
     expected_select: tuple[str, ...]
 

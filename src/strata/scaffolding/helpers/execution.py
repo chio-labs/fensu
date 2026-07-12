@@ -18,10 +18,8 @@ from strata.config.models import Config
 from strata.discovery.main.build_project_layout import build_project_layout
 from strata.discovery.models import ProjectLayout, RepoRoot
 from strata.scaffolding.constants import (
-    ADOPTION_LINK,
     CONFIG_FILE_NAME,
-    FULL_SELECT,
-    GRADUAL_SELECT,
+    DEFAULT_SELECT,
     PACKAGE_MARKER_FILE_NAME,
     PYTHON_FILE_SUFFIX,
 )
@@ -32,7 +30,6 @@ from strata.scaffolding.helpers.gitignore import (
     publish_gitignore_update,
 )
 from strata.scaffolding.models import GitIgnorePlan, InitExecution, InitPlan
-from strata.scaffolding.types import AdoptionMode
 
 _READ_CHUNK_SIZE: int = 65_536
 _FILE_MODE: int = 0o644
@@ -56,12 +53,7 @@ def render_config(*, plan: InitPlan) -> str:
     ]
     if plan.tooling:
         lines.append(f"tooling = {_toml_array(values=plan.tooling)}")
-    if plan.adoption is AdoptionMode.GRADUAL:
-        lines.append(f"# Adoption guide: https://{ADOPTION_LINK}")
-    selected: tuple[str, ...] = (
-        FULL_SELECT if plan.adoption is AdoptionMode.FULL else GRADUAL_SELECT
-    )
-    lines.append(f"select = {_toml_array(values=selected)}")
+    lines.append(f"select = {_toml_array(values=DEFAULT_SELECT)}")
     return "\n".join(lines) + "\n"
 
 

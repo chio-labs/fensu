@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from strata.cache.fingerprints.main.source import fingerprint_source
 from strata.mapping.constants import (
     EXCLUDED_DIRECTORY_NAMES,
     INIT_MODULE_FILE_NAME,
@@ -25,6 +26,7 @@ from strata.mapping.models import (
     MappingSource,
     ModuleImports,
     ProjectIndex,
+    SourceSnapshot,
 )
 
 
@@ -33,45 +35,77 @@ def build_project_index(*, sources: tuple[MappingSource, ...]) -> ProjectIndex:
 
     functions: dict[str, FunctionDefinition] = {}
     classes: dict[str, ClassDefinition] = {}
+    for snapshot in discover_source_snapshots(sources=sources, repo_root=None):
+        indexed: ProjectIndex = build_file_index(snapshot=snapshot)
+        functions.update(indexed.functions)
+        classes.update(indexed.classes)
+    return ProjectIndex(functions=functions, classes=classes)
+
+
+def discover_source_snapshots(
+    *, sources: tuple[MappingSource, ...], repo_root: Path | None
+) -> tuple[SourceSnapshot, ...]:
+    """Discover and read each selected Python source exactly once."""
+
+    snapshots: list[SourceSnapshot] = []
     for path, import_root in _python_files(sources=sources):
-        try:
-            module: ast.Module = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        except SyntaxError as error:
-            raise MapError(f"Could not parse {path}: {error.msg}") from error
-        module_name: str = _module_name(path=path, import_root=import_root)
-        imports: ModuleImports = _imports(
-            module=module,
-            module_name=module_name,
-            package_module=path.name == INIT_MODULE_FILE_NAME,
+        source: bytes = path.read_bytes()
+        snapshots.append(
+            SourceSnapshot(
+                path=path,
+                relative_path=_cache_safe_path(path=path, repo_root=repo_root),
+                import_root=import_root,
+                import_root_identity=_cache_safe_path(path=import_root, repo_root=repo_root),
+                module_name=_module_name(path=path, import_root=import_root),
+                source=source,
+                source_fingerprint=fingerprint_source(source).value,
+            )
         )
-        for node in module.body:
-            if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
-                definition: FunctionDefinition = _function_definition(
-                    node=node,
-                    module_name=module_name,
-                    path=path,
+    return tuple(snapshots)
+
+
+def build_file_index(*, snapshot: SourceSnapshot) -> ProjectIndex:
+    """Extract map declarations from one immutable source snapshot."""
+
+    try:
+        module: ast.Module = ast.parse(snapshot.source, filename=str(snapshot.path))
+    except SyntaxError as error:
+        raise MapError(f"Could not parse {snapshot.path}: {error.msg}") from error
+    functions: dict[str, FunctionDefinition] = {}
+    classes: dict[str, ClassDefinition] = {}
+    imports: ModuleImports = _imports(
+        module=module,
+        module_name=snapshot.module_name,
+        package_module=snapshot.path.name == INIT_MODULE_FILE_NAME,
+    )
+    for node in module.body:
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+            definition: FunctionDefinition = _function_definition(
+                node=node,
+                module_name=snapshot.module_name,
+                path=snapshot.path,
+                imports=imports,
+            )
+            functions[definition.key] = definition
+        elif isinstance(node, ast.ClassDef):
+            class_definition: ClassDefinition = _class_definition(
+                node=node,
+                module_name=snapshot.module_name,
+                path=snapshot.path,
+                imports=imports,
+            )
+            classes[class_definition.key] = class_definition
+            for child in node.body:
+                if not isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef):
+                    continue
+                definition = _function_definition(
+                    node=child,
+                    module_name=snapshot.module_name,
+                    path=snapshot.path,
                     imports=imports,
+                    owning_class=node.name,
                 )
                 functions[definition.key] = definition
-            elif isinstance(node, ast.ClassDef):
-                class_definition: ClassDefinition = _class_definition(
-                    node=node,
-                    module_name=module_name,
-                    path=path,
-                    imports=imports,
-                )
-                classes[class_definition.key] = class_definition
-                for child in node.body:
-                    if not isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef):
-                        continue
-                    definition = _function_definition(
-                        node=child,
-                        module_name=module_name,
-                        path=path,
-                        imports=imports,
-                        owning_class=node.name,
-                    )
-                    functions[definition.key] = definition
     return ProjectIndex(functions=functions, classes=classes)
 
 
@@ -365,6 +399,12 @@ def _module_name(*, path: Path, import_root: Path) -> str:
     if module_parts[-1] == INIT_MODULE_NAME:
         module_parts = module_parts[:-1]
     return ".".join(module_parts)
+
+
+def _cache_safe_path(*, path: Path, repo_root: Path | None) -> str:
+    if repo_root is not None and path.is_relative_to(repo_root):
+        return path.relative_to(repo_root).as_posix()
+    return path.as_posix()
 
 
 def _imports(*, module: ast.Module, module_name: str, package_module: bool) -> ModuleImports:

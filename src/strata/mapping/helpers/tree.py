@@ -15,13 +15,13 @@ from strata.mapping.models import (
     ClassReference,
     FunctionDefinition,
     ImportView,
-    ProjectIndex,
     ResolvedCallable,
     UnresolvedCall,
 )
+from strata.mapping.types import SymbolResolver
 
 
-def build_tree(*, root: FunctionDefinition, index: ProjectIndex, depth: int) -> CallMapNode:
+def build_tree(*, root: FunctionDefinition, index: SymbolResolver, depth: int) -> CallMapNode:
     """Build a depth-bounded downstream tree with branch-local cycle detection."""
 
     dispatch_class_key: str | None = None
@@ -43,7 +43,7 @@ def _build_node(
     *,
     definition: FunctionDefinition,
     dispatch_class_key: str | None,
-    index: ProjectIndex,
+    index: SymbolResolver,
     remaining_depth: int,
     ancestors: frozenset[tuple[str, str | None]],
     method_cache: dict[tuple[str, str], FunctionDefinition | None],
@@ -99,7 +99,7 @@ def _call_entries(
     *,
     definition: FunctionDefinition,
     dispatch_class_key: str | None,
-    index: ProjectIndex,
+    index: SymbolResolver,
     method_cache: dict[tuple[str, str], FunctionDefinition | None],
 ) -> tuple[ResolvedCallable | UnresolvedCall, ...]:
     entries: list[ResolvedCallable | UnresolvedCall] = []
@@ -148,7 +148,7 @@ def _resolve_call(
     call: ast.Call,
     definition: FunctionDefinition,
     dispatch_class_key: str | None,
-    index: ProjectIndex,
+    index: SymbolResolver,
     local_types: dict[str, str | None],
     untyped_parameters: frozenset[str],
     method_cache: dict[tuple[str, str], FunctionDefinition | None],
@@ -157,7 +157,7 @@ def _resolve_call(
         if call.func.id in local_types:
             return None, None
         key: str | None = _top_level_call_key(call=call.func, definition=definition)
-        target: FunctionDefinition | None = index.functions.get(key) if key is not None else None
+        target: FunctionDefinition | None = index.get_function(key) if key is not None else None
         return ResolvedCallable(target) if target is not None else None, None
     if not isinstance(call.func, ast.Attribute):
         return None, None
@@ -194,7 +194,7 @@ def _resolve_call(
     if root_name is not None and root_name in local_types:
         return None, None
     key = _imported_module_call_key(call=call.func, definition=definition)
-    target = index.functions.get(key) if key is not None else None
+    target = index.get_function(key) if key is not None else None
     return ResolvedCallable(target) if target is not None else None, None
 
 
@@ -203,7 +203,7 @@ def _receiver_class(
     expression: ast.expr,
     definition: FunctionDefinition,
     dispatch_class_key: str | None,
-    index: ProjectIndex,
+    index: SymbolResolver,
     local_types: dict[str, str | None],
     method_cache: dict[tuple[str, str], FunctionDefinition | None],
 ) -> tuple[ClassDefinition | None, bool]:
@@ -213,10 +213,10 @@ def _receiver_class(
                 module_name=definition.module_name,
                 name=definition.owning_class,
             )
-            return index.classes.get(class_key), True
+            return index.get_class(class_key), True
         if expression.id in local_types:
             local_key: str | None = local_types[expression.id]
-            return (index.classes.get(local_key), True) if local_key is not None else (None, False)
+            return (index.get_class(local_key), True) if local_key is not None else (None, False)
         direct_class: ClassDefinition | None = _resolve_class_expression(
             expression=expression, definition=definition, index=index
         )
@@ -286,7 +286,7 @@ def _called_function(
     call: ast.Call,
     definition: FunctionDefinition,
     dispatch_class_key: str | None,
-    index: ProjectIndex,
+    index: SymbolResolver,
     local_types: dict[str, str | None],
     method_cache: dict[tuple[str, str], FunctionDefinition | None],
 ) -> FunctionDefinition | None:
@@ -294,7 +294,7 @@ def _called_function(
         if call.func.id in local_types:
             return None
         key: str | None = _top_level_call_key(call=call.func, definition=definition)
-        return index.functions.get(key) if key is not None else None
+        return index.get_function(key) if key is not None else None
     if not isinstance(call.func, ast.Attribute):
         return None
     receiver, _ = _receiver_class(
@@ -317,14 +317,14 @@ def _called_function(
     if root_name is not None and root_name in local_types:
         return None
     key = _imported_module_call_key(call=call.func, definition=definition)
-    return index.functions.get(key) if key is not None else None
+    return index.get_function(key) if key is not None else None
 
 
 def _method_definition(
     *,
     class_definition: ClassDefinition,
     method_name: str,
-    index: ProjectIndex,
+    index: SymbolResolver,
     cache: dict[tuple[str, str], FunctionDefinition | None],
     active: frozenset[tuple[str, str]],
 ) -> FunctionDefinition | None:
@@ -338,7 +338,7 @@ def _method_definition(
         name=method_name,
         owning_class=class_definition.name,
     )
-    direct: FunctionDefinition | None = index.functions.get(direct_key)
+    direct: FunctionDefinition | None = index.get_function(direct_key)
     if direct is not None:
         cache[lookup_key] = direct
         return direct
@@ -373,7 +373,7 @@ def _resolve_class_expression(
     *,
     expression: ast.expr,
     definition: FunctionDefinition | ClassDefinition,
-    index: ProjectIndex,
+    index: SymbolResolver,
     annotation: bool = False,
 ) -> ClassDefinition | None:
     if isinstance(expression, ast.Subscript):
@@ -398,7 +398,7 @@ def _resolve_class_expression(
         definition.imports.annotation if annotation else definition.imports.runtime
     )
     if isinstance(expression, ast.Name):
-        local: ClassDefinition | None = index.classes.get(
+        local: ClassDefinition | None = index.get_class(
             ClassDefinition.build_key(module_name=definition.module_name, name=expression.id)
         )
         if local is not None:
@@ -406,7 +406,7 @@ def _resolve_class_expression(
         imported: tuple[str, str] | None = imports.symbols.get(expression.id)
         if imported is not None:
             imported_key: str = ClassDefinition.build_key(module_name=imported[0], name=imported[1])
-            return index.classes.get(imported_key)
+            return index.get_class(imported_key)
         return None
     if isinstance(expression, ast.Attribute):
         spelling: str = _expression_name(expression)
@@ -414,7 +414,7 @@ def _resolve_class_expression(
         imported_module: str | None = imports.modules.get(first)
         if separator and imported_module is not None:
             spelling = f"{imported_module}.{remainder}"
-        return index.classes.get(spelling)
+        return index.get_class(spelling)
     return None
 
 
@@ -422,7 +422,7 @@ def _receiver_states(
     *,
     definition: FunctionDefinition,
     dispatch_class_key: str | None,
-    index: ProjectIndex,
+    index: SymbolResolver,
     method_cache: dict[tuple[str, str], FunctionDefinition | None],
 ) -> dict[ast.Call, dict[str, str | None]]:
     bindings: dict[str, str | None] = {name: None for name in _parameter_names(definition.node)}
@@ -487,7 +487,7 @@ def _local_binding(
     statement: ast.stmt,
     definition: FunctionDefinition,
     dispatch_class_key: str | None,
-    index: ProjectIndex,
+    index: SymbolResolver,
     bindings: dict[str, str | None],
     method_cache: dict[tuple[str, str], FunctionDefinition | None],
 ) -> tuple[str | None, ClassDefinition | None]:
@@ -531,7 +531,7 @@ def _local_binding(
             )
         if isinstance(statement.value, ast.Name):
             alias_key: str | None = bindings.get(statement.value.id)
-            return target.id, index.classes.get(alias_key) if alias_key is not None else None
+            return target.id, index.get_class(alias_key) if alias_key is not None else None
         return target.id, None
     if isinstance(statement, ast.AugAssign) and isinstance(statement.target, ast.Name):
         return statement.target.id, None
@@ -564,11 +564,11 @@ def _assigned_names(node: ast.AST) -> frozenset[str]:
 
 
 def _dispatch_class_name(
-    *, definition: FunctionDefinition, dispatch_class_key: str | None, index: ProjectIndex
+    *, definition: FunctionDefinition, dispatch_class_key: str | None, index: SymbolResolver
 ) -> str | None:
     if definition.owning_class is None or dispatch_class_key is None:
         return None
-    dispatch_class: ClassDefinition | None = index.classes.get(dispatch_class_key)
+    dispatch_class: ClassDefinition | None = index.get_class(dispatch_class_key)
     if dispatch_class is None or dispatch_class.name == definition.owning_class:
         return None
     return dispatch_class.name

@@ -9,18 +9,18 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import cast
 
-import strata.evaluation.core.helpers.file_evaluation as file_evaluation_module
-import strata.evaluation.core.helpers.project_analysis as project_analysis_module
+import strata.evaluation.helpers.file_evaluation as file_evaluation_module
+import strata.evaluation.helpers.project_analysis as project_analysis_module
 from scripts.benchmarking.models import ProfileReport
 from scripts.benchmarking.types import EvaluatorModule, ProjectAnalysisModule
-from strata.analysis.core.types import ProjectAnalysis
-from strata.config.core.main.load_config import load_config
-from strata.config.core.models import Config
-from strata.discovery.core.main.discover_files import discover_files
-from strata.discovery.core.models import ProjectLayout, RepoRoot, ScopedFile
-from strata.evaluation.core.main.evaluate import evaluate
-from strata.evaluation.core.models import ExternalAnalysisBuild, ParsedModule, SourceSnapshot
-from strata.reporting.core.main.render import render
+from strata.analysis.types import ProjectAnalysis
+from strata.config.main.load_config import load_config
+from strata.config.models import Config
+from strata.discovery.main.discover_files import discover_files
+from strata.discovery.models import ProjectLayout, RepoRoot, ScopedFile
+from strata.evaluation.main.evaluate import evaluate
+from strata.evaluation.models import ExternalAnalysisBuild, ParsedModule, SourceSnapshot
+from strata.reporting.main.render import render
 from strata.rules.authoring.models import Fault, RuleSpec
 from strata.rules.catalog.main.build_ruleset import build_ruleset
 

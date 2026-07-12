@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Protocol
 
-from strata.evaluation.core.models import ExternalAnalysisBuild, ParsedModule
+from strata.evaluation.models import ExternalAnalysisBuild, ParsedModule
 from strata.rules.authoring.models import Fault
 
 

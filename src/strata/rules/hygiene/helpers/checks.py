@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import ast
 
-from strata.discovery.core.types import ScopeName
+from strata.discovery.types import ScopeName
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import RuleContext
 

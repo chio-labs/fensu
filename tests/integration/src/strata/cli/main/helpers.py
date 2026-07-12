@@ -11,8 +11,8 @@ from typing import BinaryIO
 import pytest
 
 from strata.cache.storage.constants import CACHE_DATABASE_RELATIVE_PATH
-from strata.config.core.main.load_config import load_config
-from strata.config.core.models import Config
+from strata.config.main.load_config import load_config
+from strata.config.models import Config
 
 
 class CaptureOutput(StringIO):
@@ -268,6 +268,20 @@ def write_broken_strata_symlink(*, root: Path, outside_target: Path) -> None:
     (root / "strata.toml").symlink_to(outside_target)
 
 
+def prepare_unsafe_local_config_target(*, root: Path, target_kind: str) -> Path:
+    """Create a symlink or nonregular local configuration candidate."""
+
+    name: str = "pyproject.toml" if target_kind.startswith("pyproject") else "strata.toml"
+    path: Path = root / name
+    if target_kind.endswith("symlink"):
+        outside: Path = root.parent / f"{root.name}-{name}"
+        outside.write_text('[tool.strata]\nroots = ["src/pkg"]\n', encoding="utf-8")
+        path.symlink_to(outside)
+    else:
+        path.mkdir()
+    return path
+
+
 def write_selected_root_python_symlink(*, root: Path, outside_target: Path) -> None:
     """Write an outside Python file and a selected-root symlink pointing to it."""
 
@@ -284,7 +298,7 @@ def write_cli_fixture_project(
     (root / "rules").mkdir()
     (root / "src" / "pkg" / "target.py").write_text("value: int = 1\n", encoding="utf-8")
     selected_rules: str = f'"SF", "{rule_code}"' if include_core_rules else f'"{rule_code}"'
-    ignored_rules: str = 'ignore = ["SFX002"]\n' if include_core_rules else ""
+    ignored_rules: str = 'ignore = ["SFH002"]\n' if include_core_rules else ""
     config: str = (
         f'roots = ["src/pkg"]\nselect = [{selected_rules}]\n{ignored_rules}'
         'rule_paths = ["rules/custom_rule.py"]\n'

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import ast
 
-from strata.discovery.core.types import RoleName
+from strata.discovery.types import RoleName
 
 _init_module_name: str = "__init__"
 _minimum_owned_module_parts: int = 3
@@ -163,4 +163,4 @@ def _public_surface_segments() -> frozenset[str]:
 
 
 def _internal_surface_segments() -> frozenset[str]:
-    return frozenset({RoleName.HELPERS, RoleName.SHARED})
+    return frozenset({RoleName.HELPERS})

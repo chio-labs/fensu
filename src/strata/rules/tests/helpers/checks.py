@@ -7,8 +7,8 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from strata.analysis.core.models import ParametrizeFact, PytestFunctionFact, PytestModuleFacts
-from strata.discovery.core.types import ScopeName
+from strata.analysis.models import ParametrizeFact, PytestFunctionFact, PytestModuleFacts
+from strata.discovery.types import ScopeName
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import RuleContext
 from strata.rules.tests.types import SftCode, TestPathName, TestScope, TestSymbol

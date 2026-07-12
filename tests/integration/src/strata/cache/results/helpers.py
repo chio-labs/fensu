@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-import strata.evaluation.core.helpers.file_evaluation as file_evaluation_module
-from strata.analysis.core.models import ProjectDependency
-from strata.analysis.core.types import ProjectDependencyKind
+import strata.evaluation.helpers.file_evaluation as file_evaluation_module
+from strata.analysis.models import ProjectDependency
+from strata.analysis.types import ProjectDependencyKind
 from strata.cache.results.classes.result_cache import ResultCache
 from strata.cache.results.models import CacheStats
 from strata.cache.storage.classes.cache_store import CacheStore
@@ -16,12 +16,13 @@ from strata.cache.storage.constants import CACHE_DATABASE_RELATIVE_PATH
 from strata.cache.storage.exceptions import CacheRecordError
 from strata.cache.storage.models import CacheMutationOutcome, CacheRead, CacheWrite
 from strata.cache.storage.types import CacheMutator
-from strata.config.core.models import Config, RuleExceptionEntry
-from strata.discovery.core.main.discover_files import discover_files
-from strata.discovery.core.models import DiscoveredTree
-from strata.evaluation.core.models import FileEvaluation
+from strata.config.models import Config, RuleExceptionEntry
+from strata.discovery.main.discover_files import discover_files
+from strata.discovery.models import DiscoveredTree
+from strata.evaluation.models import FileEvaluation
 from strata.rules.authoring.models import Fault, RuleSpec
 from strata.rules.authoring.types import Family, RuleContext, RuleKind
+from strata.rules.roles.constants import SFR_RULES
 
 
 def file_evaluation(
@@ -135,6 +136,12 @@ def discover_project(*, repo_root: Path) -> tuple[Config, DiscoveredTree]:
 
     config: Config = Config(roots=("src/pkg",), tests=())
     return config, discover_files(config=config, repo_root=repo_root)
+
+
+def role_rule(*, code: str) -> RuleSpec:
+    """Return one core role rule by stable code."""
+
+    return next(rule for rule in SFR_RULES if rule.code == code)
 
 
 def source_fault_rule(*, kind: RuleKind = RuleKind.CORE, cacheable: bool = False) -> RuleSpec:

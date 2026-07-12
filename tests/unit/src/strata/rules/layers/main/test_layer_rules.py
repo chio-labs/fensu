@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from strata.config.core.models import Config
-from strata.evaluation.core.models import EvaluationResult
+from strata.config.models import Config
+from strata.evaluation.models import EvaluationResult
 from tests.unit.src.strata.rules.layers.main._test_types import (
     LayerRuleTestCase,
     ToolingImportRuleTestCase,

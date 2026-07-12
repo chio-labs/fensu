@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from strata.analysis.core.types import ProjectDependencyKind
+from strata.analysis.types import ProjectDependencyKind
 from strata.cache.results.models import DependencyObservation
 
 

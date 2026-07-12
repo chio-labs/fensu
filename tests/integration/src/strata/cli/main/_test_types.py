@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from strata.agentdocs.core.constants import GENERATED_MARKER
+from strata.agentdocs.constants import GENERATED_MARKER
 
 
 @dataclass(frozen=True)
@@ -104,6 +104,7 @@ class SkillCommandTestCase:
     expected_exit_code: int
     expected_output_fragments: tuple[str, ...]
     expected_written_paths: tuple[str, ...] = ()
+    expected_file_fragments: tuple[str, ...] = ()
     expected_absent_fragments: tuple[str, ...] = ()
     expected_file_fragment: str = GENERATED_MARKER
 
@@ -229,7 +230,20 @@ class InitRefusalTestCase:
     source: str
     scripted_input: str
     expected_error_fragment: str
+    argv: tuple[str, ...] = ()
     expected_exit_code: int = 2
+    expected_stdout_fragment: str = ""
+
+
+@dataclass(frozen=True)
+class InitRerunTestCase:
+    """Local config source and flags with expected idempotent success output."""
+
+    description: str
+    source: str
+    argv: tuple[str, ...]
+    expected_relative_config: str
+    expected_exit_code: int
 
 
 @dataclass(frozen=True)
@@ -295,6 +309,16 @@ class InitSymlinkRefusalTestCase:
     expected_exit_code: int
     expected_error_fragment: str
     expected_stdout: str
+
+
+@dataclass(frozen=True)
+class InitLocalTargetTestCase:
+    """Unsafe local config target and expected early refusal."""
+
+    description: str
+    target_kind: str
+    expected_error_fragment: str
+    expected_exit_code: int
 
 
 @dataclass(frozen=True)

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from strata.evaluation.core.models import EvaluationResult
+from strata.evaluation.models import EvaluationResult
 from strata.rules.authoring.types import Threshold
 from tests.unit.src.strata.rules.shape.main._test_types import ShapeRuleTestCase
 from tests.unit.src.strata.rules.shape.main.helpers import (

@@ -9,11 +9,11 @@ from types import MappingProxyType
 import pytest
 
 import strata.cache.fingerprints.main.build_global as build_global_module
-from strata.analysis.core.types import ProjectDependencyKind
+from strata.analysis.types import ProjectDependencyKind
 from strata.cache.fingerprints.models import CacheFingerprint
 from strata.cache.results.models import CachedFault, CachedFileResult, DependencyObservation
-from strata.config.core.constants import DEFAULT_THRESHOLDS
-from strata.config.core.models import Config
+from strata.config.constants import DEFAULT_THRESHOLDS
+from strata.config.models import Config
 from strata.rules.authoring.models import Fault, RuleSpec
 from strata.rules.authoring.types import Family, RuleContext, RuleKind, Threshold
 

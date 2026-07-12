@@ -24,7 +24,7 @@ from strata.cache.fingerprints.models import CacheFingerprint
 from strata.cache.fingerprints.types import CanonicalValue
 from strata.cache.results.models import CachedFileResult, DependencyObservation
 from strata.cache.storage.constants import CACHE_SCHEMA_VERSION
-from strata.config.core.models import Config, RuleExceptionEntry
+from strata.config.models import Config, RuleExceptionEntry
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import RuleCheck, Threshold
 

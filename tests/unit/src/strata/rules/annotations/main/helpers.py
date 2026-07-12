@@ -6,10 +6,10 @@ from pathlib import Path
 
 import pytest
 
-from strata.config.core.models import Config
-from strata.discovery.core.main.discover_files import discover_files
-from strata.evaluation.core.main.evaluate import evaluate
-from strata.evaluation.core.models import EvaluationResult
+from strata.config.models import Config
+from strata.discovery.main.discover_files import discover_files
+from strata.evaluation.main.evaluate import evaluate
+from strata.evaluation.models import EvaluationResult
 from strata.rules.annotations.constants import SFA_RULES
 from strata.rules.authoring.models import RuleSpec
 from tests.unit.src.strata.rules.annotations.main._test_types import AnnotationRuleTestCase

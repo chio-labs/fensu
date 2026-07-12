@@ -25,18 +25,17 @@ def role_rule_details(code: RoleCode) -> tuple[str, str]:
         ),
         RoleCode.NESTED_DIRECT_SUBPACKAGES: (
             "nested runtime packages must use explicit role boundaries",
-            "Move feature subpackages under helpers/ or use a supported role such as main/, "
-            "classes/, or shared/.",
+            "Move feature subpackages under helpers/ or use a supported role such as main/ or "
+            "classes/.",
         ),
-        RoleCode.TOP_LEVEL_ROLE_PLACEMENT: (
-            "top-level domains must not contain direct role files or directories",
-            "Create an owning subpackage beneath the domain, or move broadly shared code to the "
-            "top-level shared/ package.",
+        RoleCode.TOP_LEVEL_DOMAIN_SHAPE: (
+            "top-level domains must be either role leaves or subdomain branches",
+            "Keep direct role content in a leaf domain, or move it into a named subdomain when "
+            "the domain contains subdomains.",
         ),
         RoleCode.TOP_LEVEL_DIRECT_MODULES: (
-            "top-level domains must contain owned subpackages instead of direct modules",
-            "Move the module into a named subdomain; keep only approved role files at the domain "
-            "root.",
+            "top-level domains must not contain ad hoc direct modules",
+            "Move the module under a direct role boundary or into an owning named subdomain.",
         ),
         RoleCode.ENTRY_MODULE_SHAPE: (
             "main/ entry modules must expose one focused public function",

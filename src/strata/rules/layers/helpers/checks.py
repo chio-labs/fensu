@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import ast
 
-from strata.analysis.core.models import AttributeReferenceFact, ImportFact, ReferenceFacts
-from strata.discovery.core.constants import INIT_MODULE_FILE_NAME
-from strata.discovery.core.types import ScopeName
+from strata.analysis.models import AttributeReferenceFact, ImportFact, ReferenceFacts
+from strata.discovery.constants import INIT_MODULE_FILE_NAME
+from strata.discovery.types import ScopeName
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import RuleContext
 from strata.rules.layers.helpers.imports import (

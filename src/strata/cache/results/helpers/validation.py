@@ -6,7 +6,7 @@ import re
 from pathlib import PurePosixPath
 from typing import cast
 
-from strata.analysis.core.types import ProjectDependencyKind
+from strata.analysis.types import ProjectDependencyKind
 from strata.cache.fingerprints.models import CacheFingerprint
 from strata.cache.results.constants import (
     CORE_RULE_CODE_PATTERN,

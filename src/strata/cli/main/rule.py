@@ -9,15 +9,15 @@ import textwrap
 from pathlib import Path
 from typing import TextIO
 
-from strata.cli.core.constants import NO_COLOR_ENVIRONMENT_VARIABLE
-from strata.cli.core.types import ColorMode
-from strata.config.core.exceptions import ConfigError
-from strata.config.core.main.load_project_config import load_project_config
-from strata.config.core.models import Config, LoadedConfig, RuleExceptionEntry
-from strata.discovery.core.main.discover_files import discover_files
-from strata.discovery.core.models import DiscoveredTree
-from strata.evaluation.core.main.validate_rule_exceptions import validate_rule_exceptions
-from strata.reporting.core.constants import ANSI_BOLD_CYAN, ANSI_DIM, ANSI_RESET, REPORT_LINE_WIDTH
+from strata.cli.constants import NO_COLOR_ENVIRONMENT_VARIABLE
+from strata.cli.types import ColorMode
+from strata.config.exceptions import ConfigError
+from strata.config.main.load_project_config import load_project_config
+from strata.config.models import Config, LoadedConfig, RuleExceptionEntry
+from strata.discovery.main.discover_files import discover_files
+from strata.discovery.models import DiscoveredTree
+from strata.evaluation.main.validate_rule_exceptions import validate_rule_exceptions
+from strata.reporting.constants import ANSI_BOLD_CYAN, ANSI_DIM, ANSI_RESET, REPORT_LINE_WIDTH
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.catalog.main.build_catalogue import build_catalogue
 

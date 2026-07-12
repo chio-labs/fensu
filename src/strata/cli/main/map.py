@@ -8,14 +8,14 @@ import sys
 from pathlib import Path
 from typing import TextIO
 
-from strata.cli.core.constants import NO_COLOR_ENVIRONMENT_VARIABLE
-from strata.cli.core.types import ColorMode
-from strata.mapping.core.exceptions import MapError
-from strata.mapping.core.main.ast import build_ast_call_map
-from strata.mapping.core.main.build import build_call_map
-from strata.mapping.core.main.resolve_project import resolve_mapping_project
-from strata.mapping.core.models import MappingProject
-from strata.mapping.core.types import PathMode
+from strata.cli.constants import NO_COLOR_ENVIRONMENT_VARIABLE
+from strata.cli.types import ColorMode
+from strata.mapping.exceptions import MapError
+from strata.mapping.main.ast import build_ast_call_map
+from strata.mapping.main.build import build_call_map
+from strata.mapping.main.resolve_project import resolve_mapping_project
+from strata.mapping.models import MappingProject
+from strata.mapping.types import PathMode
 
 
 def run_map(

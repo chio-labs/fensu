@@ -51,11 +51,18 @@ def run_check(
                     for value in args.paths
                 ),
             )
+        if args.cache_enabled is not None:
+            config = replace(
+                config,
+                cache=replace(config.cache, enabled=args.cache_enabled),
+            )
         tree: DiscoveredTree = discover_files(config, repo_root=project_dir)
         ruleset: tuple[RuleSpec, ...] = build_ruleset(config, repo_root=project_dir)
         validate_rule_exceptions(config=config, repo_root=tree.repo_root.path)
         fingerprint_build: GlobalFingerprintBuild | None = (
-            build_global_fingerprint(config=config, ruleset=ruleset) if args.cache_enabled else None
+            build_global_fingerprint(config=config, ruleset=ruleset)
+            if config.cache.enabled
+            else None
         )
         if fingerprint_build is not None:
             cache_disabled_reason = fingerprint_build.disabled_reason
@@ -106,7 +113,7 @@ def _parser() -> argparse.ArgumentParser:
         action="store_false",
         help="disable persistent result caching",
     )
-    parser.set_defaults(cache_enabled=False)
+    parser.set_defaults(cache_enabled=None)
     parser.add_argument(
         "--cache-stats",
         action="store_true",

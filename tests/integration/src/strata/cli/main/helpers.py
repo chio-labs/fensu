@@ -103,14 +103,17 @@ def write_cli_stale_exception_project(root: Path) -> None:
     source.write_text("def callback(*, value: int) -> None:\n    pass\n", encoding="utf-8")
 
 
-def write_cli_core_fault_project(root: Path) -> None:
+def write_cli_core_fault_project(root: Path, *, cache_enabled: bool | None = None) -> None:
     """Write a cacheable project with one deterministic core fault."""
 
     source: Path = root / "src/pkg/models.py"
     source.parent.mkdir(parents=True)
     source.write_text("VALUE = 1\n", encoding="utf-8")
+    cache_config: str = (
+        "" if cache_enabled is None else f"[cache]\nenabled = {str(cache_enabled).lower()}\n"
+    )
     (root / "strata.toml").write_text(
-        'roots = ["src/pkg"]\ntests = []\nselect = ["SFA101"]\n',
+        f'roots = ["src/pkg"]\ntests = []\nselect = ["SFA101"]\n{cache_config}',
         encoding="utf-8",
     )
 

@@ -52,6 +52,17 @@ class CheckCacheModeTestCase:
 
 
 @dataclass(frozen=True)
+class CheckCachePreferenceTestCase:
+    """Configured cache preference, CLI override, and expected storage behavior."""
+
+    description: str
+    configured_enabled: bool
+    argv: tuple[str, ...]
+    expected_exit_code: int
+    expected_cache_exists: bool
+
+
+@dataclass(frozen=True)
 class CheckCacheWarningTestCase:
     """One cache failure mode and the expected diagnostic-stream warning."""
 

@@ -41,6 +41,16 @@ class ConfigLayoutFingerprintTestCase:
 
 
 @dataclass(frozen=True)
+class CachePreferenceFingerprintTestCase:
+    """Two operational cache preferences and expected semantic identity parity."""
+
+    description: str
+    first_enabled: bool
+    second_enabled: bool
+    expected_equal: bool
+
+
+@dataclass(frozen=True)
 class SourceFingerprintTestCase:
     """Two source payloads and whether their fingerprints must match."""
 

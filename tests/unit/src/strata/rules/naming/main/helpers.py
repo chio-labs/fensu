@@ -7,11 +7,11 @@ from types import MappingProxyType
 
 import pytest
 
-from strata.config.core.constants import DEFAULT_CONTRACTS
-from strata.config.core.models import Config
-from strata.discovery.core.main.discover_files import discover_files
-from strata.evaluation.core.main.evaluate import evaluate
-from strata.evaluation.core.models import EvaluationResult
+from strata.config.constants import DEFAULT_CONTRACTS
+from strata.config.models import Config
+from strata.discovery.main.discover_files import discover_files
+from strata.evaluation.main.evaluate import evaluate
+from strata.evaluation.models import EvaluationResult
 from strata.rules.naming.constants import SFN_RULES
 from tests.unit.src.strata.rules.naming.main._test_types import SfnRuleTestCase
 

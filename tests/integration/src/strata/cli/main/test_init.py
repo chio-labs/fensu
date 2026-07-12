@@ -7,23 +7,25 @@ from pathlib import Path
 import pytest
 
 from strata.cli.main.init import run_init
-from strata.config.core.main.load_config import load_config
-from strata.config.core.models import Config
-from strata.discovery.core.main.build_project_layout import build_project_layout
-from strata.discovery.core.models import ProjectLayout, RepoRoot
-from strata.reporting.core.constants import ANSI_BOLD_RED, ANSI_ORANGE
-from strata.scaffolding.core.helpers.execution import build_rendered_config, render_config
-from strata.scaffolding.core.models import InitPlan
-from strata.scaffolding.core.types import AdoptionMode
+from strata.config.main.load_config import load_config
+from strata.config.models import Config
+from strata.discovery.main.build_project_layout import build_project_layout
+from strata.discovery.models import ProjectLayout, RepoRoot
+from strata.reporting.constants import ANSI_BOLD_RED, ANSI_ORANGE
+from strata.scaffolding.helpers.execution import build_rendered_config, render_config
+from strata.scaffolding.models import InitPlan
+from strata.scaffolding.types import AdoptionMode
 from tests.integration.src.strata.cli.main._test_types import (
     InitApplicabilityTestCase,
     InitDriftWarningTestCase,
     InitExecutionTestCase,
     InitInteractiveTestCase,
+    InitLocalTargetTestCase,
     InitOptionTestCase,
     InitPresentationTestCase,
     InitPromptFailureTestCase,
     InitRefusalTestCase,
+    InitRerunTestCase,
     InitRoundTripTestCase,
     InitSelectionTestCase,
     InitSymlinkRefusalTestCase,
@@ -39,9 +41,11 @@ from tests.integration.src.strata.cli.main.helpers import (
     prepare_init_execution_project,
     prepare_init_refusal_project,
     prepare_init_transcript_project,
+    prepare_unsafe_local_config_target,
     project_file_snapshot,
     write_broken_strata_symlink,
     write_init_editable_project,
+    write_init_existing_config,
     write_init_hatch_project,
     write_init_invalid_python_project,
     write_init_invalid_utf8_project,
@@ -141,10 +145,10 @@ def test_given_detected_hatch_layout_when_answering_prompts_then_writes_selected
                 'roots = ["src/acme"]\n'
                 'tests = ["tests"]\n'
                 "# Adoption guide: https://docs.stratalint.com/adoption\n"
-                'select = ["SFL", "SFX", "SFA", "SFN"]\n'
+                'select = ["SFL", "SFH", "SFA", "SFN"]\n'
             ),
             expected_output_fragments=(
-                "Starting with the gradual ruleset: SFL, SFX, SFA, SFN",
+                "Starting with the gradual ruleset: SFL, SFH, SFA, SFN",
                 "SFA  annotations",
                 "Found 1 fault across 1 file against the starting ruleset.",
             ),
@@ -165,6 +169,7 @@ def test_given_detected_hatch_layout_when_answering_prompts_then_writes_selected
                 "Found 0 faults",
             ),
             expected_created_paths=(
+                ".gitignore",
                 "src/sample_app/__init__.py",
                 "strata.toml",
                 "tests/.gitkeep",
@@ -193,7 +198,7 @@ def test_given_detected_hatch_layout_when_answering_prompts_then_writes_selected
                 'roots = ["src/acme"]\n'
                 'tests = ["tests"]\n'
                 "# Adoption guide: https://docs.stratalint.com/adoption\n"
-                'select = ["SFL", "SFX", "SFA", "SFN"]\n'
+                'select = ["SFL", "SFH", "SFA", "SFN"]\n'
             ),
             expected_output_fragments=("Wrote strata.toml",),
             expected_absent_fragments=("Accept?", "Project name"),
@@ -427,7 +432,7 @@ def test_given_multiple_runtime_roots_when_selecting_then_defaults_retries_and_e
             expected_roots=("src/acme",),
             expected_tests=("tests",),
             expected_tooling=("scripts",),
-            expected_select=("SFL", "SFX", "SFA", "SFN"),
+            expected_select=("SFL", "SFH", "SFA", "SFN"),
             expected_skill_paths=(),
         ),
     ],
@@ -477,18 +482,6 @@ def test_given_explicit_scope_adoption_and_skill_options_when_initializing_then_
             expected_error_fragment="Initialization declined; no files were written.",
         ),
         InitRefusalTestCase(
-            description="local strata toml is refused before writing",
-            source="strata.toml",
-            scripted_input="",
-            expected_error_fragment="Strata configuration already exists:",
-        ),
-        InitRefusalTestCase(
-            description="embedded tool strata config is refused before writing",
-            source="tool.strata",
-            scripted_input="",
-            expected_error_fragment="Strata configuration already exists:",
-        ),
-        InitRefusalTestCase(
             description="parent config is refused without a child write",
             source="parent",
             scripted_input="",
@@ -502,20 +495,69 @@ def test_given_decline_or_existing_configuration_when_initializing_then_refuses_
     test_case: InitRefusalTestCase,
 ) -> None:
     repository, before = prepare_init_refusal_project(root=tmp_path, source=test_case.source)
+    stdout: TerminalBuffer = TerminalBuffer()
     stderr: TerminalBuffer = TerminalBuffer()
 
     exit_code: int = run_init(
-        argv=(),
+        argv=test_case.argv,
         stdin=TerminalBuffer(test_case.scripted_input),
-        stdout=TerminalBuffer(),
+        stdout=stdout,
         stderr=stderr,
         working_directory=repository,
     )
 
     assert exit_code == test_case.expected_exit_code
     assert test_case.expected_error_fragment in stderr.getvalue()
+    assert test_case.expected_stdout_fragment in stdout.getvalue()
     assert project_file_snapshot(repository) == before
     assert (repository / "strata.toml").exists() is (test_case.source == "strata.toml")
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        InitRerunTestCase(
+            description="local strata toml ignores valid different init flags",
+            source="strata.toml",
+            argv=("--full", "--name", "ignored"),
+            expected_relative_config="strata.toml",
+            expected_exit_code=0,
+        ),
+        InitRerunTestCase(
+            description="local tool strata table ignores different init flags",
+            source="tool.strata",
+            argv=("--yes", "--root", "ignored", "--skills"),
+            expected_relative_config="pyproject.toml",
+            expected_exit_code=0,
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_local_configuration_when_rerunning_init_then_succeeds_before_options_or_tty(
+    tmp_path: Path,
+    test_case: InitRerunTestCase,
+) -> None:
+    write_init_hatch_project(root=tmp_path)
+    _ = write_init_existing_config(root=tmp_path, source=test_case.source)
+    before: tuple[str, ...] = project_file_snapshot(tmp_path)
+    stdout: TerminalBuffer = TerminalBuffer(is_terminal=False)
+    stderr: TerminalBuffer = TerminalBuffer(is_terminal=False)
+
+    exit_code: int = run_init(
+        argv=test_case.argv,
+        stdin=TerminalBuffer(is_terminal=False),
+        stdout=stdout,
+        stderr=stderr,
+        working_directory=tmp_path,
+    )
+
+    expected_path: Path = tmp_path / test_case.expected_relative_config
+    assert exit_code == test_case.expected_exit_code
+    assert stdout.getvalue() == (
+        f"Strata configuration already exists: {expected_path} (nothing to do)\n"
+    )
+    assert stderr.getvalue() == ""
+    assert project_file_snapshot(tmp_path) == before
 
 
 @pytest.mark.parametrize(
@@ -902,6 +944,56 @@ def test_given_broken_local_config_symlink_when_initializing_then_refuses_withou
 @pytest.mark.parametrize(
     "test_case",
     [
+        InitLocalTargetTestCase(
+            description="local strata config directory is refused",
+            target_kind="strata-directory",
+            expected_error_fragment="Strata configuration path is not a regular file:",
+            expected_exit_code=2,
+        ),
+        InitLocalTargetTestCase(
+            description="local pyproject symlink is refused",
+            target_kind="pyproject-symlink",
+            expected_error_fragment="Pyproject configuration path is a symlink:",
+            expected_exit_code=2,
+        ),
+        InitLocalTargetTestCase(
+            description="local pyproject directory is refused",
+            target_kind="pyproject-directory",
+            expected_error_fragment="Pyproject configuration path is not a regular file:",
+            expected_exit_code=2,
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_unsafe_local_config_target_when_initializing_then_refuses_without_publication(
+    tmp_path: Path,
+    test_case: InitLocalTargetTestCase,
+) -> None:
+    target: Path = prepare_unsafe_local_config_target(
+        root=tmp_path, target_kind=test_case.target_kind
+    )
+    stdout: TerminalBuffer = TerminalBuffer(is_terminal=False)
+    stderr: TerminalBuffer = TerminalBuffer(is_terminal=False)
+
+    exit_code: int = run_init(
+        argv=("--yes", "--no-skills"),
+        stdin=TerminalBuffer(is_terminal=False),
+        stdout=stdout,
+        stderr=stderr,
+        working_directory=tmp_path,
+    )
+
+    assert exit_code == test_case.expected_exit_code
+    assert test_case.expected_error_fragment in stderr.getvalue()
+    assert stdout.getvalue() == ""
+    assert target.exists() or target.is_symlink()
+    assert not (tmp_path / ".gitignore").exists()
+    assert not (tmp_path / "strata.toml").is_file()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
         InitTranscriptTestCase(
             description="existing interactive flow has the complete canonical plain transcript",
             existing_project=True,
@@ -914,18 +1006,18 @@ def test_given_broken_local_config_symlink_when_initializing_then_refuses_withou
                 "    tests    tests/        directory scan\n"
                 "    tooling  none detected\n"
                 "\n"
-                "    Accept? [Y/n/e] \n"
+                "    Accept? [Y/n/e] e = edit paths \n"
                 "\n"
                 "--> Existing codebase - 1 Python file\n"
                 "\n"
-                "    Starting with the gradual ruleset: SFL, SFX, SFA, SFN\n"
+                "    Starting with the gradual ruleset: SFL, SFH, SFA, SFN\n"
                 "    Wrote strata.toml\n"
                 "\n"
                 "--> Measuring current drift\n"
                 "\n"
                 "    SFA  annotations       1\n"
                 "    SFL  layers            0\n"
-                "    SFX  hygiene           0\n"
+                "    SFH  hygiene           0\n"
                 "    SFN  naming            0\n"
                 "\n"
                 "    Found 1 fault across 1 file against the starting ruleset.\n"

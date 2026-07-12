@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from strata.analysis.core.classes.query_observer import QueryObserver
-from strata.analysis.core.types import ProjectDependencyKind
+from strata.analysis.classes.query_observer import QueryObserver
+from strata.analysis.types import ProjectDependencyKind
 from strata.cache.results.helpers.paths import relative_repository_path
 from strata.cache.results.helpers.validation import is_dependency_observation, is_relative_path
 from strata.cache.results.models import DependencyObservation

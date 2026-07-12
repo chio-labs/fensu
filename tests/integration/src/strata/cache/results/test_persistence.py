@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from strata.analysis.core.types import ProjectDependencyKind
+from strata.analysis.types import ProjectDependencyKind
 from strata.cache.fingerprints.models import CacheFingerprint
 from strata.cache.results.constants import CACHE_FILE_RESULT_KIND
 from strata.cache.results.helpers.serialization import (
@@ -32,7 +32,7 @@ _SOURCE_FINGERPRINT: str = "d" * 64
                 source_fingerprint=CacheFingerprint(_SOURCE_FINGERPRINT),
                 faults=(
                     CachedFault(
-                        code="SFX001",
+                        code="SFH001",
                         path="src/example.py",
                         message="multiline docstring",
                         line=1,
@@ -56,7 +56,7 @@ _SOURCE_FINGERPRINT: str = "d" * 64
                 source_fingerprint=CacheFingerprint(_SOURCE_FINGERPRINT),
                 faults=(
                     CachedFault(
-                        code="SFX001",
+                        code="SFH001",
                         path="src/example.py",
                         message="multiline docstring",
                         line=1,

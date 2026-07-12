@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from strata.analysis.core.types import ProjectDependencyKind
+from strata.analysis.types import ProjectDependencyKind
 from strata.cache.fingerprints.models import CacheFingerprint
 from strata.cache.fingerprints.types import CanonicalValue
 from strata.cache.results.constants import (

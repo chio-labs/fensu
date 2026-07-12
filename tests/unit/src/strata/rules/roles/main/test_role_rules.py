@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from strata.discovery.core.types import ScopeName
-from strata.evaluation.core.models import EvaluationResult
+from strata.discovery.types import ScopeName
+from strata.evaluation.models import EvaluationResult
 from strata.rules.authoring.types import Threshold
 from tests.unit.src.strata.rules.roles.main._test_types import SfrRuleTestCase, SfrSupportFile
 from tests.unit.src.strata.rules.roles.main.helpers import evaluate_role_test_case
@@ -137,6 +137,62 @@ def test_given_role_files_when_checking_content_then_flags_only_foreign_declarat
 
     assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
     assert tuple(fault.line for fault in result.faults) == test_case.expected_lines
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SfrRuleTestCase(
+            description="unanchored outer generic package does not hide anchored nested package",
+            rule_code="SFR204",
+            relative_path="shared/zeta/misc/value.py",
+            source="value: int = 1\n",
+            support_files=(
+                SfrSupportFile(
+                    description="outer shared package anchor",
+                    relative_path="shared/alpha/models.py",
+                    source="",
+                ),
+            ),
+            expected_codes=("SFR204", "SFR204"),
+            expected_lines=(None, None),
+            expected_messages=(
+                "shared/ does not identify an owner; name the business or technical capability",
+                "misc/ does not identify an owner; name the business or technical capability",
+            ),
+            expected_paths=("shared/alpha/models.py", "shared/zeta/misc/value.py"),
+        ),
+        SfrRuleTestCase(
+            description="one anchor reports every nested generic package",
+            rule_code="SFR204",
+            relative_path="domain/util/utils/value.py",
+            source="value: int = 1\n",
+            expected_codes=("SFR204", "SFR204"),
+            expected_lines=(None, None),
+            expected_messages=(
+                "util/ does not identify an owner; name the business or technical capability",
+                "utils/ does not identify an owner; name the business or technical capability",
+            ),
+            expected_paths=("domain/util/utils/value.py", "domain/util/utils/value.py"),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_nested_generic_packages_when_checking_then_reports_each_anchored_package(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: SfrRuleTestCase,
+) -> None:
+    result: EvaluationResult = evaluate_role_test_case(
+        test_case=test_case, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+    scope_root: Path = tmp_path / "src/pkg"
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
+    assert tuple(fault.message for fault in result.faults) == test_case.expected_messages
+    assert tuple(fault.path.relative_to(scope_root).as_posix() for fault in result.faults) == (
+        test_case.expected_paths
+    )
 
 
 @pytest.mark.parametrize(
@@ -285,6 +341,22 @@ def test_given_declarations_when_checking_ownership_then_flags_only_misplaced_ro
             expected_lines=(None,),
         ),
         SfrRuleTestCase(
+            description="shared subdomain package is flagged",
+            rule_code="SFR204",
+            relative_path="domain/shared/helpers/value.py",
+            source="value: int = 1\n",
+            expected_codes=("SFR204",),
+            expected_lines=(None,),
+        ),
+        SfrRuleTestCase(
+            description="shared package deeper than subdomain is flagged",
+            rule_code="SFR204",
+            relative_path="domain/orders/helpers/shared/value.py",
+            source="value: int = 1\n",
+            expected_codes=("SFR204",),
+            expected_lines=(None,),
+        ),
+        SfrRuleTestCase(
             description="common domain package is flagged",
             rule_code="SFR204",
             relative_path="common/core/helpers/value.py",
@@ -333,12 +405,45 @@ def test_given_declarations_when_checking_ownership_then_flags_only_misplaced_ro
             expected_lines=(None,),
         ),
         SfrRuleTestCase(
-            description="generic package name inside helpers role is allowed",
+            description="generic package name inside helpers role is flagged",
             rule_code="SFR204",
             relative_path="domain/core/helpers/utils/value.py",
             source="value: int = 1\n",
+            expected_codes=("SFR204",),
+            expected_lines=(None,),
+        ),
+        SfrRuleTestCase(
+            description="deeper misc package is flagged",
+            rule_code="SFR204",
+            relative_path="domain/orders/helpers/parsing/misc/value.py",
+            source="value: int = 1\n",
+            expected_codes=("SFR204",),
+            expected_lines=(None,),
+        ),
+        SfrRuleTestCase(
+            description="deeper util package is flagged",
+            rule_code="SFR204",
+            relative_path="domain/orders/helpers/parsing/util/value.py",
+            source="value: int = 1\n",
+            expected_codes=("SFR204",),
+            expected_lines=(None,),
+        ),
+        SfrRuleTestCase(
+            description="generic module filename is not treated as a package",
+            rule_code="SFR204",
+            relative_path="domain/orders/helpers/misc.py",
+            source="value: int = 1\n",
             expected_codes=(),
             expected_lines=(),
+        ),
+        SfrRuleTestCase(
+            description="tooling generic package names remain outside runtime package rule",
+            rule_code="SFR204",
+            relative_path="shared/helpers/value.py",
+            source="value: int = 1\n",
+            expected_codes=(),
+            expected_lines=(),
+            scope=ScopeName.TOOLING,
         ),
         SfrRuleTestCase(
             description="domain-specific package names are allowed",
@@ -608,63 +713,136 @@ def test_given_runtime_calls_when_checking_import_time_then_flags_executed_stand
             expected_lines=(),
         ),
         SfrRuleTestCase(
-            description="role file directly under domain is flagged",
+            description="shared package has no nested structural exception",
+            rule_code="SFR305",
+            relative_path="domain/core/shared/value.py",
+            source="value: int = 1\n",
+            expected_codes=("SFR305",),
+            expected_lines=(None,),
+        ),
+        SfrRuleTestCase(
+            description="leaf ignores direct asset data and empty directories",
             rule_code="SFR306",
             relative_path="domain/models.py",
             source="",
-            expected_codes=("SFR306",),
-            expected_lines=(None,),
+            support_files=(
+                SfrSupportFile(
+                    description="direct main role content",
+                    relative_path="domain/main/run.py",
+                    source="def run() -> None:\n    return None\n",
+                ),
+                SfrSupportFile(
+                    description="asset directory without Python",
+                    relative_path="domain/assets/logo.svg",
+                    source="<svg/>\n",
+                ),
+                SfrSupportFile(
+                    description="data directory without Python",
+                    relative_path="domain/data/records.json",
+                    source="[]\n",
+                ),
+                SfrSupportFile(
+                    description="empty directory",
+                    relative_path="domain/empty",
+                    source="",
+                    is_directory=True,
+                ),
+            ),
+            expected_codes=(),
+            expected_lines=(),
         ),
         SfrRuleTestCase(
-            description="role package without init directly under domain is flagged",
+            description="asset directory becomes a named subdomain when Python source appears",
             rule_code="SFR306",
-            relative_path="domain/helpers/value.py",
-            source="value: int = 1\n",
+            relative_path="domain/models.py",
+            source="",
+            support_files=(
+                SfrSupportFile(
+                    description="asset namespace Python source",
+                    relative_path="domain/assets/models.py",
+                    source="",
+                ),
+            ),
             expected_codes=("SFR306",),
             expected_lines=(None,),
         ),
         SfrRuleTestCase(
-            description="classes package without init directly under domain is flagged",
+            description="top-level domain with named subdomains is a legal branch",
             rule_code="SFR306",
-            relative_path="domain/classes/service.py",
-            source="class Service:\n    pass\n",
-            expected_codes=("SFR306",),
-            expected_lines=(None,),
+            relative_path="domain/orders/models.py",
+            source="",
+            support_files=(
+                SfrSupportFile(
+                    description="second named subdomain",
+                    relative_path="domain/customers/main/read.py",
+                    source="def read() -> None:\n    return None\n",
+                ),
+            ),
+            expected_codes=(),
+            expected_lines=(),
         ),
         SfrRuleTestCase(
-            description="models package without init directly under domain is flagged",
+            description="top-level domain mixing direct main role and named subdomain is flagged",
             rule_code="SFR306",
-            relative_path="domain/models/result.py",
-            source="value: int = 1\n",
+            relative_path="domain/main/run.py",
+            source="def run() -> None:\n    return None\n",
+            support_files=(
+                SfrSupportFile(
+                    description="named subdomain role file",
+                    relative_path="domain/orders/models.py",
+                    source="",
+                ),
+            ),
             expected_codes=("SFR306",),
             expected_lines=(None,),
         ),
         SfrRuleTestCase(
-            description="types package without init directly under domain is flagged",
+            description="top-level domain mixing direct role file and named subdomain is flagged",
             rule_code="SFR306",
-            relative_path="domain/types/protocol.py",
-            source="value: int = 1\n",
+            relative_path="domain/types.py",
+            source="",
+            support_files=(
+                SfrSupportFile(
+                    description="named subdomain role file",
+                    relative_path="domain/orders/models.py",
+                    source="",
+                ),
+            ),
             expected_codes=("SFR306",),
             expected_lines=(None,),
         ),
         SfrRuleTestCase(
-            description="constants package without init directly under domain is flagged",
+            description="shared top-level domain follows mixed domain semantics",
             rule_code="SFR306",
-            relative_path="domain/constants/defaults.py",
-            source="VALUE: int = 1\n",
+            relative_path="shared/models.py",
+            source="",
+            support_files=(
+                SfrSupportFile(
+                    description="named subdomain below shared domain",
+                    relative_path="shared/orders/models.py",
+                    source="",
+                ),
+            ),
             expected_codes=("SFR306",),
             expected_lines=(None,),
         ),
         SfrRuleTestCase(
-            description="exceptions package without init directly under domain is flagged",
+            description="shared direct child is a named subdomain for domain shape",
             rule_code="SFR306",
-            relative_path="domain/exceptions/config.py",
-            source="class ConfigError(Exception):\n    pass\n",
+            relative_path="domain/models.py",
+            source="",
+            support_files=(
+                SfrSupportFile(
+                    description="banned shared subdomain",
+                    relative_path="domain/shared/models.py",
+                    source="",
+                ),
+            ),
             expected_codes=("SFR306",),
             expected_lines=(None,),
         ),
         SfrRuleTestCase(
-            description="role file below subpackage is allowed",
+            description="role file below subpackage remains allowed",
             rule_code="SFR306",
             relative_path="domain/core/models.py",
             source="",
@@ -687,6 +865,14 @@ def test_given_runtime_calls_when_checking_import_time_then_flags_executed_stand
             expected_codes=(),
             expected_lines=(),
         ),
+        SfrRuleTestCase(
+            description="direct domain role module does not require a subdomain",
+            rule_code="SFR307",
+            relative_path="domain/main.py",
+            source="def main() -> None:\n    return None\n",
+            expected_codes=(),
+            expected_lines=(),
+        ),
     ],
     ids=lambda case: case.description,
 )
@@ -701,6 +887,65 @@ def test_given_role_layouts_when_checking_then_flags_only_layout_violations(
 
     assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
     assert tuple(fault.line for fault in result.faults) == test_case.expected_lines
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SfrRuleTestCase(
+            description="mixed domain anchors one fault at its init module",
+            rule_code="SFR306",
+            relative_path="domain/models.py",
+            source="",
+            support_files=(
+                SfrSupportFile(
+                    description="domain init anchor",
+                    relative_path="domain/__init__.py",
+                    source="",
+                ),
+                SfrSupportFile(
+                    description="named subdomain",
+                    relative_path="domain/orders/models.py",
+                    source="",
+                ),
+            ),
+            expected_codes=("SFR306",),
+            expected_lines=(None,),
+            expected_paths=("domain/__init__.py",),
+        ),
+        SfrRuleTestCase(
+            description="mixed domain without init anchors one fault at first Python file",
+            rule_code="SFR306",
+            relative_path="domain/types.py",
+            source="",
+            support_files=(
+                SfrSupportFile(
+                    description="lexically first named subdomain file",
+                    relative_path="domain/orders/models.py",
+                    source="",
+                ),
+            ),
+            expected_codes=("SFR306",),
+            expected_lines=(None,),
+            expected_paths=("domain/orders/models.py",),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_mixed_top_level_domain_when_checking_then_anchors_one_deterministic_fault(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: SfrRuleTestCase,
+) -> None:
+    result: EvaluationResult = evaluate_role_test_case(
+        test_case=test_case, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+    scope_root: Path = tmp_path / "src/pkg"
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
+    assert tuple(fault.path.relative_to(scope_root).as_posix() for fault in result.faults) == (
+        test_case.expected_paths
+    )
 
 
 @pytest.mark.parametrize(

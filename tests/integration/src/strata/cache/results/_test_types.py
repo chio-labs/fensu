@@ -90,6 +90,20 @@ class CachedEvaluationInvalidationTestCase:
 
 
 @dataclass(frozen=True)
+class CachedDomainShapeInvalidationTestCase:
+    """One namespace-source transition and expected cached SFR306 invalidation."""
+
+    description: str
+    role_relative_path: str
+    asset_relative_path: str
+    namespace_relative_path: str
+    expected_initial_codes: tuple[str, ...]
+    expected_invalidations: int
+    expected_misses: int
+    expected_changed_codes: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class CachedEvaluationManifestTestCase:
     """Changed discovered manifest and expected hit/miss composition."""
 

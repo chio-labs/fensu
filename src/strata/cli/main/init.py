@@ -8,10 +8,13 @@ import sys
 from pathlib import Path
 from typing import TextIO
 
-from strata.cli.core.constants import NO_COLOR_ENVIRONMENT_VARIABLE
-from strata.scaffolding.core.main.run_init import run_init as _run_init
-from strata.scaffolding.core.models import InitOptions
-from strata.scaffolding.core.types import AdoptionMode
+from strata.cli.constants import NO_COLOR_ENVIRONMENT_VARIABLE
+from strata.config.exceptions import ConfigError
+from strata.scaffolding.exceptions import InitRefusalError
+from strata.scaffolding.main.find_local_config import find_local_config
+from strata.scaffolding.main.run_init import run_init as _run_init
+from strata.scaffolding.models import InitOptions
+from strata.scaffolding.types import AdoptionMode
 
 
 def run_init(
@@ -28,6 +31,14 @@ def run_init(
     args: argparse.Namespace = _parser().parse_args(() if argv is None else argv)
     options: InitOptions = _options(args=args)
     repository: Path = (working_directory or Path.cwd()).resolve()
+    try:
+        existing_config: Path | None = find_local_config(repository=repository)
+    except (ConfigError, InitRefusalError, OSError) as error:
+        stderr.write(f"{error}\n")
+        return 2
+    if existing_config is not None:
+        stdout.write(f"Strata configuration already exists: {existing_config} (nothing to do)\n")
+        return 0
     use_color: bool = stdout.isatty() and NO_COLOR_ENVIRONMENT_VARIABLE not in os.environ
     return _run_init(
         repository=repository,

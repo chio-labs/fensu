@@ -6,12 +6,12 @@ from pathlib import Path
 
 import pytest
 
-from strata.config.core.models import Config
-from strata.discovery.core.main.discover_files import discover_files
-from strata.evaluation.core.main.evaluate import evaluate
-from strata.evaluation.core.models import EvaluationResult
+from strata.config.models import Config
+from strata.discovery.main.discover_files import discover_files
+from strata.evaluation.main.evaluate import evaluate
+from strata.evaluation.models import EvaluationResult
 from strata.rules.authoring.models import RuleSpec
-from strata.rules.hygiene.constants import SFX_RULES
+from strata.rules.hygiene.constants import SFH_RULES
 from tests.unit.src.strata.rules.hygiene.main._test_types import HygieneRuleTestCase
 
 
@@ -33,7 +33,7 @@ def evaluate_hygiene_test_case(
 
 
 def _rule_by_code(rule_code: str) -> RuleSpec:
-    for rule in SFX_RULES:
+    for rule in SFH_RULES:
         if rule.code == rule_code:
             return rule
-    raise AssertionError(f"Unknown SFX rule code {rule_code}")
+    raise AssertionError(f"Unknown SFH rule code {rule_code}")

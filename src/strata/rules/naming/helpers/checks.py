@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import ast
 
-from strata.config.core.types import ContractBehavior
+from strata.config.types import ContractBehavior
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import RuleContext
 

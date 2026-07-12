@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from strata.analysis.core.models import ProjectDependency
-from strata.analysis.core.types import ProjectDependencyKind
+from strata.analysis.models import ProjectDependency
+from strata.analysis.types import ProjectDependencyKind
 from strata.cache.fingerprints.models import CacheFingerprint
 from strata.cache.results.helpers.paths import relative_repository_path
 from strata.cache.results.helpers.serialization import file_result_to_record
@@ -16,7 +16,7 @@ from strata.cache.results.models import (
     DependencyObservation,
 )
 from strata.cache.results.types import DependencyAnswer
-from strata.evaluation.core.models import FileEvaluation, RuleExceptionKey
+from strata.evaluation.models import FileEvaluation, RuleExceptionKey
 from strata.rules.authoring.models import Fault
 
 

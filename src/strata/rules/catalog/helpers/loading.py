@@ -11,9 +11,9 @@ from importlib.machinery import ModuleSpec
 from pathlib import Path
 from types import ModuleType
 
-from strata.config.core.exceptions import ConfigError
-from strata.config.core.models import Config
-from strata.config.core.types import RuleSelector
+from strata.config.exceptions import ConfigError
+from strata.config.models import Config
+from strata.config.types import RuleSelector
 from strata.rules.authoring.main.inspect import rule_specs_in_module
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Family, RuleKind

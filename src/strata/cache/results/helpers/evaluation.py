@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from strata.analysis.core.models import ProjectDependency
+from strata.analysis.models import ProjectDependency
 from strata.cache.fingerprints.main.source import fingerprint_source
 from strata.cache.fingerprints.models import CacheFingerprint
 from strata.cache.results.classes.result_cache import ResultCache
@@ -20,14 +20,14 @@ from strata.cache.results.models import (
 )
 from strata.cache.results.types import DependencyStateCache
 from strata.cache.storage.exceptions import CachePathError, CacheRecordError
-from strata.config.core.models import Config
-from strata.discovery.core.models import DiscoveredTree
-from strata.evaluation.core.main.build_project import build_evaluation_project
-from strata.evaluation.core.main.collect_result import collect_file_evaluations
-from strata.evaluation.core.main.evaluate import evaluate
-from strata.evaluation.core.main.evaluate_file import evaluate_discovered_file
-from strata.evaluation.core.models import EvaluationResult, FileEvaluation
-from strata.evaluation.core.types import EvaluationProjectAnalysis
+from strata.config.models import Config
+from strata.discovery.models import DiscoveredTree
+from strata.evaluation.main.build_project import build_evaluation_project
+from strata.evaluation.main.collect_result import collect_file_evaluations
+from strata.evaluation.main.evaluate import evaluate
+from strata.evaluation.main.evaluate_file import evaluate_discovered_file
+from strata.evaluation.models import EvaluationResult, FileEvaluation
+from strata.evaluation.types import EvaluationProjectAnalysis
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import RuleKind
 

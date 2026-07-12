@@ -29,7 +29,7 @@ _POLICY_CACHE: CacheConfig = CacheConfig(enabled=True, require_cacheable=True)
             description="require-cacheable policy promotes hermetic custom rules",
             prelude='import re\n\n_NAME_PATTERN: str = r"[a-z_]+"',
             check_body=(
-                "    if ctx._project.exists(requester=ctx.path, path=ctx.repo_root / 'x.py'):\n"
+                "    if ctx.project.exists(requester=ctx.path, path=ctx.repo_root / 'x.py'):\n"
                 "        return []\n"
                 "    return []"
             ),

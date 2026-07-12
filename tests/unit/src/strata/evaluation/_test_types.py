@@ -39,6 +39,14 @@ class CoreWalkTestCase:
 
 
 @dataclass(frozen=True)
+class CoreContextZoneTestCase:
+    """Expected core rule modules using private context analysis zones."""
+
+    description: str
+    expected_paths: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class EvaluationFaultTestCase:
     """Source files and expected sorted fault render facts."""
 

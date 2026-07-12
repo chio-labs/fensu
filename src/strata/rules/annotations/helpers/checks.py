@@ -18,7 +18,7 @@ def annotation_faults(*, module: ast.Module, ctx: RuleContext, code: AnnotationC
                 location=fact.location,
                 message=f"function parameter '{fact.name}' must define a type annotation",
             )
-            for fact in ctx._analysis.facts.annotations().parameters
+            for fact in ctx.facts.annotations().parameters
         ]
     if code == AnnotationCode.RETURN_ANNOTATION:
         return [
@@ -26,7 +26,7 @@ def annotation_faults(*, module: ast.Module, ctx: RuleContext, code: AnnotationC
                 location=fact.location,
                 message=f"function '{fact.name}' must define a return type annotation",
             )
-            for fact in ctx._analysis.facts.annotations().returns
+            for fact in ctx.facts.annotations().returns
         ]
     if code == AnnotationCode.LOCAL_VARIABLE_ANNOTATION:
         return [
@@ -36,7 +36,7 @@ def annotation_faults(*, module: ast.Module, ctx: RuleContext, code: AnnotationC
                     f"local variable '{fact.name}' must define a type annotation on first binding"
                 ),
             )
-            for fact in ctx._analysis.facts.annotations().locals
+            for fact in ctx.facts.annotations().locals
         ]
     if code == AnnotationCode.MODULE_VARIABLE_ANNOTATION:
         return [
@@ -44,12 +44,12 @@ def annotation_faults(*, module: ast.Module, ctx: RuleContext, code: AnnotationC
                 location=fact.location,
                 message=f"module-level variable '{fact.name}' must define a type annotation",
             )
-            for fact in ctx._analysis.facts.annotations().module_variables
+            for fact in ctx.facts.annotations().module_variables
         ]
     return [
         ctx.fault_at(
             location=fact.location,
             message=f"class attribute '{fact.name}' must define a type annotation",
         )
-        for fact in ctx._analysis.facts.annotations().class_attributes
+        for fact in ctx.facts.annotations().class_attributes
     ]

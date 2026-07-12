@@ -64,7 +64,7 @@ def _validate_rule_source(
                 f"Cacheable rule {rule.code} ({path}:{node.lineno}) {violation}. "
                 "Cacheable rules may only import the standard library allowlist, "
                 "strata, and configured rule packages, and must read project "
-                "state through ctx._project."
+                "state through ctx.project."
             )
 
 

@@ -167,7 +167,7 @@ def dependency_fault_rule() -> RuleSpec:
 
     def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
         del module
-        exists: bool = ctx._project.exists(
+        exists: bool = ctx.project.exists(
             requester=ctx.path,
             path=ctx.repo_root / "dependency.py",
         )

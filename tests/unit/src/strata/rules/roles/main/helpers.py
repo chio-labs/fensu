@@ -4,9 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import MappingProxyType
+from unittest.mock import Mock
 
 import pytest
 
+import strata.rules.roles.helpers.checks as role_checks
+from strata.analysis.models import ProjectDependency
+from strata.analysis.types import ProjectDependencyKind
 from strata.config.constants import DEFAULT_THRESHOLDS
 from strata.config.models import Config
 from strata.discovery.main.discover_files import discover_files
@@ -76,6 +80,45 @@ def evaluate_flat_helpers_scale(
         tree=discover_files(config=config),
         ruleset=(_rule_by_code("SFR301"),),
         config=config,
+    )
+
+
+def evaluate_role_bucket_depth_scale(
+    *, project_root: Path, depth: int, monkeypatch: pytest.MonkeyPatch
+) -> tuple[EvaluationResult, int]:
+    """Evaluate one namespace role bucket with Python initializers at each depth."""
+
+    bucket: Path = project_root / "src/pkg/domain/orders/helpers/main"
+    for index in range(depth):
+        bucket /= f"level_{index:03d}"
+        bucket.mkdir(parents=True)
+        (bucket / "__init__.py").write_text("", encoding="utf-8")
+    monkeypatch.chdir(project_root)
+    thresholds: dict[Threshold, int] = dict(DEFAULT_THRESHOLDS)
+    thresholds[Threshold.MAX_ROLE_DEPTH] = depth + 1
+    config: Config = Config(
+        roots=("src/pkg",),
+        tests=(),
+        thresholds=MappingProxyType(thresholds),
+    )
+    inspection_counter: Mock = Mock(wraps=role_checks._is_forbidden_role_bucket_name)
+    with monkeypatch.context() as context:
+        context.setattr(role_checks, "_is_forbidden_role_bucket_name", inspection_counter)
+        result: EvaluationResult = evaluate(
+            tree=discover_files(config=config),
+            ruleset=(_rule_by_code("SFR301"),),
+            config=config,
+        )
+    return result, inspection_counter.call_count
+
+
+def anchor_dependencies(result: EvaluationResult) -> tuple[ProjectDependency, ...]:
+    """Return compact Python-anchor observations from one evaluation."""
+
+    return tuple(
+        dependency
+        for dependency in result.dependencies
+        if dependency.kind is ProjectDependencyKind.PYTHON_ANCHOR
     )
 
 

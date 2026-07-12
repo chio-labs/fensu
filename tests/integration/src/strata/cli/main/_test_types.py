@@ -38,6 +38,7 @@ class ThresholdOverrideCheckTestCase:
     override_value: int
     expected_output_fragment: str
     expected_additional_fragment: str
+    expected_reason_fragment: str
     expected_absent_fragment: str
     expected_exit_code: int
 

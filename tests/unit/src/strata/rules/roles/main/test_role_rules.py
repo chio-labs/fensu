@@ -6,18 +6,22 @@ from pathlib import Path
 
 import pytest
 
+from strata.analysis.models import ProjectDependency
 from strata.analysis.types import ProjectDependencyKind
 from strata.config.models import ThresholdOverride
 from strata.discovery.types import ScopeName
 from strata.evaluation.models import EvaluationResult
 from strata.rules.authoring.types import Threshold
 from tests.unit.src.strata.rules.roles.main._test_types import (
+    ContainerDepthScaleTestCase,
     ContainerScaleTestCase,
     SfrRuleTestCase,
     SfrSupportFile,
 )
 from tests.unit.src.strata.rules.roles.main.helpers import (
+    anchor_dependencies,
     evaluate_flat_helpers_scale,
+    evaluate_role_bucket_depth_scale,
     evaluate_role_test_case,
 )
 
@@ -930,6 +934,201 @@ def test_given_role_layouts_when_checking_then_flags_only_layout_violations(
             expected_paths=("domain/orders/helpers/main/read.py",),
         ),
         SfrRuleTestCase(
+            description="nested main bucket is faulted once with raised depth",
+            rule_code="SFR301",
+            relative_path="domain/orders/helpers/main/parsing/read.py",
+            source="def read() -> None:\n    return None\n",
+            thresholds={Threshold.MAX_ROLE_DEPTH: 2},
+            expected_codes=("SFR301",),
+            expected_lines=(None,),
+            expected_messages=("helpers/ bucket 'main/' uses a runtime role name",),
+            expected_paths=("domain/orders/helpers/main/parsing/read.py",),
+        ),
+        SfrRuleTestCase(
+            description="nested helpers bucket is faulted once with raised depth",
+            rule_code="SFR301",
+            relative_path="domain/orders/helpers/helpers/parsing/read.py",
+            source="def read() -> None:\n    return None\n",
+            thresholds={Threshold.MAX_ROLE_DEPTH: 2},
+            expected_codes=("SFR301",),
+            expected_lines=(None,),
+            expected_messages=("helpers/ bucket 'helpers/' uses a runtime role name",),
+            expected_paths=("domain/orders/helpers/helpers/parsing/read.py",),
+        ),
+        SfrRuleTestCase(
+            description="nested classes bucket is faulted once with raised depth",
+            rule_code="SFR301",
+            relative_path="domain/orders/helpers/classes/parsing/read.py",
+            source="def read() -> None:\n    return None\n",
+            thresholds={Threshold.MAX_ROLE_DEPTH: 2},
+            expected_codes=("SFR301",),
+            expected_lines=(None,),
+            expected_messages=("helpers/ bucket 'classes/' uses a runtime role name",),
+            expected_paths=("domain/orders/helpers/classes/parsing/read.py",),
+        ),
+        SfrRuleTestCase(
+            description="nested models bucket is faulted once with raised depth",
+            rule_code="SFR301",
+            relative_path="domain/orders/helpers/models/parsing/read.py",
+            source="def read() -> None:\n    return None\n",
+            thresholds={Threshold.MAX_ROLE_DEPTH: 2},
+            expected_codes=("SFR301",),
+            expected_lines=(None,),
+            expected_messages=("helpers/ bucket 'models/' uses a runtime role name",),
+            expected_paths=("domain/orders/helpers/models/parsing/read.py",),
+        ),
+        SfrRuleTestCase(
+            description="nested types bucket is faulted once with raised depth",
+            rule_code="SFR301",
+            relative_path="domain/orders/helpers/types/parsing/read.py",
+            source="def read() -> None:\n    return None\n",
+            thresholds={Threshold.MAX_ROLE_DEPTH: 2},
+            expected_codes=("SFR301",),
+            expected_lines=(None,),
+            expected_messages=("helpers/ bucket 'types/' uses a runtime role name",),
+            expected_paths=("domain/orders/helpers/types/parsing/read.py",),
+        ),
+        SfrRuleTestCase(
+            description="nested constants bucket is faulted once with raised depth",
+            rule_code="SFR301",
+            relative_path="domain/orders/helpers/constants/parsing/read.py",
+            source="def read() -> None:\n    return None\n",
+            thresholds={Threshold.MAX_ROLE_DEPTH: 2},
+            expected_codes=("SFR301",),
+            expected_lines=(None,),
+            expected_messages=("helpers/ bucket 'constants/' uses a runtime role name",),
+            expected_paths=("domain/orders/helpers/constants/parsing/read.py",),
+        ),
+        SfrRuleTestCase(
+            description="nested exceptions bucket is faulted once with raised depth",
+            rule_code="SFR301",
+            relative_path="domain/orders/helpers/exceptions/parsing/read.py",
+            source="def read() -> None:\n    return None\n",
+            thresholds={Threshold.MAX_ROLE_DEPTH: 2},
+            expected_codes=("SFR301",),
+            expected_lines=(None,),
+            expected_messages=("helpers/ bucket 'exceptions/' uses a runtime role name",),
+            expected_paths=("domain/orders/helpers/exceptions/parsing/read.py",),
+        ),
+        SfrRuleTestCase(
+            description="nested role bucket is also detected below main",
+            rule_code="SFR302",
+            relative_path="domain/orders/main/classes/parsing/read.py",
+            source="def read() -> None:\n    return None\n",
+            thresholds={Threshold.MAX_ROLE_DEPTH: 2},
+            expected_codes=("SFR302",),
+            expected_lines=(None,),
+            expected_messages=("main/ bucket 'classes/' uses a runtime role name",),
+            expected_paths=("domain/orders/main/classes/parsing/read.py",),
+        ),
+        SfrRuleTestCase(
+            description="ancestor role bucket initializer owns fault instead of descendant anchor",
+            rule_code="SFR301",
+            relative_path="domain/orders/helpers/main/parsing/read.py",
+            source="def read() -> None:\n    return None\n",
+            support_files=(
+                SfrSupportFile(
+                    description="forbidden bucket initializer",
+                    relative_path="domain/orders/helpers/main/__init__.py",
+                    source="",
+                ),
+            ),
+            thresholds={Threshold.MAX_ROLE_DEPTH: 2},
+            expected_codes=("SFR301",),
+            expected_lines=(None,),
+            expected_messages=("helpers/ bucket 'main/' uses a runtime role name",),
+            expected_paths=("domain/orders/helpers/main/__init__.py",),
+        ),
+        SfrRuleTestCase(
+            description="direct Python file owns role bucket fault before descendants",
+            rule_code="SFR301",
+            relative_path="domain/orders/helpers/main/parsing/read.py",
+            source="def read() -> None:\n    return None\n",
+            support_files=(
+                SfrSupportFile(
+                    description="direct bucket module",
+                    relative_path="domain/orders/helpers/main/owner.py",
+                    source="",
+                ),
+            ),
+            thresholds={Threshold.MAX_ROLE_DEPTH: 2},
+            expected_codes=("SFR301", "SFR301"),
+            expected_lines=(None, None),
+            expected_messages=(
+                "helpers/ container mixes direct modules and Python buckets",
+                "helpers/ bucket 'main/' uses a runtime role name",
+            ),
+            expected_paths=(
+                "domain/orders/helpers/main/owner.py",
+                "domain/orders/helpers/main/owner.py",
+            ),
+        ),
+        SfrRuleTestCase(
+            description="lexicographically first direct Python file owns role bucket fault",
+            rule_code="SFR301",
+            relative_path="domain/orders/helpers/main/zulu.py",
+            source="",
+            support_files=(
+                SfrSupportFile(
+                    description="lexically first direct module",
+                    relative_path="domain/orders/helpers/main/alpha.py",
+                    source="",
+                ),
+            ),
+            expected_codes=("SFR301",),
+            expected_lines=(None,),
+            expected_messages=("helpers/ bucket 'main/' uses a runtime role name",),
+            expected_paths=("domain/orders/helpers/main/alpha.py",),
+        ),
+        SfrRuleTestCase(
+            description="lexicographically first descendant owns namespace role bucket fault",
+            rule_code="SFR301",
+            relative_path="domain/orders/helpers/main/zulu/read.py",
+            source="",
+            support_files=(
+                SfrSupportFile(
+                    description="lexically first descendant module",
+                    relative_path="domain/orders/helpers/main/alpha/read.py",
+                    source="",
+                ),
+            ),
+            thresholds={Threshold.MAX_ROLE_DEPTH: 2},
+            expected_codes=("SFR301",),
+            expected_lines=(None,),
+            expected_messages=("helpers/ bucket 'main/' uses a runtime role name",),
+            expected_paths=("domain/orders/helpers/main/alpha/read.py",),
+        ),
+        SfrRuleTestCase(
+            description="multiple invalid segments each emit one bucket-owned fault",
+            rule_code="SFR301",
+            relative_path="domain/orders/helpers/main/classes/read.py",
+            source="def read() -> None:\n    return None\n",
+            thresholds={Threshold.MAX_ROLE_DEPTH: 2},
+            expected_codes=("SFR301", "SFR301"),
+            expected_lines=(None, None),
+            expected_messages=(
+                "helpers/ bucket 'main/' uses a runtime role name",
+                "helpers/ bucket 'classes/' uses a runtime role name",
+            ),
+            expected_paths=(
+                "domain/orders/helpers/main/classes/read.py",
+                "domain/orders/helpers/main/classes/read.py",
+            ),
+        ),
+        SfrRuleTestCase(
+            description="nested generic shared bucket remains only SFR204 ownership",
+            rule_code="SFR",
+            relative_path="domain/orders/helpers/shared/parsing/read.py",
+            source="def read() -> None:\n    return None\n",
+            thresholds={Threshold.MAX_ROLE_DEPTH: 2},
+            expected_codes=("SFR204",),
+            expected_lines=(None,),
+            expected_messages=(
+                "shared/ does not identify an owner; name the business or technical capability",
+            ),
+            expected_paths=("domain/orders/helpers/shared/parsing/read.py",),
+        ),
+        SfrRuleTestCase(
             description="namespace helpers root detects init-only role-named bucket",
             rule_code="SFR301",
             relative_path="domain/orders/helpers/main/__init__.py",
@@ -1034,6 +1233,50 @@ def test_given_wider_role_when_evaluating_containers_then_project_queries_grow_n
     assert len(small.faults) == test_case.expected_small_fault_count
     assert len(large.faults) == test_case.expected_large_fault_count
     assert large_query_count <= small_query_count * test_case.expected_max_query_multiplier
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ContainerDepthScaleTestCase(
+            description="tenfold namespace depth keeps bucket anchor queries compact and linear",
+            small_depth=10,
+            large_depth=100,
+            expected_max_query_multiplier=11,
+            expected_max_inspection_multiplier=11,
+            expected_fault_count=1,
+            expected_max_anchor_answer_paths=1,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_deeper_role_bucket_when_evaluating_then_anchor_queries_remain_compact(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: ContainerDepthScaleTestCase,
+) -> None:
+    small, small_inspections = evaluate_role_bucket_depth_scale(
+        project_root=tmp_path / "small-depth",
+        depth=test_case.small_depth,
+        monkeypatch=monkeypatch,
+    )
+    large, large_inspections = evaluate_role_bucket_depth_scale(
+        project_root=tmp_path / "large-depth",
+        depth=test_case.large_depth,
+        monkeypatch=monkeypatch,
+    )
+    small_queries: tuple[ProjectDependency, ...] = anchor_dependencies(small)
+    large_queries: tuple[ProjectDependency, ...] = anchor_dependencies(large)
+
+    assert len(small.faults) == test_case.expected_fault_count
+    assert len(large.faults) == test_case.expected_fault_count
+    assert len(large_queries) <= len(small_queries) * test_case.expected_max_query_multiplier
+    assert large_inspections <= small_inspections * test_case.expected_max_inspection_multiplier
+    assert all(
+        isinstance(dependency.answer, tuple)
+        and len(dependency.answer) <= test_case.expected_max_anchor_answer_paths
+        for dependency in (*small_queries, *large_queries)
+    )
 
 
 @pytest.mark.parametrize(

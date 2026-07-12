@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from strata.rules.authoring.types import Threshold
 from strata.rules.roles.types import RoleCode
 from strata.rules.shape.types import ShapeCode
 from strata.rules.tests.types import SftCode
@@ -91,3 +92,19 @@ TOOLING_ADAPTER_CODES: frozenset[str] = frozenset(
 )
 TOOLING_PACKAGE_CODES: frozenset[str] = frozenset({RoleCode.TOOLING_PACKAGE_LAYOUT})
 TOOLING_RULES_CODES: frozenset[str] = frozenset({RoleCode.RULES_ROLE_CONTENT})
+
+THRESHOLD_RULE_CODES: dict[Threshold, frozenset[str]] = {
+    Threshold.MAX_STATEMENTS: frozenset({ShapeCode.TOO_MANY_STATEMENTS}),
+    Threshold.MAX_DISTINCT_CALLS: frozenset({ShapeCode.TOO_MANY_DISTINCT_CALLS}),
+    Threshold.MAX_LOCALS: frozenset({ShapeCode.TOO_MANY_LOCALS}),
+    Threshold.MAX_FILE_LINES: frozenset({RoleCode.SOURCE_FILE_LINE_COUNT}),
+    Threshold.MAX_HELPERS_CONTAINER_MODULES: frozenset({RoleCode.HELPERS_PACKAGE_LAYOUT}),
+    Threshold.MAX_MAIN_CONTAINER_MODULES: frozenset({RoleCode.MAIN_PACKAGE_LAYOUT}),
+    Threshold.MAX_ROLE_DEPTH: frozenset(
+        {RoleCode.HELPERS_PACKAGE_LAYOUT, RoleCode.MAIN_PACKAGE_LAYOUT}
+    ),
+    Threshold.MAX_POSITIONAL_ARGS: frozenset({ShapeCode.KEYWORD_ONLY_ARGUMENTS}),
+    Threshold.MAX_ARGUMENTS: frozenset({ShapeCode.MAX_ARGUMENTS}),
+    Threshold.MAX_STATEMENTS_GLOBAL: frozenset({ShapeCode.MAX_STATEMENTS_GLOBAL}),
+    Threshold.MAX_SCRIPT_ENTRYPOINT_LINES: frozenset({RoleCode.TOOLING_ENTRYPOINT_LINE_COUNT}),
+}

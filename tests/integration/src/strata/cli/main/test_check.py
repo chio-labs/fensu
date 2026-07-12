@@ -86,7 +86,7 @@ def test_given_custom_rule_fault_when_running_check_then_outputs_report_and_exit
                 "Threshold override: max_helpers_container_modules=2 "
                 "path=src/pkg/orders/helpers/parsing/__init__.py "
                 "pattern=src/pkg/**/helpers/parsing/__init__.py order=0 "
-                "reason=Parser breadth."
+                'reason="Parser breadth."'
             ),
         )
     ],
@@ -129,6 +129,7 @@ def test_given_legal_threshold_override_when_running_check_then_reports_usage(
             override_value=2,
             expected_output_fragment="Applied 1 threshold override",
             expected_additional_fragment="max_helpers_container_modules=2",
+            expected_reason_fragment='reason="Parser \\"breadth\\".\\nControlled."',
             expected_absent_fragment="Applied 2 threshold overrides",
             expected_exit_code=0,
         ),
@@ -138,6 +139,7 @@ def test_given_legal_threshold_override_when_running_check_then_reports_usage(
             override_value=2,
             expected_output_fragment="Found 0 faults",
             expected_additional_fragment="Found 0 faults",
+            expected_reason_fragment="Found 0 faults",
             expected_absent_fragment="Threshold override:",
             expected_exit_code=0,
         ),
@@ -147,6 +149,7 @@ def test_given_legal_threshold_override_when_running_check_then_reports_usage(
             override_value=1,
             expected_output_fragment="Applied 1 threshold override",
             expected_additional_fragment="SFR301  helpers/ container has 2 modules",
+            expected_reason_fragment='reason="Parser \\"breadth\\".\\nControlled."',
             expected_absent_fragment="Applied 2 threshold overrides",
             expected_exit_code=1,
         ),
@@ -163,7 +166,7 @@ def test_given_threshold_override_when_running_cached_check_then_reports_only_ac
         f'roots = ["src/pkg"]\nselect = ["{test_case.selected_rule}"]\n'
         "[[threshold_overrides]]\n"
         'paths = ["src/pkg/**/helpers/parsing/__init__.py"]\n'
-        'reason = "Parser breadth."\n'
+        'reason = "Parser \\"breadth\\".\\nControlled."\n'
         f"thresholds = {{ max_helpers_container_modules = {test_case.override_value} }}\n",
         encoding="utf-8",
     )
@@ -183,6 +186,7 @@ def test_given_threshold_override_when_running_cached_check_then_reports_only_ac
     assert warm_stdout.getvalue() == cold_stdout.getvalue()
     assert test_case.expected_output_fragment in cold_stdout.getvalue()
     assert test_case.expected_additional_fragment in cold_stdout.getvalue()
+    assert test_case.expected_reason_fragment in cold_stdout.getvalue()
     assert test_case.expected_absent_fragment not in cold_stdout.getvalue()
 
 
@@ -221,6 +225,56 @@ def test_given_nested_container_fault_when_running_cold_and_warm_then_reuses_all
         bucket / "second.py",
     ):
         path.write_text("", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    cold_stdout: CaptureOutput = CaptureOutput()
+    cold_stderr: CaptureOutput = CaptureOutput()
+    warm_stdout: CaptureOutput = CaptureOutput()
+    warm_stderr: CaptureOutput = CaptureOutput()
+    argv: tuple[str, ...] = ("--no-color", "--cache", "--cache-stats")
+
+    cold_exit: int = run_check(argv=argv, stdout=cold_stdout, stderr=cold_stderr)
+    warm_exit: int = run_check(argv=argv, stdout=warm_stdout, stderr=warm_stderr)
+
+    assert cold_exit == test_case.expected_exit_code
+    assert warm_exit == test_case.expected_exit_code
+    assert warm_stdout.getvalue() == cold_stdout.getvalue()
+    assert test_case.expected_fault_fragment in cold_stdout.getvalue()
+    assert test_case.expected_summary_fragment in cold_stdout.getvalue()
+    assert test_case.expected_cold_stats_fragment in cold_stderr.getvalue()
+    assert test_case.expected_warm_stats_fragment in warm_stderr.getvalue()
+    assert test_case.expected_non_cacheable_fragment in cold_stderr.getvalue()
+    assert test_case.expected_non_cacheable_fragment in warm_stderr.getvalue()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        NestedContainerCacheTestCase(
+            description="role bucket initializer ownership remains fully cacheable",
+            expected_exit_code=1,
+            expected_fault_fragment="SFR301  helpers/ bucket 'main/' uses a runtime role name",
+            expected_summary_fragment="Found 1 fault",
+            expected_cold_stats_fragment="hits=0 misses=2",
+            expected_warm_stats_fragment="hits=2 misses=0",
+            expected_non_cacheable_fragment="non_cacheable=0",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_initialized_role_bucket_when_running_cold_and_warm_then_reuses_owner_result(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: NestedContainerCacheTestCase,
+) -> None:
+    (tmp_path / "strata.toml").write_text(
+        'roots = ["src/pkg"]\nselect = ["SFR301"]\n[thresholds]\nmax_role_depth = 2\n',
+        encoding="utf-8",
+    )
+    bucket: Path = tmp_path / "src/pkg/orders/helpers/main"
+    descendant: Path = bucket / "parsing/read.py"
+    descendant.parent.mkdir(parents=True)
+    (bucket / "__init__.py").write_text("", encoding="utf-8")
+    descendant.write_text("", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     cold_stdout: CaptureOutput = CaptureOutput()
     cold_stderr: CaptureOutput = CaptureOutput()

@@ -485,6 +485,27 @@ def test_given_valid_prefix_selectors_when_loading_then_preserves_spellings(
             expected_error_type=ConfigValidationError,
             expected_error_fragment="integer",
         ),
+        InvalidConfigTestCase(
+            description="global threshold rejects boolean integers",
+            config_text='roots = ["src/pkg"]\n[thresholds]\nmax_statements = true\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="integer",
+        ),
+        InvalidConfigTestCase(
+            description="role threshold rejects boolean integers",
+            config_text='roots = ["src/pkg"]\n[roles.main]\nmax_statements = false\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="integer",
+        ),
+        InvalidConfigTestCase(
+            description="threshold override rejects boolean integers",
+            config_text=(
+                'roots = ["src/pkg"]\n[[threshold_overrides]]\npaths = ["src/**/*.py"]\n'
+                'reason = "required"\nthresholds = { max_role_depth = true }\n'
+            ),
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="integer",
+        ),
     ],
     ids=lambda case: case.description,
 )

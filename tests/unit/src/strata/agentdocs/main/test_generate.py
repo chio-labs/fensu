@@ -150,7 +150,7 @@ _ESCAPED_OVERRIDE_REASON: str = 'Generated "API" path.\nKeep \\ escapes.'
             ),
         ),
         GuidanceTestCase(
-            description="non-container rule shows safely quoted configured threshold override",
+            description="unrelated annotation rule omits configured threshold override",
             config=Config(
                 roots=("src/acme",),
                 tests=(),
@@ -164,14 +164,53 @@ _ESCAPED_OVERRIDE_REASON: str = 'Generated "API" path.\nKeep \\ escapes.'
                 ),
             ),
             rule_codes=("SFA101",),
-            expected_fragments=(
+            expected_fragments=("## Active Rules",),
+            expected_absent_fragments=(
                 "## Configured Threshold Overrides",
                 "[[threshold_overrides]]",
+                "### Role Containers",
+                "## Repository Structure",
+            ),
+        ),
+        GuidanceTestCase(
+            description="container file line and shape rules show applicable overrides only",
+            config=Config(
+                roots=("src/acme",),
+                tests=(),
+                tooling=(),
+                threshold_overrides=(
+                    ThresholdOverride(
+                        paths=("src/acme/**/helpers/*.py",),
+                        thresholds={Threshold.MAX_HELPERS_CONTAINER_MODULES: 12},
+                        reason="Container width.",
+                    ),
+                    ThresholdOverride(
+                        paths=(_ESCAPED_OVERRIDE_PATH,),
+                        thresholds={Threshold.MAX_FILE_LINES: 3000},
+                        reason=_ESCAPED_OVERRIDE_REASON,
+                    ),
+                    ThresholdOverride(
+                        paths=("src/acme/**/*.py",),
+                        thresholds={Threshold.MAX_ARGUMENTS: 15},
+                        reason="Generated signatures.",
+                    ),
+                    ThresholdOverride(
+                        paths=("src/acme/**/*.py",),
+                        thresholds={Threshold.MAX_MAIN_CONTAINER_MODULES: 30},
+                        reason="Inactive main width.",
+                    ),
+                ),
+            ),
+            rule_codes=("SFR301", "SFR601", "SFS010"),
+            expected_fragments=(
+                "## Configured Threshold Overrides",
+                "thresholds = { max_helpers_container_modules = 12 }",
                 f"paths = [{json.dumps(_ESCAPED_OVERRIDE_PATH)}]",
                 f"reason = {json.dumps(_ESCAPED_OVERRIDE_REASON)}",
                 "thresholds = { max_file_lines = 3000 }",
+                "thresholds = { max_arguments = 15 }",
             ),
-            expected_absent_fragments=("### Role Containers", "## Repository Structure"),
+            expected_absent_fragments=("Inactive main width.", "max_main_container_modules"),
         ),
         GuidanceTestCase(
             description="foundation rules show reduced runtime and test skeletons",

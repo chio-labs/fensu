@@ -76,4 +76,6 @@ def is_dependency_observation(observation: DependencyObservation) -> bool:
         return type(observation.answer) is bool
     if not isinstance(observation.answer, tuple):
         return False
+    if observation.kind is ProjectDependencyKind.PYTHON_ANCHOR and len(observation.answer) > 1:
+        return False
     return all(is_relative_path(value=path, allow_root=True) for path in observation.answer)

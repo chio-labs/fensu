@@ -9,6 +9,7 @@ class CliCommand(StrEnum):
     """Supported top-level CLI commands."""
 
     CHECK = "check"
+    INIT = "init"
     RULE = "rule"
     SKILLS = "skills"
     MAP = "map"

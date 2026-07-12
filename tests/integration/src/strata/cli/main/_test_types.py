@@ -109,6 +109,16 @@ class SkillCommandTestCase:
 
 
 @dataclass(frozen=True)
+class SkillTransactionFailureTestCase:
+    """Failed replacement position and expected atomic update result."""
+
+    description: str
+    failure_at: int
+    expected_exit_code: int
+    expected_error_fragment: str
+
+
+@dataclass(frozen=True)
 class MapCommandTestCase:
     """Map command inputs and expected deterministic output."""
 
@@ -141,3 +151,149 @@ class MapPresentationTestCase:
     expected_absent_fragments: tuple[str, ...]
     cycle: bool = False
     dynamic_seam: bool = False
+
+
+@dataclass(frozen=True)
+class InitInteractiveTestCase:
+    """Interactive init script and expected layout/tooling result."""
+
+    description: str
+    package_paths: tuple[str, ...]
+    tooling_paths: tuple[str, ...]
+    scripted_input: str
+    expected_roots: tuple[str, ...]
+    expected_tests: tuple[str, ...]
+    expected_tooling: tuple[str, ...]
+    expected_output_fragments: tuple[str, ...]
+    expected_absent_fragments: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class InitExecutionTestCase:
+    """Non-interactive init inputs and expected files, config, and transcript."""
+
+    description: str
+    argv: tuple[str, ...]
+    existing_project: bool
+    stdin_isatty: bool
+    stdout_isatty: bool
+    expected_exit_code: int
+    expected_config: str | None
+    expected_output_fragments: tuple[str, ...]
+    expected_error_fragment: str = ""
+    expected_created_paths: tuple[str, ...] = ()
+    expected_absent_fragments: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class InitSelectionTestCase:
+    """Multiple-root prompt input and expected selected config roots."""
+
+    description: str
+    scripted_input: str
+    expected_exit_code: int
+    expected_roots: tuple[str, ...] | None
+    expected_output_fragments: tuple[str, ...]
+    expected_error_fragment: str = ""
+
+
+@dataclass(frozen=True)
+class InitOptionTestCase:
+    """Explicit init options and expected rendered config values."""
+
+    description: str
+    argv: tuple[str, ...]
+    expected_roots: tuple[str, ...]
+    expected_tests: tuple[str, ...]
+    expected_tooling: tuple[str, ...]
+    expected_select: tuple[str, ...]
+    expected_skill_paths: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class InitRefusalTestCase:
+    """Refusal source or response and expected no-write behavior."""
+
+    description: str
+    source: str
+    scripted_input: str
+    expected_error_fragment: str
+    expected_exit_code: int = 2
+
+
+@dataclass(frozen=True)
+class InitPresentationTestCase:
+    """Terminal color controls and expected semantic transcript fragments."""
+
+    description: str
+    is_terminal: bool
+    no_color: bool
+    include_fault: bool
+    expected_output_fragments: tuple[str, ...]
+    expected_absent_fragments: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class InitRoundTripTestCase:
+    """Rendered init plan and expected validated project layout."""
+
+    description: str
+    expected_roots: tuple[str, ...]
+    expected_tests: tuple[str, ...]
+    expected_tooling: tuple[str, ...]
+    expected_select: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class InitTranscriptTestCase:
+    """Representative init invocation and its complete plain transcript."""
+
+    description: str
+    existing_project: bool
+    argv: tuple[str, ...]
+    scripted_input: str
+    expected_transcript: str
+
+
+@dataclass(frozen=True)
+class InitApplicabilityTestCase:
+    """Repository state, inapplicable options, and expected preflight refusal."""
+
+    description: str
+    existing_project: bool
+    argv: tuple[str, ...]
+    expected_error_fragment: str
+
+
+@dataclass(frozen=True)
+class InitDriftWarningTestCase:
+    """Post-write drift failure and expected successful continuation output."""
+
+    description: str
+    scripted_input: str
+    expected_exit_code: int
+    expected_output_fragments: tuple[str, ...]
+    expected_warning_fragment: str
+
+
+@dataclass(frozen=True)
+class InitSymlinkRefusalTestCase:
+    """Unsafe local config symlink and expected no-write refusal behavior."""
+
+    description: str
+    expected_exit_code: int
+    expected_error_fragment: str
+    expected_stdout: str
+
+
+@dataclass(frozen=True)
+class InitPromptFailureTestCase:
+    """Scripted prompt failure and expected command-level preservation behavior."""
+
+    description: str
+    scripted_input: str
+    expected_exit_code: int
+    expected_error_fragment: str
+    expected_config_written: bool
+    expected_output_fragment: str
+    expected_absent_fragment: str = "Traceback"

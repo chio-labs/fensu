@@ -9,11 +9,12 @@ import pytest
 from strata.cache.fingerprints.models import CacheFingerprint
 from strata.cache.results.main.evaluate import evaluate_with_cache
 from strata.cache.results.models import CacheEvaluation
-from strata.config.core.models import Config
-from strata.discovery.core.models import DiscoveredTree
+from strata.config.models import Config
+from strata.discovery.models import DiscoveredTree
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import RuleKind
 from tests.integration.src.strata.cache.results._test_types import (
+    CachedDomainShapeInvalidationTestCase,
     CachedEvaluationDegradationTestCase,
     CachedEvaluationFailureTestCase,
     CachedEvaluationInvalidationTestCase,
@@ -33,6 +34,7 @@ from tests.integration.src.strata.cache.results.helpers import (
     install_rule_execution_failure,
     invalid_fault_rule,
     result_record_keys,
+    role_rule,
     source_fault_rule,
     write_project_sources,
 )
@@ -180,6 +182,61 @@ def test_given_negative_dependency_when_file_appears_then_recomputes_requester(
 
     assert changed.stats.invalidations == test_case.expected_invalidations
     assert changed.result.faults[0].message == test_case.expected_message
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CachedDomainShapeInvalidationTestCase(
+            description="Python source appearing in asset directory invalidates cached SFR306",
+            role_relative_path="src/pkg/domain/models.py",
+            asset_relative_path="src/pkg/domain/assets/records.json",
+            namespace_relative_path="src/pkg/domain/assets/models.py",
+            expected_initial_codes=(),
+            expected_invalidations=1,
+            expected_misses=1,
+            expected_changed_codes=("SFR306",),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_cached_leaf_when_asset_directory_gains_python_then_invalidates_domain_shape(
+    tmp_path: Path,
+    test_case: CachedDomainShapeInvalidationTestCase,
+) -> None:
+    write_project_sources(
+        repo_root=tmp_path,
+        files=(
+            (test_case.role_relative_path, ""),
+            (test_case.asset_relative_path, "[]\n"),
+        ),
+    )
+    config, initial_tree = discover_project(repo_root=tmp_path)
+    sfr306: RuleSpec = role_rule(code="SFR306")
+    ruleset: tuple[RuleSpec, ...] = (sfr306,)
+    initial: CacheEvaluation = evaluate_with_cache(
+        tree=initial_tree,
+        ruleset=ruleset,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+    write_project_sources(
+        repo_root=tmp_path,
+        files=((test_case.namespace_relative_path, ""),),
+    )
+    final_tree: DiscoveredTree = discover_project(repo_root=tmp_path)[1]
+
+    changed: CacheEvaluation = evaluate_with_cache(
+        tree=final_tree,
+        ruleset=ruleset,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+
+    assert tuple(fault.code for fault in initial.result.faults) == test_case.expected_initial_codes
+    assert changed.stats.invalidations == test_case.expected_invalidations
+    assert changed.stats.misses == test_case.expected_misses
+    assert tuple(fault.code for fault in changed.result.faults) == test_case.expected_changed_codes
 
 
 @pytest.mark.parametrize(

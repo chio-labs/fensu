@@ -8,7 +8,7 @@ from unittest.mock import Mock
 import pytest
 
 import strata.cache.results.helpers.dependencies as dependency_module
-from strata.analysis.core.types import ProjectDependencyKind
+from strata.analysis.types import ProjectDependencyKind
 from strata.cache.fingerprints.main.source import fingerprint_source
 from strata.cache.results.helpers.dependencies import dependencies_are_current
 from strata.cache.results.models import DependencyObservation

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from strata.scaffolding.core.models import InitOptions
+from strata.scaffolding.models import InitOptions
 
 
 @dataclass(frozen=True)

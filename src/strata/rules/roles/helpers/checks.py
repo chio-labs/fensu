@@ -5,9 +5,9 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from strata.analysis.core.models import ModuleDeclarationFacts, ModuleStatementFact
-from strata.discovery.core.constants import INIT_MODULE_FILE_NAME, PYTHON_FILE_SUFFIX
-from strata.discovery.core.types import RoleName, ScopeName
+from strata.analysis.models import ModuleDeclarationFacts, ModuleStatementFact
+from strata.discovery.constants import INIT_MODULE_FILE_NAME, PYTHON_FILE_SUFFIX
+from strata.discovery.types import RoleName, ScopeName
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import RuleContext, Threshold
 from strata.rules.roles.types import RoleCode
@@ -18,6 +18,7 @@ _banned_generic_package_names: frozenset[str] = frozenset(
 )
 _role_names: frozenset[str] = frozenset(
     {
+        RoleName.MAIN,
         RoleName.HELPERS,
         RoleName.CLASSES,
         RoleName.MODELS,
@@ -27,7 +28,15 @@ _role_names: frozenset[str] = frozenset(
     }
 )
 _role_filenames: frozenset[str] = frozenset(
-    {"models.py", "types.py", "constants.py", "exceptions.py", "helpers.py"}
+    {
+        "main.py",
+        "helpers.py",
+        "classes.py",
+        "models.py",
+        "types.py",
+        "constants.py",
+        "exceptions.py",
+    }
 )
 _tooling_private_function_names: frozenset[str] = frozenset({"_build_parser", "_parse_args"})
 _tooling_role_names: frozenset[str] = frozenset(
@@ -169,27 +178,30 @@ def banned_generic_filename(*, module: ast.Module, ctx: RuleContext) -> list[Fau
 
 
 def banned_generic_package_name(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
-    """Flag generic domain and subdomain package names."""
+    """Flag generic runtime package directory names at any depth."""
 
     del module
+    if ctx.scope() is ScopeName.TOOLING:
+        return []
     parts: tuple[str, ...] = ctx.relative_parts()
-    for index, package_name in enumerate(parts[:2]):
+    faults: list[Fault] = []
+    for index, package_name in enumerate(parts[:-1]):
         if package_name not in _banned_generic_package_names:
             continue
         package_dir: Path = ctx.path.parents[len(parts) - index - 2]
         if not _is_package_name_anchor(ctx=ctx, path=ctx.path, package_dir=package_dir):
-            return []
-        return [
+            continue
+        faults.append(
             _path_fault(
                 ctx=ctx,
                 code=RoleCode.BANNED_GENERIC_PACKAGE_NAME,
                 message=(
-                    f"{package_name}/ does not identify an owning domain; "
+                    f"{package_name}/ does not identify an owner; "
                     "name the business or technical capability"
                 ),
             )
-        ]
-    return []
+        )
+    return faults
 
 
 def helpers_module_name(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
@@ -267,7 +279,6 @@ def main_package_layout(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
             and parts[index + 1]
             in {
                 RoleName.HELPERS,
-                RoleName.SHARED,
                 RoleName.CLASSES,
             }
         ):
@@ -288,7 +299,7 @@ def main_package_layout(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     return _package_layout_faults(
         ctx=ctx,
         package_dir=package_dir,
-        ignored_subfolders=frozenset({"helpers", "shared", "classes"}),
+        ignored_subfolders=frozenset({"helpers", "classes"}),
         threshold=Threshold.MAX_FLAT_MAIN_MODULES,
     )
 
@@ -328,7 +339,6 @@ def nested_direct_subpackages(*, module: ast.Module, ctx: RuleContext) -> list[F
     allowed_children: frozenset[str] = frozenset(
         {
             RoleName.HELPERS,
-            RoleName.SHARED,
             RoleName.CLASSES,
             RoleName.MODELS,
             RoleName.TYPES,
@@ -353,35 +363,61 @@ def nested_direct_subpackages(*, module: ast.Module, ctx: RuleContext) -> list[F
     return []
 
 
-def top_level_role_placement(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
-    """Flag role files and directories directly below top-level domains."""
+def top_level_domain_shape(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Flag top-level domains that mix direct roles with named subdomains."""
 
     del module
     if ctx.scope() is ScopeName.TOOLING:
         return []
     parts: tuple[str, ...] = ctx.relative_parts()
-    if len(parts) < _top_level_role_parts or parts[0] == RoleName.SHARED:
+    if len(parts) < _top_level_role_parts:
         return []
-    if len(parts) == _top_level_role_parts and parts[1] in {
-        *_role_filenames,
-        _classes_module_file_name,
-    }:
-        return [
-            _path_fault(
-                ctx=ctx,
-                code=RoleCode.TOP_LEVEL_ROLE_PLACEMENT,
-                message="top-level domains must not contain role files",
+    domain_dir: Path = ctx.path.parents[len(parts) - _top_level_role_parts]
+    entries: tuple[Path, ...] = ctx._project.directory_entries(
+        requester=ctx.path,
+        path=domain_dir,
+    )
+    direct_role_content: tuple[Path, ...] = tuple(
+        entry
+        for entry in entries
+        if entry.name in _role_names
+        or (entry.suffix == PYTHON_FILE_SUFFIX and entry.name in _role_filenames)
+    )
+    named_subdomains: tuple[Path, ...] = tuple(
+        entry
+        for entry in entries
+        if entry.name not in _role_names
+        and entry.name != _python_cache_directory_name
+        and ctx._project.is_dir(requester=ctx.path, path=entry)
+        and ctx._project.glob(
+            requester=ctx.path,
+            path=entry,
+            pattern="*.py",
+            recursive=True,
+        )
+    )
+    if not direct_role_content or not named_subdomains:
+        return []
+    init_path: Path = domain_dir / INIT_MODULE_FILE_NAME
+    if ctx._project.is_file(requester=ctx.path, path=init_path):
+        anchor: Path = init_path
+    else:
+        python_files: tuple[Path, ...] = tuple(
+            sorted(
+                ctx._project.glob(
+                    requester=ctx.path,
+                    path=domain_dir,
+                    pattern="*.py",
+                    recursive=True,
+                )
             )
-        ]
-    if len(parts) >= _minimum_nested_module_parts and parts[1] in _role_names:
-        return [
-            _path_fault(
-                ctx=ctx,
-                code=RoleCode.TOP_LEVEL_ROLE_PLACEMENT,
-                message="top-level domains must not contain role directories",
-            )
-        ]
-    return []
+        )
+        if not python_files:
+            return []
+        anchor = python_files[0]
+    if ctx.path != anchor:
+        return []
+    return [ctx.path_fault(message="top-level domain mixes direct roles and named subdomains")]
 
 
 def top_level_direct_modules(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
@@ -400,7 +436,7 @@ def top_level_direct_modules(*, module: ast.Module, ctx: RuleContext) -> list[Fa
         _path_fault(
             ctx=ctx,
             code=RoleCode.TOP_LEVEL_DIRECT_MODULES,
-            message="top-level domains must contain subpackages",
+            message="top-level domains must not contain ad hoc direct modules",
         )
     ]
 

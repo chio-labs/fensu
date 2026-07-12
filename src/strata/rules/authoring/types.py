@@ -8,11 +8,11 @@ from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
-from strata.discovery.core.types import ScopeName
+from strata.discovery.types import ScopeName
 
 if TYPE_CHECKING:
-    from strata.analysis.core.models import SourceLocation, SourceRange, SyntaxHandle
-    from strata.analysis.core.types import Analysis, ProjectAnalysis
+    from strata.analysis.models import SourceLocation, SourceRange, SyntaxHandle
+    from strata.analysis.types import Analysis, ProjectAnalysis
     from strata.rules.authoring.models import Fault
 
 

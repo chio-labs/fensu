@@ -6,11 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from strata.agentdocs.core.constants import GENERATED_MARKER
-from strata.agentdocs.core.helpers import installation
+from strata.agentdocs.constants import GENERATED_MARKER
+from strata.agentdocs.helpers import installation
 from strata.cli.main.skills import run_skills
-from strata.config.core.main.load_config import load_config
-from strata.config.core.models import Config
+from strata.config.main.load_config import load_config
+from strata.config.models import Config
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.catalog.main.build_ruleset import build_ruleset
 from tests.integration.src.strata.cli.main._test_types import (
@@ -77,7 +77,17 @@ def test_given_missing_or_mistyped_subcommand_when_running_then_explains_update_
                 ".claude/skills/strata/SKILL.md",
                 ".agents/skills/strata/SKILL.md",
             ),
-            expected_absent_fragments=("## SFX002:",),
+            expected_file_fragments=(
+                "### Domain Shape",
+                "Leaf domain:",
+                "Branch domain:",
+                "Domains may be leaves",
+                "Do not mix the two shapes.",
+                "prefer a leaf instead of creating a placeholder `core` subdomain",
+                "Generic package names are banned",
+                "src/pkg/<domain>[/<subdomain>]/",
+            ),
+            expected_absent_fragments=("## SFX002:", "Never use `core`"),
         ),
         SkillCommandTestCase(
             description="global target filter writes selected home locations",
@@ -88,7 +98,17 @@ def test_given_missing_or_mistyped_subcommand_when_running_then_explains_update_
                 "home/.config/opencode/skills/strata/SKILL.md",
                 "home/.agents/skills/strata/SKILL.md",
             ),
-            expected_absent_fragments=("## SFX002:",),
+            expected_file_fragments=(
+                "### Domain Shape",
+                "Leaf domain:",
+                "Branch domain:",
+                "Domains may be leaves",
+                "Do not mix the two shapes.",
+                "prefer a leaf instead of creating a placeholder `core` subdomain",
+                "Generic package names are banned",
+                "src/pkg/<domain>[/<subdomain>]/",
+            ),
+            expected_absent_fragments=("## SFX002:", "Never use `core`"),
         ),
     ],
     ids=lambda case: case.description,
@@ -129,6 +149,7 @@ def test_given_scope_and_targets_when_updating_skills_then_installs_active_rule_
         assert "## XCK001: always" in content
         assert "custom fault" in content
         assert all(heading in content for heading in active_rule_headings)
+        assert all(fragment in content for fragment in test_case.expected_file_fragments)
         assert all(fragment not in content for fragment in test_case.expected_absent_fragments)
 
 

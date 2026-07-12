@@ -23,7 +23,7 @@ from strata.cache.results.models import (
     CacheStats,
 )
 from strata.cache.storage.classes.cache_store import CacheStore
-from strata.evaluation.core.models import FileEvaluation
+from strata.evaluation.models import FileEvaluation
 from tests.integration.src.strata.cache.results._test_types import (
     ResultCacheCandidateTestCase,
     ResultCacheMissTestCase,

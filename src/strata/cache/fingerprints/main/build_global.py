@@ -14,7 +14,7 @@ from strata.cache.fingerprints.helpers.fingerprints import (
     ruleset_fingerprint,
 )
 from strata.cache.fingerprints.models import CacheFingerprint, GlobalFingerprintBuild
-from strata.config.core.models import Config
+from strata.config.models import Config
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import RuleKind
 

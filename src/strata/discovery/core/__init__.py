@@ -1,1 +1,0 @@
-"""Core file discovery pipeline."""

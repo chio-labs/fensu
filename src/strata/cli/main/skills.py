@@ -7,17 +7,17 @@ import sys
 from pathlib import Path
 from typing import TextIO
 
-from strata.agentdocs.core.exceptions import SkillInstallError
-from strata.agentdocs.core.main.update import update_skills
-from strata.agentdocs.core.models import SkillUpdateResult
-from strata.agentdocs.core.types import SkillCommand, SkillTarget
-from strata.cli.core.constants import SKILLS_UPDATE_OPTION
-from strata.config.core.exceptions import ConfigError
-from strata.config.core.main.load_project_config import load_project_config
-from strata.config.core.models import Config, LoadedConfig
-from strata.discovery.core.main.discover_files import discover_files
-from strata.discovery.core.models import DiscoveredTree
-from strata.evaluation.core.main.validate_rule_exceptions import validate_rule_exceptions
+from strata.agentdocs.exceptions import SkillInstallError
+from strata.agentdocs.main.update import update_skills
+from strata.agentdocs.models import SkillUpdateResult
+from strata.agentdocs.types import SkillCommand, SkillTarget
+from strata.cli.constants import SKILLS_UPDATE_OPTION
+from strata.config.exceptions import ConfigError
+from strata.config.main.load_project_config import load_project_config
+from strata.config.models import Config, LoadedConfig
+from strata.discovery.main.discover_files import discover_files
+from strata.discovery.models import DiscoveredTree
+from strata.evaluation.main.validate_rule_exceptions import validate_rule_exceptions
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.catalog.main.build_ruleset import build_ruleset
 

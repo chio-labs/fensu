@@ -8,10 +8,10 @@ import sys
 from pathlib import Path
 from typing import TextIO
 
-from strata.cli.core.constants import NO_COLOR_ENVIRONMENT_VARIABLE
-from strata.scaffolding.core.main.run_init import run_init as _run_init
-from strata.scaffolding.core.models import InitOptions
-from strata.scaffolding.core.types import AdoptionMode
+from strata.cli.constants import NO_COLOR_ENVIRONMENT_VARIABLE
+from strata.scaffolding.main.run_init import run_init as _run_init
+from strata.scaffolding.models import InitOptions
+from strata.scaffolding.types import AdoptionMode
 
 
 def run_init(

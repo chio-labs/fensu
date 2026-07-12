@@ -7,14 +7,14 @@ from pathlib import Path
 import pytest
 
 from strata.cli.main.init import run_init
-from strata.config.core.main.load_config import load_config
-from strata.config.core.models import Config
-from strata.discovery.core.main.build_project_layout import build_project_layout
-from strata.discovery.core.models import ProjectLayout, RepoRoot
-from strata.reporting.core.constants import ANSI_BOLD_RED, ANSI_ORANGE
-from strata.scaffolding.core.helpers.execution import build_rendered_config, render_config
-from strata.scaffolding.core.models import InitPlan
-from strata.scaffolding.core.types import AdoptionMode
+from strata.config.main.load_config import load_config
+from strata.config.models import Config
+from strata.discovery.main.build_project_layout import build_project_layout
+from strata.discovery.models import ProjectLayout, RepoRoot
+from strata.reporting.constants import ANSI_BOLD_RED, ANSI_ORANGE
+from strata.scaffolding.helpers.execution import build_rendered_config, render_config
+from strata.scaffolding.models import InitPlan
+from strata.scaffolding.types import AdoptionMode
 from tests.integration.src.strata.cli.main._test_types import (
     InitApplicabilityTestCase,
     InitDriftWarningTestCase,

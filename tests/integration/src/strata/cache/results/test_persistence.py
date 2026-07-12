@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from strata.analysis.core.types import ProjectDependencyKind
+from strata.analysis.types import ProjectDependencyKind
 from strata.cache.fingerprints.models import CacheFingerprint
 from strata.cache.results.constants import CACHE_FILE_RESULT_KIND
 from strata.cache.results.helpers.serialization import (

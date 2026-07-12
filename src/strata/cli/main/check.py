@@ -13,16 +13,16 @@ from strata.cache.fingerprints.models import GlobalFingerprintBuild
 from strata.cache.results.main.evaluate import evaluate_with_cache
 from strata.cache.results.models import CacheEvaluation, CacheStats
 from strata.cli.main.cache_status import write_cache_status
-from strata.config.core.exceptions import ConfigError
-from strata.config.core.main.load_project_config import load_project_config
-from strata.config.core.models import Config, LoadedConfig
-from strata.discovery.core.main.discover_files import discover_files
-from strata.discovery.core.models import DiscoveredTree
-from strata.evaluation.core.main.evaluate import evaluate
-from strata.evaluation.core.main.validate_rule_exceptions import validate_rule_exceptions
-from strata.evaluation.core.models import EvaluationResult
-from strata.reporting.core.main.render import render
-from strata.reporting.core.models import RenderedReport
+from strata.config.exceptions import ConfigError
+from strata.config.main.load_project_config import load_project_config
+from strata.config.models import Config, LoadedConfig
+from strata.discovery.main.discover_files import discover_files
+from strata.discovery.models import DiscoveredTree
+from strata.evaluation.main.evaluate import evaluate
+from strata.evaluation.main.validate_rule_exceptions import validate_rule_exceptions
+from strata.evaluation.models import EvaluationResult
+from strata.reporting.main.render import render
+from strata.reporting.models import RenderedReport
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.catalog.main.build_ruleset import build_ruleset
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from strata.config.core.models import Config
+from strata.config.models import Config
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.catalog.helpers.loading import build_catalogue_from_config
 

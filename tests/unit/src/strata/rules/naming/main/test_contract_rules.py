@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from strata.evaluation.core.models import EvaluationResult
+from strata.evaluation.models import EvaluationResult
 from tests.unit.src.strata.rules.naming.main._test_types import SfnRuleTestCase
 from tests.unit.src.strata.rules.naming.main.helpers import evaluate_naming_test_case
 

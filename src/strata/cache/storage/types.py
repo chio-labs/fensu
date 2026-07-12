@@ -1,9 +1,18 @@
 """Persistent cache storage type declarations."""
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
 
-from strata.cache.storage.models import CacheRead, CacheRecord, CacheWrite
+from strata.cache.storage.models import (
+    CacheMutation,
+    CacheMutationOutcome,
+    CacheRead,
+    CacheRecord,
+    CacheWrite,
+)
+
+type CacheMutator = Callable[[tuple[CacheRecord | None, ...]], CacheMutation | None]
 
 
 class CacheStorage(Protocol):
@@ -23,4 +32,13 @@ class CacheStorage(Protocol):
 
     def write_batch(self, *, writes: tuple[CacheWrite, ...]) -> bool:
         """Atomically publish every record or preserve the previous state."""
+        ...
+
+    def mutate_batch(
+        self,
+        *,
+        reads: tuple[CacheRead, ...],
+        mutate: CacheMutator,
+    ) -> CacheMutationOutcome:
+        """Read, merge, publish, and sweep records in one exclusive transaction."""
         ...

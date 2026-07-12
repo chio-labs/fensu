@@ -18,3 +18,11 @@ class FileResultFingerprints:
 
     result: CacheFingerprint
     record: CacheFingerprint
+
+
+@dataclass(frozen=True, slots=True)
+class GlobalFingerprintBuild:
+    """Complete global cache identity or the reason caching is unavailable."""
+
+    fingerprint: CacheFingerprint | None
+    disabled_reason: str | None = None

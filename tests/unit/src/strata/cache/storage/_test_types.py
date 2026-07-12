@@ -56,3 +56,29 @@ class CachePathTestCase:
     description: str
     relative_path: str
     expected_error_fragment: str
+
+
+@dataclass(frozen=True)
+class CacheMutateBatchTestCase:
+    """One transactional mutation and its expected merged storage state."""
+
+    description: str
+    retained_path: str
+    swept_path: str
+    written_path: str
+    unswept_path: str
+    expected_published: bool
+    expected_retained_present: bool
+    expected_swept_present: bool
+    expected_written_present: bool
+    expected_unswept_present: bool
+
+
+@dataclass(frozen=True)
+class CacheMutateNoneTestCase:
+    """A declined mutation and its expected untouched storage state."""
+
+    description: str
+    seeded_path: str
+    expected_published: bool
+    expected_seeded_record_read: bool

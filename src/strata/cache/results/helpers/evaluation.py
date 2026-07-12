@@ -19,6 +19,7 @@ from strata.cache.results.models import (
     CacheStats,
 )
 from strata.cache.results.types import DependencyStateCache
+from strata.cache.storage.exceptions import CachePathError, CacheRecordError
 from strata.config.core.models import Config
 from strata.discovery.core.models import DiscoveredTree
 from strata.evaluation.core.main.build_project import build_evaluation_project
@@ -121,9 +122,10 @@ def run_cached_evaluation(
         config=config,
         repo_root=tree.repo_root.path,
     )
-    publication: CacheStats = cache.publish(
+    publication: CacheStats = _publish_results(
+        cache=cache,
         global_fingerprint=global_fingerprint,
-        evaluations=tuple(fresh_evaluations),
+        fresh_evaluations=tuple(fresh_evaluations),
         retained_entries=tuple(retained_entries),
     )
     return CacheEvaluation(
@@ -135,8 +137,26 @@ def run_cached_evaluation(
             writes=publication.writes,
             non_cacheable=publication.non_cacheable,
             storage_failed=publication.storage_failed,
+            internal_error=publication.internal_error,
         ),
     )
+
+
+def _publish_results(
+    *,
+    cache: ResultCache,
+    global_fingerprint: CacheFingerprint,
+    fresh_evaluations: tuple[FileEvaluation, ...],
+    retained_entries: tuple[CacheIndexEntry, ...],
+) -> CacheStats:
+    try:
+        return cache.publish(
+            global_fingerprint=global_fingerprint,
+            evaluations=fresh_evaluations,
+            retained_entries=retained_entries,
+        )
+    except (CachePathError, CacheRecordError, TypeError, ValueError):
+        return CacheStats(storage_failed=True, internal_error=True)
 
 
 def _source_fingerprint(path: Path) -> CacheFingerprint | None:

@@ -1,6 +1,7 @@
 """Helpers for persistent result-cache integration tests."""
 
 import ast
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -8,8 +9,13 @@ import pytest
 import strata.evaluation.core.helpers.file_evaluation as file_evaluation_module
 from strata.analysis.core.models import ProjectDependency
 from strata.analysis.core.types import ProjectDependencyKind
+from strata.cache.results.classes.result_cache import ResultCache
+from strata.cache.results.models import CacheStats
 from strata.cache.storage.classes.cache_store import CacheStore
-from strata.cache.storage.models import CacheWrite
+from strata.cache.storage.constants import CACHE_DATABASE_RELATIVE_PATH
+from strata.cache.storage.exceptions import CacheRecordError
+from strata.cache.storage.models import CacheMutationOutcome, CacheRead, CacheWrite
+from strata.cache.storage.types import CacheMutator
 from strata.config.core.models import Config, RuleExceptionEntry
 from strata.discovery.core.main.discover_files import discover_files
 from strata.discovery.core.models import DiscoveredTree
@@ -87,7 +93,28 @@ def install_cache_write_failure(
         del store, writes
         return False
 
+    def mutate_batch(
+        store: CacheStore,
+        *,
+        reads: tuple[CacheRead, ...],
+        mutate: CacheMutator,
+    ) -> CacheMutationOutcome:
+        del store, reads, mutate
+        return CacheMutationOutcome(published=False, mutation=None)
+
     monkeypatch.setattr(CacheStore, "write_batch", write_batch)
+    monkeypatch.setattr(CacheStore, "mutate_batch", mutate_batch)
+
+
+def result_record_keys(*, repo_root: Path) -> tuple[str, ...]:
+    """Return sorted persisted result record keys for sweep assertions."""
+
+    database: Path = repo_root / CACHE_DATABASE_RELATIVE_PATH
+    with sqlite3.connect(database) as connection:
+        rows: list[tuple[str]] = connection.execute(
+            "SELECT key FROM records WHERE key LIKE 'results/%'"
+        ).fetchall()
+    return tuple(sorted(row[0] for row in rows))
 
 
 def write_project_sources(
@@ -179,6 +206,40 @@ def exception_config(*, relative_path: str) -> Config:
     )
 
 
+def invalid_fault_rule() -> RuleSpec:
+    """Return a rule emitting a fault position the cache schema rejects."""
+
+    def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+        del module
+        return [
+            Fault(
+                code="XCR005",
+                path=ctx.path,
+                message="invalid position",
+                line=0,
+                column=0,
+            )
+        ]
+
+    return RuleSpec(
+        code="XCR005",
+        family=Family.CUSTOM,
+        slug="cache-invalid-fault",
+        message="cache invalid fault",
+        check=check,
+    )
+
+
+def install_publish_error(*, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fail every typed cache publication with an internal record error."""
+
+    def raise_publish(cache: ResultCache, **kwargs: object) -> CacheStats:
+        del cache, kwargs
+        raise CacheRecordError("publication rejected")
+
+    monkeypatch.setattr(ResultCache, "publish", raise_publish)
+
+
 def failing_rule() -> RuleSpec:
     """Return a deterministic rule that aborts evaluation."""
 
@@ -216,4 +277,14 @@ def install_cache_write_rejection(*, monkeypatch: pytest.MonkeyPatch) -> None:
         del store, writes
         raise AssertionError("fully warm cache path attempted a persistent write")
 
+    def reject_mutate_batch(
+        store: CacheStore,
+        *,
+        reads: tuple[CacheRead, ...],
+        mutate: CacheMutator,
+    ) -> CacheMutationOutcome:
+        del store, reads, mutate
+        raise AssertionError("fully warm cache path opened a write transaction")
+
     monkeypatch.setattr(CacheStore, "write_batch", reject_write_batch)
+    monkeypatch.setattr(CacheStore, "mutate_batch", reject_mutate_batch)

@@ -10,9 +10,24 @@ import pytest
 
 from strata.cache.storage.classes.cache_store import CacheStore
 from strata.cache.storage.exceptions import CachePathError
-from strata.cache.storage.models import CacheRecord, CacheWrite
-from tests.unit.src.strata.cache.storage._test_types import CachePathTestCase, CacheStoreTestCase
-from tests.unit.src.strata.cache.storage.helpers import install_write_failure, write_raw_cache_entry
+from strata.cache.storage.models import (
+    CacheMutation,
+    CacheMutationOutcome,
+    CacheRead,
+    CacheRecord,
+    CacheWrite,
+)
+from tests.unit.src.strata.cache.storage._test_types import (
+    CacheMutateBatchTestCase,
+    CacheMutateNoneTestCase,
+    CachePathTestCase,
+    CacheStoreTestCase,
+)
+from tests.unit.src.strata.cache.storage.helpers import (
+    install_write_failure,
+    recording_mutator,
+    write_raw_cache_entry,
+)
 
 
 @pytest.mark.parametrize(
@@ -357,3 +372,106 @@ def test_given_fifo_database_when_reading_then_returns_miss_without_blocking(
     )
 
     assert loaded == test_case.expected_record
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CacheMutateBatchTestCase(
+            description="mutation reads merges publishes and sweeps in one transaction",
+            retained_path="results/aa/keep.json",
+            swept_path="results/aa/old.json",
+            written_path="results/bb/new.json",
+            unswept_path="metadata.json",
+            expected_published=True,
+            expected_retained_present=True,
+            expected_swept_present=False,
+            expected_written_present=True,
+            expected_unswept_present=True,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_seeded_records_when_mutating_then_merges_publishes_and_sweeps(
+    tmp_path: Path,
+    test_case: CacheMutateBatchTestCase,
+) -> None:
+    store: CacheStore = CacheStore(repo_root=tmp_path)
+    seeded: CacheRecord = CacheRecord(kind="file_result", payload={"path": "src/a.py"})
+    metadata: CacheRecord = CacheRecord(kind="metadata", payload={})
+    _ = store.write_batch(
+        writes=(
+            CacheWrite(relative_path=Path(test_case.retained_path), record=seeded),
+            CacheWrite(relative_path=Path(test_case.swept_path), record=seeded),
+            CacheWrite(relative_path=Path(test_case.unswept_path), record=metadata),
+        )
+    )
+    written: CacheRecord = CacheRecord(kind="file_result", payload={"path": "src/b.py"})
+    mutate, observed = recording_mutator(
+        result=CacheMutation(
+            writes=(CacheWrite(relative_path=Path(test_case.written_path), record=written),),
+            swept_prefix=Path("results"),
+            retained_paths=(Path(test_case.retained_path),),
+        )
+    )
+
+    outcome: CacheMutationOutcome = store.mutate_batch(
+        reads=(CacheRead(relative_path=Path(test_case.unswept_path), expected_kind="metadata"),),
+        mutate=mutate,
+    )
+
+    assert outcome.published is test_case.expected_published
+    assert observed == [(metadata,)]
+    retained_read: CacheRecord | None = store.read(
+        relative_path=Path(test_case.retained_path), expected_kind="file_result"
+    )
+    swept_read: CacheRecord | None = store.read(
+        relative_path=Path(test_case.swept_path), expected_kind="file_result"
+    )
+    written_read: CacheRecord | None = store.read(
+        relative_path=Path(test_case.written_path), expected_kind="file_result"
+    )
+    unswept_read: CacheRecord | None = store.read(
+        relative_path=Path(test_case.unswept_path), expected_kind="metadata"
+    )
+    assert (retained_read is not None) is test_case.expected_retained_present
+    assert (swept_read is not None) is test_case.expected_swept_present
+    assert (written_read is not None) is test_case.expected_written_present
+    assert (unswept_read is not None) is test_case.expected_unswept_present
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CacheMutateNoneTestCase(
+            description="declined mutation preserves prior state without publication",
+            seeded_path="results/aa/keep.json",
+            expected_published=True,
+            expected_seeded_record_read=True,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_declined_mutation_when_mutating_then_preserves_state(
+    tmp_path: Path,
+    test_case: CacheMutateNoneTestCase,
+) -> None:
+    store: CacheStore = CacheStore(repo_root=tmp_path)
+    seeded: CacheRecord = CacheRecord(kind="file_result", payload={"path": "src/a.py"})
+    _ = store.write_batch(
+        writes=(CacheWrite(relative_path=Path(test_case.seeded_path), record=seeded),)
+    )
+    mutate, observed = recording_mutator(result=None)
+
+    outcome: CacheMutationOutcome = store.mutate_batch(
+        reads=(CacheRead(relative_path=Path(test_case.seeded_path), expected_kind="file_result"),),
+        mutate=mutate,
+    )
+
+    assert outcome.published is test_case.expected_published
+    assert outcome.mutation is None
+    assert observed == [(seeded,)]
+    loaded: CacheRecord | None = store.read(
+        relative_path=Path(test_case.seeded_path), expected_kind="file_result"
+    )
+    assert (loaded is not None) is test_case.expected_seeded_record_read

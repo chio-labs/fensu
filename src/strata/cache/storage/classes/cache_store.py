@@ -17,9 +17,16 @@ from strata.cache.storage.constants import (
     CACHE_DATABASE_WAL_MODE,
     PARENT_PATH_PART,
 )
-from strata.cache.storage.exceptions import CachePathError, CacheRecordError
+from strata.cache.storage.exceptions import CachePathError
 from strata.cache.storage.helpers.serialization import decode_cache_record, encode_cache_record
-from strata.cache.storage.models import CacheRead, CacheRecord, CacheWrite
+from strata.cache.storage.models import (
+    CacheMutation,
+    CacheMutationOutcome,
+    CacheRead,
+    CacheRecord,
+    CacheWrite,
+)
+from strata.cache.storage.types import CacheMutator
 
 _CREATE_RECORDS_SQL: str = (
     "CREATE TABLE records ("
@@ -33,6 +40,8 @@ _UPSERT_RECORD_SQL: str = (
     "INSERT INTO records(key, kind, data) VALUES (?, ?, ?) "
     "ON CONFLICT(key) DO UPDATE SET kind = excluded.kind, data = excluded.data"
 )
+_SELECT_PREFIX_KEYS_SQL: str = "SELECT key FROM records WHERE key LIKE ?"
+_DELETE_RECORDS_SQL_PREFIX: str = "DELETE FROM records WHERE key IN"
 
 
 class CacheStore:
@@ -79,20 +88,10 @@ class CacheStore:
             connection.execute("BEGIN")
             if not _database_identity_is_current(connection):
                 return misses
-            rows_by_key: dict[str, tuple[object, ...]] = {}
-            keys: tuple[str, ...] = tuple(key for key, _ in keyed_reads)
-            for offset in range(0, len(keys), CACHE_DATABASE_READ_CHUNK_SIZE):
-                chunk: tuple[str, ...] = keys[offset : offset + CACHE_DATABASE_READ_CHUNK_SIZE]
-                placeholders: str = ",".join("?" for _ in chunk)
-                rows: tuple[tuple[object, ...], ...] = tuple(
-                    connection.execute(
-                        f"{_READ_RECORDS_SQL_PREFIX} ({placeholders})",
-                        chunk,
-                    ).fetchall()
-                )
-                for row in rows:
-                    if len(row) == CACHE_DATABASE_SELECTED_COLUMN_COUNT and isinstance(row[0], str):
-                        rows_by_key[row[0]] = row[1:]
+            rows_by_key: dict[str, tuple[object, ...]] = _fetch_rows(
+                connection,
+                keys=tuple(key for key, _ in keyed_reads),
+            )
             return tuple(
                 _decode_row(row=rows_by_key.get(key), expected_kind=expected_kind)
                 for key, expected_kind in keyed_reads
@@ -112,14 +111,76 @@ class CacheStore:
 
         if not writes:
             return True
+        rows: tuple[tuple[str, str, bytes], ...] = self._encoded_rows(writes)
+        connection: sqlite3.Connection | None = self._writable_connection()
+        if connection is None:
+            return False
         try:
-            rows: tuple[tuple[str, str, bytes], ...] = self._encoded_rows(writes)
-        except (CachePathError, CacheRecordError, TypeError, ValueError):
-            raise
+            if not _begin_writable_transaction(connection):
+                _rollback_connection(connection)
+                return False
+            connection.executemany(_UPSERT_RECORD_SQL, rows)
+            connection.commit()
+            return True
+        except (OSError, RuntimeError, sqlite3.Error):
+            _rollback_connection(connection)
+            return False
+        finally:
+            _close_connection(connection)
+
+    def mutate_batch(
+        self,
+        *,
+        reads: tuple[CacheRead, ...],
+        mutate: CacheMutator,
+    ) -> CacheMutationOutcome:
+        """Read, merge, publish, and sweep records in one exclusive transaction."""
+
+        failed: CacheMutationOutcome = CacheMutationOutcome(published=False, mutation=None)
+        keyed_reads: tuple[tuple[str, str], ...] = tuple(
+            (self._key(read.relative_path), read.expected_kind) for read in reads
+        )
+        connection: sqlite3.Connection | None = self._writable_connection()
+        if connection is None:
+            return failed
+        try:
+            if not _begin_writable_transaction(connection):
+                _rollback_connection(connection)
+                return failed
+            rows_by_key: dict[str, tuple[object, ...]] = _fetch_rows(
+                connection,
+                keys=tuple(key for key, _ in keyed_reads),
+            )
+            records: tuple[CacheRecord | None, ...] = tuple(
+                _decode_row(row=rows_by_key.get(key), expected_kind=expected_kind)
+                for key, expected_kind in keyed_reads
+            )
+            mutation: CacheMutation | None = mutate(records)
+            if mutation is None:
+                _rollback_connection(connection)
+                return CacheMutationOutcome(published=True, mutation=None)
+            rows: tuple[tuple[str, str, bytes], ...] = self._encoded_rows(mutation.writes)
+            connection.executemany(_UPSERT_RECORD_SQL, rows)
+            if mutation.swept_prefix is not None:
+                self._sweep_unreferenced(
+                    connection,
+                    prefix=mutation.swept_prefix,
+                    retained_paths=mutation.retained_paths,
+                    written_keys=tuple(key for key, _, _ in rows),
+                )
+            connection.commit()
+            return CacheMutationOutcome(published=True, mutation=mutation)
+        except (OSError, RuntimeError, sqlite3.Error):
+            _rollback_connection(connection)
+            return failed
+        finally:
+            _close_connection(connection)
+
+    def _writable_connection(self) -> sqlite3.Connection | None:
         if not self._prepare_database_parent():
-            return False
+            return None
         if self._database.exists() and not self._database_is_readable():
-            return False
+            return None
         connection: sqlite3.Connection | None = None
         try:
             connection = sqlite3.connect(
@@ -132,24 +193,36 @@ class CacheStore:
                 "PRAGMA journal_mode = WAL"
             ).fetchone()
             if journal_mode is None or str(journal_mode[0]).lower() != CACHE_DATABASE_WAL_MODE:
-                return False
+                _close_connection(connection)
+                return None
             connection.execute("PRAGMA synchronous = NORMAL")
-            connection.execute("BEGIN IMMEDIATE")
-            if _database_is_uninitialized(connection):
-                connection.execute(_CREATE_RECORDS_SQL)
-                connection.execute(f"PRAGMA application_id = {CACHE_DATABASE_APPLICATION_ID}")
-                connection.execute(f"PRAGMA user_version = {CACHE_DATABASE_SCHEMA_VERSION}")
-            elif not _database_identity_is_current(connection):
-                connection.rollback()
-                return False
-            connection.executemany(_UPSERT_RECORD_SQL, rows)
-            connection.commit()
-            return True
+            return connection
         except (OSError, RuntimeError, sqlite3.Error):
-            _rollback_connection(connection)
-            return False
-        finally:
             _close_connection(connection)
+            return None
+
+    def _sweep_unreferenced(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        prefix: Path,
+        retained_paths: tuple[Path, ...],
+        written_keys: tuple[str, ...],
+    ) -> None:
+        self._validate_relative_path(prefix)
+        retained: frozenset[str] = frozenset(
+            self._key(path) for path in retained_paths
+        ) | frozenset(written_keys)
+        rows: tuple[tuple[object, ...], ...] = tuple(
+            connection.execute(_SELECT_PREFIX_KEYS_SQL, (f"{prefix.as_posix()}/%",)).fetchall()
+        )
+        doomed: tuple[str, ...] = tuple(
+            row[0] for row in rows if isinstance(row[0], str) and row[0] not in retained
+        )
+        for offset in range(0, len(doomed), CACHE_DATABASE_READ_CHUNK_SIZE):
+            chunk: tuple[str, ...] = doomed[offset : offset + CACHE_DATABASE_READ_CHUNK_SIZE]
+            placeholders: str = ",".join("?" for _ in chunk)
+            connection.execute(f"{_DELETE_RECORDS_SQL_PREFIX} ({placeholders})", chunk)
 
     def _encoded_rows(self, writes: tuple[CacheWrite, ...]) -> tuple[tuple[str, str, bytes], ...]:
         keys: set[str] = set()
@@ -211,6 +284,34 @@ class CacheStore:
             if current.is_symlink() or not current.is_dir():
                 return False
         return True
+
+
+def _begin_writable_transaction(connection: sqlite3.Connection) -> bool:
+    connection.execute("BEGIN IMMEDIATE")
+    if _database_is_uninitialized(connection):
+        connection.execute(_CREATE_RECORDS_SQL)
+        connection.execute(f"PRAGMA application_id = {CACHE_DATABASE_APPLICATION_ID}")
+        connection.execute(f"PRAGMA user_version = {CACHE_DATABASE_SCHEMA_VERSION}")
+        return True
+    return _database_identity_is_current(connection)
+
+
+def _fetch_rows(
+    connection: sqlite3.Connection,
+    *,
+    keys: tuple[str, ...],
+) -> dict[str, tuple[object, ...]]:
+    rows_by_key: dict[str, tuple[object, ...]] = {}
+    for offset in range(0, len(keys), CACHE_DATABASE_READ_CHUNK_SIZE):
+        chunk: tuple[str, ...] = keys[offset : offset + CACHE_DATABASE_READ_CHUNK_SIZE]
+        placeholders: str = ",".join("?" for _ in chunk)
+        rows: tuple[tuple[object, ...], ...] = tuple(
+            connection.execute(f"{_READ_RECORDS_SQL_PREFIX} ({placeholders})", chunk).fetchall()
+        )
+        for row in rows:
+            if len(row) == CACHE_DATABASE_SELECTED_COLUMN_COUNT and isinstance(row[0], str):
+                rows_by_key[row[0]] = row[1:]
+    return rows_by_key
 
 
 def _database_identity_is_current(connection: sqlite3.Connection) -> bool:

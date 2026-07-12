@@ -103,6 +103,48 @@ class CachedEvaluationManifestTestCase:
 
 
 @dataclass(frozen=True)
+class CachedEvaluationRetentionTestCase:
+    """One mixed hit/invalidation publication and expected later full reuse."""
+
+    description: str
+    relative_paths: tuple[str, ...]
+    edited_path: str
+    second_source: str
+    expected_third_hits: int
+    expected_third_misses: int
+    expected_third_invalidations: int
+    expected_third_writes: int
+
+
+@dataclass(frozen=True)
+class CachedEvaluationSweepTestCase:
+    """One invalidating edit and the expected single-generation storage state."""
+
+    description: str
+    relative_path: str
+    first_source: str
+    second_source: str
+    expected_first_record_count: int
+    expected_second_record_count: int
+    expected_shared_keys: int
+
+
+@dataclass(frozen=True)
+class CachedEvaluationDegradationTestCase:
+    """One internal cache failure and expected degraded publication stats."""
+
+    description: str
+    relative_path: str
+    source: str
+    expected_misses: int
+    expected_writes: int
+    expected_non_cacheable: int
+    expected_internal_error: bool
+    expected_storage_failed: bool
+    expected_fault_count: int
+
+
+@dataclass(frozen=True)
 class CachedEvaluationFailureTestCase:
     """Evaluation failure and expected absence of published cache state."""
 

@@ -24,11 +24,13 @@ _minimum_core_rule_code_length: int = 3
 
 
 def build_ruleset_from_config(
-    config: Config, *, repo_root: Path | None = None
+    *, config: Config, repo_root: Path | None = None
 ) -> tuple[RuleSpec, ...]:
     """Load custom rules, merge with core rules, and apply select/ignore config."""
 
-    all_rules: tuple[RuleSpec, ...] = build_catalogue_from_config(config, repo_root=repo_root)
+    all_rules: tuple[RuleSpec, ...] = build_catalogue_from_config(
+        config=config, repo_root=repo_root
+    )
     selected: tuple[RuleSpec, ...] = _select_rules(
         rules=all_rules,
         select=config.select,
@@ -42,14 +44,14 @@ def build_ruleset_from_config(
 
 
 def build_catalogue_from_config(
-    config: Config, *, repo_root: Path | None = None
+    *, config: Config, repo_root: Path | None = None
 ) -> tuple[RuleSpec, ...]:
     """Load the complete core and configured custom rule catalogue."""
 
     repository_root: Path = (Path.cwd() if repo_root is None else repo_root).resolve()
     custom_rules: tuple[RuleSpec, ...] = (
-        *_load_rule_modules(config.rule_modules, repo_root=repository_root),
-        *_load_rule_paths(config.rule_paths, repo_root=repository_root),
+        *_load_rule_modules(module_names=config.rule_modules, repo_root=repository_root),
+        *_load_rule_paths(rule_paths=config.rule_paths, repo_root=repository_root),
     )
     if config.cache.require_cacheable:
         custom_rules = tuple(replace(rule, cacheable=True) for rule in custom_rules)
@@ -59,7 +61,7 @@ def build_catalogue_from_config(
     return all_rules
 
 
-def _load_rule_modules(module_names: tuple[str, ...], *, repo_root: Path) -> tuple[RuleSpec, ...]:
+def _load_rule_modules(*, module_names: tuple[str, ...], repo_root: Path) -> tuple[RuleSpec, ...]:
     loaded: list[RuleSpec] = []
     repository_path: str = _add_repository_import_path(repo_root)
     try:
@@ -80,7 +82,7 @@ def _load_rule_modules(module_names: tuple[str, ...], *, repo_root: Path) -> tup
     return tuple(loaded)
 
 
-def _load_rule_paths(rule_paths: tuple[str, ...], *, repo_root: Path) -> tuple[RuleSpec, ...]:
+def _load_rule_paths(*, rule_paths: tuple[str, ...], repo_root: Path) -> tuple[RuleSpec, ...]:
     loaded: list[RuleSpec] = []
     for rule_path in rule_paths:
         configured_path: Path = Path(rule_path)
@@ -91,13 +93,13 @@ def _load_rule_paths(rule_paths: tuple[str, ...], *, repo_root: Path) -> tuple[R
         )
         if path.is_dir():
             for file_path in sorted(path.rglob("*.py")):
-                loaded.extend(_load_rule_file(file_path, repo_root=repo_root))
+                loaded.extend(_load_rule_file(path=file_path, repo_root=repo_root))
         else:
-            loaded.extend(_load_rule_file(path, repo_root=repo_root))
+            loaded.extend(_load_rule_file(path=path, repo_root=repo_root))
     return tuple(loaded)
 
 
-def _load_rule_file(path: Path, *, repo_root: Path) -> tuple[RuleSpec, ...]:
+def _load_rule_file(*, path: Path, repo_root: Path) -> tuple[RuleSpec, ...]:
     if not path.is_file():
         raise ConfigError(f"Custom rule path does not exist: {path}")
     module_name: str = _synthetic_module_name(path)
@@ -155,7 +157,7 @@ def _displace_conflicting_modules(repo_root: Path) -> dict[str, ModuleType]:
         if (
             module is None
             or name.partition(".")[0] not in package_names
-            or _module_is_within(module, root=repo_root)
+            or _module_is_within(module=module, root=repo_root)
         ):
             continue
         displaced[name] = module
@@ -165,11 +167,11 @@ def _displace_conflicting_modules(repo_root: Path) -> dict[str, ModuleType]:
 
 def _remove_loaded_repository_modules(*, repo_root: Path, previous_names: set[str]) -> None:
     for name in set(sys.modules) - previous_names:
-        if _module_is_within(sys.modules.get(name), root=repo_root):
+        if _module_is_within(module=sys.modules.get(name), root=repo_root):
             _ = sys.modules.pop(name, None)
 
 
-def _module_is_within(module: ModuleType | None, *, root: Path) -> bool:
+def _module_is_within(*, module: ModuleType | None, root: Path) -> bool:
     module_file: object = getattr(module, "__file__", None)
     if not isinstance(module_file, str):
         return False

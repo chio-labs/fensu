@@ -92,7 +92,7 @@ def test_given_configured_scopes_when_discovering_then_returns_expected_python_f
     monkeypatch.chdir(tmp_path)
 
     tree: DiscoveredTree = discover_files(
-        make_config(roots=test_case.roots, tests=test_case.tests, tooling=test_case.tooling)
+        config=make_config(roots=test_case.roots, tests=test_case.tests, tooling=test_case.tooling)
     )
 
     assert relative_file_names(repo_root=tmp_path, files=tree.files) == (
@@ -122,7 +122,7 @@ def test_given_absolute_root_when_discovering_then_returns_expected_python_files
     monkeypatch.chdir(tmp_path)
     absolute_root: str = str(tmp_path / test_case.root_relative_path)
 
-    tree: DiscoveredTree = discover_files(make_config(roots=(absolute_root,)))
+    tree: DiscoveredTree = discover_files(config=make_config(roots=(absolute_root,)))
 
     assert relative_file_names(repo_root=tmp_path, files=tree.files) == (
         test_case.expected_relative_files
@@ -175,7 +175,7 @@ def test_given_non_root_or_overlapping_scope_when_discovering_then_scope_facts_a
     monkeypatch.chdir(tmp_path)
 
     tree: DiscoveredTree = discover_files(
-        make_config(roots=test_case.roots, tests=test_case.tests, tooling=test_case.tooling)
+        config=make_config(roots=test_case.roots, tests=test_case.tests, tooling=test_case.tooling)
     )
     scoped_file: ScopedFile = tree.files[0]
 
@@ -208,7 +208,7 @@ def test_given_nonexistent_root_when_discovering_then_raises_repo_root_error(
     monkeypatch.chdir(tmp_path)
 
     with pytest.raises(RepoRootNotFoundError) as error:
-        discover_files(make_config(roots=test_case.roots))
+        discover_files(config=make_config(roots=test_case.roots))
 
     assert test_case.expected_error_fragment in str(error.value)
 
@@ -266,7 +266,7 @@ def test_given_ambiguous_or_external_layout_when_discovering_then_reports_config
     external_root.mkdir(parents=True)
     with pytest.raises(ConfigError) as error:
         discover_files(
-            layout_error_config(test_case=test_case, external_root=external_root),
+            config=layout_error_config(test_case=test_case, external_root=external_root),
             repo_root=repo_root,
         )
 

@@ -1,5 +1,56 @@
 # Changelog
 
+## [0.3.0](https://github.com/chio-labs/strata/compare/v0.2.0...v0.3.0) (2026-07-12)
+
+
+### Features
+
+* **analysis:** share dependency query observation ([3a18341](https://github.com/chio-labs/strata/commit/3a183418252095281934c18c836d6a20c396cb0e))
+* **cache:** add atomic record storage ([76dc8ae](https://github.com/chio-labs/strata/commit/76dc8aef604b6ec097d4187309ff2d6953ed1ad8))
+* **cache:** add fingerprint foundation ([040b9f8](https://github.com/chio-labs/strata/commit/040b9f852898fbe429da30c99aef839cf6e3d0da))
+* **cache:** add indexed result repository ([ce2ac82](https://github.com/chio-labs/strata/commit/ce2ac82c0663b48c7e0b2e7c6ed975e1a8bc2a8c))
+* **cache:** add typed result records ([1819841](https://github.com/chio-labs/strata/commit/181984166af6f4758ca07e95965ad11895fc3fac))
+* **cache:** capture file evaluation inputs ([fde9143](https://github.com/chio-labs/strata/commit/fde9143259aa0183c28e919dd286e1c368612429))
+* **cache:** enable persistent checks by default ([35e52d1](https://github.com/chio-labs/strata/commit/35e52d18d907b1d8c57dd15bfbd6a42ebca43b37))
+* **cache:** expose transactional persistent checks ([bd89f7d](https://github.com/chio-labs/strata/commit/bd89f7d6b59783a6eb6edea73439c23a03014b82))
+* **cache:** reuse dependency-aware file results ([74b2a86](https://github.com/chio-labs/strata/commit/74b2a868c25f2595e3f99df534a603dc8f453eb0))
+* **cache:** sweep generations and degrade publication failures ([115d9e5](https://github.com/chio-labs/strata/commit/115d9e520346cf03e9f1908818c4dd43e98b47f6))
+* **cache:** verify custom rules under a require-cacheable policy ([850928e](https://github.com/chio-labs/strata/commit/850928e32cdbaf07c7b5dc2650d8203f12b0e683))
+* **rules:** enforce hermetic rule execution ([0e2dedf](https://github.com/chio-labs/strata/commit/0e2dedf98e7c6fed04bc626bc1f454a5e6e5ccc5))
+* **rules:** organize test rule codes by concern ([def7a2b](https://github.com/chio-labs/strata/commit/def7a2bf2ba4ca3c1c2e4675342f188534a2843b))
+
+
+### Bug Fixes
+
+* **config:** honor configured project layouts ([44cf549](https://github.com/chio-labs/strata/commit/44cf549cae693905f4bc43e969baf7b89c3b5ba5))
+
+## [0.2.0](https://github.com/chio-labs/strata/compare/v0.1.2...v0.2.0) (2026-07-11)
+
+
+### Features
+
+* **agentdocs:** strengthen Strata workflow guidance ([bec95ac](https://github.com/chio-labs/strata/commit/bec95ac87c1ae230f0b73bf2ec2371ed7fb05e01))
+* **analysis:** add module declaration facts ([ef08734](https://github.com/chio-labs/strata/commit/ef08734104b1f93aed7c5b41e6d599af63298a69))
+* **analysis:** add parameter mutation facts ([754e210](https://github.com/chio-labs/strata/commit/754e210b66702350920bf72404361904dde63c73))
+* **analysis:** add shared dataclass facts ([5f6ec9a](https://github.com/chio-labs/strata/commit/5f6ec9a09d78febf665a3f9fc325c9334af961bf))
+* **analysis:** add shared pytest metadata ([be656be](https://github.com/chio-labs/strata/commit/be656bedb633fc1cca2f8b3c7f06719a39ba2c9f))
+* **analysis:** complete annotation and comprehension facts ([0333322](https://github.com/chio-labs/strata/commit/033332257aa8b52710067dea13116b38395ccfff))
+* **analysis:** complete backend-neutral core cutover ([041404d](https://github.com/chio-labs/strata/commit/041404d4afc4b13625dffe7fe4b866f386a13fa4))
+* **analysis:** expand module declaration facts ([934be48](https://github.com/chio-labs/strata/commit/934be48b112397637a5ee412addae34bef31c03c))
+* **analysis:** expand shared core facts ([5dd77ea](https://github.com/chio-labs/strata/commit/5dd77ea45ef924ad9979e0c230c0666b1c767731))
+* **analysis:** track filesystem dependencies ([32976f9](https://github.com/chio-labs/strata/commit/32976f922ede391ecd40595ffb458252ca703fc8))
+* **config:** add symbol-scoped rule exceptions ([3fcc994](https://github.com/chio-labs/strata/commit/3fcc994aae94c5d5d24d685ada182c8533ead2ae))
+* **config:** add symbol-scoped rule exceptions ([dd4cb24](https://github.com/chio-labs/strata/commit/dd4cb2416d382cbd73b200270da285a2d01ff67f))
+* **evaluation:** add shared analysis foundation ([19a5aa1](https://github.com/chio-labs/strata/commit/19a5aa1e9895818f4722eb4314434f6e44ae858d))
+* **evaluation:** return project dependencies ([ea9b33b](https://github.com/chio-labs/strata/commit/ea9b33b16b64df124f5ad0cc25524cc8bfc6a6e5))
+
+
+### Performance Improvements
+
+* **analysis:** narrow semantic fact traversal ([32dc1c7](https://github.com/chio-labs/strata/commit/32dc1c7b91a7bdd8354dae290ce2a9f40571f8a1))
+* **analysis:** reduce repeated fact traversal ([dfb142a](https://github.com/chio-labs/strata/commit/dfb142a7f29a65236b7cd4c9944d8cd749f26bf4))
+* **analysis:** retain test type facts only ([cee2e7c](https://github.com/chio-labs/strata/commit/cee2e7c66653331d085c99159395f436b7a31345))
+
 ## [0.1.2](https://github.com/chio-labs/strata/compare/v0.1.1...v0.1.2) (2026-07-10)
 
 

@@ -35,7 +35,7 @@ def test_given_cache_record_when_encoding_then_round_trips_canonical_bytes(
     record: CacheRecord = CacheRecord(kind=test_case.kind, payload=test_case.payload)
 
     encoded: bytes = encode_cache_record(record)
-    decoded: CacheRecord | None = decode_cache_record(encoded, expected_kind=test_case.kind)
+    decoded: CacheRecord | None = decode_cache_record(data=encoded, expected_kind=test_case.kind)
 
     assert encoded == test_case.expected_bytes
     assert decoded == record
@@ -99,7 +99,7 @@ def test_given_unsupported_cache_bytes_when_decoding_then_returns_miss(
     test_case: InvalidCacheRecordTestCase,
 ) -> None:
     record: CacheRecord | None = decode_cache_record(
-        test_case.data,
+        data=test_case.data,
         expected_kind=test_case.expected_kind,
     )
 

@@ -56,8 +56,8 @@ def run_check(
                 config,
                 cache=replace(config.cache, enabled=args.cache_enabled),
             )
-        tree: DiscoveredTree = discover_files(config, repo_root=project_dir)
-        ruleset: tuple[RuleSpec, ...] = build_ruleset(config, repo_root=project_dir)
+        tree: DiscoveredTree = discover_files(config=config, repo_root=project_dir)
+        ruleset: tuple[RuleSpec, ...] = build_ruleset(config=config, repo_root=project_dir)
         validate_rule_exceptions(config=config, repo_root=tree.repo_root.path)
         fingerprint_build: GlobalFingerprintBuild | None = (
             build_global_fingerprint(config=config, ruleset=ruleset, repo_root=project_dir)

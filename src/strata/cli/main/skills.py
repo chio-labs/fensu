@@ -50,8 +50,8 @@ def run_skills(
         loaded: LoadedConfig = load_project_config(Path.cwd())
         project_dir: Path = loaded.source.path.parent.resolve()
         config: Config = loaded.config
-        rules: tuple[RuleSpec, ...] = build_ruleset(config, repo_root=project_dir)
-        tree: DiscoveredTree = discover_files(config, repo_root=project_dir)
+        rules: tuple[RuleSpec, ...] = build_ruleset(config=config, repo_root=project_dir)
+        tree: DiscoveredTree = discover_files(config=config, repo_root=project_dir)
         validate_rule_exceptions(config=config, repo_root=tree.repo_root.path)
         result: SkillUpdateResult = update_skills(
             config=config,

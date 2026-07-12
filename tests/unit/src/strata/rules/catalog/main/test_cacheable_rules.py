@@ -57,7 +57,7 @@ def test_given_require_cacheable_policy_when_building_catalogue_then_promotes_cu
         cache=_POLICY_CACHE,
     )
 
-    ruleset: tuple[RuleSpec, ...] = build_ruleset_from_config(config, repo_root=tmp_path)
+    ruleset: tuple[RuleSpec, ...] = build_ruleset_from_config(config=config, repo_root=tmp_path)
 
     loaded: RuleSpec = rule_by_code(rules=ruleset, code="XCH001")
     assert loaded.cacheable is test_case.expected_cacheable
@@ -112,7 +112,7 @@ def test_given_require_cacheable_policy_when_rule_is_unhermetic_then_raises_conf
     )
 
     with pytest.raises(ConfigError, match=str(test_case.expected_error_fragment)):
-        build_ruleset_from_config(config, repo_root=tmp_path)
+        build_ruleset_from_config(config=config, repo_root=tmp_path)
 
 
 @pytest.mark.parametrize(
@@ -140,7 +140,7 @@ def test_given_no_policy_when_building_catalogue_then_skips_scan(
     )
     config: Config = Config(roots=(), rule_paths=("rules",))
 
-    catalogue: tuple[RuleSpec, ...] = build_catalogue_from_config(config, repo_root=tmp_path)
+    catalogue: tuple[RuleSpec, ...] = build_catalogue_from_config(config=config, repo_root=tmp_path)
 
     loaded: RuleSpec = rule_by_code(rules=catalogue, code="XCH003")
     assert loaded.cacheable is test_case.expected_cacheable
@@ -171,7 +171,7 @@ def test_given_unselected_unhermetic_rule_when_building_ruleset_then_skips_scan(
     )
     config: Config = Config(roots=(), rule_paths=("rules",), cache=_POLICY_CACHE)
 
-    ruleset: tuple[RuleSpec, ...] = build_ruleset_from_config(config, repo_root=tmp_path)
+    ruleset: tuple[RuleSpec, ...] = build_ruleset_from_config(config=config, repo_root=tmp_path)
 
     selected_codes: tuple[str, ...] = tuple(rule.code for rule in ruleset)
     assert ("XCH006" in selected_codes) is test_case.expected_cacheable

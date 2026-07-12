@@ -172,7 +172,7 @@ def _resolve_call(
     )
     if receiver_class is not None:
         if receiver_class.protocol:
-            return None, _unresolved(call, reason="protocol dispatch")
+            return None, _unresolved(call=call, reason="protocol dispatch")
         target: FunctionDefinition | None = _method_definition(
             class_definition=receiver_class,
             method_name=call.func.attr,
@@ -183,14 +183,14 @@ def _resolve_call(
         if target is not None:
             return ResolvedCallable(target, dispatch_class_key=receiver_class.key), None
         reason: str = "self method" if _is_direct_self_receiver(receiver) else "dynamic attribute"
-        return None, _unresolved(call, reason=reason)
+        return None, _unresolved(call=call, reason=reason)
     root_name: str | None = _root_name(receiver)
     if root_name in untyped_parameters:
-        return None, _unresolved(call, reason="parameter method")
+        return None, _unresolved(call=call, reason="parameter method")
     if _is_direct_self_receiver(receiver):
-        return None, _unresolved(call, reason="self method")
+        return None, _unresolved(call=call, reason="self method")
     if project_owned:
-        return None, _unresolved(call, reason="dynamic attribute")
+        return None, _unresolved(call=call, reason="dynamic attribute")
     if root_name is not None and root_name in local_types:
         return None, None
     key = _imported_module_call_key(call=call.func, definition=definition)
@@ -616,7 +616,7 @@ def _imported_module_call_key(*, call: ast.Attribute, definition: FunctionDefini
     return FunctionDefinition.build_key(module_name=imported_module, name=call.attr)
 
 
-def _unresolved(call: ast.Call, *, reason: str) -> UnresolvedCall:
+def _unresolved(*, call: ast.Call, reason: str) -> UnresolvedCall:
     return UnresolvedCall(name=ast.unparse(call.func), line=call.lineno, reason=reason)
 
 

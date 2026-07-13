@@ -31,6 +31,7 @@ _SOURCE_FINGERPRINT: str = "a" * 64
             relative_path="src/pkg/models.py",
             source_fingerprint=_SOURCE_FINGERPRINT,
             expected_fault_codes=("SFA001",),
+            expected_warning_codes=("SFA002",),
             expected_dependency_answers=(False, ("src/pkg/b.py", "src/pkg/a.py")),
         )
     ],
@@ -51,6 +52,15 @@ def test_given_runtime_file_result_when_converting_then_returns_cache_safe_recor
                 message="missing annotation",
                 line=1,
                 column=None,
+            ),
+        ),
+        warnings=(
+            Fault(
+                code="SFA002",
+                path=path,
+                message="missing return annotation",
+                line=2,
+                column=0,
             ),
         ),
         applied_exception_keys=(
@@ -81,6 +91,7 @@ def test_given_runtime_file_result_when_converting_then_returns_cache_safe_recor
 
     assert result is not None
     assert tuple(fault.code for fault in result.faults) == test_case.expected_fault_codes
+    assert tuple(warning.code for warning in result.warnings) == test_case.expected_warning_codes
     assert (
         tuple(item.answer for item in result.dependencies) == test_case.expected_dependency_answers
     )

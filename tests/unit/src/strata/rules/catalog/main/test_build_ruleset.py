@@ -15,7 +15,9 @@ from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Family, RuleKind
 from strata.rules.catalog._helpers import loading as loading_module
 from strata.rules.catalog.constants import CORE_RULES
+from strata.rules.catalog.main.build_rule_selection import build_rule_selection
 from strata.rules.catalog.main.build_ruleset import build_ruleset
+from strata.rules.catalog.models import RuleSelection
 from tests.unit.src.strata.rules.catalog.main._test_types import (
     CatalogueQualityTestCase,
     CustomRuleLoadTestCase,
@@ -23,6 +25,8 @@ from tests.unit.src.strata.rules.catalog.main._test_types import (
     ModuleIsolationTestCase,
     RegistryErrorTestCase,
     RuleExceptionCodeTestCase,
+    RuleSelectionErrorTestCase,
+    RuleSelectionTestCase,
     SelectCompositionTestCase,
 )
 from tests.unit.src.strata.rules.catalog.main.helpers import (
@@ -121,7 +125,7 @@ def test_given_rule_path_when_building_ruleset_then_loads_custom_rule_with_sourc
         roots=("src/pkg",), rule_paths=(str(path),), select=(test_case.rule_code,)
     )
 
-    ruleset: tuple[RuleSpec, ...] = build_ruleset(config=config)
+    ruleset: tuple[RuleSpec, ...] = build_ruleset(config=config, repo_root=tmp_path)
 
     assert tuple(rule.code for rule in ruleset) == (test_case.expected_code,)
     assert test_case.expected_source_fragment in (ruleset[0].source or "")
@@ -151,7 +155,7 @@ def test_given_rule_path_when_building_ruleset_then_does_not_add_rule_dir_to_sys
         roots=("src/pkg",), rule_paths=(str(path),), select=(test_case.rule_code,)
     )
 
-    ruleset: tuple[RuleSpec, ...] = build_ruleset(config=config)
+    ruleset: tuple[RuleSpec, ...] = build_ruleset(config=config, repo_root=tmp_path)
 
     assert tuple(rule.code for rule in ruleset) == (test_case.expected_code,)
     assert str(path.parent) not in sys.path
@@ -181,7 +185,7 @@ def test_given_rule_path_with_package_import_when_building_then_resolves_reposit
         roots=("src/pkg",), rule_paths=(str(path),), select=(test_case.rule_code,)
     )
 
-    ruleset: tuple[RuleSpec, ...] = build_ruleset(config=config)
+    ruleset: tuple[RuleSpec, ...] = build_ruleset(config=config, repo_root=tmp_path)
 
     assert tuple(rule.code for rule in ruleset) == (test_case.expected_code,)
     assert test_case.expected_source_fragment in (ruleset[0].source or "")
@@ -218,7 +222,7 @@ def test_given_rule_path_when_executing_then_synthetic_module_is_temporary(
         roots=("src/pkg",), rule_paths=(str(path),), select=(test_case.rule_code,)
     )
 
-    ruleset: tuple[RuleSpec, ...] = build_ruleset(config=config)
+    ruleset: tuple[RuleSpec, ...] = build_ruleset(config=config, repo_root=tmp_path)
 
     assert tuple(rule.code for rule in ruleset) == (test_case.expected_code,)
     assert test_case.expected_source_fragment in (ruleset[0].source or "")
@@ -232,7 +236,7 @@ def test_given_rule_path_when_executing_then_synthetic_module_is_temporary(
             description="custom rule module loads with module source",
             rule_code="XRM001",
             expected_code="XRM001",
-            expected_source_fragment="module:custom_rules_pkg",
+            expected_source_fragment="custom_rules_pkg/__init__.py",
         )
     ],
     ids=lambda case: case.description,
@@ -250,10 +254,10 @@ def test_given_rule_module_when_building_ruleset_then_loads_custom_rule_with_sou
         roots=("src/pkg",), rule_modules=(module_name,), select=(test_case.rule_code,)
     )
 
-    ruleset: tuple[RuleSpec, ...] = build_ruleset(config=config)
+    ruleset: tuple[RuleSpec, ...] = build_ruleset(config=config, repo_root=tmp_path)
 
     assert tuple(rule.code for rule in ruleset) == (test_case.expected_code,)
-    assert ruleset[0].source == test_case.expected_source_fragment
+    assert test_case.expected_source_fragment in (ruleset[0].source or "")
 
 
 @pytest.mark.parametrize(
@@ -277,7 +281,7 @@ def test_given_syntax_error_custom_rule_file_when_building_ruleset_then_raises_c
     config: Config = Config(roots=("src/pkg",), rule_paths=(str(path),))
 
     with pytest.raises(ConfigError) as error:
-        build_ruleset(config=config)
+        build_ruleset(config=config, repo_root=tmp_path)
 
     assert test_case.expected_error_fragment in str(error.value)
     assert loading_module._synthetic_module_name(path) not in sys.modules
@@ -304,7 +308,7 @@ def test_given_custom_rule_file_with_sf_namespace_when_building_ruleset_then_rai
     config: Config = Config(roots=("src/pkg",), rule_paths=(str(path),))
 
     with pytest.raises(ConfigError) as error:
-        build_ruleset(config=config)
+        build_ruleset(config=config, repo_root=tmp_path)
 
     assert test_case.expected_error_fragment in str(error.value)
 
@@ -332,7 +336,10 @@ def test_given_direct_custom_spec_with_malformed_code_when_loading_then_raises_c
     )
 
     with pytest.raises(ConfigError) as error:
-        build_ruleset(config=Config(roots=("src/pkg",), rule_paths=(str(path),)))
+        build_ruleset(
+            config=Config(roots=("src/pkg",), rule_paths=(str(path),)),
+            repo_root=tmp_path,
+        )
 
     assert test_case.expected_error_fragment in str(error.value)
 
@@ -360,7 +367,10 @@ def test_given_direct_custom_spec_with_core_kind_when_loading_then_raises_config
     )
 
     with pytest.raises(ConfigError) as error:
-        build_ruleset(config=Config(roots=("src/pkg",), rule_paths=(str(path),)))
+        build_ruleset(
+            config=Config(roots=("src/pkg",), rule_paths=(str(path),)),
+            repo_root=tmp_path,
+        )
 
     assert test_case.expected_error_fragment in str(error.value)
 
@@ -407,7 +417,10 @@ def test_given_path_loaded_direct_spec_with_malformed_identity_when_building_the
     )
 
     with pytest.raises(ConfigError) as error:
-        build_ruleset(config=Config(roots=("src/pkg",), rule_paths=(str(path),)))
+        build_ruleset(
+            config=Config(roots=("src/pkg",), rule_paths=(str(path),)),
+            repo_root=tmp_path,
+        )
 
     assert test_case.expected_error_fragment in str(error.value)
 
@@ -436,7 +449,7 @@ def test_given_duplicate_custom_codes_when_building_ruleset_then_raises_config_e
     config: Config = Config(roots=("src/pkg",), rule_paths=(str(first_path), str(second_path)))
 
     with pytest.raises(ConfigError) as error:
-        build_ruleset(config=config)
+        build_ruleset(config=config, repo_root=tmp_path)
 
     assert test_case.expected_error_fragment in str(error.value)
 
@@ -469,7 +482,8 @@ def test_given_foreign_decorated_rule_when_loading_custom_file_then_module_metad
             roots=("src/pkg",),
             rule_paths=(str(path),),
             select=(test_case.stale_rule_code, test_case.loaded_rule_code),
-        )
+        ),
+        repo_root=tmp_path,
     )
 
     assert tuple(rule.code for rule in ruleset) == test_case.expected_codes
@@ -586,3 +600,136 @@ def test_given_select_and_ignore_when_building_ruleset_then_applies_expected_com
     )
 
     assert tuple(rule.code for rule in ruleset) == test_case.expected_codes
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        RuleSelectionTestCase(
+            description="exact default-off warning does not overlap broad blocking selection",
+            select=("SFH",),
+            warn=("SFH099",),
+            ignore=(),
+            expected_blocking_codes=("SFH001",),
+            expected_warning_codes=("SFH099",),
+            expected_ignored_codes=(),
+        ),
+        RuleSelectionTestCase(
+            description="warning family selection respects default-off semantics",
+            select=(),
+            warn=("SFH",),
+            ignore=(),
+            expected_blocking_codes=(),
+            expected_warning_codes=("SFH001",),
+            expected_ignored_codes=(),
+        ),
+        RuleSelectionTestCase(
+            description="ignore subtracts from broad blocking selection",
+            select=("SFH",),
+            warn=(),
+            ignore=("SFH001",),
+            expected_blocking_codes=(),
+            expected_warning_codes=(),
+            expected_ignored_codes=("SFH001",),
+        ),
+        RuleSelectionTestCase(
+            description="unknown valid warning selector resolves to no rules",
+            select=(),
+            warn=("SFX",),
+            ignore=(),
+            expected_blocking_codes=(),
+            expected_warning_codes=(),
+            expected_ignored_codes=(),
+        ),
+        RuleSelectionTestCase(
+            description="custom warning namespace selects default-on custom rules",
+            select=(),
+            warn=("XDB",),
+            ignore=(),
+            expected_blocking_codes=(),
+            expected_warning_codes=("XDB001",),
+            expected_ignored_codes=(),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_policy_selectors_when_resolving_then_returns_distinct_rule_sets(
+    monkeypatch: pytest.MonkeyPatch,
+    test_case: RuleSelectionTestCase,
+) -> None:
+    monkeypatch.setattr(
+        loading_module,
+        "CORE_RULES",
+        (
+            make_core_rule(code="SFH001", family=Family.HYGIENE),
+            make_core_rule(code="SFH099", family=Family.HYGIENE, enabled_by_default=False),
+            make_core_rule(code="XDB001", family=Family.CUSTOM),
+            make_core_rule(code="XDB099", family=Family.CUSTOM, enabled_by_default=False),
+        ),
+    )
+
+    selection: RuleSelection = build_rule_selection(
+        config=Config(
+            roots=("src/pkg",),
+            select=test_case.select,
+            warn=test_case.warn,
+            ignore=test_case.ignore,
+        )
+    )
+
+    assert tuple(rule.code for rule in selection.blocking) == test_case.expected_blocking_codes
+    assert tuple(rule.code for rule in selection.warnings) == test_case.expected_warning_codes
+    assert tuple(rule.code for rule in selection.ignored) == test_case.expected_ignored_codes
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        RuleSelectionErrorTestCase(
+            description="one rule cannot be blocking and warning",
+            select=("SFH",),
+            warn=("SFH001",),
+            ignore=(),
+            expected_error="Rule SFH001 cannot be configured as both blocking and warning.",
+        ),
+        RuleSelectionErrorTestCase(
+            description="one rule cannot be warning and ignored",
+            select=("SFH",),
+            warn=("SFH001",),
+            ignore=("SFH001",),
+            expected_error="Rule SFH001 cannot be configured as both warning and ignored.",
+        ),
+        RuleSelectionErrorTestCase(
+            description="overlap errors report the first rule code deterministically",
+            select=("SFH",),
+            warn=("SFH",),
+            ignore=(),
+            expected_error="Rule SFH001 cannot be configured as both blocking and warning.",
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_overlapping_policy_tiers_when_resolving_then_raises_config_error(
+    monkeypatch: pytest.MonkeyPatch,
+    test_case: RuleSelectionErrorTestCase,
+) -> None:
+    monkeypatch.setattr(
+        loading_module,
+        "CORE_RULES",
+        (
+            make_core_rule(code="SFH002", family=Family.HYGIENE),
+            make_core_rule(code="SFH001", family=Family.HYGIENE),
+        ),
+    )
+
+    with pytest.raises(ConfigError) as error:
+        build_rule_selection(
+            config=Config(
+                roots=("src/pkg",),
+                select=test_case.select,
+                warn=test_case.warn,
+                ignore=test_case.ignore,
+            )
+        )
+
+    assert str(error.value) == test_case.expected_error

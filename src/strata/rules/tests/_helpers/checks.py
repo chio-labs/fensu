@@ -68,14 +68,18 @@ def test_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) -> list[
     if ctx.scope() is not ScopeName.TEST:
         return []
     if code == SftCode.NO_IF_IN_TESTS:
+        if ctx.path.name in {TestPathName.HELPERS, TestPathName.TEST_HELPERS}:
+            return [
+                ctx.fault_at(location=location)
+                for location in ctx.facts.top_level_definition_conditionals()
+            ]
         if not _is_test_module(ctx.path):
             return []
         faults: list[Fault] = []
         for fact in ctx.facts.test_functions():
-            if fact.parametrize is not None:
-                faults.extend(
-                    ctx.fault_at(location=location) for location in fact.conditional_locations
-                )
+            faults.extend(
+                ctx.fault_at(location=location) for location in fact.conditional_locations
+            )
         return faults
     if code == SftCode.NO_COMPLEX_COMPREHENSIONS:
         return [ctx.fault_at(location=location) for location in ctx.facts.complex_comprehensions()]

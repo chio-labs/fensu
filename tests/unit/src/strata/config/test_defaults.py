@@ -23,10 +23,37 @@ from tests.unit.src.strata.config._test_types import (
     ConfigThresholdTestCase,
     EvaluationConfigTestCase,
     RuleExceptionConfigTestCase,
+    SkillsConfigTestCase,
     ThresholdOverrideConfigTestCase,
     ThresholdResolutionTestCase,
 )
 from tests.unit.src.strata.config.helpers import write_strata_toml
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SkillsConfigTestCase(
+            description="omitted skills table leaves identity discovery enabled",
+            config_text='roots = ["src/pkg"]\n',
+            expected_name=None,
+        ),
+        SkillsConfigTestCase(
+            description="configured skill name is persisted without early normalization",
+            config_text='roots = ["src/pkg"]\n[skills]\nname = "RaceHealth API"\n',
+            expected_name="RaceHealth API",
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_skills_identity_when_loading_then_preserves_persistent_name(
+    tmp_path: Path, test_case: SkillsConfigTestCase
+) -> None:
+    write_strata_toml(root=tmp_path, contents=test_case.config_text)
+
+    config: Config = load_config(tmp_path)
+
+    assert config.skills.name == test_case.expected_name
 
 
 @pytest.mark.parametrize(

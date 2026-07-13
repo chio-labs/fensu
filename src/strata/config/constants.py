@@ -18,6 +18,8 @@ DEFAULT_THRESHOLDS: dict[Threshold, int] = {
     Threshold.MAX_ARGUMENTS: 10,
     Threshold.MAX_STATEMENTS_GLOBAL: 70,
     Threshold.MAX_SCRIPT_ENTRYPOINT_LINES: 80,
+    Threshold.MIN_SHARED_DOMAIN_PREFIX_PACKAGES: 2,
+    Threshold.MIN_CUSTOM_RULE_TEST_CASES: 1,
 }
 
 DEFAULT_ROLE_FILE_NAMES: frozenset[str] = frozenset(
@@ -27,10 +29,12 @@ DEFAULT_ROLE_FILE_NAMES: frozenset[str] = frozenset(
 DEFAULT_TEST_PATHS: tuple[str, ...] = ("tests",)
 DEFAULT_TOOLING_PATHS: tuple[str, ...] = ()
 DEFAULT_SELECT: tuple[str, ...] = (RuleSelector.ALL,)
+DEFAULT_WARN: tuple[str, ...] = ()
 DEFAULT_IGNORE: tuple[str, ...] = ()
 DEFAULT_CACHE_ENABLED: bool = True
 CACHE_ENABLED_CONFIG_KEY: str = "enabled"
 CACHE_REQUIRE_CACHEABLE_CONFIG_KEY: str = "require_cacheable"
+SKILLS_NAME_CONFIG_KEY: str = "name"
 DEFAULT_CACHE_REQUIRE_CACHEABLE: bool = False
 
 CONFIG_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
@@ -39,6 +43,7 @@ CONFIG_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
         "tests",
         "tooling",
         "select",
+        "warn",
         "ignore",
         "rule_paths",
         "rule_modules",
@@ -49,6 +54,7 @@ CONFIG_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
         "threshold_overrides",
         "cache",
         "evaluation",
+        "skills",
     }
 )
 CONFIG_ROLE_NAMES: frozenset[str] = frozenset(RoleName)
@@ -74,4 +80,5 @@ SINGLE_COMPONENT_GLOB: str = "*"
 RECURSIVE_GLOB: str = "**"
 THRESHOLD_OVERRIDE_KEYS: frozenset[str] = frozenset({"paths", "thresholds", "reason"})
 EVALUATION_CONFIG_KEYS: frozenset[str] = frozenset({"include", "exclude"})
+SKILLS_CONFIG_KEYS: frozenset[str] = frozenset({SKILLS_NAME_CONFIG_KEY})
 RULE_EXCEPTION_SYMBOLS_CONFIG_KEY: str = "symbols"

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 from types import MappingProxyType
 from unittest.mock import Mock
@@ -20,7 +21,17 @@ from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Threshold
 from strata.rules.catalog.constants import CORE_RULES
 from strata.rules.roles.constants import SFR_RULES
-from tests.unit.src.strata.rules.roles.main._test_types import SfrRuleTestCase
+from tests.unit.src.strata.rules.roles.main._test_types import SfrRuleTestCase, SfrSupportFile
+
+
+def _write_support_directory(*, path: Path, support_file: SfrSupportFile) -> None:
+    del support_file
+    path.mkdir(parents=True, exist_ok=True)
+
+
+def _write_support_module(*, path: Path, support_file: SfrSupportFile) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(support_file.source, encoding="utf-8")
 
 
 def evaluate_role_test_case(
@@ -28,23 +39,23 @@ def evaluate_role_test_case(
 ) -> EvaluationResult:
     """Write a source file and evaluate a single roles rule."""
 
-    scope_root: Path = tmp_path / ("scripts" if test_case.scope == "tooling" else "src/pkg")
+    scope_root: Path = tmp_path / {False: "src/pkg", True: "scripts"}[test_case.scope == "tooling"]
     path: Path = scope_root / test_case.relative_path
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(test_case.source, encoding="utf-8")
     for support_file in test_case.support_files:
         support_path: Path = scope_root / support_file.relative_path
-        if support_file.is_directory:
-            support_path.mkdir(parents=True, exist_ok=True)
-            continue
-        support_path.parent.mkdir(parents=True, exist_ok=True)
-        support_path.write_text(support_file.source, encoding="utf-8")
+        writer: Callable[..., None] = {
+            False: _write_support_module,
+            True: _write_support_directory,
+        }[support_file.is_directory]
+        writer(path=support_path, support_file=support_file)
     monkeypatch.chdir(tmp_path)
     thresholds: dict[Threshold, int] = dict(DEFAULT_THRESHOLDS)
     thresholds.update(test_case.thresholds)
     runtime_root: Path = tmp_path / "src/pkg"
     runtime_root.mkdir(parents=True, exist_ok=True)
-    tooling: tuple[str, ...] = ("scripts",) if test_case.scope == "tooling" else ()
+    tooling: tuple[str, ...] = {False: (), True: ("scripts",)}[test_case.scope == "tooling"]
     config: Config = Config(
         roots=("src/pkg",),
         tests=(),
@@ -52,12 +63,9 @@ def evaluate_role_test_case(
         thresholds=MappingProxyType(thresholds),
         threshold_overrides=test_case.threshold_overrides,
     )
-    if test_case.rule_code == "SF":
-        ruleset: tuple[RuleSpec, ...] = CORE_RULES
-    elif test_case.rule_code == "SFR":
-        ruleset = SFR_RULES
-    else:
-        ruleset = (_rule_by_code(test_case.rule_code),)
+    rulesets_by_code: dict[str, tuple[RuleSpec, ...]] = {rule.code: (rule,) for rule in SFR_RULES}
+    rulesets_by_code.update({"SF": CORE_RULES, "SFR": SFR_RULES})
+    ruleset: tuple[RuleSpec, ...] = rulesets_by_code[test_case.rule_code]
     return evaluate(
         tree=discover_files(config=config),
         ruleset=ruleset,
@@ -115,15 +123,13 @@ def evaluate_role_bucket_depth_scale(
 def anchor_dependencies(result: EvaluationResult) -> tuple[ProjectDependency, ...]:
     """Return compact Python-anchor observations from one evaluation."""
 
-    return tuple(
-        dependency
-        for dependency in result.dependencies
-        if dependency.kind is ProjectDependencyKind.PYTHON_ANCHOR
+    anchors: filter[ProjectDependency] = filter(
+        lambda dependency: dependency.kind is ProjectDependencyKind.PYTHON_ANCHOR,
+        result.dependencies,
     )
+    return tuple(anchors)
 
 
 def _rule_by_code(rule_code: str) -> RuleSpec:
-    for rule in SFR_RULES:
-        if rule.code == rule_code:
-            return rule
-    raise AssertionError(f"Unknown SFR rule code {rule_code}")
+    rules_by_code: dict[str, RuleSpec] = {rule.code: rule for rule in SFR_RULES}
+    return rules_by_code[rule_code]

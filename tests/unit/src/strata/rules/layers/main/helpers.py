@@ -70,7 +70,5 @@ def evaluate_layout_import_consistency(
 
 
 def _rule_by_code(rule_code: str) -> RuleSpec:
-    for rule in (*SFL_RULES, *SFR_RULES):
-        if rule.code == rule_code:
-            return rule
-    raise AssertionError(f"Unknown SFL rule code {rule_code}")
+    rules_by_code: dict[str, RuleSpec] = {rule.code: rule for rule in (*SFL_RULES, *SFR_RULES)}
+    return rules_by_code[rule_code]

@@ -63,6 +63,7 @@ class FileResultConversionTestCase:
     relative_path: str
     source_fingerprint: str
     expected_fault_codes: tuple[str, ...]
+    expected_warning_codes: tuple[str, ...]
     expected_dependency_answers: tuple[DependencyAnswer, ...]
 
 

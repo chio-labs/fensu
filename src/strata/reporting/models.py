@@ -11,4 +11,5 @@ class RenderedReport:
 
     text: str
     fault_count: int
+    warning_count: int = 0
     applied_exception_count: int = 0

@@ -78,20 +78,41 @@ class RacingExclusiveOpener:
         *,
         dir_fd: int | None = None,
     ) -> int:
-        if not self._raced and Path(path).name == self._destination_name and flags & os.O_EXCL:
-            for path, content in self._writes:
-                path.write_bytes(content)
-            for path, content in self._replacements:
-                replacement: Path = path.with_name(f"racing-user-{path.name}")
-                replacement.write_bytes(content)
-                _ = replacement.replace(path)
-            destination: Path = self._root / self._destination_name
-            if self._destination_kind == "symlink":
-                destination.symlink_to(self._user_content.decode())
-            else:
-                destination.write_bytes(self._user_content)
-            self._raced = True
+        should_race: bool = (
+            not self._raced
+            and Path(path).name == self._destination_name
+            and bool(flags & os.O_EXCL)
+        )
+        race: Callable[[], None] = {
+            False: self._skip_race,
+            True: self._publish_racing_destination,
+        }[should_race]
+        race()
         return self._open_file(path, flags, mode, dir_fd=dir_fd)
+
+    def _skip_race(self) -> None:
+        return None
+
+    def _publish_racing_destination(self) -> None:
+        for path, content in self._writes:
+            path.write_bytes(content)
+        for path, content in self._replacements:
+            replacement: Path = path.with_name(f"racing-user-{path.name}")
+            replacement.write_bytes(content)
+            _ = replacement.replace(path)
+        destination: Path = self._root / self._destination_name
+        publish: Callable[[Path], None] = {
+            "regular": self._write_regular_destination,
+            "symlink": self._write_symlink_destination,
+        }[self._destination_kind]
+        publish(destination)
+        self._raced = True
+
+    def _write_regular_destination(self, destination: Path) -> None:
+        destination.write_bytes(self._user_content)
+
+    def _write_symlink_destination(self, destination: Path) -> None:
+        destination.symlink_to(self._user_content.decode())
 
 
 class SwappingDirectoryOpener:
@@ -111,11 +132,21 @@ class SwappingDirectoryOpener:
         *,
         dir_fd: int | None = None,
     ) -> int:
-        if not self._swapped and path == "src" and dir_fd is not None:
-            (self._root / "src").rename(self._root / "displaced-src")
-            (self._root / "src").symlink_to(self._outside, target_is_directory=True)
-            self._swapped = True
+        should_swap: bool = not self._swapped and path == "src" and dir_fd is not None
+        swap: Callable[[], None] = {
+            False: self._skip_swap,
+            True: self._swap_directory,
+        }[should_swap]
+        swap()
         return self._open_file(path, flags, mode, dir_fd=dir_fd)
+
+    def _skip_swap(self) -> None:
+        return None
+
+    def _swap_directory(self) -> None:
+        (self._root / "src").rename(self._root / "displaced-src")
+        (self._root / "src").symlink_to(self._outside, target_is_directory=True)
+        self._swapped = True
 
 
 class FailingPublicationWriter:
@@ -143,9 +174,18 @@ class NoDirFdOpener:
         *,
         dir_fd: int | None = None,
     ) -> int:
-        if dir_fd is not None:
-            raise NotImplementedError("dir_fd is unavailable")
+        operation: Callable[..., int] = {
+            False: self._open,
+            True: self._raise_unavailable,
+        }[dir_fd is not None]
+        return operation(path=path, flags=flags, mode=mode)
+
+    def _open(self, *, path: str | Path, flags: int, mode: int) -> int:
         return self._open_file(path, flags, mode)
+
+    def _raise_unavailable(self, *, path: str | Path, flags: int, mode: int) -> int:
+        del path, flags, mode
+        raise NotImplementedError("dir_fd is unavailable")
 
 
 class CountingFileOpener:
@@ -170,12 +210,21 @@ class RacingDescriptorReader:
         self._raced: bool = False
 
     def __call__(self, descriptor: int, count: int) -> bytes:
-        if not self._raced:
-            replacement: Path = self._path.with_name("racing-user-pyproject.toml")
-            replacement.write_bytes(self._replacement)
-            _ = replacement.replace(self._path)
-            self._raced = True
+        race: Callable[[], None] = {
+            False: self._replace_path,
+            True: self._skip_race,
+        }[self._raced]
+        race()
         return self._read(descriptor, count)
+
+    def _replace_path(self) -> None:
+        replacement: Path = self._path.with_name("racing-user-pyproject.toml")
+        replacement.write_bytes(self._replacement)
+        _ = replacement.replace(self._path)
+        self._raced = True
+
+    def _skip_race(self) -> None:
+        return None
 
 
 def build_repository(
@@ -195,31 +244,35 @@ def prepare_root_gitignore(*, root: Path, initial: bytes | None) -> Path:
     """Optionally write initial root gitignore bytes and return its path."""
 
     path: Path = root / ".gitignore"
-    if initial is not None:
-        path.write_bytes(initial)
+    for content in filter(None, (initial,)):
+        path.write_bytes(content)
     return path
 
 
 def gitignore_plan_desired(*, plan: GitIgnorePlan | None) -> bytes | None:
     """Return planned bytes without branching in behavior tests."""
 
-    return None if plan is None else plan.desired
+    return getattr(plan, "desired", None)
 
 
 def gitignore_bytes_or_none(*, path: Path) -> bytes | None:
     """Return root gitignore bytes when the path exists."""
 
-    return path.read_bytes() if path.is_file() else None
+    try:
+        return path.read_bytes()
+    except FileNotFoundError:
+        return None
 
 
 def prepare_unsafe_gitignore(*, root: Path, target_kind: str) -> Path:
     """Create one unsafe root gitignore target for refusal coverage."""
 
     path: Path = root / ".gitignore"
-    if target_kind == "symlink":
-        path.symlink_to(root / "outside")
-    else:
-        path.mkdir()
+    create: Callable[[], object] = {
+        "directory": lambda: path.mkdir(),
+        "symlink": lambda: path.symlink_to(root / "outside"),
+    }[target_kind]
+    create()
     return path
 
 
@@ -248,24 +301,26 @@ def candidate_test_details(
 def detected_layout(*, is_empty: bool, has_tooling: bool) -> DetectedRepositoryLayout:
     """Build the smallest detected layout needed by planning tests."""
 
-    tooling: tuple[PathCandidate, ...] = ()
-    if has_tooling:
-        tooling = (
+    tooling: tuple[PathCandidate, ...] = {
+        False: (),
+        True: (
             PathCandidate(
                 path="scripts",
                 provenance=CandidateProvenance.DIRECTORY_SCAN,
                 present=True,
             ),
-        )
-    roots: tuple[PathCandidate, ...] = ()
-    if not is_empty:
-        roots = (
+        ),
+    }[has_tooling]
+    roots: tuple[PathCandidate, ...] = {
+        True: (),
+        False: (
             PathCandidate(
                 path="src/pkg",
                 provenance=CandidateProvenance.DIRECTORY_SCAN,
                 present=True,
             ),
-        )
+        ),
+    }[is_empty]
     return DetectedRepositoryLayout(
         roots=roots,
         tests=(
@@ -276,7 +331,11 @@ def detected_layout(*, is_empty: bool, has_tooling: bool) -> DetectedRepositoryL
             ),
         ),
         tooling=tooling,
-        python=PythonState(file_count=0 if is_empty else 1, package_count=0, is_empty=is_empty),
+        python=PythonState(
+            file_count={False: 1, True: 0}[is_empty],
+            package_count=0,
+            is_empty=is_empty,
+        ),
     )
 
 
@@ -308,26 +367,27 @@ def init_options(*, test_case: InteractionDecisionTestCase) -> InitOptions:
 def prepare_execution_failure(*, root: Path, test_case: ExecutionFailureTestCase) -> None:
     """Create any pre-existing path that should force transactional refusal."""
 
-    if test_case.blocking_directory is not None:
-        (root / test_case.blocking_directory).mkdir(parents=True)
+    directories: filter[str] = filter(None, (test_case.blocking_directory,))
+    for directory in directories:
+        (root / directory).mkdir(parents=True)
 
 
 def present_paths(*, root: Path, paths: tuple[str, ...]) -> tuple[str, ...]:
     """Return declared paths that currently exist."""
 
-    return tuple(path for path in paths if (root / path).exists())
+    return tuple(filter(lambda path: (root / path).exists(), paths))
 
 
 def absent_paths(*, root: Path, paths: tuple[str, ...]) -> tuple[str, ...]:
     """Return declared paths that currently do not exist."""
 
-    return tuple(path for path in paths if not (root / path).exists())
+    return tuple(filter(lambda path: not (root / path).exists(), paths))
 
 
 def file_paths(*, root: Path, paths: tuple[str, ...]) -> tuple[str, ...]:
     """Return declared paths that are regular files."""
 
-    return tuple(path for path in paths if (root / path).is_file())
+    return tuple(filter(lambda path: (root / path).is_file(), paths))
 
 
 def applicability_options(*, test_case: OptionApplicabilityTestCase) -> InitOptions:
@@ -345,10 +405,11 @@ def prepare_config_path(*, root: Path, path_kind: str) -> None:
     """Create a regular or broken-symlink config destination."""
 
     path: Path = root / "strata.toml"
-    if path_kind == "regular":
-        path.write_text("existing = true\n", encoding="utf-8")
-        return
-    path.symlink_to(root / "missing-config-target")
+    create: Callable[[], object] = {
+        "regular": lambda: path.write_text("existing = true\n", encoding="utf-8"),
+        "broken-symlink": lambda: path.symlink_to(root / "missing-config-target"),
+    }[path_kind]
+    _ = create()
 
 
 def config_temp_paths(*, root: Path) -> tuple[str, ...]:
@@ -362,43 +423,53 @@ def prepare_scaffold_symlink(*, root: Path, test_case: ScaffoldSymlinkTestCase) 
 
     outside: Path = root / "outside"
     outside.mkdir()
-    if test_case.symlink_kind == "package":
+
+    def create_package_symlink() -> None:
         (root / "src").mkdir()
         (root / "src/pkg").symlink_to(outside, target_is_directory=True)
-        return
-    (root / "tests").symlink_to(outside, target_is_directory=True)
+
+    def create_test_symlink() -> None:
+        (root / "tests").symlink_to(outside, target_is_directory=True)
+
+    create: Callable[[], None] = {
+        "package": create_package_symlink,
+        "tests": create_test_symlink,
+    }[test_case.symlink_kind]
+    create()
 
 
 def symlink_paths(*, root: Path, paths: tuple[str, ...]) -> tuple[str, ...]:
     """Return declared paths that remain symlinks, including broken links."""
 
-    return tuple(path for path in paths if (root / path).is_symlink())
+    return tuple(filter(lambda path: (root / path).is_symlink(), paths))
 
 
 def lexisting_paths(*, root: Path, paths: tuple[str, ...]) -> tuple[str, ...]:
     """Return paths that exist without following their final symlink."""
 
-    return tuple(path for path in paths if os.path.lexists(root / path))
+    return tuple(filter(lambda path: os.path.lexists(root / path), paths))
 
 
 def config_destination_kind(*, root: Path) -> str:
     """Describe the config destination without following a symlink."""
 
     path: Path = root / "strata.toml"
-    if path.is_symlink():
-        return "symlink"
-    if path.is_file():
-        return "regular"
-    return "missing"
+    return {
+        (False, False): "missing",
+        (False, True): "regular",
+        (True, False): "symlink",
+    }[(path.is_symlink(), path.is_file())]
 
 
 def config_destination_value(*, root: Path) -> str:
     """Read the racing destination without following symlinks unexpectedly."""
 
     path: Path = root / "strata.toml"
-    if path.is_symlink():
-        return os.readlink(path)
-    return path.read_text(encoding="utf-8")
+    read: Callable[[], str] = {
+        False: lambda: path.read_text(encoding="utf-8"),
+        True: lambda: os.readlink(path),
+    }[path.is_symlink()]
+    return read()
 
 
 def invoke_prompt(*, prompt_kind: str, input_text: str) -> bool | tuple[str, ...] | str:
@@ -407,27 +478,31 @@ def invoke_prompt(*, prompt_kind: str, input_text: str) -> bool | tuple[str, ...
     stdin: StringIO = StringIO(input_text)
     stdout: StringIO = StringIO()
     style: CliStyle = CliStyle(use_color=False)
-    if prompt_kind == "generic":
-        return prompt_yes_no(stdin=stdin, stdout=stdout, style=style, prompt="Continue?")
-    if prompt_kind == "layout":
-        return prompt_accept_layout(stdin=stdin, stdout=stdout, style=style)
-    if prompt_kind == "root":
-        candidates: tuple[PathCandidate, ...] = (
-            PathCandidate(
-                path="src/alpha",
-                provenance=CandidateProvenance.DIRECTORY_SCAN,
-                present=True,
-            ),
-            PathCandidate(
-                path="src/beta",
-                provenance=CandidateProvenance.DIRECTORY_SCAN,
-                present=True,
-            ),
-        )
-        return prompt_root_selection(stdin=stdin, stdout=stdout, style=style, candidates=candidates)
-    return prompt_project_name(
-        stdin=stdin, stdout=stdout, style=style, repository_name="my-project"
+    candidates: tuple[PathCandidate, ...] = (
+        PathCandidate(
+            path="src/alpha",
+            provenance=CandidateProvenance.DIRECTORY_SCAN,
+            present=True,
+        ),
+        PathCandidate(
+            path="src/beta",
+            provenance=CandidateProvenance.DIRECTORY_SCAN,
+            present=True,
+        ),
     )
+    prompts: dict[str, Callable[[], bool | tuple[str, ...] | str]] = {
+        "generic": lambda: prompt_yes_no(
+            stdin=stdin, stdout=stdout, style=style, prompt="Continue?"
+        ),
+        "layout": lambda: prompt_accept_layout(stdin=stdin, stdout=stdout, style=style),
+        "root": lambda: prompt_root_selection(
+            stdin=stdin, stdout=stdout, style=style, candidates=candidates
+        ),
+        "name": lambda: prompt_project_name(
+            stdin=stdin, stdout=stdout, style=style, repository_name="my-project"
+        ),
+    }
+    return prompts[prompt_kind]()
 
 
 def prepare_scope_python_symlink(*, root: Path, test_case: ScopeSymlinkTestCase) -> None:

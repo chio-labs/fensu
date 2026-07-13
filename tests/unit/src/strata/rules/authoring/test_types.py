@@ -36,7 +36,7 @@ from tests.unit.src.strata.rules.authoring._test_types import EnumMembersTestCas
             expected_members={"CORE": "core", "CUSTOM": "custom"},
         ),
         EnumMembersTestCase(
-            description="Threshold has all eleven named limits",
+            description="Threshold has all thirteen named limits",
             actual_members={member.name: member.value for member in Threshold},
             expected_members={
                 "MAX_STATEMENTS": "max_statements",
@@ -50,6 +50,8 @@ from tests.unit.src.strata.rules.authoring._test_types import EnumMembersTestCas
                 "MAX_ARGUMENTS": "max_arguments",
                 "MAX_STATEMENTS_GLOBAL": "max_statements_global",
                 "MAX_SCRIPT_ENTRYPOINT_LINES": "max_script_entrypoint_lines",
+                "MIN_SHARED_DOMAIN_PREFIX_PACKAGES": "min_shared_domain_prefix_packages",
+                "MIN_CUSTOM_RULE_TEST_CASES": "min_custom_rule_test_cases",
             },
         ),
     ],

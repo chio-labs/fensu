@@ -87,10 +87,9 @@ def write_project_files(*, root: Path, files: tuple[CliProjectFile, ...]) -> Non
 def repository_text_snapshot(root: Path) -> tuple[tuple[str, str], ...]:
     """Return every repository file and its text in deterministic order."""
 
+    paths: filter[Path] = filter(Path.is_file, sorted(root.rglob("*")))
     return tuple(
-        (path.relative_to(root).as_posix(), path.read_text(encoding="utf-8"))
-        for path in sorted(root.rglob("*"))
-        if path.is_file()
+        (path.relative_to(root).as_posix(), path.read_text(encoding="utf-8")) for path in paths
     )
 
 
@@ -98,15 +97,12 @@ def config_values(root: Path) -> tuple[tuple[str, tuple[str, ...]], ...]:
     """Parse generated config and return its ordered list-valued settings."""
 
     path: Path = root / "strata.toml"
-    if not path.is_file():
+    try:
+        parsed: dict[str, object] = tomllib.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
         return ()
-    parsed: dict[str, object] = tomllib.loads(path.read_text(encoding="utf-8"))
-    values: list[tuple[str, tuple[str, ...]]] = []
-    for key in ("roots", "tests", "tooling", "select"):
-        value: object | None = parsed.get(key)
-        if value is not None:
-            values.append((key, tuple(cast("list[str]", value))))
-    return tuple(values)
+    keys: filter[str] = filter(parsed.__contains__, ("roots", "tests", "tooling", "select"))
+    return tuple((key, tuple(cast("list[str]", parsed[key]))) for key in keys)
 
 
 def write_cli_project(
@@ -128,12 +124,13 @@ def cache_snapshot(root: Path) -> tuple[tuple[str, bytes], ...]:
     """Return deterministic logical cache keys and canonical record bytes."""
 
     database: Path = root / CACHE_DATABASE_RELATIVE_PATH
-    if not database.is_file():
+    try:
+        with sqlite3.connect(f"{database.as_uri()}?mode=ro", uri=True) as connection:
+            rows: list[tuple[str, bytes]] = connection.execute(
+                "SELECT key, data FROM records ORDER BY key"
+            ).fetchall()
+    except sqlite3.OperationalError:
         return ()
-    with sqlite3.connect(f"{database.as_uri()}?mode=ro", uri=True) as connection:
-        rows: list[tuple[str, bytes]] = connection.execute(
-            "SELECT key, data FROM records ORDER BY key"
-        ).fetchall()
     return tuple(rows)
 
 
@@ -146,8 +143,7 @@ def corrupt_result_cache_record(root: Path) -> str:
             "SELECT key FROM records WHERE kind = ? ORDER BY key LIMIT 1",
             (CACHE_FILE_RESULT_KIND,),
         ).fetchone()
-        if row is None:
-            raise AssertionError("cache contains no file-result record")
+        assert row is not None, "cache contains no file-result record"
         key: str = row[0]
         connection.execute("UPDATE records SET data = ? WHERE key = ?", (b"{", key))
     return key

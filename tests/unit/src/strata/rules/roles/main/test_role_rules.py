@@ -811,6 +811,209 @@ def test_given_role_names_and_helper_classes_when_checking_then_flags_only_viola
             expected_codes=(),
             expected_lines=(),
         ),
+        SfrRuleTestCase(
+            description="annotation sibling domains require one parent domain",
+            rule_code="SFR308",
+            relative_path="__init__.py",
+            source="",
+            support_files=(
+                SfrSupportFile(
+                    description="annotation export domain",
+                    relative_path="annotation_export/__init__.py",
+                    source="",
+                ),
+                SfrSupportFile(
+                    description="annotation sanitization domain",
+                    relative_path="annotation_sanitization/__init__.py",
+                    source="",
+                ),
+                SfrSupportFile(
+                    description="annotation validation domain",
+                    relative_path="annotation_validation/__init__.py",
+                    source="",
+                ),
+            ),
+            expected_codes=("SFR308",),
+            expected_lines=(None,),
+        ),
+        SfrRuleTestCase(
+            description="first token groups broad salesforce ownership",
+            rule_code="SFR308",
+            relative_path="__init__.py",
+            source="",
+            support_files=(
+                SfrSupportFile(
+                    description="salesforce annotation export domain",
+                    relative_path="salesforce_annotation_export/__init__.py",
+                    source="",
+                ),
+                SfrSupportFile(
+                    description="salesforce annotation validation domain",
+                    relative_path="salesforce_annotation_validation/__init__.py",
+                    source="",
+                ),
+                SfrSupportFile(
+                    description="salesforce events domain",
+                    relative_path="salesforce_events/__init__.py",
+                    source="",
+                ),
+            ),
+            expected_codes=("SFR308",),
+            expected_lines=(None,),
+        ),
+        SfrRuleTestCase(
+            description="configured minimum suppresses a smaller shared-prefix group",
+            rule_code="SFR308",
+            relative_path="__init__.py",
+            source="",
+            support_files=(
+                SfrSupportFile(
+                    description="first salesforce domain",
+                    relative_path="salesforce_api/__init__.py",
+                    source="",
+                ),
+                SfrSupportFile(
+                    description="second salesforce domain",
+                    relative_path="salesforce_events/__init__.py",
+                    source="",
+                ),
+            ),
+            thresholds={Threshold.MIN_SHARED_DOMAIN_PREFIX_PACKAGES: 3},
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        SfrRuleTestCase(
+            description="zero minimum disables shared-prefix detection",
+            rule_code="SFR308",
+            relative_path="__init__.py",
+            source="",
+            support_files=(
+                SfrSupportFile(
+                    description="first salesforce domain",
+                    relative_path="salesforce_api/__init__.py",
+                    source="",
+                ),
+                SfrSupportFile(
+                    description="second salesforce domain",
+                    relative_path="salesforce_events/__init__.py",
+                    source="",
+                ),
+            ),
+            thresholds={Threshold.MIN_SHARED_DOMAIN_PREFIX_PACKAGES: 0},
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        SfrRuleTestCase(
+            description="arbitrary character prefixes do not group domains",
+            rule_code="SFR308",
+            relative_path="__init__.py",
+            source="",
+            support_files=(
+                SfrSupportFile(
+                    description="annotate domain",
+                    relative_path="annotate_export/__init__.py",
+                    source="",
+                ),
+                SfrSupportFile(
+                    description="annotation domain",
+                    relative_path="annotation_validation/__init__.py",
+                    source="",
+                ),
+            ),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        SfrRuleTestCase(
+            description="non-Python sibling directory does not count toward the minimum",
+            rule_code="SFR308",
+            relative_path="__init__.py",
+            source="",
+            support_files=(
+                SfrSupportFile(
+                    description="Python annotation domain",
+                    relative_path="annotation_export/__init__.py",
+                    source="",
+                ),
+                SfrSupportFile(
+                    description="asset-only annotation directory",
+                    relative_path="annotation_assets/logo.svg",
+                    source="<svg/>\n",
+                ),
+            ),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        SfrRuleTestCase(
+            description="organized parent domain does not inspect nested subdomain prefixes",
+            rule_code="SFR308",
+            relative_path="__init__.py",
+            source="",
+            support_files=(
+                SfrSupportFile(
+                    description="annotation export subdomain",
+                    relative_path="annotation/export/models.py",
+                    source="",
+                ),
+                SfrSupportFile(
+                    description="annotation validation subdomain",
+                    relative_path="annotation/validation/models.py",
+                    source="",
+                ),
+            ),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        SfrRuleTestCase(
+            description="multiple owner prefixes emit one deterministic fault each",
+            rule_code="SFR308",
+            relative_path="__init__.py",
+            source="",
+            support_files=(
+                SfrSupportFile(
+                    description="annotation export domain",
+                    relative_path="annotation_export/__init__.py",
+                    source="",
+                ),
+                SfrSupportFile(
+                    description="annotation validation domain",
+                    relative_path="annotation_validation/__init__.py",
+                    source="",
+                ),
+                SfrSupportFile(
+                    description="billing export domain",
+                    relative_path="billing_export/__init__.py",
+                    source="",
+                ),
+                SfrSupportFile(
+                    description="billing validation domain",
+                    relative_path="billing_validation/__init__.py",
+                    source="",
+                ),
+            ),
+            expected_codes=("SFR308", "SFR308"),
+            expected_lines=(None, None),
+        ),
+        SfrRuleTestCase(
+            description="tooling packages do not participate in runtime domain grouping",
+            rule_code="SFR308",
+            relative_path="__init__.py",
+            source="",
+            support_files=(
+                SfrSupportFile(
+                    description="first tooling package",
+                    relative_path="salesforce_api/__init__.py",
+                    source="",
+                ),
+                SfrSupportFile(
+                    description="second tooling package",
+                    relative_path="salesforce_events/__init__.py",
+                    source="",
+                ),
+            ),
+            expected_codes=(),
+            expected_lines=(),
+            scope=ScopeName.TOOLING,
+        ),
     ],
     ids=lambda case: case.description,
 )
@@ -825,6 +1028,99 @@ def test_given_role_layouts_when_checking_then_flags_only_layout_violations(
 
     assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
     assert tuple(fault.line for fault in result.faults) == test_case.expected_lines
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SfrRuleTestCase(
+            description="broad owner prefix reports exact parent and subdomain guidance",
+            rule_code="SFR308",
+            relative_path="__init__.py",
+            source="",
+            support_files=(
+                SfrSupportFile(
+                    description="salesforce annotation export domain",
+                    relative_path="salesforce_annotation_export/__init__.py",
+                    source="",
+                ),
+                SfrSupportFile(
+                    description="salesforce annotation validation domain",
+                    relative_path="salesforce_annotation_validation/__init__.py",
+                    source="",
+                ),
+                SfrSupportFile(
+                    description="salesforce events domain",
+                    relative_path="salesforce_events/__init__.py",
+                    source="",
+                ),
+            ),
+            expected_codes=("SFR308",),
+            expected_lines=(None,),
+            expected_messages=(
+                "sibling domains salesforce_annotation_export, "
+                "salesforce_annotation_validation, and salesforce_events share the "
+                "salesforce_ owner prefix",
+            ),
+            expected_remediations=(
+                "Create salesforce/ and move them beneath it as annotation_export/, "
+                "annotation_validation/, and events/ subdomains.",
+            ),
+            expected_paths=("src/pkg/__init__.py",),
+        ),
+        SfrRuleTestCase(
+            description="existing parent domain receives prefixed siblings",
+            rule_code="SFR308",
+            relative_path="__init__.py",
+            source="",
+            support_files=(
+                SfrSupportFile(
+                    description="existing salesforce domain",
+                    relative_path="salesforce/models.py",
+                    source="",
+                ),
+                SfrSupportFile(
+                    description="salesforce annotation domain",
+                    relative_path="salesforce_annotation/__init__.py",
+                    source="",
+                ),
+                SfrSupportFile(
+                    description="salesforce events domain",
+                    relative_path="salesforce_events/__init__.py",
+                    source="",
+                ),
+            ),
+            expected_codes=("SFR308",),
+            expected_lines=(None,),
+            expected_messages=(
+                "sibling domains salesforce_annotation and salesforce_events share the "
+                "salesforce_ owner prefix",
+            ),
+            expected_remediations=(
+                "Move them under the existing salesforce/ domain as annotation/ and events/ "
+                "subdomains.",
+            ),
+            expected_paths=("src/pkg/__init__.py",),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_shared_domain_prefix_when_reporting_then_names_broad_parent_and_subdomains(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: SfrRuleTestCase,
+) -> None:
+    result: EvaluationResult = evaluate_role_test_case(
+        test_case=test_case, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
+    assert tuple(fault.message for fault in result.faults) == test_case.expected_messages
+    assert tuple(fault.remediation for fault in result.faults) == test_case.expected_remediations
+    assert (
+        tuple(fault.path.relative_to(tmp_path).as_posix() for fault in result.faults)
+        == test_case.expected_paths
+    )
 
 
 @pytest.mark.parametrize(
@@ -1866,6 +2162,88 @@ def test_given_path_level_role_fault_when_evaluating_then_inherits_actionable_me
     ids=lambda case: case.description,
 )
 def test_given_configured_tooling_when_checking_structure_then_enforces_tool_roles(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: SfrRuleTestCase,
+) -> None:
+    result: EvaluationResult = evaluate_role_test_case(
+        test_case=test_case, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
+    assert tuple(fault.line for fault in result.faults) == test_case.expected_lines
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SfrRuleTestCase(
+            description="lowercase core rule code module name is flagged",
+            rule_code="SFR706",
+            relative_path="strata_rules/rules/sft104.py",
+            source="",
+            expected_codes=("SFR706",),
+            expected_lines=(None,),
+            scope=ScopeName.TOOLING,
+        ),
+        SfrRuleTestCase(
+            description="lowercase custom rule code module name is flagged",
+            rule_code="SFR706",
+            relative_path="strata_rules/rules/xjt001.py",
+            source="",
+            expected_codes=("SFR706",),
+            expected_lines=(None,),
+            scope=ScopeName.TOOLING,
+        ),
+        SfrRuleTestCase(
+            description="rule own lowercase code module name is flagged",
+            rule_code="SFR706",
+            relative_path="strata_rules/rules/sfr706.py",
+            source="",
+            expected_codes=("SFR706",),
+            expected_lines=(None,),
+            scope=ScopeName.TOOLING,
+        ),
+        SfrRuleTestCase(
+            description="descriptive rule module name is allowed",
+            rule_code="SFR706",
+            relative_path="strata_rules/rules/conditional_test_flow.py",
+            source="",
+            expected_codes=(),
+            expected_lines=(),
+            scope=ScopeName.TOOLING,
+        ),
+        SfrRuleTestCase(
+            description="underscore-separated code-like module name is allowed",
+            rule_code="SFR706",
+            relative_path="strata_rules/rules/sfr_706.py",
+            source="",
+            expected_codes=(),
+            expected_lines=(),
+            scope=ScopeName.TOOLING,
+        ),
+        SfrRuleTestCase(
+            description="code with suffix module name is allowed",
+            rule_code="SFR706",
+            relative_path="strata_rules/rules/sft104x.py",
+            source="",
+            expected_codes=(),
+            expected_lines=(),
+            scope=ScopeName.TOOLING,
+        ),
+        SfrRuleTestCase(
+            description="code-like module name outside rules role is allowed",
+            rule_code="SFR706",
+            relative_path="strata_rules/main/sft104.py",
+            source="",
+            expected_codes=(),
+            expected_lines=(),
+            scope=ScopeName.TOOLING,
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_rule_module_name_when_checking_roles_then_requires_descriptive_name(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     test_case: SfrRuleTestCase,

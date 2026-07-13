@@ -8,6 +8,7 @@ from strata.analysis.models import (
     CommentFact,
     DataclassFact,
     DiscardedProjectCallFact,
+    EvaluateRuleCallFact,
     FunctionConditionalFact,
     FunctionFacts,
     FunctionMetricFact,
@@ -26,6 +27,7 @@ from strata.analysis.models import (
     OuterStateMutationFact,
     ParameterMutationFact,
     ParametrizeCaseFact,
+    ParametrizeDimensionFact,
     ParametrizeFact,
     ProjectCallFacts,
     ProjectDependency,
@@ -33,9 +35,11 @@ from strata.analysis.models import (
     PytestFunctionFact,
     PytestModuleFacts,
     ReferenceFacts,
+    RuleTestAssociationFact,
     SourceLocation,
     SourcePosition,
     SourceRange,
+    StaticReferenceFact,
     SyntaxHandle,
     TypeDeclarationFact,
 )
@@ -43,12 +47,15 @@ from strata.analysis.types import (
     FactAnalysis,
     ProjectAnalysis,
     RelationAnalysis,
+    RuleCaseForm,
     SyntaxAnalysis,
     TextAnalysis,
 )
 from strata.rules.authoring.main.define import rule
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import Family, RuleContext, Severity, Threshold
+from strata.rules.testing.main.evaluate_rule import evaluate_rule
+from strata.rules.testing.models import RuleCase, RuleFile, RuleResult
 
 __all__ = [
     "AnnotationFacts",
@@ -56,6 +63,7 @@ __all__ = [
     "CommentFact",
     "DataclassFact",
     "DiscardedProjectCallFact",
+    "EvaluateRuleCallFact",
     "FactAnalysis",
     "Fault",
     "Family",
@@ -77,6 +85,7 @@ __all__ = [
     "OuterStateMutationFact",
     "ParameterMutationFact",
     "ParametrizeCaseFact",
+    "ParametrizeDimensionFact",
     "ParametrizeFact",
     "ProjectAnalysis",
     "ProjectCallFacts",
@@ -86,15 +95,22 @@ __all__ = [
     "PytestModuleFacts",
     "ReferenceFacts",
     "RelationAnalysis",
+    "RuleCase",
+    "RuleCaseForm",
     "RuleContext",
+    "RuleFile",
+    "RuleResult",
+    "RuleTestAssociationFact",
     "Severity",
     "SourceLocation",
     "SourcePosition",
     "SourceRange",
+    "StaticReferenceFact",
     "SyntaxAnalysis",
     "SyntaxHandle",
     "TextAnalysis",
     "Threshold",
     "TypeDeclarationFact",
+    "evaluate_rule",
     "rule",
 ]

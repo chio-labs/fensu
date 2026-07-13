@@ -30,6 +30,31 @@ class CheckNoFaultTestCase:
 
 
 @dataclass(frozen=True)
+class WarningCheckTestCase:
+    """Configured warning source and expected plain or advisory command behavior."""
+
+    description: str
+    source: str
+    argv: tuple[str, ...]
+    expected_exit_code: int
+    expected_summary: str
+    expected_warning_count: int
+    expected_fault_count: int
+
+
+@dataclass(frozen=True)
+class WarningCacheIdentityTestCase:
+    """Alternating warning-mode invocations and expected cache operation counts."""
+
+    description: str
+    first_argv: tuple[str, ...]
+    second_argv: tuple[str, ...]
+    third_argv: tuple[str, ...]
+    expected_switch_stats: str
+    expected_warm_stats: str
+
+
+@dataclass(frozen=True)
 class ThresholdOverrideCheckTestCase:
     """Threshold override selection and expected cold/warm reporting."""
 
@@ -64,6 +89,45 @@ class CheckErrorTestCase:
     argv: tuple[str, ...]
     expected_exit_code: int
     expected_error_fragment: str
+
+
+@dataclass(frozen=True)
+class CustomRuleCoverageTestCase:
+    """Configured custom rules and expected source-owned SFR707 diagnostics."""
+
+    description: str
+    test_source: str | None
+    minimum: int
+    use_rule_module: bool
+    second_rule: bool
+    expected_fault_count: int
+    expected_output_fragment: str
+
+
+@dataclass(frozen=True)
+class CustomRuleCoverageCacheTestCase:
+    """Expected source-owned cache behavior across test namespace mutations."""
+
+    description: str
+    expected_cold_stats: str
+    expected_warm_stats: str
+    expected_add_stats: str
+    expected_remove_stats: str
+    expected_fault_fragment: str
+
+
+@dataclass(frozen=True)
+class CustomRuleCoverageWarningTestCase:
+    """Plain and warning-mode expectations for warn-only SFR707."""
+
+    description: str
+    expected_plain_summary: str
+    expected_warning_summary: str
+    expected_warning_fragment: str
+    expected_plain_cold_stats: str
+    expected_plain_warm_stats: str
+    expected_warning_cold_stats: str
+    expected_warning_warm_stats: str
 
 
 @dataclass(frozen=True)
@@ -155,6 +219,26 @@ class SkillTransactionFailureTestCase:
     failure_at: int
     expected_exit_code: int
     expected_error_fragment: str
+
+
+@dataclass(frozen=True)
+class SkillFreshnessTestCase:
+    """Installed skill state and expected authoritative freshness result."""
+
+    description: str
+    state: str
+    expected_exit_code: int
+    expected_reason: str
+
+
+@dataclass(frozen=True)
+class CheckSkillFreshnessTestCase:
+    """Local skill state and expected non-blocking normal-check warning behavior."""
+
+    description: str
+    state: str
+    expected_exit_code: int
+    expected_warning_count: int
 
 
 @dataclass(frozen=True)
@@ -326,6 +410,7 @@ class InitApplicabilityTestCase:
     existing_project: bool
     argv: tuple[str, ...]
     expected_error_fragment: str
+    expected_error: str
 
 
 @dataclass(frozen=True)

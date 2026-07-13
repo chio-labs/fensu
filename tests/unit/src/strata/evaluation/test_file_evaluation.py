@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -21,6 +22,7 @@ from tests.unit.src.strata.evaluation._test_types import (
     FileEvaluationExceptionTestCase,
     FileEvaluationTestCase,
     ScopeFamilySelectionTestCase,
+    WarningTierEvaluationTestCase,
 )
 from tests.unit.src.strata.evaluation.helpers import (
     discover_test_tree,
@@ -75,6 +77,59 @@ def test_given_discovered_file_when_evaluating_then_returns_complete_file_bounda
     assert result.path == scoped_file.path
     assert result.source_fingerprint == hashlib.sha256(test_case.source.encode("utf-8")).hexdigest()
     assert all(item.requester == scoped_file.path.resolve() for item in result.dependencies)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        WarningTierEvaluationTestCase(
+            description="tier follows configured rule provenance when a warning claims another code",
+            blocking_code="XEV010",
+            warning_rule_code="XEV011",
+            warning_fault_code="XEV012",
+            expected_fault_codes=("XEV010",),
+            expected_warning_codes=("XEV012",),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_distinct_rule_tiers_when_evaluating_file_then_preserves_configured_provenance(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: WarningTierEvaluationTestCase,
+) -> None:
+    write_sources(repo_root=tmp_path, files=(("src/pkg/models.py", "value: int = 1\n"),))
+    monkeypatch.chdir(tmp_path)
+    config: Config = Config(roots=("src/pkg",))
+    tree: DiscoveredTree = discover_test_tree(config=config)
+    scoped_file: ScopedFile = tree.files[0]
+    project: EvaluationProjectAnalysis = build_project_analysis(tree=tree)
+    warning_rule: RuleSpec = replace(
+        make_static_fault_rule(
+            code=test_case.warning_fault_code,
+            line=1,
+            message="warning fault",
+        ),
+        code=test_case.warning_rule_code,
+    )
+
+    result: FileEvaluation = evaluate_file(
+        scoped_file=scoped_file,
+        ruleset=(
+            make_static_fault_rule(
+                code=test_case.blocking_code,
+                line=1,
+                message="blocking fault",
+            ),
+        ),
+        warning_rules=(warning_rule,),
+        config=config,
+        tree=tree,
+        project=project,
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_fault_codes
+    assert tuple(warning.code for warning in result.warnings) == test_case.expected_warning_codes
 
 
 @pytest.mark.parametrize(

@@ -404,9 +404,9 @@ def test_given_multiple_runtime_roots_when_selecting_then_defaults_retries_and_e
             expected_tooling=("scripts",),
             expected_select=("SF",),
             expected_skill_paths=(
-                ".opencode/skills/strata/SKILL.md",
-                ".claude/skills/strata/SKILL.md",
-                ".agents/skills/strata/SKILL.md",
+                ".opencode/skills/strata-acme/SKILL.md",
+                ".claude/skills/strata-acme/SKILL.md",
+                ".agents/skills/strata-acme/SKILL.md",
             ),
         ),
         InitOptionTestCase(
@@ -599,14 +599,14 @@ def test_given_skill_prompt_when_declining_then_preserves_config_and_prints_upda
             expected_exit_code=0,
             expected_config=None,
             expected_output_fragments=(
-                "Updated .opencode/skills/strata/SKILL.md",
-                "Updated .claude/skills/strata/SKILL.md",
-                "Updated .agents/skills/strata/SKILL.md",
+                "Updated .opencode/skills/strata-acme/SKILL.md",
+                "Updated .claude/skills/strata-acme/SKILL.md",
+                "Updated .agents/skills/strata-acme/SKILL.md",
             ),
             expected_created_paths=(
-                ".agents/skills/strata/SKILL.md",
-                ".claude/skills/strata/SKILL.md",
-                ".opencode/skills/strata/SKILL.md",
+                ".agents/skills/strata-acme/SKILL.md",
+                ".claude/skills/strata-acme/SKILL.md",
+                ".opencode/skills/strata-acme/SKILL.md",
             ),
         )
     ],
@@ -631,6 +631,58 @@ def test_given_yes_with_default_skills_when_initializing_then_installs_real_repo
     assert exit_code == test_case.expected_exit_code
     assert all(fragment in stdout.getvalue() for fragment in test_case.expected_output_fragments)
     assert all((tmp_path / path).is_file() for path in test_case.expected_created_paths)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        InitExecutionTestCase(
+            description="monorepo init installs discoverable project skill at parent Git root",
+            argv=("--yes",),
+            existing_project=True,
+            stdin_isatty=False,
+            stdout_isatty=False,
+            expected_exit_code=0,
+            expected_config=None,
+            expected_output_fragments=(
+                "Updated ../.opencode/skills/strata-acme/SKILL.md",
+                "Updated ../.claude/skills/strata-acme/SKILL.md",
+                "Updated ../.agents/skills/strata-acme/SKILL.md",
+            ),
+            expected_created_paths=(
+                ".agents/skills/strata-acme/SKILL.md",
+                ".claude/skills/strata-acme/SKILL.md",
+                ".opencode/skills/strata-acme/SKILL.md",
+            ),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_monorepo_project_when_initializing_then_installs_at_git_root_with_prefixed_paths(
+    tmp_path: Path,
+    test_case: InitExecutionTestCase,
+) -> None:
+    (tmp_path / ".git").mkdir()
+    project: Path = tmp_path / "backend"
+    project.mkdir()
+    write_init_hatch_project(root=project)
+    stdout: TerminalBuffer = TerminalBuffer(is_terminal=False)
+
+    exit_code: int = run_init(
+        argv=test_case.argv,
+        stdin=TerminalBuffer(is_terminal=False),
+        stdout=stdout,
+        stderr=TerminalBuffer(is_terminal=False),
+        working_directory=project,
+        home_dir=tmp_path / "home",
+    )
+    content: str = (tmp_path / test_case.expected_created_paths[0]).read_text(encoding="utf-8")
+
+    assert exit_code == test_case.expected_exit_code
+    assert all(fragment in stdout.getvalue() for fragment in test_case.expected_output_fragments)
+    assert all((tmp_path / path).is_file() for path in test_case.expected_created_paths)
+    assert 'Configuration source: "backend/strata.toml"' in content
+    assert '- Product roots: ["backend/src/acme"]' in content
 
 
 @pytest.mark.parametrize(
@@ -847,24 +899,49 @@ def test_given_invalid_utf8_python_when_measuring_drift_then_warns_and_continues
             existing_project=True,
             argv=("--yes", "--name", "other", "--no-skills"),
             expected_error_fragment="--name only applies when no Python package is detected.",
+            expected_error="--name only applies when no Python package is detected.\n",
+        ),
+        InitApplicabilityTestCase(
+            description="yes requires an explicit name for an empty scaffold",
+            existing_project=False,
+            argv=("--yes", "--no-skills"),
+            expected_error_fragment=(
+                "Empty repository initialization with --yes requires --name NAME."
+            ),
+            expected_error=(
+                "Empty repository initialization with --yes requires --name NAME.\n"
+                "Example: strata init --yes --name my_package\n"
+            ),
         ),
         InitApplicabilityTestCase(
             description="root is rejected for an empty scaffold",
             existing_project=False,
             argv=("--yes", "--root", "src/acme", "--no-skills"),
             expected_error_fragment="Explicit --root, --tests, and --tooling options do not apply",
+            expected_error=(
+                "Explicit --root, --tests, and --tooling options do not apply to an empty "
+                "scaffold; use --name to choose its package.\n"
+            ),
         ),
         InitApplicabilityTestCase(
             description="tests are rejected for an empty scaffold",
             existing_project=False,
             argv=("--yes", "--tests", "tests", "--no-skills"),
             expected_error_fragment="Explicit --root, --tests, and --tooling options do not apply",
+            expected_error=(
+                "Explicit --root, --tests, and --tooling options do not apply to an empty "
+                "scaffold; use --name to choose its package.\n"
+            ),
         ),
         InitApplicabilityTestCase(
             description="tooling is rejected for an empty scaffold",
             existing_project=False,
             argv=("--yes", "--tooling", "scripts", "--no-skills"),
             expected_error_fragment="Explicit --root, --tests, and --tooling options do not apply",
+            expected_error=(
+                "Explicit --root, --tests, and --tooling options do not apply to an empty "
+                "scaffold; use --name to choose its package.\n"
+            ),
         ),
     ],
     ids=lambda case: case.description,
@@ -889,6 +966,7 @@ def test_given_inapplicable_options_when_initializing_then_rejects_before_output
 
     assert exit_code == 2
     assert test_case.expected_error_fragment in stderr.getvalue()
+    assert stderr.getvalue() == test_case.expected_error
     assert stdout.getvalue() == ""
     assert project_file_snapshot(tmp_path) == before
     assert not (tmp_path / "strata.toml").exists()

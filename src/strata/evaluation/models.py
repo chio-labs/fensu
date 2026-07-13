@@ -10,7 +10,7 @@ from pathlib import Path
 from strata.analysis.models import ProjectDependency
 from strata.analysis.types import Analysis
 from strata.discovery.models import PositionFacts, ScopedFile
-from strata.rules.authoring.models import Fault
+from strata.rules.authoring.models import CustomRuleRegistration, Fault
 from strata.rules.authoring.types import Threshold
 
 
@@ -76,6 +76,16 @@ class EvaluationSelection:
 
 
 @dataclass(frozen=True, slots=True)
+class EvaluationTarget:
+    """One source-owned normal and/or supplemental evaluation target."""
+
+    scoped_file: ScopedFile
+    direct: bool
+    custom_rule_registrations: tuple[CustomRuleRegistration, ...] = ()
+    custom_rule_coverage_warning: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class FileEvaluation:
     """Unrendered evaluation output and observed inputs for one source file."""
 
@@ -84,6 +94,7 @@ class FileEvaluation:
     faults: tuple[Fault, ...]
     applied_exception_keys: tuple[RuleExceptionKey, ...]
     dependencies: tuple[ProjectDependency, ...]
+    warnings: tuple[Fault, ...] = ()
     threshold_override_uses: tuple[ThresholdOverrideUse, ...] = ()
 
 
@@ -92,6 +103,7 @@ class EvaluationResult:
     """Evaluation output for a discovered tree."""
 
     faults: tuple[Fault, ...]
+    warnings: tuple[Fault, ...] = ()
     applied_exception_count: int = 0
     dependencies: tuple[ProjectDependency, ...] = ()
     file_evaluations: tuple[FileEvaluation, ...] = ()

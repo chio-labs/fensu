@@ -33,7 +33,5 @@ def evaluate_annotation_test_case(
 
 
 def _rule_by_code(rule_code: str) -> RuleSpec:
-    for rule in SFA_RULES:
-        if rule.code == rule_code:
-            return rule
-    raise AssertionError(f"Unknown SFA rule code {rule_code}")
+    rules_by_code: dict[str, RuleSpec] = {rule.code: rule for rule in SFA_RULES}
+    return rules_by_code[rule_code]

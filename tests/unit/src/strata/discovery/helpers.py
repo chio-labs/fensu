@@ -32,8 +32,7 @@ def make_config(
 def only_file(*, files: tuple[ScopedFile, ...]) -> ScopedFile:
     """Return the only discovered file from a test fixture."""
 
-    if len(files) != 1:
-        raise AssertionError(f"Expected one discovered file, got {len(files)}")
+    assert len(files) == 1, f"Expected one discovered file, got {len(files)}"
     return files[0]
 
 
@@ -46,10 +45,10 @@ def relative_file_names(*, repo_root: Path, files: tuple[ScopedFile, ...]) -> tu
 def layout_error_config(*, test_case: LayoutConfigErrorTestCase, external_root: Path) -> Config:
     """Build the invalid layout selected by a discovery test case."""
 
-    if test_case.uses_external_root:
-        return make_config(roots=(str(external_root),))
-    return make_config(
+    configured_layout: Config = make_config(
         roots=test_case.roots,
         tests=test_case.tests,
         tooling=test_case.tooling,
     )
+    external_layout: Config = make_config(roots=(str(external_root),))
+    return {False: configured_layout, True: external_layout}[test_case.uses_external_root]

@@ -20,11 +20,12 @@ class EntryDispatchTestCase:
 
 @dataclass(frozen=True)
 class EntryUsageTestCase:
-    """Unknown CLI input and expected usage response."""
+    """Top-level CLI input and expected process response."""
 
     description: str
     argv: tuple[str, ...]
-    expected_usage: str
+    expected_stdout: str
+    expected_stderr: str
     expected_exit_code: int
 
 

@@ -116,8 +116,8 @@ def custom_rule(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
 def rule_by_code(*, rules: tuple[RuleSpec, ...], code: str) -> RuleSpec:
     """Return the single catalogue rule carrying one exact code."""
 
-    matches: list[RuleSpec] = [rule for rule in rules if rule.code == code]
-    return matches[0]
+    rules_by_code: dict[str, RuleSpec] = {rule.code: rule for rule in rules}
+    return rules_by_code[code]
 
 
 def make_core_rule(*, code: str, family: Family, enabled_by_default: bool = True) -> RuleSpec:
@@ -132,7 +132,7 @@ def make_core_rule(*, code: str, family: Family, enabled_by_default: bool = True
         slug=f"rule-{code.lower()}",
         message=code,
         check=check,
-        kind=RuleKind.CORE if code.startswith("SF") else RuleKind.CUSTOM,
+        kind={False: RuleKind.CUSTOM, True: RuleKind.CORE}[code.startswith("SF")],
         enabled_by_default=enabled_by_default,
     )
 
@@ -148,22 +148,31 @@ def catalogue_quality_issues(
 
     issues: list[str] = []
     for rule in rules:
-        if rule.remediation is None:
-            issues.append(f"{rule.code}: missing remediation")
-        if len(rule.message) > max_message_length:
-            issues.append(f"{rule.code}: message too long")
-        if rule.remediation is not None and len(rule.remediation) > max_remediation_length:
-            issues.append(f"{rule.code}: remediation too long")
+        remediation: str = rule.remediation or ""
+        issues.extend(
+            {False: (), True: (f"{rule.code}: missing remediation",)}[rule.remediation is None]
+        )
+        issues.extend(
+            {False: (), True: (f"{rule.code}: message too long",)}[
+                len(rule.message) > max_message_length
+            ]
+        )
+        issues.extend(
+            {False: (), True: (f"{rule.code}: remediation too long",)}[
+                len(remediation) > max_remediation_length
+            ]
+        )
         for fragment in forbidden_message_fragments:
-            if fragment in rule.message:
-                issues.append(f"{rule.code}: generic message")
+            issues.extend(
+                {False: (), True: (f"{rule.code}: generic message",)}[fragment in rule.message]
+            )
     return tuple(issues)
 
 
 def _custom_rule_source(
     *, rule_code: str, prelude: str = "", check_body: str = "    return []"
 ) -> str:
-    family: str = "Family.CUSTOM" if rule_code.startswith("X") else "Family.LAYERS"
+    family: str = {False: "Family.LAYERS", True: "Family.CUSTOM"}[rule_code.startswith("X")]
     return f'''
 from __future__ import annotations
 

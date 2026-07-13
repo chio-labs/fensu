@@ -12,7 +12,9 @@ from strata.cache.fingerprints.main.build_global import build_global_fingerprint
 from strata.cache.fingerprints.models import GlobalFingerprintBuild
 from strata.cache.results.main.evaluate import evaluate_with_cache
 from strata.cache.results.models import CacheEvaluation, CacheStats
+from strata.cli._helpers.check_paths import invocation_path
 from strata.cli._helpers.check_reporting import render_check_result
+from strata.cli._helpers.skill_freshness import installed_skill_is_stale
 from strata.cli.main.cache_status import write_cache_status
 from strata.config.exceptions import ConfigError
 from strata.config.main.load_project_config import load_project_config
@@ -24,7 +26,8 @@ from strata.evaluation.main.validate_rule_exceptions import validate_rule_except
 from strata.evaluation.models import EvaluationResult
 from strata.reporting.models import RenderedReport
 from strata.rules.authoring.models import RuleSpec
-from strata.rules.catalog.main.build_ruleset import build_ruleset
+from strata.rules.catalog.main.build_check_rule_selection import build_check_rule_selection
+from strata.rules.catalog.models import RuleSelection
 
 
 def run_check(
@@ -42,12 +45,18 @@ def run_check(
     try:
         loaded: LoadedConfig = load_project_config(invocation_dir)
         project_dir: Path = loaded.source.path.parent.resolve()
-        config: Config = loaded.config
+        project_config: Config = loaded.config
+        rule_selection: RuleSelection = build_check_rule_selection(
+            config=project_config,
+            repo_root=project_dir,
+            include_warnings=args.warn,
+        )
+        config: Config = project_config
         if args.paths:
             config = replace(
                 config,
                 roots=tuple(
-                    _invocation_path(value=value, invocation_dir=invocation_dir)
+                    invocation_path(value=value, invocation_dir=invocation_dir)
                     for value in args.paths
                 ),
             )
@@ -57,23 +66,38 @@ def run_check(
                 cache=replace(config.cache, enabled=args.cache_enabled),
             )
         tree: DiscoveredTree = discover_files(config=config, repo_root=project_dir)
-        ruleset: tuple[RuleSpec, ...] = build_ruleset(config=config, repo_root=project_dir)
+        ruleset: tuple[RuleSpec, ...] = rule_selection.blocking
+        warning_rules: tuple[RuleSpec, ...] = rule_selection.warnings if args.warn else ()
+        evaluated_rules: tuple[RuleSpec, ...] = (*ruleset, *warning_rules)
         validate_rule_exceptions(config=config, repo_root=tree.repo_root.path)
         fingerprint_build: GlobalFingerprintBuild | None = (
-            build_global_fingerprint(config=config, ruleset=ruleset, repo_root=project_dir)
+            build_global_fingerprint(
+                config=config,
+                ruleset=evaluated_rules,
+                repo_root=project_dir,
+                warnings_enabled=args.warn,
+            )
             if config.cache.enabled
             else None
         )
         if fingerprint_build is not None:
             cache_disabled_reason = fingerprint_build.disabled_reason
         if fingerprint_build is None or fingerprint_build.fingerprint is None:
-            result: EvaluationResult = evaluate(tree=tree, ruleset=ruleset, config=config)
+            result: EvaluationResult = evaluate(
+                tree=tree,
+                ruleset=ruleset,
+                warning_rules=warning_rules,
+                config=config,
+                custom_rule_registrations=rule_selection.custom_registrations,
+            )
         else:
             cached: CacheEvaluation = evaluate_with_cache(
                 tree=tree,
                 ruleset=ruleset,
+                warning_rules=warning_rules,
                 config=config,
                 global_fingerprint=fingerprint_build.fingerprint,
+                custom_rule_registrations=rule_selection.custom_registrations,
             )
             result = cached.result
             cache_stats = cached.stats
@@ -84,8 +108,13 @@ def run_check(
         result=result,
         tree=tree,
         use_color=not args.no_color and stdout.isatty(),
+        show_warnings=args.warn,
     )
-    write_cache_status(
+    _write_check_diagnostics(
+        loaded=loaded,
+        selection=rule_selection,
+        project_root=project_dir,
+        invocation_root=invocation_dir,
         stderr=stderr,
         stats=cache_stats,
         show_stats=args.cache_stats,
@@ -106,6 +135,11 @@ def run_check(
 def _parser() -> argparse.ArgumentParser:
     parser: argparse.ArgumentParser = argparse.ArgumentParser(prog="strata check")
     parser.add_argument("--no-color", action="store_true", help="disable ANSI color output")
+    parser.add_argument(
+        "--warn",
+        action="store_true",
+        help="evaluate and report configured warning rules without making them blocking",
+    )
     cache_options: argparse._MutuallyExclusiveGroup = parser.add_mutually_exclusive_group()
     cache_options.add_argument(
         "--cache",
@@ -129,6 +163,27 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _invocation_path(*, value: str, invocation_dir: Path) -> str:
-    path: Path = Path(value)
-    return str(path.resolve() if path.is_absolute() else (invocation_dir / path).resolve())
+def _write_check_diagnostics(
+    *,
+    loaded: LoadedConfig,
+    selection: RuleSelection,
+    project_root: Path,
+    invocation_root: Path,
+    stderr: TextIO,
+    stats: CacheStats | None,
+    show_stats: bool,
+    disabled_reason: str | None,
+) -> None:
+    write_cache_status(
+        stderr=stderr,
+        stats=stats,
+        show_stats=show_stats,
+        disabled_reason=disabled_reason,
+    )
+    if installed_skill_is_stale(
+        loaded=loaded,
+        selection=selection,
+        project_root=project_root,
+        invocation_root=invocation_root,
+    ):
+        stderr.write("Strata skill files are out of date; run `strata skills update`.\n")

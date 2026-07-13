@@ -20,8 +20,10 @@ from strata.rules.authoring.models import Fault
 def render_text(
     *,
     faults: tuple[Fault, ...],
+    warnings: tuple[Fault, ...],
     root: Path,
     use_color: bool,
+    show_warnings: bool,
     applied_exception_count: int,
     threshold_override_uses: tuple[ThresholdOverrideUse, ...],
 ) -> str:
@@ -31,12 +33,21 @@ def render_text(
     for fault in faults:
         if lines:
             lines.append("")
-        lines.extend(_format_fault(fault=fault, root=root, use_color=use_color))
+        lines.extend(_format_fault(fault=fault, root=root, use_color=use_color, is_warning=False))
+    for warning in warnings:
+        if lines:
+            lines.append("")
+        lines.extend(_format_fault(fault=warning, root=root, use_color=use_color, is_warning=True))
     count: int = len(faults)
     noun: str = "fault" if count == 1 else "faults"
     if lines:
         lines.append("")
-    lines.append(_format_summary(text=f"Found {count} {noun}", count=count, use_color=use_color))
+    summary: str = f"Found {count} {noun}"
+    if show_warnings:
+        warning_count: int = len(warnings)
+        warning_noun: str = "warning" if warning_count == 1 else "warnings"
+        summary = f"{summary} and {warning_count} {warning_noun}"
+    lines.append(_format_summary(text=summary, count=count, use_color=use_color))
     if applied_exception_count:
         exception_noun: str = "exception" if applied_exception_count == 1 else "exceptions"
         lines.append(f"Applied {applied_exception_count} rule {exception_noun}")
@@ -52,10 +63,18 @@ def render_text(
     return "\n".join(lines)
 
 
-def _format_fault(*, fault: Fault, root: Path, use_color: bool) -> tuple[str, ...]:
+def _format_fault(
+    *, fault: Fault, root: Path, use_color: bool, is_warning: bool
+) -> tuple[str, ...]:
     header: tuple[str, str] = _format_header(fault=fault, root=root, use_color=use_color)
     excerpt: tuple[str, ...] = _format_excerpt(fault=fault, use_color=use_color)
-    help_lines: tuple[str, ...] = _format_help(fault=fault, use_color=use_color)
+    help_lines: tuple[str, ...] = _format_help(
+        fault=fault,
+        use_color=use_color,
+        label="warning" if is_warning else "help",
+    )
+    if is_warning and not help_lines:
+        help_lines = (_format_label(label="warning", use_color=use_color),)
     return (*header, *excerpt, *help_lines)
 
 
@@ -102,10 +121,10 @@ def _format_location(*, fault: Fault, root: Path) -> str:
     return f"{relative_path}:{line_text}:{column_text}"
 
 
-def _format_help(*, fault: Fault, use_color: bool) -> tuple[str, ...]:
+def _format_help(*, fault: Fault, use_color: bool, label: str) -> tuple[str, ...]:
     if fault.remediation is None:
         return ()
-    prefix: str = "  = help: "
+    prefix: str = f"  = {label}: "
     continuation: str = "          "
     wrapped: list[str] = textwrap.wrap(
         fault.remediation,
@@ -115,9 +134,14 @@ def _format_help(*, fault: Fault, use_color: bool) -> tuple[str, ...]:
     )
     if not use_color:
         return tuple(wrapped)
-    label: str = f"{ANSI_DIM}= help:{ANSI_RESET}"
+    styled_label: str = f"{ANSI_DIM}= {label}:{ANSI_RESET}"
     first_line: str = wrapped[0].removeprefix(prefix)
-    return (f"  {label} {first_line}", *wrapped[1:])
+    return (f"  {styled_label} {first_line}", *wrapped[1:])
+
+
+def _format_label(*, label: str, use_color: bool) -> str:
+    text: str = f"  = {label}"
+    return f"  {ANSI_DIM}= {label}{ANSI_RESET}" if use_color else text
 
 
 def _read_source_line(*, path: Path, line: int | None) -> str | None:

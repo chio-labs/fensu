@@ -183,6 +183,26 @@ class SkillTransactionFailureTestCase:
 
 
 @dataclass(frozen=True)
+class SkillFreshnessTestCase:
+    """Installed skill state and expected authoritative freshness result."""
+
+    description: str
+    state: str
+    expected_exit_code: int
+    expected_reason: str
+
+
+@dataclass(frozen=True)
+class CheckSkillFreshnessTestCase:
+    """Local skill state and expected non-blocking normal-check warning behavior."""
+
+    description: str
+    state: str
+    expected_exit_code: int
+    expected_warning_count: int
+
+
+@dataclass(frozen=True)
 class MapCommandTestCase:
     """Map command inputs and expected deterministic output."""
 

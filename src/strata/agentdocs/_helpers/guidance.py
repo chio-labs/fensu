@@ -35,13 +35,33 @@ from strata.rules.authoring.types import Threshold
 from strata.rules.roles.types import RoleCode
 
 
-def repository_guidance_lines(*, config: Config, active_codes: frozenset[str]) -> tuple[str, ...]:
+def repository_guidance_lines(
+    *, config: Config, active_codes: frozenset[str], project_prefix: str = ""
+) -> tuple[str, ...]:
     """Return structure guidance supported by the active rule evidence."""
 
     sections: list[str] = []
-    sections.extend(_runtime_guidance(config=config, active_codes=active_codes))
-    sections.extend(_test_guidance(config=config, active_codes=active_codes))
-    sections.extend(_tooling_guidance(config=config, active_codes=active_codes))
+    sections.extend(
+        _runtime_guidance(
+            config=config,
+            active_codes=active_codes,
+            project_prefix=project_prefix,
+        )
+    )
+    sections.extend(
+        _test_guidance(
+            config=config,
+            active_codes=active_codes,
+            project_prefix=project_prefix,
+        )
+    )
+    sections.extend(
+        _tooling_guidance(
+            config=config,
+            active_codes=active_codes,
+            project_prefix=project_prefix,
+        )
+    )
     if not sections:
         return ()
     return (
@@ -75,14 +95,16 @@ def configured_threshold_override_lines(
     )
 
 
-def _runtime_guidance(*, config: Config, active_codes: frozenset[str]) -> tuple[str, ...]:
+def _runtime_guidance(
+    *, config: Config, active_codes: frozenset[str], project_prefix: str
+) -> tuple[str, ...]:
     if not RUNTIME_BASIC_CODES.issubset(active_codes):
         return ()
     nested_enabled: bool = RUNTIME_NESTED_CODES.issubset(active_codes)
     entries: tuple[str, ...] = _runtime_role_entries(active_codes=active_codes)
     lines: list[str] = ["### Runtime", ""]
     for configured_root in config.roots:
-        root: str = _display_path(configured_root)
+        root: str = _display_path(path=configured_root, prefix=project_prefix)
         if nested_enabled:
             lines.extend(("Leaf domain:", ""))
         lines.extend(("```text", f"{root}/", "└── <domain>/"))
@@ -100,7 +122,7 @@ def _runtime_guidance(*, config: Config, active_codes: frozenset[str]) -> tuple[
         return tuple(lines)
     lines.extend(
         runtime_role_example_lines(
-            runtime_root=_display_path(config.roots[0]),
+            runtime_root=_display_path(path=config.roots[0]),
             active_codes=active_codes,
         )
     )
@@ -265,7 +287,7 @@ def _threshold_override_lines(*, overrides: tuple[ThresholdOverride, ...]) -> tu
         )
     )
     for override in overrides:
-        paths: str = ", ".join(json.dumps(path) for path in override.paths)
+        paths: str = ", ".join(json.dumps(path) for path in sorted(override.paths))
         thresholds: str = ", ".join(
             f"{threshold.value} = {value}"
             for threshold, value in sorted(
@@ -285,7 +307,9 @@ def _threshold_override_lines(*, overrides: tuple[ThresholdOverride, ...]) -> tu
     return tuple(lines)
 
 
-def _test_guidance(*, config: Config, active_codes: frozenset[str]) -> tuple[str, ...]:
+def _test_guidance(
+    *, config: Config, active_codes: frozenset[str], project_prefix: str
+) -> tuple[str, ...]:
     if not config.tests or not TEST_BASIC_CODES.issubset(active_codes):
         return ()
     runtime_mirrors_enabled: bool = TEST_RUNTIME_MIRROR_CODES.issubset(active_codes)
@@ -294,7 +318,7 @@ def _test_guidance(*, config: Config, active_codes: frozenset[str]) -> tuple[str
     )
     lines: list[str] = ["### Tests", ""]
     for configured_test_root in config.tests:
-        test_root: str = _display_path(configured_test_root)
+        test_root: str = _display_path(path=configured_test_root, prefix=project_prefix)
         if not runtime_mirrors_enabled:
             lines.extend(
                 (
@@ -308,7 +332,10 @@ def _test_guidance(*, config: Config, active_codes: frozenset[str]) -> tuple[str
             )
             continue
         for configured_runtime_root in config.roots:
-            runtime_root: str = _display_path(configured_runtime_root)
+            runtime_root: str = _display_path(
+                path=configured_runtime_root,
+                prefix=project_prefix,
+            )
             lines.extend(
                 (
                     "```text",
@@ -327,16 +354,18 @@ def _test_guidance(*, config: Config, active_codes: frozenset[str]) -> tuple[str
                 lines.extend(
                     (
                         "Tooling-backed tests mirror under "
-                        f"`{_display_path(configured_test_root)}/<scope>/"
-                        f"{_display_path(configured_tooling_root)}/<area>/`.",
+                        f"`{_display_path(path=configured_test_root, prefix=project_prefix)}"
+                        "/<scope>/"
+                        f"{_display_path(path=configured_tooling_root, prefix=project_prefix)}"
+                        "/<area>/`.",
                         "",
                     )
                 )
     if TEST_AUTHORING_CODES.issubset(active_codes) and RUNTIME_MAIN_CODES.issubset(active_codes):
         lines.extend(
             _test_authoring_example(
-                runtime_root=_display_path(config.roots[0]),
-                test_root=_display_path(config.tests[0]),
+                runtime_root=_display_path(path=config.roots[0]),
+                test_root=_display_path(path=config.tests[0]),
             )
         )
     return tuple(lines)
@@ -391,7 +420,9 @@ def _test_authoring_example(*, runtime_root: str, test_root: str) -> tuple[str, 
     )
 
 
-def _tooling_guidance(*, config: Config, active_codes: frozenset[str]) -> tuple[str, ...]:
+def _tooling_guidance(
+    *, config: Config, active_codes: frozenset[str], project_prefix: str
+) -> tuple[str, ...]:
     if not config.tooling:
         return ()
     adapter_enabled: bool = TOOLING_ADAPTER_CODES.issubset(active_codes)
@@ -411,7 +442,12 @@ def _tooling_guidance(*, config: Config, active_codes: frozenset[str]) -> tuple[
     )
     lines: list[str] = ["### Tooling", ""]
     for configured_tooling_root in config.tooling:
-        lines.extend(("```text", f"{_display_path(configured_tooling_root)}/"))
+        lines.extend(
+            (
+                "```text",
+                f"{_display_path(path=configured_tooling_root, prefix=project_prefix)}/",
+            )
+        )
         lines.extend(_tree_entries(entries=tuple(entries), indent=""))
         if package_enabled:
             lines.extend(_tree_entries(entries=role_entries, indent="    "))
@@ -431,8 +467,9 @@ def _tree_entries(*, entries: tuple[str, ...], indent: str) -> tuple[str, ...]:
     return tuple(rendered)
 
 
-def _display_path(path: str) -> str:
-    return path.rstrip("/") or "."
+def _display_path(*, path: str, prefix: str = "") -> str:
+    display: str = path.rstrip("/") or "."
+    return f"{prefix}/{display}" if prefix else display
 
 
 def _module_path(path: str) -> str:

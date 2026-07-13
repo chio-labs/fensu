@@ -20,14 +20,14 @@ def build_check_rule_selection(
         config=config,
         repo_root=repo_root,
     )
-    warning_rules: tuple[RuleSpec, ...] = selection.warnings if include_warnings else ()
+    evaluated_warning_rules: tuple[RuleSpec, ...] = selection.warnings if include_warnings else ()
     validate_cacheable_rules(
-        rules=(*selection.blocking, *warning_rules),
+        rules=(*selection.blocking, *evaluated_warning_rules),
         allowed_packages=frozenset(name.partition(".")[0] for name in config.rule_modules),
     )
     return RuleSelection(
         catalogue=selection.catalogue,
         blocking=selection.blocking,
-        warnings=warning_rules,
+        warnings=selection.warnings,
         ignored=selection.ignored,
     )

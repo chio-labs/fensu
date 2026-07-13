@@ -26,7 +26,13 @@ from strata.cache.fingerprints.models import (
 )
 from strata.cache.results._helpers.serialization import file_result_to_record
 from strata.cache.results.models import CachedFileResult
-from strata.config.models import CacheConfig, Config, EvaluationConfig, ThresholdOverride
+from strata.config.models import (
+    CacheConfig,
+    Config,
+    EvaluationConfig,
+    SkillsConfig,
+    ThresholdOverride,
+)
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Threshold
 from strata.rules.catalog.main.build_ruleset import build_ruleset
@@ -45,6 +51,7 @@ from tests.unit.src.strata.cache.fingerprints._test_types import (
     GlobalRuntimeFingerprintTestCase,
     ImplementationFingerprintTestCase,
     RulesetFingerprintTestCase,
+    SkillsFingerprintTestCase,
     SourceFingerprintTestCase,
     ThresholdOverrideFingerprintTestCase,
     WarningFingerprintTestCase,
@@ -255,6 +262,31 @@ def test_given_warning_selection_change_when_fingerprinting_then_invalidates_con
     )
     second: CacheFingerprint = config_fingerprint(
         Config(roots=("src/pkg",), warn=test_case.second_warn)
+    )
+
+    assert (first == second) is test_case.expected_equal
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SkillsFingerprintTestCase(
+            description="persistent skill identity change invalidates config fingerprint",
+            first_name="api",
+            second_name="worker",
+            expected_equal=False,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_skill_name_change_when_fingerprinting_then_invalidates_config_identity(
+    test_case: SkillsFingerprintTestCase,
+) -> None:
+    first: CacheFingerprint = config_fingerprint(
+        Config(roots=("src/pkg",), skills=SkillsConfig(name=test_case.first_name))
+    )
+    second: CacheFingerprint = config_fingerprint(
+        Config(roots=("src/pkg",), skills=SkillsConfig(name=test_case.second_name))
     )
 
     assert (first == second) is test_case.expected_equal

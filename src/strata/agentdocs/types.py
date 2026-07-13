@@ -17,3 +17,20 @@ class SkillTarget(StrEnum):
     OPENCODE = "opencode"
     CLAUDE = "claude"
     AGENTS = "agents"
+
+
+class SkillInstallRoot(StrEnum):
+    """Named local skill installation roots."""
+
+    GIT = "git"
+    PROJECT = "project"
+
+
+class SkillFreshnessReason(StrEnum):
+    """Deterministic reasons an expected skill installation is not current."""
+
+    STALE = "stale"
+    MISSING = "missing"
+    DIVERGENT = "divergent"
+    MALFORMED_MARKER = "malformed-marker"
+    COLLISION = "collision"

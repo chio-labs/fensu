@@ -47,6 +47,16 @@ class WarningFingerprintTestCase:
 
 
 @dataclass(frozen=True)
+class SkillsFingerprintTestCase:
+    """Two persistent skill names and expected config identity relationship."""
+
+    description: str
+    first_name: str | None
+    second_name: str | None
+    expected_equal: bool
+
+
+@dataclass(frozen=True)
 class ConfigLayoutFingerprintTestCase:
     """Two configured layouts and whether their fingerprints must match."""
 

@@ -17,12 +17,14 @@ from strata.config.constants import (
     DEFAULT_THRESHOLDS,
     DEFAULT_TOOLING_PATHS,
     DEFAULT_WARN,
+    SKILLS_NAME_CONFIG_KEY,
 )
 from strata.config.models import (
     CacheConfig,
     Config,
     EvaluationConfig,
     RuleExceptionEntry,
+    SkillsConfig,
     ThresholdOverride,
 )
 from strata.rules.authoring.types import Threshold
@@ -61,11 +63,19 @@ def build_config(raw: Mapping[str, object]) -> Config:
         rule_exceptions=_rule_exceptions(raw.get("rule_exceptions")),
         cache=_cache_config(raw.get("cache")),
         evaluation=_evaluation_config(raw.get("evaluation")),
+        skills=_skills_config(raw.get("skills")),
         thresholds=MappingProxyType(thresholds),
         role_thresholds=MappingProxyType(role_thresholds),
         threshold_overrides=_threshold_overrides(raw.get("threshold_overrides")),
         contracts=MappingProxyType(contracts),
     )
+
+
+def _skills_config(value: object) -> SkillsConfig:
+    if not isinstance(value, dict):
+        return SkillsConfig()
+    name: object = value.get(SKILLS_NAME_CONFIG_KEY)
+    return SkillsConfig(name=name if isinstance(name, str) else None)
 
 
 def _evaluation_config(value: object) -> EvaluationConfig:

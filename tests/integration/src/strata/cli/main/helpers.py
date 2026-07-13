@@ -469,6 +469,69 @@ def write_cli_warning_skill_project(*, root: Path, rule_code: str) -> None:
     )
 
 
+def write_custom_rule_coverage_project(
+    *,
+    root: Path,
+    test_source: str | None,
+    minimum: int,
+    use_rule_module: bool,
+    second_rule: bool,
+    warn_only: bool = False,
+) -> None:
+    """Write a repository-owned custom-rule coverage fixture."""
+
+    (root / "src/pkg").mkdir(parents=True)
+    (root / "src/pkg/target.py").write_text("VALUE: int = 1\n", encoding="utf-8")
+    (root / "rules").mkdir()
+    (root / "rules/__init__.py").write_text("", encoding="utf-8")
+    registration_key: str = {False: "rule_paths", True: "rule_modules"}[use_rule_module]
+    registration_value: str = {
+        False: '"rules/custom_rule.py"',
+        True: '"rules.custom_rule"',
+    }[use_rule_module]
+    selection: str = {
+        False: 'select = ["SFR707"]\n',
+        True: 'select = ["SFA101"]\nwarn = ["SFR707"]\n',
+    }[warn_only]
+    (root / "strata.toml").write_text(
+        f'roots = ["src/pkg"]\ntests = ["tests"]\n{selection}'
+        f"{registration_key} = [{registration_value}]\n"
+        f"[thresholds]\nmin_custom_rule_test_cases = {minimum}\n",
+        encoding="utf-8",
+    )
+    second_source: str = {
+        False: "",
+        True: (
+            "\n@rule(code='XCV002', family=Family.CUSTOM, slug='second', message='second')\n"
+            "def second_rule(module: ast.Module, ctx: RuleContext) -> list[Fault]:\n"
+            "    del module, ctx\n"
+            "    return []\n"
+        ),
+    }[second_rule]
+    (root / "rules/custom_rule.py").write_text(
+        "from __future__ import annotations\n\n"
+        "import ast\n\n"
+        "from strata import Family, Fault, RuleContext, rule\n\n"
+        "@rule(code='XCV001', family=Family.CUSTOM, slug='first', message='first')\n"
+        "def first_rule(module: ast.Module, ctx: RuleContext) -> list[Fault]:\n"
+        "    del module, ctx\n"
+        "    return []\n"
+        f"{second_source}",
+        encoding="utf-8",
+    )
+    write_test: Callable[[], object] = {
+        False: lambda: None,
+        True: lambda: _write_custom_rule_test(root=root, source=test_source or ""),
+    }[test_source is not None]
+    _ = write_test()
+
+
+def _write_custom_rule_test(*, root: Path, source: str) -> None:
+    tests: Path = root / "tests"
+    tests.mkdir()
+    (tests / "test_custom_rule.py").write_text(source, encoding="utf-8")
+
+
 def generated_skill_text(*, root: Path, body: str) -> str:
     """Build same-owner generated content for installation transaction tests."""
 

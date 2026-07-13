@@ -30,4 +30,5 @@ def build_check_rule_selection(
         blocking=selection.blocking,
         warnings=selection.warnings,
         ignored=selection.ignored,
+        custom_registrations=selection.custom_registrations,
     )

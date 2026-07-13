@@ -85,5 +85,15 @@ def role_rule_details(code: RoleCode) -> tuple[str, str]:
             "Split the file by a cohesive role or concern instead of extracting arbitrary "
             "numbered fragments.",
         ),
+        RoleCode.DESCRIPTIVE_RULE_MODULE_NAMES: (
+            "rule module filenames must describe their policy rather than repeat one rule code",
+            "Rename the module after the policy or rule family it implements, using a name such "
+            "as conditional_test_flow.py instead of sft104.py.",
+        ),
+        RoleCode.CUSTOM_RULE_TEST_COVERAGE: (
+            "configured custom rules must have statically declared public-harness cases",
+            "Add parametrized RuleCase coverage for the rule's passing and failing boundaries "
+            "using evaluate_rule.",
+        ),
     }
     return details[code]

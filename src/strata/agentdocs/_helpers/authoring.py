@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from strata.agentdocs.models import SkillGenerationContext
 from strata.config.models import Config
-from strata.rules.authoring.types import RuleKind
+from strata.rules.authoring.types import RuleKind, Threshold
 
 
 def rule_context_lines() -> tuple[str, ...]:
@@ -88,6 +88,7 @@ def rule_testing_lines(context: SkillGenerationContext) -> tuple[str, ...]:
 
     if not context.config.rule_paths and not context.config.rule_modules:
         return ()
+    minimum: int = context.config.thresholds[Threshold.MIN_CUSTOM_RULE_TEST_CASES]
     return (
         "## Testing Custom Rules",
         "",
@@ -95,6 +96,9 @@ def rule_testing_lines(context: SkillGenerationContext) -> tuple[str, ...]:
         "Import the harness only from the top-level package and pass the decorated rule function "
         "as `rule=`. `RuleFile` support sources are available to `ctx.project` but are not direct "
         "evaluation targets.",
+        f"The effective minimum is `{minimum}` statically declared `RuleCase` value(s) per "
+        "configured custom rule, including rules not selected for blocking or warning evaluation. "
+        "A value of `0` disables this requirement.",
         "",
         "```python",
         "import pytest",
@@ -126,9 +130,9 @@ def rule_testing_lines(context: SkillGenerationContext) -> tuple[str, ...]:
         "    assert result.fault_count == test_case.expected_fault_count",
         "```",
         "",
-        "Cover failing and passing boundaries, near misses, relevant scopes and roles, configured "
-        "threshold or contract behavior, deterministic ordering, and cross-file dependency "
-        "observations when the rule uses `ctx.project`.",
+        "Cover a failing example, a passing example, near misses, scope exclusions, deterministic "
+        "ordering, and cross-file invalidation when the rule uses `ctx.project`. Verify cold and "
+        "warm cache behavior. Dynamic case generators cannot prove the configured static minimum.",
         "",
     )
 

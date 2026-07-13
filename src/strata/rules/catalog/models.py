@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from strata.rules.authoring.models import RuleSpec
+from strata.rules.authoring.models import CustomRuleRegistration, RuleSpec
 
 
 @dataclass(frozen=True, slots=True)
@@ -15,3 +15,4 @@ class RuleSelection:
     blocking: tuple[RuleSpec, ...]
     warnings: tuple[RuleSpec, ...]
     ignored: tuple[RuleSpec, ...]
+    custom_registrations: tuple[CustomRuleRegistration, ...] = ()

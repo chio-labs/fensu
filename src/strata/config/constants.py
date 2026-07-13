@@ -18,6 +18,7 @@ DEFAULT_THRESHOLDS: dict[Threshold, int] = {
     Threshold.MAX_ARGUMENTS: 10,
     Threshold.MAX_STATEMENTS_GLOBAL: 70,
     Threshold.MAX_SCRIPT_ENTRYPOINT_LINES: 80,
+    Threshold.MIN_CUSTOM_RULE_TEST_CASES: 1,
 }
 
 DEFAULT_ROLE_FILE_NAMES: frozenset[str] = frozenset(

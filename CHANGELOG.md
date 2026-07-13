@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.9.0](https://github.com/chio-labs/strata/compare/v0.8.0...v0.9.0) (2026-07-13)
+
+
+### Features
+
+* **exceptions:** support file-level rule exceptions ([2419d00](https://github.com/chio-labs/strata/commit/2419d002a76974f80720cbb1859725a2281f665b))
+* **exceptions:** support file-level rule exceptions ([73df930](https://github.com/chio-labs/strata/commit/73df93059c278ea48038183fbf25bc4861b831da))
+* **init:** enforce the default posture ([108a9d5](https://github.com/chio-labs/strata/commit/108a9d506d75f4bd9c76f708d6ef00253e63ddca))
+* **init:** enforce the default posture ([775bd22](https://github.com/chio-labs/strata/commit/775bd2246aecd2d39d848c4aa648e6076bd40b96))
+
 ## [0.8.0](https://github.com/chio-labs/strata/compare/v0.7.0...v0.8.0) (2026-07-12)
 
 

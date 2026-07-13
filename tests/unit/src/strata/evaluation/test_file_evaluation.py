@@ -9,13 +9,13 @@ import pytest
 
 from strata.config.models import Config, RuleExceptionEntry
 from strata.discovery.models import DiscoveredTree, ScopedFile
-from strata.evaluation.helpers.file_evaluation import evaluate_file
-from strata.evaluation.helpers.project_analysis import build_project_analysis
+from strata.evaluation._helpers.file_evaluation import evaluate_file
+from strata.evaluation._helpers.project_analysis import build_project_analysis
 from strata.evaluation.models import FileEvaluation
 from strata.evaluation.types import EvaluationProjectAnalysis
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Family
-from strata.rules.catalog.helpers import loading as loading_module
+from strata.rules.catalog._helpers import loading as loading_module
 from strata.rules.catalog.main.build_ruleset import build_ruleset
 from tests.unit.src.strata.evaluation._test_types import (
     FileEvaluationExceptionTestCase,

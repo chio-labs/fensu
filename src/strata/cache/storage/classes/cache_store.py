@@ -5,6 +5,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
+from strata.cache.storage._helpers.serialization import decode_cache_record, encode_cache_record
 from strata.cache.storage.constants import (
     CACHE_DATABASE_APPLICATION_ID,
     CACHE_DATABASE_BUSY_TIMEOUT_MS,
@@ -18,7 +19,6 @@ from strata.cache.storage.constants import (
     PARENT_PATH_PART,
 )
 from strata.cache.storage.exceptions import CachePathError
-from strata.cache.storage.helpers.serialization import decode_cache_record, encode_cache_record
 from strata.cache.storage.models import (
     CacheMutation,
     CacheMutationOutcome,

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from strata.config._helpers.discovery import locate_config
 from strata.config.exceptions import ConfigError
-from strata.config.helpers.discovery import locate_config
 from strata.config.models import ConfigSource
 
 

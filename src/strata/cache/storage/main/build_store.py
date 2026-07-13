@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from strata.cache.storage.helpers.building import create_cache_store
+from strata.cache.storage._helpers.building import create_cache_store
 from strata.cache.storage.types import CacheStorage
 
 

@@ -119,7 +119,7 @@ def test_given_excluded_cached_dependency_when_changed_then_invalidates_selected
     [
         CachedNamingParityTestCase(
             description="all naming behaviors have byte-identical cold and warm faults",
-            relative_path="src/pkg/domain/helpers/contracts.py",
+            relative_path="src/pkg/domain/_helpers/contracts.py",
             source=(
                 "def validate_item() -> int:\n    return 1\n"
                 "def is_ready() -> Status:\n    return Status()\n"

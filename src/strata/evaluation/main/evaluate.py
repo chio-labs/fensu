@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from strata.config.models import Config
 from strata.discovery.models import DiscoveredTree
-from strata.evaluation.helpers.collection import collect_evaluation_result
-from strata.evaluation.helpers.file_evaluation import evaluate_file
-from strata.evaluation.helpers.project_analysis import build_project_analysis
+from strata.evaluation._helpers.collection import collect_evaluation_result
+from strata.evaluation._helpers.file_evaluation import evaluate_file
+from strata.evaluation._helpers.project_analysis import build_project_analysis
 from strata.evaluation.main.select_files import select_evaluation_files
 from strata.evaluation.models import EvaluationResult, EvaluationSelection, FileEvaluation
 from strata.evaluation.types import EvaluationProjectAnalysis

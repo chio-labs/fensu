@@ -1,6 +1,6 @@
 """Build a call tree through symbol point lookups."""
 
-from strata.mapping.helpers.tree import build_tree
+from strata.mapping._helpers.tree import build_tree
 from strata.mapping.models import CallMapNode, FunctionDefinition
 from strata.mapping.types import SymbolResolver
 

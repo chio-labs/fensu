@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from strata.rules.authoring.helpers.code_grammar import rule_selector_is_valid
+from strata.rules.authoring._helpers.code_grammar import rule_selector_is_valid
 
 
 def is_rule_selector(value: object) -> bool:

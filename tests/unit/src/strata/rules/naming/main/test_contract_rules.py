@@ -221,7 +221,7 @@ def test_given_function_contracts_when_checking_returns_then_flags_meaningful_va
             expected_error_type=ConfigError,
             expected_message=(
                 "Conflicting contracts for function 'is_ready' at "
-                "src/pkg/domain/core/helpers/checks.py: '*_ready' (returns-value), "
+                "src/pkg/domain/core/_helpers/checks.py: '*_ready' (returns-value), "
                 "'is_*' (returns-bool)."
             ),
         )

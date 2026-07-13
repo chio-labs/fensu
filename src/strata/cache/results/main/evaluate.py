@@ -1,7 +1,7 @@
 """Evaluate a discovered tree through validated persistent result caching."""
 
 from strata.cache.fingerprints.models import CacheFingerprint
-from strata.cache.results.helpers.evaluation import run_cached_evaluation
+from strata.cache.results._helpers.evaluation import run_cached_evaluation
 from strata.cache.results.models import CacheEvaluation
 from strata.config.models import Config
 from strata.discovery.models import DiscoveredTree

@@ -173,7 +173,7 @@ def test_given_active_exception_when_inspecting_rule_then_renders_path_symbol_an
             expected_output_fragments=(
                 "Remediation: Keep only imports, one public entry function, and at most two "
                 "small private glue",
-                "             functions; move phase logic to helpers/.",
+                "             functions; move phase logic to _helpers/.",
             ),
             expected_absent_fragments=("\x1b[",),
         ),

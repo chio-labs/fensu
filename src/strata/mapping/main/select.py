@@ -1,6 +1,6 @@
 """Select one function from an in-memory project index."""
 
-from strata.mapping.helpers.index import select_function
+from strata.mapping._helpers.index import select_function
 from strata.mapping.models import FunctionDefinition
 
 

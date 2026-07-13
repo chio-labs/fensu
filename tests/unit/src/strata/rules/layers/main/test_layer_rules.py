@@ -32,7 +32,7 @@ from tests.unit.src.strata.rules.layers.main.helpers import (
         LayerRuleTestCase(
             description="relative import from parent package is flagged",
             rule_code="SFL001",
-            files=(("src/pkg/domain/alpha/main/run.py", "from ..helpers import local\n"),),
+            files=(("src/pkg/domain/alpha/main/run.py", "from .._helpers import local\n"),),
             expected_codes=("SFL001",),
             expected_lines=(1,),
         ),
@@ -124,7 +124,7 @@ def test_given_imports_when_checking_star_imports_then_flags_only_wildcards(
             files=(
                 (
                     "src/pkg/domain/alpha/main/run.py",
-                    "from pkg.domain.beta.helpers.parse import parse_value\n",
+                    "from pkg.domain.beta._helpers.parse import parse_value\n",
                 ),
             ),
             expected_codes=("SFL101",),
@@ -136,7 +136,7 @@ def test_given_imports_when_checking_star_imports_then_flags_only_wildcards(
             files=(
                 (
                     "python/mypkg/domain/alpha/main/run.py",
-                    "from mypkg.domain.beta.helpers.parse import parse_value\n",
+                    "from mypkg.domain.beta._helpers.parse import parse_value\n",
                 ),
             ),
             expected_codes=("SFL101",),
@@ -170,7 +170,7 @@ def test_given_imports_when_checking_star_imports_then_flags_only_wildcards(
             files=(
                 (
                     "src/pkg/domain/alpha/main/run.py",
-                    "from pkg.domain.alpha.helpers.parse import parse_value\n",
+                    "from pkg.domain.alpha._helpers.parse import parse_value\n",
                 ),
             ),
             expected_codes=(),
@@ -201,7 +201,7 @@ def test_given_sibling_imports_when_checking_layers_then_flags_only_internal_imp
             files=(
                 (
                     "src/pkg/domain_a/core/main/run.py",
-                    "from pkg.domain_b.core.helpers.parse import parse_value\n",
+                    "from pkg.domain_b.core._helpers.parse import parse_value\n",
                 ),
             ),
             expected_codes=("SFL102",),
@@ -213,7 +213,7 @@ def test_given_sibling_imports_when_checking_layers_then_flags_only_internal_imp
             files=(
                 (
                     "lib/acme/domain_a/core/main/run.py",
-                    "from acme.domain_b.core.helpers.parse import parse_value\n",
+                    "from acme.domain_b.core._helpers.parse import parse_value\n",
                 ),
             ),
             expected_codes=("SFL102",),
@@ -238,7 +238,7 @@ def test_given_sibling_imports_when_checking_layers_then_flags_only_internal_imp
             files=(
                 (
                     "src/pkg/domain_a/core/main/run.py",
-                    "from pkg.domain_a.other.helpers.parse import parse_value\n",
+                    "from pkg.domain_a.other._helpers.parse import parse_value\n",
                 ),
             ),
             expected_codes=(),
@@ -325,7 +325,7 @@ def test_given_internal_imports_when_checking_public_surface_then_flags_bare_pac
         LayerRuleTestCase(
             description="helper-private class stays local in own file",
             rule_code="SFL110",
-            files=(("src/pkg/domain/alpha/helpers/parse.py", "class _Cursor:\n    pass\n"),),
+            files=(("src/pkg/domain/alpha/_helpers/parse.py", "class _Cursor:\n    pass\n"),),
             expected_codes=(),
             expected_lines=(),
         ),
@@ -335,7 +335,7 @@ def test_given_internal_imports_when_checking_public_surface_then_flags_bare_pac
             files=(
                 (
                     "src/pkg/domain/alpha/main/run.py",
-                    "from pkg.domain.alpha.helpers.parse import _Cursor\n",
+                    "from pkg.domain.alpha._helpers.parse import _Cursor\n",
                 ),
             ),
             expected_codes=("SFL110",),
@@ -346,8 +346,8 @@ def test_given_internal_imports_when_checking_public_surface_then_flags_bare_pac
             rule_code="SFL110",
             files=(
                 (
-                    "src/pkg/domain/alpha/helpers/format.py",
-                    "from pkg.domain.alpha.helpers.parse import _Cursor\n",
+                    "src/pkg/domain/alpha/_helpers/format.py",
+                    "from pkg.domain.alpha._helpers.parse import _Cursor\n",
                 ),
             ),
             expected_codes=("SFL110",),
@@ -359,7 +359,7 @@ def test_given_internal_imports_when_checking_public_surface_then_flags_bare_pac
             files=(
                 (
                     "src/pkg/domain/alpha/main/run.py",
-                    "from pkg.domain.alpha.helpers import parse\nvalue = parse._Cursor()\n",
+                    "from pkg.domain.alpha._helpers import parse\nvalue = parse._Cursor()\n",
                 ),
             ),
             expected_codes=("SFL110",),
@@ -432,13 +432,13 @@ def test_given_runtime_imports_tooling_when_checking_layers_then_flags_only_runt
             files=(
                 (
                     "src/pkg/domain_a/core/main/run.py",
-                    "from pkg.domain_b.core.helpers.parse import parse_value\n",
+                    "from pkg.domain_b.core._helpers.parse import parse_value\n",
                 ),
             ),
             expected_codes=("SFL102",),
             expected_lines=(1,),
             expected_messages=(
-                "import 'pkg.domain_b.core.helpers.parse' reaches into internal structure of "
+                "import 'pkg.domain_b.core._helpers.parse' reaches into internal structure of "
                 "'pkg.domain_b'",
             ),
         )

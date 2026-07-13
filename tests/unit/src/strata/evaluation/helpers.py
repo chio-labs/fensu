@@ -8,7 +8,7 @@ from types import MappingProxyType
 
 import pytest
 
-import strata.evaluation.helpers.project_analysis as project_analysis_module
+import strata.evaluation._helpers.project_analysis as project_analysis_module
 from strata.analysis.models import SourceRange, SyntaxHandle
 from strata.analysis.types import Analysis
 from strata.config.models import Config, RuleExceptionEntry
@@ -41,7 +41,7 @@ def selection_context_rule() -> RuleSpec:
 
     def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
         del module
-        context_path: Path = ctx.repo_root / "src/pkg/domain_b/core/helpers/context.py"
+        context_path: Path = ctx.repo_root / "src/pkg/domain_b/core/_helpers/context.py"
         analysis: Analysis | None = ctx.project.analysis(requester=ctx.path, path=context_path)
         entries: tuple[Path, ...] = ctx.project.directory_entries(
             requester=ctx.path, path=context_path.parent

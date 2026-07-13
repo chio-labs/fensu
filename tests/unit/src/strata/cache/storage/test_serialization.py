@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
+from strata.cache.storage._helpers.serialization import decode_cache_record, encode_cache_record
 from strata.cache.storage.exceptions import CacheRecordError
-from strata.cache.storage.helpers.serialization import decode_cache_record, encode_cache_record
 from strata.cache.storage.models import CacheRecord
 from tests.unit.src.strata.cache.storage._test_types import (
     CacheRecordRoundTripTestCase,

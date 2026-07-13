@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from strata.mapping.helpers.render import render_tree
+from strata.mapping._helpers.render import render_tree
 from strata.mapping.models import CallMapNode
 from strata.mapping.types import PathMode
 

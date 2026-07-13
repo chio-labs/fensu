@@ -5,7 +5,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from strata.analysis.helpers.building import build_python_analysis
+from strata.analysis._helpers.building import build_python_analysis
 from strata.analysis.types import AnalysisBuild
 
 

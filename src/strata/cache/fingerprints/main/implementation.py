@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from strata.cache.fingerprints.helpers.fingerprints import implementation_fingerprint
+from strata.cache.fingerprints._helpers.fingerprints import implementation_fingerprint
 from strata.cache.fingerprints.models import CacheFingerprint
 
 

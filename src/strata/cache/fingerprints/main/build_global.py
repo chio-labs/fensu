@@ -5,7 +5,7 @@ from __future__ import annotations
 from importlib.metadata import PackageNotFoundError
 from pathlib import Path
 
-from strata.cache.fingerprints.helpers.fingerprints import (
+from strata.cache.fingerprints._helpers.fingerprints import (
     config_fingerprint,
     custom_rules_fingerprint,
     global_fingerprint,

@@ -8,7 +8,7 @@ from unittest.mock import Mock
 
 import pytest
 
-import strata.rules.roles.helpers.checks as role_checks
+import strata.rules.roles._helpers.checks as role_checks
 from strata.analysis.models import ProjectDependency
 from strata.analysis.types import ProjectDependencyKind
 from strata.config.constants import DEFAULT_THRESHOLDS
@@ -70,7 +70,7 @@ def evaluate_flat_helpers_scale(
 ) -> EvaluationResult:
     """Evaluate one namespace helpers role with the requested flat width."""
 
-    helpers: Path = project_root / "src/pkg/domain/orders/helpers"
+    helpers: Path = project_root / "src/pkg/domain/orders/_helpers"
     helpers.mkdir(parents=True)
     for index in range(module_count):
         (helpers / f"module_{index:03d}.py").write_text("", encoding="utf-8")
@@ -88,7 +88,7 @@ def evaluate_role_bucket_depth_scale(
 ) -> tuple[EvaluationResult, int]:
     """Evaluate one namespace role bucket with Python initializers at each depth."""
 
-    bucket: Path = project_root / "src/pkg/domain/orders/helpers/main"
+    bucket: Path = project_root / "src/pkg/domain/orders/_helpers/main"
     for index in range(depth):
         bucket /= f"level_{index:03d}"
         bucket.mkdir(parents=True)

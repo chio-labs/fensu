@@ -8,7 +8,7 @@ import pytest
 
 from strata.analysis.classes.query_observer import QueryObserver
 from strata.cache.fingerprints.main.source import fingerprint_source
-from strata.evaluation.helpers.parsing import read_source_snapshot
+from strata.evaluation._helpers.parsing import read_source_snapshot
 from tests.unit.src.strata.analysis._test_types import (
     ObserverFingerprintParityTestCase,
     ObserverQueryTestCase,

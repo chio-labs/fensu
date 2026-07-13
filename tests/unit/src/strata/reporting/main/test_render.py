@@ -187,18 +187,18 @@ def test_given_applied_exceptions_when_rendering_then_reports_exception_count(
             use_color=False,
             expected_text_fragments=(
                 "XRP005  main/ entry contains phase implementation",
-                "  = help: Move phase implementation into helpers/ and keep main/ focused on "
-                "ordered phase calls that",
-                "          return explicit result models.",
+                "  = help: Move phase implementation into _helpers/ and keep main/ focused on "
+                "ordered phase calls",
+                "          that return explicit result models.",
             ),
         ),
         RemediationRenderTestCase(
             description="colored diagnostics mute only the help label",
             use_color=True,
             expected_text_fragments=(
-                "  \033[2m= help:\033[0m Move phase implementation into helpers/ and keep "
-                "main/ focused on ordered phase calls that",
-                "          return explicit result models.",
+                "  \033[2m= help:\033[0m Move phase implementation into _helpers/ and keep "
+                "main/ focused on ordered phase calls",
+                "          that return explicit result models.",
             ),
         ),
     ],

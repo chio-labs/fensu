@@ -10,6 +10,11 @@ import pytest
 
 from strata.config.exceptions import ConfigError
 from strata.config.models import Config
+from strata.scaffolding._helpers import capabilities as capabilities_module
+from strata.scaffolding._helpers import execution as execution_module
+from strata.scaffolding._helpers import gitignore as gitignore_module
+from strata.scaffolding._helpers.execution import build_rendered_config, execute_init_plan
+from strata.scaffolding._helpers.gitignore import is_gitignored, plan_gitignore_update
 from strata.scaffolding.constants import (
     PYTHON_GITIGNORE_LICENSE,
     PYTHON_GITIGNORE_SHA256,
@@ -18,11 +23,6 @@ from strata.scaffolding.constants import (
     STRATA_GITIGNORE_BLOCK,
 )
 from strata.scaffolding.exceptions import InitError
-from strata.scaffolding.helpers import capabilities as capabilities_module
-from strata.scaffolding.helpers import execution as execution_module
-from strata.scaffolding.helpers import gitignore as gitignore_module
-from strata.scaffolding.helpers.execution import build_rendered_config, execute_init_plan
-from strata.scaffolding.helpers.gitignore import is_gitignored, plan_gitignore_update
 from strata.scaffolding.models import GitIgnorePlan, InitExecution, InitPlan
 from tests.unit.src.strata.scaffolding._test_types import (
     AtomicRaceTestCase,

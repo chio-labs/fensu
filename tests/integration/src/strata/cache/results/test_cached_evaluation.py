@@ -25,6 +25,7 @@ from tests.integration.src.strata.cache.results._test_types import (
     CachedEvaluationSelectionTestCase,
     CachedEvaluationSweepTestCase,
     CachedNamingParityTestCase,
+    CachedSharedDomainPrefixInvalidationTestCase,
 )
 from tests.integration.src.strata.cache.results.helpers import (
     context_source_fault_rule,
@@ -354,6 +355,57 @@ def test_given_cached_leaf_when_asset_directory_gains_python_then_invalidates_do
     assert tuple(fault.code for fault in initial.result.faults) == test_case.expected_initial_codes
     assert changed.stats.invalidations == test_case.expected_invalidations
     assert changed.stats.misses == test_case.expected_misses
+    assert tuple(fault.code for fault in changed.result.faults) == test_case.expected_changed_codes
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CachedSharedDomainPrefixInvalidationTestCase(
+            description="added sibling domain invalidates cached shared-prefix result",
+            first_domain_path="src/pkg/annotation_export/__init__.py",
+            second_domain_path="src/pkg/annotation_validation/__init__.py",
+            expected_initial_codes=(),
+            expected_invalidations=1,
+            expected_changed_codes=("SFR308",),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_cached_domain_when_matching_sibling_is_added_then_invalidates_prefix_result(
+    tmp_path: Path,
+    test_case: CachedSharedDomainPrefixInvalidationTestCase,
+) -> None:
+    write_project_sources(
+        repo_root=tmp_path,
+        files=(
+            ("src/pkg/__init__.py", ""),
+            (test_case.first_domain_path, ""),
+        ),
+    )
+    config, initial_tree = discover_project(repo_root=tmp_path)
+    ruleset: tuple[RuleSpec, ...] = (role_rule(code="SFR308"),)
+    initial: CacheEvaluation = evaluate_with_cache(
+        tree=initial_tree,
+        ruleset=ruleset,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+    write_project_sources(
+        repo_root=tmp_path,
+        files=((test_case.second_domain_path, ""),),
+    )
+    final_tree: DiscoveredTree = discover_project(repo_root=tmp_path)[1]
+
+    changed: CacheEvaluation = evaluate_with_cache(
+        tree=final_tree,
+        ruleset=ruleset,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+
+    assert tuple(fault.code for fault in initial.result.faults) == test_case.expected_initial_codes
+    assert changed.stats.invalidations == test_case.expected_invalidations
     assert tuple(fault.code for fault in changed.result.faults) == test_case.expected_changed_codes
 
 

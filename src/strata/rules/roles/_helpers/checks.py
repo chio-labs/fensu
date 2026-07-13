@@ -66,6 +66,8 @@ _minimum_nested_module_parts: int = 3
 _minimum_nested_subpackage_parts: int = 4
 _top_level_role_parts: int = 2
 _maximum_entry_private_functions: int = 2
+_domain_name_separator: str = "_"
+_natural_language_pair_size: int = 2
 
 
 def models_only_models(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
@@ -420,6 +422,113 @@ def top_level_direct_modules(*, module: ast.Module, ctx: RuleContext) -> list[Fa
             message="top-level domains must not contain ad hoc direct modules",
         )
     ]
+
+
+def shared_domain_prefix(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Flag sibling domains whose first name token encodes one missing parent domain."""
+
+    del module
+    if ctx.scope() is not ScopeName.ROOT:
+        return []
+    scope_root: Path = ctx.scope_root()
+    anchor: Path | None = _scope_root_anchor(scope_root=scope_root, ctx=ctx)
+    if anchor is None or ctx.path != anchor:
+        return []
+    minimum: int = ctx.threshold(
+        name=Threshold.MIN_SHARED_DOMAIN_PREFIX_PACKAGES,
+        path=anchor,
+    )
+    if minimum == 0:
+        return []
+    groups: tuple[tuple[str, tuple[str, ...]], ...] = _shared_domain_prefix_groups(
+        scope_root=scope_root,
+        ctx=ctx,
+    )
+    faults: list[Fault] = []
+    for prefix, domain_names in groups:
+        if len(domain_names) < minimum:
+            continue
+        suffixes: tuple[str, ...] = tuple(
+            name.removeprefix(f"{prefix}{_domain_name_separator}") for name in domain_names
+        )
+        domains_text: str = _natural_language_list(domain_names)
+        suffixes_text: str = _natural_language_list(tuple(f"{suffix}/" for suffix in suffixes))
+        destination: Path = scope_root / prefix
+        existing_destination: bool = ctx.project.is_dir(
+            requester=ctx.path,
+            path=destination,
+        )
+        remediation: str = (
+            f"Move them under the existing {prefix}/ domain as {suffixes_text} subdomains."
+            if existing_destination
+            else f"Create {prefix}/ and move them beneath it as {suffixes_text} subdomains."
+        )
+        faults.append(
+            ctx.path_fault(
+                message=(f"sibling domains {domains_text} share the {prefix}_ owner prefix"),
+                remediation=remediation,
+            )
+        )
+    return faults
+
+
+def _scope_root_anchor(*, scope_root: Path, ctx: RuleContext) -> Path | None:
+    init_path: Path = scope_root / INIT_MODULE_FILE_NAME
+    if ctx.project.is_file(requester=ctx.path, path=init_path):
+        return init_path
+    python_files: tuple[Path, ...] = tuple(
+        sorted(
+            ctx.project.glob(
+                requester=ctx.path,
+                path=scope_root,
+                pattern="*.py",
+                recursive=True,
+            )
+        )
+    )
+    return python_files[0] if python_files else None
+
+
+def _shared_domain_prefix_groups(
+    *, scope_root: Path, ctx: RuleContext
+) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    grouped: dict[str, list[str]] = {}
+    entries: tuple[Path, ...] = tuple(
+        sorted(ctx.project.directory_entries(requester=ctx.path, path=scope_root))
+    )
+    for entry in entries:
+        name: str = entry.name
+        if (
+            name.startswith(_domain_name_separator)
+            or name in _role_names
+            or name == LEGACY_HELPERS_DIRECTORY_NAME
+            or name == _python_cache_directory_name
+            or _domain_name_separator not in name
+            or not name.isidentifier()
+            or not ctx.project.is_dir(requester=ctx.path, path=entry)
+        ):
+            continue
+        prefix, separator, suffix = name.partition(_domain_name_separator)
+        if not separator or not prefix or not suffix:
+            continue
+        python_files: tuple[Path, ...] = ctx.project.glob(
+            requester=ctx.path,
+            path=entry,
+            pattern="*.py",
+            recursive=True,
+        )
+        if not python_files:
+            continue
+        grouped.setdefault(prefix, []).append(name)
+    return tuple((prefix, tuple(sorted(names))) for prefix, names in sorted(grouped.items()))
+
+
+def _natural_language_list(values: tuple[str, ...]) -> str:
+    if len(values) == 1:
+        return values[0]
+    if len(values) == _natural_language_pair_size:
+        return f"{values[0]} and {values[1]}"
+    return f"{', '.join(values[:-1])}, and {values[-1]}"
 
 
 def entry_module_shape(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:

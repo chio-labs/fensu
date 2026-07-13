@@ -209,6 +209,7 @@ class InMemoryConfigBuildTestCase:
     expected_roots: tuple[str, ...]
     expected_select: tuple[str, ...]
     expected_warn: tuple[str, ...]
+    expected_shared_domain_minimum: int
 
 
 @dataclass(frozen=True)

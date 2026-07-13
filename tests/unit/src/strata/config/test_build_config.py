@@ -7,6 +7,7 @@ import pytest
 from strata.config.exceptions import ConfigError, ConfigValidationError
 from strata.config.main.build_config import build_config
 from strata.config.models import Config
+from strata.rules.authoring.types import Threshold
 from tests.unit.src.strata.config._test_types import (
     InMemoryConfigBuildTestCase,
     InvalidInMemoryConfigTestCase,
@@ -22,6 +23,7 @@ from tests.unit.src.strata.config._test_types import (
             expected_roots=("src/pkg",),
             expected_select=("SFL",),
             expected_warn=("SFR706",),
+            expected_shared_domain_minimum=2,
         )
     ],
     ids=lambda case: case.description,
@@ -34,6 +36,10 @@ def test_given_valid_raw_mapping_when_building_then_returns_config(
     assert config.roots == test_case.expected_roots
     assert config.select == test_case.expected_select
     assert config.warn == test_case.expected_warn
+    assert (
+        config.thresholds[Threshold.MIN_SHARED_DOMAIN_PREFIX_PACKAGES]
+        == test_case.expected_shared_domain_minimum
+    )
 
 
 @pytest.mark.parametrize(

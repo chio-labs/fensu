@@ -63,6 +63,28 @@ _ESCAPED_OVERRIDE_REASON: str = 'Generated "API" path.\nKeep \\ escapes.'
             expected_absent_fragments=("# noqa",),
         ),
         GuidanceTestCase(
+            description="file level exception is explicit in generated guidance",
+            config=Config(
+                roots=("src/acme",),
+                tests=(),
+                tooling=(),
+                rule_exceptions=(
+                    RuleExceptionEntry(
+                        rule="SFR307",
+                        path="src/acme/domain/special.py",
+                        reason="This file is an intentional adapter.",
+                    ),
+                ),
+            ),
+            rule_codes=("SFR307",),
+            expected_fragments=(
+                "## Active Rule Exceptions",
+                "`SFR307` in `src/acme/domain/special.py`: file-level",
+                "Reason: This file is an intentional adapter.",
+            ),
+            expected_absent_fragments=("symbols = []",),
+        ),
+        GuidanceTestCase(
             description="full core rules show detailed configured runtime tests and tooling",
             config=Config(roots=("src/acme",), tests=("tests",), tooling=("scripts",)),
             rule_codes=tuple(rule.code for rule in CORE_RULES),

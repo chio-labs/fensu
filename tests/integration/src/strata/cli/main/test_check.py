@@ -28,6 +28,7 @@ from tests.integration.src.strata.cli.main.helpers import (
     cache_snapshot,
     write_cli_core_fault_project,
     write_cli_exception_project,
+    write_cli_file_exception_project,
     write_cli_fixture_project,
     write_cli_no_fault_project,
     write_cli_stale_exception_project,
@@ -466,6 +467,37 @@ def test_given_applied_exception_when_running_check_then_reports_count_and_exit_
 
     assert exit_code == test_case.expected_exit_code
     assert test_case.expected_output_fragment in stdout.getvalue()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CheckNoFaultTestCase(
+            description="file-level exception survives cold and warm checks",
+            argv=("--no-color", "--cache"),
+            expected_exit_code=0,
+            expected_output_fragment="Found 0 faults\nApplied 1 rule exception",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_file_level_exception_when_running_check_then_suppresses_path_fault(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: CheckNoFaultTestCase,
+) -> None:
+    write_cli_file_exception_project(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    cold_stdout: CaptureOutput = CaptureOutput()
+    warm_stdout: CaptureOutput = CaptureOutput()
+
+    cold_exit: int = run_check(argv=test_case.argv, stdout=cold_stdout)
+    warm_exit: int = run_check(argv=test_case.argv, stdout=warm_stdout)
+
+    assert cold_exit == test_case.expected_exit_code
+    assert warm_exit == test_case.expected_exit_code
+    assert test_case.expected_output_fragment in cold_stdout.getvalue()
+    assert warm_stdout.getvalue() == cold_stdout.getvalue()
 
 
 @pytest.mark.parametrize(

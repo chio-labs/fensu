@@ -92,8 +92,8 @@ def _render_rule(
     if exceptions:
         lines.extend(("", "Active exceptions:"))
         for exception in exceptions:
-            symbols: str = ", ".join(exception.symbols)
-            lines.append(f"  {exception.path}: {symbols}")
+            scope: str = ", ".join(exception.symbols) if exception.symbols else "file-level"
+            lines.append(f"  {exception.path}: {scope}")
             lines.append(f"    Reason: {exception.reason}")
     return "\n".join(lines)
 

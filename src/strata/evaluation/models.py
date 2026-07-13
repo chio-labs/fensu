@@ -30,11 +30,11 @@ class ParsedModule:
 
 @dataclass(frozen=True, slots=True)
 class RuleExceptionKey:
-    """One exact configured rule, path, and qualified-symbol exception."""
+    """One exact configured rule and path exception, optionally symbol-scoped."""
 
     rule: str
     path: str
-    symbol: str
+    symbol: str | None
 
 
 @dataclass(frozen=True, slots=True)

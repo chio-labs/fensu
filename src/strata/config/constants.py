@@ -74,3 +74,4 @@ SINGLE_COMPONENT_GLOB: str = "*"
 RECURSIVE_GLOB: str = "**"
 THRESHOLD_OVERRIDE_KEYS: frozenset[str] = frozenset({"paths", "thresholds", "reason"})
 EVALUATION_CONFIG_KEYS: frozenset[str] = frozenset({"include", "exclude"})
+RULE_EXCEPTION_SYMBOLS_CONFIG_KEY: str = "symbols"

@@ -19,3 +19,6 @@ class SfrCatalogueTestCase:
     expected_sfr306_remediation: str
     expected_sfr307_message: str
     expected_sfr307_remediation: str
+    expected_sfr706_slug: str
+    expected_sfr706_message: str
+    expected_sfr706_remediation: str

@@ -122,6 +122,7 @@ class CachedFileResult:
     faults: tuple[CachedFault, ...]
     applied_exception_keys: tuple[CachedRuleExceptionKey, ...]
     dependencies: tuple[DependencyObservation, ...]
+    warnings: tuple[CachedFault, ...] = ()
     threshold_override_uses: tuple[CachedThresholdOverrideUse, ...] = ()
 
 

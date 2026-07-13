@@ -9,5 +9,5 @@ def meaningful_return_lines(facts: tuple[FunctionContractFact, ...]) -> tuple[in
     lines: list[int | None] = []
     for fact in facts:
         location: SourceLocation | None = fact.meaningful_return_location
-        lines.append(location.line if location is not None else None)
+        lines.append(getattr(location, "line", None))
     return tuple(lines)

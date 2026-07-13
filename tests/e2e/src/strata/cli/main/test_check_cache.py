@@ -82,6 +82,64 @@ def test_given_cacheable_project_when_running_separate_modes_then_preserves_outp
     "test_case",
     [
         CacheCliTestCase(
+            description="warning mode is byte-identical across cold warm and uncached processes",
+            config=('roots = ["src/pkg"]\ntests = []\nselect = ["SFA101"]\nwarn = ["SFA002"]\n'),
+            files=(
+                CliProjectFile(
+                    relative_path="src/pkg/module.py",
+                    source="def build():\n    return 1\n",
+                ),
+            ),
+            expected_exit_code=0,
+            expected_stdout_fragment="Found 0 faults and 1 warning",
+            expected_cache_exists=True,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_warning_project_when_running_installed_modes_then_preserves_advisory_output(
+    tmp_path: Path,
+    test_case: CacheCliTestCase,
+) -> None:
+    write_cli_project(
+        root=tmp_path,
+        config=test_case.config,
+        files=tuple((file.relative_path, file.source) for file in test_case.files),
+    )
+
+    plain: subprocess.CompletedProcess[str] = run_cli_check(
+        root=tmp_path,
+        argv=("--no-cache",),
+    )
+    cold: subprocess.CompletedProcess[str] = run_cli_check(
+        root=tmp_path,
+        argv=("--cache", "--warn"),
+    )
+    warm_stats: subprocess.CompletedProcess[str] = run_cli_check(
+        root=tmp_path,
+        argv=("--cache", "--cache-stats", "--warn"),
+    )
+    uncached: subprocess.CompletedProcess[str] = run_cli_check(
+        root=tmp_path,
+        argv=("--no-cache", "--warn"),
+    )
+
+    assert plain.returncode == test_case.expected_exit_code
+    assert plain.stdout == "Found 0 faults\n"
+    assert cold.returncode == test_case.expected_exit_code
+    assert warm_stats.returncode == test_case.expected_exit_code
+    assert uncached.returncode == test_case.expected_exit_code
+    assert test_case.expected_stdout_fragment in cold.stdout
+    assert warm_stats.stdout == cold.stdout
+    assert uncached.stdout == cold.stdout
+    assert "hits=1 misses=0" in warm_stats.stderr
+    assert bool(cache_snapshot(tmp_path)) is test_case.expected_cache_exists
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CacheCliTestCase(
             description="fresh no-cache installed process creates no cache namespace",
             config='roots = ["src/pkg"]\ntests = []\nselect = ["SFA101"]\n',
             files=(CliProjectFile(relative_path="src/pkg/models.py", source="VALUE = 1\n"),),

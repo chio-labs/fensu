@@ -43,9 +43,9 @@ def evaluate_shape_test_case(
         ),
         threshold_overrides=test_case.threshold_overrides,
     )
-    ruleset: tuple[RuleSpec, ...] = (
-        SFS_RULES if test_case.rule_code == "SFS" else (_rule_by_code(test_case.rule_code),)
-    )
+    rulesets_by_code: dict[str, tuple[RuleSpec, ...]] = {rule.code: (rule,) for rule in SFS_RULES}
+    rulesets_by_code["SFS"] = SFS_RULES
+    ruleset: tuple[RuleSpec, ...] = rulesets_by_code[test_case.rule_code]
     return evaluate(
         tree=discover_files(config=config),
         ruleset=ruleset,
@@ -92,7 +92,5 @@ def locals_source(count: int) -> str:
 
 
 def _rule_by_code(rule_code: str) -> RuleSpec:
-    for rule in SFS_RULES:
-        if rule.code == rule_code:
-            return rule
-    raise AssertionError(f"Unknown SFS rule code {rule_code}")
+    rules_by_code: dict[str, RuleSpec] = {rule.code: rule for rule in SFS_RULES}
+    return rules_by_code[rule_code]

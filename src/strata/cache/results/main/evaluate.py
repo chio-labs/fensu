@@ -12,6 +12,7 @@ def evaluate_with_cache(
     *,
     tree: DiscoveredTree,
     ruleset: tuple[RuleSpec, ...],
+    warning_rules: tuple[RuleSpec, ...] = (),
     config: Config,
     global_fingerprint: CacheFingerprint,
 ) -> CacheEvaluation:
@@ -20,6 +21,7 @@ def evaluate_with_cache(
     return run_cached_evaluation(
         tree=tree,
         ruleset=ruleset,
+        warning_rules=warning_rules,
         config=config,
         global_fingerprint=global_fingerprint,
     )

@@ -78,6 +78,7 @@ def config_fingerprint(config: Config) -> CacheFingerprint:
         ],
         "thresholds": _threshold_values(config.thresholds),
         "tooling": list(config.tooling),
+        "warn": list(config.warn),
     }
     return canonical_fingerprint(payload)
 
@@ -192,6 +193,7 @@ def global_fingerprint(
     config: CacheFingerprint,
     ruleset: CacheFingerprint,
     custom_rules: CacheFingerprint,
+    warnings_enabled: bool = False,
     strata_version: str | None = None,
 ) -> CacheFingerprint:
     """Return the complete process-independent global cache identity."""
@@ -206,6 +208,7 @@ def global_fingerprint(
         "ruleset": ruleset.value,
         "schema_version": CACHE_SCHEMA_VERSION,
         "strata_version": strata_version or version("stratalint"),
+        "warnings_enabled": warnings_enabled,
     }
     return canonical_fingerprint(payload)
 
@@ -248,6 +251,17 @@ def file_result_record_fingerprint(result: CachedFileResult) -> CacheFingerprint
                 "remediation": item.remediation,
             }
             for item in result.faults
+        ],
+        "warnings": [
+            {
+                "code": item.code,
+                "column": item.column,
+                "line": item.line,
+                "message": item.message,
+                "path": item.path,
+                "remediation": item.remediation,
+            }
+            for item in result.warnings
         ],
         "path": result.path,
         "source_fingerprint": result.source_fingerprint.value,

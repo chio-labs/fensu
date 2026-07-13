@@ -238,6 +238,15 @@ class PytestFunctionFactTestCase:
 
 
 @dataclass(frozen=True)
+class PytestConditionalFactTestCase:
+    """Source and expected conditional locations for test functions."""
+
+    description: str
+    source: str
+    expected_lines: tuple[int, ...]
+
+
+@dataclass(frozen=True)
 class ObserverFingerprintParityTestCase:
     """Source bytes and expected fingerprint parity across implementations."""
 

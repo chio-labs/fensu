@@ -128,9 +128,10 @@ def test_rule_details(code: SftCode) -> tuple[str, str]:
             "Correct the mirrored area path so it matches the tooling location.",
         ),
         SftCode.NO_IF_IN_TESTS: (
-            "test bodies must not contain conditional control flow",
-            "Split behavioral branches into parametrized cases and move conditional setup or "
-            "selection into local test helpers.",
+            "tests and local test helpers must not contain conditional control flow",
+            "Use parametrized cases when setup and assertions remain branch-free; otherwise "
+            "split the behavior into separate test functions. Keep local test helpers "
+            "deterministic with per-variant functions or dataclass-driven case data.",
         ),
         SftCode.PRIVATE_CONSTANT_ORDER: (
             "private test constants must appear before test functions",

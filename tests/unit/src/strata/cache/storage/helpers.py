@@ -44,7 +44,10 @@ def install_write_failure(*, store: CacheStore, failed_key: str | None = None) -
         record=CacheRecord(kind="setup", payload={}),
     )
     with sqlite3.connect(store.root) as connection:
-        condition: str = "" if failed_key is None else f" WHEN NEW.key = '{failed_key}'"
+        condition: str = {
+            True: "",
+            False: f" WHEN NEW.key = '{failed_key}'",
+        }[failed_key is None]
         connection.execute(
             f"CREATE TRIGGER fail_writes BEFORE INSERT ON records{condition} "
             "BEGIN SELECT RAISE(ABORT, 'simulated write failure'); END"

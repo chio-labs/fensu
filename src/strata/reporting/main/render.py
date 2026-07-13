@@ -13,8 +13,10 @@ from strata.rules.authoring.models import Fault
 def render(
     *,
     faults: tuple[Fault, ...],
+    warnings: tuple[Fault, ...] = (),
     root: Path,
     use_color: bool = False,
+    show_warnings: bool = False,
     applied_exception_count: int = 0,
     threshold_override_uses: tuple[ThresholdOverrideUse, ...] = (),
 ) -> RenderedReport:
@@ -23,11 +25,14 @@ def render(
     return RenderedReport(
         text=render_text(
             faults=faults,
+            warnings=warnings,
             root=root,
             use_color=use_color,
+            show_warnings=show_warnings,
             applied_exception_count=applied_exception_count,
             threshold_override_uses=threshold_override_uses,
         ),
         fault_count=len(faults),
+        warning_count=len(warnings),
         applied_exception_count=applied_exception_count,
     )

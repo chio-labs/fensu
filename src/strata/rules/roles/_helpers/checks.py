@@ -14,6 +14,7 @@ from strata.discovery.constants import (
     ROLE_DIRECTORY_TO_NAME,
 )
 from strata.discovery.types import RoleName, ScopeName
+from strata.rules.authoring.main.is_rule_code import is_rule_code
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import RuleContext, Threshold
 from strata.rules.roles.types import RoleCode
@@ -741,6 +742,21 @@ def rules_role_content(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
             )
         )
     return faults
+
+
+def descriptive_rule_module_names(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Reject rule modules named exactly after a core or custom rule code."""
+
+    del module
+    if not ctx.in_role(RoleName.RULES):
+        return []
+    if not is_rule_code(ctx.path.stem.upper()):
+        return []
+    return [
+        ctx.path_fault(
+            message="rule module filenames must describe their policy, not repeat a rule code"
+        )
+    ]
 
 
 def tooling_package_layout(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:

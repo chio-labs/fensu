@@ -44,6 +44,7 @@ class RuleSelectorConfigTestCase:
     description: str
     config_text: str
     expected_select: tuple[str, ...]
+    expected_warn: tuple[str, ...]
     expected_ignore: tuple[str, ...]
 
 
@@ -198,6 +199,7 @@ class InMemoryConfigBuildTestCase:
     raw_config: dict[str, object]
     expected_roots: tuple[str, ...]
     expected_select: tuple[str, ...]
+    expected_warn: tuple[str, ...]
 
 
 @dataclass(frozen=True)

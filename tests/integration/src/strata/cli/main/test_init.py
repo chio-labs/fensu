@@ -847,24 +847,49 @@ def test_given_invalid_utf8_python_when_measuring_drift_then_warns_and_continues
             existing_project=True,
             argv=("--yes", "--name", "other", "--no-skills"),
             expected_error_fragment="--name only applies when no Python package is detected.",
+            expected_error="--name only applies when no Python package is detected.\n",
+        ),
+        InitApplicabilityTestCase(
+            description="yes requires an explicit name for an empty scaffold",
+            existing_project=False,
+            argv=("--yes", "--no-skills"),
+            expected_error_fragment=(
+                "Empty repository initialization with --yes requires --name NAME."
+            ),
+            expected_error=(
+                "Empty repository initialization with --yes requires --name NAME.\n"
+                "Example: strata init --yes --name my_package\n"
+            ),
         ),
         InitApplicabilityTestCase(
             description="root is rejected for an empty scaffold",
             existing_project=False,
             argv=("--yes", "--root", "src/acme", "--no-skills"),
             expected_error_fragment="Explicit --root, --tests, and --tooling options do not apply",
+            expected_error=(
+                "Explicit --root, --tests, and --tooling options do not apply to an empty "
+                "scaffold; use --name to choose its package.\n"
+            ),
         ),
         InitApplicabilityTestCase(
             description="tests are rejected for an empty scaffold",
             existing_project=False,
             argv=("--yes", "--tests", "tests", "--no-skills"),
             expected_error_fragment="Explicit --root, --tests, and --tooling options do not apply",
+            expected_error=(
+                "Explicit --root, --tests, and --tooling options do not apply to an empty "
+                "scaffold; use --name to choose its package.\n"
+            ),
         ),
         InitApplicabilityTestCase(
             description="tooling is rejected for an empty scaffold",
             existing_project=False,
             argv=("--yes", "--tooling", "scripts", "--no-skills"),
             expected_error_fragment="Explicit --root, --tests, and --tooling options do not apply",
+            expected_error=(
+                "Explicit --root, --tests, and --tooling options do not apply to an empty "
+                "scaffold; use --name to choose its package.\n"
+            ),
         ),
     ],
     ids=lambda case: case.description,
@@ -889,6 +914,7 @@ def test_given_inapplicable_options_when_initializing_then_rejects_before_output
 
     assert exit_code == 2
     assert test_case.expected_error_fragment in stderr.getvalue()
+    assert stderr.getvalue() == test_case.expected_error
     assert stdout.getvalue() == ""
     assert project_file_snapshot(tmp_path) == before
     assert not (tmp_path / "strata.toml").exists()

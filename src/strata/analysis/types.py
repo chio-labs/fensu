@@ -177,6 +177,10 @@ class FactAnalysis(Protocol):
         """Return reusable syntax metadata for test functions."""
         ...
 
+    def top_level_definition_conditionals(self) -> tuple[SourceLocation, ...]:
+        """Return test-policy conditionals owned by top-level definitions."""
+        ...
+
     def test_module(self) -> PytestModuleFacts:
         """Return reusable test module-shape metadata."""
         ...

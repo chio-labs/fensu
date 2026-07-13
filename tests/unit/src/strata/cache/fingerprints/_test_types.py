@@ -37,6 +37,16 @@ class ContractFingerprintTestCase:
 
 
 @dataclass(frozen=True)
+class WarningFingerprintTestCase:
+    """Two warning selections and expected config identity relationship."""
+
+    description: str
+    first_warn: tuple[str, ...]
+    second_warn: tuple[str, ...]
+    expected_equal: bool
+
+
+@dataclass(frozen=True)
 class ConfigLayoutFingerprintTestCase:
     """Two configured layouts and whether their fingerprints must match."""
 
@@ -115,6 +125,16 @@ class GlobalFingerprintTestCase:
     description: str
     first_version: str
     second_version: str
+    expected_equal: bool
+
+
+@dataclass(frozen=True)
+class WarningModeFingerprintTestCase:
+    """Two warning-mode states and whether their cache identities may match."""
+
+    description: str
+    first_enabled: bool
+    second_enabled: bool
     expected_equal: bool
 
 

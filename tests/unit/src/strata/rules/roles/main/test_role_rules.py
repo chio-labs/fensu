@@ -1876,3 +1876,85 @@ def test_given_configured_tooling_when_checking_structure_then_enforces_tool_rol
 
     assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
     assert tuple(fault.line for fault in result.faults) == test_case.expected_lines
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SfrRuleTestCase(
+            description="lowercase core rule code module name is flagged",
+            rule_code="SFR706",
+            relative_path="strata_rules/rules/sft104.py",
+            source="",
+            expected_codes=("SFR706",),
+            expected_lines=(None,),
+            scope=ScopeName.TOOLING,
+        ),
+        SfrRuleTestCase(
+            description="lowercase custom rule code module name is flagged",
+            rule_code="SFR706",
+            relative_path="strata_rules/rules/xjt001.py",
+            source="",
+            expected_codes=("SFR706",),
+            expected_lines=(None,),
+            scope=ScopeName.TOOLING,
+        ),
+        SfrRuleTestCase(
+            description="rule own lowercase code module name is flagged",
+            rule_code="SFR706",
+            relative_path="strata_rules/rules/sfr706.py",
+            source="",
+            expected_codes=("SFR706",),
+            expected_lines=(None,),
+            scope=ScopeName.TOOLING,
+        ),
+        SfrRuleTestCase(
+            description="descriptive rule module name is allowed",
+            rule_code="SFR706",
+            relative_path="strata_rules/rules/conditional_test_flow.py",
+            source="",
+            expected_codes=(),
+            expected_lines=(),
+            scope=ScopeName.TOOLING,
+        ),
+        SfrRuleTestCase(
+            description="underscore-separated code-like module name is allowed",
+            rule_code="SFR706",
+            relative_path="strata_rules/rules/sfr_706.py",
+            source="",
+            expected_codes=(),
+            expected_lines=(),
+            scope=ScopeName.TOOLING,
+        ),
+        SfrRuleTestCase(
+            description="code with suffix module name is allowed",
+            rule_code="SFR706",
+            relative_path="strata_rules/rules/sft104x.py",
+            source="",
+            expected_codes=(),
+            expected_lines=(),
+            scope=ScopeName.TOOLING,
+        ),
+        SfrRuleTestCase(
+            description="code-like module name outside rules role is allowed",
+            rule_code="SFR706",
+            relative_path="strata_rules/main/sft104.py",
+            source="",
+            expected_codes=(),
+            expected_lines=(),
+            scope=ScopeName.TOOLING,
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_rule_module_name_when_checking_roles_then_requires_descriptive_name(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: SfrRuleTestCase,
+) -> None:
+    result: EvaluationResult = evaluate_role_test_case(
+        test_case=test_case, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
+    assert tuple(fault.line for fault in result.faults) == test_case.expected_lines

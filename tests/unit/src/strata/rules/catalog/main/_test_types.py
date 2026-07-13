@@ -55,6 +55,30 @@ class SelectCompositionTestCase:
 
 
 @dataclass(frozen=True)
+class RuleSelectionTestCase:
+    """Policy selectors and expected resolved blocking, warning, and ignored codes."""
+
+    description: str
+    select: tuple[str, ...]
+    warn: tuple[str, ...]
+    ignore: tuple[str, ...]
+    expected_blocking_codes: tuple[str, ...]
+    expected_warning_codes: tuple[str, ...]
+    expected_ignored_codes: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class RuleSelectionErrorTestCase:
+    """Overlapping policy selectors and their deterministic configuration error."""
+
+    description: str
+    select: tuple[str, ...]
+    warn: tuple[str, ...]
+    ignore: tuple[str, ...]
+    expected_error: str
+
+
+@dataclass(frozen=True)
 class CatalogueQualityTestCase:
     """Forbidden metadata fragments and expected catalogue-quality result."""
 

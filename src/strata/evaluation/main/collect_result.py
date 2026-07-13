@@ -14,6 +14,7 @@ def collect_file_evaluations(
     dependencies: tuple[ProjectDependency, ...],
     config: Config,
     repo_root: Path,
+    evaluated_rule_codes: frozenset[str] | None = None,
     selection: EvaluationSelection | None = None,
 ) -> EvaluationResult:
     """Return the complete sorted result for cached or fresh file outputs."""
@@ -23,5 +24,6 @@ def collect_file_evaluations(
         dependencies=dependencies,
         config=config,
         repo_root=repo_root,
+        evaluated_rule_codes=evaluated_rule_codes,
         selection=selection,
     )

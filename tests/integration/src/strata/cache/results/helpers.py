@@ -141,7 +141,8 @@ def discover_project(*, repo_root: Path) -> tuple[Config, DiscoveredTree]:
 def role_rule(*, code: str) -> RuleSpec:
     """Return one core role rule by stable code."""
 
-    return next(rule for rule in SFR_RULES if rule.code == code)
+    rules_by_code: dict[str, RuleSpec] = {rule.code: rule for rule in SFR_RULES}
+    return rules_by_code[code]
 
 
 def source_fault_rule(*, kind: RuleKind = RuleKind.CORE, cacheable: bool = False) -> RuleSpec:
@@ -171,7 +172,8 @@ def dependency_fault_rule() -> RuleSpec:
             requester=ctx.path,
             path=ctx.repo_root / "dependency.py",
         )
-        return [ctx.path_fault(message="present" if exists else "missing")]
+        message: str = {False: "missing", True: "present"}[exists]
+        return [ctx.path_fault(message=message)]
 
     return RuleSpec(
         code="XCR002",
@@ -189,7 +191,8 @@ def context_source_fault_rule() -> RuleSpec:
         del module
         context_path: Path = ctx.repo_root / "src/pkg/context.py"
         analysis: Analysis | None = ctx.project.analysis(requester=ctx.path, path=context_path)
-        message: str = "missing" if analysis is None else analysis.text.source.strip()
+        source: str = getattr(getattr(analysis, "text", None), "source", "missing")
+        message: str = source.strip()
         return [ctx.path_fault(message=message)]
 
     return RuleSpec(

@@ -27,6 +27,7 @@ DEFAULT_ROLE_FILE_NAMES: frozenset[str] = frozenset(
 DEFAULT_TEST_PATHS: tuple[str, ...] = ("tests",)
 DEFAULT_TOOLING_PATHS: tuple[str, ...] = ()
 DEFAULT_SELECT: tuple[str, ...] = (RuleSelector.ALL,)
+DEFAULT_WARN: tuple[str, ...] = ()
 DEFAULT_IGNORE: tuple[str, ...] = ()
 DEFAULT_CACHE_ENABLED: bool = True
 CACHE_ENABLED_CONFIG_KEY: str = "enabled"
@@ -39,6 +40,7 @@ CONFIG_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
         "tests",
         "tooling",
         "select",
+        "warn",
         "ignore",
         "rule_paths",
         "rule_modules",

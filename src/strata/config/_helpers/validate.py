@@ -46,6 +46,7 @@ def validate_config(raw: Mapping[str, object]) -> None:
     _validate_optional_string_sequence(name="rule_paths", value=raw.get("rule_paths"))
     _validate_optional_string_sequence(name="rule_modules", value=raw.get("rule_modules"))
     _validate_selection(name="select", value=raw.get("select"))
+    _validate_selection(name="warn", value=raw.get("warn"))
     _validate_selection(name="ignore", value=raw.get("ignore"))
     _validate_thresholds(value=raw.get("thresholds"), owner="thresholds")
     _validate_role_thresholds(value=raw.get("roles"))

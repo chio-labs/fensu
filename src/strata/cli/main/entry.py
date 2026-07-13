@@ -3,19 +3,26 @@
 from __future__ import annotations
 
 import sys
+from importlib import metadata
 
 from strata.cli.main.check import run_check
 from strata.cli.main.init import run_init
 from strata.cli.main.map import run_map
 from strata.cli.main.rule import run_rule
 from strata.cli.main.skills import run_skills
-from strata.cli.types import CliCommand
+from strata.cli.types import CliCommand, CliOption
 
 
 def main(argv: tuple[str, ...] | None = None) -> int:
     """Run the strata CLI."""
 
     args: tuple[str, ...] = tuple(sys.argv[1:] if argv is None else argv)
+    if args and args[0] in {CliOption.HELP, CliOption.SHORT_HELP}:
+        _write_help()
+        return 0
+    if args and args[0] == CliOption.VERSION:
+        sys.stdout.write(f"strata {_installed_version()}\n")
+        return 0
     if args and args[0] == CliCommand.CHECK:
         return run_check(argv=args[1:])
     if args and args[0] == CliCommand.INIT:
@@ -26,5 +33,29 @@ def main(argv: tuple[str, ...] | None = None) -> int:
         return run_skills(argv=args[1:])
     if args and args[0] == CliCommand.MAP:
         return run_map(argv=args[1:])
+    if args:
+        sys.stderr.write(f"Unknown command: {args[0]}\n")
     sys.stderr.write("Usage: strata {check,init,rule,skills,map} ...\n")
     return 2
+
+
+def _write_help() -> None:
+    sys.stdout.write(
+        "Usage: strata {init,check,rule,map,skills} ...\n"
+        "\n"
+        "Commands:\n"
+        "  init    Initialize Strata configuration for a repository.\n"
+        "  check   Evaluate repository architecture rules.\n"
+        "  rule    Show details for one rule.\n"
+        "  map     Render a downstream project call map.\n"
+        "  skills  Generate and install agent guidance.\n"
+        "\n"
+        "Run `strata <command> --help` for command-specific options.\n"
+    )
+
+
+def _installed_version() -> str:
+    try:
+        return metadata.version("stratalint")
+    except metadata.PackageNotFoundError:
+        return "unknown"

@@ -22,6 +22,8 @@ from tests.integration.src.strata.cli.main._test_types import (
     EvaluationCheckTestCase,
     NestedContainerCacheTestCase,
     ThresholdOverrideCheckTestCase,
+    WarningCacheIdentityTestCase,
+    WarningCheckTestCase,
 )
 from tests.integration.src.strata.cli.main.helpers import (
     CaptureOutput,
@@ -440,6 +442,189 @@ def test_given_no_faults_when_running_check_then_outputs_summary_and_exit_zero(
 
     assert exit_code == test_case.expected_exit_code
     assert test_case.expected_output_fragment in stdout.getvalue()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        WarningCheckTestCase(
+            description="plain check does not evaluate configured warning rule",
+            source="def build():\n    return 1\n",
+            argv=("--no-color", "--no-cache"),
+            expected_exit_code=0,
+            expected_summary="Found 0 faults",
+            expected_warning_count=0,
+            expected_fault_count=0,
+        ),
+        WarningCheckTestCase(
+            description="warning check reports zero warnings with explicit grammar",
+            source="def build() -> int:\n    return 1\n",
+            argv=("--no-color", "--no-cache", "--warn"),
+            expected_exit_code=0,
+            expected_summary="Found 0 faults and 0 warnings",
+            expected_warning_count=0,
+            expected_fault_count=0,
+        ),
+        WarningCheckTestCase(
+            description="warning-only finding succeeds with singular grammar",
+            source="def build():\n    return 1\n",
+            argv=("--no-color", "--no-cache", "--warn"),
+            expected_exit_code=0,
+            expected_summary="Found 0 faults and 1 warning",
+            expected_warning_count=1,
+            expected_fault_count=0,
+        ),
+        WarningCheckTestCase(
+            description="multiple warning findings succeed with plural grammar",
+            source="def build():\n    return 1\ndef load():\n    return 2\n",
+            argv=("--no-color", "--no-cache", "--warn"),
+            expected_exit_code=0,
+            expected_summary="Found 0 faults and 2 warnings",
+            expected_warning_count=2,
+            expected_fault_count=0,
+        ),
+        WarningCheckTestCase(
+            description="mixed blocking and warning findings fail only for the blocking fault",
+            source="VALUE = 1\ndef build():\n    return 1\n",
+            argv=("--no-color", "--no-cache", "--warn"),
+            expected_exit_code=1,
+            expected_summary="Found 1 fault and 1 warning",
+            expected_warning_count=1,
+            expected_fault_count=1,
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_configured_warning_rules_when_running_check_then_evaluates_only_requested_tiers(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: WarningCheckTestCase,
+) -> None:
+    (tmp_path / "strata.toml").write_text(
+        'roots = ["src/pkg"]\ntests = []\nselect = ["SFA101"]\nwarn = ["SFA002"]\n',
+        encoding="utf-8",
+    )
+    source: Path = tmp_path / "src/pkg/module.py"
+    source.parent.mkdir(parents=True)
+    source.write_text(test_case.source, encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    stdout: CaptureOutput = CaptureOutput()
+
+    exit_code: int = run_check(argv=test_case.argv, stdout=stdout)
+
+    output: str = stdout.getvalue()
+    assert exit_code == test_case.expected_exit_code
+    assert test_case.expected_summary in output
+    assert output.count("SFA002  ") == test_case.expected_warning_count
+    assert output.count("SFA101  ") == test_case.expected_fault_count
+    assert output.count("= warning:") == test_case.expected_warning_count
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        WarningCacheIdentityTestCase(
+            description="plain to warning mode switches miss before warning mode warms",
+            first_argv=("--no-color", "--cache", "--cache-stats"),
+            second_argv=("--no-color", "--cache", "--cache-stats", "--warn"),
+            third_argv=("--no-color", "--cache", "--cache-stats", "--warn"),
+            expected_switch_stats="hits=0 misses=1",
+            expected_warm_stats="hits=1 misses=0",
+        ),
+        WarningCacheIdentityTestCase(
+            description="warning to plain mode switches miss before plain mode warms",
+            first_argv=("--no-color", "--cache", "--cache-stats", "--warn"),
+            second_argv=("--no-color", "--cache", "--cache-stats"),
+            third_argv=("--no-color", "--cache", "--cache-stats"),
+            expected_switch_stats="hits=0 misses=1",
+            expected_warm_stats="hits=1 misses=0",
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_cached_warning_mode_switch_when_running_check_then_uses_distinct_identity(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: WarningCacheIdentityTestCase,
+) -> None:
+    (tmp_path / "strata.toml").write_text(
+        'roots = ["src/pkg"]\ntests = []\nselect = ["SFA101"]\nwarn = ["SFA002"]\n',
+        encoding="utf-8",
+    )
+    source: Path = tmp_path / "src/pkg/module.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("def build():\n    return 1\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    first_stderr: CaptureOutput = CaptureOutput()
+    second_stderr: CaptureOutput = CaptureOutput()
+    third_stderr: CaptureOutput = CaptureOutput()
+
+    _ = run_check(argv=test_case.first_argv, stdout=CaptureOutput(), stderr=first_stderr)
+    _ = run_check(argv=test_case.second_argv, stdout=CaptureOutput(), stderr=second_stderr)
+    _ = run_check(argv=test_case.third_argv, stdout=CaptureOutput(), stderr=third_stderr)
+
+    assert test_case.expected_switch_stats in first_stderr.getvalue()
+    assert test_case.expected_switch_stats in second_stderr.getvalue()
+    assert test_case.expected_warm_stats in third_stderr.getvalue()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CheckCacheWarningTestCase(
+            description="warn-only uncacheable custom rule affects only warning mode",
+            argv=("--no-color", "--cache", "--cache-stats", "--warn"),
+            expected_exit_code=0,
+            expected_output_fragment="Found 0 faults and 1 warning",
+            expected_warning_fragment="custom rules disable caching",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_warn_only_uncacheable_custom_rule_when_switching_modes_then_plain_cache_remains_eligible(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: CheckCacheWarningTestCase,
+) -> None:
+    (tmp_path / "strata.toml").write_text(
+        'roots = ["src/pkg"]\ntests = []\nselect = ["SFA101"]\nwarn = ["XWC001"]\n'
+        'rule_paths = ["rules/custom.py"]\n',
+        encoding="utf-8",
+    )
+    source: Path = tmp_path / "src/pkg/module.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("VALUE: int = 1\n", encoding="utf-8")
+    custom_rule: Path = tmp_path / "rules/custom.py"
+    custom_rule.parent.mkdir()
+    custom_rule.write_text(
+        "from __future__ import annotations\n"
+        "import ast\n"
+        "from strata import Family, Fault, RuleContext, rule\n"
+        "@rule(code='XWC001', family=Family.CUSTOM, slug='warning', message='review')\n"
+        "def warning(module: ast.Module, ctx: RuleContext) -> list[Fault]:\n"
+        "    return [ctx.fault(node=module.body[0])]\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    plain_cold_stderr: CaptureOutput = CaptureOutput()
+    plain_warm_stderr: CaptureOutput = CaptureOutput()
+    warned_stdout: CaptureOutput = CaptureOutput()
+    warned_stderr: CaptureOutput = CaptureOutput()
+    plain_argv: tuple[str, ...] = ("--no-color", "--cache", "--cache-stats")
+
+    _ = run_check(argv=plain_argv, stdout=CaptureOutput(), stderr=plain_cold_stderr)
+    _ = run_check(argv=plain_argv, stdout=CaptureOutput(), stderr=plain_warm_stderr)
+    warned_exit: int = run_check(
+        argv=test_case.argv,
+        stdout=warned_stdout,
+        stderr=warned_stderr,
+    )
+
+    assert "hits=0 misses=1" in plain_cold_stderr.getvalue()
+    assert "hits=1 misses=0" in plain_warm_stderr.getvalue()
+    assert warned_exit == test_case.expected_exit_code
+    assert test_case.expected_output_fragment in warned_stdout.getvalue()
+    assert test_case.expected_warning_fragment in warned_stderr.getvalue()
 
 
 @pytest.mark.parametrize(

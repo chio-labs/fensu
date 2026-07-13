@@ -47,9 +47,18 @@ class FailingSkillPublisher:
 
     def __call__(self, *, staged_file: object) -> object:
         self._calls += 1
-        if self._calls == self._failure_at:
-            raise OSError("simulated skill replacement failure")
+        publish: Callable[..., object] = {
+            False: self._publish_staged_file,
+            True: self._raise_failure,
+        }[self._calls == self._failure_at]
+        return publish(staged_file=staged_file)
+
+    def _publish_staged_file(self, *, staged_file: object) -> object:
         return self._publish(staged_file=staged_file)
+
+    def _raise_failure(self, *, staged_file: object) -> object:
+        del staged_file
+        raise OSError("simulated skill replacement failure")
 
 
 class RacingSkillLinker:
@@ -69,9 +78,14 @@ class RacingSkillLinker:
 
     def __call__(self, source: Path, target: Path, *, follow_symlinks: bool) -> None:
         self._calls += 1
-        if self._calls == self._race_at:
-            target.write_text(self._user_content, encoding="utf-8")
+        race: Callable[[], None] = {False: lambda: None, True: lambda: self._race(target)}[
+            self._calls == self._race_at
+        ]
+        race()
         self._link(source, target, follow_symlinks=follow_symlinks)
+
+    def _race(self, target: Path) -> None:
+        target.write_text(self._user_content, encoding="utf-8")
 
 
 class RacingExistingSkillWriter:
@@ -93,19 +107,27 @@ class RacingExistingSkillWriter:
 
     def __call__(self, *, target_file: BinaryIO, content: bytes) -> None:
         self._calls += 1
-        if self._calls == self._race_at:
-            replacement: Path = self._target_path.with_name("racing-user-skill")
-            replacement.write_text(self._user_content, encoding="utf-8")
-            _ = replacement.replace(self._target_path)
+        race: Callable[[], None] = {False: lambda: None, True: self._race}[
+            self._calls == self._race_at
+        ]
+        race()
         self._write(target_file=target_file, content=content)
+
+    def _race(self) -> None:
+        replacement: Path = self._target_path.with_name("racing-user-skill")
+        replacement.write_text(self._user_content, encoding="utf-8")
+        _ = replacement.replace(self._target_path)
 
 
 def configure_no_color(*, monkeypatch: pytest.MonkeyPatch, enabled: bool) -> None:
     """Set or clear the conventional terminal color opt-out."""
 
     monkeypatch.delenv("NO_COLOR", raising=False)
-    if enabled:
-        monkeypatch.setenv("NO_COLOR", "1")
+    configure: Callable[[], None] = {
+        False: lambda: None,
+        True: lambda: monkeypatch.setenv("NO_COLOR", "1"),
+    }[enabled]
+    configure()
 
 
 def write_init_hatch_project(
@@ -126,7 +148,7 @@ def write_init_hatch_project(
         package: Path = root / package_path
         package.mkdir(parents=True)
         (package / "__init__.py").write_text("", encoding="utf-8")
-        source: str = "VALUE = 1\n" if include_fault else "VALUE: int = 1\n"
+        source: str = {False: "VALUE: int = 1\n", True: "VALUE = 1\n"}[include_fault]
         (package / "constants.py").write_text(source, encoding="utf-8")
     (root / "tests").mkdir()
     for tooling_path in tooling_paths:
@@ -176,29 +198,42 @@ def write_init_editable_project(*, root: Path) -> None:
 def write_init_existing_config(*, root: Path, source: str) -> Path:
     """Write one supported existing config source and return its path."""
 
-    if source == "strata.toml":
+    def write_strata_config() -> Path:
         path: Path = root / "strata.toml"
         path.write_text('roots = ["src/acme"]\n', encoding="utf-8")
         return path
-    path = root / "pyproject.toml"
-    existing: str = path.read_text(encoding="utf-8") if path.exists() else ""
-    path.write_text(f'{existing}\n[tool.strata]\nroots = ["src/acme"]\n', encoding="utf-8")
-    return path
+
+    def write_pyproject_config() -> Path:
+        path: Path = root / "pyproject.toml"
+        try:
+            existing: str = path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            existing = ""
+        path.write_text(f'{existing}\n[tool.strata]\nroots = ["src/acme"]\n', encoding="utf-8")
+        return path
+
+    writer: Callable[[], Path] = {
+        "strata.toml": write_strata_config,
+        "tool.strata": write_pyproject_config,
+    }[source]
+    return writer()
 
 
 def project_file_snapshot(root: Path) -> tuple[str, ...]:
     """Return all repository-relative files in stable order."""
 
-    return tuple(
-        path.relative_to(root).as_posix() for path in sorted(root.rglob("*")) if path.is_file()
-    )
+    paths: filter[Path] = filter(Path.is_file, sorted(root.rglob("*")))
+    return tuple(path.relative_to(root).as_posix() for path in paths)
 
 
 def prepare_init_execution_project(*, root: Path, existing_project: bool) -> tuple[str, ...]:
     """Optionally write an existing project and return its initial file snapshot."""
 
-    if existing_project:
-        write_init_hatch_project(root=root)
+    prepare: Callable[[], None] = {
+        False: lambda: None,
+        True: lambda: write_init_hatch_project(root=root),
+    }[existing_project]
+    prepare()
     return project_file_snapshot(root)
 
 
@@ -211,18 +246,28 @@ def assert_init_execution_files(
 ) -> None:
     """Assert atomic refusal or exact successful init filesystem state."""
 
-    if expected_config is None:
+    def assert_refusal() -> None:
         assert project_file_snapshot(root) == before
-    else:
+
+    def assert_success() -> None:
+        assert expected_config is not None
         assert (root / "strata.toml").read_text(encoding="utf-8") == expected_config
-    if expected_created_paths:
-        assert project_file_snapshot(root) == expected_created_paths
+
+    assertion: Callable[[], None] = {
+        True: assert_refusal,
+        False: assert_success,
+    }[expected_config is None]
+    assertion()
+    for expected_paths in filter(None, (expected_created_paths,)):
+        assert project_file_snapshot(root) == expected_paths
 
 
 def configured_roots_or_none(root: Path) -> tuple[str, ...] | None:
     """Return configured roots when init wrote a config."""
 
-    if not (root / "strata.toml").is_file():
+    try:
+        _ = (root / "strata.toml").stat()
+    except FileNotFoundError:
         return None
     config: Config = load_config(root)
     return config.roots
@@ -231,35 +276,47 @@ def configured_roots_or_none(root: Path) -> tuple[str, ...] | None:
 def existing_relative_paths(*, root: Path, paths: tuple[str, ...]) -> tuple[str, ...]:
     """Return expected relative paths that currently exist."""
 
-    return tuple(path for path in paths if (root / path).is_file())
+    return tuple(filter(lambda path: (root / path).is_file(), paths))
 
 
 def prepare_init_refusal_project(*, root: Path, source: str) -> tuple[Path, tuple[str, ...]]:
     """Write one refusal fixture and return its repository and initial snapshot."""
 
-    repository: Path = root / "repo" if source == "parent" else root
+    repository: Path = {False: root, True: root / "repo"}[source == "parent"]
     repository.mkdir(exist_ok=True)
     write_init_hatch_project(root=repository)
-    if source in {"strata.toml", "tool.strata"}:
-        _ = write_init_existing_config(root=repository, source=source)
-    if source == "parent":
-        _ = write_init_existing_config(root=root, source="strata.toml")
+    write_local: Callable[[], object] = {
+        False: lambda: None,
+        True: lambda: write_init_existing_config(root=repository, source=source),
+    }[source in {"strata.toml", "tool.strata"}]
+    write_parent: Callable[[], object] = {
+        False: lambda: None,
+        True: lambda: write_init_existing_config(root=root, source="strata.toml"),
+    }[source == "parent"]
+    _ = write_local()
+    _ = write_parent()
     return repository, project_file_snapshot(repository)
 
 
 def prepare_init_applicability_project(*, root: Path, existing_project: bool) -> tuple[str, ...]:
     """Prepare an existing or empty repository for option-applicability refusal tests."""
 
-    if existing_project:
-        write_init_hatch_project(root=root)
+    prepare: Callable[[], None] = {
+        False: lambda: None,
+        True: lambda: write_init_hatch_project(root=root),
+    }[existing_project]
+    prepare()
     return project_file_snapshot(root)
 
 
 def prepare_init_transcript_project(*, root: Path, existing_project: bool) -> None:
     """Prepare the representative repository shape for an exact transcript."""
 
-    if existing_project:
-        write_init_single_python_file_project(root=root)
+    prepare: Callable[[], None] = {
+        False: lambda: None,
+        True: lambda: write_init_single_python_file_project(root=root),
+    }[existing_project]
+    prepare()
 
 
 def write_broken_strata_symlink(*, root: Path, outside_target: Path) -> None:
@@ -271,14 +328,22 @@ def write_broken_strata_symlink(*, root: Path, outside_target: Path) -> None:
 def prepare_unsafe_local_config_target(*, root: Path, target_kind: str) -> Path:
     """Create a symlink or nonregular local configuration candidate."""
 
-    name: str = "pyproject.toml" if target_kind.startswith("pyproject") else "strata.toml"
+    name: str = {False: "strata.toml", True: "pyproject.toml"}[target_kind.startswith("pyproject")]
     path: Path = root / name
-    if target_kind.endswith("symlink"):
+
+    def create_symlink() -> None:
         outside: Path = root.parent / f"{root.name}-{name}"
         outside.write_text('[tool.strata]\nroots = ["src/pkg"]\n', encoding="utf-8")
         path.symlink_to(outside)
-    else:
+
+    def create_directory() -> None:
         path.mkdir()
+
+    create: Callable[[], None] = {
+        False: create_directory,
+        True: create_symlink,
+    }[target_kind.endswith("symlink")]
+    create()
     return path
 
 
@@ -297,8 +362,11 @@ def write_cli_fixture_project(
     (root / "src" / "pkg").mkdir(parents=True)
     (root / "rules").mkdir()
     (root / "src" / "pkg" / "target.py").write_text("value: int = 1\n", encoding="utf-8")
-    selected_rules: str = f'"SF", "{rule_code}"' if include_core_rules else f'"{rule_code}"'
-    ignored_rules: str = 'ignore = ["SFH002"]\n' if include_core_rules else ""
+    selected_rules: str = {
+        False: f'"{rule_code}"',
+        True: f'"SF", "{rule_code}"',
+    }[include_core_rules]
+    ignored_rules: str = {False: "", True: 'ignore = ["SFH002"]\n'}[include_core_rules]
     config: str = (
         f'roots = ["src/pkg"]\nselect = [{selected_rules}]\n{ignored_rules}'
         'rule_paths = ["rules/custom_rule.py"]\n'
@@ -387,9 +455,11 @@ def write_cli_core_fault_project(root: Path, *, cache_enabled: bool | None = Non
     source: Path = root / "src/pkg/models.py"
     source.parent.mkdir(parents=True)
     source.write_text("VALUE = 1\n", encoding="utf-8")
-    cache_config: str = (
-        "" if cache_enabled is None else f"[cache]\nenabled = {str(cache_enabled).lower()}\n"
-    )
+    cache_config: str = {
+        None: "",
+        False: "[cache]\nenabled = false\n",
+        True: "[cache]\nenabled = true\n",
+    }[cache_enabled]
     (root / "strata.toml").write_text(
         f'roots = ["src/pkg"]\ntests = []\nselect = ["SFA101"]\n{cache_config}',
         encoding="utf-8",
@@ -400,12 +470,13 @@ def cache_snapshot(root: Path) -> tuple[tuple[str, bytes], ...]:
     """Return deterministic logical cache keys and canonical record bytes."""
 
     database: Path = root / CACHE_DATABASE_RELATIVE_PATH
-    if not database.is_file():
+    try:
+        with sqlite3.connect(f"{database.as_uri()}?mode=ro", uri=True) as connection:
+            rows: list[tuple[str, bytes]] = connection.execute(
+                "SELECT key, data FROM records ORDER BY key"
+            ).fetchall()
+    except sqlite3.OperationalError:
         return ()
-    with sqlite3.connect(f"{database.as_uri()}?mode=ro", uri=True) as connection:
-        rows: list[tuple[str, bytes]] = connection.execute(
-            "SELECT key, data FROM records ORDER BY key"
-        ).fetchall()
     return tuple(rows)
 
 
@@ -425,38 +496,48 @@ def write_cli_map_project(
     package: Path = root / configured_root
     package_name: str = package.name
     package.mkdir(parents=True)
-    if write_config:
-        (root / "strata.toml").write_text(f'roots = ["{configured_root}"]\n', encoding="utf-8")
-    parameters: str = "callback: object" if dynamic_seam else ""
-    callback_line: str = "    callback()" if dynamic_seam else ""
-    step_import: str = (
-        "from .steps import step" if relative_imports else f"from {package_name}.steps import step"
-    )
-    function_lines: tuple[str, ...] = ("    step()", callback_line)
-    if dynamic_first:
-        function_lines = (callback_line, "    step()")
+    write_configuration: Callable[[], object] = {
+        False: lambda: None,
+        True: lambda: (root / "strata.toml").write_text(
+            f'roots = ["{configured_root}"]\n', encoding="utf-8"
+        ),
+    }[write_config]
+    _ = write_configuration()
+    parameters: str = {False: "", True: "callback: object"}[dynamic_seam]
+    callback_line: str = {False: "", True: "    callback()"}[dynamic_seam]
+    step_import: str = {
+        False: f"from {package_name}.steps import step",
+        True: "from .steps import step",
+    }[relative_imports]
+    function_lines: tuple[str, ...] = {
+        False: ("    step()", callback_line),
+        True: (callback_line, "    step()"),
+    }[dynamic_first]
     function_body: str = "\n".join(filter(None, function_lines))
     (package / "entry.py").write_text(
         (f"{step_import}\n\ndef run({parameters}) -> None:\n{function_body}\n"),
         encoding="utf-8",
     )
-    finish_import: str = (
-        "from . import finish as finishing"
-        if relative_imports
-        else f"import {package_name}.finish as finishing"
-    )
+    finish_import: str = {
+        False: f"import {package_name}.finish as finishing",
+        True: "from . import finish as finishing",
+    }[relative_imports]
     (package / "steps.py").write_text(
         f"{finish_import}\n\ndef step() -> None:\n    finishing.finish()\n",
         encoding="utf-8",
     )
-    finish_source: str = "def finish() -> None:\n    return None\n"
-    if cycle:
-        finish_source = (
-            f"from {package_name}.entry import run\n\ndef finish() -> None:\n    run()\n"
-        )
+    finish_source: str = {
+        False: "def finish() -> None:\n    return None\n",
+        True: f"from {package_name}.entry import run\n\ndef finish() -> None:\n    run()\n",
+    }[cycle]
     (package / "finish.py").write_text(finish_source, encoding="utf-8")
-    if ambiguous:
-        (package / "other.py").write_text("def run() -> None:\n    return None\n", encoding="utf-8")
+    write_ambiguous: Callable[[], object] = {
+        False: lambda: None,
+        True: lambda: (package / "other.py").write_text(
+            "def run() -> None:\n    return None\n", encoding="utf-8"
+        ),
+    }[ambiguous]
+    _ = write_ambiguous()
 
 
 def write_cli_method_map_project(root: Path) -> None:

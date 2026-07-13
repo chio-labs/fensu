@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import importlib
 import importlib.util
@@ -11,12 +12,14 @@ from importlib.machinery import ModuleSpec
 from pathlib import Path
 from types import ModuleType
 
+from strata.analysis.models import SourceLocation
 from strata.config.exceptions import ConfigError
 from strata.config.models import Config
+from strata.discovery.constants import INIT_MODULE_FILE_NAME
 from strata.rules.authoring.main.inspect import rule_specs_in_module
 from strata.rules.authoring.main.is_rule_code import is_rule_code
 from strata.rules.authoring.main.matches_rule_selector import matches_rule_selector
-from strata.rules.authoring.models import RuleSpec
+from strata.rules.authoring.models import CustomRuleRegistration, RuleSpec
 from strata.rules.authoring.types import Family, RuleKind
 from strata.rules.catalog._helpers.hermeticity import validate_cacheable_rules
 from strata.rules.catalog.constants import CORE_RULES
@@ -57,6 +60,11 @@ def build_rule_selection_from_config(
         blocking=blocking,
         warnings=warnings,
         ignored=ignored,
+        custom_registrations=_custom_registrations(
+            rules=catalogue,
+            config=config,
+            repo_root=(Path.cwd() if repo_root is None else repo_root).resolve(),
+        ),
     )
 
 
@@ -92,7 +100,14 @@ def _load_rule_modules(*, module_names: tuple[str, ...], repo_root: Path) -> tup
                 ) from error
             loaded.extend(
                 _with_custom_source(
-                    rules=rule_specs_in_module(module=module), source=f"module:{module_name}"
+                    rules=rule_specs_in_module(module=module),
+                    source=str(
+                        _repository_module_path(
+                            module=module,
+                            module_name=module_name,
+                            repo_root=repo_root,
+                        )
+                    ),
                 )
             )
     finally:
@@ -224,6 +239,108 @@ def _with_custom_source(*, rules: tuple[RuleSpec, ...], source: str) -> tuple[Ru
         else:
             result.append(rule)
     return tuple(result)
+
+
+def _repository_module_path(*, module: ModuleType, module_name: str, repo_root: Path) -> Path:
+    module_file: object = getattr(module, "__file__", None)
+    if not isinstance(module_file, str):
+        raise ConfigError(
+            f"Custom rule module {module_name} has no repository-owned Python source. "
+            "Move the rule into this repository and configure that module or a rule_path."
+        )
+    path: Path = Path(module_file).resolve()
+    if not path.is_file() or not path.is_relative_to(repo_root):
+        raise ConfigError(
+            f"Custom rule module {module_name} resolves outside the repository at {path}. "
+            "Move the rule into this repository and configure that module or a rule_path so "
+            "SFR707 diagnostics and cache entries can be owned by its source."
+        )
+    return path
+
+
+def _custom_registrations(
+    *, rules: tuple[RuleSpec, ...], config: Config, repo_root: Path
+) -> tuple[CustomRuleRegistration, ...]:
+    registrations: list[CustomRuleRegistration] = []
+    for rule in rules:
+        if rule.kind is not RuleKind.CUSTOM or rule.source is None:
+            continue
+        source_path: Path = Path(rule.source).resolve()
+        if not source_path.is_file() or not source_path.is_relative_to(repo_root):
+            raise ConfigError(
+                f"Custom rule {rule.code} source {source_path} is not a repository-owned file; "
+                "SFR707 requires repository-owned rule sources for diagnostic and cache identity."
+            )
+        module_name: str = _configured_module_name(
+            rule=rule, source_path=source_path, config=config, repo_root=repo_root
+        )
+        function_value: object = getattr(rule.check, "__name__", None)
+        if not isinstance(function_value, str):
+            raise ConfigError(f"Could not resolve custom rule function name for {rule.code}.")
+        function_name: str = function_value
+        declaration: SourceLocation = _declaration_location(
+            path=source_path, function_name=function_name
+        )
+        registrations.append(
+            CustomRuleRegistration(
+                rule=rule,
+                source_path=source_path,
+                module_name=module_name,
+                function_name=function_name,
+                declaration_line=declaration.line,
+                declaration_column=declaration.column,
+                owner_key=source_path.relative_to(repo_root).as_posix(),
+            )
+        )
+    return tuple(
+        sorted(
+            registrations,
+            key=lambda item: (item.owner_key, item.declaration_line, item.rule.code),
+        )
+    )
+
+
+def _configured_module_name(
+    *, rule: RuleSpec, source_path: Path, config: Config, repo_root: Path
+) -> str:
+    if not rule.check.__module__.startswith("strata._loaded_rules."):
+        return rule.check.__module__
+    configured_roots: tuple[str, ...] = (*config.roots, *config.tests, *config.tooling)
+    owners: list[Path] = []
+    for value in configured_roots:
+        root: Path = (repo_root / value).resolve()
+        if source_path.is_relative_to(root):
+            owners.append(root)
+    relative: Path = (
+        source_path.relative_to(max(owners, key=lambda path: len(path.parts)).parent)
+        if owners
+        else source_path.relative_to(repo_root)
+    )
+    parts: tuple[str, ...] = relative.with_suffix("").parts
+    if parts and parts[-1] == Path(INIT_MODULE_FILE_NAME).stem:
+        parts = parts[:-1]
+    return ".".join(parts)
+
+
+def _declaration_location(*, path: Path, function_name: str) -> SourceLocation:
+    try:
+        module: ast.Module = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    except (OSError, SyntaxError, UnicodeError) as error:
+        raise ConfigError(
+            f"Could not resolve custom rule declaration in {path}: {error}"
+        ) from error
+    matches: tuple[ast.FunctionDef | ast.AsyncFunctionDef, ...] = tuple(
+        statement
+        for statement in module.body
+        if isinstance(statement, ast.FunctionDef | ast.AsyncFunctionDef)
+        and statement.name == function_name
+    )
+    if len(matches) != 1:
+        raise ConfigError(
+            f"Could not resolve one declaration for custom rule function {function_name} in {path}."
+        )
+    node: ast.FunctionDef | ast.AsyncFunctionDef = matches[0]
+    return SourceLocation(path=path, line=node.lineno, column=node.col_offset)
 
 
 def _selected_rules(

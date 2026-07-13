@@ -5,6 +5,7 @@ from __future__ import annotations
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Family
 from strata.rules.roles._helpers.checks import (
+    custom_rule_test_coverage,
     descriptive_rule_module_names,
     rules_role_content,
     tooling_entrypoint_delegation,
@@ -83,5 +84,16 @@ def tooling_rules() -> tuple[RuleSpec, ...]:
                 "such as conditional_test_flow.py instead of sft104.py."
             ),
             check=descriptive_rule_module_names,
+        ),
+        RuleSpec(
+            code=RoleCode.CUSTOM_RULE_TEST_COVERAGE,
+            family=Family.ROLES,
+            slug="custom-rule-test-coverage",
+            message="configured custom rules must have statically declared public-harness cases",
+            remediation=(
+                "Add parametrized RuleCase coverage for the rule's passing and failing boundaries "
+                "using evaluate_rule."
+            ),
+            check=custom_rule_test_coverage,
         ),
     )

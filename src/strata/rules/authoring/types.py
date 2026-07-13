@@ -63,6 +63,7 @@ class Threshold(StrEnum):
     MAX_ARGUMENTS = "max_arguments"
     MAX_STATEMENTS_GLOBAL = "max_statements_global"
     MAX_SCRIPT_ENTRYPOINT_LINES = "max_script_entrypoint_lines"
+    MIN_CUSTOM_RULE_TEST_CASES = "min_custom_rule_test_cases"
 
 
 class RuleContext(Protocol):

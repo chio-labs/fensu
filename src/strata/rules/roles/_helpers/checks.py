@@ -5,7 +5,15 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from strata.analysis.models import ModuleDeclarationFacts, ModuleStatementFact
+from strata.analysis.main.associate_rule_tests import associate_rule_tests
+from strata.analysis.models import (
+    EvaluateRuleCallFact,
+    ModuleDeclarationFacts,
+    ModuleStatementFact,
+    RuleTestAssociationFact,
+    StaticReferenceFact,
+)
+from strata.analysis.types import Analysis
 from strata.discovery.constants import (
     HELPERS_DIRECTORY_NAME,
     INIT_MODULE_FILE_NAME,
@@ -14,8 +22,9 @@ from strata.discovery.constants import (
     ROLE_DIRECTORY_TO_NAME,
 )
 from strata.discovery.types import RoleName, ScopeName
+from strata.rules.authoring.constants import CUSTOM_RULE_REGISTRATIONS_CACHE_KEY
 from strata.rules.authoring.main.is_rule_code import is_rule_code
-from strata.rules.authoring.models import Fault
+from strata.rules.authoring.models import CustomRuleRegistration, Fault
 from strata.rules.authoring.types import RuleContext, Threshold
 from strata.rules.roles.types import RoleCode
 
@@ -757,6 +766,103 @@ def descriptive_rule_module_names(*, module: ast.Module, ctx: RuleContext) -> li
             message="rule module filenames must describe their policy, not repeat a rule code"
         )
     ]
+
+
+def custom_rule_test_coverage(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Require statically associated public-harness cases for configured custom rules."""
+
+    del module
+    registrations: tuple[CustomRuleRegistration, ...] = ctx._memoize(
+        key=CUSTOM_RULE_REGISTRATIONS_CACHE_KEY,
+        operation=tuple,
+    )
+    if not registrations:
+        return []
+    minimum: int = ctx.threshold(name=Threshold.MIN_CUSTOM_RULE_TEST_CASES, path=ctx.path)
+    if minimum == 0:
+        return []
+    modules: dict[str, Analysis] = {}
+    calls: list[EvaluateRuleCallFact] = []
+    for test_root in sorted(ctx.scope_roots(ScopeName.TEST)):
+        test_paths: tuple[Path, ...] = tuple(
+            sorted(
+                ctx.project.glob(
+                    requester=ctx.path,
+                    path=test_root,
+                    pattern="*.py",
+                    recursive=True,
+                )
+            )
+        )
+        for test_path in test_paths:
+            analysis: Analysis | None = ctx.project.analysis(
+                requester=ctx.path,
+                path=test_path,
+            )
+            if analysis is None:
+                continue
+            modules[_module_name(path=test_path, import_root=test_root.parent)] = analysis
+            calls.extend(analysis.facts.evaluate_rule_calls())
+    source_analysis: Analysis | None = ctx.project.analysis(requester=ctx.path, path=ctx.path)
+    if source_analysis is not None:
+        for registration in registrations:
+            modules[registration.module_name] = source_analysis
+    associations: tuple[RuleTestAssociationFact, ...] = associate_rule_tests(
+        calls=tuple(calls), modules=modules
+    )
+    return _custom_rule_coverage_faults(
+        registrations=registrations,
+        associations=associations,
+        minimum=minimum,
+        ctx=ctx,
+    )
+
+
+def _custom_rule_coverage_faults(
+    *,
+    registrations: tuple[CustomRuleRegistration, ...],
+    associations: tuple[RuleTestAssociationFact, ...],
+    minimum: int,
+    ctx: RuleContext,
+) -> list[Fault]:
+    grouped: dict[StaticReferenceFact, list[RuleTestAssociationFact]] = {}
+    for association in associations:
+        grouped.setdefault(association.rule_reference, []).append(association)
+    faults: list[Fault] = []
+    for registration in registrations:
+        reference: StaticReferenceFact = StaticReferenceFact(
+            module_name=registration.module_name,
+            symbol_name=registration.function_name,
+        )
+        matching: tuple[RuleTestAssociationFact, ...] = tuple(grouped.get(reference, ()))
+        case_count: int = sum(item.provable_case_count for item in matching)
+        if case_count >= minimum:
+            continue
+        dynamic: bool = any(item.unknown_case_count for item in matching)
+        message: str = (
+            f"custom rule {registration.rule.code} has associated tests with dynamically "
+            f"determined case counts; the configured minimum of {minimum} cannot be "
+            "statically proven"
+            if dynamic
+            else f"custom rule {registration.rule.code} has {case_count} statically declared test "
+            f"cases; at least {minimum} is required"
+        )
+        faults.append(
+            ctx.fault_for(
+                path=registration.source_path,
+                line=registration.declaration_line,
+                column=registration.declaration_column,
+                message=message,
+            )
+        )
+    return faults
+
+
+def _module_name(*, path: Path, import_root: Path) -> str:
+    parts: tuple[str, ...] = path.relative_to(import_root).with_suffix("").parts
+    if parts and parts[-1] == Path(INIT_MODULE_FILE_NAME).stem:
+        parts = parts[:-1]
+    return ".".join(parts)
 
 
 def tooling_package_layout(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:

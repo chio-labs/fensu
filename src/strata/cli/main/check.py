@@ -88,6 +88,7 @@ def run_check(
                 ruleset=ruleset,
                 warning_rules=warning_rules,
                 config=config,
+                custom_rule_registrations=rule_selection.custom_registrations,
             )
         else:
             cached: CacheEvaluation = evaluate_with_cache(
@@ -96,6 +97,7 @@ def run_check(
                 warning_rules=warning_rules,
                 config=config,
                 global_fingerprint=fingerprint_build.fingerprint,
+                custom_rule_registrations=rule_selection.custom_registrations,
             )
             result = cached.result
             cache_stats = cached.stats

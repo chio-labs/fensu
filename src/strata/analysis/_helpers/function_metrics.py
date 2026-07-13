@@ -13,6 +13,7 @@ from strata.analysis.models import (
     FunctionFacts,
     FunctionMetricFact,
     ParametrizeCaseFact,
+    ParametrizeDimensionFact,
     ParametrizeFact,
     PytestFunctionFact,
     SourceLocation,
@@ -224,6 +225,9 @@ def test_function_facts(
     *,
     path: Path,
     node_index: Mapping[type[ast.AST], tuple[ast.AST, ...]],
+    dimensions_by_function: Mapping[
+        ast.FunctionDef | ast.AsyncFunctionDef, tuple[ParametrizeDimensionFact, ...]
+    ],
 ) -> tuple[PytestFunctionFact, ...]:
     """Return reusable syntax metadata for test functions."""
 
@@ -260,6 +264,7 @@ def test_function_facts(
                 parametrize=parametrize,
                 references_expected_field=references_expected_field,
                 conditional_locations=conditional_locations,
+                parametrize_dimensions=dimensions_by_function.get(node, ()),
             )
         )
     return tuple(facts)

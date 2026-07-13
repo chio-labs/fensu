@@ -125,7 +125,7 @@ def test_given_rule_path_when_building_ruleset_then_loads_custom_rule_with_sourc
         roots=("src/pkg",), rule_paths=(str(path),), select=(test_case.rule_code,)
     )
 
-    ruleset: tuple[RuleSpec, ...] = build_ruleset(config=config)
+    ruleset: tuple[RuleSpec, ...] = build_ruleset(config=config, repo_root=tmp_path)
 
     assert tuple(rule.code for rule in ruleset) == (test_case.expected_code,)
     assert test_case.expected_source_fragment in (ruleset[0].source or "")
@@ -155,7 +155,7 @@ def test_given_rule_path_when_building_ruleset_then_does_not_add_rule_dir_to_sys
         roots=("src/pkg",), rule_paths=(str(path),), select=(test_case.rule_code,)
     )
 
-    ruleset: tuple[RuleSpec, ...] = build_ruleset(config=config)
+    ruleset: tuple[RuleSpec, ...] = build_ruleset(config=config, repo_root=tmp_path)
 
     assert tuple(rule.code for rule in ruleset) == (test_case.expected_code,)
     assert str(path.parent) not in sys.path
@@ -185,7 +185,7 @@ def test_given_rule_path_with_package_import_when_building_then_resolves_reposit
         roots=("src/pkg",), rule_paths=(str(path),), select=(test_case.rule_code,)
     )
 
-    ruleset: tuple[RuleSpec, ...] = build_ruleset(config=config)
+    ruleset: tuple[RuleSpec, ...] = build_ruleset(config=config, repo_root=tmp_path)
 
     assert tuple(rule.code for rule in ruleset) == (test_case.expected_code,)
     assert test_case.expected_source_fragment in (ruleset[0].source or "")
@@ -222,7 +222,7 @@ def test_given_rule_path_when_executing_then_synthetic_module_is_temporary(
         roots=("src/pkg",), rule_paths=(str(path),), select=(test_case.rule_code,)
     )
 
-    ruleset: tuple[RuleSpec, ...] = build_ruleset(config=config)
+    ruleset: tuple[RuleSpec, ...] = build_ruleset(config=config, repo_root=tmp_path)
 
     assert tuple(rule.code for rule in ruleset) == (test_case.expected_code,)
     assert test_case.expected_source_fragment in (ruleset[0].source or "")
@@ -236,7 +236,7 @@ def test_given_rule_path_when_executing_then_synthetic_module_is_temporary(
             description="custom rule module loads with module source",
             rule_code="XRM001",
             expected_code="XRM001",
-            expected_source_fragment="module:custom_rules_pkg",
+            expected_source_fragment="custom_rules_pkg/__init__.py",
         )
     ],
     ids=lambda case: case.description,
@@ -254,10 +254,10 @@ def test_given_rule_module_when_building_ruleset_then_loads_custom_rule_with_sou
         roots=("src/pkg",), rule_modules=(module_name,), select=(test_case.rule_code,)
     )
 
-    ruleset: tuple[RuleSpec, ...] = build_ruleset(config=config)
+    ruleset: tuple[RuleSpec, ...] = build_ruleset(config=config, repo_root=tmp_path)
 
     assert tuple(rule.code for rule in ruleset) == (test_case.expected_code,)
-    assert ruleset[0].source == test_case.expected_source_fragment
+    assert test_case.expected_source_fragment in (ruleset[0].source or "")
 
 
 @pytest.mark.parametrize(
@@ -281,7 +281,7 @@ def test_given_syntax_error_custom_rule_file_when_building_ruleset_then_raises_c
     config: Config = Config(roots=("src/pkg",), rule_paths=(str(path),))
 
     with pytest.raises(ConfigError) as error:
-        build_ruleset(config=config)
+        build_ruleset(config=config, repo_root=tmp_path)
 
     assert test_case.expected_error_fragment in str(error.value)
     assert loading_module._synthetic_module_name(path) not in sys.modules
@@ -308,7 +308,7 @@ def test_given_custom_rule_file_with_sf_namespace_when_building_ruleset_then_rai
     config: Config = Config(roots=("src/pkg",), rule_paths=(str(path),))
 
     with pytest.raises(ConfigError) as error:
-        build_ruleset(config=config)
+        build_ruleset(config=config, repo_root=tmp_path)
 
     assert test_case.expected_error_fragment in str(error.value)
 
@@ -336,7 +336,10 @@ def test_given_direct_custom_spec_with_malformed_code_when_loading_then_raises_c
     )
 
     with pytest.raises(ConfigError) as error:
-        build_ruleset(config=Config(roots=("src/pkg",), rule_paths=(str(path),)))
+        build_ruleset(
+            config=Config(roots=("src/pkg",), rule_paths=(str(path),)),
+            repo_root=tmp_path,
+        )
 
     assert test_case.expected_error_fragment in str(error.value)
 
@@ -364,7 +367,10 @@ def test_given_direct_custom_spec_with_core_kind_when_loading_then_raises_config
     )
 
     with pytest.raises(ConfigError) as error:
-        build_ruleset(config=Config(roots=("src/pkg",), rule_paths=(str(path),)))
+        build_ruleset(
+            config=Config(roots=("src/pkg",), rule_paths=(str(path),)),
+            repo_root=tmp_path,
+        )
 
     assert test_case.expected_error_fragment in str(error.value)
 
@@ -411,7 +417,10 @@ def test_given_path_loaded_direct_spec_with_malformed_identity_when_building_the
     )
 
     with pytest.raises(ConfigError) as error:
-        build_ruleset(config=Config(roots=("src/pkg",), rule_paths=(str(path),)))
+        build_ruleset(
+            config=Config(roots=("src/pkg",), rule_paths=(str(path),)),
+            repo_root=tmp_path,
+        )
 
     assert test_case.expected_error_fragment in str(error.value)
 
@@ -440,7 +449,7 @@ def test_given_duplicate_custom_codes_when_building_ruleset_then_raises_config_e
     config: Config = Config(roots=("src/pkg",), rule_paths=(str(first_path), str(second_path)))
 
     with pytest.raises(ConfigError) as error:
-        build_ruleset(config=config)
+        build_ruleset(config=config, repo_root=tmp_path)
 
     assert test_case.expected_error_fragment in str(error.value)
 
@@ -473,7 +482,8 @@ def test_given_foreign_decorated_rule_when_loading_custom_file_then_module_metad
             roots=("src/pkg",),
             rule_paths=(str(path),),
             select=(test_case.stale_rule_code, test_case.loaded_rule_code),
-        )
+        ),
+        repo_root=tmp_path,
     )
 
     assert tuple(rule.code for rule in ruleset) == test_case.expected_codes

@@ -92,6 +92,45 @@ class CheckErrorTestCase:
 
 
 @dataclass(frozen=True)
+class CustomRuleCoverageTestCase:
+    """Configured custom rules and expected source-owned SFR707 diagnostics."""
+
+    description: str
+    test_source: str | None
+    minimum: int
+    use_rule_module: bool
+    second_rule: bool
+    expected_fault_count: int
+    expected_output_fragment: str
+
+
+@dataclass(frozen=True)
+class CustomRuleCoverageCacheTestCase:
+    """Expected source-owned cache behavior across test namespace mutations."""
+
+    description: str
+    expected_cold_stats: str
+    expected_warm_stats: str
+    expected_add_stats: str
+    expected_remove_stats: str
+    expected_fault_fragment: str
+
+
+@dataclass(frozen=True)
+class CustomRuleCoverageWarningTestCase:
+    """Plain and warning-mode expectations for warn-only SFR707."""
+
+    description: str
+    expected_plain_summary: str
+    expected_warning_summary: str
+    expected_warning_fragment: str
+    expected_plain_cold_stats: str
+    expected_plain_warm_stats: str
+    expected_warning_cold_stats: str
+    expected_warning_warm_stats: str
+
+
+@dataclass(frozen=True)
 class EvaluationCheckTestCase:
     """Configured evaluation filter and expected cached/uncached CLI output."""
 

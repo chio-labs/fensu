@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from strata.config.models import Config
 from strata.discovery.main.route import families_for_scope
 from strata.discovery.models import DiscoveredTree, ScopedFile
@@ -26,6 +28,7 @@ def evaluate_file(
     config: Config,
     tree: DiscoveredTree,
     project: EvaluationProjectAnalysis,
+    file_cache_seed: Mapping[str, object] | None = None,
 ) -> FileEvaluation:
     """Return unrendered output and observed inputs for one source file."""
 
@@ -33,7 +36,7 @@ def evaluate_file(
     faults: list[Fault] = []
     warnings: list[Fault] = []
     applied_exceptions: set[RuleExceptionKey] = set()
-    file_cache: dict[str, object] = {}
+    file_cache: dict[str, object] = dict(file_cache_seed or {})
     threshold_override_uses: list[ThresholdOverrideUse] = []
     applicable_families: frozenset[Family] = families_for_scope(scoped_file=scoped_file)
     for tier_rules, tier_faults in ((ruleset, faults), (warning_rules, warnings)):

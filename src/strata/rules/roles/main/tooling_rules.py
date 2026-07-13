@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Family
-from strata.rules.roles.helpers.checks import (
+from strata.rules.roles._helpers.checks import (
     rules_role_content,
     tooling_entrypoint_delegation,
     tooling_entrypoint_line_count,
@@ -55,7 +55,7 @@ def tooling_rules() -> tuple[RuleSpec, ...]:
             message="tooling rules/ modules may contain only decorated rule declarations",
             remediation=(
                 "Keep imports and @rule functions here; move supporting implementation into "
-                "helpers/, classes/, models.py, types.py, constants.py, or exceptions.py."
+                "_helpers/, classes/, models.py, types.py, constants.py, or exceptions.py."
             ),
             check=rules_role_content,
         ),
@@ -65,7 +65,7 @@ def tooling_rules() -> tuple[RuleSpec, ...]:
             slug="tooling-package-layout",
             message="tool packages must organize implementation through explicit roles",
             remediation=(
-                "Use main/, helpers/, classes/, rules/, models.py, types.py, constants.py, or "
+                "Use main/, _helpers/, classes/, rules/, models.py, types.py, constants.py, or "
                 "exceptions.py directly beneath scripts/<tool>/."
             ),
             check=tooling_package_layout,

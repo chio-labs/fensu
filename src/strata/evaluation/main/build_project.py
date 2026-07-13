@@ -1,7 +1,7 @@
 """Build evaluation-scoped project analysis."""
 
 from strata.discovery.models import DiscoveredTree
-from strata.evaluation.helpers.project_analysis import build_project_analysis
+from strata.evaluation._helpers.project_analysis import build_project_analysis
 from strata.evaluation.types import EvaluationProjectAnalysis
 
 

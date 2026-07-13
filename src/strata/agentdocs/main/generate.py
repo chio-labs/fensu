@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from strata.agentdocs.constants import GENERATED_MARKER
-from strata.agentdocs.helpers.guidance import (
+from strata.agentdocs._helpers.guidance import (
     configured_threshold_override_lines,
     repository_guidance_lines,
 )
-from strata.agentdocs.helpers.workflow import navigation_workflow_lines
+from strata.agentdocs._helpers.workflow import navigation_workflow_lines
+from strata.agentdocs.constants import GENERATED_MARKER
 from strata.config.models import Config
 from strata.rules.authoring.models import RuleSpec
 

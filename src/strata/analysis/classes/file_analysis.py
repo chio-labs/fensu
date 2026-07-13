@@ -7,11 +7,11 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import cast
 
+from strata.analysis._helpers.locations import line_offsets, source_range
 from strata.analysis.classes.fact_analysis import PythonFactAnalysis
 from strata.analysis.classes.relation_analysis import PythonRelationAnalysis
 from strata.analysis.classes.syntax_analysis import PythonSyntaxAnalysis
 from strata.analysis.classes.text_analysis import PythonTextAnalysis
-from strata.analysis.helpers.locations import line_offsets, source_range
 from strata.analysis.models import NodeId, SourceRange, SyntaxHandle
 from strata.analysis.types import FactAnalysis, RelationAnalysis, SyntaxAnalysis, TextAnalysis
 

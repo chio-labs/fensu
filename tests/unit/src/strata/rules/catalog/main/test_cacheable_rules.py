@@ -9,7 +9,7 @@ import pytest
 from strata.config.exceptions import ConfigError
 from strata.config.models import CacheConfig, Config
 from strata.rules.authoring.models import RuleSpec
-from strata.rules.catalog.helpers.loading import (
+from strata.rules.catalog._helpers.loading import (
     build_catalogue_from_config,
     build_ruleset_from_config,
 )

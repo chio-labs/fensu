@@ -10,15 +10,15 @@ import pytest
 
 from strata.config.models import Config
 from strata.reporting.classes.cli_style import CliStyle
-from strata.scaffolding.exceptions import InitError
-from strata.scaffolding.helpers.execution import build_rendered_config, render_config
-from strata.scaffolding.helpers.output import normalize_project_name
-from strata.scaffolding.helpers.planning import (
+from strata.scaffolding._helpers.execution import build_rendered_config, render_config
+from strata.scaffolding._helpers.output import normalize_project_name
+from strata.scaffolding._helpers.planning import (
     build_init_plan,
     count_runtime_python_files,
     interaction_decision,
     validate_option_applicability,
 )
+from strata.scaffolding.exceptions import InitError
 from strata.scaffolding.main.detect_repository_layout import detect_repository_layout
 from strata.scaffolding.main.find_local_config import find_local_config
 from strata.scaffolding.models import InitOptions, InitPlan

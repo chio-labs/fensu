@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from strata.evaluation.models import ThresholdOverrideUse
-from strata.reporting.helpers.text import render_text
+from strata.reporting._helpers.text import render_text
 from strata.reporting.models import RenderedReport
 from strata.rules.authoring.models import Fault
 

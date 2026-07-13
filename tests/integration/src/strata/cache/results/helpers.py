@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-import strata.evaluation.helpers.file_evaluation as file_evaluation_module
+import strata.evaluation._helpers.file_evaluation as file_evaluation_module
 from strata.analysis.models import ProjectDependency
 from strata.analysis.types import Analysis, ProjectDependencyKind
 from strata.cache.results.classes.result_cache import ResultCache

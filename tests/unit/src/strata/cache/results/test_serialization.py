@@ -7,13 +7,7 @@ import pytest
 from strata.analysis.types import ProjectDependencyKind
 from strata.cache.fingerprints.models import CacheFingerprint
 from strata.cache.fingerprints.types import CanonicalValue
-from strata.cache.results.constants import (
-    CACHE_FACT_KIND,
-    CACHE_FILE_RESULT_KIND,
-    CACHE_INDEX_KIND,
-    CACHE_METADATA_KIND,
-)
-from strata.cache.results.helpers.serialization import (
+from strata.cache.results._helpers.serialization import (
     fact_from_record,
     fact_to_record,
     file_result_from_record,
@@ -22,6 +16,12 @@ from strata.cache.results.helpers.serialization import (
     index_to_record,
     metadata_from_record,
     metadata_to_record,
+)
+from strata.cache.results.constants import (
+    CACHE_FACT_KIND,
+    CACHE_FILE_RESULT_KIND,
+    CACHE_INDEX_KIND,
+    CACHE_METADATA_KIND,
 )
 from strata.cache.results.models import (
     CachedFact,
@@ -33,8 +33,8 @@ from strata.cache.results.models import (
     CacheMetadata,
     DependencyObservation,
 )
+from strata.cache.storage._helpers.serialization import decode_cache_record, encode_cache_record
 from strata.cache.storage.exceptions import CacheRecordError
-from strata.cache.storage.helpers.serialization import decode_cache_record, encode_cache_record
 from strata.cache.storage.models import CacheRecord
 from tests.unit.src.strata.cache.results._test_types import (
     InvalidDependencyRecordTestCase,

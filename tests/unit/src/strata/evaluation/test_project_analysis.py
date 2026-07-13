@@ -11,9 +11,9 @@ from strata.analysis.models import DataclassFact, ProjectDependency, ProjectFunc
 from strata.analysis.types import Analysis
 from strata.discovery.models import DiscoveredTree, RepoRoot, ScopedFile
 from strata.discovery.types import ScopeName
+from strata.evaluation._helpers.parsing import parse_scoped_file
+from strata.evaluation._helpers.project_analysis import build_project_analysis
 from strata.evaluation.exceptions import ParseError
-from strata.evaluation.helpers.parsing import parse_scoped_file
-from strata.evaluation.helpers.project_analysis import build_project_analysis
 from strata.evaluation.models import ParsedModule, SourceSnapshot
 from strata.evaluation.types import EvaluationProjectAnalysis
 from tests.unit.src.strata.evaluation._test_types import (
@@ -327,7 +327,7 @@ def test_given_project_query_order_when_parsing_then_retains_only_required_modul
         return parse_scoped_file(scoped_file=scoped_file, source_snapshot=source_snapshot)
 
     monkeypatch.setattr(
-        "strata.evaluation.helpers.project_analysis.parse_scoped_file",
+        "strata.evaluation._helpers.project_analysis.parse_scoped_file",
         count_parse,
     )
 
@@ -385,7 +385,7 @@ def test_given_parsed_test_types_when_querying_dataclasses_then_reuses_fact_snap
         return parse_scoped_file(scoped_file=scoped_file)
 
     monkeypatch.setattr(
-        "strata.evaluation.helpers.project_analysis.parse_scoped_file",
+        "strata.evaluation._helpers.project_analysis.parse_scoped_file",
         count_parse,
     )
 

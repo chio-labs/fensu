@@ -21,7 +21,7 @@ def evaluate_naming_test_case(
 ) -> EvaluationResult:
     """Write a source file and evaluate the naming rule family."""
 
-    path: Path = tmp_path / "src" / "pkg" / "domain" / "core" / "helpers" / "checks.py"
+    path: Path = tmp_path / "src" / "pkg" / "domain" / "core" / "_helpers" / "checks.py"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(test_case.source, encoding="utf-8")
     contracts: dict[str, str] = dict(DEFAULT_CONTRACTS)

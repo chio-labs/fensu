@@ -94,7 +94,7 @@ _ESCAPED_OVERRIDE_REASON: str = 'Generated "API" path.\nKeep \\ escapes.'
                 "exceptions.py",
                 "### Role Examples",
                 "### Role Containers",
-                "#### `helpers/`: Flat Or Grouped",
+                "#### `_helpers/`: Flat Or Grouped",
                 "configured role base is 10",
                 "#### `main/`: Flat Or Grouped",
                 "configured role base is 20",
@@ -103,7 +103,7 @@ _ESCAPED_OVERRIDE_REASON: str = 'Generated "API" path.\nKeep \\ escapes.'
                 "Generic bucket names remain SFR204 concerns",
                 "Every non-`__init__.py` module whose first structural role is `main`",
                 "Entry shape and container depth are orthogonal",
-                "Expose exactly one public entry function and keep phase work in helpers.",
+                "Expose exactly one public entry function and keep phase work in _helpers/.",
                 "return normalize_invoice(loaded)",
                 "@dataclass(frozen=True, slots=True)",
                 "class InvoiceQuery(BaseModel):",
@@ -194,7 +194,7 @@ _ESCAPED_OVERRIDE_REASON: str = 'Generated "API" path.\nKeep \\ escapes.'
                 tooling=(),
                 threshold_overrides=(
                     ThresholdOverride(
-                        paths=("src/acme/**/helpers/*.py",),
+                        paths=("src/acme/**/_helpers/*.py",),
                         thresholds={Threshold.MAX_HELPERS_CONTAINER_MODULES: 12},
                         reason="Container width.",
                     ),
@@ -313,7 +313,7 @@ _ESCAPED_OVERRIDE_REASON: str = 'Generated "API" path.\nKeep \\ escapes.'
             ),
             expected_absent_fragments=(
                 "main/",
-                "helpers/",
+                "_helpers/",
                 "classes/",
                 "types.py",
                 "constants.py",
@@ -327,7 +327,7 @@ _ESCAPED_OVERRIDE_REASON: str = 'Generated "API" path.\nKeep \\ escapes.'
             config=Config(roots=("src/acme",), tests=(), tooling=("tools",)),
             rule_codes=("SFR705",),
             expected_fragments=("## Repository Structure", "### Tooling", "tools/", "<tool>/"),
-            expected_absent_fragments=("run_tool.py", "main/", "helpers/", "rules/"),
+            expected_absent_fragments=("run_tool.py", "main/", "_helpers/", "rules/"),
         ),
         GuidanceTestCase(
             description="disabled test and tooling scopes suppress otherwise active guidance",

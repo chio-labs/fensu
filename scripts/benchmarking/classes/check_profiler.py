@@ -9,12 +9,12 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import cast
 
-import strata.evaluation.helpers.file_evaluation as file_evaluation_module
-import strata.evaluation.helpers.project_analysis as project_analysis_module
+import strata.evaluation._helpers.file_evaluation as file_evaluation_module
+import strata.evaluation._helpers.project_analysis as project_analysis_module
 from scripts.benchmarking.models import ProfileReport
 from scripts.benchmarking.types import EvaluatorModule, ProjectAnalysisModule
 from strata.analysis.types import ProjectAnalysis
-from strata.cli.helpers.check_reporting import render_check_result
+from strata.cli._helpers.check_reporting import render_check_result
 from strata.config.main.load_config import load_config
 from strata.config.models import Config
 from strata.discovery.main.discover_files import discover_files

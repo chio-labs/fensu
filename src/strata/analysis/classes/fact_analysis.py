@@ -7,25 +7,25 @@ from collections.abc import Mapping
 from fnmatch import fnmatchcase
 from pathlib import Path
 
-from strata.analysis.helpers.annotations import annotation_facts
-from strata.analysis.helpers.control_flow import (
+from strata.analysis._helpers.annotations import annotation_facts
+from strata.analysis._helpers.control_flow import (
     complex_comprehension_locations,
     function_conditional_facts,
 )
-from strata.analysis.helpers.declarations import module_declaration_facts
-from strata.analysis.helpers.function_metrics import (
+from strata.analysis._helpers.declarations import module_declaration_facts
+from strata.analysis._helpers.function_metrics import (
     dataclass_facts,
     function_facts,
     test_function_facts,
 )
-from strata.analysis.helpers.hygiene import comment_facts, hygiene_facts
-from strata.analysis.helpers.locations import line_offsets, source_range
-from strata.analysis.helpers.outer_state import (
+from strata.analysis._helpers.hygiene import comment_facts, hygiene_facts
+from strata.analysis._helpers.locations import line_offsets, source_range
+from strata.analysis._helpers.outer_state import (
     outer_state_mutation_nodes,
     parameter_mutation_facts,
 )
-from strata.analysis.helpers.references import reference_facts, test_module_facts
-from strata.analysis.helpers.returns import (
+from strata.analysis._helpers.references import reference_facts, test_module_facts
+from strata.analysis._helpers.returns import (
     function_contract_facts,
     project_call_facts,
     project_function_facts,

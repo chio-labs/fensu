@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from strata.mapping.helpers.project import resolve_mapping_project as _resolve_mapping_project
+from strata.mapping._helpers.project import resolve_mapping_project as _resolve_mapping_project
 from strata.mapping.models import MappingProject
 
 

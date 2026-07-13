@@ -51,7 +51,7 @@ def make_remediated_fault(root: Path) -> tuple[Fault, ...]:
             path=root / "src/pkg/main/run.py",
             message="main/ entry contains phase implementation",
             remediation=(
-                "Move phase implementation into helpers/ and keep main/ focused on ordered "
+                "Move phase implementation into _helpers/ and keep main/ focused on ordered "
                 "phase calls that return explicit result models."
             ),
         ),

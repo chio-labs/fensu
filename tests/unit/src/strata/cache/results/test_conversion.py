@@ -8,7 +8,7 @@ import pytest
 
 from strata.analysis.models import ProjectDependency
 from strata.analysis.types import ProjectDependencyKind
-from strata.cache.results.helpers.conversion import (
+from strata.cache.results._helpers.conversion import (
     build_cached_file_result,
     restore_file_evaluation,
 )

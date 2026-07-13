@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from strata.mapping.helpers.index import build_project_index, select_function
-from strata.mapping.helpers.tree import build_tree
+from strata.mapping._helpers.index import build_project_index, select_function
+from strata.mapping._helpers.tree import build_tree
 from strata.mapping.models import CallMapNode, FunctionDefinition, MappingSource, ProjectIndex
 
 

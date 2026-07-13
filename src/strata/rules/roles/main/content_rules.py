@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Family
-from strata.rules.roles.helpers.checks import (
+from strata.rules.roles._helpers.checks import (
     constants_only_constants,
     exceptions_only_exceptions,
     models_only_models,

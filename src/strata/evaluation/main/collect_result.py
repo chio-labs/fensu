@@ -4,7 +4,7 @@ from pathlib import Path
 
 from strata.analysis.models import ProjectDependency
 from strata.config.models import Config
-from strata.evaluation.helpers.collection import collect_evaluation_result
+from strata.evaluation._helpers.collection import collect_evaluation_result
 from strata.evaluation.models import EvaluationResult, EvaluationSelection, FileEvaluation
 
 

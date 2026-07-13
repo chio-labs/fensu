@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Family, RuleCheck
-from strata.rules.roles.helpers.checks import (
+from strata.rules.roles._helpers.checks import (
     helpers_package_layout,
     main_package_layout,
     nested_direct_modules,
@@ -12,7 +12,7 @@ from strata.rules.roles.helpers.checks import (
     top_level_direct_modules,
     top_level_domain_shape,
 )
-from strata.rules.roles.helpers.metadata import role_rule_details
+from strata.rules.roles._helpers.metadata import role_rule_details
 from strata.rules.roles.types import RoleCode
 
 

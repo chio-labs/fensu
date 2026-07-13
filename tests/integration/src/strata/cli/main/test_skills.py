@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
+from strata.agentdocs._helpers import installation
 from strata.agentdocs.constants import GENERATED_MARKER
-from strata.agentdocs.helpers import installation
 from strata.cli.main.skills import run_skills
 from strata.config.main.load_config import load_config
 from strata.config.models import Config

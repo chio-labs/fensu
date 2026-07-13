@@ -2,7 +2,7 @@
 
 from strata.config.models import Config
 from strata.discovery.models import DiscoveredTree, ScopedFile
-from strata.evaluation.helpers.file_evaluation import evaluate_file
+from strata.evaluation._helpers.file_evaluation import evaluate_file
 from strata.evaluation.models import FileEvaluation
 from strata.evaluation.types import EvaluationProjectAnalysis
 from strata.rules.authoring.models import RuleSpec

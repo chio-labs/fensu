@@ -6,6 +6,17 @@ from pathlib import Path
 
 from strata.cache.fingerprints.main.file_result import file_result_fingerprints
 from strata.cache.fingerprints.models import CacheFingerprint, FileResultFingerprints
+from strata.cache.results._helpers.conversion import build_cached_file_result
+from strata.cache.results._helpers.dependencies import dependencies_are_current
+from strata.cache.results._helpers.serialization import (
+    file_result_from_record,
+    file_result_to_record,
+    index_from_record,
+    index_to_record,
+    metadata_from_record,
+    metadata_to_record,
+)
+from strata.cache.results._helpers.validation import is_fingerprint
 from strata.cache.results.constants import (
     CACHE_FILE_RESULT_KIND,
     CACHE_INDEX_KIND,
@@ -16,17 +27,6 @@ from strata.cache.results.constants import (
     CACHE_RESULTS_DIRECTORY,
     FINGERPRINT_DIRECTORY_PREFIX_LENGTH,
 )
-from strata.cache.results.helpers.conversion import build_cached_file_result
-from strata.cache.results.helpers.dependencies import dependencies_are_current
-from strata.cache.results.helpers.serialization import (
-    file_result_from_record,
-    file_result_to_record,
-    index_from_record,
-    index_to_record,
-    metadata_from_record,
-    metadata_to_record,
-)
-from strata.cache.results.helpers.validation import is_fingerprint
 from strata.cache.results.models import (
     CachedFileResult,
     CacheIndex,

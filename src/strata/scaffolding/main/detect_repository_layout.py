@@ -5,24 +5,24 @@ from __future__ import annotations
 from collections.abc import Mapping
 from pathlib import Path
 
+from strata.scaffolding._helpers.candidates import ordered_candidates
+from strata.scaffolding._helpers.filesystem import (
+    filesystem_root_inputs,
+    inspect_python_state,
+    tooling_inputs,
+)
+from strata.scaffolding._helpers.gitignore import build_gitignore_predicate
+from strata.scaffolding._helpers.pyproject import (
+    load_pyproject,
+    metadata_root_inputs,
+    pytest_inputs,
+)
 from strata.scaffolding.constants import (
     DEFAULT_TEST_PATH,
     PACKAGE_MARKER_FILE_NAME,
     TEST_DIRECTORY_NAMES,
 )
 from strata.scaffolding.exceptions import RepositoryDetectionError
-from strata.scaffolding.helpers.candidates import ordered_candidates
-from strata.scaffolding.helpers.filesystem import (
-    filesystem_root_inputs,
-    inspect_python_state,
-    tooling_inputs,
-)
-from strata.scaffolding.helpers.gitignore import build_gitignore_predicate
-from strata.scaffolding.helpers.pyproject import (
-    load_pyproject,
-    metadata_root_inputs,
-    pytest_inputs,
-)
 from strata.scaffolding.models import DetectedRepositoryLayout, PathCandidate, PythonState
 from strata.scaffolding.types import (
     CandidateInput,

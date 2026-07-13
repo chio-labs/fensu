@@ -20,22 +20,8 @@ DEFAULT_THRESHOLDS: dict[Threshold, int] = {
     Threshold.MAX_SCRIPT_ENTRYPOINT_LINES: 80,
 }
 
-DEFAULT_ROLE_DIR_NAMES: frozenset[str] = frozenset(
-    {RoleName.MAIN, RoleName.HELPERS, RoleName.CLASSES}
-)
 DEFAULT_ROLE_FILE_NAMES: frozenset[str] = frozenset(
     {"models.py", "types.py", "constants.py", "exceptions.py"}
-)
-RUNTIME_STRUCTURAL_ROLE_NAMES: frozenset[str] = frozenset(
-    {
-        RoleName.MAIN,
-        RoleName.HELPERS,
-        RoleName.CLASSES,
-        RoleName.MODELS,
-        RoleName.TYPES,
-        RoleName.CONSTANTS,
-        RoleName.EXCEPTIONS,
-    }
 )
 
 DEFAULT_TEST_PATHS: tuple[str, ...] = ("tests",)

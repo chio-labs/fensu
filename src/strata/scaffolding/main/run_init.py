@@ -9,22 +9,22 @@ from typing import TextIO
 from strata.config.exceptions import ConfigError
 from strata.evaluation.exceptions import ParseError
 from strata.reporting.classes.cli_style import CliStyle
-from strata.scaffolding.exceptions import InitError, ScaffoldingError
-from strata.scaffolding.helpers.drift import measure_drift, update_init_skills
-from strata.scaffolding.helpers.execution import execute_init_plan
-from strata.scaffolding.helpers.output import (
+from strata.scaffolding._helpers.drift import measure_drift, update_init_skills
+from strata.scaffolding._helpers.execution import execute_init_plan
+from strata.scaffolding._helpers.output import (
     write_classification,
     write_drift,
     write_empty_success,
     write_next,
 )
-from strata.scaffolding.helpers.planning import (
+from strata.scaffolding._helpers.planning import (
     build_init_plan,
     count_runtime_python_files,
     interaction_decision,
     preflight_existing_config,
     validate_option_applicability,
 )
+from strata.scaffolding.exceptions import InitError, ScaffoldingError
 from strata.scaffolding.main.detect_repository_layout import detect_repository_layout
 from strata.scaffolding.models import (
     DetectedRepositoryLayout,

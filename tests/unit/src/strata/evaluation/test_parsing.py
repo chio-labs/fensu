@@ -12,9 +12,9 @@ from strata.analysis.types import PythonSourceArtifact
 from strata.discovery.main.discover_files import discover_files
 from strata.discovery.models import ScopedFile
 from strata.discovery.types import ScopeName
+from strata.evaluation._helpers import parsing
+from strata.evaluation._helpers.parsing import parse_scoped_file
 from strata.evaluation.exceptions import ParseError
-from strata.evaluation.helpers import parsing
-from strata.evaluation.helpers.parsing import parse_scoped_file
 from strata.evaluation.models import ParsedModule
 from tests.unit.src.strata.discovery.helpers import make_config
 from tests.unit.src.strata.evaluation._test_types import (

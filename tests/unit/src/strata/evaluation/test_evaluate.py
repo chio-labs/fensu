@@ -10,7 +10,7 @@ from strata.config.models import Config, ThresholdOverride
 from strata.discovery.main.position import position_facts
 from strata.discovery.main.route import families_for_scope
 from strata.discovery.models import PositionFacts, ScopedFile
-from strata.evaluation.helpers.parsing import parse_scoped_file
+from strata.evaluation._helpers.parsing import parse_scoped_file
 from strata.evaluation.main.evaluate import evaluate
 from strata.evaluation.models import EvaluationResult, ParsedModule, ThresholdOverrideUse
 from strata.rules.authoring.types import Family, Threshold
@@ -164,12 +164,12 @@ def test_given_multiple_rules_when_evaluating_then_file_facts_are_computed_once(
         return families_for_scope(scoped_file=scoped_file)
 
     monkeypatch.setattr(
-        "strata.evaluation.helpers.project_analysis.parse_scoped_file",
+        "strata.evaluation._helpers.project_analysis.parse_scoped_file",
         count_parse,
     )
-    monkeypatch.setattr("strata.evaluation.helpers.parsing.position_facts", count_position)
+    monkeypatch.setattr("strata.evaluation._helpers.parsing.position_facts", count_position)
     monkeypatch.setattr(
-        "strata.evaluation.helpers.file_evaluation.families_for_scope",
+        "strata.evaluation._helpers.file_evaluation.families_for_scope",
         count_routing,
     )
 
@@ -352,7 +352,7 @@ def test_given_context_when_creating_faults_then_defaults_and_overrides_are_appl
         ),
         ContextThresholdTestCase(
             description="global threshold is used when role has no override",
-            file_path="src/pkg/config/core/helpers/load.py",
+            file_path="src/pkg/config/core/_helpers/load.py",
             threshold=Threshold.MAX_STATEMENTS,
             expected_threshold=40,
         ),
@@ -395,7 +395,7 @@ def test_given_matching_override_when_rule_reads_any_threshold_then_records_reso
     tmp_path: Path,
     test_case: ThresholdObservationTestCase,
 ) -> None:
-    file_path: str = "src/pkg/config/helpers/load.py"
+    file_path: str = "src/pkg/config/_helpers/load.py"
     write_sources(repo_root=tmp_path, files=((file_path, "x: int = 1\n"),))
     monkeypatch.chdir(tmp_path)
     config: Config = Config(

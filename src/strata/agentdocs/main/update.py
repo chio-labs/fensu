@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from strata.agentdocs.helpers.installation import (
+from strata.agentdocs._helpers.installation import (
     build_install_targets,
     write_skill_files,
 )

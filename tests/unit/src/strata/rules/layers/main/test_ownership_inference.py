@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from strata.evaluation.models import EvaluationResult
-from strata.rules.layers.helpers.imports import classify_module_ownership
+from strata.rules.layers._helpers.imports import classify_module_ownership
 from strata.rules.layers.models import ModuleOwnership
 from tests.unit.src.strata.rules.layers.main._test_types import (
     LayerRuleTestCase,
@@ -25,7 +25,7 @@ from tests.unit.src.strata.rules.layers.main.helpers import (
     [
         OwnershipClassificationTestCase(
             description="first role locks ownership before role-looking tail buckets",
-            module_parts=("pkg", "domain", "owner", "helpers", "classes", "parse"),
+            module_parts=("pkg", "domain", "owner", "_helpers", "classes", "parse"),
             initializer=False,
             expected_package="pkg",
             expected_owner_prefix=("domain", "owner"),
@@ -96,7 +96,7 @@ def test_given_module_path_when_classifying_then_preserves_structural_ownership(
         LayerRuleTestCase(
             "leaf owner may import its own helpers",
             "SFL101",
-            (("src/pkg/config/main/load.py", "from pkg.config.helpers.parse import parse\n"),),
+            (("src/pkg/config/main/load.py", "from pkg.config._helpers.parse import parse\n"),),
             (),
             (),
         ),
@@ -106,7 +106,7 @@ def test_given_module_path_when_classifying_then_preserves_structural_ownership(
             (
                 (
                     "src/pkg/domain/alpha/main/commands/run.py",
-                    "from pkg.domain.alpha.helpers.parse import parse\n",
+                    "from pkg.domain.alpha._helpers.parse import parse\n",
                 ),
             ),
             (),
@@ -117,8 +117,8 @@ def test_given_module_path_when_classifying_then_preserves_structural_ownership(
             "SFL101",
             (
                 (
-                    "src/pkg/domain/alpha/helpers/read/one.py",
-                    "from pkg.domain.alpha.helpers.write.two import write\n",
+                    "src/pkg/domain/alpha/_helpers/read/one.py",
+                    "from pkg.domain.alpha._helpers.write.two import write\n",
                 ),
             ),
             (),
@@ -129,7 +129,7 @@ def test_given_module_path_when_classifying_then_preserves_structural_ownership(
             "SFL101",
             (
                 (
-                    "src/pkg/domain/alpha/helpers/read.py",
+                    "src/pkg/domain/alpha/_helpers/read.py",
                     "from pkg.domain.beta.main.commands import run\n",
                 ),
             ),
@@ -166,7 +166,7 @@ def test_given_module_path_when_classifying_then_preserves_structural_ownership(
             (
                 (
                     "src/pkg/domain/alpha/main/run.py",
-                    "from pkg.domain.beta.helpers.classes.store import Store\n",
+                    "from pkg.domain.beta._helpers.classes.store import Store\n",
                 ),
             ),
             ("SFL101",),
@@ -178,7 +178,7 @@ def test_given_module_path_when_classifying_then_preserves_structural_ownership(
             (
                 (
                     "src/pkg/domain/alpha/main/run.py",
-                    "from pkg.domain.beta.models.helpers.schema import Model\n",
+                    "from pkg.domain.beta.models._helpers.schema import Model\n",
                 ),
             ),
             (),
@@ -229,7 +229,7 @@ def test_given_module_path_when_classifying_then_preserves_structural_ownership(
             (
                 (
                     "src/pkg/domain/alpha/__init__.py",
-                    "from pkg.domain.alpha.helpers.parse import parse\n",
+                    "from pkg.domain.alpha._helpers.parse import parse\n",
                 ),
             ),
             (),
@@ -241,7 +241,7 @@ def test_given_module_path_when_classifying_then_preserves_structural_ownership(
             (
                 (
                     "src/pkg/domain/alpha/main/__init__.py",
-                    "from pkg.domain.alpha.helpers.parse import parse\n",
+                    "from pkg.domain.alpha._helpers.parse import parse\n",
                 ),
             ),
             (),
@@ -250,14 +250,14 @@ def test_given_module_path_when_classifying_then_preserves_structural_ownership(
         LayerRuleTestCase(
             "resolvable relative import participates in ownership checks",
             "SFL101",
-            (("src/pkg/domain/alpha/main/run.py", "from ...beta.helpers.parse import parse\n"),),
+            (("src/pkg/domain/alpha/main/run.py", "from ...beta._helpers.parse import parse\n"),),
             ("SFL101",),
             (1,),
         ),
         LayerRuleTestCase(
             "same-owner relative import remains legal for the boundary rule",
             "SFL101",
-            (("src/pkg/domain/alpha/main/run.py", "from ..helpers.parse import parse\n"),),
+            (("src/pkg/domain/alpha/main/run.py", "from .._helpers.parse import parse\n"),),
             (),
             (),
         ),
@@ -274,7 +274,7 @@ def test_given_module_path_when_classifying_then_preserves_structural_ownership(
             (
                 (
                     "src/pkg/domain/alpha/main/run.py",
-                    "import pkg.domain.beta.helpers.one, pkg.domain.gamma.helpers.two\n",
+                    "import pkg.domain.beta._helpers.one, pkg.domain.gamma._helpers.two\n",
                 ),
             ),
             ("SFL101",),
@@ -286,7 +286,7 @@ def test_given_module_path_when_classifying_then_preserves_structural_ownership(
             (
                 (
                     "src/pkg/domain/alpha/main/run.py",
-                    "from other.domain.beta.helpers.parse import parse\n",
+                    "from other.domain.beta._helpers.parse import parse\n",
                 ),
             ),
             (),
@@ -389,7 +389,7 @@ def test_given_same_domain_import_matrix_when_checking_then_enforces_owner_surfa
             (
                 (
                     "src/pkg/domain_a/alpha/main/run.py",
-                    "from pkg.domain_b.beta.helpers.parse import parse\n",
+                    "from pkg.domain_b.beta._helpers.parse import parse\n",
                 ),
             ),
             ("SFL102",),
@@ -430,7 +430,7 @@ def test_given_same_domain_import_matrix_when_checking_then_enforces_owner_surfa
             (
                 (
                     "src/pkg/domain_a/alpha/main/run.py",
-                    "from ....domain_b.beta.helpers.parse import parse\n",
+                    "from ....domain_b.beta._helpers.parse import parse\n",
                 ),
             ),
             ("SFL102",),
@@ -439,7 +439,7 @@ def test_given_same_domain_import_matrix_when_checking_then_enforces_owner_surfa
         LayerRuleTestCase(
             "root initializer has no cross-domain ownership",
             "SFL102",
-            (("src/pkg/__init__.py", "from pkg.domain_b.beta.helpers.parse import parse\n"),),
+            (("src/pkg/__init__.py", "from pkg.domain_b.beta._helpers.parse import parse\n"),),
             (),
             (),
         ),
@@ -449,7 +449,7 @@ def test_given_same_domain_import_matrix_when_checking_then_enforces_owner_surfa
             (
                 (
                     "src/pkg/domain_a/alpha/main/run.py",
-                    "from external.domain_b.beta.helpers import parse\n",
+                    "from external.domain_b.beta._helpers import parse\n",
                 ),
             ),
             (),
@@ -461,7 +461,7 @@ def test_given_same_domain_import_matrix_when_checking_then_enforces_owner_surfa
             (
                 (
                     "src/pkg/domain_a/alpha/main/run.py",
-                    "import pkg.domain_b.beta.helpers.one, pkg.domain_c.gamma.helpers.two\n",
+                    "import pkg.domain_b.beta._helpers.one, pkg.domain_c.gamma._helpers.two\n",
                 ),
             ),
             ("SFL102",),
@@ -473,7 +473,7 @@ def test_given_same_domain_import_matrix_when_checking_then_enforces_owner_surfa
             (
                 (
                     "python/acme/domain_a/alpha/main/run.py",
-                    "from acme.domain_b.beta.helpers.parse import parse\n",
+                    "from acme.domain_b.beta._helpers.parse import parse\n",
                 ),
             ),
             ("SFL102",),
@@ -504,10 +504,10 @@ def test_given_cross_domain_import_matrix_when_checking_then_enforces_public_rol
             role_code="SFR301",
             files=(
                 (
-                    "src/pkg/domain/alpha/helpers/read/one.py",
-                    "from pkg.domain.alpha.helpers.write.two import write\n",
+                    "src/pkg/domain/alpha/_helpers/read/one.py",
+                    "from pkg.domain.alpha._helpers.write.two import write\n",
                 ),
-                ("src/pkg/domain/alpha/helpers/write/two.py", "def write() -> None:\n    pass\n"),
+                ("src/pkg/domain/alpha/_helpers/write/two.py", "def write() -> None:\n    pass\n"),
             ),
             expected_codes=(),
         ),
@@ -517,9 +517,9 @@ def test_given_cross_domain_import_matrix_when_checking_then_enforces_public_rol
             files=(
                 (
                     "src/pkg/domain/alpha/main/commands/run.py",
-                    "from pkg.domain.alpha.helpers.parse import parse\n",
+                    "from pkg.domain.alpha._helpers.parse import parse\n",
                 ),
-                ("src/pkg/domain/alpha/helpers/parse.py", "def parse() -> None:\n    pass\n"),
+                ("src/pkg/domain/alpha/_helpers/parse.py", "def parse() -> None:\n    pass\n"),
             ),
             expected_codes=(),
         ),

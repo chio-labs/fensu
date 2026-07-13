@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import ast
+from collections.abc import Callable
 from pathlib import Path
 from types import MappingProxyType
+from typing import cast
 
 import pytest
 
@@ -27,6 +29,34 @@ from strata.rules.authoring.types import Family, RuleContext, RuleKind, Threshol
 from strata.rules.layers.constants import SFL_RULES
 
 
+def _skip_exception_target(*, repo_root: Path, path: str) -> None:
+    del repo_root, path
+
+
+def _create_exception_target(*, repo_root: Path, path: str) -> None:
+    write_sources(
+        repo_root=repo_root,
+        files=((path, "def run() -> None:\n    pass\n"),),
+    )
+
+
+def _query_then_parse(
+    *, project: EvaluationProjectAnalysis, scoped_file: ScopedFile
+) -> tuple[Analysis | None, ParsedModule]:
+    analysis: Analysis | None = project.analysis(
+        requester=scoped_file.path,
+        path=scoped_file.path,
+    )
+    return analysis, project.parsed_module(scoped_file)
+
+
+def _parse_then_query(
+    *, project: EvaluationProjectAnalysis, scoped_file: ScopedFile
+) -> tuple[Analysis | None, ParsedModule]:
+    parsed: ParsedModule = project.parsed_module(scoped_file)
+    return project.analysis(requester=scoped_file.path, path=scoped_file.path), parsed
+
+
 def write_sources(*, repo_root: Path, files: tuple[tuple[str, str], ...]) -> None:
     """Write source files under a temp repo."""
 
@@ -46,7 +76,7 @@ def selection_context_rule() -> RuleSpec:
         entries: tuple[Path, ...] = ctx.project.directory_entries(
             requester=ctx.path, path=context_path.parent
         )
-        source: str = "missing" if analysis is None else analysis.text.source.strip()
+        source: str = getattr(getattr(analysis, "text", None), "source", "missing").strip()
         names: str = ",".join(sorted(path.name for path in entries))
         return [ctx.path_fault(message=f"{source}|{names}")]
 
@@ -63,7 +93,8 @@ def selection_context_rule() -> RuleSpec:
 def layer_rule(*, code: str) -> RuleSpec:
     """Return one layer rule by stable code."""
 
-    return next(rule for rule in SFL_RULES if rule.code == code)
+    rules_by_code: dict[str, RuleSpec] = {rule.code: rule for rule in SFL_RULES}
+    return rules_by_code[code]
 
 
 def install_external_analysis_failure(*, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -78,21 +109,21 @@ def install_external_analysis_failure(*, monkeypatch: pytest.MonkeyPatch) -> Non
 def direct_ast_parse_paths(*, root: Path) -> tuple[str, ...]:
     """Return Python modules containing direct ast.parse calls."""
 
-    return tuple(
-        str(candidate.relative_to(root))
-        for candidate in root.rglob("*.py")
-        if "ast.parse" in candidate.read_text(encoding="utf-8")
+    candidates: filter[Path] = filter(
+        lambda candidate: "ast.parse" in candidate.read_text(encoding="utf-8"),
+        root.rglob("*.py"),
     )
+    return tuple(str(candidate.relative_to(root)) for candidate in candidates)
 
 
 def write_exception_target(*, repo_root: Path, path: str, create_path: bool) -> None:
     """Write a target function only when an exception-target test requests it."""
 
-    if create_path:
-        write_sources(
-            repo_root=repo_root,
-            files=((path, "def run() -> None:\n    pass\n"),),
-        )
+    writer: Callable[..., None] = {
+        False: _skip_exception_target,
+        True: _create_exception_target,
+    }[create_path]
+    writer(repo_root=repo_root, path=path)
 
 
 def discover_test_tree(*, config: Config) -> DiscoveredTree:
@@ -145,17 +176,11 @@ def exercise_project_parse_order(
 ) -> tuple[Analysis | None, ParsedModule]:
     """Run tolerant and strict project access in the selected order."""
 
-    if query_first:
-        analysis: Analysis | None = project.analysis(
-            requester=scoped_file.path,
-            path=scoped_file.path,
-        )
-        return analysis, project.parsed_module(scoped_file)
-    parsed: ParsedModule = project.parsed_module(scoped_file)
-    return (
-        project.analysis(requester=scoped_file.path, path=scoped_file.path),
-        parsed,
-    )
+    exercise: Callable[..., tuple[Analysis | None, ParsedModule]] = {
+        False: _parse_then_query,
+        True: _query_then_parse,
+    }[query_first]
+    return exercise(project=project, scoped_file=scoped_file)
 
 
 def direct_module_walk_paths(*, root: Path) -> tuple[str, ...]:
@@ -175,8 +200,7 @@ def direct_module_walk_paths(*, root: Path) -> tuple[str, ...]:
             and node.args[0].id == "module"
             for node in ast.walk(module)
         )
-        if has_direct_module_walk:
-            paths.append(str(path))
+        paths.extend({False: (), True: (str(path),)}[has_direct_module_walk])
     return tuple(paths)
 
 
@@ -194,8 +218,7 @@ def private_context_zone_paths(*, root: Path) -> tuple[str, ...]:
             and node.value.id == "ctx"
             for node in ast.walk(module)
         )
-        if has_private_zone:
-            paths.append(str(path))
+        paths.extend({False: (), True: (str(path),)}[has_private_zone])
     return tuple(paths)
 
 
@@ -284,11 +307,18 @@ def make_loop_rule() -> RuleSpec:
     """Build a fake rule that reports calls inside loops."""
 
     def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
-        faults: list[Fault] = []
-        for node in ctx.nodes(ast.Call):
-            if isinstance(node, ast.Call) and ctx.inside_loop(node):
-                faults.append(ctx.fault(node=node, message=ctx.call_name(node) or "call"))
-        return faults
+        del module
+        calls: filter[ast.AST] = filter(
+            lambda node: isinstance(node, ast.Call) and ctx.inside_loop(node),
+            ctx.nodes(ast.Call),
+        )
+        return [
+            ctx.fault(
+                node=node,
+                message=ctx.call_name(cast(ast.Call, node)) or "call",
+            )
+            for node in calls
+        ]
 
     return RuleSpec(code="XLP001", family=Family.CUSTOM, slug="loop", message="loop", check=check)
 
@@ -307,7 +337,7 @@ def make_static_fault_rule(
         slug=message,
         message=message,
         check=check,
-        kind=RuleKind.CUSTOM if code.startswith("X") else RuleKind.CORE,
+        kind={False: RuleKind.CORE, True: RuleKind.CUSTOM}[code.startswith("X")],
     )
 
 
@@ -363,10 +393,7 @@ def make_context_ast_helper_rule() -> RuleSpec:
 
     def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
         fn: ast.AST = ctx.top_level_functions(module)[0]
-        call_nodes: list[ast.Call] = [
-            node for node in ctx.nodes(ast.Call) if isinstance(node, ast.Call)
-        ]
-        call: ast.Call = call_nodes[0]
+        call: ast.Call = cast(ast.Call, ctx.nodes(ast.Call)[0])
         message: str = (
             f"{ctx.base_name(call.func) or ''}|{len(ctx.non_docstring_body(module))}|"
             f"{len(ctx.nodes(ast.If))}|{','.join(sorted(ctx.parameter_names(fn)))}"
@@ -386,7 +413,11 @@ def make_analysis_context_rule() -> RuleSpec:
         source_range: SourceRange = ctx.syntax.range(handle)
         parent: SyntaxHandle | None = ctx.relations.parent(handle)
         function_count: int = len(ctx.facts.functions().functions)
-        parent_kind: str = "" if parent is None else ctx.syntax.kind(parent)
+        read_parent_kind: Callable[[], str] = {
+            False: lambda: ctx.syntax.kind(cast(SyntaxHandle, parent)),
+            True: lambda: "",
+        }[parent is None]
+        parent_kind: str = read_parent_kind()
         message: str = f"{ctx.text.slice(source_range)}|{function_count}|{parent_kind}"
         return [ctx.fault_at(location=handle, message=message)]
 

@@ -278,6 +278,18 @@ class FileEvaluationTestCase:
 
 
 @dataclass(frozen=True)
+class WarningTierEvaluationTestCase:
+    """Blocking and warning rules with expected provenance-preserving results."""
+
+    description: str
+    blocking_code: str
+    warning_rule_code: str
+    warning_fault_code: str
+    expected_fault_codes: tuple[str, ...]
+    expected_warning_codes: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class ScopeFamilySelectionTestCase:
     """Code selection and declared-family execution scope expectations."""
 

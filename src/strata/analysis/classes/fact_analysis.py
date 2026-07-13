@@ -11,6 +11,7 @@ from strata.analysis._helpers.annotations import annotation_facts
 from strata.analysis._helpers.control_flow import (
     complex_comprehension_locations,
     function_conditional_facts,
+    test_conditional_locations,
 )
 from strata.analysis._helpers.declarations import module_declaration_facts
 from strata.analysis._helpers.function_metrics import (
@@ -30,10 +31,12 @@ from strata.analysis._helpers.returns import (
     project_call_facts,
     project_function_facts,
 )
+from strata.analysis.classes.harness_use_extractor import HarnessUseExtractor
 from strata.analysis.models import (
     AnnotationFacts,
     CommentFact,
     DataclassFact,
+    EvaluateRuleCallFact,
     FunctionConditionalFact,
     FunctionContractFact,
     FunctionFacts,
@@ -80,6 +83,7 @@ class PythonFactAnalysis:
         self._function_contracts: tuple[FunctionContractFact, ...] | None = None
         self._functions: FunctionFacts | None = None
         self._hygiene: HygieneFacts | None = None
+        self._harness_use_extractor: HarnessUseExtractor | None = None
         self._meaningful_returns: dict[tuple[str, ...], tuple[MeaningfulReturnFact, ...]] = {}
         self._module_declarations: ModuleDeclarationFacts | None = None
         self._outer_state_mutations: tuple[OuterStateMutationFact, ...] | None = None
@@ -88,6 +92,7 @@ class PythonFactAnalysis:
         self._project_functions: tuple[ProjectFunctionFact, ...] | None = None
         self._references: ReferenceFacts | None = None
         self._test_functions: tuple[PytestFunctionFact, ...] | None = None
+        self._top_level_definition_conditionals: tuple[SourceLocation, ...] | None = None
         self._test_module: PytestModuleFacts | None = None
 
     def annotations(self) -> AnnotationFacts:
@@ -222,6 +227,11 @@ class PythonFactAnalysis:
             )
         return self._hygiene
 
+    def evaluate_rule_calls(self) -> tuple[EvaluateRuleCallFact, ...]:
+        """Return statically recognized public rule-harness calls."""
+
+        return self._harness_uses().evaluate_rule_calls()
+
     def meaningful_returns(
         self, *, name_patterns: tuple[str, ...] = ()
     ) -> tuple[MeaningfulReturnFact, ...]:
@@ -274,8 +284,34 @@ class PythonFactAnalysis:
             self._test_functions = test_function_facts(
                 path=self._path,
                 node_index=self._node_index,
+                dimensions_by_function=self._harness_uses().parametrize_dimensions(),
             )
         return self._test_functions
+
+    def _harness_uses(self) -> HarnessUseExtractor:
+        if self._harness_use_extractor is None:
+            self._harness_use_extractor = HarnessUseExtractor(
+                path=self._path,
+                module=self._module,
+                node_index=self._node_index,
+                parent_by_node=self._parent_by_node,
+            )
+        return self._harness_use_extractor
+
+    def top_level_definition_conditionals(self) -> tuple[SourceLocation, ...]:
+        """Return test-policy conditionals owned by top-level definitions."""
+
+        if self._top_level_definition_conditionals is None:
+            definitions: tuple[ast.AST, ...] = tuple(
+                statement
+                for statement in self._module.body
+                if isinstance(statement, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef)
+            )
+            self._top_level_definition_conditionals = test_conditional_locations(
+                path=self._path,
+                definitions=definitions,
+            )
+        return self._top_level_definition_conditionals
 
     def test_module(self) -> PytestModuleFacts:
         """Return reusable test module-shape metadata."""

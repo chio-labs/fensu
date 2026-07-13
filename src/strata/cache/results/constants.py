@@ -30,6 +30,7 @@ FILE_RESULT_PAYLOAD_KEYS: frozenset[str] = frozenset(
         "path",
         "source_fingerprint",
         "threshold_override_uses",
+        "warnings",
     }
 )
 FACT_PAYLOAD_KEYS: frozenset[str] = frozenset(

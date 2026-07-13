@@ -6,12 +6,15 @@ from pathlib import Path
 
 import pytest
 
+from strata.agentdocs._helpers import freshness
+from strata.agentdocs.main import check_install
 from strata.cache.fingerprints.models import GlobalFingerprintBuild
 from strata.cache.results.classes.result_cache import ResultCache
 from strata.cache.results.models import CacheStats
 from strata.cache.storage.constants import CACHE_DATABASE_RELATIVE_PATH
 from strata.cache.storage.exceptions import CacheRecordError
 from strata.cli.main.check import run_check
+from strata.cli.main.skills import run_skills
 from tests.integration.src.strata.cli.main._test_types import (
     CheckCacheModeTestCase,
     CheckCachePreferenceTestCase,
@@ -19,13 +22,20 @@ from tests.integration.src.strata.cli.main._test_types import (
     CheckCommandTestCase,
     CheckErrorTestCase,
     CheckNoFaultTestCase,
+    CheckSkillFreshnessTestCase,
     EvaluationCheckTestCase,
     NestedContainerCacheTestCase,
     ThresholdOverrideCheckTestCase,
+    WarningCacheIdentityTestCase,
+    WarningCheckTestCase,
 )
 from tests.integration.src.strata.cli.main.helpers import (
     CaptureOutput,
+    SkillReadCounter,
     cache_snapshot,
+    fail_skill_renderer,
+    mutate_skill_freshness_state,
+    prepare_normal_check_skill_state,
     write_cli_core_fault_project,
     write_cli_exception_project,
     write_cli_file_exception_project,
@@ -445,6 +455,189 @@ def test_given_no_faults_when_running_check_then_outputs_summary_and_exit_zero(
 @pytest.mark.parametrize(
     "test_case",
     [
+        WarningCheckTestCase(
+            description="plain check does not evaluate configured warning rule",
+            source="def build():\n    return 1\n",
+            argv=("--no-color", "--no-cache"),
+            expected_exit_code=0,
+            expected_summary="Found 0 faults",
+            expected_warning_count=0,
+            expected_fault_count=0,
+        ),
+        WarningCheckTestCase(
+            description="warning check reports zero warnings with explicit grammar",
+            source="def build() -> int:\n    return 1\n",
+            argv=("--no-color", "--no-cache", "--warn"),
+            expected_exit_code=0,
+            expected_summary="Found 0 faults and 0 warnings",
+            expected_warning_count=0,
+            expected_fault_count=0,
+        ),
+        WarningCheckTestCase(
+            description="warning-only finding succeeds with singular grammar",
+            source="def build():\n    return 1\n",
+            argv=("--no-color", "--no-cache", "--warn"),
+            expected_exit_code=0,
+            expected_summary="Found 0 faults and 1 warning",
+            expected_warning_count=1,
+            expected_fault_count=0,
+        ),
+        WarningCheckTestCase(
+            description="multiple warning findings succeed with plural grammar",
+            source="def build():\n    return 1\ndef load():\n    return 2\n",
+            argv=("--no-color", "--no-cache", "--warn"),
+            expected_exit_code=0,
+            expected_summary="Found 0 faults and 2 warnings",
+            expected_warning_count=2,
+            expected_fault_count=0,
+        ),
+        WarningCheckTestCase(
+            description="mixed blocking and warning findings fail only for the blocking fault",
+            source="VALUE = 1\ndef build():\n    return 1\n",
+            argv=("--no-color", "--no-cache", "--warn"),
+            expected_exit_code=1,
+            expected_summary="Found 1 fault and 1 warning",
+            expected_warning_count=1,
+            expected_fault_count=1,
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_configured_warning_rules_when_running_check_then_evaluates_only_requested_tiers(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: WarningCheckTestCase,
+) -> None:
+    (tmp_path / "strata.toml").write_text(
+        'roots = ["src/pkg"]\ntests = []\nselect = ["SFA101"]\nwarn = ["SFA002"]\n',
+        encoding="utf-8",
+    )
+    source: Path = tmp_path / "src/pkg/module.py"
+    source.parent.mkdir(parents=True)
+    source.write_text(test_case.source, encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    stdout: CaptureOutput = CaptureOutput()
+
+    exit_code: int = run_check(argv=test_case.argv, stdout=stdout)
+
+    output: str = stdout.getvalue()
+    assert exit_code == test_case.expected_exit_code
+    assert test_case.expected_summary in output
+    assert output.count("SFA002  ") == test_case.expected_warning_count
+    assert output.count("SFA101  ") == test_case.expected_fault_count
+    assert output.count("= warning:") == test_case.expected_warning_count
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        WarningCacheIdentityTestCase(
+            description="plain to warning mode switches miss before warning mode warms",
+            first_argv=("--no-color", "--cache", "--cache-stats"),
+            second_argv=("--no-color", "--cache", "--cache-stats", "--warn"),
+            third_argv=("--no-color", "--cache", "--cache-stats", "--warn"),
+            expected_switch_stats="hits=0 misses=1",
+            expected_warm_stats="hits=1 misses=0",
+        ),
+        WarningCacheIdentityTestCase(
+            description="warning to plain mode switches miss before plain mode warms",
+            first_argv=("--no-color", "--cache", "--cache-stats", "--warn"),
+            second_argv=("--no-color", "--cache", "--cache-stats"),
+            third_argv=("--no-color", "--cache", "--cache-stats"),
+            expected_switch_stats="hits=0 misses=1",
+            expected_warm_stats="hits=1 misses=0",
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_cached_warning_mode_switch_when_running_check_then_uses_distinct_identity(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: WarningCacheIdentityTestCase,
+) -> None:
+    (tmp_path / "strata.toml").write_text(
+        'roots = ["src/pkg"]\ntests = []\nselect = ["SFA101"]\nwarn = ["SFA002"]\n',
+        encoding="utf-8",
+    )
+    source: Path = tmp_path / "src/pkg/module.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("def build():\n    return 1\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    first_stderr: CaptureOutput = CaptureOutput()
+    second_stderr: CaptureOutput = CaptureOutput()
+    third_stderr: CaptureOutput = CaptureOutput()
+
+    _ = run_check(argv=test_case.first_argv, stdout=CaptureOutput(), stderr=first_stderr)
+    _ = run_check(argv=test_case.second_argv, stdout=CaptureOutput(), stderr=second_stderr)
+    _ = run_check(argv=test_case.third_argv, stdout=CaptureOutput(), stderr=third_stderr)
+
+    assert test_case.expected_switch_stats in first_stderr.getvalue()
+    assert test_case.expected_switch_stats in second_stderr.getvalue()
+    assert test_case.expected_warm_stats in third_stderr.getvalue()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CheckCacheWarningTestCase(
+            description="warn-only uncacheable custom rule affects only warning mode",
+            argv=("--no-color", "--cache", "--cache-stats", "--warn"),
+            expected_exit_code=0,
+            expected_output_fragment="Found 0 faults and 1 warning",
+            expected_warning_fragment="custom rules disable caching",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_warn_only_uncacheable_custom_rule_when_switching_modes_then_plain_cache_remains_eligible(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: CheckCacheWarningTestCase,
+) -> None:
+    (tmp_path / "strata.toml").write_text(
+        'roots = ["src/pkg"]\ntests = []\nselect = ["SFA101"]\nwarn = ["XWC001"]\n'
+        'rule_paths = ["rules/custom.py"]\n',
+        encoding="utf-8",
+    )
+    source: Path = tmp_path / "src/pkg/module.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("VALUE: int = 1\n", encoding="utf-8")
+    custom_rule: Path = tmp_path / "rules/custom.py"
+    custom_rule.parent.mkdir()
+    custom_rule.write_text(
+        "from __future__ import annotations\n"
+        "import ast\n"
+        "from strata import Family, Fault, RuleContext, rule\n"
+        "@rule(code='XWC001', family=Family.CUSTOM, slug='warning', message='review')\n"
+        "def warning(module: ast.Module, ctx: RuleContext) -> list[Fault]:\n"
+        "    return [ctx.fault(node=module.body[0])]\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    plain_cold_stderr: CaptureOutput = CaptureOutput()
+    plain_warm_stderr: CaptureOutput = CaptureOutput()
+    warned_stdout: CaptureOutput = CaptureOutput()
+    warned_stderr: CaptureOutput = CaptureOutput()
+    plain_argv: tuple[str, ...] = ("--no-color", "--cache", "--cache-stats")
+
+    _ = run_check(argv=plain_argv, stdout=CaptureOutput(), stderr=plain_cold_stderr)
+    _ = run_check(argv=plain_argv, stdout=CaptureOutput(), stderr=plain_warm_stderr)
+    warned_exit: int = run_check(
+        argv=test_case.argv,
+        stdout=warned_stdout,
+        stderr=warned_stderr,
+    )
+
+    assert "hits=0 misses=1" in plain_cold_stderr.getvalue()
+    assert "hits=1 misses=0" in plain_warm_stderr.getvalue()
+    assert warned_exit == test_case.expected_exit_code
+    assert test_case.expected_output_fragment in warned_stdout.getvalue()
+    assert test_case.expected_warning_fragment in warned_stderr.getvalue()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
         CheckNoFaultTestCase(
             description="applied exception reports count when check otherwise passes",
             argv=("--no-color",),
@@ -689,6 +882,148 @@ def test_given_internal_cache_error_when_running_check_then_warns_and_preserves_
     assert exit_code == test_case.expected_exit_code
     assert test_case.expected_output_fragment in stdout.getvalue()
     assert test_case.expected_warning_fragment in stderr.getvalue()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CheckSkillFreshnessTestCase(
+            description="declined installation does not create a permanent missing warning",
+            state="declined",
+            expected_exit_code=1,
+            expected_warning_count=0,
+        ),
+        CheckSkillFreshnessTestCase(
+            description="unmanaged local skill is outside automatic freshness ownership",
+            state="unmanaged",
+            expected_exit_code=1,
+            expected_warning_count=0,
+        ),
+        CheckSkillFreshnessTestCase(
+            description="malformed marker is left to authoritative update check",
+            state="malformed-marker",
+            expected_exit_code=1,
+            expected_warning_count=0,
+        ),
+        CheckSkillFreshnessTestCase(
+            description="current owned skill ignores invocation root and cache overrides",
+            state="current",
+            expected_exit_code=1,
+            expected_warning_count=0,
+        ),
+        CheckSkillFreshnessTestCase(
+            description="manual divergence warns without changing fault exit status",
+            state="divergent",
+            expected_exit_code=1,
+            expected_warning_count=1,
+        ),
+        CheckSkillFreshnessTestCase(
+            description="three stale default targets produce one warning",
+            state="stale-all",
+            expected_exit_code=1,
+            expected_warning_count=1,
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_default_local_skill_state_when_checking_then_warns_only_for_owned_staleness(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: CheckSkillFreshnessTestCase,
+) -> None:
+    write_cli_fixture_project(root=tmp_path, rule_code="XCF001")
+    monkeypatch.chdir(tmp_path)
+    prepare_normal_check_skill_state(root=tmp_path, state=test_case.state)
+    stdout: CaptureOutput = CaptureOutput()
+    stderr: CaptureOutput = CaptureOutput()
+
+    exit_code: int = run_check(
+        argv=("--no-color", "--no-cache", "src/pkg"),
+        stdout=stdout,
+        stderr=stderr,
+    )
+    warning: str = "Strata skill files are out of date; run `strata skills update`."
+
+    assert exit_code == test_case.expected_exit_code
+    assert "Found 1 fault" in stdout.getvalue()
+    assert stderr.getvalue().count(warning) == test_case.expected_warning_count
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CheckNoFaultTestCase(
+            description="stale skill warning never makes a clean check fail",
+            argv=("--no-color", "--no-cache"),
+            expected_exit_code=0,
+            expected_output_fragment="Found 0 faults",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_clean_project_and_divergent_owned_skill_when_checking_then_exit_remains_zero(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: CheckNoFaultTestCase,
+) -> None:
+    source: Path = tmp_path / "src/pkg/domain/constants.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("VALUE: int = 1\n", encoding="utf-8")
+    (tmp_path / "strata.toml").write_text(
+        'roots = ["src/pkg"]\ntests = []\nselect = ["SFA001"]\n[skills]\nname = "fixture"\n',
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    installed: int = run_skills(argv=("update", "--target", "agents"))
+    mutate_skill_freshness_state(root=tmp_path, state="divergent")
+    stdout: CaptureOutput = CaptureOutput()
+    stderr: CaptureOutput = CaptureOutput()
+
+    exit_code: int = run_check(argv=test_case.argv, stdout=stdout, stderr=stderr)
+
+    assert installed == 0
+    assert exit_code == test_case.expected_exit_code
+    assert test_case.expected_output_fragment in stdout.getvalue()
+    assert "Strata skill files are out of date" in stderr.getvalue()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CheckSkillFreshnessTestCase(
+            description="normal freshness performs three probes and zero Markdown renders",
+            state="current",
+            expected_exit_code=1,
+            expected_warning_count=0,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_current_owned_skill_when_checking_then_uses_bounded_renderer_free_fast_path(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: CheckSkillFreshnessTestCase,
+) -> None:
+    write_cli_fixture_project(root=tmp_path, rule_code="XFP001")
+    monkeypatch.chdir(tmp_path)
+    installed: int = run_skills(argv=("update", "--target", "agents"))
+    reader: SkillReadCounter = SkillReadCounter(freshness._read_skill_content)
+    monkeypatch.setattr(freshness, "_read_skill_content", reader)
+    monkeypatch.setattr(check_install, "generate_skill", fail_skill_renderer)
+    stderr: CaptureOutput = CaptureOutput()
+
+    exit_code: int = run_check(
+        argv=("--no-color", "--no-cache"),
+        stdout=CaptureOutput(),
+        stderr=stderr,
+    )
+
+    assert installed == 0
+    assert exit_code == test_case.expected_exit_code
+    assert reader.calls == 3
+    assert stderr.getvalue().count("Strata skill files are out of date") == (
+        test_case.expected_warning_count
+    )
 
 
 @pytest.mark.parametrize(

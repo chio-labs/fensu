@@ -6,12 +6,14 @@ import ast
 from collections.abc import Mapping
 from pathlib import Path
 
+from strata.analysis._helpers.control_flow import test_conditional_locations
 from strata.analysis._helpers.locations import source_location
 from strata.analysis.models import (
     DataclassFact,
     FunctionFacts,
     FunctionMetricFact,
     ParametrizeCaseFact,
+    ParametrizeDimensionFact,
     ParametrizeFact,
     PytestFunctionFact,
     SourceLocation,
@@ -223,6 +225,9 @@ def test_function_facts(
     *,
     path: Path,
     node_index: Mapping[type[ast.AST], tuple[ast.AST, ...]],
+    dimensions_by_function: Mapping[
+        ast.FunctionDef | ast.AsyncFunctionDef, tuple[ParametrizeDimensionFact, ...]
+    ],
 ) -> tuple[PytestFunctionFact, ...]:
     """Return reusable syntax metadata for test functions."""
 
@@ -241,13 +246,10 @@ def test_function_facts(
             None,
         )
         parametrize: ParametrizeFact | None = _parametrize_fact(path=path, node=node)
-        references_expected_field: bool = False
-        conditional_locations: tuple[SourceLocation, ...] = ()
-        if parametrize is not None:
-            references_expected_field, conditional_locations = _test_body_metadata(
-                path=path,
-                node=node,
-            )
+        references_expected_field, conditional_locations = _test_body_metadata(
+            path=path,
+            node=node,
+        )
         facts.append(
             PytestFunctionFact(
                 name=node.name,
@@ -262,6 +264,7 @@ def test_function_facts(
                 parametrize=parametrize,
                 references_expected_field=references_expected_field,
                 conditional_locations=conditional_locations,
+                parametrize_dimensions=dimensions_by_function.get(node, ()),
             )
         )
     return tuple(facts)
@@ -347,7 +350,6 @@ def _test_body_metadata(
     *, path: Path, node: ast.FunctionDef | ast.AsyncFunctionDef
 ) -> tuple[bool, tuple[SourceLocation, ...]]:
     references_expected_field: bool = False
-    conditional_locations: list[SourceLocation] = []
     for statement in node.body:
         for descendant in ast.walk(statement):
             if isinstance(descendant, ast.Attribute):
@@ -359,13 +361,7 @@ def _test_body_metadata(
                     and chain[-1].startswith("expected_")
                 ):
                     references_expected_field = True
-            if isinstance(descendant, ast.If | ast.IfExp | ast.Match | ast.While):
-                conditional_locations.append(source_location(path=path, node=descendant))
-            elif isinstance(descendant, ast.comprehension):
-                conditional_locations.extend(
-                    source_location(path=path, node=condition) for condition in descendant.ifs
-                )
-    return references_expected_field, tuple(conditional_locations)
+    return references_expected_field, test_conditional_locations(path=path, definitions=(node,))
 
 
 def _attribute_chain(node: ast.expr) -> tuple[str, ...] | None:

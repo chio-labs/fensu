@@ -24,6 +24,7 @@ def build_global_fingerprint(
     config: Config,
     ruleset: tuple[RuleSpec, ...],
     repo_root: Path,
+    warnings_enabled: bool = False,
 ) -> GlobalFingerprintBuild:
     """Return a complete installed/editable identity or the reason it is unavailable."""
 
@@ -67,6 +68,7 @@ def build_global_fingerprint(
                 config=config_fingerprint(config),
                 ruleset=ruleset_fingerprint(ruleset),
                 custom_rules=custom_rules,
+                warnings_enabled=warnings_enabled,
             )
         )
     except (OSError, PackageNotFoundError, TypeError, ValueError):

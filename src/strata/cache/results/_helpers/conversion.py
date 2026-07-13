@@ -42,6 +42,16 @@ def build_cached_file_result(
         if cached_fault is None:
             return None
         faults.append(cached_fault)
+    warnings: list[CachedFault] = []
+    for warning in evaluation.warnings:
+        cached_warning: CachedFault | None = _cached_fault(
+            fault=warning,
+            requester_path=path,
+            repo_root=repo_root,
+        )
+        if cached_warning is None:
+            return None
+        warnings.append(cached_warning)
     exception_keys: list[CachedRuleExceptionKey] = []
     for key in evaluation.applied_exception_keys:
         cached_key: CachedRuleExceptionKey | None = _cached_exception_key(
@@ -65,6 +75,7 @@ def build_cached_file_result(
         path=path,
         source_fingerprint=CacheFingerprint(evaluation.source_fingerprint),
         faults=tuple(faults),
+        warnings=tuple(warnings),
         applied_exception_keys=tuple(exception_keys),
         dependencies=tuple(dependencies),
         threshold_override_uses=tuple(
@@ -91,6 +102,17 @@ def restore_file_evaluation(*, result: CachedFileResult, repo_root: Path) -> Fil
                 remediation=fault.remediation,
             )
             for fault in result.faults
+        ),
+        warnings=tuple(
+            Fault(
+                code=warning.code,
+                path=repo_root / warning.path,
+                message=warning.message,
+                line=warning.line,
+                column=warning.column,
+                remediation=warning.remediation,
+            )
+            for warning in result.warnings
         ),
         applied_exception_keys=tuple(
             RuleExceptionKey(rule=key.rule, path=key.path, symbol=key.symbol)

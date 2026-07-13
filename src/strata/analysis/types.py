@@ -6,30 +6,32 @@ import ast
 from collections.abc import Mapping
 from enum import StrEnum
 from pathlib import Path
-from typing import NamedTuple, Protocol
+from typing import TYPE_CHECKING, NamedTuple, Protocol
 
-from strata.analysis.models import (
-    AnnotationFacts,
-    CommentFact,
-    DataclassFact,
-    FunctionConditionalFact,
-    FunctionContractFact,
-    FunctionFacts,
-    HygieneFacts,
-    MeaningfulReturnFact,
-    ModuleDeclarationFacts,
-    OuterStateMutationFact,
-    ParameterMutationFact,
-    ProjectCallFacts,
-    ProjectDependency,
-    ProjectFunctionFact,
-    PytestFunctionFact,
-    PytestModuleFacts,
-    ReferenceFacts,
-    SourceLocation,
-    SourceRange,
-    SyntaxHandle,
-)
+if TYPE_CHECKING:
+    from strata.analysis.models import (
+        AnnotationFacts,
+        CommentFact,
+        DataclassFact,
+        EvaluateRuleCallFact,
+        FunctionConditionalFact,
+        FunctionContractFact,
+        FunctionFacts,
+        HygieneFacts,
+        MeaningfulReturnFact,
+        ModuleDeclarationFacts,
+        OuterStateMutationFact,
+        ParameterMutationFact,
+        ProjectCallFacts,
+        ProjectDependency,
+        ProjectFunctionFact,
+        PytestFunctionFact,
+        PytestModuleFacts,
+        ReferenceFacts,
+        SourceLocation,
+        SourceRange,
+        SyntaxHandle,
+    )
 
 
 class ProjectDependencyKind(StrEnum):
@@ -57,6 +59,16 @@ class ReturnAnnotationCategory(StrEnum):
     ASYNC_ITERATOR = "async-iterator"
     ASYNC_GENERATOR = "async-generator"
     OTHER = "other"
+
+
+class RuleCaseForm(StrEnum):
+    """The static shape supplying test_case to evaluate_rule."""
+
+    MISSING = "missing"
+    LITERAL = "literal"
+    PARAMETER = "parameter"
+    LOCAL = "local"
+    DYNAMIC = "dynamic"
 
 
 class TextAnalysis(Protocol):
@@ -123,6 +135,10 @@ class FactAnalysis(Protocol):
         """Return top-level dataclass declarations and field metadata."""
         ...
 
+    def evaluate_rule_calls(self) -> tuple[EvaluateRuleCallFact, ...]:
+        """Return statically recognized public rule-harness calls."""
+        ...
+
     def complex_comprehensions(self) -> tuple[SourceLocation, ...]:
         """Return complex comprehension locations."""
         ...
@@ -175,6 +191,10 @@ class FactAnalysis(Protocol):
 
     def test_functions(self) -> tuple[PytestFunctionFact, ...]:
         """Return reusable syntax metadata for test functions."""
+        ...
+
+    def top_level_definition_conditionals(self) -> tuple[SourceLocation, ...]:
+        """Return test-policy conditionals owned by top-level definitions."""
         ...
 
     def test_module(self) -> PytestModuleFacts:

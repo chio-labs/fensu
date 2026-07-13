@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from strata.analysis.types import RuleCaseForm
+
 
 @dataclass(frozen=True, slots=True)
 class NodeId:
@@ -349,6 +351,23 @@ class ParametrizeFact:
 
 
 @dataclass(frozen=True, slots=True)
+class ParametrizeDimensionFact:
+    """One pytest parametrization dimension and its provable RuleCase values."""
+
+    location: SourceLocation
+    parameter_names: tuple[str, ...]
+    values_location: SourceLocation | None
+    rule_case_locations: tuple[SourceLocation, ...]
+    unknown_rule_case_count: bool
+
+    @property
+    def provable_rule_case_count(self) -> int:
+        """Return the number of statically visible RuleCase values."""
+
+        return len(self.rule_case_locations)
+
+
+@dataclass(frozen=True, slots=True)
 class PytestFunctionFact:
     """Reusable syntax metadata for one test function."""
 
@@ -359,6 +378,56 @@ class PytestFunctionFact:
     parametrize: ParametrizeFact | None
     references_expected_field: bool
     conditional_locations: tuple[SourceLocation, ...]
+    parametrize_dimensions: tuple[ParametrizeDimensionFact, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class StaticReferenceFact:
+    """One expression resolved to an absolute imported module symbol."""
+
+    module_name: str
+    symbol_name: str
+
+
+@dataclass(frozen=True, slots=True)
+class EvaluateRuleCallFact:
+    """One statically recognized strata.evaluate_rule call."""
+
+    location: SourceLocation
+    test_function_name: str | None
+    test_function_location: SourceLocation | None
+    rule_expression: tuple[str, ...] | None
+    rule_location: SourceLocation | None
+    rule_reference: StaticReferenceFact | None
+    test_case_expression: tuple[str, ...] | None
+    test_case_location: SourceLocation | None
+    test_case_form: RuleCaseForm
+    case_locations: tuple[SourceLocation, ...]
+    unknown_case_count: bool
+
+    @property
+    def provable_case_count(self) -> int:
+        """Return the statically proven RuleCase cardinality for this call."""
+
+        return len(self.case_locations)
+
+
+@dataclass(frozen=True, slots=True)
+class RuleTestAssociationFact:
+    """Deduplicated static harness coverage for one test function and rule."""
+
+    rule_reference: StaticReferenceFact
+    test_function_name: str
+    test_function_location: SourceLocation
+    call_locations: tuple[SourceLocation, ...]
+    case_locations: tuple[SourceLocation, ...]
+    unknown_case_count: bool
+
+    @property
+    def provable_case_count(self) -> int:
+        """Return the deduplicated statically proven case count."""
+
+        return len(self.case_locations)
 
 
 @dataclass(frozen=True, slots=True)

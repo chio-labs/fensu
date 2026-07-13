@@ -8,7 +8,11 @@ from strata.rules.shape.types import ShapeCode
 from strata.rules.tests.types import SftCode
 
 GENERATED_MARKER: str = "<!-- generated-by: strata skills update -->"
-SKILL_NAME: str = "strata"
+GENERIC_SKILL_NAME: str = "strata"
+OWNERSHIP_MARKER_PREFIX: str = "<!-- strata-skill-owner: "
+OWNERSHIP_MARKER_SCHEMA: int = 1
+SKILL_INPUT_FINGERPRINT_SCHEMA: int = 1
+SKILL_NAME_PREFIX: str = "strata-"
 
 RUNTIME_BASIC_CODES: frozenset[str] = frozenset(
     {RoleCode.TOP_LEVEL_DOMAIN_SHAPE, RoleCode.TOP_LEVEL_DIRECT_MODULES}
@@ -107,4 +111,6 @@ THRESHOLD_RULE_CODES: dict[Threshold, frozenset[str]] = {
     Threshold.MAX_ARGUMENTS: frozenset({ShapeCode.MAX_ARGUMENTS}),
     Threshold.MAX_STATEMENTS_GLOBAL: frozenset({ShapeCode.MAX_STATEMENTS_GLOBAL}),
     Threshold.MAX_SCRIPT_ENTRYPOINT_LINES: frozenset({RoleCode.TOOLING_ENTRYPOINT_LINE_COUNT}),
+    Threshold.MIN_SHARED_DOMAIN_PREFIX_PACKAGES: frozenset({RoleCode.SHARED_DOMAIN_PREFIX}),
+    Threshold.MIN_CUSTOM_RULE_TEST_CASES: frozenset({RoleCode.CUSTOM_RULE_TEST_COVERAGE}),
 }

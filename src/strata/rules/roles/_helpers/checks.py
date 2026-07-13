@@ -5,7 +5,15 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from strata.analysis.models import ModuleDeclarationFacts, ModuleStatementFact
+from strata.analysis.main.associate_rule_tests import associate_rule_tests
+from strata.analysis.models import (
+    EvaluateRuleCallFact,
+    ModuleDeclarationFacts,
+    ModuleStatementFact,
+    RuleTestAssociationFact,
+    StaticReferenceFact,
+)
+from strata.analysis.types import Analysis
 from strata.discovery.constants import (
     HELPERS_DIRECTORY_NAME,
     INIT_MODULE_FILE_NAME,
@@ -14,7 +22,9 @@ from strata.discovery.constants import (
     ROLE_DIRECTORY_TO_NAME,
 )
 from strata.discovery.types import RoleName, ScopeName
-from strata.rules.authoring.models import Fault
+from strata.rules.authoring.constants import CUSTOM_RULE_REGISTRATIONS_CACHE_KEY
+from strata.rules.authoring.main.is_rule_code import is_rule_code
+from strata.rules.authoring.models import CustomRuleRegistration, Fault
 from strata.rules.authoring.types import RuleContext, Threshold
 from strata.rules.roles.types import RoleCode
 
@@ -56,6 +66,8 @@ _minimum_nested_module_parts: int = 3
 _minimum_nested_subpackage_parts: int = 4
 _top_level_role_parts: int = 2
 _maximum_entry_private_functions: int = 2
+_domain_name_separator: str = "_"
+_natural_language_pair_size: int = 2
 
 
 def models_only_models(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
@@ -412,6 +424,113 @@ def top_level_direct_modules(*, module: ast.Module, ctx: RuleContext) -> list[Fa
     ]
 
 
+def shared_domain_prefix(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Flag sibling domains whose first name token encodes one missing parent domain."""
+
+    del module
+    if ctx.scope() is not ScopeName.ROOT:
+        return []
+    scope_root: Path = ctx.scope_root()
+    anchor: Path | None = _scope_root_anchor(scope_root=scope_root, ctx=ctx)
+    if anchor is None or ctx.path != anchor:
+        return []
+    minimum: int = ctx.threshold(
+        name=Threshold.MIN_SHARED_DOMAIN_PREFIX_PACKAGES,
+        path=anchor,
+    )
+    if minimum == 0:
+        return []
+    groups: tuple[tuple[str, tuple[str, ...]], ...] = _shared_domain_prefix_groups(
+        scope_root=scope_root,
+        ctx=ctx,
+    )
+    faults: list[Fault] = []
+    for prefix, domain_names in groups:
+        if len(domain_names) < minimum:
+            continue
+        suffixes: tuple[str, ...] = tuple(
+            name.removeprefix(f"{prefix}{_domain_name_separator}") for name in domain_names
+        )
+        domains_text: str = _natural_language_list(domain_names)
+        suffixes_text: str = _natural_language_list(tuple(f"{suffix}/" for suffix in suffixes))
+        destination: Path = scope_root / prefix
+        existing_destination: bool = ctx.project.is_dir(
+            requester=ctx.path,
+            path=destination,
+        )
+        remediation: str = (
+            f"Move them under the existing {prefix}/ domain as {suffixes_text} subdomains."
+            if existing_destination
+            else f"Create {prefix}/ and move them beneath it as {suffixes_text} subdomains."
+        )
+        faults.append(
+            ctx.path_fault(
+                message=(f"sibling domains {domains_text} share the {prefix}_ owner prefix"),
+                remediation=remediation,
+            )
+        )
+    return faults
+
+
+def _scope_root_anchor(*, scope_root: Path, ctx: RuleContext) -> Path | None:
+    init_path: Path = scope_root / INIT_MODULE_FILE_NAME
+    if ctx.project.is_file(requester=ctx.path, path=init_path):
+        return init_path
+    python_files: tuple[Path, ...] = tuple(
+        sorted(
+            ctx.project.glob(
+                requester=ctx.path,
+                path=scope_root,
+                pattern="*.py",
+                recursive=True,
+            )
+        )
+    )
+    return python_files[0] if python_files else None
+
+
+def _shared_domain_prefix_groups(
+    *, scope_root: Path, ctx: RuleContext
+) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    grouped: dict[str, list[str]] = {}
+    entries: tuple[Path, ...] = tuple(
+        sorted(ctx.project.directory_entries(requester=ctx.path, path=scope_root))
+    )
+    for entry in entries:
+        name: str = entry.name
+        if (
+            name.startswith(_domain_name_separator)
+            or name in _role_names
+            or name == LEGACY_HELPERS_DIRECTORY_NAME
+            or name == _python_cache_directory_name
+            or _domain_name_separator not in name
+            or not name.isidentifier()
+            or not ctx.project.is_dir(requester=ctx.path, path=entry)
+        ):
+            continue
+        prefix, separator, suffix = name.partition(_domain_name_separator)
+        if not separator or not prefix or not suffix:
+            continue
+        python_files: tuple[Path, ...] = ctx.project.glob(
+            requester=ctx.path,
+            path=entry,
+            pattern="*.py",
+            recursive=True,
+        )
+        if not python_files:
+            continue
+        grouped.setdefault(prefix, []).append(name)
+    return tuple((prefix, tuple(sorted(names))) for prefix, names in sorted(grouped.items()))
+
+
+def _natural_language_list(values: tuple[str, ...]) -> str:
+    if len(values) == 1:
+        return values[0]
+    if len(values) == _natural_language_pair_size:
+        return f"{values[0]} and {values[1]}"
+    return f"{', '.join(values[:-1])}, and {values[-1]}"
+
+
 def entry_module_shape(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag entry modules that are not focused single-entry surfaces."""
 
@@ -741,6 +860,118 @@ def rules_role_content(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
             )
         )
     return faults
+
+
+def descriptive_rule_module_names(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Reject rule modules named exactly after a core or custom rule code."""
+
+    del module
+    if not ctx.in_role(RoleName.RULES):
+        return []
+    if not is_rule_code(ctx.path.stem.upper()):
+        return []
+    return [
+        ctx.path_fault(
+            message="rule module filenames must describe their policy, not repeat a rule code"
+        )
+    ]
+
+
+def custom_rule_test_coverage(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Require statically associated public-harness cases for configured custom rules."""
+
+    del module
+    registrations: tuple[CustomRuleRegistration, ...] = ctx._memoize(
+        key=CUSTOM_RULE_REGISTRATIONS_CACHE_KEY,
+        operation=tuple,
+    )
+    if not registrations:
+        return []
+    minimum: int = ctx.threshold(name=Threshold.MIN_CUSTOM_RULE_TEST_CASES, path=ctx.path)
+    if minimum == 0:
+        return []
+    modules: dict[str, Analysis] = {}
+    calls: list[EvaluateRuleCallFact] = []
+    for test_root in sorted(ctx.scope_roots(ScopeName.TEST)):
+        test_paths: tuple[Path, ...] = tuple(
+            sorted(
+                ctx.project.glob(
+                    requester=ctx.path,
+                    path=test_root,
+                    pattern="*.py",
+                    recursive=True,
+                )
+            )
+        )
+        for test_path in test_paths:
+            analysis: Analysis | None = ctx.project.analysis(
+                requester=ctx.path,
+                path=test_path,
+            )
+            if analysis is None:
+                continue
+            modules[_module_name(path=test_path, import_root=test_root.parent)] = analysis
+            calls.extend(analysis.facts.evaluate_rule_calls())
+    source_analysis: Analysis | None = ctx.project.analysis(requester=ctx.path, path=ctx.path)
+    if source_analysis is not None:
+        for registration in registrations:
+            modules[registration.module_name] = source_analysis
+    associations: tuple[RuleTestAssociationFact, ...] = associate_rule_tests(
+        calls=tuple(calls), modules=modules
+    )
+    return _custom_rule_coverage_faults(
+        registrations=registrations,
+        associations=associations,
+        minimum=minimum,
+        ctx=ctx,
+    )
+
+
+def _custom_rule_coverage_faults(
+    *,
+    registrations: tuple[CustomRuleRegistration, ...],
+    associations: tuple[RuleTestAssociationFact, ...],
+    minimum: int,
+    ctx: RuleContext,
+) -> list[Fault]:
+    grouped: dict[StaticReferenceFact, list[RuleTestAssociationFact]] = {}
+    for association in associations:
+        grouped.setdefault(association.rule_reference, []).append(association)
+    faults: list[Fault] = []
+    for registration in registrations:
+        reference: StaticReferenceFact = StaticReferenceFact(
+            module_name=registration.module_name,
+            symbol_name=registration.function_name,
+        )
+        matching: tuple[RuleTestAssociationFact, ...] = tuple(grouped.get(reference, ()))
+        case_count: int = sum(item.provable_case_count for item in matching)
+        if case_count >= minimum:
+            continue
+        dynamic: bool = any(item.unknown_case_count for item in matching)
+        message: str = (
+            f"custom rule {registration.rule.code} has associated tests with dynamically "
+            f"determined case counts; the configured minimum of {minimum} cannot be "
+            "statically proven"
+            if dynamic
+            else f"custom rule {registration.rule.code} has {case_count} statically declared test "
+            f"cases; at least {minimum} is required"
+        )
+        faults.append(
+            ctx.fault_for(
+                path=registration.source_path,
+                line=registration.declaration_line,
+                column=registration.declaration_column,
+                message=message,
+            )
+        )
+    return faults
+
+
+def _module_name(*, path: Path, import_root: Path) -> str:
+    parts: tuple[str, ...] = path.relative_to(import_root).with_suffix("").parts
+    if parts and parts[-1] == Path(INIT_MODULE_FILE_NAME).stem:
+        parts = parts[:-1]
+    return ".".join(parts)
 
 
 def tooling_package_layout(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:

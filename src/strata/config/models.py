@@ -59,6 +59,13 @@ class EvaluationConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class SkillsConfig:
+    """Persistent generated-skill identity preferences."""
+
+    name: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class ThresholdOverride:
     """Path-scoped threshold values with an explicit justification."""
 
@@ -92,12 +99,14 @@ class Config:
     tests: tuple[str, ...] = ("tests",)
     tooling: tuple[str, ...] = ()
     select: tuple[str, ...] = ("SF",)
+    warn: tuple[str, ...] = ()
     ignore: tuple[str, ...] = ()
     rule_paths: tuple[str, ...] = ()
     rule_modules: tuple[str, ...] = ()
     rule_exceptions: tuple[RuleExceptionEntry, ...] = ()
     cache: CacheConfig = field(default_factory=lambda: CacheConfig(enabled=DEFAULT_CACHE_ENABLED))
     evaluation: EvaluationConfig = field(default_factory=EvaluationConfig)
+    skills: SkillsConfig = field(default_factory=SkillsConfig)
     thresholds: Mapping[Threshold, int] = field(
         default_factory=lambda: MappingProxyType(dict(DEFAULT_THRESHOLDS))
     )

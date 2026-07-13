@@ -312,6 +312,30 @@ def test_given_invalid_rule_exception_when_loading_then_raises_validation_error(
     "test_case",
     [
         InvalidConfigTestCase(
+            description="skills preference must be a table",
+            config_text='roots = ["src/pkg"]\nskills = "project"\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="skills must be a table",
+        ),
+        InvalidConfigTestCase(
+            description="skills table rejects unknown options",
+            config_text='roots = ["src/pkg"]\n[skills]\nidentity = "project"\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="identity",
+        ),
+        InvalidConfigTestCase(
+            description="skills name must be a string",
+            config_text='roots = ["src/pkg"]\n[skills]\nname = 3\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="skills.name",
+        ),
+        InvalidConfigTestCase(
+            description="skills name must not be blank",
+            config_text='roots = ["src/pkg"]\n[skills]\nname = "  "\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="non-empty string",
+        ),
+        InvalidConfigTestCase(
             description="unknown key is rejected",
             config_text='roots = ["src/pkg"]\nrootss = ["typo"]\n',
             expected_error_type=ConfigValidationError,
@@ -450,6 +474,12 @@ def test_given_invalid_cache_preference_when_loading_then_raises_validation_erro
             expected_error_fragment="select",
         ),
         InvalidConfigTestCase(
+            description="warn must be a list",
+            config_text='roots = ["src/pkg"]\nwarn = "SFR"\n',
+            expected_error_type=ConfigError,
+            expected_error_fragment="warn",
+        ),
+        InvalidConfigTestCase(
             description="ignore must contain strings",
             config_text='roots = ["src/pkg"]\nignore = [5]\n',
             expected_error_type=ConfigValidationError,
@@ -492,6 +522,12 @@ def test_given_invalid_list_field_when_loading_then_raises_expected_error(
             expected_error_fragment="NOPE",
         ),
         InvalidConfigTestCase(
+            description="invalid warn selector is rejected",
+            config_text='roots = ["src/pkg"]\nwarn = ["NOPE"]\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="NOPE",
+        ),
+        InvalidConfigTestCase(
             description="legacy lowercase custom selector is rejected",
             config_text='roots = ["src/pkg"]\nselect = ["Xdb"]\n',
             expected_error_type=ConfigValidationError,
@@ -525,9 +561,11 @@ def test_given_invalid_selector_when_loading_then_raises_config_validation_error
             description="core buckets and custom namespaces are valid selectors",
             config_text=(
                 'roots = ["src/pkg"]\nselect = ["SF", "SFR", "SFR3", "SFZ001", "XDB"]\n'
+                'warn = ["SFS102", "XAD"]\n'
                 'ignore = ["SFR30", "XDB001"]\n'
             ),
             expected_select=("SF", "SFR", "SFR3", "SFZ001", "XDB"),
+            expected_warn=("SFS102", "XAD"),
             expected_ignore=("SFR30", "XDB001"),
         )
     ],
@@ -542,6 +580,7 @@ def test_given_valid_prefix_selectors_when_loading_then_preserves_spellings(
     config: Config = load_config(tmp_path)
 
     assert config.select == test_case.expected_select
+    assert config.warn == test_case.expected_warn
     assert config.ignore == test_case.expected_ignore
 
 

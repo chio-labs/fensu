@@ -2,23 +2,28 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import TextIO
 
 from strata.agentdocs.exceptions import SkillInstallError
+from strata.agentdocs.main.build_generation_context import build_generation_context
 from strata.agentdocs.main.update import update_skills
-from strata.agentdocs.models import SkillUpdateResult
+from strata.agentdocs.models import SkillGenerationContext, SkillUpdateResult
 from strata.config.exceptions import ConfigError
-from strata.config.models import Config
+from strata.config.models import Config, ConfigSource
+from strata.config.types import ConfigSourceKind
 from strata.discovery.main.discover_files import discover_files
 from strata.discovery.models import DiscoveredTree
 from strata.evaluation.main.evaluate import evaluate
 from strata.evaluation.models import EvaluationResult
 from strata.reporting.classes.cli_style import CliStyle
 from strata.rules.authoring.models import Fault, RuleSpec
+from strata.rules.catalog.main.build_check_rule_selection import build_check_rule_selection
 from strata.rules.catalog.main.build_ruleset import build_ruleset
+from strata.rules.catalog.models import RuleSelection
 from strata.scaffolding._helpers.output import prompt_yes_no
-from strata.scaffolding.constants import FAMILY_LABELS
+from strata.scaffolding.constants import CONFIG_FILE_NAME, FAMILY_LABELS
 from strata.scaffolding.models import DriftSummary
 
 
@@ -68,11 +73,20 @@ def update_init_skills(
         stdout.write("\n    Run strata skills update when you are ready.\n")
         return
     try:
-        rules: tuple[RuleSpec, ...] = build_ruleset(config=config, repo_root=repository)
-        result: SkillUpdateResult = update_skills(
+        selection: RuleSelection = build_check_rule_selection(
+            config=config, repo_root=repository, include_warnings=True
+        )
+        context: SkillGenerationContext = build_generation_context(
             config=config,
-            rules=rules,
-            project_dir=repository,
+            source=ConfigSource(
+                path=repository / CONFIG_FILE_NAME,
+                kind=ConfigSourceKind.STRATA_TOML,
+            ),
+            project_root=repository,
+            selection=selection,
+        )
+        result: SkillUpdateResult = update_skills(
+            context=context,
             home_dir=home_dir,
         )
     except (ConfigError, SkillInstallError, OSError) as error:
@@ -80,5 +94,5 @@ def update_init_skills(
         return
     stdout.write("\n")
     for path in result.written_paths:
-        relative: Path = path.relative_to(repository)
-        stdout.write(f"    Updated {style.path(relative.as_posix())}\n")
+        relative: str = Path(os.path.relpath(path, repository)).as_posix()
+        stdout.write(f"    Updated {style.path(relative)}\n")

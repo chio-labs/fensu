@@ -23,13 +23,19 @@ from strata.cache.storage.exceptions import CachePathError, CacheRecordError
 from strata.config.models import Config
 from strata.discovery.models import DiscoveredTree
 from strata.evaluation.main.build_project import build_evaluation_project
+from strata.evaluation.main.build_targets import build_evaluation_targets
 from strata.evaluation.main.collect_result import collect_file_evaluations
 from strata.evaluation.main.evaluate import evaluate
-from strata.evaluation.main.evaluate_file import evaluate_discovered_file
+from strata.evaluation.main.evaluate_target import evaluate_target
 from strata.evaluation.main.select_files import select_evaluation_files
-from strata.evaluation.models import EvaluationResult, EvaluationSelection, FileEvaluation
+from strata.evaluation.models import (
+    EvaluationResult,
+    EvaluationSelection,
+    EvaluationTarget,
+    FileEvaluation,
+)
 from strata.evaluation.types import EvaluationProjectAnalysis
-from strata.rules.authoring.models import RuleSpec
+from strata.rules.authoring.models import CustomRuleRegistration, RuleSpec
 from strata.rules.authoring.types import RuleKind
 
 
@@ -37,17 +43,33 @@ def run_cached_evaluation(
     *,
     tree: DiscoveredTree,
     ruleset: tuple[RuleSpec, ...],
+    warning_rules: tuple[RuleSpec, ...] = (),
     config: Config,
     global_fingerprint: CacheFingerprint,
+    custom_rule_registrations: tuple[CustomRuleRegistration, ...] = (),
 ) -> CacheEvaluation:
     """Return a complete evaluation using only fully validated file-result hits."""
 
     selection: EvaluationSelection = select_evaluation_files(tree=tree, config=config.evaluation)
-    if any(rule.kind is RuleKind.CUSTOM and not rule.cacheable for rule in ruleset):
-        result: EvaluationResult = evaluate(tree=tree, ruleset=ruleset, config=config)
+    evaluated_rules: tuple[RuleSpec, ...] = (*ruleset, *warning_rules)
+    targets: tuple[EvaluationTarget, ...] = build_evaluation_targets(
+        tree=tree,
+        selection=selection,
+        ruleset=ruleset,
+        warning_rules=warning_rules,
+        custom_rule_registrations=custom_rule_registrations,
+    )
+    if any(rule.kind is RuleKind.CUSTOM and not rule.cacheable for rule in evaluated_rules):
+        result: EvaluationResult = evaluate(
+            tree=tree,
+            ruleset=ruleset,
+            warning_rules=warning_rules,
+            config=config,
+            custom_rule_registrations=custom_rule_registrations,
+        )
         return CacheEvaluation(
             result=result,
-            stats=CacheStats(non_cacheable=len(selection.files)),
+            stats=CacheStats(non_cacheable=len(targets)),
         )
     cache: ResultCache = ResultCache(repo_root=tree.repo_root.path)
     index: CacheIndex | None = cache.load_index(global_fingerprint=global_fingerprint)
@@ -55,9 +77,9 @@ def run_cached_evaluation(
         {entry.path: entry for entry in index.entries} if index is not None else {}
     )
     target_paths: set[str] = set()
-    for scoped_file in selection.files:
+    for target in targets:
         discovered_path: str | None = relative_repository_path(
-            path=scoped_file.path,
+            path=target.scoped_file.path,
             repo_root=tree.repo_root.path,
         )
         if discovered_path is not None:
@@ -77,12 +99,12 @@ def run_cached_evaluation(
     hits: int = 0
     misses: int = 0
     invalidations: int = sum(path not in target_paths for path in entries)
-    for scoped_file in selection.files:
+    for target in targets:
         path: str | None = relative_repository_path(
-            path=scoped_file.path,
+            path=target.scoped_file.path,
             repo_root=tree.repo_root.path,
         )
-        source_fingerprint: CacheFingerprint | None = _source_fingerprint(scoped_file.path)
+        source_fingerprint: CacheFingerprint | None = _source_fingerprint(target.scoped_file.path)
         entry: CacheIndexEntry | None = entries.get(path) if path is not None else None
         lookup: CacheLookup | None = None
         if entry is not None and source_fingerprint is not None:
@@ -104,9 +126,10 @@ def run_cached_evaluation(
             misses += 1
         else:
             invalidations += 1
-        fresh: FileEvaluation = evaluate_discovered_file(
-            scoped_file=scoped_file,
+        fresh: FileEvaluation = evaluate_target(
+            target=target,
             ruleset=ruleset,
+            warning_rules=warning_rules,
             config=config,
             tree=tree,
             project=project,
@@ -123,6 +146,7 @@ def run_cached_evaluation(
         dependencies=dependencies,
         config=config,
         repo_root=tree.repo_root.path,
+        evaluated_rule_codes=frozenset(rule.code for rule in evaluated_rules),
         selection=selection,
     )
     publication: CacheStats = _publish_results(

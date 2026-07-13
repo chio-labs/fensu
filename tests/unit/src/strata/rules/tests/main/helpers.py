@@ -58,9 +58,12 @@ def evaluate_tests_rule_test_case(
         tests=test_case.tests,
         tooling=test_case.tooling,
     )
-    ruleset: tuple[RuleSpec, ...] = (
-        CORE_RULES if test_case.rule_code == "SF" else (_rule_by_code(test_case.rule_code),)
-    )
+    rulesets_by_code: dict[str, tuple[RuleSpec, ...]] = {rule.code: (rule,) for rule in SFT_RULES}
+    rulesets_by_code["SF"] = CORE_RULES
+    selected_rules: list[RuleSpec] = []
+    for code in test_case.rule_code.split(","):
+        selected_rules.extend(rulesets_by_code[code])
+    ruleset: tuple[RuleSpec, ...] = tuple(selected_rules)
     return evaluate(
         tree=discover_files(config=config),
         ruleset=ruleset,
@@ -87,7 +90,7 @@ def evaluate_configured_layout_test_case(
         tooling=test_case.tooling,
     )
     layout_rules: tuple[RuleSpec, ...] = tuple(
-        rule for rule in SFT_RULES if "SFT001" <= rule.code <= "SFT008"
+        filter(lambda rule: "SFT001" <= rule.code <= "SFT008", SFT_RULES)
     )
     return evaluate(
         tree=discover_files(config=config),
@@ -117,10 +120,3 @@ def _write_file(*, tmp_path: Path, relative_path: str, source: str) -> None:
     path: Path = tmp_path / relative_path
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(source, encoding="utf-8")
-
-
-def _rule_by_code(rule_code: str) -> RuleSpec:
-    for rule in SFT_RULES:
-        if rule.code == rule_code:
-            return rule
-    raise AssertionError(f"Unknown SFT rule code {rule_code}")

@@ -238,6 +238,66 @@ class PytestFunctionFactTestCase:
 
 
 @dataclass(frozen=True)
+class HarnessUseFactTestCase:
+    """Source and expected static evaluate_rule harness facts."""
+
+    description: str
+    source: str
+    expected_singular_parameter: str | None
+    expected_dimension_parameters: tuple[tuple[str, ...], ...]
+    expected_dimension_case_counts: tuple[int, ...]
+    expected_dimension_unknown: tuple[bool, ...]
+    expected_call_lines: tuple[int, ...]
+    expected_owner_names: tuple[str | None, ...]
+    expected_rule_references: tuple[tuple[str | None, str | None], ...]
+    expected_forms: tuple[str, ...]
+    expected_case_counts: tuple[int, ...]
+    expected_case_lines: tuple[tuple[int, ...], ...]
+    expected_unknown: tuple[bool, ...]
+
+
+@dataclass(frozen=True)
+class HarnessUseFactMatrixTestCase:
+    """Static harness fact scenarios exercised as one visible pytest case."""
+
+    description: str
+    cases: tuple[HarnessUseFactTestCase, ...]
+    expected_case_count: int
+
+
+@dataclass(frozen=True)
+class RuleTestAssociationFactTestCase:
+    """Harness calls, module analyses, and expected resolved associations."""
+
+    description: str
+    test_source: str
+    module_names: tuple[str, ...]
+    module_sources: tuple[str, ...]
+    expected_rule_references: tuple[tuple[str, str], ...]
+    expected_case_counts: tuple[int, ...]
+    expected_call_counts: tuple[int, ...]
+    expected_unknown: tuple[bool, ...]
+
+
+@dataclass(frozen=True)
+class RuleTestAssociationFactMatrixTestCase:
+    """Rule association scenarios exercised as one visible pytest case."""
+
+    description: str
+    cases: tuple[RuleTestAssociationFactTestCase, ...]
+    expected_case_count: int
+
+
+@dataclass(frozen=True)
+class PytestConditionalFactTestCase:
+    """Source and expected conditional locations for test functions."""
+
+    description: str
+    source: str
+    expected_lines: tuple[int, ...]
+
+
+@dataclass(frozen=True)
 class ObserverFingerprintParityTestCase:
     """Source bytes and expected fingerprint parity across implementations."""
 

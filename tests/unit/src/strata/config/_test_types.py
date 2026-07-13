@@ -44,6 +44,7 @@ class RuleSelectorConfigTestCase:
     description: str
     config_text: str
     expected_select: tuple[str, ...]
+    expected_warn: tuple[str, ...]
     expected_ignore: tuple[str, ...]
 
 
@@ -91,6 +92,15 @@ class EvaluationConfigTestCase:
     config_text: str
     expected_include: tuple[str, ...]
     expected_exclude: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class SkillsConfigTestCase:
+    """A persistent skill identity and its expected normalized config value."""
+
+    description: str
+    config_text: str
+    expected_name: str | None
 
 
 @dataclass(frozen=True)
@@ -198,6 +208,8 @@ class InMemoryConfigBuildTestCase:
     raw_config: dict[str, object]
     expected_roots: tuple[str, ...]
     expected_select: tuple[str, ...]
+    expected_warn: tuple[str, ...]
+    expected_shared_domain_minimum: int
 
 
 @dataclass(frozen=True)

@@ -8,6 +8,7 @@ import pytest
 
 from strata.analysis._helpers import building
 from strata.cache.mapping.models import CachedCallMap
+from strata.cache.storage.constants import CACHE_DATABASE_RELATIVE_PATH
 from strata.cli.main.map import run_map
 from strata.mapping.exceptions import MapError
 from strata.mapping.main.ast import build_ast_call_map
@@ -398,7 +399,7 @@ def test_given_no_cache_flag_when_mapping_then_does_not_modify_cache(
     exit_code: int = run_map(argv=test_case.argv)
 
     assert exit_code == test_case.expected_exit_code
-    assert (tmp_path / ".strata/cache/v1.db").exists() is test_case.expected_cache_exists
+    assert (tmp_path / CACHE_DATABASE_RELATIVE_PATH).exists() is test_case.expected_cache_exists
 
 
 @pytest.mark.parametrize(
@@ -446,7 +447,7 @@ def test_given_explicit_root_when_config_controls_cache_then_scans_only_explicit
 
     assert exit_code == 0
     assert "run(...)" in stdout.getvalue()
-    assert (tmp_path / ".strata/cache/v1.db").exists() is test_case.expected_cache_exists
+    assert (tmp_path / CACHE_DATABASE_RELATIVE_PATH).exists() is test_case.expected_cache_exists
 
 
 @pytest.mark.parametrize(
@@ -500,7 +501,7 @@ def test_given_invalid_config_and_explicit_root_when_mapping_then_config_is_nonb
 
     assert exit_code == 0
     assert "run(...)" in stdout.getvalue()
-    assert (tmp_path / ".strata/cache/v1.db").exists() is test_case.expected_cache_exists
+    assert (tmp_path / CACHE_DATABASE_RELATIVE_PATH).exists() is test_case.expected_cache_exists
 
 
 @pytest.mark.parametrize(

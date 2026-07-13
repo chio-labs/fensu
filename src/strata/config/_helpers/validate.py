@@ -18,6 +18,8 @@ from strata.config.constants import (
     PATH_SEPARATOR,
     RECURSIVE_GLOB,
     RULE_EXCEPTION_SYMBOLS_CONFIG_KEY,
+    SKILLS_CONFIG_KEYS,
+    SKILLS_NAME_CONFIG_KEY,
     THRESHOLD_OVERRIDE_KEYS,
 )
 from strata.config.exceptions import ConfigError, ConfigValidationError
@@ -46,6 +48,7 @@ def validate_config(raw: Mapping[str, object]) -> None:
     _validate_optional_string_sequence(name="rule_paths", value=raw.get("rule_paths"))
     _validate_optional_string_sequence(name="rule_modules", value=raw.get("rule_modules"))
     _validate_selection(name="select", value=raw.get("select"))
+    _validate_selection(name="warn", value=raw.get("warn"))
     _validate_selection(name="ignore", value=raw.get("ignore"))
     _validate_thresholds(value=raw.get("thresholds"), owner="thresholds")
     _validate_role_thresholds(value=raw.get("roles"))
@@ -54,6 +57,7 @@ def validate_config(raw: Mapping[str, object]) -> None:
     _validate_rule_exceptions(value=raw.get("rule_exceptions"))
     _validate_cache(value=raw.get("cache"))
     _validate_evaluation(value=raw.get("evaluation"))
+    _validate_skills(value=raw.get("skills"))
 
 
 def _validate_top_level_keys(*, raw: Mapping[str, object]) -> None:
@@ -84,6 +88,21 @@ def _validate_cache(*, value: object) -> None:
         typed_value[CACHE_REQUIRE_CACHEABLE_CONFIG_KEY], bool
     ):
         raise ConfigValidationError("Config key cache.require_cacheable must be a boolean.")
+
+
+def _validate_skills(*, value: object) -> None:
+    if value is None:
+        return
+    if not isinstance(value, dict):
+        raise ConfigValidationError("Config key skills must be a table.")
+    typed_value: dict[object, object] = cast(dict[object, object], value)
+    unknown_keys: set[object] = set(typed_value) - SKILLS_CONFIG_KEYS
+    if unknown_keys:
+        names: str = ", ".join(sorted(str(key) for key in unknown_keys))
+        raise ConfigValidationError(f"Unknown skills config key(s): {names}.")
+    name: object = typed_value.get(SKILLS_NAME_CONFIG_KEY)
+    if not isinstance(name, str) or not name.strip():
+        raise ConfigValidationError("Config key skills.name must be a non-empty string.")
 
 
 def _validate_evaluation(*, value: object) -> None:

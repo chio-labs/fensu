@@ -78,6 +78,16 @@ _C_FINGERPRINT: str = "c" * 64
                         remediation="add an annotation",
                     ),
                 ),
+                warnings=(
+                    CachedFault(
+                        code="SFA002",
+                        path="src/example.py",
+                        message="missing return annotation",
+                        line=6,
+                        column=0,
+                        remediation="add a return annotation",
+                    ),
+                ),
                 applied_exception_keys=(
                     CachedRuleExceptionKey(
                         rule="SFA001",
@@ -193,6 +203,8 @@ def test_given_typed_records_when_round_tripping_storage_then_preserves_contract
     assert stored == records
     assert decoded == (test_case.metadata, test_case.index, test_case.file_result, test_case.fact)
     assert isinstance(records[2].payload, dict)
+    assert isinstance(records[2].payload["warnings"], list)
+    assert file_result_from_record(records[2]) == test_case.file_result
     assert isinstance(records[2].payload["dependencies"], list)
     assert records[2].payload["dependencies"][6] == test_case.expected_dependency_payload
 

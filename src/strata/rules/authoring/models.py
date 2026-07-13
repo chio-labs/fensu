@@ -46,3 +46,16 @@ class RuleSpec:
     source: str | None = None
     enabled_by_default: bool = True
     cacheable: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class CustomRuleRegistration:
+    """One configured custom rule tied to its repository declaration owner."""
+
+    rule: RuleSpec
+    source_path: Path
+    module_name: str
+    function_name: str
+    declaration_line: int
+    declaration_column: int
+    owner_key: str

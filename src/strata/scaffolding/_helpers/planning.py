@@ -123,6 +123,11 @@ def validate_option_applicability(
                 "Explicit --root, --tests, and --tooling options do not apply to an empty "
                 "scaffold; use --name to choose its package."
             )
+        if options.yes and options.name is None:
+            raise InitError(
+                "Empty repository initialization with --yes requires --name NAME.\n"
+                "Example: strata init --yes --name my_package"
+            )
         return
     if options.name is not None:
         raise InitError("--name only applies when no Python package is detected.")

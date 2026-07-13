@@ -63,7 +63,10 @@ def evaluate_file(
         source_fingerprint=parsed_module.source_fingerprint,
         faults=tuple(faults),
         applied_exception_keys=tuple(
-            sorted(applied_exceptions, key=lambda item: (item.rule, item.path, item.symbol))
+            sorted(
+                applied_exceptions,
+                key=lambda item: (item.rule, item.path, item.symbol or ""),
+            )
         ),
         dependencies=project.dependencies_for(requester=scoped_file.path),
         threshold_override_uses=tuple(sorted(set(threshold_override_uses), key=_override_use_key)),

@@ -98,7 +98,7 @@ class CachedRuleExceptionKey:
 
     rule: str
     path: str
-    symbol: str
+    symbol: str | None
 
 
 @dataclass(frozen=True, slots=True)

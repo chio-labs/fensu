@@ -60,10 +60,14 @@ def generate_skill(*, config: Config, rules: tuple[RuleSpec, ...]) -> str:
             )
         )
         for exception in config.rule_exceptions:
+            scope: str = (
+                ", ".join(f"`{symbol}`" for symbol in exception.symbols)
+                if exception.symbols
+                else "file-level"
+            )
             lines.extend(
                 (
-                    f"- `{exception.rule}` in `{exception.path}`: "
-                    f"{', '.join(f'`{symbol}`' for symbol in exception.symbols)}",
+                    f"- `{exception.rule}` in `{exception.path}`: {scope}",
                     f"  Reason: {exception.reason}",
                 )
             )

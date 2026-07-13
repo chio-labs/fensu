@@ -34,12 +34,12 @@ class LoadedConfig:
 
 @dataclass(frozen=True, slots=True)
 class RuleExceptionEntry:
-    """One centralized exact rule/path exception grouping qualified symbols."""
+    """One centralized exact rule/path exception with optional qualified symbols."""
 
     rule: str
     path: str
-    symbols: tuple[str, ...]
     reason: str
+    symbols: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

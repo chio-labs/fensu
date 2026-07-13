@@ -248,10 +248,13 @@ def _index_entries_are_ordered(entries: tuple[CacheIndexEntry, ...]) -> bool:
 
 
 def _file_result_relationships_are_valid(result: CachedFileResult) -> bool:
-    exception_identities: tuple[tuple[str, str, str], ...] = tuple(
+    exception_identities: tuple[tuple[str, str, str | None], ...] = tuple(
         (key.rule, key.path, key.symbol) for key in result.applied_exception_keys
     )
-    if exception_identities != tuple(sorted(set(exception_identities))):
+    ordered_exception_identities: tuple[tuple[str, str, str | None], ...] = tuple(
+        sorted(set(exception_identities), key=lambda item: (item[0], item[1], item[2] or ""))
+    )
+    if exception_identities != ordered_exception_identities:
         return False
     if result.threshold_override_uses != tuple(
         sorted(set(result.threshold_override_uses), key=_threshold_override_use_sort_key)
@@ -388,13 +391,15 @@ def _exception_key(value: CanonicalValue) -> CachedRuleExceptionKey | None:
     rule: CanonicalValue = value["rule"]
     symbol: CanonicalValue = value["symbol"]
     if not (
-        is_relative_path(value=path) and is_rule_code(rule) and is_rule_exception_symbol(symbol)
+        is_relative_path(value=path)
+        and is_rule_code(rule)
+        and (symbol is None or is_rule_exception_symbol(symbol))
     ):
         return None
     return CachedRuleExceptionKey(
         rule=cast(str, rule),
         path=cast(str, path),
-        symbol=cast(str, symbol),
+        symbol=cast(str | None, symbol),
     )
 
 

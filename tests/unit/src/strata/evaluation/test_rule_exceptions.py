@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from strata.config.exceptions import ConfigError
-from strata.config.models import Config
+from strata.config.models import Config, RuleExceptionEntry
 from strata.discovery.models import DiscoveredTree
 from strata.evaluation.main.evaluate import evaluate
 from strata.evaluation.main.validate_rule_exceptions import validate_rule_exceptions
@@ -15,11 +15,13 @@ from strata.evaluation.models import EvaluationResult
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.catalog.main.build_ruleset import build_ruleset
 from tests.unit.src.strata.evaluation._test_types import (
+    FileLevelExceptionTestCase,
     RuleExceptionEvaluationTestCase,
     RuleExceptionTargetTestCase,
 )
 from tests.unit.src.strata.evaluation.helpers import (
     discover_test_tree,
+    make_none_location_rule,
     make_rule_exception_config,
     write_exception_target,
     write_sources,
@@ -27,6 +29,7 @@ from tests.unit.src.strata.evaluation.helpers import (
 
 _source_path: str = "src/pkg/integrations/_helpers/progress.py"
 _reason: str = "External callbacks invoke these symbols positionally."
+_file_reason: str = "This file is an intentional structural adapter."
 
 
 @pytest.mark.parametrize(
@@ -81,6 +84,80 @@ def test_given_exact_rule_exceptions_when_evaluating_then_suppresses_only_matchi
 
     assert tuple(fault.line for fault in result.faults) == test_case.expected_fault_lines
     assert result.applied_exception_count == test_case.expected_applied_exception_count
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        FileLevelExceptionTestCase(
+            description="ownerless fault is suppressed by exact file scope",
+            expected_applied_exception_count=1,
+            expected_error_fragment=None,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_file_level_exception_when_evaluating_ownerless_fault_then_suppresses_exact_file(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: FileLevelExceptionTestCase,
+) -> None:
+    write_sources(repo_root=tmp_path, files=((_source_path, "VALUE: int = 1\n"),))
+    monkeypatch.chdir(tmp_path)
+    config: Config = Config(
+        roots=("src/pkg",),
+        tests=(),
+        select=("XNO001",),
+        rule_exceptions=(
+            RuleExceptionEntry(rule="XNO001", path=_source_path, reason=_file_reason),
+        ),
+    )
+    tree: DiscoveredTree = discover_test_tree(config=config)
+    validate_rule_exceptions(config=config, repo_root=tree.repo_root.path)
+
+    result: EvaluationResult = evaluate(
+        tree=tree,
+        ruleset=(make_none_location_rule(),),
+        config=config,
+    )
+    assert result.faults == ()
+    assert result.applied_exception_count == test_case.expected_applied_exception_count
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        FileLevelExceptionTestCase(
+            description="file scope that suppresses no ownerless fault is stale",
+            expected_applied_exception_count=0,
+            expected_error_fragment=f"XNO001 {_source_path}.",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_file_level_exception_when_no_ownerless_fault_then_reports_stale_file_key(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: FileLevelExceptionTestCase,
+) -> None:
+    write_sources(repo_root=tmp_path, files=((_source_path, "VALUE: int = 1\n"),))
+    monkeypatch.chdir(tmp_path)
+    config: Config = Config(
+        roots=("src/pkg",),
+        tests=(),
+        select=("XNO001",),
+        rule_exceptions=(
+            RuleExceptionEntry(rule="XNO001", path=_source_path, reason=_file_reason),
+        ),
+    )
+    tree: DiscoveredTree = discover_test_tree(config=config)
+
+    with pytest.raises(ConfigError) as error:
+        evaluate(tree=tree, ruleset=(), config=config)
+
+    assert test_case.expected_error_fragment is not None
+    assert str(error.value).endswith(test_case.expected_error_fragment)
+    assert "::" not in str(error.value)
 
 
 @pytest.mark.parametrize(

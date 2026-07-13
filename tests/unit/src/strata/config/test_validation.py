@@ -245,13 +245,13 @@ def test_given_invalid_threshold_override_when_loading_then_raises_validation_er
             expected_error_fragment="exact repository-relative",
         ),
         InvalidConfigTestCase(
-            description="path only rule exception is rejected",
+            description="empty symbols do not masquerade as file level scope",
             config_text=(
                 'roots = ["src/pkg"]\n[[rule_exceptions]]\nrule = "SFS120"\n'
-                'path = "src/pkg/a.py"\nreason = "required"\n'
+                'path = "src/pkg/a.py"\nsymbols = []\nreason = "required"\n'
             ),
             expected_error_type=ConfigValidationError,
-            expected_error_fragment="only rule, path, symbols, and reason",
+            expected_error_fragment="omit symbols for a file-level exception",
         ),
         InvalidConfigTestCase(
             description="empty rule exception reason is rejected",
@@ -282,6 +282,16 @@ def test_given_invalid_threshold_override_when_loading_then_raises_validation_er
             ),
             expected_error_type=ConfigValidationError,
             expected_error_fragment="Duplicate",
+        ),
+        InvalidConfigTestCase(
+            description="duplicate file level exception is rejected",
+            config_text=(
+                'roots = ["src/pkg"]\n'
+                '[[rule_exceptions]]\nrule = "SFR307"\npath = "src/pkg/a.py"\nreason = "first"\n'
+                '[[rule_exceptions]]\nrule = "SFR307"\npath = "src/pkg/a.py"\nreason = "second"\n'
+            ),
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="Duplicate file-level",
         ),
     ],
     ids=lambda case: case.description,

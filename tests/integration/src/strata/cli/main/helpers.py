@@ -356,6 +356,23 @@ def write_cli_exception_project(root: Path) -> None:
     )
 
 
+def write_cli_file_exception_project(root: Path) -> None:
+    """Write a project whose only path-level core fault is exactly excepted."""
+
+    source: Path = root / "src/pkg/domain/special.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("VALUE: int = 1\n", encoding="utf-8")
+    (root / "strata.toml").write_text(
+        'roots = ["src/pkg"]\n'
+        'select = ["SFR307"]\n'
+        "[[rule_exceptions]]\n"
+        'rule = "SFR307"\n'
+        'path = "src/pkg/domain/special.py"\n'
+        'reason = "This module is an intentional compatibility adapter."\n',
+        encoding="utf-8",
+    )
+
+
 def write_cli_stale_exception_project(root: Path) -> None:
     """Write a project whose valid exception no longer suppresses a fault."""
 

@@ -334,6 +334,15 @@ class RuleExceptionTargetTestCase:
 
 
 @dataclass(frozen=True)
+class FileLevelExceptionTestCase:
+    """Ownerless fault presence and expected file-level exception outcome."""
+
+    description: str
+    expected_applied_exception_count: int
+    expected_error_fragment: str | None
+
+
+@dataclass(frozen=True)
 class AnalysisContextTestCase:
     """Source and expected backend-neutral context fault."""
 

@@ -117,7 +117,21 @@ def test_given_cache_preference_when_loading_then_applies_default_or_override(
             expected_path="src/pkg/progress.py",
             expected_symbols=("Collector.update", "outer.nested"),
             expected_reason="External callbacks invoke these positionally.",
-        )
+        ),
+        RuleExceptionConfigTestCase(
+            description="file level rule exception omits symbols",
+            config_text=(
+                'roots = ["src/pkg"]\n'
+                "[[rule_exceptions]]\n"
+                'rule = "SFR307"\n'
+                'path = "src/pkg/special.py"\n'
+                'reason = "The file is an intentional adapter."\n'
+            ),
+            expected_rule="SFR307",
+            expected_path="src/pkg/special.py",
+            expected_symbols=(),
+            expected_reason="The file is an intentional adapter.",
+        ),
     ],
     ids=lambda case: case.description,
 )

@@ -117,7 +117,7 @@ def _rule_exceptions(value: object) -> tuple[RuleExceptionEntry, ...]:
             continue
         rule: object = entry.get("rule")
         path: object = entry.get("path")
-        symbols: object = entry.get("symbols")
+        symbols: object = entry.get("symbols", [])
         reason: object = entry.get("reason")
         if (
             isinstance(rule, str)
@@ -129,8 +129,8 @@ def _rule_exceptions(value: object) -> tuple[RuleExceptionEntry, ...]:
                 RuleExceptionEntry(
                     rule=rule,
                     path=path,
-                    symbols=tuple(symbol for symbol in symbols if isinstance(symbol, str)),
                     reason=reason,
+                    symbols=tuple(symbol for symbol in symbols if isinstance(symbol, str)),
                 )
             )
     return tuple(result)

@@ -1,4 +1,4 @@
-"""Validate and apply centralized symbol-scoped rule exceptions."""
+"""Validate and apply centralized file- and symbol-scoped rule exceptions."""
 
 from __future__ import annotations
 
@@ -20,6 +20,8 @@ def validate_exception_targets(*, config: Config, repo_root: Path) -> None:
     for exception in config.rule_exceptions:
         path: Path = repo_root / exception.path
         _validate_exception_path(path=path, repo_root=repo_root, configured=exception.path)
+        if not exception.symbols:
+            continue
         module: ast.Module = _parse_exception_path(path)
         symbols: tuple[str, ...] = _defined_function_symbols(module)
         duplicate_symbols: frozenset[str] = frozenset(
@@ -37,10 +39,13 @@ def validate_exception_targets(*, config: Config, repo_root: Path) -> None:
 
 
 def configured_exception_keys(config: Config) -> frozenset[RuleExceptionKey]:
-    """Return every configured rule/path/symbol exception as an exact key."""
+    """Return every configured file- or symbol-scoped exception as an exact key."""
 
     keys: set[RuleExceptionKey] = set()
     for exception in config.rule_exceptions:
+        if not exception.symbols:
+            keys.add(RuleExceptionKey(rule=exception.rule, path=exception.path, symbol=None))
+            continue
         for symbol in exception.symbols:
             keys.add(RuleExceptionKey(rule=exception.rule, path=exception.path, symbol=symbol))
     return frozenset(keys)
@@ -69,11 +74,15 @@ def suppress_faults(
             (
                 exception
                 for exception in exceptions
-                if exception.rule == fault.code and owner in exception.symbols
+                if exception.rule == fault.code
+                and (
+                    (owner is None and not exception.symbols)
+                    or (owner is not None and owner in exception.symbols)
+                )
             ),
             None,
         )
-        if matching is None or owner is None:
+        if matching is None:
             retained.append(fault)
             continue
         applied.add(RuleExceptionKey(rule=fault.code, path=relative_path, symbol=owner))
@@ -86,12 +95,17 @@ def stale_exception_error(
     """Return an actionable error when any configured exception suppressed no fault."""
 
     stale: tuple[RuleExceptionKey, ...] = tuple(
-        sorted(configured - applied, key=lambda key: (key.rule, key.path, key.symbol))
+        sorted(configured - applied, key=lambda key: (key.rule, key.path, key.symbol or ""))
     )
     if not stale:
         return None
-    details: str = ", ".join(f"{key.rule} {key.path}::{key.symbol}" for key in stale)
+    details: str = ", ".join(_exception_key_text(key) for key in stale)
     return ConfigError(f"Stale rule exception(s) suppressed no faults; remove them: {details}.")
+
+
+def _exception_key_text(key: RuleExceptionKey) -> str:
+    suffix: str = "" if key.symbol is None else f"::{key.symbol}"
+    return f"{key.rule} {key.path}{suffix}"
 
 
 def _validate_exception_path(*, path: Path, repo_root: Path, configured: str) -> None:

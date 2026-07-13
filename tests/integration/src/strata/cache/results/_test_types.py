@@ -137,6 +137,18 @@ class CachedDomainShapeInvalidationTestCase:
 
 
 @dataclass(frozen=True)
+class CachedSharedDomainPrefixInvalidationTestCase:
+    """One added sibling domain and expected cached SFR308 invalidation."""
+
+    description: str
+    first_domain_path: str
+    second_domain_path: str
+    expected_initial_codes: tuple[str, ...]
+    expected_invalidations: int
+    expected_changed_codes: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class CachedEvaluationManifestTestCase:
     """Changed discovered manifest and expected hit/miss composition."""
 

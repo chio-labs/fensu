@@ -37,6 +37,11 @@ def role_rule_details(code: RoleCode) -> tuple[str, str]:
             "top-level domains must not contain ad hoc direct modules",
             "Move the module under a direct role boundary or into an owning named subdomain.",
         ),
+        RoleCode.SHARED_DOMAIN_PREFIX: (
+            "sibling domains must not encode one parent domain through a shared name prefix",
+            "Create one parent domain from the shared prefix and move each remaining suffix "
+            "beneath it as a named subdomain.",
+        ),
         RoleCode.ENTRY_MODULE_SHAPE: (
             "main/ entry modules must expose one focused public function",
             "Keep only imports, one public entry function, and at most two small private glue "

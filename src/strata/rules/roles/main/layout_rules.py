@@ -9,6 +9,7 @@ from strata.rules.roles._helpers.checks import (
     main_package_layout,
     nested_direct_modules,
     nested_direct_subpackages,
+    shared_domain_prefix,
     top_level_direct_modules,
     top_level_domain_shape,
 )
@@ -49,6 +50,11 @@ def layout_rules() -> tuple[RuleSpec, ...]:
             code=RoleCode.TOP_LEVEL_DIRECT_MODULES,
             slug="top-level-direct-modules",
             check=top_level_direct_modules,
+        ),
+        _rule(
+            code=RoleCode.SHARED_DOMAIN_PREFIX,
+            slug="shared-domain-prefix",
+            check=shared_domain_prefix,
         ),
     )
 

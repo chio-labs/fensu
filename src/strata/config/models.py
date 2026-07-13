@@ -92,6 +92,7 @@ class Config:
     tests: tuple[str, ...] = ("tests",)
     tooling: tuple[str, ...] = ()
     select: tuple[str, ...] = ("SF",)
+    warn: tuple[str, ...] = ()
     ignore: tuple[str, ...] = ()
     rule_paths: tuple[str, ...] = ()
     rule_modules: tuple[str, ...] = ()

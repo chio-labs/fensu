@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+from collections.abc import Callable
 from pathlib import Path
 from types import MappingProxyType
 
@@ -18,14 +19,40 @@ from strata.rules.authoring.models import Fault, RuleSpec
 from strata.rules.authoring.types import Family, RuleContext, RuleKind, Threshold
 
 
+def _leave_package_available(*, monkeypatch: pytest.MonkeyPatch, root: Path) -> None:
+    del monkeypatch, root
+
+
+def _disable_package(*, monkeypatch: pytest.MonkeyPatch, root: Path) -> None:
+    del root
+    monkeypatch.setattr(build_global_module, "_loaded_package_root", lambda: None)
+
+
+def _install_sourceless_package(*, monkeypatch: pytest.MonkeyPatch, root: Path) -> None:
+    root.mkdir()
+    monkeypatch.setattr(build_global_module, "_loaded_package_root", lambda: root)
+
+
+def _install_incomplete_package(*, monkeypatch: pytest.MonkeyPatch, root: Path) -> None:
+    root.mkdir()
+    (root / "__init__.py").write_text("", encoding="utf-8")
+    bytecode: Path = root / "__pycache__/missing.cpython-312.pyc"
+    bytecode.parent.mkdir()
+    bytecode.write_bytes(b"orphan bytecode")
+    monkeypatch.setattr(build_global_module, "_loaded_package_root", lambda: root)
+
+
 def config_with_statement_threshold(*, value: int, reverse_mapping_order: bool) -> Config:
     """Return a config whose threshold mapping has the requested insertion order."""
 
     thresholds: dict[Threshold, int] = dict(DEFAULT_THRESHOLDS)
     thresholds[Threshold.MAX_STATEMENTS] = value
     items: list[tuple[Threshold, int]] = list(thresholds.items())
-    if reverse_mapping_order:
-        items.reverse()
+    reverse: Callable[[], None] = {
+        False: lambda: None,
+        True: items.reverse,
+    }[reverse_mapping_order]
+    reverse()
     return Config(
         roots=("src/pkg",),
         thresholds=MappingProxyType(dict(items)),
@@ -59,7 +86,7 @@ def rule_with_message(message: str) -> RuleSpec:
 def write_custom_rule(*, path: Path, returns_fault: bool) -> None:
     """Write one custom rule with stable metadata and selectable behavior."""
 
-    result: str = "[ctx.path_fault()]" if returns_fault else "[]"
+    result: str = {False: "[]", True: "[ctx.path_fault()]"}[returns_fault]
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         "from __future__ import annotations\n\n"
@@ -111,26 +138,13 @@ def configure_package_availability(
 ) -> None:
     """Disable loaded-package discovery for conservative fallback coverage."""
 
-    if not available:
-        monkeypatch.setattr(build_global_module, "_loaded_package_root", lambda: None)
-    elif not source_available:
-        empty_package_root.mkdir()
-        monkeypatch.setattr(
-            build_global_module,
-            "_loaded_package_root",
-            lambda: empty_package_root,
-        )
-    elif not complete_source:
-        empty_package_root.mkdir()
-        (empty_package_root / "__init__.py").write_text("", encoding="utf-8")
-        bytecode: Path = empty_package_root / "__pycache__/missing.cpython-312.pyc"
-        bytecode.parent.mkdir()
-        bytecode.write_bytes(b"orphan bytecode")
-        monkeypatch.setattr(
-            build_global_module,
-            "_loaded_package_root",
-            lambda: empty_package_root,
-        )
+    configure: Callable[..., None] = {
+        (False, False, False): _disable_package,
+        (True, False, False): _install_sourceless_package,
+        (True, True, False): _install_incomplete_package,
+        (True, True, True): _leave_package_available,
+    }[(available, source_available, complete_source)]
+    configure(monkeypatch=monkeypatch, root=empty_package_root)
 
 
 def custom_fingerprint_rule(*, code: str, cacheable: bool) -> RuleSpec:

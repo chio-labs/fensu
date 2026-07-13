@@ -28,6 +28,26 @@ _REDIRECT_FUNCTION_MUTATION: str = "redirect-function"
 _REDIRECT_CLASS_MUTATION: str = "redirect-class"
 
 
+def _omit_function(manifest: MapManifest) -> MapManifest:
+    return replace(manifest, functions={})
+
+
+def _redirect_function(manifest: MapManifest) -> MapManifest:
+    redirected: dict[str, str] = dict(manifest.functions)
+    redirected["pkg.entry.run"] = manifest.files[-1].identity
+    return replace(manifest, functions=redirected)
+
+
+def _redirect_class(manifest: MapManifest) -> MapManifest:
+    redirected: dict[str, str] = dict(manifest.classes)
+    redirected["pkg.unused.Owner"] = manifest.files[0].identity
+    return replace(manifest, classes=redirected)
+
+
+def _redirect_bare_function(manifest: MapManifest) -> MapManifest:
+    return replace(manifest, bare_functions={"run": ("pkg.steps.step",)})
+
+
 def write_mapping_project(root: Path) -> MappingSource:
     """Write a three-file project with one unreachable declaration file."""
 
@@ -62,11 +82,11 @@ def cached_symbol_map(*, root: Path, source: MappingSource, symbol: str) -> Cach
 def direct_ast_parse_paths(*, root: Path) -> tuple[str, ...]:
     """Return Python modules containing direct ast.parse calls."""
 
-    return tuple(
-        str(candidate.relative_to(root))
-        for candidate in root.rglob("*.py")
-        if "ast.parse" in candidate.read_text(encoding="utf-8")
+    candidates: filter[Path] = filter(
+        lambda candidate: "ast.parse" in candidate.read_text(encoding="utf-8"),
+        root.rglob("*.py"),
     )
+    return tuple(str(candidate.relative_to(root)) for candidate in candidates)
 
 
 def mutate_manifest(*, root: Path, mutation: str) -> None:
@@ -79,20 +99,14 @@ def mutate_manifest(*, root: Path, mutation: str) -> None:
             expected_kind=MAP_MANIFEST_RECORD_KIND,
         )
     )
-    if manifest is None:
-        raise RuntimeError("fixture manifest was not published")
-    if mutation == _OMIT_FUNCTION_MUTATION:
-        changed: MapManifest = replace(manifest, functions={})
-    elif mutation == _REDIRECT_FUNCTION_MUTATION:
-        redirected: dict[str, str] = dict(manifest.functions)
-        redirected["pkg.entry.run"] = manifest.files[-1].identity
-        changed = replace(manifest, functions=redirected)
-    elif mutation == _REDIRECT_CLASS_MUTATION:
-        redirected_classes: dict[str, str] = dict(manifest.classes)
-        redirected_classes["pkg.unused.Owner"] = manifest.files[0].identity
-        changed = replace(manifest, classes=redirected_classes)
-    else:
-        changed = replace(manifest, bare_functions={"run": ("pkg.steps.step",)})
+    assert manifest is not None, "fixture manifest was not published"
+    mutations: dict[str, Callable[[MapManifest], MapManifest]] = {
+        _OMIT_FUNCTION_MUTATION: _omit_function,
+        _REDIRECT_FUNCTION_MUTATION: _redirect_function,
+        _REDIRECT_CLASS_MUTATION: _redirect_class,
+    }
+    mutate: Callable[[MapManifest], MapManifest] = mutations.get(mutation, _redirect_bare_function)
+    changed: MapManifest = mutate(manifest)
     _ = store.write(relative_path=MAP_MANIFEST_PATH, record=manifest_record(changed))
 
 
@@ -106,15 +120,13 @@ def mutate_file_record(*, root: Path) -> None:
             expected_kind=MAP_MANIFEST_RECORD_KIND,
         )
     )
-    if manifest is None:
-        raise RuntimeError("fixture manifest was not published")
+    assert manifest is not None, "fixture manifest was not published"
     target: FileDeclarations = manifest.files[-1]
     record_path: Path = Path("mapping/files") / target.identity
     declarations: FileDeclarations | None = decode_file_declarations(
         store.read(relative_path=record_path, expected_kind="map-file-declarations-v1")
     )
-    if declarations is None:
-        raise RuntimeError("fixture file declarations were not published")
+    assert declarations is not None, "fixture file declarations were not published"
     redirected: FileDeclarations = replace(declarations, path="src/pkg/redirected.py")
     _ = store.write(
         relative_path=record_path,
@@ -136,7 +148,7 @@ def render_cached(*, root: Path, cached: CachedCallMap) -> str:
 def path_selector_spelling(*, path: Path, absolute: bool) -> str:
     """Return one absolute or repository-relative fixture selector path."""
 
-    return str(path) if absolute else "src/pkg/entry.py"
+    return {False: "src/pkg/entry.py", True: str(path)}[absolute]
 
 
 def install_generation_sweep_interleaving(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -150,11 +162,11 @@ def install_generation_sweep_interleaving(monkeypatch: pytest.MonkeyPatch) -> No
         reads: tuple[CacheRead, ...],
         mutate: CacheMutator,
     ) -> CacheMutationOutcome:
-        if reads:
+        for read in reads[:1]:
             with sqlite3.connect(store.root) as connection:
                 connection.execute(
                     "DELETE FROM records WHERE key = ?",
-                    (reads[0].relative_path.as_posix(),),
+                    (read.relative_path.as_posix(),),
                 )
         return original(store, reads=reads, mutate=mutate)
 
@@ -198,15 +210,14 @@ def current_file_record_count(root: Path) -> int:
             expected_kind=MAP_MANIFEST_RECORD_KIND,
         )
     )
-    if manifest is None:
-        return 0
+    manifest_files: tuple[FileDeclarations, ...] = getattr(manifest, "files", ())
     records: tuple[CacheRecord | None, ...] = store.read_batch(
         reads=tuple(
             CacheRead(
                 relative_path=Path("mapping/files") / item.identity,
                 expected_kind="map-file-declarations-v1",
             )
-            for item in manifest.files
+            for item in manifest_files
         )
     )
     return sum(record is not None for record in records)
@@ -216,11 +227,11 @@ def explicit_root_argv(*, root: Path, cache_override: bool) -> tuple[str, ...]:
     """Return explicit-root CLI arguments with an optional cache override."""
 
     base: tuple[str, ...] = ("run", "--root", str(root / "src"))
-    return (*base, "--cache") if cache_override else base
+    return {False: base, True: (*base, "--cache")}[cache_override]
 
 
 def invalid_config_root_argv(*, root: Path, no_cache: bool) -> tuple[str, ...]:
     """Return explicit-root arguments with an optional no-cache override."""
 
     base: tuple[str, ...] = ("run", "--root", str(root / "src"))
-    return (*base, "--no-cache") if no_cache else base
+    return {False: base, True: (*base, "--no-cache")}[no_cache]

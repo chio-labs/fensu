@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 from collections.abc import Mapping
 from pathlib import Path
+from typing import cast
 
 from strata.analysis._helpers.locations import line_offsets, source_location, source_range
 from strata.analysis.models import FunctionConditionalFact, SourceLocation
@@ -15,6 +16,41 @@ _comprehension_types: tuple[type[ast.AST], ...] = (
     ast.DictComp,
     ast.GeneratorExp,
 )
+_test_conditional_types: tuple[type[ast.AST], ...] = (
+    ast.If,
+    ast.Match,
+    ast.IfExp,
+)
+
+
+def test_conditional_locations(
+    *, path: Path, definitions: tuple[ast.AST, ...]
+) -> tuple[SourceLocation, ...]:
+    """Return test-policy conditionals inside definition bodies in source order."""
+
+    locations_by_position: dict[tuple[int, int], SourceLocation] = {}
+    for definition in definitions:
+        body: list[ast.stmt] | None = getattr(definition, "body", None)
+        if body is None:
+            continue
+        for statement in body:
+            for node in ast.walk(statement):
+                conditional: bool = isinstance(node, _test_conditional_types)
+                filtered_comprehension: bool = False
+                if isinstance(node, _comprehension_types):
+                    comprehension: ast.ListComp | ast.SetComp | ast.DictComp | ast.GeneratorExp = (
+                        cast(
+                            ast.ListComp | ast.SetComp | ast.DictComp | ast.GeneratorExp,
+                            node,
+                        )
+                    )
+                    filtered_comprehension = any(
+                        generator.ifs for generator in comprehension.generators
+                    ) and not _is_complex_comprehension(comprehension)
+                if conditional or filtered_comprehension:
+                    location: SourceLocation = source_location(path=path, node=node)
+                    locations_by_position[(location.line, location.column)] = location
+    return tuple(locations_by_position[position] for position in sorted(locations_by_position))
 
 
 def function_conditional_facts(
@@ -82,10 +118,12 @@ def complex_comprehension_locations(
     for node_type in _comprehension_types:
         nodes.extend(node_index.get(node_type, ()))
     return tuple(
-        source_location(path=path, node=node)
-        for node in nodes
-        if _generator_count(node) > 1 or _contains_nested_comprehension(node)
+        source_location(path=path, node=node) for node in nodes if _is_complex_comprehension(node)
     )
+
+
+def _is_complex_comprehension(node: ast.AST) -> bool:
+    return _generator_count(node) > 1 or _contains_nested_comprehension(node)
 
 
 def _generator_count(node: ast.AST) -> int:

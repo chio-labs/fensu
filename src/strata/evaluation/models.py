@@ -84,6 +84,7 @@ class FileEvaluation:
     faults: tuple[Fault, ...]
     applied_exception_keys: tuple[RuleExceptionKey, ...]
     dependencies: tuple[ProjectDependency, ...]
+    warnings: tuple[Fault, ...] = ()
     threshold_override_uses: tuple[ThresholdOverrideUse, ...] = ()
 
 
@@ -92,6 +93,7 @@ class EvaluationResult:
     """Evaluation output for a discovered tree."""
 
     faults: tuple[Fault, ...]
+    warnings: tuple[Fault, ...] = ()
     applied_exception_count: int = 0
     dependencies: tuple[ProjectDependency, ...] = ()
     file_evaluations: tuple[FileEvaluation, ...] = ()

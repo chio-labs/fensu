@@ -9,16 +9,15 @@ def write_fake_strata(*, root: Path, output: str, changing: bool = False) -> Pat
     """Write a fake Strata executable with stable or changing diagnostics."""
 
     executable: Path = root / "strata"
-    if changing:
-        body: str = (
-            '#!/bin/bash\nstate="$PWD/.count"\ncount=0\n'
-            'if [[ -f "$state" ]]; then count=$(<"$state"); fi\n'
-            'count=$((count + 1))\nprintf "%s" "$count" > "$state"\n'
-            'printf "Found %s faults\\n" "$count"\nexit 1\n'
-        )
-    else:
-        escaped: str = output.replace("'", "'\\''")
-        body = f"#!/bin/bash\nprintf '%s' '{escaped}'\nexit 1\n"
+    changing_body: str = (
+        '#!/bin/bash\nstate="$PWD/.count"\ncount=0\n'
+        'if [[ -f "$state" ]]; then count=$(<"$state"); fi\n'
+        'count=$((count + 1))\nprintf "%s" "$count" > "$state"\n'
+        'printf "Found %s faults\\n" "$count"\nexit 1\n'
+    )
+    escaped: str = output.replace("'", "'\\''")
+    stable_body: str = f"#!/bin/bash\nprintf '%s' '{escaped}'\nexit 1\n"
+    body: str = {False: stable_body, True: changing_body}[changing]
     executable.write_text(body, encoding="utf-8")
     executable.chmod(0o755)
     return executable

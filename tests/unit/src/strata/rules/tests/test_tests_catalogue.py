@@ -80,12 +80,15 @@ def test_given_tests_rule_catalogue_when_reading_codes_then_matches_tests_code_e
             ),
         ),
         SftGuidanceTestCase(
-            description="conditional test guidance recommends cases and local helpers",
+            description="conditional test guidance distinguishes parametrization from splitting",
             rule_code=SftCode.NO_IF_IN_TESTS,
-            expected_message="test bodies must not contain conditional control flow",
+            expected_message=(
+                "tests and local test helpers must not contain conditional control flow"
+            ),
             expected_remediation=(
-                "Split behavioral branches into parametrized cases and move conditional setup "
-                "or selection into local test helpers."
+                "Use parametrized cases when setup and assertions remain branch-free; otherwise "
+                "split the behavior into separate test functions. Keep local test helpers "
+                "deterministic with per-variant functions or dataclass-driven case data."
             ),
         ),
         SftGuidanceTestCase(

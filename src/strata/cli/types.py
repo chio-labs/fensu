@@ -15,6 +15,14 @@ class CliCommand(StrEnum):
     MAP = "map"
 
 
+class CliOption(StrEnum):
+    """Supported top-level CLI options."""
+
+    HELP = "--help"
+    SHORT_HELP = "-h"
+    VERSION = "--version"
+
+
 class ColorMode(StrEnum):
     """Supported terminal color modes."""
 

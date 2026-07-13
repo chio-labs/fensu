@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 from dataclasses import dataclass
+from functools import singledispatch
 from pathlib import Path
 
 import strata.rules
@@ -99,6 +100,35 @@ class HermeticityScan:
     violations: tuple[str, ...]
 
 
+class _HermeticityVisitor(ast.NodeVisitor):
+    def __init__(self, *, module: str) -> None:
+        self._module: str = module
+        self.violations: list[str] = []
+
+    def visit_Import(self, node: ast.Import) -> None:
+        banned: filter[ast.alias] = filter(
+            lambda alias: alias.name.split(".")[0] in _BANNED_IMPORT_ROOTS,
+            node.names,
+        )
+        self.violations.extend(
+            f"{self._module}:{node.lineno} imports {alias.name}" for alias in banned
+        )
+
+    def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+        module_name: str = node.module or ""
+        forbidden: bool = node.level == 0 and module_name.split(".")[0] in _BANNED_IMPORT_ROOTS
+        self.violations.extend(
+            {False: (), True: (f"{self._module}:{node.lineno} imports from {module_name}",)}[
+                forbidden
+            ]
+        )
+
+    def visit_Call(self, node: ast.Call) -> None:
+        violation: str | None = _call_violation(call=node, module=self._module)
+        self.violations.extend(filter(None, (violation,)))
+        self.generic_visit(node)
+
+
 def empty_check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """A no-op rule check body usable as a placeholder in tests."""
 
@@ -111,10 +141,12 @@ def scan_rules_hermeticity(*, excluded_packages: tuple[str, ...]) -> Hermeticity
     package_root: Path = Path(strata.rules.__file__).resolve().parent
     module_count: int = 0
     violations: list[str] = []
-    for path in sorted(package_root.rglob("*.py")):
+    paths: filter[Path] = filter(
+        lambda path: path.relative_to(package_root).parts[0] not in excluded_packages,
+        sorted(package_root.rglob("*.py")),
+    )
+    for path in paths:
         relative: Path = path.relative_to(package_root)
-        if relative.parts[0] in excluded_packages:
-            continue
         module_count += 1
         tree: ast.Module = ast.parse(path.read_text(encoding="utf-8"))
         violations.extend(_module_violations(tree=tree, module=relative.as_posix()))
@@ -122,34 +154,39 @@ def scan_rules_hermeticity(*, excluded_packages: tuple[str, ...]) -> Hermeticity
 
 
 def _module_violations(*, tree: ast.Module, module: str) -> list[str]:
-    violations: list[str] = []
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            violations.extend(
-                f"{module}:{node.lineno} imports {alias.name}"
-                for alias in node.names
-                if alias.name.split(".")[0] in _BANNED_IMPORT_ROOTS
-            )
-        if isinstance(node, ast.ImportFrom) and node.module is not None:
-            if node.level == 0 and node.module.split(".")[0] in _BANNED_IMPORT_ROOTS:
-                violations.append(f"{module}:{node.lineno} imports from {node.module}")
-        if isinstance(node, ast.Call):
-            violation: str | None = _call_violation(call=node, module=module)
-            if violation is not None:
-                violations.append(violation)
-    return violations
+    visitor: _HermeticityVisitor = _HermeticityVisitor(module=module)
+    visitor.visit(tree)
+    return visitor.violations
 
 
 def _call_violation(*, call: ast.Call, module: str) -> str | None:
-    if isinstance(call.func, ast.Name) and call.func.id in _BANNED_BUILTIN_CALLS:
-        return f"{module}:{call.lineno} calls builtin {call.func.id}"
-    if not isinstance(call.func, ast.Attribute):
-        return None
-    if call.func.attr not in _BANNED_OPERATION_ATTRIBUTES:
-        return None
-    if _TRACKED_FACADE_ATTRIBUTE in _receiver_names(call.func.value):
-        return None
-    return f"{module}:{call.lineno} calls untracked operation {call.func.attr}"
+    return _call_function_violation(call.func, module=module, line=call.lineno)
+
+
+@singledispatch
+def _call_function_violation(node: ast.expr, *, module: str, line: int) -> str | None:
+    del node, module, line
+    return None
+
+
+@_call_function_violation.register
+def _(node: ast.Name, *, module: str, line: int) -> str | None:
+    return {
+        False: None,
+        True: f"{module}:{line} calls builtin {node.id}",
+    }[node.id in _BANNED_BUILTIN_CALLS]
+
+
+@_call_function_violation.register
+def _(node: ast.Attribute, *, module: str, line: int) -> str | None:
+    untracked: bool = (
+        node.attr in _BANNED_OPERATION_ATTRIBUTES
+        and _TRACKED_FACADE_ATTRIBUTE not in _receiver_names(node.value)
+    )
+    return {
+        False: None,
+        True: f"{module}:{line} calls untracked operation {node.attr}",
+    }[untracked]
 
 
 def _receiver_names(receiver: ast.expr) -> tuple[str, ...]:
@@ -158,6 +195,5 @@ def _receiver_names(receiver: ast.expr) -> tuple[str, ...]:
     while isinstance(current, ast.Attribute):
         names.append(current.attr)
         current = current.value
-    if isinstance(current, ast.Name):
-        names.append(current.id)
-    return tuple(names)
+    names.append(getattr(current, "id", ""))
+    return tuple(filter(None, names))

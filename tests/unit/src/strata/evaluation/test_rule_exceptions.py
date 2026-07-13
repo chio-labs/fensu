@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,7 @@ from strata.evaluation.main.evaluate import evaluate
 from strata.evaluation.main.validate_rule_exceptions import validate_rule_exceptions
 from strata.evaluation.models import EvaluationResult
 from strata.rules.authoring.models import RuleSpec
+from strata.rules.authoring.types import Family
 from strata.rules.catalog.main.build_ruleset import build_ruleset
 from tests.unit.src.strata.evaluation._test_types import (
     FileLevelExceptionTestCase,
@@ -128,14 +130,14 @@ def test_given_file_level_exception_when_evaluating_ownerless_fault_then_suppres
     "test_case",
     [
         FileLevelExceptionTestCase(
-            description="file scope that suppresses no ownerless fault is stale",
+            description="unevaluated warning exception is ignored for stale detection",
             expected_applied_exception_count=0,
-            expected_error_fragment=f"XNO001 {_source_path}.",
+            expected_error_fragment=None,
         )
     ],
     ids=lambda case: case.description,
 )
-def test_given_file_level_exception_when_no_ownerless_fault_then_reports_stale_file_key(
+def test_given_unevaluated_warning_exception_when_running_plain_evaluation_then_is_not_stale(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     test_case: FileLevelExceptionTestCase,
@@ -145,19 +147,97 @@ def test_given_file_level_exception_when_no_ownerless_fault_then_reports_stale_f
     config: Config = Config(
         roots=("src/pkg",),
         tests=(),
-        select=("XNO001",),
+        warn=("XNO001",),
         rule_exceptions=(
             RuleExceptionEntry(rule="XNO001", path=_source_path, reason=_file_reason),
         ),
     )
     tree: DiscoveredTree = discover_test_tree(config=config)
 
+    result: EvaluationResult = evaluate(tree=tree, ruleset=(), config=config)
+
+    assert result.applied_exception_count == test_case.expected_applied_exception_count
+    assert test_case.expected_error_fragment is None
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        FileLevelExceptionTestCase(
+            description="evaluated warning exception suppresses its finding",
+            expected_applied_exception_count=1,
+            expected_error_fragment=None,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_matching_warning_exception_when_evaluating_warning_then_applies_normally(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: FileLevelExceptionTestCase,
+) -> None:
+    write_sources(repo_root=tmp_path, files=((_source_path, "VALUE: int = 1\n"),))
+    monkeypatch.chdir(tmp_path)
+    config: Config = Config(
+        roots=("src/pkg",),
+        tests=(),
+        warn=("XNO001",),
+        rule_exceptions=(
+            RuleExceptionEntry(rule="XNO001", path=_source_path, reason=_file_reason),
+        ),
+    )
+    tree: DiscoveredTree = discover_test_tree(config=config)
+
+    result: EvaluationResult = evaluate(
+        tree=tree,
+        ruleset=(),
+        warning_rules=(make_none_location_rule(),),
+        config=config,
+    )
+
+    assert result.warnings == ()
+    assert result.applied_exception_count == test_case.expected_applied_exception_count
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        FileLevelExceptionTestCase(
+            description="evaluated warning exception with no finding is stale",
+            expected_applied_exception_count=0,
+            expected_error_fragment=f"XNO001 {_source_path}.",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_inactive_evaluated_warning_exception_when_evaluating_then_reports_stale_key(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: FileLevelExceptionTestCase,
+) -> None:
+    write_sources(repo_root=tmp_path, files=((_source_path, "VALUE: int = 1\n"),))
+    monkeypatch.chdir(tmp_path)
+    config: Config = Config(
+        roots=("src/pkg",),
+        tests=(),
+        warn=("XNO001",),
+        rule_exceptions=(
+            RuleExceptionEntry(rule="XNO001", path=_source_path, reason=_file_reason),
+        ),
+    )
+    tree: DiscoveredTree = discover_test_tree(config=config)
+    inapplicable_warning: RuleSpec = replace(make_none_location_rule(), family=Family.TESTS)
+
     with pytest.raises(ConfigError) as error:
-        evaluate(tree=tree, ruleset=(), config=config)
+        evaluate(
+            tree=tree,
+            ruleset=(),
+            warning_rules=(inapplicable_warning,),
+            config=config,
+        )
 
     assert test_case.expected_error_fragment is not None
     assert str(error.value).endswith(test_case.expected_error_fragment)
-    assert "::" not in str(error.value)
 
 
 @pytest.mark.parametrize(

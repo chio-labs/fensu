@@ -16,6 +16,7 @@ from strata.config.constants import (
     DEFAULT_TEST_PATHS,
     DEFAULT_THRESHOLDS,
     DEFAULT_TOOLING_PATHS,
+    DEFAULT_WARN,
 )
 from strata.config.models import (
     CacheConfig,
@@ -53,6 +54,7 @@ def build_config(raw: Mapping[str, object]) -> Config:
         tests=_string_tuple(value=raw.get("tests"), default=DEFAULT_TEST_PATHS),
         tooling=_string_tuple(value=raw.get("tooling"), default=DEFAULT_TOOLING_PATHS),
         select=_string_tuple(value=raw.get("select"), default=DEFAULT_SELECT),
+        warn=_string_tuple(value=raw.get("warn"), default=DEFAULT_WARN),
         ignore=_string_tuple(value=raw.get("ignore"), default=DEFAULT_IGNORE),
         rule_paths=_string_tuple(value=raw.get("rule_paths")),
         rule_modules=_string_tuple(value=raw.get("rule_modules")),

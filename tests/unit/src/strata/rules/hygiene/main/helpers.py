@@ -39,7 +39,5 @@ def evaluate_hygiene_test_case(
 
 
 def _rule_by_code(rule_code: str) -> RuleSpec:
-    for rule in SFH_RULES:
-        if rule.code == rule_code:
-            return rule
-    raise AssertionError(f"Unknown SFH rule code {rule_code}")
+    rules_by_code: dict[str, RuleSpec] = {rule.code: rule for rule in SFH_RULES}
+    return rules_by_code[rule_code]

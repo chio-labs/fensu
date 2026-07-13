@@ -20,6 +20,7 @@ from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Family, RuleKind
 from strata.rules.catalog._helpers.hermeticity import validate_cacheable_rules
 from strata.rules.catalog.constants import CORE_RULES
+from strata.rules.catalog.models import RuleSelection
 
 
 def build_ruleset_from_config(
@@ -27,19 +28,36 @@ def build_ruleset_from_config(
 ) -> tuple[RuleSpec, ...]:
     """Load custom rules, merge with core rules, and apply select/ignore config."""
 
-    all_rules: tuple[RuleSpec, ...] = build_catalogue_from_config(
-        config=config, repo_root=repo_root
-    )
-    selected: tuple[RuleSpec, ...] = _select_rules(
-        rules=all_rules,
-        select=config.select,
-        ignore=config.ignore,
-    )
+    selection: RuleSelection = build_rule_selection_from_config(config=config, repo_root=repo_root)
     validate_cacheable_rules(
-        rules=selected,
+        rules=selection.blocking,
         allowed_packages=frozenset(name.partition(".")[0] for name in config.rule_modules),
     )
-    return selected
+    return selection.blocking
+
+
+def build_rule_selection_from_config(
+    *, config: Config, repo_root: Path | None = None
+) -> RuleSelection:
+    """Load one catalogue and resolve blocking, warning, and ignored rule sets."""
+
+    catalogue: tuple[RuleSpec, ...] = build_catalogue_from_config(
+        config=config, repo_root=repo_root
+    )
+    ignored: tuple[RuleSpec, ...] = _matching_rules(rules=catalogue, selectors=config.ignore)
+    selected: tuple[RuleSpec, ...] = _selected_rules(rules=catalogue, selectors=config.select)
+    ignored_codes: frozenset[str] = frozenset(rule.code for rule in ignored)
+    blocking: tuple[RuleSpec, ...] = tuple(
+        rule for rule in selected if rule.code not in ignored_codes
+    )
+    warnings: tuple[RuleSpec, ...] = _selected_rules(rules=catalogue, selectors=config.warn)
+    _validate_tier_overlaps(blocking=blocking, warnings=warnings, ignored=ignored)
+    return RuleSelection(
+        catalogue=catalogue,
+        blocking=blocking,
+        warnings=warnings,
+        ignored=ignored,
+    )
 
 
 def build_catalogue_from_config(
@@ -208,20 +226,45 @@ def _with_custom_source(*, rules: tuple[RuleSpec, ...], source: str) -> tuple[Ru
     return tuple(result)
 
 
-def _select_rules(
-    *, rules: tuple[RuleSpec, ...], select: tuple[str, ...], ignore: tuple[str, ...]
+def _selected_rules(
+    *, rules: tuple[RuleSpec, ...], selectors: tuple[str, ...]
 ) -> tuple[RuleSpec, ...]:
     selected: list[RuleSpec] = []
-    explicit_code_selects: set[str] = {item for item in select if is_rule_code(item)}
+    explicit_code_selects: set[str] = {item for item in selectors if is_rule_code(item)}
     for rule in rules:
-        if _rule_matches_select(rule=rule, select=ignore):
-            continue
-        if rule.enabled_by_default and _rule_matches_select(rule=rule, select=select):
+        if rule.enabled_by_default and _rule_matches_select(rule=rule, select=selectors):
             selected.append(rule)
             continue
         if rule.code in explicit_code_selects:
             selected.append(rule)
     return tuple(selected)
+
+
+def _matching_rules(
+    *, rules: tuple[RuleSpec, ...], selectors: tuple[str, ...]
+) -> tuple[RuleSpec, ...]:
+    return tuple(rule for rule in rules if _rule_matches_select(rule=rule, select=selectors))
+
+
+def _validate_tier_overlaps(
+    *,
+    blocking: tuple[RuleSpec, ...],
+    warnings: tuple[RuleSpec, ...],
+    ignored: tuple[RuleSpec, ...],
+) -> None:
+    blocking_codes: frozenset[str] = frozenset(rule.code for rule in blocking)
+    warning_codes: frozenset[str] = frozenset(rule.code for rule in warnings)
+    ignored_codes: frozenset[str] = frozenset(rule.code for rule in ignored)
+    blocking_warning_overlap: list[str] = sorted(blocking_codes & warning_codes)
+    if blocking_warning_overlap:
+        raise ConfigError(
+            f"Rule {blocking_warning_overlap[0]} cannot be configured as both blocking and warning."
+        )
+    warning_ignore_overlap: list[str] = sorted(warning_codes & ignored_codes)
+    if warning_ignore_overlap:
+        raise ConfigError(
+            f"Rule {warning_ignore_overlap[0]} cannot be configured as both warning and ignored."
+        )
 
 
 def _rule_matches_select(*, rule: RuleSpec, select: tuple[str, ...]) -> bool:

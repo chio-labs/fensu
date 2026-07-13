@@ -31,3 +31,14 @@ class ExceptionRenderTestCase:
     description: str
     applied_exception_count: int
     expected_text: str
+
+
+@dataclass(frozen=True)
+class WarningRenderTestCase:
+    """Warning rendering mode and expected labeled summary behavior."""
+
+    description: str
+    use_color: bool
+    expected_text: str
+    expected_fault_count: int
+    expected_warning_count: int

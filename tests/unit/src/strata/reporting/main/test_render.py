@@ -12,6 +12,7 @@ from tests.unit.src.strata.reporting.main._test_types import (
     ExceptionRenderTestCase,
     RemediationRenderTestCase,
     RenderReportTestCase,
+    WarningRenderTestCase,
 )
 from tests.unit.src.strata.reporting.main.helpers import (
     make_faults,
@@ -152,6 +153,101 @@ def test_given_no_faults_when_rendering_report_then_returns_healthy_summary(
 
     assert report.text == test_case.expected_text
     assert report.fault_count == test_case.expected_fault_count
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        WarningRenderTestCase(
+            description="warning mode renders zero warning plural grammar",
+            use_color=False,
+            expected_text="Found 0 faults and 0 warnings",
+            expected_fault_count=0,
+            expected_warning_count=0,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_no_findings_when_rendering_warning_mode_then_reports_both_zero_counts(
+    tmp_path: Path,
+    test_case: WarningRenderTestCase,
+) -> None:
+    report: RenderedReport = render(
+        faults=(),
+        warnings=(),
+        root=tmp_path,
+        use_color=test_case.use_color,
+        show_warnings=True,
+    )
+
+    assert report.text == test_case.expected_text
+    assert report.fault_count == test_case.expected_fault_count
+    assert report.warning_count == test_case.expected_warning_count
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        WarningRenderTestCase(
+            description="one warning is labeled and keeps healthy colored summary",
+            use_color=True,
+            expected_text=(
+                "  \033[2m= warning:\033[0m Move phase implementation into _helpers/ and keep "
+                "main/ focused on ordered phase calls\n"
+                "          that return explicit result models.\n\n"
+                "\033[1;32mFound 0 faults and 1 warning\033[0m"
+            ),
+            expected_fault_count=0,
+            expected_warning_count=1,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_one_warning_when_rendering_colored_report_then_labels_nonblocking_finding(
+    tmp_path: Path,
+    test_case: WarningRenderTestCase,
+) -> None:
+    report: RenderedReport = render(
+        faults=(),
+        warnings=make_remediated_fault(tmp_path),
+        root=tmp_path,
+        use_color=test_case.use_color,
+        show_warnings=True,
+    )
+
+    assert test_case.expected_text in report.text
+    assert report.fault_count == test_case.expected_fault_count
+    assert report.warning_count == test_case.expected_warning_count
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        WarningRenderTestCase(
+            description="mixed findings use independent plural summary counts",
+            use_color=False,
+            expected_text="Found 1 fault and 2 warnings",
+            expected_fault_count=1,
+            expected_warning_count=2,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_fault_and_many_warnings_when_rendering_then_uses_independent_grammar(
+    tmp_path: Path,
+    test_case: WarningRenderTestCase,
+) -> None:
+    report: RenderedReport = render(
+        faults=make_missing_source_fault(tmp_path),
+        warnings=make_faults(tmp_path),
+        root=tmp_path,
+        use_color=test_case.use_color,
+        show_warnings=True,
+    )
+
+    assert test_case.expected_text in report.text
+    assert report.fault_count == test_case.expected_fault_count
+    assert report.warning_count == test_case.expected_warning_count
 
 
 @pytest.mark.parametrize(

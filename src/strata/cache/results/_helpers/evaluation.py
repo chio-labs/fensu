@@ -37,14 +37,21 @@ def run_cached_evaluation(
     *,
     tree: DiscoveredTree,
     ruleset: tuple[RuleSpec, ...],
+    warning_rules: tuple[RuleSpec, ...] = (),
     config: Config,
     global_fingerprint: CacheFingerprint,
 ) -> CacheEvaluation:
     """Return a complete evaluation using only fully validated file-result hits."""
 
     selection: EvaluationSelection = select_evaluation_files(tree=tree, config=config.evaluation)
-    if any(rule.kind is RuleKind.CUSTOM and not rule.cacheable for rule in ruleset):
-        result: EvaluationResult = evaluate(tree=tree, ruleset=ruleset, config=config)
+    evaluated_rules: tuple[RuleSpec, ...] = (*ruleset, *warning_rules)
+    if any(rule.kind is RuleKind.CUSTOM and not rule.cacheable for rule in evaluated_rules):
+        result: EvaluationResult = evaluate(
+            tree=tree,
+            ruleset=ruleset,
+            warning_rules=warning_rules,
+            config=config,
+        )
         return CacheEvaluation(
             result=result,
             stats=CacheStats(non_cacheable=len(selection.files)),
@@ -107,6 +114,7 @@ def run_cached_evaluation(
         fresh: FileEvaluation = evaluate_discovered_file(
             scoped_file=scoped_file,
             ruleset=ruleset,
+            warning_rules=warning_rules,
             config=config,
             tree=tree,
             project=project,
@@ -123,6 +131,7 @@ def run_cached_evaluation(
         dependencies=dependencies,
         config=config,
         repo_root=tree.repo_root.path,
+        evaluated_rule_codes=frozenset(rule.code for rule in evaluated_rules),
         selection=selection,
     )
     publication: CacheStats = _publish_results(

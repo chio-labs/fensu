@@ -122,6 +122,7 @@ def file_result_from_record(record: CacheRecord) -> CachedFileResult | None:
     path: CanonicalValue = payload["path"]
     fingerprint: CacheFingerprint | None = fingerprint_or_none(payload["source_fingerprint"])
     raw_faults: CanonicalValue = payload["faults"]
+    raw_warnings: CanonicalValue = payload["warnings"]
     raw_exceptions: CanonicalValue = payload["applied_exception_keys"]
     raw_dependencies: CanonicalValue = payload["dependencies"]
     raw_override_uses: CanonicalValue = payload["threshold_override_uses"]
@@ -129,12 +130,14 @@ def file_result_from_record(record: CacheRecord) -> CachedFileResult | None:
         is_relative_path(value=path)
         and fingerprint is not None
         and isinstance(raw_faults, list)
+        and isinstance(raw_warnings, list)
         and isinstance(raw_exceptions, list)
         and isinstance(raw_dependencies, list)
         and isinstance(raw_override_uses, list)
     ):
         return None
     faults: tuple[CachedFault, ...] | None = _decode_sequence(values=raw_faults, decoder=_fault)
+    warnings: tuple[CachedFault, ...] | None = _decode_sequence(values=raw_warnings, decoder=_fault)
     exceptions: tuple[CachedRuleExceptionKey, ...] | None = _decode_sequence(
         values=raw_exceptions, decoder=_exception_key
     )
@@ -144,12 +147,19 @@ def file_result_from_record(record: CacheRecord) -> CachedFileResult | None:
     override_uses: tuple[CachedThresholdOverrideUse, ...] | None = _decode_sequence(
         values=raw_override_uses, decoder=_threshold_override_use
     )
-    if faults is None or exceptions is None or dependencies is None or override_uses is None:
+    if (
+        faults is None
+        or warnings is None
+        or exceptions is None
+        or dependencies is None
+        or override_uses is None
+    ):
         return None
     result: CachedFileResult = CachedFileResult(
         path=cast(str, path),
         source_fingerprint=fingerprint,
         faults=faults,
+        warnings=warnings,
         applied_exception_keys=exceptions,
         dependencies=dependencies,
         threshold_override_uses=override_uses,
@@ -262,6 +272,7 @@ def _file_result_relationships_are_valid(result: CachedFileResult) -> bool:
         return False
     return (
         all(fault.path == result.path for fault in result.faults)
+        and all(warning.path == result.path for warning in result.warnings)
         and all(key.path == result.path for key in result.applied_exception_keys)
         and all(dependency.requester_path == result.path for dependency in result.dependencies)
         and len(set(result.dependencies)) == len(result.dependencies)
@@ -275,6 +286,7 @@ def _file_result_value(result: CachedFileResult) -> CanonicalValue:
         ],
         "dependencies": [_dependency_value(item) for item in result.dependencies],
         "faults": [_fault_value(item) for item in result.faults],
+        "warnings": [_fault_value(item) for item in result.warnings],
         "path": result.path,
         "source_fingerprint": result.source_fingerprint.value,
         "threshold_override_uses": [

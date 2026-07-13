@@ -17,6 +17,7 @@ def evaluate(
     *,
     tree: DiscoveredTree,
     ruleset: tuple[RuleSpec, ...],
+    warning_rules: tuple[RuleSpec, ...] = (),
     config: Config,
 ) -> EvaluationResult:
     """Evaluate selected rules over discovered Python files."""
@@ -28,6 +29,7 @@ def evaluate(
         file_result: FileEvaluation = evaluate_file(
             scoped_file=scoped_file,
             ruleset=ruleset,
+            warning_rules=warning_rules,
             config=config,
             tree=tree,
             project=project,
@@ -38,5 +40,6 @@ def evaluate(
         dependencies=project.dependencies(),
         config=config,
         repo_root=tree.repo_root.path,
+        evaluated_rule_codes=frozenset(rule.code for rule in (*ruleset, *warning_rules)),
         selection=selection,
     )

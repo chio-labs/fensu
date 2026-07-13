@@ -30,6 +30,31 @@ class CheckNoFaultTestCase:
 
 
 @dataclass(frozen=True)
+class WarningCheckTestCase:
+    """Configured warning source and expected plain or advisory command behavior."""
+
+    description: str
+    source: str
+    argv: tuple[str, ...]
+    expected_exit_code: int
+    expected_summary: str
+    expected_warning_count: int
+    expected_fault_count: int
+
+
+@dataclass(frozen=True)
+class WarningCacheIdentityTestCase:
+    """Alternating warning-mode invocations and expected cache operation counts."""
+
+    description: str
+    first_argv: tuple[str, ...]
+    second_argv: tuple[str, ...]
+    third_argv: tuple[str, ...]
+    expected_switch_stats: str
+    expected_warm_stats: str
+
+
+@dataclass(frozen=True)
 class ThresholdOverrideCheckTestCase:
     """Threshold override selection and expected cold/warm reporting."""
 
@@ -326,6 +351,7 @@ class InitApplicabilityTestCase:
     existing_project: bool
     argv: tuple[str, ...]
     expected_error_fragment: str
+    expected_error: str
 
 
 @dataclass(frozen=True)

@@ -18,9 +18,10 @@ from tests.unit.src.strata.config._test_types import (
     [
         InMemoryConfigBuildTestCase(
             description="valid raw mapping is normalized",
-            raw_config={"roots": ["src/pkg"], "select": ["SFL"]},
+            raw_config={"roots": ["src/pkg"], "select": ["SFL"], "warn": ["SFR706"]},
             expected_roots=("src/pkg",),
             expected_select=("SFL",),
+            expected_warn=("SFR706",),
         )
     ],
     ids=lambda case: case.description,
@@ -32,6 +33,7 @@ def test_given_valid_raw_mapping_when_building_then_returns_config(
 
     assert config.roots == test_case.expected_roots
     assert config.select == test_case.expected_select
+    assert config.warn == test_case.expected_warn
 
 
 @pytest.mark.parametrize(
@@ -40,6 +42,12 @@ def test_given_valid_raw_mapping_when_building_then_returns_config(
         InvalidInMemoryConfigTestCase(
             description="invalid selector is rejected",
             raw_config={"roots": ["src/pkg"], "select": ["BAD"]},
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="BAD",
+        ),
+        InvalidInMemoryConfigTestCase(
+            description="invalid warning selector is rejected",
+            raw_config={"roots": ["src/pkg"], "warn": ["BAD"]},
             expected_error_type=ConfigValidationError,
             expected_error_fragment="BAD",
         ),

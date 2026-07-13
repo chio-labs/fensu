@@ -47,6 +47,8 @@ from tests.unit.src.strata.cache.fingerprints._test_types import (
     RulesetFingerprintTestCase,
     SourceFingerprintTestCase,
     ThresholdOverrideFingerprintTestCase,
+    WarningFingerprintTestCase,
+    WarningModeFingerprintTestCase,
 )
 from tests.unit.src.strata.cache.fingerprints.helpers import (
     cached_file_result,
@@ -228,6 +230,31 @@ def test_given_contract_behavior_change_when_fingerprinting_then_invalidates_con
             roots=("src/pkg",),
             contracts=MappingProxyType({"is_*": test_case.second_behavior}),
         )
+    )
+
+    assert (first == second) is test_case.expected_equal
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        WarningFingerprintTestCase(
+            description="warning selection change invalidates global config identity",
+            first_warn=(),
+            second_warn=("SFS102",),
+            expected_equal=False,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_warning_selection_change_when_fingerprinting_then_invalidates_config_identity(
+    test_case: WarningFingerprintTestCase,
+) -> None:
+    first: CacheFingerprint = config_fingerprint(
+        Config(roots=("src/pkg",), warn=test_case.first_warn)
+    )
+    second: CacheFingerprint = config_fingerprint(
+        Config(roots=("src/pkg",), warn=test_case.second_warn)
     )
 
     assert (first == second) is test_case.expected_equal
@@ -584,6 +611,43 @@ def test_given_global_inputs_when_fingerprinting_then_captures_version_contract(
         ruleset=common,
         custom_rules=common,
         strata_version=test_case.second_version,
+    )
+
+    assert (first == second) is test_case.expected_equal
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        WarningModeFingerprintTestCase(
+            description="plain and warning modes have distinct identities with no warning rules",
+            first_enabled=False,
+            second_enabled=True,
+            expected_equal=False,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_warning_mode_state_when_fingerprinting_then_captures_invocation_identity(
+    test_case: WarningModeFingerprintTestCase,
+) -> None:
+    common: CacheFingerprint = source_fingerprint(b"common")
+
+    first: CacheFingerprint = global_fingerprint(
+        implementation=common,
+        config=common,
+        ruleset=common,
+        custom_rules=common,
+        warnings_enabled=test_case.first_enabled,
+        strata_version="1.0.0",
+    )
+    second: CacheFingerprint = global_fingerprint(
+        implementation=common,
+        config=common,
+        ruleset=common,
+        custom_rules=common,
+        warnings_enabled=test_case.second_enabled,
+        strata_version="1.0.0",
     )
 
     assert (first == second) is test_case.expected_equal

@@ -15,7 +15,9 @@ from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Family, RuleKind
 from strata.rules.catalog._helpers import loading as loading_module
 from strata.rules.catalog.constants import CORE_RULES
+from strata.rules.catalog.main.build_rule_selection import build_rule_selection
 from strata.rules.catalog.main.build_ruleset import build_ruleset
+from strata.rules.catalog.models import RuleSelection
 from tests.unit.src.strata.rules.catalog.main._test_types import (
     CatalogueQualityTestCase,
     CustomRuleLoadTestCase,
@@ -23,6 +25,8 @@ from tests.unit.src.strata.rules.catalog.main._test_types import (
     ModuleIsolationTestCase,
     RegistryErrorTestCase,
     RuleExceptionCodeTestCase,
+    RuleSelectionErrorTestCase,
+    RuleSelectionTestCase,
     SelectCompositionTestCase,
 )
 from tests.unit.src.strata.rules.catalog.main.helpers import (
@@ -586,3 +590,136 @@ def test_given_select_and_ignore_when_building_ruleset_then_applies_expected_com
     )
 
     assert tuple(rule.code for rule in ruleset) == test_case.expected_codes
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        RuleSelectionTestCase(
+            description="exact default-off warning does not overlap broad blocking selection",
+            select=("SFH",),
+            warn=("SFH099",),
+            ignore=(),
+            expected_blocking_codes=("SFH001",),
+            expected_warning_codes=("SFH099",),
+            expected_ignored_codes=(),
+        ),
+        RuleSelectionTestCase(
+            description="warning family selection respects default-off semantics",
+            select=(),
+            warn=("SFH",),
+            ignore=(),
+            expected_blocking_codes=(),
+            expected_warning_codes=("SFH001",),
+            expected_ignored_codes=(),
+        ),
+        RuleSelectionTestCase(
+            description="ignore subtracts from broad blocking selection",
+            select=("SFH",),
+            warn=(),
+            ignore=("SFH001",),
+            expected_blocking_codes=(),
+            expected_warning_codes=(),
+            expected_ignored_codes=("SFH001",),
+        ),
+        RuleSelectionTestCase(
+            description="unknown valid warning selector resolves to no rules",
+            select=(),
+            warn=("SFX",),
+            ignore=(),
+            expected_blocking_codes=(),
+            expected_warning_codes=(),
+            expected_ignored_codes=(),
+        ),
+        RuleSelectionTestCase(
+            description="custom warning namespace selects default-on custom rules",
+            select=(),
+            warn=("XDB",),
+            ignore=(),
+            expected_blocking_codes=(),
+            expected_warning_codes=("XDB001",),
+            expected_ignored_codes=(),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_policy_selectors_when_resolving_then_returns_distinct_rule_sets(
+    monkeypatch: pytest.MonkeyPatch,
+    test_case: RuleSelectionTestCase,
+) -> None:
+    monkeypatch.setattr(
+        loading_module,
+        "CORE_RULES",
+        (
+            make_core_rule(code="SFH001", family=Family.HYGIENE),
+            make_core_rule(code="SFH099", family=Family.HYGIENE, enabled_by_default=False),
+            make_core_rule(code="XDB001", family=Family.CUSTOM),
+            make_core_rule(code="XDB099", family=Family.CUSTOM, enabled_by_default=False),
+        ),
+    )
+
+    selection: RuleSelection = build_rule_selection(
+        config=Config(
+            roots=("src/pkg",),
+            select=test_case.select,
+            warn=test_case.warn,
+            ignore=test_case.ignore,
+        )
+    )
+
+    assert tuple(rule.code for rule in selection.blocking) == test_case.expected_blocking_codes
+    assert tuple(rule.code for rule in selection.warnings) == test_case.expected_warning_codes
+    assert tuple(rule.code for rule in selection.ignored) == test_case.expected_ignored_codes
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        RuleSelectionErrorTestCase(
+            description="one rule cannot be blocking and warning",
+            select=("SFH",),
+            warn=("SFH001",),
+            ignore=(),
+            expected_error="Rule SFH001 cannot be configured as both blocking and warning.",
+        ),
+        RuleSelectionErrorTestCase(
+            description="one rule cannot be warning and ignored",
+            select=("SFH",),
+            warn=("SFH001",),
+            ignore=("SFH001",),
+            expected_error="Rule SFH001 cannot be configured as both warning and ignored.",
+        ),
+        RuleSelectionErrorTestCase(
+            description="overlap errors report the first rule code deterministically",
+            select=("SFH",),
+            warn=("SFH",),
+            ignore=(),
+            expected_error="Rule SFH001 cannot be configured as both blocking and warning.",
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_overlapping_policy_tiers_when_resolving_then_raises_config_error(
+    monkeypatch: pytest.MonkeyPatch,
+    test_case: RuleSelectionErrorTestCase,
+) -> None:
+    monkeypatch.setattr(
+        loading_module,
+        "CORE_RULES",
+        (
+            make_core_rule(code="SFH002", family=Family.HYGIENE),
+            make_core_rule(code="SFH001", family=Family.HYGIENE),
+        ),
+    )
+
+    with pytest.raises(ConfigError) as error:
+        build_rule_selection(
+            config=Config(
+                roots=("src/pkg",),
+                select=test_case.select,
+                warn=test_case.warn,
+                ignore=test_case.ignore,
+            )
+        )
+
+    assert str(error.value) == test_case.expected_error

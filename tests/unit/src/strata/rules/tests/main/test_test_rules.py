@@ -577,7 +577,7 @@ def test_given_test_types_when_checking_tests_then_flags_only_type_role_violatio
             runtime_paths=("src/strata/rules/__init__.py",),
         ),
         SftRuleTestCase(
-            description="while statement in test is flagged",
+            description="while statement in test is allowed",
             rule_code="SFT104",
             files=good_test_files(
                 test_source=GOOD_TEST_SOURCE.replace(
@@ -585,8 +585,8 @@ def test_given_test_types_when_checking_tests_then_flags_only_type_role_violatio
                     "    while test_case.expected_value < 0:\n        break\n    assert",
                 )
             ),
-            expected_codes=("SFT104",),
-            expected_lines=(11,),
+            expected_codes=(),
+            expected_lines=(),
             runtime_paths=("src/strata/rules/__init__.py",),
         ),
         SftRuleTestCase(
@@ -643,6 +643,160 @@ def test_given_test_types_when_checking_tests_then_flags_only_type_role_violatio
     ids=lambda case: case.description,
 )
 def test_given_test_functions_when_checking_shape_then_flags_only_function_violations(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: SftRuleTestCase,
+) -> None:
+    result: EvaluationResult = evaluate_tests_rule_test_case(
+        test_case=test_case, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
+    assert tuple(fault.line for fault in result.faults) == test_case.expected_lines
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SftRuleTestCase(
+            description="nonparametrized sync test condition is flagged",
+            rule_code="SFT104",
+            files=good_test_files(
+                test_source=(
+                    "def test_given_value_when_checking_then_matches_expected() -> None:\n"
+                    "    if True:\n"
+                    "        assert True\n"
+                )
+            ),
+            expected_codes=("SFT104",),
+            expected_lines=(2,),
+            runtime_paths=("src/strata/rules/__init__.py",),
+        ),
+        SftRuleTestCase(
+            description="nonparametrized async test conditional expression is flagged",
+            rule_code="SFT104",
+            files=good_test_files(
+                test_source=(
+                    "async def test_given_value_when_checking_then_matches_expected() -> None:\n"
+                    "    result: int = 1 if True else 0\n"
+                    "    assert result == 1\n"
+                )
+            ),
+            expected_codes=("SFT104",),
+            expected_lines=(2,),
+            runtime_paths=("src/strata/rules/__init__.py",),
+        ),
+        SftRuleTestCase(
+            description="helper sync async and class definitions use identical conditional semantics",
+            rule_code="SFT104",
+            files=(
+                *good_test_files(),
+                SftRuleFile(
+                    description="local helpers",
+                    relative_path="tests/unit/src/strata/rules/tests/main/helpers.py",
+                    source=(
+                        "def choose() -> None:\n"
+                        "    if True:\n"
+                        "        pass\n\n"
+                        "async def choose_async() -> None:\n"
+                        "    match 1:\n"
+                        "        case 1:\n"
+                        "            pass\n\n"
+                        "class Chooser:\n"
+                        "    selected: int = 1 if True else 0\n"
+                        "    values: list[int] = [value for value in (1, 2) if value]\n"
+                    ),
+                ),
+            ),
+            expected_codes=("SFT104", "SFT104", "SFT104", "SFT104"),
+            expected_lines=(2, 6, 11, 12),
+            runtime_paths=("src/strata/rules/__init__.py",),
+        ),
+        SftRuleTestCase(
+            description="underscore test helper module definitions are checked",
+            rule_code="SFT104",
+            files=(
+                *good_test_files(),
+                SftRuleFile(
+                    description="alternate local helpers",
+                    relative_path="tests/unit/src/strata/rules/tests/main/_test_helpers.py",
+                    source="def choose() -> int:\n    return 1 if True else 0\n",
+                ),
+            ),
+            expected_codes=("SFT104",),
+            expected_lines=(2,),
+            runtime_paths=("src/strata/rules/__init__.py",),
+        ),
+        SftRuleTestCase(
+            description="module level conditions outside definitions are allowed",
+            rule_code="SFT104",
+            files=(
+                *good_test_files(),
+                SftRuleFile(
+                    description="local helpers",
+                    relative_path="tests/unit/src/strata/rules/tests/main/helpers.py",
+                    source=("if True:\n    VALUE: int = 1\nSELECTED: int = 1 if True else 0\n"),
+                ),
+            ),
+            expected_codes=(),
+            expected_lines=(),
+            runtime_paths=("src/strata/rules/__init__.py",),
+        ),
+        SftRuleTestCase(
+            description="while and try remain allowed in tests and helpers",
+            rule_code="SFT104",
+            files=(
+                *good_test_files(
+                    test_source=(
+                        "def test_given_value_when_checking_then_matches_expected() -> None:\n"
+                        "    while False:\n"
+                        "        pass\n"
+                        "    try:\n"
+                        "        assert True\n"
+                        "    except ValueError:\n"
+                        "        pass\n"
+                    )
+                ),
+                SftRuleFile(
+                    description="local helpers",
+                    relative_path="tests/unit/src/strata/rules/tests/main/helpers.py",
+                    source=(
+                        "def wait() -> None:\n"
+                        "    while False:\n"
+                        "        pass\n"
+                        "    try:\n"
+                        "        pass\n"
+                        "    except ValueError:\n"
+                        "        pass\n"
+                    ),
+                ),
+            ),
+            expected_codes=(),
+            expected_lines=(),
+            runtime_paths=("src/strata/rules/__init__.py",),
+        ),
+        SftRuleTestCase(
+            description="complex filtered comprehension belongs only to SFT106",
+            rule_code="SFT104,SFT106",
+            files=(
+                *good_test_files(),
+                SftRuleFile(
+                    description="local helpers",
+                    relative_path="tests/unit/src/strata/rules/tests/main/helpers.py",
+                    source=(
+                        "def pairs() -> list[tuple[int, int]]:\n"
+                        "    return [(left, right) for left in (1, 2) for right in (3, 4) if right]\n"
+                    ),
+                ),
+            ),
+            expected_codes=("SFT106",),
+            expected_lines=(2,),
+            runtime_paths=("src/strata/rules/__init__.py",),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_extended_conditional_contract_when_checking_then_reports_owned_constructs_once(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     test_case: SftRuleTestCase,

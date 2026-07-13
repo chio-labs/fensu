@@ -47,6 +47,7 @@ from tests.unit.src.strata.analysis._test_types import (
     OuterStateFactTestCase,
     ParameterMutationFactTestCase,
     ProjectCallFactTestCase,
+    PytestConditionalFactTestCase,
     PytestFunctionFactTestCase,
     PytestModuleFactTestCase,
     ReferenceFactTestCase,
@@ -217,6 +218,53 @@ def test_given_test_functions_when_querying_facts_then_returns_pytest_metadata(
     assert tuple(fact.description_lambda_ids for fact in parametrizations) == test_case.expected_ids
     assert tuple(case_constructors) == test_case.expected_case_constructors
     assert tuple(fact.references_expected_field for fact in facts) == test_case.expected_references
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        PytestConditionalFactTestCase(
+            description="nonparametrized sync and async tests share adopted conditional semantics",
+            source=(
+                "def test_sync() -> None:\n"
+                "    if True:\n"
+                "        pass\n"
+                "    values = [value for value in (1, 2) if value]\n"
+                "    pairs = [(left, right) for left in (1, 2) for right in (3, 4) if right]\n"
+                "    while False:\n"
+                "        pass\n\n"
+                "async def test_async() -> None:\n"
+                "    match 1:\n"
+                "        case 1:\n"
+                "            pass\n"
+                "    selected = 1 if True else 0\n"
+                "    try:\n"
+                "        pass\n"
+                "    except ValueError:\n"
+                "        pass\n"
+            ),
+            expected_lines=(2, 4, 10, 13),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_test_conditionals_when_querying_facts_then_uses_sft104_semantics(
+    tmp_path: Path,
+    test_case: PytestConditionalFactTestCase,
+) -> None:
+    path: Path = tmp_path / "module.py"
+    analysis: Analysis = build_analysis(
+        path=path,
+        source=test_case.source,
+        module=ast.parse(test_case.source),
+    ).analysis
+
+    facts: tuple[PytestFunctionFact, ...] = analysis.facts.test_functions()
+    conditional_lines: list[int] = []
+    for fact in facts:
+        conditional_lines.extend(location.line for location in fact.conditional_locations)
+
+    assert tuple(conditional_lines) == test_case.expected_lines
 
 
 @pytest.mark.parametrize(

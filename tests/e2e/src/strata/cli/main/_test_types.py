@@ -16,6 +16,17 @@ class CliProjectFile:
 
 
 @dataclass(frozen=True)
+class InstalledEntryCliTestCase:
+    """Top-level installed CLI arguments and expected process output."""
+
+    description: str
+    argv: tuple[str, ...]
+    expected_exit_code: int
+    expected_stdout: str
+    expected_stderr: str
+
+
+@dataclass(frozen=True)
 class ConfigurableLayoutCliTestCase:
     """A complete temporary project and expected CLI process result."""
 

@@ -24,7 +24,8 @@ from strata.evaluation.main.validate_rule_exceptions import validate_rule_except
 from strata.evaluation.models import EvaluationResult
 from strata.reporting.models import RenderedReport
 from strata.rules.authoring.models import RuleSpec
-from strata.rules.catalog.main.build_ruleset import build_ruleset
+from strata.rules.catalog.main.build_check_rule_selection import build_check_rule_selection
+from strata.rules.catalog.models import RuleSelection
 
 
 def run_check(
@@ -57,21 +58,39 @@ def run_check(
                 cache=replace(config.cache, enabled=args.cache_enabled),
             )
         tree: DiscoveredTree = discover_files(config=config, repo_root=project_dir)
-        ruleset: tuple[RuleSpec, ...] = build_ruleset(config=config, repo_root=project_dir)
+        rule_selection: RuleSelection = build_check_rule_selection(
+            config=config,
+            repo_root=project_dir,
+            include_warnings=args.warn,
+        )
+        ruleset: tuple[RuleSpec, ...] = rule_selection.blocking
+        warning_rules: tuple[RuleSpec, ...] = rule_selection.warnings
+        evaluated_rules: tuple[RuleSpec, ...] = (*ruleset, *warning_rules)
         validate_rule_exceptions(config=config, repo_root=tree.repo_root.path)
         fingerprint_build: GlobalFingerprintBuild | None = (
-            build_global_fingerprint(config=config, ruleset=ruleset, repo_root=project_dir)
+            build_global_fingerprint(
+                config=config,
+                ruleset=evaluated_rules,
+                repo_root=project_dir,
+                warnings_enabled=args.warn,
+            )
             if config.cache.enabled
             else None
         )
         if fingerprint_build is not None:
             cache_disabled_reason = fingerprint_build.disabled_reason
         if fingerprint_build is None or fingerprint_build.fingerprint is None:
-            result: EvaluationResult = evaluate(tree=tree, ruleset=ruleset, config=config)
+            result: EvaluationResult = evaluate(
+                tree=tree,
+                ruleset=ruleset,
+                warning_rules=warning_rules,
+                config=config,
+            )
         else:
             cached: CacheEvaluation = evaluate_with_cache(
                 tree=tree,
                 ruleset=ruleset,
+                warning_rules=warning_rules,
                 config=config,
                 global_fingerprint=fingerprint_build.fingerprint,
             )
@@ -84,6 +103,7 @@ def run_check(
         result=result,
         tree=tree,
         use_color=not args.no_color and stdout.isatty(),
+        show_warnings=args.warn,
     )
     write_cache_status(
         stderr=stderr,
@@ -106,6 +126,11 @@ def run_check(
 def _parser() -> argparse.ArgumentParser:
     parser: argparse.ArgumentParser = argparse.ArgumentParser(prog="strata check")
     parser.add_argument("--no-color", action="store_true", help="disable ANSI color output")
+    parser.add_argument(
+        "--warn",
+        action="store_true",
+        help="evaluate and report configured warning rules without making them blocking",
+    )
     cache_options: argparse._MutuallyExclusiveGroup = parser.add_mutually_exclusive_group()
     cache_options.add_argument(
         "--cache",

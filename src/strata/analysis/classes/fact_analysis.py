@@ -11,6 +11,7 @@ from strata.analysis._helpers.annotations import annotation_facts
 from strata.analysis._helpers.control_flow import (
     complex_comprehension_locations,
     function_conditional_facts,
+    test_conditional_locations,
 )
 from strata.analysis._helpers.declarations import module_declaration_facts
 from strata.analysis._helpers.function_metrics import (
@@ -88,6 +89,7 @@ class PythonFactAnalysis:
         self._project_functions: tuple[ProjectFunctionFact, ...] | None = None
         self._references: ReferenceFacts | None = None
         self._test_functions: tuple[PytestFunctionFact, ...] | None = None
+        self._top_level_definition_conditionals: tuple[SourceLocation, ...] | None = None
         self._test_module: PytestModuleFacts | None = None
 
     def annotations(self) -> AnnotationFacts:
@@ -276,6 +278,21 @@ class PythonFactAnalysis:
                 node_index=self._node_index,
             )
         return self._test_functions
+
+    def top_level_definition_conditionals(self) -> tuple[SourceLocation, ...]:
+        """Return test-policy conditionals owned by top-level definitions."""
+
+        if self._top_level_definition_conditionals is None:
+            definitions: tuple[ast.AST, ...] = tuple(
+                statement
+                for statement in self._module.body
+                if isinstance(statement, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef)
+            )
+            self._top_level_definition_conditionals = test_conditional_locations(
+                path=self._path,
+                definitions=definitions,
+            )
+        return self._top_level_definition_conditionals
 
     def test_module(self) -> PytestModuleFacts:
         """Return reusable test module-shape metadata."""

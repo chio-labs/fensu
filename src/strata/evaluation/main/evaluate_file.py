@@ -12,6 +12,7 @@ def evaluate_discovered_file(
     *,
     scoped_file: ScopedFile,
     ruleset: tuple[RuleSpec, ...],
+    warning_rules: tuple[RuleSpec, ...] = (),
     config: Config,
     tree: DiscoveredTree,
     project: EvaluationProjectAnalysis,
@@ -21,6 +22,7 @@ def evaluate_discovered_file(
     return evaluate_file(
         scoped_file=scoped_file,
         ruleset=ruleset,
+        warning_rules=warning_rules,
         config=config,
         tree=tree,
         project=project,

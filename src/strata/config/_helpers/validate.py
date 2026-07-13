@@ -17,6 +17,7 @@ from strata.config.constants import (
     EVALUATION_CONFIG_KEYS,
     PATH_SEPARATOR,
     RECURSIVE_GLOB,
+    RULE_EXCEPTION_SYMBOLS_CONFIG_KEY,
     THRESHOLD_OVERRIDE_KEYS,
 )
 from strata.config.exceptions import ConfigError, ConfigValidationError
@@ -242,21 +243,22 @@ def _validate_rule_exceptions(*, value: object) -> None:
         return
     if not isinstance(value, list):
         raise ConfigValidationError("Config key rule_exceptions must be an array of tables.")
-    seen: set[tuple[str, str, str]] = set()
+    seen: set[tuple[str, str, str | None]] = set()
     for entry in value:
         seen = _validate_rule_exception_entry(entry=entry, seen=seen)
 
 
 def _validate_rule_exception_entry(
-    *, entry: object, seen: set[tuple[str, str, str]]
-) -> set[tuple[str, str, str]]:
+    *, entry: object, seen: set[tuple[str, str, str | None]]
+) -> set[tuple[str, str, str | None]]:
     if not isinstance(entry, dict):
         raise ConfigValidationError("Each rule_exceptions entry must be a table.")
     typed_entry: dict[object, object] = cast(dict[object, object], entry)
-    expected_keys: set[str] = {"rule", "path", "symbols", "reason"}
-    if set(typed_entry) != expected_keys:
+    required_keys: set[str] = {"rule", "path", "reason"}
+    allowed_keys: set[str] = {*required_keys, RULE_EXCEPTION_SYMBOLS_CONFIG_KEY}
+    if not required_keys.issubset(typed_entry) or not set(typed_entry).issubset(allowed_keys):
         raise ConfigValidationError(
-            "Each rule_exceptions entry must define only rule, path, symbols, and reason."
+            "Each rule_exceptions entry must define rule, path, and reason, with optional symbols."
         )
     rule: str = _exception_string(entry=typed_entry, key="rule")
     path: str = _exception_string(entry=typed_entry, key="path")
@@ -266,15 +268,25 @@ def _validate_rule_exception_entry(
     if not is_rule_code(rule):
         raise ConfigValidationError(f"Rule exception must use one exact rule code: {rule}.")
     _validate_exception_path(path)
+    if RULE_EXCEPTION_SYMBOLS_CONFIG_KEY not in typed_entry:
+        key: tuple[str, str, str | None] = (rule, path, None)
+        if key in seen:
+            raise ConfigValidationError(
+                f"Duplicate file-level rule exception for {rule} at {path}."
+            )
+        seen.add(key)
+        return seen
     symbols: tuple[str, ...] = _validate_string_sequence(
-        name="rule_exceptions.symbols", value=entry.get("symbols")
+        name="rule_exceptions.symbols", value=typed_entry[RULE_EXCEPTION_SYMBOLS_CONFIG_KEY]
     )
     if not symbols:
-        raise ConfigValidationError("Rule exception symbols must not be empty.")
+        raise ConfigValidationError(
+            "Rule exception symbols must not be empty; omit symbols for a file-level exception."
+        )
     for symbol in symbols:
         if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?", symbol) is None:
             raise ConfigValidationError(f"Malformed qualified rule exception symbol: {symbol}.")
-        key: tuple[str, str, str] = (rule, path, symbol)
+        key = (rule, path, symbol)
         if key in seen:
             raise ConfigValidationError(f"Duplicate rule exception for {rule} at {path}: {symbol}.")
         seen.add(key)

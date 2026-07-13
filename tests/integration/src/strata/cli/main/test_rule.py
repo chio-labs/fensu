@@ -15,6 +15,7 @@ from tests.integration.src.strata.cli.main.helpers import (
     CaptureOutput,
     configure_no_color,
     write_cli_exception_project,
+    write_cli_file_exception_project,
     write_cli_fixture_project,
 )
 
@@ -133,6 +134,33 @@ def test_given_active_exception_when_inspecting_rule_then_renders_path_symbol_an
     test_case: MetadataCommandTestCase,
 ) -> None:
     write_cli_exception_project(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    stdout: CaptureOutput = CaptureOutput()
+
+    exit_code: int = run_rule(argv=test_case.argv, stdout=stdout)
+
+    assert exit_code == test_case.expected_exit_code
+    assert all(fragment in stdout.getvalue() for fragment in test_case.expected_output_fragments)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        MetadataCommandTestCase(
+            description="file-level exception renders explicit scope",
+            argv=("SFR307",),
+            expected_exit_code=0,
+            expected_output_fragments=("src/pkg/domain/special.py: file-level",),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_file_level_exception_when_inspecting_rule_then_renders_explicit_scope(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: MetadataCommandTestCase,
+) -> None:
+    write_cli_file_exception_project(tmp_path)
     monkeypatch.chdir(tmp_path)
     stdout: CaptureOutput = CaptureOutput()
 

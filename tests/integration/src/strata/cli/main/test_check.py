@@ -6,12 +6,15 @@ from pathlib import Path
 
 import pytest
 
+from strata.agentdocs._helpers import freshness
+from strata.agentdocs.main import check_install
 from strata.cache.fingerprints.models import GlobalFingerprintBuild
 from strata.cache.results.classes.result_cache import ResultCache
 from strata.cache.results.models import CacheStats
 from strata.cache.storage.constants import CACHE_DATABASE_RELATIVE_PATH
 from strata.cache.storage.exceptions import CacheRecordError
 from strata.cli.main.check import run_check
+from strata.cli.main.skills import run_skills
 from tests.integration.src.strata.cli.main._test_types import (
     CheckCacheModeTestCase,
     CheckCachePreferenceTestCase,
@@ -19,6 +22,7 @@ from tests.integration.src.strata.cli.main._test_types import (
     CheckCommandTestCase,
     CheckErrorTestCase,
     CheckNoFaultTestCase,
+    CheckSkillFreshnessTestCase,
     EvaluationCheckTestCase,
     NestedContainerCacheTestCase,
     ThresholdOverrideCheckTestCase,
@@ -27,7 +31,11 @@ from tests.integration.src.strata.cli.main._test_types import (
 )
 from tests.integration.src.strata.cli.main.helpers import (
     CaptureOutput,
+    SkillReadCounter,
     cache_snapshot,
+    fail_skill_renderer,
+    mutate_skill_freshness_state,
+    prepare_normal_check_skill_state,
     write_cli_core_fault_project,
     write_cli_exception_project,
     write_cli_file_exception_project,
@@ -874,6 +882,148 @@ def test_given_internal_cache_error_when_running_check_then_warns_and_preserves_
     assert exit_code == test_case.expected_exit_code
     assert test_case.expected_output_fragment in stdout.getvalue()
     assert test_case.expected_warning_fragment in stderr.getvalue()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CheckSkillFreshnessTestCase(
+            description="declined installation does not create a permanent missing warning",
+            state="declined",
+            expected_exit_code=1,
+            expected_warning_count=0,
+        ),
+        CheckSkillFreshnessTestCase(
+            description="unmanaged local skill is outside automatic freshness ownership",
+            state="unmanaged",
+            expected_exit_code=1,
+            expected_warning_count=0,
+        ),
+        CheckSkillFreshnessTestCase(
+            description="malformed marker is left to authoritative update check",
+            state="malformed-marker",
+            expected_exit_code=1,
+            expected_warning_count=0,
+        ),
+        CheckSkillFreshnessTestCase(
+            description="current owned skill ignores invocation root and cache overrides",
+            state="current",
+            expected_exit_code=1,
+            expected_warning_count=0,
+        ),
+        CheckSkillFreshnessTestCase(
+            description="manual divergence warns without changing fault exit status",
+            state="divergent",
+            expected_exit_code=1,
+            expected_warning_count=1,
+        ),
+        CheckSkillFreshnessTestCase(
+            description="three stale default targets produce one warning",
+            state="stale-all",
+            expected_exit_code=1,
+            expected_warning_count=1,
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_default_local_skill_state_when_checking_then_warns_only_for_owned_staleness(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: CheckSkillFreshnessTestCase,
+) -> None:
+    write_cli_fixture_project(root=tmp_path, rule_code="XCF001")
+    monkeypatch.chdir(tmp_path)
+    prepare_normal_check_skill_state(root=tmp_path, state=test_case.state)
+    stdout: CaptureOutput = CaptureOutput()
+    stderr: CaptureOutput = CaptureOutput()
+
+    exit_code: int = run_check(
+        argv=("--no-color", "--no-cache", "src/pkg"),
+        stdout=stdout,
+        stderr=stderr,
+    )
+    warning: str = "Strata skill files are out of date; run `strata skills update`."
+
+    assert exit_code == test_case.expected_exit_code
+    assert "Found 1 fault" in stdout.getvalue()
+    assert stderr.getvalue().count(warning) == test_case.expected_warning_count
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CheckNoFaultTestCase(
+            description="stale skill warning never makes a clean check fail",
+            argv=("--no-color", "--no-cache"),
+            expected_exit_code=0,
+            expected_output_fragment="Found 0 faults",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_clean_project_and_divergent_owned_skill_when_checking_then_exit_remains_zero(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: CheckNoFaultTestCase,
+) -> None:
+    source: Path = tmp_path / "src/pkg/domain/constants.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("VALUE: int = 1\n", encoding="utf-8")
+    (tmp_path / "strata.toml").write_text(
+        'roots = ["src/pkg"]\ntests = []\nselect = ["SFA001"]\n[skills]\nname = "fixture"\n',
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    installed: int = run_skills(argv=("update", "--target", "agents"))
+    mutate_skill_freshness_state(root=tmp_path, state="divergent")
+    stdout: CaptureOutput = CaptureOutput()
+    stderr: CaptureOutput = CaptureOutput()
+
+    exit_code: int = run_check(argv=test_case.argv, stdout=stdout, stderr=stderr)
+
+    assert installed == 0
+    assert exit_code == test_case.expected_exit_code
+    assert test_case.expected_output_fragment in stdout.getvalue()
+    assert "Strata skill files are out of date" in stderr.getvalue()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CheckSkillFreshnessTestCase(
+            description="normal freshness performs three probes and zero Markdown renders",
+            state="current",
+            expected_exit_code=1,
+            expected_warning_count=0,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_current_owned_skill_when_checking_then_uses_bounded_renderer_free_fast_path(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: CheckSkillFreshnessTestCase,
+) -> None:
+    write_cli_fixture_project(root=tmp_path, rule_code="XFP001")
+    monkeypatch.chdir(tmp_path)
+    installed: int = run_skills(argv=("update", "--target", "agents"))
+    reader: SkillReadCounter = SkillReadCounter(freshness._read_skill_content)
+    monkeypatch.setattr(freshness, "_read_skill_content", reader)
+    monkeypatch.setattr(check_install, "generate_skill", fail_skill_renderer)
+    stderr: CaptureOutput = CaptureOutput()
+
+    exit_code: int = run_check(
+        argv=("--no-color", "--no-cache"),
+        stdout=CaptureOutput(),
+        stderr=stderr,
+    )
+
+    assert installed == 0
+    assert exit_code == test_case.expected_exit_code
+    assert reader.calls == 3
+    assert stderr.getvalue().count("Strata skill files are out of date") == (
+        test_case.expected_warning_count
+    )
 
 
 @pytest.mark.parametrize(

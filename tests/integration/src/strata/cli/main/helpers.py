@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+import os
+import re
 import sqlite3
 from collections.abc import Callable
 from io import StringIO
@@ -10,7 +14,10 @@ from typing import BinaryIO
 
 import pytest
 
+from strata.agentdocs.constants import GENERATED_MARKER
+from strata.agentdocs.exceptions import SkillInstallError
 from strata.cache.storage.constants import CACHE_DATABASE_RELATIVE_PATH
+from strata.cli.main.skills import run_skills
 from strata.config.main.load_config import load_config
 from strata.config.models import Config
 
@@ -117,6 +124,57 @@ class RacingExistingSkillWriter:
         replacement: Path = self._target_path.with_name("racing-user-skill")
         replacement.write_text(self._user_content, encoding="utf-8")
         _ = replacement.replace(self._target_path)
+
+
+class FailingSkillDeleter:
+    """Fail one staged legacy deletion after earlier deletions were published."""
+
+    def __init__(self, *, failure_at: int, delete: Callable[..., object]) -> None:
+        self._failure_at: int = failure_at
+        self._delete: Callable[..., object] = delete
+        self._calls: int = 0
+
+    def __call__(self, *, staged: object) -> object:
+        self._calls += 1
+        action: Callable[[], object] = {
+            False: lambda: self._delete(staged=staged),
+            True: self._fail,
+        }[self._calls == self._failure_at]
+        return action()
+
+    def _fail(self) -> object:
+        raise SkillInstallError("simulated legacy deletion failure")
+
+
+class RacingLegacyRenamer:
+    """Replace a captured legacy file immediately before its quarantine rename."""
+
+    def __init__(
+        self,
+        *,
+        legacy_path: Path,
+        user_content: str,
+        rename: Callable[..., Path],
+    ) -> None:
+        self._legacy_path: Path = legacy_path
+        self._user_content: str = user_content
+        self._rename: Callable[..., Path] = rename
+        self._raced: bool = False
+
+    def __call__(self, source: Path, target: Path) -> Path:
+        should_race: bool = source == self._legacy_path and not self._raced
+        action: Callable[[], None] = {
+            False: lambda: None,
+            True: self._race,
+        }[should_race]
+        action()
+        return self._rename(source, target)
+
+    def _race(self) -> None:
+        self._raced = True
+        replacement: Path = self._legacy_path.with_name("racing-user-legacy")
+        replacement.write_text(self._user_content, encoding="utf-8")
+        _ = replacement.replace(self._legacy_path)
 
 
 def configure_no_color(*, monkeypatch: pytest.MonkeyPatch, enabled: bool) -> None:
@@ -370,6 +428,7 @@ def write_cli_fixture_project(
     config: str = (
         f'roots = ["src/pkg"]\nselect = [{selected_rules}]\n{ignored_rules}'
         'rule_paths = ["rules/custom_rule.py"]\n'
+        '[skills]\nname = "fixture"\n'
     )
     (root / "strata.toml").write_text(config, encoding="utf-8")
     (root / "rules" / "custom_rule.py").write_text(
@@ -391,6 +450,162 @@ from strata import Family, Fault, RuleContext, rule
 def always(module: ast.Module, ctx: RuleContext) -> list[Fault]:
     return [ctx.fault(node=module.body[0])]
 ''',
+        encoding="utf-8",
+    )
+
+
+def write_cli_warning_skill_project(*, root: Path, rule_code: str) -> None:
+    """Write a project with separate blocking and custom warning selections."""
+
+    write_cli_fixture_project(root=root, rule_code=rule_code)
+    (root / "strata.toml").write_text(
+        'roots = ["src/pkg"]\n'
+        'select = ["SFN001"]\n'
+        f'warn = ["{rule_code}"]\n'
+        'ignore = ["SFH002"]\n'
+        'rule_paths = ["rules/custom_rule.py"]\n'
+        '[skills]\nname = "fixture"\n',
+        encoding="utf-8",
+    )
+
+
+def generated_skill_text(*, root: Path, body: str) -> str:
+    """Build same-owner generated content for installation transaction tests."""
+
+    owner: str = hashlib.sha256(
+        (root / "strata.toml").resolve().as_posix().encode("utf-8")
+    ).hexdigest()
+    marker: str = json.dumps(
+        {
+            "content_fingerprint": "content",
+            "identity": "strata-fixture",
+            "input_fingerprint": "input",
+            "owner": owner,
+            "schema": 1,
+        },
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    generated: str = "<!-- generated-by: strata skills update -->"
+    return f"{generated}\n<!-- strata-skill-owner: {marker} -->\n{body}"
+
+
+def complete_filesystem_snapshot(root: Path) -> tuple[tuple[str, str, int, int, bytes], ...]:
+    """Return paths, kinds, modes, mtimes, and bytes for a complete logical tree snapshot."""
+
+    entries: list[tuple[str, str, int, int, bytes]] = []
+    for path in sorted(root.rglob("*")):
+        metadata: os.stat_result = path.lstat()
+        path_state: tuple[bool, bool] = (path.is_symlink(), path.is_dir())
+        kind: str = {
+            (False, False): "file",
+            (False, True): "directory",
+            (True, False): "symlink",
+            (True, True): "symlink",
+        }[path_state]
+        content: bytes = {
+            False: lambda: b"",
+            True: path.read_bytes,
+        }[path.is_file() and not path.is_symlink()]()
+        entries.append(
+            (
+                path.relative_to(root).as_posix(),
+                kind,
+                metadata.st_mode,
+                metadata.st_mtime_ns,
+                content,
+            )
+        )
+    return tuple(entries)
+
+
+def mutate_skill_freshness_state(*, root: Path, state: str) -> None:
+    """Apply one named post-install freshness state without test-body branching."""
+
+    path: Path = root / ".agents/skills/strata-fixture/SKILL.md"
+    mutations: dict[str, Callable[[], object]] = {
+        "current": lambda: None,
+        "missing": path.unlink,
+        "stale": lambda: (root / "strata.toml").write_text(
+            (root / "strata.toml").read_text(encoding="utf-8") + "\n[cache]\nenabled = false\n",
+            encoding="utf-8",
+        ),
+        "divergent": lambda: path.write_bytes(path.read_bytes() + b"manual change\n"),
+        "malformed-marker": lambda: path.write_text(
+            re.sub(
+                r"<!-- strata-skill-owner: .* -->",
+                "<!-- strata-skill-owner: malformed -->",
+                path.read_text(encoding="utf-8"),
+                count=1,
+            ),
+            encoding="utf-8",
+        ),
+        "collision": lambda: path.write_text("user-authored skill\n", encoding="utf-8"),
+    }
+    _ = mutations[state]()
+
+
+def prepare_normal_check_skill_state(*, root: Path, state: str) -> None:
+    """Install or create one local skill state used by normal-check freshness tests."""
+
+    path: Path = root / ".agents/skills/strata-fixture/SKILL.md"
+    preparations: dict[str, Callable[[], object]] = {
+        "declined": lambda: None,
+        "unmanaged": lambda: _write_user_skill(path),
+        "malformed-marker": lambda: _write_malformed_skill(path),
+        "current": lambda: run_skills(argv=("update", "--target", "agents")),
+        "divergent": lambda: _install_then_mutate(root=root, state="divergent"),
+        "stale-all": lambda: _install_all_then_stale(root),
+    }
+    _ = preparations[state]()
+
+
+def fail_skill_renderer(**kwargs: object) -> str:
+    """Fail if the normal-check freshness path invokes Markdown generation."""
+
+    del kwargs
+    raise AssertionError("normal check invoked the full skill renderer")
+
+
+class SkillReadCounter:
+    """Count bounded target probes while preserving the real reader."""
+
+    def __init__(self, read: Callable[[Path], tuple[bytes | None, bool]]) -> None:
+        """Store the real target reader and initialize the operation count."""
+
+        self.calls: int = 0
+        self._read: Callable[[Path], tuple[bytes | None, bool]] = read
+
+    def __call__(self, path: Path) -> tuple[bytes | None, bool]:
+        """Record and delegate one target probe."""
+
+        self.calls += 1
+        return self._read(path)
+
+
+def _write_user_skill(path: Path) -> None:
+    path.parent.mkdir(parents=True)
+    path.write_text("user-authored skill\n", encoding="utf-8")
+
+
+def _write_malformed_skill(path: Path) -> None:
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        f"{GENERATED_MARKER}\n<!-- strata-skill-owner: malformed -->\n",
+        encoding="utf-8",
+    )
+
+
+def _install_then_mutate(*, root: Path, state: str) -> None:
+    _ = run_skills(argv=("update", "--target", "agents"))
+    mutate_skill_freshness_state(root=root, state=state)
+
+
+def _install_all_then_stale(root: Path) -> None:
+    _ = run_skills(argv=("update",))
+    config: Path = root / "strata.toml"
+    config.write_text(
+        config.read_text(encoding="utf-8") + "\n[cache]\nenabled = false\n",
         encoding="utf-8",
     )
 

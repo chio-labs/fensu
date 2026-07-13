@@ -8,7 +8,11 @@ from strata.rules.shape.types import ShapeCode
 from strata.rules.tests.types import SftCode
 
 GENERATED_MARKER: str = "<!-- generated-by: strata skills update -->"
-SKILL_NAME: str = "strata"
+GENERIC_SKILL_NAME: str = "strata"
+OWNERSHIP_MARKER_PREFIX: str = "<!-- strata-skill-owner: "
+OWNERSHIP_MARKER_SCHEMA: int = 1
+SKILL_INPUT_FINGERPRINT_SCHEMA: int = 1
+SKILL_NAME_PREFIX: str = "strata-"
 
 RUNTIME_BASIC_CODES: frozenset[str] = frozenset(
     {RoleCode.TOP_LEVEL_DOMAIN_SHAPE, RoleCode.TOP_LEVEL_DIRECT_MODULES}

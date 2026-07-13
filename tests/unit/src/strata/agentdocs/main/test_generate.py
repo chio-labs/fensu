@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import FrozenInstanceError
 
 import pytest
 
@@ -11,10 +12,20 @@ from strata.config.models import Config, RuleExceptionEntry, ThresholdOverride
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Threshold
 from strata.rules.catalog.constants import CORE_RULES
-from tests.unit.src.strata.agentdocs.main._test_types import GuidanceTestCase
+from tests.unit.src.strata.agentdocs.main._test_types import (
+    GuidanceTestCase,
+    SkillContentTestCase,
+    SkillContextImmutabilityTestCase,
+    SkillDeterminismTestCase,
+)
 from tests.unit.src.strata.agentdocs.main.helpers import (
+    comprehensive_generation_context,
+    core_only_generation_context,
     core_rule_codes_for_prefix,
     core_rules_for_codes,
+    custom_default_cache_generation_context,
+    generation_context,
+    mutate_generation_context,
     structure_fragment_is_absent,
 )
 
@@ -30,13 +41,13 @@ _ESCAPED_OVERRIDE_REASON: str = 'Generated "API" path.\nKeep \\ escapes.'
             config=Config(roots=("src/acme",), tests=(), tooling=()),
             rule_codes=("SFN002",),
             expected_fragments=(
-                "## SFN002: predicate-must-return-bool",
+                "### SFN002: predicate-must-return-bool",
                 "Return bool (or TypeGuard/TypeIs)",
             ),
             expected_absent_fragments=(
-                "## SFN001:",
-                "## SFN003:",
-                "## SFN004:",
+                "### SFN001:",
+                "### SFN003:",
+                "### SFN004:",
             ),
         ),
         GuidanceTestCase(
@@ -56,9 +67,9 @@ _ESCAPED_OVERRIDE_REASON: str = 'Generated "API" path.\nKeep \\ escapes.'
             ),
             rule_codes=("SFS120",),
             expected_fragments=(
-                "## Active Rule Exceptions",
-                "`SFS120` in `src/acme/external.py`: `Collector.update`",
-                "Reason: The external API invokes this method positionally.",
+                "### Configured Rule Exceptions",
+                'Rule "SFS120"; path="src/acme/external.py"; scope=["Collector.update"]',
+                'reason="The external API invokes this method positionally."',
             ),
             expected_absent_fragments=("# noqa",),
         ),
@@ -78,9 +89,9 @@ _ESCAPED_OVERRIDE_REASON: str = 'Generated "API" path.\nKeep \\ escapes.'
             ),
             rule_codes=("SFR307",),
             expected_fragments=(
-                "## Active Rule Exceptions",
-                "`SFR307` in `src/acme/domain/special.py`: file-level",
-                "Reason: This file is an intentional adapter.",
+                "### Configured Rule Exceptions",
+                'Rule "SFR307"; path="src/acme/domain/special.py"; scope="file-level"',
+                'reason="This file is an intentional adapter."',
             ),
             expected_absent_fragments=("symbols = []",),
         ),
@@ -200,7 +211,7 @@ _ESCAPED_OVERRIDE_REASON: str = 'Generated "API" path.\nKeep \\ escapes.'
                 ),
             ),
             rule_codes=("SFA101",),
-            expected_fragments=("## Active Rules",),
+            expected_fragments=("## Blocking Rules",),
             expected_absent_fragments=(
                 "## Configured Threshold Overrides",
                 "[[threshold_overrides]]",
@@ -355,7 +366,7 @@ _ESCAPED_OVERRIDE_REASON: str = 'Generated "API" path.\nKeep \\ escapes.'
             description="disabled test and tooling scopes suppress otherwise active guidance",
             config=Config(roots=("src/acme",), tests=(), tooling=()),
             rule_codes=("SFR705", "SFT001", "SFT002", "SFT003"),
-            expected_fragments=("## Active Rules",),
+            expected_fragments=("## Blocking Rules",),
             expected_absent_fragments=(
                 "## Repository Structure",
                 "### Tests",
@@ -367,10 +378,10 @@ _ESCAPED_OVERRIDE_REASON: str = 'Generated "API" path.\nKeep \\ escapes.'
             config=Config(roots=("src/acme",), tests=("tests",), tooling=("scripts",)),
             rule_codes=("SFH001",),
             expected_fragments=(
-                "Use whenever Strata is mentioned or used",
+                "Use when modifying the project project governed by strata.toml",
                 "## Navigation And Work Handoffs",
-                "## Active Rules",
-                "## SFH001: single-line-docstrings",
+                "## Blocking Rules",
+                "### SFH001: single-line-docstrings",
             ),
             expected_absent_fragments=(
                 "## Repository Structure",
@@ -387,10 +398,219 @@ def test_given_config_and_active_rules_when_generating_then_shows_only_proven_gu
 ) -> None:
     rules: tuple[RuleSpec, ...] = core_rules_for_codes(test_case.rule_codes)
 
-    document: str = generate_skill(config=test_case.config, rules=rules)
+    document: str = generate_skill(
+        context=generation_context(config=test_case.config, blocking_rules=rules)
+    )
 
     assert all(fragment in document for fragment in test_case.expected_fragments)
     assert all(
         structure_fragment_is_absent(document=document, fragment=fragment)
         for fragment in test_case.expected_absent_fragments
     )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SkillContentTestCase(
+            description="complete policy context renders mandatory project-specific guidance",
+            context=comprehensive_generation_context(),
+            expected_fragments=(
+                'name: "strata-project"',
+                "## Working With Existing Drift",
+                "architectural baseline, not authorization",
+                "zero faults, treat that broader target as authorized scope",
+                "fix the code under the current policy",
+                "## Testing Refactors Safely",
+                "PostgreSQL, Redis, Kafka or Redpanda",
+                "`docker info`",
+                "`podman info`",
+                "SQLite as evidence for PostgreSQL-specific SQL",
+                "deterministic race-oriented tests",
+                "barriers, events, controlled workers, or transactional locks",
+                "rather than relying on sleeps",
+                "## Test Execution And Isolation",
+                "pytest -n auto",
+                "unique temporary paths, databases, schemas, ports, and resource names",
+                "A sequential pass does not make the problem acceptable",
+                "## Custom Rule Authority",
+                "explicitly requested it or explicitly approved your proposal",
+                "Do not ask for a redundant second confirmation",
+                "## Effective Project Configuration",
+                '`[tool.strata]` in "pyproject.toml"',
+                '- Current skill identity: "strata-project"',
+                "- Complete loaded catalogue size: 4",
+                '- Product roots: ["lib/pkg", "src/\\"quoted\\""]',
+                '- Blocking selectors (`select`): ["SFN", "XAC001"]',
+                '- Warning selectors (`warn`): ["SFR706"]',
+                '- Ignore selectors (`ignore`): ["SFH001"]',
+                '- Blocking rule codes: ["SFN001", "XAC001"]',
+                '- Warning rule codes: ["SFR706"]',
+                '- Ignored matched rule codes: ["SFH001"]',
+                '- `rule_paths`: ["scripts/other_rules", "scripts/policy/rules.py"]',
+                '- `rule_modules`: ["acme.more_policy", "acme.policy"]',
+                "- Cache enabled: `true`",
+                "- Cache requires cacheable rules: `true`",
+                '- Evaluation include boundaries: ["lib/**/*.py", "src/**/*.py"]',
+                '- Evaluation exclude boundaries: ["src/generated/**"]',
+                "### Effective Global Thresholds",
+                "- `max_arguments` = 10",
+                'Role "helpers": `max_helpers_container_modules` = 14',
+                'Role "main": `max_main_container_modules` = 24',
+                "Declaration 1: paths=",
+                '"max_distinct_calls": 18',
+                'reason="Focused orchestration."',
+                "### Effective Naming Contracts",
+                '- "fetch_*" = "returns-value"',
+                '- "is_*" = "returns-bool"',
+                "### Configured Rule Exceptions",
+                'Rule "SFN001"; path="lib/pkg/legacy.py"',
+                'Rule "XAC001"; path="src/\\"quoted\\"/client.py"',
+                "External `API` contract.\\nReviewed.",
+                "## Warning Policy",
+                "warning-only findings do not fail the command",
+                "## RuleContext Public API",
+                "The five public analysis zones",
+                "`ctx.facts`",
+                "`ctx.text`",
+                "`ctx.syntax`",
+                "`ctx.relations`",
+                "`ctx.project`",
+                "analysis(requester=ctx.path, path=path)",
+                "dataclasses(requester=ctx.path, path=path)",
+                "directory_entries(requester=ctx.path, path=path)",
+                "module_function(requester=ctx.path, module_name=name, function_name=name)",
+                "python_anchor(requester=ctx.path, path=path)",
+                "exists(requester=ctx.path, path=path)",
+                "is_dir(requester=ctx.path, path=path)",
+                "is_file(requester=ctx.path, path=path)",
+                "glob(requester=ctx.path, path=path, pattern=pattern, recursive=False)",
+                "dependencies_for(requester=ctx.path)",
+                "Position and ownership helpers",
+                "AST helpers",
+                "Fault constructors",
+                "## Approved Custom Rule Authoring Lookup",
+                "locate the active installation through `strata.__file__`",
+                "Only import authoring APIs from top-level `strata`",
+                "## Testing Custom Rules",
+                "from strata import RuleCase, RuleResult, evaluate_rule",
+                "result: RuleResult = evaluate_rule(rule=no_global_client, test_case=test_case)",
+                "RuleFile` support sources are available to `ctx.project`",
+                "## Cacheability",
+                "Because `require_cacheable = true`",
+                "allowlisted pure imports",
+                "`open`, `eval`, `exec`, `input`, or `__import__`",
+                "helpers inside configured rule packages",
+                "strata check --no-cache",
+                "all hits, zero misses, `non_cacheable=0`",
+                "## Blocking Rules",
+                "### SFN001: validator-must-not-return",
+                "### XAC001: approved-contract",
+                "approved custom contract must hold",
+                "Remediation: Restore the approved custom boundary.",
+                "## Warning Rules",
+                "### SFR706: descriptive-rule-module-names",
+                "rule module filenames must describe their policy",
+            ),
+            expected_absent_fragments=(
+                "_memoize",
+                "analysis(path=path)",
+                "name: strata\n",
+            ),
+        ),
+        SkillContentTestCase(
+            description="selected custom rules explain default cache disablement",
+            context=custom_default_cache_generation_context(),
+            expected_fragments=(
+                "## Cacheability",
+                "Configured cache enabled: `true`",
+                "Configured `require_cacheable`: `false`",
+                "Selected custom rules disable persistent caching by default",
+                "`require_cacheable = true`",
+            ),
+            expected_absent_fragments=("Because `require_cacheable = true`",),
+        ),
+        SkillContentTestCase(
+            description="core-only context keeps mandatory sections without conditional claims",
+            context=core_only_generation_context(),
+            expected_fragments=(
+                'Configuration source: "strata.toml"',
+                "- Warning selectors (`warn`): []",
+                "- Warning rule codes: []",
+                "## Working With Existing Drift",
+                "## Testing Refactors Safely",
+                "## Test Execution And Isolation",
+                "## Custom Rule Authority",
+                "## RuleContext Public API",
+                "## Approved Custom Rule Authoring Lookup",
+                "## Cacheability",
+                "## Blocking Rules",
+                "### SFH001: single-line-docstrings",
+                "## Warning Rules\n\nNone.",
+            ),
+            expected_absent_fragments=(
+                "## Warning Policy",
+                "Selected custom rules disable persistent caching",
+                "Because `require_cacheable = true`",
+                "## Testing Custom Rules",
+            ),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_complete_generation_context_when_rendering_then_includes_mandatory_policy(
+    test_case: SkillContentTestCase,
+) -> None:
+    document: str = generate_skill(context=test_case.context)
+    blocking_section: str = document.partition("## Blocking Rules")[2].partition(
+        "## Warning Rules"
+    )[0]
+
+    assert all(fragment in document for fragment in test_case.expected_fragments)
+    assert all(fragment not in document for fragment in test_case.expected_absent_fragments)
+    assert "### SFR706:" not in blocking_section
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SkillDeterminismTestCase(
+            description="reordered mappings catalogue and tiers produce identical UTF-8 bytes",
+            first_context=comprehensive_generation_context(),
+            second_context=comprehensive_generation_context(reverse_mappings=True),
+            expected_equal=True,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_equivalent_reordered_contexts_when_rendering_then_bytes_are_deterministic(
+    test_case: SkillDeterminismTestCase,
+) -> None:
+    first: bytes = generate_skill(context=test_case.first_context).encode("utf-8")
+    second: bytes = generate_skill(context=test_case.second_context).encode("utf-8")
+
+    assert (first == second) is test_case.expected_equal
+    assert b"\r" not in first
+    assert first.endswith(b"\n")
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SkillContextImmutabilityTestCase(
+            description="generation context rejects field mutation",
+            context=core_only_generation_context(),
+            expected_error_type=FrozenInstanceError,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_generation_context_when_mutating_field_then_context_remains_immutable(
+    test_case: SkillContextImmutabilityTestCase,
+) -> None:
+    with pytest.raises(test_case.expected_error_type):
+        mutate_generation_context(
+            context=test_case.context,
+            field_name="identity",
+            value="changed",
+        )

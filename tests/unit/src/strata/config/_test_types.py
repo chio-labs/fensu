@@ -95,6 +95,15 @@ class EvaluationConfigTestCase:
 
 
 @dataclass(frozen=True)
+class SkillsConfigTestCase:
+    """A persistent skill identity and its expected normalized config value."""
+
+    description: str
+    config_text: str
+    expected_name: str | None
+
+
+@dataclass(frozen=True)
 class ConfigListFieldTestCase:
     """A list-valued config field and the expected normalized tuple."""
 

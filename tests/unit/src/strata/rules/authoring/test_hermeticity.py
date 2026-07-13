@@ -13,7 +13,7 @@ from tests.unit.src.strata.rules.authoring.helpers import HermeticityScan, scan_
     [
         HermeticityTestCase(
             description="rule execution modules perform no untracked side-effect operations",
-            excluded_packages=("catalog",),
+            excluded_packages=("catalog", "testing"),
             expected_minimum_modules=50,
             expected_violations=(),
         )

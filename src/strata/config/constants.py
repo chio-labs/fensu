@@ -32,6 +32,7 @@ DEFAULT_IGNORE: tuple[str, ...] = ()
 DEFAULT_CACHE_ENABLED: bool = True
 CACHE_ENABLED_CONFIG_KEY: str = "enabled"
 CACHE_REQUIRE_CACHEABLE_CONFIG_KEY: str = "require_cacheable"
+SKILLS_NAME_CONFIG_KEY: str = "name"
 DEFAULT_CACHE_REQUIRE_CACHEABLE: bool = False
 
 CONFIG_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
@@ -51,6 +52,7 @@ CONFIG_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
         "threshold_overrides",
         "cache",
         "evaluation",
+        "skills",
     }
 )
 CONFIG_ROLE_NAMES: frozenset[str] = frozenset(RoleName)
@@ -76,4 +78,5 @@ SINGLE_COMPONENT_GLOB: str = "*"
 RECURSIVE_GLOB: str = "**"
 THRESHOLD_OVERRIDE_KEYS: frozenset[str] = frozenset({"paths", "thresholds", "reason"})
 EVALUATION_CONFIG_KEYS: frozenset[str] = frozenset({"include", "exclude"})
+SKILLS_CONFIG_KEYS: frozenset[str] = frozenset({SKILLS_NAME_CONFIG_KEY})
 RULE_EXCEPTION_SYMBOLS_CONFIG_KEY: str = "symbols"

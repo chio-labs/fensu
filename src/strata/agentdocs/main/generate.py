@@ -2,26 +2,48 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
+from strata.agentdocs._helpers.authoring import (
+    authoring_lookup_lines,
+    cacheability_lines,
+    rule_context_lines,
+    rule_testing_lines,
+)
+from strata.agentdocs._helpers.effective_config import (
+    effective_config_lines,
+    warning_policy_lines,
+)
 from strata.agentdocs._helpers.guidance import (
     configured_threshold_override_lines,
     repository_guidance_lines,
 )
+from strata.agentdocs._helpers.work_practices import (
+    custom_rule_authority_lines,
+    work_practice_lines,
+)
 from strata.agentdocs._helpers.workflow import navigation_workflow_lines
 from strata.agentdocs.constants import GENERATED_MARKER
+from strata.agentdocs.models import SkillGenerationContext
 from strata.config.models import Config
 from strata.rules.authoring.models import RuleSpec
 
 
-def generate_skill(*, config: Config, rules: tuple[RuleSpec, ...]) -> str:
+def generate_skill(*, context: SkillGenerationContext) -> str:
     """Render active rules as one SKILL.md-style document."""
 
+    config: Config = context.config
+    active_rules: tuple[RuleSpec, ...] = (*context.blocking_rules, *context.warning_rules)
     lines: list[str] = [
         "---",
-        "name: strata",
-        (
-            "description: Use whenever Strata is mentioned or used, including installation, "
-            "strata.toml configuration, strata check/rule/map/skills commands, SF diagnostics, "
-            "repository architecture, or multi-module Python call-flow work."
+        f"name: {json.dumps(context.identity, ensure_ascii=True)}",
+        "description: "
+        + json.dumps(
+            f"Use when modifying the {context.identity.removeprefix('strata-')} project governed "
+            f"by {_governed_path(context)}. Includes Strata configuration, commands, SF "
+            "diagnostics, repository architecture, and multi-module Python call-flow work.",
+            ensure_ascii=True,
         ),
         "---",
         "",
@@ -44,49 +66,36 @@ def generate_skill(*, config: Config, rules: tuple[RuleSpec, ...]) -> str:
         "",
     ]
     lines.extend(navigation_workflow_lines())
-    active_codes: frozenset[str] = frozenset(rule.code for rule in rules)
-    lines.extend(repository_guidance_lines(config=config, active_codes=active_codes))
-    lines.extend(configured_threshold_override_lines(config=config, active_codes=active_codes))
-    if config.rule_exceptions:
-        lines.extend(
-            (
-                "## Active Rule Exceptions",
-                "",
-                (
-                    "These centralized exceptions are exact and review-visible in `strata.toml`. "
-                    "Do not broaden them or add inline suppression comments."
-                ),
-                "",
-            )
-        )
-        for exception in config.rule_exceptions:
-            scope: str = (
-                ", ".join(f"`{symbol}`" for symbol in exception.symbols)
-                if exception.symbols
-                else "file-level"
-            )
-            lines.extend(
-                (
-                    f"- `{exception.rule}` in `{exception.path}`: {scope}",
-                    f"  Reason: {exception.reason}",
-                )
-            )
-        lines.append("")
+    lines.extend(work_practice_lines())
+    active_codes: frozenset[str] = frozenset(rule.code for rule in active_rules)
     lines.extend(
-        (
-            "## Active Rules",
-            "",
-            (
-                "These are the enabled core and custom rules for the repository where this skill "
-                "was generated. Do not assume disabled or ignored rules apply."
-            ),
-            "",
+        repository_guidance_lines(
+            config=config,
+            active_codes=active_codes,
+            project_prefix=context.project_prefix,
         )
     )
-    for rule in rules:
+    lines.extend(configured_threshold_override_lines(config=config, active_codes=active_codes))
+    lines.extend(effective_config_lines(context))
+    lines.extend(warning_policy_lines(context))
+    lines.extend(custom_rule_authority_lines())
+    lines.extend(rule_context_lines())
+    lines.extend(authoring_lookup_lines())
+    lines.extend(rule_testing_lines(context))
+    lines.extend(cacheability_lines(context))
+    lines.extend(_tier_lines(heading="Blocking Rules", rules=context.blocking_rules))
+    lines.extend(_tier_lines(heading="Warning Rules", rules=context.warning_rules))
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _tier_lines(*, heading: str, rules: tuple[RuleSpec, ...]) -> tuple[str, ...]:
+    lines: list[str] = [f"## {heading}", ""]
+    if not rules:
+        return (*lines, "None.", "")
+    for rule in sorted(rules, key=lambda item: item.code):
         lines.extend(
             (
-                f"## {rule.code}: {rule.slug}",
+                f"### {rule.code}: {rule.slug}",
                 "",
                 f"Family: `{rule.family.value}`",
                 "",
@@ -96,4 +105,14 @@ def generate_skill(*, config: Config, rules: tuple[RuleSpec, ...]) -> str:
                 "",
             )
         )
-    return "\n".join(lines).rstrip() + "\n"
+    return tuple(lines)
+
+
+def _governed_path(context: SkillGenerationContext) -> str:
+    try:
+        path: Path = context.config_source.path.resolve().relative_to(
+            context.install_root.resolve()
+        )
+    except ValueError:
+        path = context.config_source.path.resolve().relative_to(context.project_root.resolve())
+    return path.as_posix()

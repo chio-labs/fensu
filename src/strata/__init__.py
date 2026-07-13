@@ -49,6 +49,8 @@ from strata.analysis.types import (
 from strata.rules.authoring.main.define import rule
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import Family, RuleContext, Severity, Threshold
+from strata.rules.testing.main.evaluate_rule import evaluate_rule
+from strata.rules.testing.models import RuleCase, RuleFile, RuleResult
 
 __all__ = [
     "AnnotationFacts",
@@ -86,7 +88,10 @@ __all__ = [
     "PytestModuleFacts",
     "ReferenceFacts",
     "RelationAnalysis",
+    "RuleCase",
     "RuleContext",
+    "RuleFile",
+    "RuleResult",
     "Severity",
     "SourceLocation",
     "SourcePosition",
@@ -96,5 +101,6 @@ __all__ = [
     "TextAnalysis",
     "Threshold",
     "TypeDeclarationFact",
+    "evaluate_rule",
     "rule",
 ]

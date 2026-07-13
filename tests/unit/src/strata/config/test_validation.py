@@ -312,6 +312,30 @@ def test_given_invalid_rule_exception_when_loading_then_raises_validation_error(
     "test_case",
     [
         InvalidConfigTestCase(
+            description="skills preference must be a table",
+            config_text='roots = ["src/pkg"]\nskills = "project"\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="skills must be a table",
+        ),
+        InvalidConfigTestCase(
+            description="skills table rejects unknown options",
+            config_text='roots = ["src/pkg"]\n[skills]\nidentity = "project"\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="identity",
+        ),
+        InvalidConfigTestCase(
+            description="skills name must be a string",
+            config_text='roots = ["src/pkg"]\n[skills]\nname = 3\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="skills.name",
+        ),
+        InvalidConfigTestCase(
+            description="skills name must not be blank",
+            config_text='roots = ["src/pkg"]\n[skills]\nname = "  "\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="non-empty string",
+        ),
+        InvalidConfigTestCase(
             description="unknown key is rejected",
             config_text='roots = ["src/pkg"]\nrootss = ["typo"]\n',
             expected_error_type=ConfigValidationError,

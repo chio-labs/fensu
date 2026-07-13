@@ -6,8 +6,8 @@ import ast
 
 from strata.rules.authoring.models import Fault, RuleSpec
 from strata.rules.authoring.types import Family, RuleContext
-from strata.rules.tests.helpers.checks import test_faults
-from strata.rules.tests.helpers.metadata import test_rule_details
+from strata.rules.tests._helpers.checks import test_faults
+from strata.rules.tests._helpers.metadata import test_rule_details
 from strata.rules.tests.types import SftCode
 
 

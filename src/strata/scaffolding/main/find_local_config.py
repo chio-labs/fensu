@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from strata.scaffolding.helpers.planning import find_local_config as _find_local_config
+from strata.scaffolding._helpers.planning import find_local_config as _find_local_config
 
 
 def find_local_config(*, repository: Path) -> Path | None:

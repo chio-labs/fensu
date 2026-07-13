@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from strata.config.models import Config
-from strata.discovery.helpers.layout import build_project_layout as _build_project_layout
+from strata.discovery._helpers.layout import build_project_layout as _build_project_layout
 from strata.discovery.models import ProjectLayout, RepoRoot
 
 

@@ -1,6 +1,6 @@
 """Match one repository-relative path against configured POSIX globs."""
 
-from strata.config.helpers.path_patterns import matches_any_path_pattern
+from strata.config._helpers.path_patterns import matches_any_path_pattern
 
 
 def path_matches(*, patterns: tuple[str, ...], path: str) -> bool:

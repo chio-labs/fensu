@@ -168,8 +168,8 @@ def test_given_custom_rule_fault_when_running_check_then_outputs_report_and_exit
             expected_output_fragment=(
                 "Applied 1 threshold override\n"
                 "Threshold override: max_helpers_container_modules=2 "
-                "path=src/pkg/orders/helpers/parsing/__init__.py "
-                "pattern=src/pkg/**/helpers/parsing/__init__.py order=0 "
+                "path=src/pkg/orders/_helpers/parsing/__init__.py "
+                "pattern=src/pkg/**/_helpers/parsing/__init__.py order=0 "
                 'reason="Parser breadth."'
             ),
         )
@@ -186,12 +186,12 @@ def test_given_legal_threshold_override_when_running_check_then_reports_usage(
         'roots = ["src/pkg"]\nselect = ["SFR301"]\n'
         "[thresholds]\nmax_helpers_container_modules = 1\n"
         "[[threshold_overrides]]\n"
-        'paths = ["src/pkg/**/helpers/parsing/__init__.py"]\n'
+        'paths = ["src/pkg/**/_helpers/parsing/__init__.py"]\n'
         'reason = "Parser breadth."\n'
         "thresholds = { max_helpers_container_modules = 2 }\n",
         encoding="utf-8",
     )
-    bucket: Path = tmp_path / "src/pkg/orders/helpers/parsing"
+    bucket: Path = tmp_path / "src/pkg/orders/_helpers/parsing"
     bucket.mkdir(parents=True)
     for name in ("__init__.py", "first.py", "second.py"):
         (bucket / name).write_text("", encoding="utf-8")
@@ -232,7 +232,7 @@ def test_given_legal_threshold_override_when_running_check_then_reports_usage(
             selected_rule="SFR301",
             override_value=1,
             expected_output_fragment="Applied 1 threshold override",
-            expected_additional_fragment="SFR301  helpers/ container has 2 modules",
+            expected_additional_fragment="SFR301  _helpers/ container has 2 modules",
             expected_reason_fragment='reason="Parser \\"breadth\\".\\nControlled."',
             expected_absent_fragment="Applied 2 threshold overrides",
             expected_exit_code=1,
@@ -249,12 +249,12 @@ def test_given_threshold_override_when_running_cached_check_then_reports_only_ac
     config_path.write_text(
         f'roots = ["src/pkg"]\nselect = ["{test_case.selected_rule}"]\n'
         "[[threshold_overrides]]\n"
-        'paths = ["src/pkg/**/helpers/parsing/__init__.py"]\n'
+        'paths = ["src/pkg/**/_helpers/parsing/__init__.py"]\n'
         'reason = "Parser \\"breadth\\".\\nControlled."\n'
         f"thresholds = {{ max_helpers_container_modules = {test_case.override_value} }}\n",
         encoding="utf-8",
     )
-    bucket: Path = tmp_path / "src/pkg/orders/helpers/parsing"
+    bucket: Path = tmp_path / "src/pkg/orders/_helpers/parsing"
     bucket.mkdir(parents=True)
     for name in ("__init__.py", "first.py", "second.py"):
         (bucket / name).write_text("", encoding="utf-8")
@@ -280,7 +280,7 @@ def test_given_threshold_override_when_running_cached_check_then_reports_only_ac
         NestedContainerCacheTestCase(
             description="nested bucket fault remains fully cacheable with identical output",
             expected_exit_code=1,
-            expected_fault_fragment="SFR301  helpers/ container has 2 modules",
+            expected_fault_fragment="SFR301  _helpers/ container has 2 modules",
             expected_summary_fragment="Found 1 fault",
             expected_cold_stats_fragment="hits=0 misses=4",
             expected_warm_stats_fragment="hits=4 misses=0",
@@ -299,7 +299,7 @@ def test_given_nested_container_fault_when_running_cold_and_warm_then_reuses_all
         "[thresholds]\nmax_helpers_container_modules = 1\n",
         encoding="utf-8",
     )
-    helpers: Path = tmp_path / "src/pkg/orders/helpers"
+    helpers: Path = tmp_path / "src/pkg/orders/_helpers"
     bucket: Path = helpers / "parsing"
     bucket.mkdir(parents=True)
     for path in (
@@ -336,7 +336,7 @@ def test_given_nested_container_fault_when_running_cold_and_warm_then_reuses_all
         NestedContainerCacheTestCase(
             description="role bucket initializer ownership remains fully cacheable",
             expected_exit_code=1,
-            expected_fault_fragment="SFR301  helpers/ bucket 'main/' uses a runtime role name",
+            expected_fault_fragment="SFR301  _helpers/ bucket 'main/' uses a runtime role name",
             expected_summary_fragment="Found 1 fault",
             expected_cold_stats_fragment="hits=0 misses=2",
             expected_warm_stats_fragment="hits=2 misses=0",
@@ -354,7 +354,7 @@ def test_given_initialized_role_bucket_when_running_cold_and_warm_then_reuses_ow
         'roots = ["src/pkg"]\nselect = ["SFR301"]\n[thresholds]\nmax_role_depth = 2\n',
         encoding="utf-8",
     )
-    bucket: Path = tmp_path / "src/pkg/orders/helpers/main"
+    bucket: Path = tmp_path / "src/pkg/orders/_helpers/main"
     descendant: Path = bucket / "parsing/read.py"
     descendant.parent.mkdir(parents=True)
     (bucket / "__init__.py").write_text("", encoding="utf-8")

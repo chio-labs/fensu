@@ -5,8 +5,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from pathlib import Path
 
-from strata.config.helpers.discovery import locate_config
-from strata.config.helpers.parse import parse_config_source
+from strata.config._helpers.discovery import locate_config
+from strata.config._helpers.parse import parse_config_source
 from strata.config.main.build_config import build_config
 from strata.config.models import ConfigSource, LoadedConfig
 

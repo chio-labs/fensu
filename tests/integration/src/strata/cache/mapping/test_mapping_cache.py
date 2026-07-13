@@ -6,7 +6,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from strata.analysis.helpers import building
+from strata.analysis._helpers import building
 from strata.cache.mapping.models import CachedCallMap
 from strata.cli.main.map import run_map
 from strata.mapping.exceptions import MapError
@@ -301,7 +301,7 @@ def test_given_invalid_changed_source_when_mapping_then_raises_map_error(
             description="cached map translates invalid encoded bytes through shared factory",
             changed_source=b"value = '\xff'\n",
             expected_error="invalid or missing encoding declaration",
-            expected_direct_parse_paths=("helpers/tree.py",),
+            expected_direct_parse_paths=("_helpers/tree.py",),
         )
     ],
     ids=lambda case: case.description,

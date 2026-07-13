@@ -7,13 +7,13 @@ from pathlib import Path
 import pytest
 
 from strata.cache.fingerprints.models import CacheFingerprint
+from strata.cache.results._helpers.serialization import file_result_to_record
 from strata.cache.results.classes.result_cache import ResultCache
 from strata.cache.results.constants import (
     CACHE_JSON_SUFFIX,
     CACHE_RESULTS_DIRECTORY,
     FINGERPRINT_DIRECTORY_PREFIX_LENGTH,
 )
-from strata.cache.results.helpers.serialization import file_result_to_record
 from strata.cache.results.models import (
     CachedFault,
     CachedFileResult,

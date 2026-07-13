@@ -143,7 +143,7 @@ def test_given_main_functions_when_checking_locals_then_flags_only_over_limit(
             source="def run(a: int, b: int, c: int, d: int, e: int, f: int, g: int, h: int, i: int, j: int, k: int) -> None:\n    return None\n",
             expected_codes=("SFS010",),
             expected_lines=(1,),
-            relative_path="domain/core/helpers/tools.py",
+            relative_path="domain/core/_helpers/tools.py",
         ),
         ShapeRuleTestCase(
             description="method self is exempt from argument count",
@@ -151,7 +151,7 @@ def test_given_main_functions_when_checking_locals_then_flags_only_over_limit(
             source="class Service:\n    def run(self, a: int, b: int, c: int, d: int, e: int, f: int, g: int, h: int, i: int, j: int) -> None:\n        return None\n",
             expected_codes=(),
             expected_lines=(),
-            relative_path="domain/core/helpers/tools.py",
+            relative_path="domain/core/_helpers/tools.py",
         ),
         ShapeRuleTestCase(
             description="helper role argument threshold override is respected",
@@ -160,7 +160,7 @@ def test_given_main_functions_when_checking_locals_then_flags_only_over_limit(
             expected_codes=("SFS010",),
             expected_lines=(1,),
             role_thresholds={"helpers": {Threshold.MAX_ARGUMENTS: 1}},
-            relative_path="domain/core/helpers/tools.py",
+            relative_path="domain/core/_helpers/tools.py",
         ),
     ],
     ids=lambda case: case.description,
@@ -187,7 +187,7 @@ def test_given_functions_when_checking_arguments_then_flags_only_over_limit(
             source=statements_source(71),
             expected_codes=("SFS011",),
             expected_lines=(1,),
-            relative_path="domain/core/helpers/tools.py",
+            relative_path="domain/core/_helpers/tools.py",
         ),
         ShapeRuleTestCase(
             description="helper at global statement floor is allowed",
@@ -195,7 +195,7 @@ def test_given_functions_when_checking_arguments_then_flags_only_over_limit(
             source=statements_source(70),
             expected_codes=(),
             expected_lines=(),
-            relative_path="domain/core/helpers/tools.py",
+            relative_path="domain/core/_helpers/tools.py",
         ),
         ShapeRuleTestCase(
             description="top-level main function is skipped when global rule is selected alone",
@@ -336,13 +336,13 @@ def test_given_functions_when_checking_global_statements_then_flags_only_over_li
             description="discarded directly imported meaningful result is flagged",
             rule_code="SFS101",
             source=(
-                "from pkg.domain.core.helpers.phases import compile_project\n\n\n"
+                "from pkg.domain.core._helpers.phases import compile_project\n\n\n"
                 "def run() -> None:\n"
                 "    compile_project()\n"
             ),
             project_files=(
                 (
-                    "domain/core/helpers/phases.py",
+                    "domain/core/_helpers/phases.py",
                     "def compile_project() -> int:\n    return 1\n",
                 ),
             ),
@@ -353,13 +353,13 @@ def test_given_functions_when_checking_global_statements_then_flags_only_over_li
             description="discarded imported result resolves under a python container",
             rule_code="SFS101",
             source=(
-                "from mypkg.domain.core.helpers.phases import compile_project\n\n\n"
+                "from mypkg.domain.core._helpers.phases import compile_project\n\n\n"
                 "def run() -> None:\n"
                 "    compile_project()\n"
             ),
             project_files=(
                 (
-                    "domain/core/helpers/phases.py",
+                    "domain/core/_helpers/phases.py",
                     "def compile_project() -> int:\n    return 1\n",
                 ),
             ),
@@ -371,13 +371,13 @@ def test_given_functions_when_checking_global_statements_then_flags_only_over_li
             description="discarded module-qualified meaningful result is flagged",
             rule_code="SFS101",
             source=(
-                "import pkg.domain.core.helpers.phases as phases\n\n\n"
+                "import pkg.domain.core._helpers.phases as phases\n\n\n"
                 "def run() -> None:\n"
                 "    phases.compile_project()\n"
             ),
             project_files=(
                 (
-                    "domain/core/helpers/phases.py",
+                    "domain/core/_helpers/phases.py",
                     "def compile_project() -> int:\n    return 1\n",
                 ),
             ),
@@ -473,7 +473,7 @@ def test_given_main_calls_when_checking_results_then_flags_discarded_project_val
             source="def update(values: list[int]) -> None:\n    values.append(1)\n",
             expected_codes=("SFS102",),
             expected_lines=(2,),
-            relative_path="domain/core/helpers/tools.py",
+            relative_path="domain/core/_helpers/tools.py",
         ),
         ShapeRuleTestCase(
             description="self mutation is exempt in helper",
@@ -481,7 +481,7 @@ def test_given_main_calls_when_checking_results_then_flags_discarded_project_val
             source="class Builder:\n    def update(self) -> None:\n        self.values.append(1)\n",
             expected_codes=(),
             expected_lines=(),
-            relative_path="domain/core/helpers/tools.py",
+            relative_path="domain/core/_helpers/tools.py",
         ),
     ],
     ids=lambda case: case.description,
@@ -508,7 +508,7 @@ def test_given_helper_parameter_mutation_when_rule_enabled_then_flags_non_self_m
             source="def update(values: list[int]) -> None:\n    values.append(1)\n",
             expected_codes=("SFS110",),
             expected_lines=(2,),
-            relative_path="domain/core/helpers/tools.py",
+            relative_path="domain/core/_helpers/tools.py",
         ),
         ShapeRuleTestCase(
             description="parameter mutation with return is allowed",
@@ -516,7 +516,7 @@ def test_given_helper_parameter_mutation_when_rule_enabled_then_flags_non_self_m
             source="def update(values: list[int]) -> list[int]:\n    values.append(1)\n    return values\n",
             expected_codes=(),
             expected_lines=(),
-            relative_path="domain/core/helpers/tools.py",
+            relative_path="domain/core/_helpers/tools.py",
         ),
         ShapeRuleTestCase(
             description="two parameter mutation returning one is flagged once",
@@ -524,7 +524,7 @@ def test_given_helper_parameter_mutation_when_rule_enabled_then_flags_non_self_m
             source="def update(left: list[int], right: list[int]) -> list[int]:\n    left.append(1)\n    right.append(2)\n    return left\n",
             expected_codes=("SFS110",),
             expected_lines=(3,),
-            relative_path="domain/core/helpers/tools.py",
+            relative_path="domain/core/_helpers/tools.py",
         ),
         ShapeRuleTestCase(
             description="property setter mutation is exempt",
@@ -532,7 +532,7 @@ def test_given_helper_parameter_mutation_when_rule_enabled_then_flags_non_self_m
             source="class Service:\n    @value.setter\n    def value(self, item: list[int]) -> None:\n        item.append(1)\n",
             expected_codes=(),
             expected_lines=(),
-            relative_path="domain/core/helpers/tools.py",
+            relative_path="domain/core/_helpers/tools.py",
         ),
         ShapeRuleTestCase(
             description="subscript parameter mutation is flagged",
@@ -540,7 +540,7 @@ def test_given_helper_parameter_mutation_when_rule_enabled_then_flags_non_self_m
             source="def update(values: list[int]) -> None:\n    values[0] = 1\n",
             expected_codes=("SFS110",),
             expected_lines=(2,),
-            relative_path="domain/core/helpers/tools.py",
+            relative_path="domain/core/_helpers/tools.py",
         ),
         ShapeRuleTestCase(
             description="attribute parameter mutation is flagged",
@@ -548,7 +548,7 @@ def test_given_helper_parameter_mutation_when_rule_enabled_then_flags_non_self_m
             source="def update(config: object) -> None:\n    config.value = 1\n",
             expected_codes=("SFS110",),
             expected_lines=(2,),
-            relative_path="domain/core/helpers/tools.py",
+            relative_path="domain/core/_helpers/tools.py",
         ),
         ShapeRuleTestCase(
             description="dunder parameter mutation is exempt",
@@ -556,7 +556,7 @@ def test_given_helper_parameter_mutation_when_rule_enabled_then_flags_non_self_m
             source="class Value:\n    def __setitem__(self, key: str, value: int) -> None:\n        value.real = 1\n",
             expected_codes=(),
             expected_lines=(),
-            relative_path="domain/core/helpers/tools.py",
+            relative_path="domain/core/_helpers/tools.py",
         ),
     ],
     ids=lambda case: case.description,
@@ -583,7 +583,7 @@ def test_given_parameter_mutation_when_checking_returns_then_requires_all_mutate
             source="def run(first: int, second: int) -> None:\n    return None\n",
             expected_codes=("SFS120",),
             expected_lines=(1,),
-            relative_path="domain/core/helpers/tools.py",
+            relative_path="domain/core/_helpers/tools.py",
         ),
         ShapeRuleTestCase(
             description="keyword-only parameter is allowed",
@@ -591,7 +591,7 @@ def test_given_parameter_mutation_when_checking_returns_then_requires_all_mutate
             source="def run(*, value: int) -> None:\n    return None\n",
             expected_codes=(),
             expected_lines=(),
-            relative_path="domain/core/helpers/tools.py",
+            relative_path="domain/core/_helpers/tools.py",
         ),
         ShapeRuleTestCase(
             description="dunder positional parameter is exempt",
@@ -599,7 +599,7 @@ def test_given_parameter_mutation_when_checking_returns_then_requires_all_mutate
             source="class Value:\n    def __eq__(self, other: object) -> bool:\n        return False\n",
             expected_codes=(),
             expected_lines=(),
-            relative_path="domain/core/helpers/tools.py",
+            relative_path="domain/core/_helpers/tools.py",
         ),
         ShapeRuleTestCase(
             description="default threshold allows one positional parameter",
@@ -607,7 +607,7 @@ def test_given_parameter_mutation_when_checking_returns_then_requires_all_mutate
             source="def run(value: int) -> None:\n    return None\n",
             expected_codes=(),
             expected_lines=(),
-            relative_path="domain/core/helpers/tools.py",
+            relative_path="domain/core/_helpers/tools.py",
         ),
         ShapeRuleTestCase(
             description="threshold requires separator before first parameter when exceeded",
@@ -616,7 +616,7 @@ def test_given_parameter_mutation_when_checking_returns_then_requires_all_mutate
             expected_codes=("SFS120",),
             expected_lines=(1,),
             thresholds={Threshold.MAX_POSITIONAL_ARGS: 1},
-            relative_path="domain/core/helpers/tools.py",
+            relative_path="domain/core/_helpers/tools.py",
         ),
         ShapeRuleTestCase(
             description="threshold allows entirely keyword-only parameters when exceeded",
@@ -625,7 +625,7 @@ def test_given_parameter_mutation_when_checking_returns_then_requires_all_mutate
             expected_codes=(),
             expected_lines=(),
             thresholds={Threshold.MAX_POSITIONAL_ARGS: 1},
-            relative_path="domain/core/helpers/tools.py",
+            relative_path="domain/core/_helpers/tools.py",
         ),
         ShapeRuleTestCase(
             description="helper role positional threshold override is respected",
@@ -634,7 +634,7 @@ def test_given_parameter_mutation_when_checking_returns_then_requires_all_mutate
             expected_codes=(),
             expected_lines=(),
             role_thresholds={"helpers": {Threshold.MAX_POSITIONAL_ARGS: 1}},
-            relative_path="domain/core/helpers/tools.py",
+            relative_path="domain/core/_helpers/tools.py",
         ),
     ],
     ids=lambda case: case.description,

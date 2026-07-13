@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Family, RuleCheck
-from strata.rules.roles.helpers.checks import (
+from strata.rules.roles._helpers.checks import (
     classes_one_class_per_module,
     helpers_package_shape,
     private_definition_ordering,
     source_file_line_count,
 )
-from strata.rules.roles.helpers.metadata import role_rule_details
+from strata.rules.roles._helpers.metadata import role_rule_details
 from strata.rules.roles.types import RoleCode
 
 

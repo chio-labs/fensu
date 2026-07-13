@@ -23,7 +23,7 @@ from tests.e2e.src.strata.cli.main.helpers import run_configurable_layout_case
             files=(
                 CliProjectFile(
                     relative_path="python/mypkg/domain/alpha/main/run.py",
-                    source="from mypkg.domain.beta.helpers.parse import parse_value\n",
+                    source="from mypkg.domain.beta._helpers.parse import parse_value\n",
                 ),
             ),
             working_directory=".",
@@ -65,13 +65,13 @@ from tests.e2e.src.strata.cli.main.helpers import run_configurable_layout_case
                 CliProjectFile(
                     relative_path="python/mypkg/domain/core/main/run.py",
                     source=(
-                        "from mypkg.domain.core.helpers.phase import build_value\n\n\n"
+                        "from mypkg.domain.core._helpers.phase import build_value\n\n\n"
                         "def run() -> None:\n"
                         "    build_value()\n"
                     ),
                 ),
                 CliProjectFile(
-                    relative_path="python/mypkg/domain/core/helpers/phase.py",
+                    relative_path="python/mypkg/domain/core/_helpers/phase.py",
                     source="def build_value() -> int:\n    return 1\n",
                 ),
             ),

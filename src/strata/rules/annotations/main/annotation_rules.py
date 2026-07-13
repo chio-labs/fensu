@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import ast
 
-from strata.rules.annotations.helpers.checks import annotation_faults
+from strata.rules.annotations._helpers.checks import annotation_faults
 from strata.rules.annotations.types import AnnotationCode
 from strata.rules.authoring.models import Fault, RuleSpec
 from strata.rules.authoring.types import Family, RuleContext

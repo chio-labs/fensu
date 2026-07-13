@@ -12,7 +12,7 @@ from strata.config.models import Config
 from strata.discovery.main.build_project_layout import build_project_layout
 from strata.discovery.models import ProjectLayout, RepoRoot
 from strata.reporting.constants import ANSI_BOLD_RED, ANSI_ORANGE
-from strata.scaffolding.helpers.execution import build_rendered_config, render_config
+from strata.scaffolding._helpers.execution import build_rendered_config, render_config
 from strata.scaffolding.models import InitPlan
 from tests.integration.src.strata.cli.main._test_types import (
     InitApplicabilityTestCase,

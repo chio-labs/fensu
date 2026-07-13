@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Family
-from strata.rules.layers.helpers.checks import no_cross_file_helper_private_classes
+from strata.rules.layers._helpers.checks import no_cross_file_helper_private_classes
 from strata.rules.layers.types import LayerCode
 
 

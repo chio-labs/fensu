@@ -7,13 +7,13 @@ from pathlib import Path
 
 import pytest
 
-from strata.cache.mapping.constants import MAP_MANIFEST_PATH, MAP_MANIFEST_RECORD_KIND
-from strata.cache.mapping.helpers.serialization import (
+from strata.cache.mapping._helpers.serialization import (
     decode_file_declarations,
     decode_manifest,
     file_declarations_record,
     manifest_record,
 )
+from strata.cache.mapping.constants import MAP_MANIFEST_PATH, MAP_MANIFEST_RECORD_KIND
 from strata.cache.mapping.main.build import build_cached_call_map
 from strata.cache.mapping.models import CachedCallMap, FileDeclarations, MapManifest
 from strata.cache.storage.classes.cache_store import CacheStore
@@ -183,7 +183,7 @@ def fail_mapping_identity(monkeypatch: pytest.MonkeyPatch) -> None:
         raise OSError("mapping identity unavailable")
 
     monkeypatch.setattr(
-        "strata.cache.mapping.helpers.evaluation.build_mapping_identity",
+        "strata.cache.mapping._helpers.evaluation.build_mapping_identity",
         fail,
     )
 

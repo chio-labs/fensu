@@ -5,9 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from strata.config.models import Config
-from strata.discovery.helpers.layout import build_project_layout
-from strata.discovery.helpers.repo_root import resolve_repo_root
-from strata.discovery.helpers.scope import discover_scoped_files
+from strata.discovery._helpers.layout import build_project_layout
+from strata.discovery._helpers.repo_root import resolve_repo_root
+from strata.discovery._helpers.scope import discover_scoped_files
 from strata.discovery.models import DiscoveredTree, ProjectLayout, RepoRoot, ScopedFile
 
 

@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from strata.rules.authoring.constants import _RULE_SPEC_ATTRIBUTE
-from strata.rules.authoring.helpers.envelope import (
+from strata.rules.authoring._helpers.envelope import (
     infer_kind,
     resolve_envelope,
     validate_code_namespace,
 )
+from strata.rules.authoring.constants import _RULE_SPEC_ATTRIBUTE
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Family, RuleCheck, RuleKind, Severity
 

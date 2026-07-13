@@ -25,7 +25,7 @@ from tests.unit.src.strata.evaluation.helpers import (
     write_sources,
 )
 
-_source_path: str = "src/pkg/integrations/helpers/progress.py"
+_source_path: str = "src/pkg/integrations/_helpers/progress.py"
 _reason: str = "External callbacks invoke these symbols positionally."
 
 

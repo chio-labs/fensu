@@ -41,10 +41,10 @@ def test_given_excluded_context_when_evaluating_importer_then_retains_queries_an
         files=(
             (
                 "src/pkg/domain_a/core/main/run.py",
-                "from pkg.domain_b.core.helpers.parse import parse_value\n",
+                "from pkg.domain_b.core._helpers.parse import parse_value\n",
             ),
-            ("src/pkg/domain_b/core/helpers/context.py", "CONTEXT: int = 1\n"),
-            ("src/pkg/domain_b/core/helpers/parse.py", "def parse_value() -> None:\n    pass\n"),
+            ("src/pkg/domain_b/core/_helpers/context.py", "CONTEXT: int = 1\n"),
+            ("src/pkg/domain_b/core/_helpers/parse.py", "def parse_value() -> None:\n    pass\n"),
         ),
     )
     monkeypatch.chdir(tmp_path)
@@ -58,7 +58,7 @@ def test_given_excluded_context_when_evaluating_importer_then_retains_queries_an
         rule_exceptions=(
             RuleExceptionEntry(
                 rule="SFL102",
-                path="src/pkg/domain_b/core/helpers/parse.py",
+                path="src/pkg/domain_b/core/_helpers/parse.py",
                 symbols=("parse_value",),
                 reason="Excluded context receives no direct evaluation.",
             ),

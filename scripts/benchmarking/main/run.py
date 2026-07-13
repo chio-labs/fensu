@@ -5,10 +5,10 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+from scripts.benchmarking._helpers.execution import benchmark_processes, render_benchmark
+from scripts.benchmarking._helpers.profiling import profile_check
+from scripts.benchmarking._helpers.rendering import render_profile
 from scripts.benchmarking.exceptions import BenchmarkError
-from scripts.benchmarking.helpers.execution import benchmark_processes, render_benchmark
-from scripts.benchmarking.helpers.profiling import profile_check
-from scripts.benchmarking.helpers.rendering import render_profile
 from scripts.benchmarking.models import BenchmarkReport, ProfileReport
 
 

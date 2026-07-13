@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from strata.config.helpers.path_patterns import path_pattern_matches, path_pattern_specificity
+from strata.config._helpers.path_patterns import path_pattern_matches, path_pattern_specificity
 from tests.unit.src.strata.config._test_types import (
     PathPatternSpecificityTestCase,
     PathPatternTestCase,

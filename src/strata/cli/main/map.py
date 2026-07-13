@@ -10,8 +10,8 @@ from typing import TextIO
 
 from strata.cache.mapping.main.build import build_cached_call_map
 from strata.cache.mapping.models import CachedCallMap, MapCacheStats
+from strata.cli._helpers.map_cache_status import write_map_cache_status
 from strata.cli.constants import NO_COLOR_ENVIRONMENT_VARIABLE
-from strata.cli.helpers.map_cache_status import write_map_cache_status
 from strata.cli.types import ColorMode
 from strata.mapping.exceptions import MapError
 from strata.mapping.main.ast import build_ast_call_map

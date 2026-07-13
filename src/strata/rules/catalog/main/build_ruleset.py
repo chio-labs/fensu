@@ -6,7 +6,7 @@ from pathlib import Path
 
 from strata.config.models import Config
 from strata.rules.authoring.models import RuleSpec
-from strata.rules.catalog.helpers.loading import build_ruleset_from_config
+from strata.rules.catalog._helpers.loading import build_ruleset_from_config
 
 
 def build_ruleset(*, config: Config, repo_root: Path | None = None) -> tuple[RuleSpec, ...]:

@@ -8,7 +8,7 @@ from io import StringIO
 from pathlib import Path
 
 from strata.reporting.classes.cli_style import CliStyle
-from strata.scaffolding.helpers.output import (
+from strata.scaffolding._helpers.output import (
     prompt_accept_layout,
     prompt_project_name,
     prompt_root_selection,

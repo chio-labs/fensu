@@ -13,8 +13,8 @@ from strata.config.models import Config, RuleExceptionEntry
 from strata.rules.authoring.main.define import rule
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Family, RuleKind
+from strata.rules.catalog._helpers import loading as loading_module
 from strata.rules.catalog.constants import CORE_RULES
-from strata.rules.catalog.helpers import loading as loading_module
 from strata.rules.catalog.main.build_ruleset import build_ruleset
 from tests.unit.src.strata.rules.catalog.main._test_types import (
     CatalogueQualityTestCase,

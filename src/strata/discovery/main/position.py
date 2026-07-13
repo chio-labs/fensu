@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from strata.discovery.helpers import position
+from strata.discovery._helpers import position
 from strata.discovery.models import PositionFacts, ScopedFile
 
 

@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.10.0](https://github.com/chio-labs/strata/compare/v0.9.0...v0.10.0) (2026-07-13)
+
+
+### Features
+
+* **roles:** detect shared domain prefixes ([00bf747](https://github.com/chio-labs/strata/commit/00bf747e0bc1a499e93307e7d4bca391696c3522))
+* **rules:** enforce custom rule test coverage ([4cd72b3](https://github.com/chio-labs/strata/commit/4cd72b3960a8b6621857699426eb855e12cbe818))
+* **workflow:** add agent-guided policy foundations ([94303bc](https://github.com/chio-labs/strata/commit/94303bc7550996d30061ad2b2886c58970b56275))
+* **workflow:** add project-aware skills and rule harness ([21cc7c4](https://github.com/chio-labs/strata/commit/21cc7c4ec4e2e473dc721b1cd5192ddb19685a9d))
+
 ## [0.9.0](https://github.com/chio-labs/strata/compare/v0.8.0...v0.9.0) (2026-07-13)
 
 

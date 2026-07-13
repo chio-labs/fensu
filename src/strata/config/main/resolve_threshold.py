@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from strata.config.helpers.thresholds import resolve_threshold as resolve_threshold_value
+from strata.config._helpers.thresholds import resolve_threshold as resolve_threshold_value
 from strata.config.models import Config, ThresholdResolution
 from strata.rules.authoring.types import Threshold
 

@@ -77,7 +77,7 @@ src/my_package/
     └── subdomain/
         ├── main/
         │   └── run.py
-        ├── helpers/
+        ├── _helpers/
         ├── classes/
         ├── models.py
         ├── types.py
@@ -90,7 +90,7 @@ scripts/
 ├── run_tool.py
 └── tool_name/
     ├── main/
-    ├── helpers/
+    ├── _helpers/
     └── classes/
 ```
 
@@ -137,20 +137,20 @@ $ strata map run_map --depth 4
 run_map(...)  src/strata/cli/main/map.py:21
 ├── _parser(...)  src/strata/cli/main/map.py:53
 ├── resolve_mapping_project(...)  src/strata/mapping/main/resolve_project.py:11
-│   └── resolve_mapping_project(...)  src/strata/mapping/helpers/project.py:15
-│       ├── _find_project_root(...)  src/strata/mapping/helpers/project.py:73
-│       ├── _explicit_source(...)  src/strata/mapping/helpers/project.py:65
-│       ├── _optional_config_source(...)  src/strata/mapping/helpers/project.py:38
+│   └── resolve_mapping_project(...)  src/strata/mapping/_helpers/project.py:15
+│       ├── _find_project_root(...)  src/strata/mapping/_helpers/project.py:73
+│       ├── _explicit_source(...)  src/strata/mapping/_helpers/project.py:65
+│       ├── _optional_config_source(...)  src/strata/mapping/_helpers/project.py:38
 │       │   └── find_config_source(...)  src/strata/config/main/find_config.py:12  (depth limit)
-│       └── _configured_project(...)  src/strata/mapping/helpers/project.py:45
+│       └── _configured_project(...)  src/strata/mapping/_helpers/project.py:45
 │           ├── load_config(...)  src/strata/config/main/load_config.py:15  (depth limit)
-│           └── _configured_source(...)  src/strata/mapping/helpers/project.py:57
+│           └── _configured_source(...)  src/strata/mapping/_helpers/project.py:57
 └── build_call_map(...)  src/strata/mapping/main/build.py:12
     ├── provider(...)  src/strata/mapping/main/build.py:24  (unresolved parameter call)
-    └── render_tree(...)  src/strata/mapping/helpers/render.py:19
-        ├── _child_lines(...)  src/strata/mapping/helpers/render.py:41
-        │   └── _child_lines(...)  src/strata/mapping/helpers/render.py:41  (cycle)
-        └── _label(...)  src/strata/mapping/helpers/render.py:88
+    └── render_tree(...)  src/strata/mapping/_helpers/render.py:19
+        ├── _child_lines(...)  src/strata/mapping/_helpers/render.py:41
+        │   └── _child_lines(...)  src/strata/mapping/_helpers/render.py:41  (cycle)
+        └── _label(...)  src/strata/mapping/_helpers/render.py:88
 ```
 
 The map is useful precisely because it is not guessing. `strata check` enforces
@@ -169,7 +169,7 @@ Unavoidable external calling conventions can use exact symbol-scoped exceptions:
 ```toml
 [[rule_exceptions]]
 rule = "SFS120"
-path = "src/my_package/integrations/helpers/callbacks.py"
+path = "src/my_package/integrations/_helpers/callbacks.py"
 symbols = ["ProgressCollector.update"]
 reason = "The external API invokes this callback positionally."
 ```

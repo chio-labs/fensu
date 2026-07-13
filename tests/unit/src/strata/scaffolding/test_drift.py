@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from strata.config.models import Config
-from strata.scaffolding.helpers.drift import measure_drift
+from strata.scaffolding._helpers.drift import measure_drift
 from strata.scaffolding.models import DriftSummary
 from tests.unit.src.strata.scaffolding._test_types import DriftTestCase
 from tests.unit.src.strata.scaffolding.helpers import build_repository

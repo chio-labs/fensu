@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Family
-from strata.rules.naming.helpers.checks import (
+from strata.rules.naming._helpers.checks import (
     iterator_name_must_produce_iterator,
     predicate_must_return_bool,
     validator_must_not_return,

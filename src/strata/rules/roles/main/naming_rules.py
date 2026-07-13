@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Family
-from strata.rules.roles.helpers.checks import (
+from strata.rules.roles._helpers.checks import (
     banned_generic_filename,
     banned_generic_package_name,
     classes_module_name,
@@ -30,8 +30,10 @@ def naming_rules() -> tuple[RuleSpec, ...]:
             code=RoleCode.HELPERS_MODULE_NAME,
             family=Family.ROLES,
             slug="helpers-module-name",
-            message="use a helpers package instead of helpers.py",
-            remediation="Replace helpers.py with a helpers/ package of specifically named modules.",
+            message="use an _helpers package instead of helpers.py",
+            remediation=(
+                "Replace helpers.py with an _helpers/ package of specifically named modules."
+            ),
             check=helpers_module_name,
         ),
         RuleSpec(
@@ -58,7 +60,7 @@ def naming_rules() -> tuple[RuleSpec, ...]:
             code=RoleCode.HELPERS_CLASSES_FILE_PRIVATE,
             family=Family.ROLES,
             slug="helpers-classes-file-private",
-            message="plain classes in helpers modules must be file-private",
+            message="plain classes in _helpers modules must be file-private",
             remediation=(
                 "Prefix a file-local helper class with _, or move a shared class into classes/."
             ),

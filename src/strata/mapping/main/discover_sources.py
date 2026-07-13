@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from strata.mapping.helpers.index import discover_source_snapshots
+from strata.mapping._helpers.index import discover_source_snapshots
 from strata.mapping.models import MappingSource, SourceSnapshot
 
 

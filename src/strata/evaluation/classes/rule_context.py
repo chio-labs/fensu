@@ -20,7 +20,7 @@ from strata.config.models import Config, ThresholdResolution
 from strata.discovery.constants import INIT_MODULE_FILE_NAME, ROLE_FILE_TO_NAME
 from strata.discovery.models import ProjectLayout, RepoRoot
 from strata.discovery.types import RoleName, ScopeName
-from strata.evaluation.helpers import ast_access
+from strata.evaluation._helpers import ast_access
 from strata.evaluation.models import ParsedModule, ThresholdOverrideUse
 from strata.rules.authoring.models import Fault, RuleSpec
 from strata.rules.authoring.types import Threshold

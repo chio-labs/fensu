@@ -10,12 +10,12 @@ import pytest
 from strata.config.models import Config
 from strata.discovery.main.discover_files import discover_files
 from strata.discovery.models import ScopedFile
-from strata.evaluation.helpers.parsing import parse_scoped_file
+from strata.evaluation._helpers.parsing import parse_scoped_file
 from strata.evaluation.main.evaluate import evaluate
 from strata.evaluation.models import EvaluationResult, ParsedModule
 from strata.rules.authoring.types import RuleContext
+from strata.rules.tests._helpers import checks as test_checks
 from strata.rules.tests.constants import SFT_RULES
-from strata.rules.tests.helpers import checks as test_checks
 from tests.unit.src.strata.rules.tests.main._test_types import (
     SftConfiguredLayoutTestCase,
     SftOperationTestCase,
@@ -112,7 +112,7 @@ def test_given_complete_tests_family_when_evaluating_then_bounds_local_type_load
         return original_layout_issue(ctx=ctx)
 
     monkeypatch.setattr(
-        "strata.evaluation.helpers.project_analysis.parse_scoped_file",
+        "strata.evaluation._helpers.project_analysis.parse_scoped_file",
         count_parse,
     )
     monkeypatch.setattr(test_checks, "_layout_issue", count_layout_issue)

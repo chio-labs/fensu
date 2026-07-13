@@ -453,7 +453,7 @@ def test_given_numeric_literals_when_checking_comparisons_then_requires_named_th
             source="register_plugins()\n",
             expected_codes=("SFH009",),
             expected_lines=(1,),
-            relative_path="src/pkg/domain/core/helpers/startup.py",
+            relative_path="src/pkg/domain/core/_helpers/startup.py",
         ),
         HygieneRuleTestCase(
             description="tooling module standalone call is flagged",
@@ -461,7 +461,7 @@ def test_given_numeric_literals_when_checking_comparisons_then_requires_named_th
             source="register_plugins()\n",
             expected_codes=("SFH009",),
             expected_lines=(1,),
-            relative_path="scripts/helpers/startup.py",
+            relative_path="scripts/_helpers/startup.py",
             tooling=("scripts",),
         ),
         HygieneRuleTestCase(

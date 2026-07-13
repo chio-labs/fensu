@@ -7,8 +7,8 @@ from types import MappingProxyType
 
 import pytest
 
-import strata.cache.fingerprints.helpers.fingerprints as fingerprint_module
-from strata.cache.fingerprints.helpers.fingerprints import (
+import strata.cache.fingerprints._helpers.fingerprints as fingerprint_module
+from strata.cache.fingerprints._helpers.fingerprints import (
     canonical_fingerprint,
     config_fingerprint,
     custom_rules_fingerprint,
@@ -24,7 +24,7 @@ from strata.cache.fingerprints.models import (
     FileResultFingerprints,
     GlobalFingerprintBuild,
 )
-from strata.cache.results.helpers.serialization import file_result_to_record
+from strata.cache.results._helpers.serialization import file_result_to_record
 from strata.cache.results.models import CachedFileResult
 from strata.config.models import CacheConfig, Config, EvaluationConfig, ThresholdOverride
 from strata.rules.authoring.models import RuleSpec

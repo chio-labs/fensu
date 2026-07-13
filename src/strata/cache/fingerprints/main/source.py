@@ -1,6 +1,6 @@
 """Build a complete source-content fingerprint."""
 
-from strata.cache.fingerprints.helpers.fingerprints import source_fingerprint
+from strata.cache.fingerprints._helpers.fingerprints import source_fingerprint
 from strata.cache.fingerprints.models import CacheFingerprint
 
 

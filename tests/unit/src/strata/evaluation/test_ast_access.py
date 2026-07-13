@@ -10,7 +10,7 @@ import pytest
 
 from strata.analysis.main.build import build_analysis
 from strata.analysis.types import AnalysisBuild
-from strata.evaluation.helpers import ast_access
+from strata.evaluation._helpers import ast_access
 from tests.unit.src.strata.evaluation._test_types import (
     AstAccessTestCase,
     AstIndexTestCase,

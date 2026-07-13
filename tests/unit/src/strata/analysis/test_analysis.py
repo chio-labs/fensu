@@ -560,12 +560,12 @@ def test_given_source_comments_when_querying_facts_then_returns_token_positions(
         ReferenceFactTestCase(
             description="reference facts preserve grouped imports and breadth-first events",
             source=(
-                "from pkg.domain.helpers import parse as parser\n"
-                "import pkg.domain.helpers.format as formatter\n"
+                "from pkg.domain._helpers import parse as parser\n"
+                "import pkg.domain._helpers.format as formatter\n"
                 "value = parser._Cursor()\n"
             ),
-            expected_import_modules=(("pkg", "domain", "helpers"), ()),
-            expected_import_names=(("parse",), ("pkg.domain.helpers.format",)),
+            expected_import_modules=(("pkg", "domain", "_helpers"), ()),
+            expected_import_names=(("parse",), ("pkg.domain._helpers.format",)),
             expected_event_types=("ImportFact", "ImportFact", "AttributeReferenceFact"),
             expected_event_lines=(1, 2, 3),
         )

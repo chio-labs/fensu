@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from strata.discovery.helpers.module_path import module_path
-from strata.discovery.helpers.position import (
+from strata.discovery._helpers.module_path import module_path
+from strata.discovery._helpers.position import (
     domain,
     in_role,
     is_entry_module,
@@ -46,8 +46,8 @@ from tests.unit.src.strata.discovery.helpers import make_config, only_file, writ
         ),
         PositionFactTestCase(
             description="helpers file has helper role",
-            file_path="src/pkg/config/core/helpers/parse.py",
-            expected_relative_parts=("config", "core", "helpers", "parse.py"),
+            file_path="src/pkg/config/core/_helpers/parse.py",
+            expected_relative_parts=("config", "core", "_helpers", "parse.py"),
             expected_domain="config",
             expected_subdomain="core",
             expected_role="helpers",
@@ -117,13 +117,13 @@ def test_given_scoped_file_when_reading_position_then_returns_expected_facts(
         ),
         MainModuleTestCase(
             description="helpers file is neither entry nor main module",
-            file_path="src/pkg/config/core/helpers/parse.py",
+            file_path="src/pkg/config/core/_helpers/parse.py",
             expected_is_entry_module=False,
             expected_is_main_module=False,
         ),
         MainModuleTestCase(
             description="main bucket nested below helpers is not an entry module",
-            file_path="src/pkg/config/core/helpers/main/read.py",
+            file_path="src/pkg/config/core/_helpers/main/read.py",
             expected_is_entry_module=False,
             expected_is_main_module=False,
         ),

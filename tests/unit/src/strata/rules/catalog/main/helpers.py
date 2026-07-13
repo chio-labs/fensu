@@ -83,7 +83,7 @@ def write_importing_custom_rule_package(*, root: Path, rule_code: str) -> Path:
 
     package: Path = root / "scripts/strata_rules"
     rules_path: Path = package / "rules/custom.py"
-    helper_path: Path = package / "helpers/names.py"
+    helper_path: Path = package / "_helpers/names.py"
     rules_path.parent.mkdir(parents=True)
     helper_path.parent.mkdir(parents=True)
     for init_path in (
@@ -100,7 +100,7 @@ from __future__ import annotations
 
 import ast
 
-from scripts.strata_rules.helpers.names import RULE_MESSAGE
+from scripts.strata_rules._helpers.names import RULE_MESSAGE
 from strata import Family, Fault, RuleContext, rule
 
 

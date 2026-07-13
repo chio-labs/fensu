@@ -12,7 +12,7 @@ from strata.cache.fingerprints.main.build_global import build_global_fingerprint
 from strata.cache.fingerprints.models import GlobalFingerprintBuild
 from strata.cache.results.main.evaluate import evaluate_with_cache
 from strata.cache.results.models import CacheEvaluation, CacheStats
-from strata.cli.helpers.check_reporting import render_check_result
+from strata.cli._helpers.check_reporting import render_check_result
 from strata.cli.main.cache_status import write_cache_status
 from strata.config.exceptions import ConfigError
 from strata.config.main.load_project_config import load_project_config

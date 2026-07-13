@@ -8,11 +8,11 @@ import pytest
 
 from strata.analysis.types import ProjectDependencyKind
 from strata.cache.fingerprints.models import CacheFingerprint
-from strata.cache.results.constants import CACHE_FILE_RESULT_KIND
-from strata.cache.results.helpers.serialization import (
+from strata.cache.results._helpers.serialization import (
     file_result_from_record,
     file_result_to_record,
 )
+from strata.cache.results.constants import CACHE_FILE_RESULT_KIND
 from strata.cache.results.models import (
     CachedFault,
     CachedFileResult,

@@ -7,8 +7,8 @@ from typing import cast
 import pytest
 
 from strata.cache.fingerprints.types import CanonicalValue
-from strata.cache.mapping.helpers.fingerprints import file_declaration_identity
-from strata.cache.mapping.helpers.serialization import (
+from strata.cache.mapping._helpers.fingerprints import file_declaration_identity
+from strata.cache.mapping._helpers.serialization import (
     decode_file_declarations,
     file_declarations_record,
 )

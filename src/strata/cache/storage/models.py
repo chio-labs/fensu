@@ -24,6 +24,7 @@ class CacheWrite:
 
     relative_path: Path
     record: CacheRecord
+    encoded: bytes | None = None
 
 
 @dataclass(frozen=True, slots=True)

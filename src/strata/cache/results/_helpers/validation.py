@@ -19,15 +19,15 @@ from strata.cache.results.constants import (
 )
 from strata.cache.results.models import DependencyObservation
 
+_FINGERPRINT_PATTERN: re.Pattern[str] = re.compile(
+    f"[{''.join(sorted(SHA256_HEX_DIGITS))}]{{{SHA256_HEX_LENGTH}}}"
+)
+
 
 def is_fingerprint(value: object) -> bool:
     """Return whether a value is a canonical lowercase SHA-256 identity."""
 
-    return (
-        isinstance(value, str)
-        and len(value) == SHA256_HEX_LENGTH
-        and all(character in SHA256_HEX_DIGITS for character in value)
-    )
+    return isinstance(value, str) and _FINGERPRINT_PATTERN.fullmatch(value) is not None
 
 
 def fingerprint_or_none(value: object) -> CacheFingerprint | None:

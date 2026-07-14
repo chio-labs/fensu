@@ -218,6 +218,9 @@ class EvaluationRuleContext:
     def module_parts(self) -> tuple[str, ...]:
         """The current file's complete importable module parts."""
 
+        return self._memoize(key="module_parts", operation=self._computed_module_parts)
+
+    def _computed_module_parts(self) -> tuple[str, ...]:
         relative: Path = self.path.relative_to(self.scope_root().parent)
         parts: tuple[str, ...] = (*relative.parts[:-1], relative.stem)
         return (
@@ -319,16 +322,7 @@ class EvaluationRuleContext:
     def threshold(self, *, name: Threshold, path: Path | None = None) -> int:
         """The applicable path, role, or global threshold for a reported path."""
 
-        reported_path: Path = self.path if path is None else path
-        relative_path: str = reported_path.relative_to(self.repo_root).as_posix()
-        role: str | None = (
-            self.role_of()
-            if path is None
-            else _role_for_path(path=reported_path, scope_root=self.scope_root())
-        )
-        resolution: ThresholdResolution = resolve_threshold(
-            config=self._config, name=name, path=relative_path, role=role
-        )
+        resolution: ThresholdResolution = self._resolved_threshold(name=name, path=path)
         if (
             resolution.matched_pattern is not None
             and resolution.reason is not None
@@ -345,6 +339,21 @@ class EvaluationRuleContext:
                 )
             )
         return resolution.effective_value
+
+    def _resolved_threshold(self, *, name: Threshold, path: Path | None) -> ThresholdResolution:
+        relative_path, role = self._threshold_position(path=path)
+        return resolve_threshold(config=self._config, name=name, path=relative_path, role=role)
+
+    def _threshold_position(self, *, path: Path | None) -> tuple[str, str | None]:
+        if path is None:
+            return self._memoize(key="threshold:own_position", operation=self._own_position)
+        return (
+            path.relative_to(self.repo_root).as_posix(),
+            _role_for_path(path=path, scope_root=self.scope_root()),
+        )
+
+    def _own_position(self) -> tuple[str, str | None]:
+        return (self.path.relative_to(self.repo_root).as_posix(), self.role_of())
 
     def contracts(self) -> Mapping[str, str]:
         """Return configured function-name behavior contracts."""

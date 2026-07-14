@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from functools import cache
 from pathlib import Path
 
 from strata.analysis.models import ProjectDependency
@@ -90,12 +91,12 @@ def restore_file_evaluation(*, result: CachedFileResult, repo_root: Path) -> Fil
     """Restore one validated backend-neutral result to runtime evaluation models."""
 
     return FileEvaluation(
-        path=repo_root / result.path,
+        path=_restored_path(repo_root=repo_root, relative=result.path),
         source_fingerprint=result.source_fingerprint.value,
         faults=tuple(
             Fault(
                 code=fault.code,
-                path=repo_root / fault.path,
+                path=_restored_path(repo_root=repo_root, relative=fault.path),
                 message=fault.message,
                 line=fault.line,
                 column=fault.column,
@@ -106,7 +107,7 @@ def restore_file_evaluation(*, result: CachedFileResult, repo_root: Path) -> Fil
         warnings=tuple(
             Fault(
                 code=warning.code,
-                path=repo_root / warning.path,
+                path=_restored_path(repo_root=repo_root, relative=warning.path),
                 message=warning.message,
                 line=warning.line,
                 column=warning.column,
@@ -120,9 +121,12 @@ def restore_file_evaluation(*, result: CachedFileResult, repo_root: Path) -> Fil
         ),
         dependencies=tuple(
             ProjectDependency(
-                requester=repo_root / dependency.requester_path,
-                query_path=repo_root / dependency.query_path,
-                dependency=repo_root / dependency.dependency_path,
+                requester=_restored_path(repo_root=repo_root, relative=dependency.requester_path),
+                query_path=_restored_path(repo_root=repo_root, relative=dependency.query_path),
+                dependency=_restored_path(
+                    repo_root=repo_root,
+                    relative=dependency.dependency_path,
+                ),
                 kind=dependency.kind,
                 answer=_restore_dependency_answer(answer=dependency.answer, repo_root=repo_root),
                 pattern=dependency.pattern,
@@ -257,5 +261,10 @@ def _restore_dependency_answer(
     repo_root: Path,
 ) -> None | bool | str | tuple[Path, ...]:
     if isinstance(answer, tuple):
-        return tuple(repo_root / path for path in answer)
+        return tuple(_restored_path(repo_root=repo_root, relative=path) for path in answer)
     return answer
+
+
+@cache
+def _restored_path(*, repo_root: Path, relative: str) -> Path:
+    return repo_root / relative

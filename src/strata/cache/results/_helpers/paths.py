@@ -1,5 +1,6 @@
 """Normalize repository paths without filesystem observation."""
 
+from functools import cache
 from pathlib import Path
 
 from strata.cache.results.constants import (
@@ -9,6 +10,7 @@ from strata.cache.results.constants import (
 )
 
 
+@cache
 def relative_repository_path(
     *,
     path: Path,

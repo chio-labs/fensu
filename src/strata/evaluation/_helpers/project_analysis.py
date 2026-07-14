@@ -58,6 +58,7 @@ class _EvaluationProjectAnalysis:
         self._source_answers: dict[Path, str | None] = {}
         self._dataclasses: dict[Path, tuple[DataclassFact, ...]] = {}
         self._dependencies: list[ProjectDependency] = []
+        self._dependencies_by_requester: dict[Path, list[ProjectDependency]] = {}
         self._dependency_set: set[ProjectDependency] = set()
         self._resolved_paths: dict[Path, Path] = {}
         self._exists: dict[Path, bool] = {}
@@ -120,11 +121,7 @@ class _EvaluationProjectAnalysis:
         """Return deterministic dependencies observed for one requester."""
 
         resolved_requester: Path = self._resolve(requester)
-        return tuple(
-            dependency
-            for dependency in self._dependencies
-            if dependency.requester == resolved_requester
-        )
+        return tuple(self._dependencies_by_requester.get(resolved_requester, ()))
 
     def dataclasses(self, *, requester: Path, path: Path) -> tuple[DataclassFact, ...]:
         """Return top-level dataclass facts for a project path."""
@@ -314,6 +311,7 @@ class _EvaluationProjectAnalysis:
         if observed not in self._dependency_set:
             self._dependency_set.add(observed)
             self._dependencies.append(observed)
+            self._dependencies_by_requester.setdefault(observed.requester, []).append(observed)
 
     def _resolve(self, path: Path) -> Path:
         resolved: Path | None = self._resolved_paths.get(path)

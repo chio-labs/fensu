@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import re
-from pathlib import PurePosixPath
 from typing import cast
 
 from strata.analysis.types import ProjectDependencyKind
 from strata.cache.fingerprints.models import CacheFingerprint
 from strata.cache.results.constants import (
+    CURRENT_PATH_PART,
     PARENT_PATH_PART,
+    POSIX_PATH_SEPARATOR,
     REPOSITORY_ROOT_PATH,
     RULE_EXCEPTION_SYMBOL_PATTERN,
     SHA256_HEX_DIGITS,
@@ -40,10 +41,12 @@ def is_relative_path(*, value: object, allow_root: bool = False) -> bool:
 
     if not isinstance(value, str) or not value or WINDOWS_PATH_SEPARATOR in value:
         return False
-    path: PurePosixPath = PurePosixPath(value)
-    if path.is_absolute() or PARENT_PATH_PART in path.parts or path.as_posix() != value:
-        return False
-    return allow_root or value != REPOSITORY_ROOT_PATH
+    if value == REPOSITORY_ROOT_PATH:
+        return allow_root
+    for segment in value.split(POSIX_PATH_SEPARATOR):
+        if not segment or segment == CURRENT_PATH_PART or segment == PARENT_PATH_PART:
+            return False
+    return True
 
 
 def is_rule_exception_symbol(value: object) -> bool:

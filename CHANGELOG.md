@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.12.0](https://github.com/chio-labs/strata/compare/v0.11.0...v0.12.0) (2026-07-14)
+
+
+### Features
+
+* **cache:** scope caching per rule with declared cacheability ([800d57c](https://github.com/chio-labs/strata/commit/800d57c2ff1bac56523a622d67a78b37eb213334))
+* **cache:** scope caching per rule with declared cacheability ([5e3dde5](https://github.com/chio-labs/strata/commit/5e3dde5a0aadcb9fde7a87c00981b026cdc7bdec))
+
 ## [0.11.0](https://github.com/chio-labs/strata/compare/v0.10.1...v0.11.0) (2026-07-14)
 
 

@@ -138,6 +138,7 @@ class ResultCache:
             fingerprints: FileResultFingerprints = file_result_fingerprints(
                 global_fingerprint=global_fingerprint,
                 result=result,
+                record=record,
             )
             candidates.append(
                 PublicationCandidate(
@@ -403,20 +404,13 @@ def _validated_result(
         return None
     if record is None:
         return None
+    if record.content_fingerprint is None or record.content_fingerprint != entry.record_fingerprint:
+        return None
     result: CachedFileResult | None = file_result_from_record(record)
     if (
         result is None
         or result.path != entry.path
         or result.source_fingerprint != entry.source_fingerprint
-    ):
-        return None
-    fingerprints: FileResultFingerprints = file_result_fingerprints(
-        global_fingerprint=global_fingerprint,
-        result=result,
-    )
-    if (
-        fingerprints.result != entry.result_fingerprint
-        or fingerprints.record != entry.record_fingerprint
     ):
         return None
     return result

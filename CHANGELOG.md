@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.13.0](https://github.com/chio-labs/strata/compare/v0.12.0...v0.13.0) (2026-07-14)
+
+
+### Features
+
+* **cli:** flatten skills command and method selectors ([7de134c](https://github.com/chio-labs/strata/commit/7de134c913eed73315e45de5347e98995a3036af))
+* **cli:** flatten skills command and method selectors ([9bd6942](https://github.com/chio-labs/strata/commit/9bd6942553984fda1dcdd4f59662e29155802fb5))
+
 ## [0.12.0](https://github.com/chio-labs/strata/compare/v0.11.0...v0.12.0) (2026-07-14)
 
 

@@ -6,3 +6,22 @@ resolver = "2"
 edition = "2021"
 license = "Apache-2.0"
 publish = false
+
+[workspace.dependencies]
+proc-macro2 = { version = "1", features = ["span-locations"] }
+pyo3 = { version = "0.29", features = ["abi3-py312"] }
+quote = "1"
+ruff_python_ast = "=0.0.4"
+ruff_python_parser = "=0.0.4"
+ruff_text_size = "=0.0.4"
+syn = { version = "2", features = ["full", "visit", "extra-traits"] }
+toml = "0.9"
+walkdir = "2"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+unreachable_pub = "deny"
+unused_must_use = "deny"
+
+[workspace.lints.clippy]
+await_holding_lock = "deny"

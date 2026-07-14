@@ -17,17 +17,19 @@ pub(crate) fn check_containers(files: &[models::SourceFile]) -> Vec<models::Viol
             continue;
         };
         let depth = remainder.split('/').count();
-        if depth == 1 && remainder != constants::MOD_FILE {
-            *direct_modules.entry(container.clone()).or_insert(0) += 1;
-        }
-        if depth == constants::MAX_CONTAINER_COMPONENT_DEPTH {
-            *bucket_modules.entry(container.clone()).or_insert(0) += 1;
-        }
         if depth > constants::MAX_CONTAINER_COMPONENT_DEPTH {
             violations.push(container_violation(
                 &container,
                 "nests modules beyond one grouping level",
             ));
+            continue;
+        }
+        if depth == 1 && remainder != constants::MOD_FILE {
+            *direct_modules.entry(container).or_insert(0) += 1;
+            continue;
+        }
+        if depth == constants::MAX_CONTAINER_COMPONENT_DEPTH {
+            *bucket_modules.entry(container).or_insert(0) += 1;
         }
     }
     let containers: Vec<String> = direct_modules

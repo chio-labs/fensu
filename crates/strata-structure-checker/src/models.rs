@@ -48,6 +48,20 @@ pub struct SourceFile {
     pub source: String,
 }
 
+/// Files and setup violations produced while scanning one source root.
+#[derive(Debug)]
+pub struct SourceScan {
+    pub files: Vec<SourceFile>,
+    pub violations: Vec<Violation>,
+}
+
+/// Workspace members and setup violations produced from the root manifest.
+#[derive(Debug)]
+pub struct WorkspaceScan {
+    pub crate_directories: Vec<path::PathBuf>,
+    pub violations: Vec<Violation>,
+}
+
 impl SourceFile {
     /// Return the file name portion of the path.
     pub fn file_name(&self) -> &str {

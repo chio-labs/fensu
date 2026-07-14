@@ -107,13 +107,19 @@ fn check_assertions(
 ) -> Vec<models::Violation> {
     let line = Some(item_fn.sig.ident.span().start().line);
     if body.assert_tokens.is_empty() {
-        return Vec::new();
+        return vec![models::Violation::new(
+            "RST404",
+            file.relative_path(),
+            line,
+            "test contains no assertion against an expected_ field",
+            "assert the observed behavior against test_case.expected_*",
+        )];
     }
     let mut violations: Vec<models::Violation> = Vec::new();
     let mentions_expected = body
         .assert_tokens
         .iter()
-        .any(|tokens| tokens.contains(constants::EXPECTED_FIELD_PREFIX));
+        .any(|tokens| references_case_field(tokens, constants::EXPECTED_FIELD_PREFIX, true));
     if !mentions_expected {
         violations.push(models::Violation::new(
             "RST404",
@@ -126,7 +132,7 @@ fn check_assertions(
     let mentions_description = body
         .assert_tokens
         .iter()
-        .any(|tokens| tokens.contains(constants::DESCRIPTION_FIELD));
+        .any(|tokens| references_case_field(tokens, constants::DESCRIPTION_FIELD, false));
     if !mentions_description {
         violations.push(models::Violation::new(
             "RST407",
@@ -166,7 +172,7 @@ struct TestBody {
     case_binding_line: Option<usize>,
     case_array_length: Option<usize>,
     for_loops: Vec<(String, bool, usize)>,
-    assert_tokens: Vec<String>,
+    assert_tokens: Vec<proc_macro2::TokenStream>,
     run_cases_calls: usize,
 }
 
@@ -200,7 +206,7 @@ impl<'ast> Visit<'ast> for BodyVisitor {
             .map(|segment| segment.ident.to_string())
             .unwrap_or_default();
         if constants::ASSERT_MACROS.contains(&name.as_str()) {
-            self.body.assert_tokens.push(node.tokens.to_string());
+            self.body.assert_tokens.push(node.tokens.clone());
         }
         syn::visit::visit_macro(self, node);
     }
@@ -219,6 +225,37 @@ impl<'ast> Visit<'ast> for BodyVisitor {
         }
         syn::visit::visit_expr_call(self, node);
     }
+}
+
+fn references_case_field(
+    stream: &proc_macro2::TokenStream,
+    field_name: &str,
+    prefix: bool,
+) -> bool {
+    let tokens: Vec<proc_macro2::TokenTree> = stream.clone().into_iter().collect();
+    if tokens.windows(3).any(|window| {
+        let [
+            proc_macro2::TokenTree::Ident(_owner),
+            proc_macro2::TokenTree::Punct(dot),
+            proc_macro2::TokenTree::Ident(field),
+        ] = window
+        else {
+            return false;
+        };
+        let matches_field = match prefix {
+            true => field.to_string().starts_with(field_name),
+            false => field == field_name,
+        };
+        dot.as_char() == '.' && matches_field
+    }) {
+        return true;
+    }
+    tokens.iter().any(|token| match token {
+        proc_macro2::TokenTree::Group(group) => {
+            references_case_field(&group.stream(), field_name, prefix)
+        }
+        _ => false,
+    })
 }
 
 struct ControlFlowVisitor {

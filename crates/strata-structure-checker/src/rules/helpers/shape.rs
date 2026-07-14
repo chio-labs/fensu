@@ -16,19 +16,9 @@ pub(crate) fn check(
 ) -> Vec<models::Violation> {
     let mut visitor = ShapeVisitor {
         functions: Vec::new(),
-        statics: Vec::new(),
     };
     visitor.visit_file(syntax);
     let mut violations: Vec<models::Violation> = Vec::new();
-    for line in &visitor.statics {
-        violations.push(models::Violation::new(
-            "RSS130",
-            file.relative_path(),
-            Some(*line),
-            "static item holds outer state",
-            "pass state explicitly through parameters and return values",
-        ));
-    }
     let entry = kind == FileKind::ModuleFile && file.has_directory(constants::MAIN_DIRECTORY);
     for function in &visitor.functions {
         violations.extend(budget_violations(file, function, entry));
@@ -46,7 +36,6 @@ struct FunctionShape {
 
 struct ShapeVisitor {
     functions: Vec<FunctionShape>,
-    statics: Vec<usize>,
 }
 
 impl<'ast> Visit<'ast> for ShapeVisitor {
@@ -59,11 +48,6 @@ impl<'ast> Visit<'ast> for ShapeVisitor {
         self.functions.push(function_shape(&node.sig, &node.block));
         syn::visit::visit_impl_item_fn(self, node);
     }
-
-    fn visit_item_static(&mut self, node: &'ast syn::ItemStatic) {
-        self.statics.push(node.ident.span().start().line);
-        syn::visit::visit_item_static(self, node);
-    }
 }
 
 struct BodyCounter {
@@ -73,6 +57,10 @@ struct BodyCounter {
 }
 
 impl<'ast> Visit<'ast> for BodyCounter {
+    fn visit_item_fn(&mut self, _node: &'ast syn::ItemFn) {}
+
+    fn visit_expr_closure(&mut self, _node: &'ast syn::ExprClosure) {}
+
     fn visit_stmt(&mut self, node: &'ast syn::Stmt) {
         self.statements += 1;
         syn::visit::visit_stmt(self, node);

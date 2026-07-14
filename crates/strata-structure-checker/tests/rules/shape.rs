@@ -55,12 +55,14 @@ fn given_shape_fixtures_when_checking_then_reports_expected_codes() {
             expected_violation_codes: vec!["RSS003"],
         },
         test_types::CheckRepoTestCase {
-            description: "static outer state is reported",
+            description: "closure body is not charged to its owning function",
             repo_files: vec![test_types::RepoFile {
-                path: "crates/example/src/reading/helpers/caching.rs".to_owned(),
-                contents: "static CACHE: usize = 1;\n".to_owned(),
+                path: "crates/example/src/reading/main/read_value.rs".to_owned(),
+                contents: "pub fn read_value() -> usize {\n    let operation = || {\n".to_owned()
+                    + &"        let value = 1;\n".repeat(35)
+                    + "        value\n    };\n    operation()\n}\n",
             }],
-            expected_violation_codes: vec!["RSS130"],
+            expected_violation_codes: vec![],
         },
     ];
 

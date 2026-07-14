@@ -17,6 +17,7 @@ from strata.cache.results.models import (
     CacheIndexEntry,
     CacheLookup,
     CacheStats,
+    CheckCacheContext,
 )
 from strata.cache.results.types import DependencyStateCache
 from strata.cache.storage.exceptions import CachePathError, CacheRecordError
@@ -72,7 +73,8 @@ def run_cached_evaluation(
             stats=CacheStats(non_cacheable=len(targets)),
         )
     cache: ResultCache = ResultCache(repo_root=tree.repo_root.path)
-    index: CacheIndex | None = cache.load_index(global_fingerprint=global_fingerprint)
+    context: CheckCacheContext = cache.load_check_context(global_fingerprint=global_fingerprint)
+    index: CacheIndex | None = context.index
     entries: dict[str, CacheIndexEntry] = (
         {entry.path: entry for entry in index.entries} if index is not None else {}
     )
@@ -92,7 +94,7 @@ def run_cached_evaluation(
         entries=loaded_entries,
     )
     project: EvaluationProjectAnalysis = build_evaluation_project(tree=tree)
-    file_evaluations: list[FileEvaluation] = []
+    ordered_results: list[FileEvaluation | CachedFileResult] = []
     fresh_evaluations: list[FileEvaluation] = []
     retained_entries: list[CacheIndexEntry] = []
     dependency_states: DependencyStateCache = {}
@@ -115,9 +117,7 @@ def run_cached_evaluation(
                 dependency_states=dependency_states,
             )
         if lookup is not None and lookup.result is not None:
-            file_evaluations.append(
-                restore_file_evaluation(result=lookup.result, repo_root=tree.repo_root.path)
-            )
+            ordered_results.append(lookup.result)
             hits += 1
             if entry is not None:
                 retained_entries.append(entry)
@@ -134,9 +134,24 @@ def run_cached_evaluation(
             tree=tree,
             project=project,
         )
-        file_evaluations.append(fresh)
+        ordered_results.append(fresh)
         fresh_evaluations.append(fresh)
-    evaluations: tuple[FileEvaluation, ...] = tuple(file_evaluations)
+    sorted_targets: tuple[str, ...] = tuple(sorted(target_paths))
+    if (
+        context.output is not None
+        and misses == 0
+        and invalidations == 0
+        and not fresh_evaluations
+        and context.output.targets == sorted_targets
+    ):
+        return CacheEvaluation(
+            result=None,
+            stats=CacheStats(hits=hits),
+            short_circuit=context.output,
+        )
+    evaluations: tuple[FileEvaluation, ...] = tuple(
+        _materialized(item=item, repo_root=tree.repo_root.path) for item in ordered_results
+    )
     collected_dependencies: list[ProjectDependency] = []
     for file_evaluation in evaluations:
         collected_dependencies.extend(file_evaluation.dependencies)
@@ -155,6 +170,11 @@ def run_cached_evaluation(
         fresh_evaluations=tuple(fresh_evaluations),
         retained_entries=tuple(retained_entries),
     )
+    surface_ready: bool = (
+        publication.non_cacheable == 0
+        and not publication.storage_failed
+        and not publication.internal_error
+    )
     return CacheEvaluation(
         result=result,
         stats=CacheStats(
@@ -166,7 +186,18 @@ def run_cached_evaluation(
             storage_failed=publication.storage_failed,
             internal_error=publication.internal_error,
         ),
+        surface_targets=sorted_targets if surface_ready else None,
     )
+
+
+def _materialized(
+    *,
+    item: FileEvaluation | CachedFileResult,
+    repo_root: Path,
+) -> FileEvaluation:
+    if isinstance(item, FileEvaluation):
+        return item
+    return restore_file_evaluation(result=item, repo_root=repo_root)
 
 
 def _publish_results(

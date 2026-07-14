@@ -60,11 +60,33 @@ class CacheLookup:
 
 
 @dataclass(frozen=True, slots=True)
+class CachedCheckOutput:
+    """One complete rendered check surface bound to a cache generation."""
+
+    global_fingerprint: CacheFingerprint
+    index_fingerprint: CacheFingerprint
+    targets: tuple[str, ...]
+    plain_output: str
+    color_output: str
+    exit_code: int
+
+
+@dataclass(frozen=True, slots=True)
+class CheckCacheContext:
+    """Validated index and optional rendered-output surface for one check."""
+
+    index: CacheIndex | None
+    output: CachedCheckOutput | None
+
+
+@dataclass(frozen=True, slots=True)
 class CacheEvaluation:
     """Complete logical evaluation plus observable cache operation counts."""
 
-    result: EvaluationResult
+    result: EvaluationResult | None
     stats: CacheStats
+    short_circuit: CachedCheckOutput | None = None
+    surface_targets: tuple[str, ...] | None = None
 
 
 @dataclass(frozen=True, slots=True)

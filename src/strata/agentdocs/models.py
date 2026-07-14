@@ -37,7 +37,7 @@ class SkillInstallTarget:
 
 @dataclass(frozen=True, slots=True)
 class SkillUpdateResult:
-    """Files written by one skills update."""
+    """Files written by one skills invocation."""
 
     written_paths: tuple[Path, ...]
 

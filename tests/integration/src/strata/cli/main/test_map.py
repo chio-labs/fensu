@@ -646,6 +646,18 @@ def test_given_concrete_method_calls_when_mapping_then_renders_qualified_downstr
             expected_exit_code=0,
             expected_output_fragments=("Beta.select(...)  src/methods/workers.py:36",),
         ),
+        MethodMapTestCase(
+            description="partial class selector resolves one uniquely named method",
+            argv=("Worker.prepare",),
+            expected_exit_code=0,
+            expected_output_fragments=("Worker.prepare(...)  src/methods/workers.py:11",),
+        ),
+        MethodMapTestCase(
+            description="partial class selector resolves without cache",
+            argv=("Worker.prepare", "--no-cache"),
+            expected_exit_code=0,
+            expected_output_fragments=("Worker.prepare(...)  src/methods/workers.py:11",),
+        ),
     ],
     ids=lambda case: case.description,
 )
@@ -683,6 +695,50 @@ def test_given_exact_method_selector_when_mapping_then_resolves_class_identity(
     ids=lambda case: case.description,
 )
 def test_given_ambiguous_method_name_when_mapping_then_reports_class_qualified_selectors(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: MethodMapTestCase,
+) -> None:
+    write_cli_method_map_project(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    stdout: CaptureOutput = CaptureOutput()
+    stderr: CaptureOutput = CaptureOutput()
+
+    exit_code: int = run_map(argv=test_case.argv, stdout=stdout, stderr=stderr)
+    output: str = stderr.getvalue()
+
+    assert exit_code == test_case.expected_exit_code
+    assert all(fragment in output for fragment in test_case.expected_output_fragments)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        MethodMapTestCase(
+            description="partial class selector reports modules when duplicated",
+            argv=("Alpha.select",),
+            expected_exit_code=2,
+            expected_output_fragments=(
+                "Ambiguous function Alpha.select",
+                "methods.alternate.Alpha.select",
+                "methods.workers.Alpha.select",
+                "path::Alpha.select",
+            ),
+        ),
+        MethodMapTestCase(
+            description="unknown partial class selector gives working forms",
+            argv=("Missing.select",),
+            expected_exit_code=2,
+            expected_output_fragments=(
+                "Unknown project function: Missing.select",
+                "full dotted key",
+                "path::Missing.select",
+            ),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_partial_method_selector_when_not_unique_then_reports_working_forms(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     test_case: MethodMapTestCase,

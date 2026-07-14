@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.15.2](https://github.com/chio-labs/strata/compare/v0.15.1...v0.15.2) (2026-07-14)
+
+
+### Bug Fixes
+
+* **scaffolding:** guard O_NONBLOCK for platforms without it ([ff41bcd](https://github.com/chio-labs/strata/commit/ff41bcdfae035b5ea51842c45b2c166153d35124))
+* **scaffolding:** guard O_NONBLOCK for platforms without it ([894696c](https://github.com/chio-labs/strata/commit/894696c4e6ceb542608f6f5caaa2be6f7787a003))
+
 ## [0.15.1](https://github.com/chio-labs/strata/compare/v0.15.0...v0.15.1) (2026-07-14)
 
 

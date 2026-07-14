@@ -4,6 +4,16 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
+class ParseValidityTestCase:
+    """One source snippet with its expected validity under both parsers."""
+
+    description: str
+    source: str
+    expected_cpython_valid: bool
+    expected_native_valid: bool
+
+
+@dataclass(frozen=True)
 class FactDelegationTestCase:
     """One fact family and the sentinel its delegation must return."""
 

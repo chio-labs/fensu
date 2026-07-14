@@ -33,4 +33,5 @@ cache-keys = [
   { file = "pyproject.toml" },
   { file = "Cargo.toml" },
   { file = "src/**/*.rs" },
+  { file = "strata_facts.pyi" },
 ]

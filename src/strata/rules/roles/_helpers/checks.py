@@ -1164,11 +1164,3 @@ def _physical_role_name(role: RoleName) -> str:
 def _path_fault(*, ctx: RuleContext, code: RoleCode, message: str) -> Fault:
     del code
     return ctx.path_fault(message=message)
-
-
-def _assignment_target_names(node: ast.stmt) -> tuple[str, ...]:
-    if isinstance(node, ast.Assign):
-        return tuple(target.id for target in node.targets if isinstance(target, ast.Name))
-    if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
-        return (node.target.id,)
-    return ()

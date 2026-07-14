@@ -37,3 +37,7 @@ class SymbolResolver(Protocol):
     def get_class(self, key: str) -> ClassDefinition | None:
         """Return one class by canonical key."""
         ...
+
+    def get_protocol_implementations(self, key: str) -> tuple[ClassDefinition, ...]:
+        """Return concrete project classes nominally implementing one protocol."""
+        ...

@@ -28,6 +28,15 @@ class FunctionDeclaration:
 
 
 @dataclass(frozen=True, slots=True)
+class ClassDeclaration:
+    """Canonical nominal inheritance metadata for one project class."""
+
+    key: str
+    base_keys: tuple[str, ...]
+    protocol: bool
+
+
+@dataclass(frozen=True, slots=True)
 class FileDeclarations:
     """Strict persisted declaration metadata for one source identity."""
 
@@ -35,7 +44,7 @@ class FileDeclarations:
     path: str
     module_name: str
     functions: tuple[FunctionDeclaration, ...]
-    class_keys: tuple[str, ...]
+    classes: tuple[ClassDeclaration, ...]
     record_fingerprint: str = ""
 
 
@@ -48,6 +57,7 @@ class MapManifest:
     functions: dict[str, str]
     classes: dict[str, str]
     bare_functions: dict[str, tuple[str, ...]]
+    protocol_implementations: dict[str, tuple[str, ...]]
     record_fingerprint: str = ""
 
 

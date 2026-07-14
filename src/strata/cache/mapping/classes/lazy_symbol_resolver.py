@@ -39,6 +39,16 @@ class LazySymbolResolver:
             return None
         return self._index(identity).classes.get(key)
 
+    def get_protocol_implementations(self, key: str) -> tuple[ClassDefinition, ...]:
+        """Hydrate only concrete classes nominally implementing one protocol."""
+
+        implementations: list[ClassDefinition] = []
+        for class_key in self._manifest.protocol_implementations.get(key, ()):
+            definition: ClassDefinition | None = self.get_class(class_key)
+            if definition is not None:
+                implementations.append(definition)
+        return tuple(implementations)
+
     def _index(self, identity: str) -> ProjectIndex:
         indexed: ProjectIndex | None = self._indexes.get(identity)
         if indexed is not None:

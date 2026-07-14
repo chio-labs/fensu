@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: benchmark benchmark-budget benchmark-profile check check-parity check-rust develop-native self-check skills test test-e2e test-integration test-native test-rust test-unit verify
+.PHONY: benchmark benchmark-budget benchmark-budget-native benchmark-profile check check-parity check-rust develop-native self-check skills test test-e2e test-integration test-native test-rust test-unit verify
 
 BENCHMARK_PROJECT ?= ../sqlbuild
 BENCHMARK_RUNS ?= 5
@@ -10,6 +10,9 @@ benchmark:
 
 benchmark-budget:
 	uv run python -m scripts.perfbudget_check
+
+benchmark-budget-native:
+	uv run python -m scripts.perfbudget_check --backend native
 
 benchmark-profile:
 	uv run python -m scripts.benchmark_check --project "$(BENCHMARK_PROJECT)" --profile

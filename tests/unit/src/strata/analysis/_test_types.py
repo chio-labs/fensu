@@ -362,3 +362,12 @@ class PytestModuleFactTestCase:
     expected_helper_lines: tuple[int, ...]
     expected_case_list_lines: tuple[int, ...]
     expected_private_lines: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class NativeFactParityTestCase:
+    """One source whose fact families must match across backends."""
+
+    description: str
+    source: str
+    expected_divergent: tuple[str, ...]

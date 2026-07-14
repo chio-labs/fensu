@@ -63,7 +63,11 @@ class PythonFileAnalysis:
                 parent_by_node=self._parent_by_node,
             )
             self._facts = (
-                NativeFactAnalysis(python_facts=python_facts)
+                NativeFactAnalysis(
+                    python_facts=python_facts,
+                    path=self._path,
+                    source=self._source,
+                )
                 if select_fact_backend().backend is FactBackend.NATIVE
                 else python_facts
             )

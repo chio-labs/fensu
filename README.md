@@ -35,6 +35,12 @@ pip install stratalint
 
 The distribution name is `stratalint`; the installed command is `strata`.
 
+Strata requires Python 3.12+ and includes a compiled analysis core. Prebuilt
+wheels cover Linux (x86_64, aarch64) and macOS (Intel, Apple silicon); on any
+other platform, `pip` builds from source, which requires a Rust toolchain.
+Native Windows is not yet verified — use WSL, where the Linux wheels work
+as-is.
+
 ## Quick Start
 
 Detect the repository layout, choose a starting ruleset, and write a validated

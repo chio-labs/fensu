@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 import textwrap
+from functools import cache
 from pathlib import Path
 
 from strata.evaluation.models import ThresholdOverrideUse
@@ -112,13 +114,18 @@ def _format_excerpt(*, fault: Fault, use_color: bool) -> tuple[str, ...]:
 
 
 def _format_location(*, fault: Fault, root: Path) -> str:
-    try:
-        relative_path: Path = fault.path.relative_to(root)
-    except ValueError:
-        relative_path = fault.path
+    relative_path: Path = _display_path(path=fault.path, root=root)
     line_text: str = str(fault.line) if fault.line is not None else "-"
     column_text: str = str(fault.column) if fault.column is not None else "-"
     return f"{relative_path}:{line_text}:{column_text}"
+
+
+@cache
+def _display_path(*, path: Path, root: Path) -> Path:
+    try:
+        return path.relative_to(root)
+    except ValueError:
+        return path
 
 
 def _format_help(*, fault: Fault, use_color: bool, label: str) -> tuple[str, ...]:
@@ -148,12 +155,25 @@ def _read_source_line(*, path: Path, line: int | None) -> str | None:
     if line is None or line < 1:
         return None
     try:
-        lines: list[str] = path.read_text(encoding="utf-8").splitlines()
+        stat: os.stat_result = path.stat()
     except OSError:
         return None
-    if line > len(lines):
+    lines: tuple[str, ...] | None = _source_lines(
+        path=path,
+        mtime_ns=stat.st_mtime_ns,
+        size=stat.st_size,
+    )
+    if lines is None or line > len(lines):
         return None
     return lines[line - 1]
+
+
+@cache
+def _source_lines(*, path: Path, mtime_ns: int, size: int) -> tuple[str, ...] | None:
+    try:
+        return tuple(path.read_text(encoding="utf-8").splitlines())
+    except OSError:
+        return None
 
 
 def _gutter(*, line: int | None) -> str:

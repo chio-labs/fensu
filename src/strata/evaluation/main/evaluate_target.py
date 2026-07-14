@@ -13,6 +13,7 @@ from strata.evaluation.models import (
     ThresholdOverrideUse,
 )
 from strata.evaluation.types import EvaluationProjectAnalysis
+from strata.instrumentation.constants import FRESH_EVALUATION_OPERATION, OPERATION_COUNTERS
 from strata.rules.authoring.constants import CUSTOM_RULE_REGISTRATIONS_CACHE_KEY
 from strata.rules.authoring.models import Fault, RuleSpec
 from strata.rules.roles.types import RoleCode
@@ -29,6 +30,7 @@ def evaluate_target(
 ) -> FileEvaluation:
     """Evaluate normal rules and merge source-owned SFR707 supplemental output."""
 
+    OPERATION_COUNTERS.record(operation=FRESH_EVALUATION_OPERATION)
     evaluations: list[FileEvaluation] = []
     if target.direct:
         evaluations.append(

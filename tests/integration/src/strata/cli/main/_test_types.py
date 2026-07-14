@@ -455,3 +455,24 @@ class InitPromptFailureTestCase:
     expected_config_written: bool
     expected_output_fragment: str
     expected_absent_fragment: str = "Traceback"
+
+
+@dataclass(frozen=True)
+class ShortCircuitCheckTestCase:
+    """One warm-run output short-circuit expectation."""
+
+    description: str
+    expected_exit_code: int
+    expected_warm_restores: int
+    expected_edited_restores: int
+    expected_edited_fragment: str
+
+
+@dataclass(frozen=True)
+class ReplayFastPathTestCase:
+    """One warm-run record-decode bypass expectation."""
+
+    description: str
+    expected_exit_code: int
+    expected_warm_loads: int
+    expected_edited_loads: int

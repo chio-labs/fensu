@@ -8,6 +8,7 @@ from strata.analysis.models import ProjectDependency
 from strata.cache.fingerprints.main.source import fingerprint_source
 from strata.cache.fingerprints.models import CacheFingerprint
 from strata.cache.results._helpers.conversion import restore_file_evaluation
+from strata.cache.results._helpers.dependencies import dependencies_are_current
 from strata.cache.results._helpers.paths import relative_repository_path
 from strata.cache.results.classes.result_cache import ResultCache
 from strata.cache.results.models import (
@@ -17,6 +18,7 @@ from strata.cache.results.models import (
     CacheIndexEntry,
     CacheLookup,
     CacheStats,
+    CheckCacheContext,
 )
 from strata.cache.results.types import DependencyStateCache
 from strata.cache.storage.exceptions import CachePathError, CacheRecordError
@@ -72,11 +74,13 @@ def run_cached_evaluation(
             stats=CacheStats(non_cacheable=len(targets)),
         )
     cache: ResultCache = ResultCache(repo_root=tree.repo_root.path)
-    index: CacheIndex | None = cache.load_index(global_fingerprint=global_fingerprint)
+    context: CheckCacheContext = cache.load_check_context(global_fingerprint=global_fingerprint)
+    index: CacheIndex | None = context.index
     entries: dict[str, CacheIndexEntry] = (
         {entry.path: entry for entry in index.entries} if index is not None else {}
     )
     target_paths: set[str] = set()
+    source_fingerprints: dict[str, CacheFingerprint | None] = {}
     for target in targets:
         discovered_path: str | None = relative_repository_path(
             path=target.scoped_file.path,
@@ -84,6 +88,22 @@ def run_cached_evaluation(
         )
         if discovered_path is not None:
             target_paths.add(discovered_path)
+            source_fingerprints[discovered_path] = _source_fingerprint(target.scoped_file.path)
+    sorted_targets: tuple[str, ...] = tuple(sorted(target_paths))
+    dependency_states: DependencyStateCache = {}
+    if _replay_hit(
+        context=context,
+        entries=entries,
+        sorted_targets=sorted_targets,
+        source_fingerprints=source_fingerprints,
+        repo_root=tree.repo_root.path,
+        states=dependency_states,
+    ):
+        return CacheEvaluation(
+            result=None,
+            stats=CacheStats(hits=len(targets)),
+            short_circuit=context.output,
+        )
     loaded_entries: tuple[CacheIndexEntry, ...] = tuple(
         entry for path, entry in entries.items() if path in target_paths
     )
@@ -92,10 +112,9 @@ def run_cached_evaluation(
         entries=loaded_entries,
     )
     project: EvaluationProjectAnalysis = build_evaluation_project(tree=tree)
-    file_evaluations: list[FileEvaluation] = []
+    ordered_results: list[FileEvaluation | CachedFileResult] = []
     fresh_evaluations: list[FileEvaluation] = []
     retained_entries: list[CacheIndexEntry] = []
-    dependency_states: DependencyStateCache = {}
     hits: int = 0
     misses: int = 0
     invalidations: int = sum(path not in target_paths for path in entries)
@@ -104,7 +123,9 @@ def run_cached_evaluation(
             path=target.scoped_file.path,
             repo_root=tree.repo_root.path,
         )
-        source_fingerprint: CacheFingerprint | None = _source_fingerprint(target.scoped_file.path)
+        source_fingerprint: CacheFingerprint | None = (
+            source_fingerprints.get(path) if path is not None else None
+        )
         entry: CacheIndexEntry | None = entries.get(path) if path is not None else None
         lookup: CacheLookup | None = None
         if entry is not None and source_fingerprint is not None:
@@ -115,9 +136,7 @@ def run_cached_evaluation(
                 dependency_states=dependency_states,
             )
         if lookup is not None and lookup.result is not None:
-            file_evaluations.append(
-                restore_file_evaluation(result=lookup.result, repo_root=tree.repo_root.path)
-            )
+            ordered_results.append(lookup.result)
             hits += 1
             if entry is not None:
                 retained_entries.append(entry)
@@ -134,9 +153,23 @@ def run_cached_evaluation(
             tree=tree,
             project=project,
         )
-        file_evaluations.append(fresh)
+        ordered_results.append(fresh)
         fresh_evaluations.append(fresh)
-    evaluations: tuple[FileEvaluation, ...] = tuple(file_evaluations)
+    if (
+        context.output is not None
+        and misses == 0
+        and invalidations == 0
+        and not fresh_evaluations
+        and context.output.targets == sorted_targets
+    ):
+        return CacheEvaluation(
+            result=None,
+            stats=CacheStats(hits=hits),
+            short_circuit=context.output,
+        )
+    evaluations: tuple[FileEvaluation, ...] = tuple(
+        _materialized(item=item, repo_root=tree.repo_root.path) for item in ordered_results
+    )
     collected_dependencies: list[ProjectDependency] = []
     for file_evaluation in evaluations:
         collected_dependencies.extend(file_evaluation.dependencies)
@@ -149,11 +182,21 @@ def run_cached_evaluation(
         evaluated_rule_codes=frozenset(rule.code for rule in evaluated_rules),
         selection=selection,
     )
+    retained_results: list[CachedFileResult] = []
+    for item in ordered_results:
+        if isinstance(item, CachedFileResult):
+            retained_results.append(item)
     publication: CacheStats = _publish_results(
         cache=cache,
         global_fingerprint=global_fingerprint,
         fresh_evaluations=tuple(fresh_evaluations),
         retained_entries=tuple(retained_entries),
+        retained_results=tuple(retained_results),
+    )
+    surface_ready: bool = (
+        publication.non_cacheable == 0
+        and not publication.storage_failed
+        and not publication.internal_error
     )
     return CacheEvaluation(
         result=result,
@@ -166,6 +209,42 @@ def run_cached_evaluation(
             storage_failed=publication.storage_failed,
             internal_error=publication.internal_error,
         ),
+        surface_targets=sorted_targets if surface_ready else None,
+    )
+
+
+def _materialized(
+    *,
+    item: FileEvaluation | CachedFileResult,
+    repo_root: Path,
+) -> FileEvaluation:
+    if isinstance(item, FileEvaluation):
+        return item
+    return restore_file_evaluation(result=item, repo_root=repo_root)
+
+
+def _replay_hit(
+    *,
+    context: CheckCacheContext,
+    entries: dict[str, CacheIndexEntry],
+    sorted_targets: tuple[str, ...],
+    source_fingerprints: dict[str, CacheFingerprint | None],
+    repo_root: Path,
+    states: DependencyStateCache,
+) -> bool:
+    if context.output is None or context.observations is None:
+        return False
+    if context.output.targets != sorted_targets or len(entries) != len(sorted_targets):
+        return False
+    for path in sorted_targets:
+        entry: CacheIndexEntry | None = entries.get(path)
+        fingerprint: CacheFingerprint | None = source_fingerprints.get(path)
+        if entry is None or fingerprint is None or entry.source_fingerprint != fingerprint:
+            return False
+    return dependencies_are_current(
+        observations=context.observations,
+        repo_root=repo_root,
+        states=states,
     )
 
 
@@ -175,12 +254,14 @@ def _publish_results(
     global_fingerprint: CacheFingerprint,
     fresh_evaluations: tuple[FileEvaluation, ...],
     retained_entries: tuple[CacheIndexEntry, ...],
+    retained_results: tuple[CachedFileResult, ...],
 ) -> CacheStats:
     try:
         return cache.publish(
             global_fingerprint=global_fingerprint,
             evaluations=fresh_evaluations,
             retained_entries=retained_entries,
+            retained_results=retained_results,
         )
     except (CachePathError, CacheRecordError, TypeError, ValueError):
         return CacheStats(storage_failed=True, internal_error=True)

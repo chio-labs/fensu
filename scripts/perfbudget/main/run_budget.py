@@ -1,4 +1,4 @@
-"""Run every budget scenario against one freshly generated corpus."""
+"""Run every budget scenario against freshly generated corpora."""
 
 from __future__ import annotations
 
@@ -6,16 +6,9 @@ import sys
 import tempfile
 from pathlib import Path
 
-from scripts.perfbudget._helpers.execution import cleared_cache, measured_check
+from scripts.perfbudget._helpers.execution import dense_scenarios, standard_scenarios
 from scripts.perfbudget._helpers.validation import budget_failures
-from scripts.perfbudget.constants import (
-    COLD_SCENARIO,
-    EDIT_APPENDIX,
-    EDIT_SCENARIO,
-    EDITED_HELPER_FILE_NAME,
-    UNCACHED_SCENARIO,
-    WARM_SCENARIO,
-)
+from scripts.perfbudget.constants import DENSE_FAULT_EVERY
 from scripts.perfbudget.models import BudgetSpec, ScenarioFailure, ScenarioResult
 from scripts.perfcorpus.main.generate_corpus import generate_corpus
 from scripts.perfcorpus.models import CorpusSpec, CorpusSummary
@@ -47,8 +40,22 @@ def run_budget(
         summary: CorpusSummary = generate_corpus(
             spec=CorpusSpec(target=project, file_target=spec.file_target, seed=spec.seed)
         )
-        results: dict[str, ScenarioResult] = _measured_scenarios(spec=spec, project=project)
-    print(f"corpus_files={summary.files_written} corpus_faults={summary.faults_expected}")
+        results: dict[str, ScenarioResult] = standard_scenarios(spec=spec, project=project)
+        dense_project: Path = Path(workspace) / "dense"
+        dense_summary: CorpusSummary = generate_corpus(
+            spec=CorpusSpec(
+                target=dense_project,
+                file_target=spec.file_target,
+                seed=spec.seed,
+                annotation_fault_every=DENSE_FAULT_EVERY,
+                magic_fault_every=DENSE_FAULT_EVERY,
+            )
+        )
+        results.update(dense_scenarios(spec=spec, project=dense_project))
+    print(
+        f"corpus_files={summary.files_written} corpus_faults={summary.faults_expected} "
+        f"dense_faults={dense_summary.faults_expected}"
+    )
     for result in results.values():
         print(
             f"scenario={result.name} seconds={result.seconds:.2f} "
@@ -62,24 +69,3 @@ def run_budget(
 
 def _default_executable() -> Path:
     return Path(sys.executable).parent / "strata"
-
-
-def _measured_scenarios(*, spec: BudgetSpec, project: Path) -> dict[str, ScenarioResult]:
-    results: dict[str, ScenarioResult] = {}
-    _ = cleared_cache(project=project)
-    results[UNCACHED_SCENARIO] = measured_check(
-        name=UNCACHED_SCENARIO, executable=spec.executable, project=project, cache=False
-    )
-    _ = cleared_cache(project=project)
-    results[COLD_SCENARIO] = measured_check(
-        name=COLD_SCENARIO, executable=spec.executable, project=project, cache=True
-    )
-    results[WARM_SCENARIO] = measured_check(
-        name=WARM_SCENARIO, executable=spec.executable, project=project, cache=True
-    )
-    edited: Path = sorted(project.rglob(EDITED_HELPER_FILE_NAME))[0]
-    edited.write_text(edited.read_text(encoding="utf-8") + EDIT_APPENDIX, encoding="utf-8")
-    results[EDIT_SCENARIO] = measured_check(
-        name=EDIT_SCENARIO, executable=spec.executable, project=project, cache=True
-    )
-    return results

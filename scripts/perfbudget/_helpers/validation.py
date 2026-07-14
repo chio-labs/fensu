@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from scripts.perfbudget.constants import (
     COLD_SCENARIO,
+    DENSE_COLD_SCENARIO,
+    DENSE_WARM_SCENARIO,
     EDIT_SCENARIO,
     FAULT_EXIT_CODE,
     UNCACHED_SCENARIO,
@@ -26,6 +28,8 @@ def budget_failures(
         COLD_SCENARIO: spec.cold_ceiling,
         WARM_SCENARIO: spec.warm_ceiling,
         EDIT_SCENARIO: spec.edit_ceiling,
+        DENSE_COLD_SCENARIO: spec.cold_ceiling,
+        DENSE_WARM_SCENARIO: spec.warm_ceiling,
     }
     failures: list[ScenarioFailure] = []
     for name, ceiling in ceilings.items():
@@ -60,6 +64,14 @@ def _identity_failures(*, results: dict[str, ScenarioResult]) -> tuple[ScenarioF
                     reason="rendered output diverged from the uncached run",
                 )
             )
+    dense_cold: ScenarioResult = results[DENSE_COLD_SCENARIO]
+    if results[DENSE_WARM_SCENARIO].output_sha256 != dense_cold.output_sha256:
+        failures.append(
+            ScenarioFailure(
+                scenario=DENSE_WARM_SCENARIO,
+                reason="rendered output diverged from the dense cold run",
+            )
+        )
     return tuple(failures)
 
 

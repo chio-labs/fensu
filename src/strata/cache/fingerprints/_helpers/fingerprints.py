@@ -91,7 +91,7 @@ def ruleset_fingerprint(ruleset: tuple[RuleSpec, ...]) -> CacheFingerprint:
 
     payload: CanonicalValue = [
         {
-            "cacheable": rule.cacheable,
+            "cacheable": bool(rule.cacheable),
             "check_module": rule.check.__module__,
             "check_name": _check_name(rule.check),
             "code": rule.code,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 from strata.analysis.models import ProjectDependency
@@ -29,6 +30,7 @@ from strata.evaluation.main.build_targets import build_evaluation_targets
 from strata.evaluation.main.collect_result import collect_file_evaluations
 from strata.evaluation.main.evaluate import evaluate
 from strata.evaluation.main.evaluate_target import evaluate_target
+from strata.evaluation.main.merge_evaluations import merge_file_evaluations
 from strata.evaluation.main.select_files import select_evaluation_files
 from strata.evaluation.models import (
     EvaluationResult,
@@ -39,6 +41,18 @@ from strata.evaluation.models import (
 from strata.evaluation.types import EvaluationProjectAnalysis
 from strata.rules.authoring.models import CustomRuleRegistration, RuleSpec
 from strata.rules.authoring.types import RuleKind
+
+
+@dataclass(frozen=True, slots=True)
+class _RuleScopes:
+    """The cacheable and per-run-fresh partitions of the evaluated rules."""
+
+    fresh_ruleset: tuple[RuleSpec, ...]
+    fresh_warning_rules: tuple[RuleSpec, ...]
+    cacheable_ruleset: tuple[RuleSpec, ...]
+    cacheable_warning_rules: tuple[RuleSpec, ...]
+    scoped: bool
+    fully_fresh: bool
 
 
 def run_cached_evaluation(
@@ -61,7 +75,8 @@ def run_cached_evaluation(
         warning_rules=warning_rules,
         custom_rule_registrations=custom_rule_registrations,
     )
-    if any(rule.kind is RuleKind.CUSTOM and not rule.cacheable for rule in evaluated_rules):
+    scopes: _RuleScopes = _rule_scopes(ruleset=ruleset, warning_rules=warning_rules)
+    if scopes.fully_fresh:
         result: EvaluationResult = evaluate(
             tree=tree,
             ruleset=ruleset,
@@ -91,7 +106,7 @@ def run_cached_evaluation(
             source_fingerprints[discovered_path] = _source_fingerprint(target.scoped_file.path)
     sorted_targets: tuple[str, ...] = tuple(sorted(target_paths))
     dependency_states: DependencyStateCache = {}
-    if _replay_hit(
+    if not scopes.scoped and _replay_hit(
         context=context,
         entries=entries,
         sorted_targets=sorted_targets,
@@ -147,8 +162,8 @@ def run_cached_evaluation(
             invalidations += 1
         fresh: FileEvaluation = evaluate_target(
             target=target,
-            ruleset=ruleset,
-            warning_rules=warning_rules,
+            ruleset=scopes.cacheable_ruleset,
+            warning_rules=scopes.cacheable_warning_rules,
             config=config,
             tree=tree,
             project=project,
@@ -156,7 +171,8 @@ def run_cached_evaluation(
         ordered_results.append(fresh)
         fresh_evaluations.append(fresh)
     if (
-        context.output is not None
+        not scopes.scoped
+        and context.output is not None
         and misses == 0
         and invalidations == 0
         and not fresh_evaluations
@@ -170,6 +186,19 @@ def run_cached_evaluation(
     evaluations: tuple[FileEvaluation, ...] = tuple(
         _materialized(item=item, repo_root=tree.repo_root.path) for item in ordered_results
     )
+    if scopes.scoped:
+        evaluations = tuple(
+            _supplemented(
+                evaluation=evaluation,
+                target=target,
+                fresh_ruleset=scopes.fresh_ruleset,
+                fresh_warning_rules=scopes.fresh_warning_rules,
+                config=config,
+                tree=tree,
+                project=project,
+            )
+            for target, evaluation in zip(targets, evaluations, strict=True)
+        )
     collected_dependencies: list[ProjectDependency] = []
     for file_evaluation in evaluations:
         collected_dependencies.extend(file_evaluation.dependencies)
@@ -194,7 +223,8 @@ def run_cached_evaluation(
         retained_results=tuple(retained_results),
     )
     surface_ready: bool = (
-        publication.non_cacheable == 0
+        not scopes.scoped
+        and publication.non_cacheable == 0
         and not publication.storage_failed
         and not publication.internal_error
     )
@@ -221,6 +251,56 @@ def _materialized(
     if isinstance(item, FileEvaluation):
         return item
     return restore_file_evaluation(result=item, repo_root=repo_root)
+
+
+def _rule_scopes(
+    *,
+    ruleset: tuple[RuleSpec, ...],
+    warning_rules: tuple[RuleSpec, ...],
+) -> _RuleScopes:
+    fresh_ruleset: tuple[RuleSpec, ...] = _fresh_subset(ruleset)
+    fresh_warning_rules: tuple[RuleSpec, ...] = _fresh_subset(warning_rules)
+    return _RuleScopes(
+        fresh_ruleset=fresh_ruleset,
+        fresh_warning_rules=fresh_warning_rules,
+        cacheable_ruleset=_cacheable_subset(ruleset),
+        cacheable_warning_rules=_cacheable_subset(warning_rules),
+        scoped=bool(fresh_ruleset or fresh_warning_rules),
+        fully_fresh=(
+            len(fresh_ruleset) == len(ruleset) and len(fresh_warning_rules) == len(warning_rules)
+        ),
+    )
+
+
+def _fresh_subset(rules: tuple[RuleSpec, ...]) -> tuple[RuleSpec, ...]:
+    return tuple(rule for rule in rules if rule.kind is RuleKind.CUSTOM and not rule.cacheable)
+
+
+def _cacheable_subset(rules: tuple[RuleSpec, ...]) -> tuple[RuleSpec, ...]:
+    return tuple(rule for rule in rules if rule.kind is not RuleKind.CUSTOM or rule.cacheable)
+
+
+def _supplemented(
+    *,
+    evaluation: FileEvaluation,
+    target: EvaluationTarget,
+    fresh_ruleset: tuple[RuleSpec, ...],
+    fresh_warning_rules: tuple[RuleSpec, ...],
+    config: Config,
+    tree: DiscoveredTree,
+    project: EvaluationProjectAnalysis,
+) -> FileEvaluation:
+    if not target.direct:
+        return evaluation
+    fresh: FileEvaluation = evaluate_target(
+        target=EvaluationTarget(scoped_file=target.scoped_file, direct=True),
+        ruleset=fresh_ruleset,
+        warning_rules=fresh_warning_rules,
+        config=config,
+        tree=tree,
+        project=project,
+    )
+    return merge_file_evaluations(evaluations=(evaluation, fresh))
 
 
 def _replay_hit(

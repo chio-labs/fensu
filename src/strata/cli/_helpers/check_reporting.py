@@ -13,6 +13,7 @@ from strata.discovery.models import DiscoveredTree
 from strata.evaluation.models import EvaluationResult
 from strata.reporting.main.render import render
 from strata.reporting.models import RenderedReport
+from strata.rules.catalog.main.undeclared_cacheable import undeclared_cacheable_codes
 from strata.rules.catalog.models import RuleSelection
 
 
@@ -35,6 +36,18 @@ def write_check_diagnostics(
         show_stats=show_stats,
         disabled_reason=disabled_reason,
     )
+    if stats is not None:
+        undeclared: tuple[str, ...] = undeclared_cacheable_codes(
+            rules=(*selection.blocking, *selection.warnings),
+            allowed_packages=frozenset(
+                name.partition(".")[0] for name in loaded.config.rule_modules
+            ),
+        )
+        if undeclared:
+            stderr.write(
+                "Custom rules appear cacheable; declare cacheable=True to enable "
+                f"caching for them: {', '.join(undeclared)}\n"
+            )
     if installed_skill_is_stale(
         loaded=loaded,
         selection=selection,

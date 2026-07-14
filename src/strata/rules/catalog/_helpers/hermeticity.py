@@ -142,3 +142,25 @@ def _check_source_path(rule: RuleSpec) -> Path | None:
         return None
     path: Path = Path(source_path)
     return path if path.is_file() else None
+
+
+def rule_appears_cacheable(
+    *,
+    rule: RuleSpec,
+    allowed_packages: frozenset[str],
+) -> bool:
+    """Return whether one rule's source passes the hermetic scan."""
+
+    path: Path | None = _check_source_path(rule)
+    if path is None:
+        return False
+    try:
+        tree: ast.Module = ast.parse(path.read_text(encoding="utf-8"))
+    except (OSError, SyntaxError, ValueError):
+        return False
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.Import, ast.ImportFrom, ast.Call)):
+            continue
+        if _node_violation(node=node, allowed_packages=allowed_packages) is not None:
+            return False
+    return True

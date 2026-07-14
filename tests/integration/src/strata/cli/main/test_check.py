@@ -16,6 +16,7 @@ from strata.cache.storage.exceptions import CacheRecordError
 from strata.cli.main.check import run_check
 from strata.cli.main.skills import run_skills
 from tests.integration.src.strata.cli.main._test_types import (
+    CacheableNoticeTestCase,
     CheckCacheModeTestCase,
     CheckCachePreferenceTestCase,
     CheckCacheWarningTestCase,
@@ -24,8 +25,10 @@ from tests.integration.src.strata.cli.main._test_types import (
     CheckNoFaultTestCase,
     CheckSkillFreshnessTestCase,
     EvaluationCheckTestCase,
+    MixedRulesetCacheTestCase,
     NestedContainerCacheTestCase,
     ReplayFastPathTestCase,
+    ScopedCacheWarningTestCase,
     ShortCircuitCheckTestCase,
     ThresholdOverrideCheckTestCase,
     WarningCacheIdentityTestCase,
@@ -584,12 +587,13 @@ def test_given_cached_warning_mode_switch_when_running_check_then_uses_distinct_
 @pytest.mark.parametrize(
     "test_case",
     [
-        CheckCacheWarningTestCase(
-            description="warn-only uncacheable custom rule affects only warning mode",
+        ScopedCacheWarningTestCase(
+            description="warn-only uncacheable custom rule keeps both modes cache-eligible",
             argv=("--no-color", "--cache", "--cache-stats", "--warn"),
             expected_exit_code=0,
             expected_output_fragment="Found 0 faults and 1 warning",
-            expected_warning_fragment="custom rules disable caching",
+            expected_cold_stats="hits=0 misses=1",
+            expected_warm_stats="hits=1 misses=0",
         )
     ],
     ids=lambda case: case.description,
@@ -597,7 +601,7 @@ def test_given_cached_warning_mode_switch_when_running_check_then_uses_distinct_
 def test_given_warn_only_uncacheable_custom_rule_when_switching_modes_then_plain_cache_remains_eligible(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
-    test_case: CheckCacheWarningTestCase,
+    test_case: ScopedCacheWarningTestCase,
 ) -> None:
     (tmp_path / "strata.toml").write_text(
         'roots = ["src/pkg"]\ntests = []\nselect = ["SFA101"]\nwarn = ["XWC001"]\n'
@@ -621,23 +625,33 @@ def test_given_warn_only_uncacheable_custom_rule_when_switching_modes_then_plain
     monkeypatch.chdir(tmp_path)
     plain_cold_stderr: CaptureOutput = CaptureOutput()
     plain_warm_stderr: CaptureOutput = CaptureOutput()
-    warned_stdout: CaptureOutput = CaptureOutput()
-    warned_stderr: CaptureOutput = CaptureOutput()
+    warned_cold_stdout: CaptureOutput = CaptureOutput()
+    warned_cold_stderr: CaptureOutput = CaptureOutput()
+    warned_warm_stdout: CaptureOutput = CaptureOutput()
+    warned_warm_stderr: CaptureOutput = CaptureOutput()
     plain_argv: tuple[str, ...] = ("--no-color", "--cache", "--cache-stats")
 
     _ = run_check(argv=plain_argv, stdout=CaptureOutput(), stderr=plain_cold_stderr)
     _ = run_check(argv=plain_argv, stdout=CaptureOutput(), stderr=plain_warm_stderr)
-    warned_exit: int = run_check(
+    warned_cold_exit: int = run_check(
         argv=test_case.argv,
-        stdout=warned_stdout,
-        stderr=warned_stderr,
+        stdout=warned_cold_stdout,
+        stderr=warned_cold_stderr,
+    )
+    warned_warm_exit: int = run_check(
+        argv=test_case.argv,
+        stdout=warned_warm_stdout,
+        stderr=warned_warm_stderr,
     )
 
-    assert "hits=0 misses=1" in plain_cold_stderr.getvalue()
-    assert "hits=1 misses=0" in plain_warm_stderr.getvalue()
-    assert warned_exit == test_case.expected_exit_code
-    assert test_case.expected_output_fragment in warned_stdout.getvalue()
-    assert test_case.expected_warning_fragment in warned_stderr.getvalue()
+    assert test_case.expected_cold_stats in plain_cold_stderr.getvalue()
+    assert test_case.expected_warm_stats in plain_warm_stderr.getvalue()
+    assert warned_cold_exit == test_case.expected_exit_code
+    assert warned_warm_exit == test_case.expected_exit_code
+    assert test_case.expected_output_fragment in warned_cold_stdout.getvalue()
+    assert test_case.expected_cold_stats in warned_cold_stderr.getvalue()
+    assert test_case.expected_warm_stats in warned_warm_stderr.getvalue()
+    assert warned_warm_stdout.getvalue() == warned_cold_stdout.getvalue()
 
 
 @pytest.mark.parametrize(
@@ -1218,3 +1232,145 @@ def test_given_unchanged_tree_when_rechecking_then_skips_record_loads(
     assert warm_stdout.getvalue() == cold_stdout.getvalue()
     assert warm_loads == test_case.expected_warm_loads
     assert counter.calls - cold_loads - warm_loads == test_case.expected_edited_loads
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        MixedRulesetCacheTestCase(
+            description="mixed ruleset caches core rules and re-runs the custom rule fresh",
+            argv=("--no-color", "--cache", "--cache-stats"),
+            expected_exit_code=1,
+            expected_custom_fragment="XSC001",
+            expected_core_fragment="SFA101",
+            expected_cold_stats="hits=0 misses=1",
+            expected_warm_stats="hits=1 misses=0 invalidations=0 writes=0",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_mixed_ruleset_when_rechecking_then_scopes_cache_to_cacheable_rules(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: MixedRulesetCacheTestCase,
+) -> None:
+    (tmp_path / "strata.toml").write_text(
+        'roots = ["src/pkg"]\ntests = []\nselect = ["SFA101", "XSC001"]\n'
+        'rule_paths = ["rules/custom.py"]\n',
+        encoding="utf-8",
+    )
+    source: Path = tmp_path / "src/pkg/module.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("VALUE = 1\n", encoding="utf-8")
+    custom_rule: Path = tmp_path / "rules/custom.py"
+    custom_rule.parent.mkdir()
+    custom_rule.write_text(
+        "from __future__ import annotations\n"
+        "import ast\n"
+        "from strata import Family, Fault, RuleContext, rule\n"
+        "@rule(code='XSC001', family=Family.CUSTOM, slug='scoped', message='scoped fault')\n"
+        "def scoped(module: ast.Module, ctx: RuleContext) -> list[Fault]:\n"
+        "    return [ctx.fault(node=module.body[0])]\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    uncached_stdout: CaptureOutput = CaptureOutput()
+    cold_stdout: CaptureOutput = CaptureOutput()
+    cold_stderr: CaptureOutput = CaptureOutput()
+    warm_stdout: CaptureOutput = CaptureOutput()
+    warm_stderr: CaptureOutput = CaptureOutput()
+
+    uncached_exit: int = run_check(
+        argv=("--no-color", "--no-cache"), stdout=uncached_stdout, stderr=CaptureOutput()
+    )
+    cold_exit: int = run_check(argv=test_case.argv, stdout=cold_stdout, stderr=cold_stderr)
+    warm_exit: int = run_check(argv=test_case.argv, stdout=warm_stdout, stderr=warm_stderr)
+    records: tuple[tuple[str, bytes], ...] = cache_snapshot(tmp_path)
+
+    assert uncached_exit == test_case.expected_exit_code
+    assert cold_exit == test_case.expected_exit_code
+    assert warm_exit == test_case.expected_exit_code
+    assert test_case.expected_custom_fragment in cold_stdout.getvalue()
+    assert test_case.expected_core_fragment in cold_stdout.getvalue()
+    assert cold_stdout.getvalue() == uncached_stdout.getvalue()
+    assert warm_stdout.getvalue() == uncached_stdout.getvalue()
+    assert test_case.expected_cold_stats in cold_stderr.getvalue()
+    assert test_case.expected_warm_stats in warm_stderr.getvalue()
+    assert records
+    assert all(
+        test_case.expected_custom_fragment.encode("utf-8") not in data for _, data in records
+    )
+    assert all(b'"kind":"check_output"' not in data for _, data in records)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CacheableNoticeTestCase(
+            description="undeclared hermetic custom rule earns a one-line notice",
+            decorator_arguments="",
+            argv=("--no-color", "--cache"),
+            expected_exit_code=1,
+            expected_notice=True,
+        ),
+        CacheableNoticeTestCase(
+            description="declared promise silences the notice",
+            decorator_arguments=", cacheable=True",
+            argv=("--no-color", "--cache"),
+            expected_exit_code=1,
+            expected_notice=False,
+        ),
+        CacheableNoticeTestCase(
+            description="declared opt-out silences the notice",
+            decorator_arguments=", cacheable=False",
+            argv=("--no-color", "--cache"),
+            expected_exit_code=1,
+            expected_notice=False,
+        ),
+        CacheableNoticeTestCase(
+            description="uncached runs never emit the notice",
+            decorator_arguments="",
+            argv=("--no-color", "--no-cache"),
+            expected_exit_code=1,
+            expected_notice=False,
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_custom_rule_declaration_when_checking_then_reports_cacheable_notice(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: CacheableNoticeTestCase,
+) -> None:
+    (tmp_path / "strata.toml").write_text(
+        'roots = ["src/pkg"]\ntests = []\nselect = ["SFA101", "XNC001"]\n'
+        'rule_paths = ["rules/custom.py"]\n',
+        encoding="utf-8",
+    )
+    source: Path = tmp_path / "src/pkg/module.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("VALUE: int = 1\n", encoding="utf-8")
+    custom_rule: Path = tmp_path / "rules/custom.py"
+    custom_rule.parent.mkdir()
+    custom_rule.write_text(
+        "from __future__ import annotations\n"
+        "import ast\n"
+        "from strata import Family, Fault, RuleContext, rule\n"
+        "@rule(code='XNC001', family=Family.CUSTOM, slug='notice', message='notice fault'"
+        f"{test_case.decorator_arguments})\n"
+        "def notice(module: ast.Module, ctx: RuleContext) -> list[Fault]:\n"
+        "    return [ctx.fault(node=module.body[0])]\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    stdout: CaptureOutput = CaptureOutput()
+    stderr: CaptureOutput = CaptureOutput()
+
+    exit_code: int = run_check(argv=test_case.argv, stdout=stdout, stderr=stderr)
+
+    assert exit_code == test_case.expected_exit_code
+    assert "XNC001" in stdout.getvalue()
+    notice_present: bool = (
+        "Custom rules appear cacheable; declare cacheable=True" in stderr.getvalue()
+    )
+    assert notice_present is test_case.expected_notice

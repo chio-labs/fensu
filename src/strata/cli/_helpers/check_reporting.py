@@ -2,10 +2,46 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+from typing import TextIO
+
+from strata.cache.results.models import CacheStats
+from strata.cli._helpers.skill_freshness import installed_skill_is_stale
+from strata.cli.main.cache_status import write_cache_status
+from strata.config.models import LoadedConfig
 from strata.discovery.models import DiscoveredTree
 from strata.evaluation.models import EvaluationResult
 from strata.reporting.main.render import render
 from strata.reporting.models import RenderedReport
+from strata.rules.catalog.models import RuleSelection
+
+
+def write_check_diagnostics(
+    *,
+    loaded: LoadedConfig,
+    selection: RuleSelection,
+    project_root: Path,
+    invocation_root: Path,
+    stderr: TextIO,
+    stats: CacheStats | None,
+    show_stats: bool,
+    disabled_reason: str | None,
+) -> None:
+    """Write cache status and skill freshness diagnostics to stderr."""
+
+    write_cache_status(
+        stderr=stderr,
+        stats=stats,
+        show_stats=show_stats,
+        disabled_reason=disabled_reason,
+    )
+    if installed_skill_is_stale(
+        loaded=loaded,
+        selection=selection,
+        project_root=project_root,
+        invocation_root=invocation_root,
+    ):
+        stderr.write("Strata skill files are out of date; run `strata skills update`.\n")
 
 
 def render_check_result(

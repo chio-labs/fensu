@@ -23,7 +23,7 @@ from tests.unit.src.strata.cache.storage.helpers import deeply_nested_cache_json
             kind="metadata",
             payload={"zeta": [2, 1], "alpha": True},
             expected_bytes=(
-                b'{"kind":"metadata","payload":{"alpha":true,"zeta":[2,1]},"schema_version":2}'
+                b'{"kind":"metadata","payload":{"alpha":true,"zeta":[2,1]},"schema_version":4}'
             ),
         )
     ],
@@ -52,7 +52,7 @@ def test_given_cache_record_when_encoding_then_round_trips_canonical_bytes(
         ),
         InvalidCacheRecordTestCase(
             description="unsupported schema is a cache miss",
-            data=b'{"kind":"metadata","payload":{},"schema_version":3}',
+            data=b'{"kind":"metadata","payload":{},"schema_version":5}',
             expected_kind="metadata",
             expected_record=None,
         ),

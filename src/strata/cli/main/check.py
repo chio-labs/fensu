@@ -8,24 +8,17 @@ from dataclasses import replace
 from pathlib import Path
 from typing import TextIO
 
-from strata.cache.fingerprints.main.build_global import build_global_fingerprint
-from strata.cache.fingerprints.models import GlobalFingerprintBuild
-from strata.cache.results.main.evaluate import evaluate_with_cache
-from strata.cache.results.models import CacheEvaluation, CacheStats
+from strata.cli._helpers.check_evaluation import evaluated_check
+from strata.cli._helpers.check_output import check_stdout_text, persist_check_output
 from strata.cli._helpers.check_paths import invocation_path
-from strata.cli._helpers.check_reporting import render_check_result
-from strata.cli._helpers.skill_freshness import installed_skill_is_stale
-from strata.cli.main.cache_status import write_cache_status
+from strata.cli._helpers.check_reporting import write_check_diagnostics
+from strata.cli.models import CheckEvaluation
 from strata.config.exceptions import ConfigError
 from strata.config.main.load_project_config import load_project_config
 from strata.config.models import Config, LoadedConfig
 from strata.discovery.main.discover_files import discover_files
 from strata.discovery.models import DiscoveredTree
-from strata.evaluation.main.evaluate import evaluate
 from strata.evaluation.main.validate_rule_exceptions import validate_rule_exceptions
-from strata.evaluation.models import EvaluationResult
-from strata.reporting.models import RenderedReport
-from strata.rules.authoring.models import RuleSpec
 from strata.rules.catalog.main.build_check_rule_selection import build_check_rule_selection
 from strata.rules.catalog.models import RuleSelection
 
@@ -40,96 +33,87 @@ def run_check(
 
     args: argparse.Namespace = _parser().parse_args(() if argv is None else argv)
     invocation_dir: Path = Path.cwd().resolve()
-    cache_stats: CacheStats | None = None
-    cache_disabled_reason: str | None = None
+    use_color: bool = not args.no_color and stdout.isatty()
     try:
         loaded: LoadedConfig = load_project_config(invocation_dir)
         project_dir: Path = loaded.source.path.parent.resolve()
-        project_config: Config = loaded.config
         rule_selection: RuleSelection = build_check_rule_selection(
-            config=project_config,
+            config=loaded.config,
             repo_root=project_dir,
             include_warnings=args.warn,
         )
-        config: Config = project_config
-        if args.paths:
-            config = replace(
-                config,
-                roots=tuple(
-                    invocation_path(value=value, invocation_dir=invocation_dir)
-                    for value in args.paths
-                ),
-            )
-        if args.cache_enabled is not None:
-            config = replace(
-                config,
-                cache=replace(config.cache, enabled=args.cache_enabled),
-            )
+        config: Config = _configured(args=args, loaded=loaded, invocation_dir=invocation_dir)
         tree: DiscoveredTree = discover_files(config=config, repo_root=project_dir)
-        ruleset: tuple[RuleSpec, ...] = rule_selection.blocking
-        warning_rules: tuple[RuleSpec, ...] = rule_selection.warnings if args.warn else ()
-        evaluated_rules: tuple[RuleSpec, ...] = (*ruleset, *warning_rules)
         validate_rule_exceptions(config=config, repo_root=tree.repo_root.path)
-        fingerprint_build: GlobalFingerprintBuild | None = (
-            build_global_fingerprint(
-                config=config,
-                ruleset=evaluated_rules,
-                repo_root=project_dir,
-                warnings_enabled=args.warn,
-            )
-            if config.cache.enabled
-            else None
+        evaluation: CheckEvaluation = evaluated_check(
+            tree=tree,
+            config=config,
+            rule_selection=rule_selection,
+            project_dir=project_dir,
+            warn=args.warn,
         )
-        if fingerprint_build is not None:
-            cache_disabled_reason = fingerprint_build.disabled_reason
-        if fingerprint_build is None or fingerprint_build.fingerprint is None:
-            result: EvaluationResult = evaluate(
-                tree=tree,
-                ruleset=ruleset,
-                warning_rules=warning_rules,
-                config=config,
-                custom_rule_registrations=rule_selection.custom_registrations,
-            )
-        else:
-            cached: CacheEvaluation = evaluate_with_cache(
-                tree=tree,
-                ruleset=ruleset,
-                warning_rules=warning_rules,
-                config=config,
-                global_fingerprint=fingerprint_build.fingerprint,
-                custom_rule_registrations=rule_selection.custom_registrations,
-            )
-            result = cached.result
-            cache_stats = cached.stats
     except ConfigError as error:
         stderr.write(f"{error}\n")
         return 2
-    report: RenderedReport = render_check_result(
-        result=result,
-        tree=tree,
-        use_color=not args.no_color and stdout.isatty(),
-        show_warnings=args.warn,
-    )
-    _write_check_diagnostics(
+    write_check_diagnostics(
         loaded=loaded,
         selection=rule_selection,
         project_root=project_dir,
         invocation_root=invocation_dir,
         stderr=stderr,
-        stats=cache_stats,
+        stats=evaluation.stats,
         show_stats=args.cache_stats,
-        disabled_reason=cache_disabled_reason,
+        disabled_reason=evaluation.disabled_reason,
     )
-    if result.selection is not None and result.selection.filtered:
+    if evaluation.short_circuit is not None:
         stdout.write(
-            f"Evaluation: "
-            f"{result.selection.discovered_count - result.selection.excluded_count:,} of "
-            f"{result.selection.discovered_count:,} Python files "
-            f"({result.selection.excluded_count:,} excluded by config)\n"
+            evaluation.short_circuit.color_output
+            if use_color
+            else evaluation.short_circuit.plain_output
         )
-    stdout.write(report.text)
-    stdout.write("\n")
-    return 1 if report.fault_count else 0
+        return evaluation.short_circuit.exit_code
+    if evaluation.result is None:
+        stderr.write("Cached evaluation returned no result.\n")
+        return 2
+    text, fault_count = check_stdout_text(
+        result=evaluation.result,
+        tree=tree,
+        use_color=use_color,
+        show_warnings=args.warn,
+    )
+    if evaluation.surface_targets is not None and evaluation.global_fingerprint is not None:
+        _ = persist_check_output(
+            repo_root=project_dir,
+            global_fingerprint=evaluation.global_fingerprint,
+            targets=evaluation.surface_targets,
+            result=evaluation.result,
+            tree=tree,
+            show_warnings=args.warn,
+        )
+    stdout.write(text)
+    return 1 if fault_count else 0
+
+
+def _configured(
+    *,
+    args: argparse.Namespace,
+    loaded: LoadedConfig,
+    invocation_dir: Path,
+) -> Config:
+    config: Config = loaded.config
+    if args.paths:
+        config = replace(
+            config,
+            roots=tuple(
+                invocation_path(value=value, invocation_dir=invocation_dir) for value in args.paths
+            ),
+        )
+    if args.cache_enabled is not None:
+        config = replace(
+            config,
+            cache=replace(config.cache, enabled=args.cache_enabled),
+        )
+    return config
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -161,29 +145,3 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("paths", nargs="*", help="configured root paths to check")
     return parser
-
-
-def _write_check_diagnostics(
-    *,
-    loaded: LoadedConfig,
-    selection: RuleSelection,
-    project_root: Path,
-    invocation_root: Path,
-    stderr: TextIO,
-    stats: CacheStats | None,
-    show_stats: bool,
-    disabled_reason: str | None,
-) -> None:
-    write_cache_status(
-        stderr=stderr,
-        stats=stats,
-        show_stats=show_stats,
-        disabled_reason=disabled_reason,
-    )
-    if installed_skill_is_stale(
-        loaded=loaded,
-        selection=selection,
-        project_root=project_root,
-        invocation_root=invocation_root,
-    ):
-        stderr.write("Strata skill files are out of date; run `strata skills update`.\n")

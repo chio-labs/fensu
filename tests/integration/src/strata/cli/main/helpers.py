@@ -16,10 +16,15 @@ import pytest
 
 from strata.agentdocs.constants import GENERATED_MARKER
 from strata.agentdocs.exceptions import SkillInstallError
+from strata.cache.fingerprints.models import CacheFingerprint
+from strata.cache.results._helpers.conversion import restore_file_evaluation
+from strata.cache.results.classes.result_cache import ResultCache
+from strata.cache.results.models import CachedFileResult, CacheIndexEntry
 from strata.cache.storage.constants import CACHE_DATABASE_RELATIVE_PATH
 from strata.cli.main.skills import run_skills
 from strata.config.main.load_config import load_config
 from strata.config.models import Config
+from strata.evaluation.models import FileEvaluation
 
 
 class CaptureOutput(StringIO):
@@ -1149,3 +1154,46 @@ def write_multi_root_map_project(root: Path) -> None:
         encoding="utf-8",
     )
     (library / "steps.py").write_text("def step() -> None:\n    return None\n", encoding="utf-8")
+
+
+class RestoreProbe:
+    """Count and delegate warm-path record restores."""
+
+    def __init__(self) -> None:
+        """Start with no observed restores."""
+
+        self.calls: int = 0
+
+    def __call__(self, *, result: CachedFileResult, repo_root: Path) -> FileEvaluation:
+        """Record one restore and delegate to the real conversion."""
+
+        self.calls += 1
+        return restore_file_evaluation(result=result, repo_root=repo_root)
+
+
+class CallCounter:
+    """Count observed delegated calls."""
+
+    def __init__(self) -> None:
+        """Start with no observed calls."""
+
+        self.calls: int = 0
+
+
+def counting_load_results(
+    counter: CallCounter,
+) -> Callable[..., dict[str, CachedFileResult | None]]:
+    """Return a load_results replacement that counts and delegates."""
+
+    original: Callable[..., dict[str, CachedFileResult | None]] = ResultCache.load_results
+
+    def _load_results(
+        cache: ResultCache,
+        *,
+        global_fingerprint: CacheFingerprint,
+        entries: tuple[CacheIndexEntry, ...],
+    ) -> dict[str, CachedFileResult | None]:
+        counter.calls += 1
+        return original(cache, global_fingerprint=global_fingerprint, entries=entries)
+
+    return _load_results

@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
+from strata.cache.fingerprints.models import CacheFingerprint
 from strata.cache.fingerprints.types import CanonicalValue
 
 
@@ -14,6 +15,7 @@ class CacheRecord:
 
     kind: str
     payload: CanonicalValue
+    content_fingerprint: CacheFingerprint | None = field(default=None, compare=False)
 
 
 @dataclass(frozen=True, slots=True)

@@ -3,6 +3,7 @@
 import ast
 import sqlite3
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -10,7 +11,7 @@ import strata.evaluation._helpers.file_evaluation as file_evaluation_module
 from strata.analysis.models import ProjectDependency
 from strata.analysis.types import Analysis, ProjectDependencyKind
 from strata.cache.results.classes.result_cache import ResultCache
-from strata.cache.results.models import CacheStats
+from strata.cache.results.models import CacheEvaluation, CacheStats
 from strata.cache.storage.classes.cache_store import CacheStore
 from strata.cache.storage.constants import CACHE_DATABASE_RELATIVE_PATH
 from strata.cache.storage.exceptions import CacheRecordError
@@ -19,7 +20,7 @@ from strata.cache.storage.types import CacheMutator
 from strata.config.models import Config, RuleExceptionEntry
 from strata.discovery.main.discover_files import discover_files
 from strata.discovery.models import DiscoveredTree
-from strata.evaluation.models import FileEvaluation
+from strata.evaluation.models import EvaluationResult, FileEvaluation
 from strata.rules.authoring.models import Fault, RuleSpec
 from strata.rules.authoring.types import Family, RuleContext, RuleKind
 from strata.rules.roles.constants import SFR_RULES
@@ -319,3 +320,9 @@ def install_cache_write_rejection(*, monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(CacheStore, "write_batch", reject_write_batch)
     monkeypatch.setattr(CacheStore, "mutate_batch", reject_mutate_batch)
+
+
+def evaluated_result(evaluation: CacheEvaluation) -> EvaluationResult:
+    """Return the required evaluation result from a non-short-circuited run."""
+
+    return cast(EvaluationResult, evaluation.result)

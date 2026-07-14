@@ -20,7 +20,7 @@ fn walked_root(root: &Path) -> Vec<WalkedEntry> {
             continue;
         }
         let entry_path = item.into_path();
-        let canonical_path = std::fs::canonicalize(&entry_path).ok();
+        let canonical_path = dunce::canonicalize(&entry_path).ok();
         let root_relative_parts = canonical_path
             .as_deref()
             .and_then(|canonical| root_relative_parts(canonical, root));

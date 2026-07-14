@@ -51,6 +51,7 @@ from strata.cache.results.models import (
 from strata.cache.results.types import DependencyStateCache
 from strata.cache.storage.exceptions import CacheRecordError
 from strata.cache.storage.main.build_store import build_cache_store
+from strata.cache.storage.main.encode_record import encode_record
 from strata.cache.storage.models import (
     CacheMutation,
     CacheMutationOutcome,
@@ -161,10 +162,11 @@ class ResultCache:
             if result is None or record is None:
                 non_cacheable += 1
                 continue
+            encoded: bytes = encode_record(record=record)
             fingerprints: FileResultFingerprints = file_result_fingerprints(
                 global_fingerprint=global_fingerprint,
                 result=result,
-                record=record,
+                encoded=encoded,
             )
             observations.extend(result.dependencies)
             candidates.append(
@@ -176,6 +178,7 @@ class ResultCache:
                         record_fingerprint=fingerprints.record,
                     ),
                     record=record,
+                    encoded=encoded,
                 )
             )
         return PublicationPreparation(
@@ -277,6 +280,7 @@ class ResultCache:
                 CacheWrite(
                     relative_path=_result_path(candidate.entry.result_fingerprint),
                     record=candidate.record,
+                    encoded=candidate.encoded,
                 )
             )
         index: CacheIndex = CacheIndex(

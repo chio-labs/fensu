@@ -50,7 +50,7 @@ class _EvaluationProjectAnalysis:
             ),
         )
         self._scoped_files: dict[Path, ScopedFile] = {
-            scoped_file.path.resolve(): scoped_file for scoped_file in tree.files
+            scoped_file.path: scoped_file for scoped_file in tree.files
         }
         self._parsed_modules: dict[Path, ParsedModule] = {}
         self._external_analyses: dict[Path, Analysis] = {}

@@ -26,6 +26,7 @@ from strata.cache.fingerprints.models import (
 )
 from strata.cache.results._helpers.serialization import file_result_to_record
 from strata.cache.results.models import CachedFileResult
+from strata.cache.storage.main.encode_record import encode_record
 from strata.cache.storage.main.record_identity import record_content_fingerprint
 from strata.cache.storage.models import CacheRecord
 from strata.config.models import (
@@ -166,12 +167,12 @@ def test_given_file_results_when_fingerprinting_then_separates_correctness_and_i
     first: FileResultFingerprints = file_result_fingerprints(
         global_fingerprint=CacheFingerprint(test_case.first_global),
         result=first_result,
-        record=first_record,
+        encoded=encode_record(record=first_record),
     )
     second: FileResultFingerprints = file_result_fingerprints(
         global_fingerprint=CacheFingerprint(test_case.second_global),
         result=second_result,
-        record=second_record,
+        encoded=encode_record(record=second_record),
     )
 
     assert (first.result == second.result) is test_case.expected_result_equal

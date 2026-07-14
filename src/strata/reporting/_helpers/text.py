@@ -131,10 +131,15 @@ def _display_path(*, path: Path, root: Path) -> Path:
 def _format_help(*, fault: Fault, use_color: bool, label: str) -> tuple[str, ...]:
     if fault.remediation is None:
         return ()
+    return _wrapped_help(remediation=fault.remediation, use_color=use_color, label=label)
+
+
+@cache
+def _wrapped_help(*, remediation: str, use_color: bool, label: str) -> tuple[str, ...]:
     prefix: str = f"  = {label}: "
     continuation: str = "          "
     wrapped: list[str] = textwrap.wrap(
-        fault.remediation,
+        remediation,
         width=REPORT_LINE_WIDTH,
         initial_indent=prefix,
         subsequent_indent=continuation,

@@ -155,6 +155,7 @@ class PublicationCandidate:
 
     entry: CacheIndexEntry
     record: CacheRecord
+    encoded: bytes
 
 
 @dataclass(frozen=True, slots=True)

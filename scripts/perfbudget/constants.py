@@ -1,0 +1,17 @@
+"""Budget scenario names and default ceilings."""
+
+UNCACHED_SCENARIO: str = "uncached"
+COLD_SCENARIO: str = "cold"
+WARM_SCENARIO: str = "warm"
+EDIT_SCENARIO: str = "one_edit"
+DEFAULT_FILE_TARGET: int = 2400
+DEFAULT_SEED: int = 0
+DEFAULT_UNCACHED_CEILING_SECONDS: float = 30.0
+DEFAULT_COLD_CEILING_SECONDS: float = 35.0
+DEFAULT_WARM_CEILING_SECONDS: float = 8.0
+DEFAULT_EDIT_CEILING_SECONDS: float = 10.0
+FAULT_EXIT_CODE: int = 1
+WARM_MISS_FREE_FRAGMENT: str = "misses=0"
+WARM_WRITE_FREE_FRAGMENT: str = "writes=0"
+EDITED_HELPER_FILE_NAME: str = "record_shaping.py"
+EDIT_APPENDIX: str = "\nEDIT_MARKER: int = 1\n"

@@ -1,12 +1,15 @@
 SHELL := /bin/bash
 
-.PHONY: benchmark benchmark-profile check self-check skills test test-e2e test-integration test-unit verify
+.PHONY: benchmark benchmark-budget benchmark-profile check self-check skills test test-e2e test-integration test-unit verify
 
 BENCHMARK_PROJECT ?= ../sqlbuild
 BENCHMARK_RUNS ?= 5
 
 benchmark:
 	uv run python -m scripts.benchmark_check --project "$(BENCHMARK_PROJECT)" --runs "$(BENCHMARK_RUNS)"
+
+benchmark-budget:
+	uv run python -m scripts.perfbudget_check
 
 benchmark-profile:
 	uv run python -m scripts.benchmark_check --project "$(BENCHMARK_PROJECT)" --profile

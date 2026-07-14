@@ -298,15 +298,19 @@ def _parse_rule(*, source_line: str) -> _IgnoreRule | None:
 
 
 def _capture_regular_file(*, path: Path) -> tuple[bytes, os.stat_result] | None:
+    if path.is_symlink():
+        raise InitError(f"Root gitignore path is not a regular file: {path}")
     try:
         descriptor: int = os.open(
             path,
-            os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | os.O_NONBLOCK,
+            os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0),
         )
     except FileNotFoundError:
         return None
     except OSError as error:
         if error.errno == errno.ELOOP:
+            raise InitError(f"Root gitignore path is not a regular file: {path}") from error
+        if error.errno in {errno.EACCES, errno.EISDIR} and path.is_dir():
             raise InitError(f"Root gitignore path is not a regular file: {path}") from error
         raise
     try:

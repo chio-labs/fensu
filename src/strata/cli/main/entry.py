@@ -5,6 +5,7 @@ from __future__ import annotations
 import sys
 from importlib import metadata
 
+from strata.analysis.exceptions import NativeBackendUnavailableError
 from strata.cli.main.check import run_check
 from strata.cli.main.init import run_init
 from strata.cli.main.map import run_map
@@ -23,16 +24,20 @@ def main(argv: tuple[str, ...] | None = None) -> int:
     if args and args[0] == CliOption.VERSION:
         sys.stdout.write(f"strata {_installed_version()}\n")
         return 0
-    if args and args[0] == CliCommand.CHECK:
-        return run_check(argv=args[1:])
-    if args and args[0] == CliCommand.INIT:
-        return run_init(argv=args[1:])
-    if args and args[0] == CliCommand.RULE:
-        return run_rule(argv=args[1:])
-    if args and args[0] == CliCommand.SKILLS:
-        return run_skills(argv=args[1:])
-    if args and args[0] == CliCommand.MAP:
-        return run_map(argv=args[1:])
+    try:
+        if args and args[0] == CliCommand.CHECK:
+            return run_check(argv=args[1:])
+        if args and args[0] == CliCommand.INIT:
+            return run_init(argv=args[1:])
+        if args and args[0] == CliCommand.RULE:
+            return run_rule(argv=args[1:])
+        if args and args[0] == CliCommand.SKILLS:
+            return run_skills(argv=args[1:])
+        if args and args[0] == CliCommand.MAP:
+            return run_map(argv=args[1:])
+    except NativeBackendUnavailableError as error:
+        sys.stderr.write(f"{error}\n")
+        return 2
     if args:
         sys.stderr.write(f"Unknown command: {args[0]}\n")
     sys.stderr.write("Usage: strata {check,init,rule,skills,map} ...\n")

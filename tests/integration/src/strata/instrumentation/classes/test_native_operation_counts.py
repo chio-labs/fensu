@@ -7,7 +7,9 @@ from typing import Any
 
 import pytest
 
-strata_facts: Any = pytest.importorskip("strata_facts")
+from strata.analysis.constants import NATIVE_FACT_MODULE_NAME
+
+strata_facts: Any = pytest.importorskip(NATIVE_FACT_MODULE_NAME)
 
 from scripts.perfcorpus.main.generate_corpus import generate_corpus  # noqa: E402
 from scripts.perfcorpus.models import CorpusSpec  # noqa: E402

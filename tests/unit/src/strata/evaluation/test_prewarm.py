@@ -7,7 +7,9 @@ from typing import Any
 
 import pytest
 
-strata_facts: Any = pytest.importorskip("strata_facts")
+from strata.analysis.constants import NATIVE_FACT_MODULE_NAME
+
+strata_facts: Any = pytest.importorskip(NATIVE_FACT_MODULE_NAME)
 
 from strata.analysis.constants import FACT_BACKEND_ENV_VARIABLE  # noqa: E402
 from strata.analysis.main.select_fact_backend import select_fact_backend  # noqa: E402

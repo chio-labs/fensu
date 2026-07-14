@@ -6,7 +6,9 @@ from typing import Any
 
 import pytest
 
-strata_facts: Any = pytest.importorskip("strata_facts")
+from strata.analysis.constants import NATIVE_FACT_MODULE_NAME
+
+strata_facts: Any = pytest.importorskip(NATIVE_FACT_MODULE_NAME)
 
 from tests.integration.scripts.perfbudget.main._test_types import (  # noqa: E402
     BudgetRunTestCase,

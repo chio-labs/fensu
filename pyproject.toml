@@ -1,6 +1,6 @@
 [build-system]
-requires = ["hatchling>=1.27.0"]
-build-backend = "hatchling.build"
+requires = ["maturin>=1.14,<2"]
+build-backend = "maturin"
 
 [project]
 name = "stratalint"
@@ -15,9 +15,9 @@ classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
   "License :: OSI Approved :: Apache Software License",
-  "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Rust",
   "Topic :: Software Development :: Quality Assurance",
 ]
 
@@ -29,8 +29,11 @@ Repository = "https://github.com/chio-labs/strata"
 [project.scripts]
 strata = "strata.cli.main.entry:main"
 
-[tool.hatch.build.targets.wheel]
-packages = ["src/strata"]
+[tool.maturin]
+manifest-path = "crates/strata-facts/Cargo.toml"
+module-name = "strata.strata_facts"
+python-source = "src"
+features = ["pyo3/extension-module"]
 
 [dependency-groups]
 dev = [
@@ -41,13 +44,15 @@ dev = [
   "ruff>=0.12.0",
   "ty>=0.0.1a19",
 ]
-native = ["stratalint-native"]
 
-[tool.uv.workspace]
-members = ["crates/strata-facts"]
-
-[tool.uv.sources]
-stratalint-native = { workspace = true }
+[tool.uv]
+cache-keys = [
+  { file = "pyproject.toml" },
+  { file = "Cargo.toml" },
+  { file = "crates/strata-facts/Cargo.toml" },
+  { file = "crates/strata-facts/src/**/*.rs" },
+  { file = "src/strata/strata_facts.pyi" },
+]
 
 [tool.ruff]
 target-version = "py312"

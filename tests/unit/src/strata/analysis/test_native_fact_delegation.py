@@ -5,10 +5,11 @@ from pathlib import Path
 import pytest
 
 from strata.analysis.classes.native_fact_analysis import NativeFactAnalysis
+from strata.analysis.constants import NATIVE_FACT_MODULE_NAME
 from tests.unit.src.strata.analysis._test_types import FactDelegationTestCase
 from tests.unit.src.strata.analysis.helpers import sentinel_fact_analysis
 
-_: object = pytest.importorskip("strata_facts")
+_: object = pytest.importorskip(NATIVE_FACT_MODULE_NAME)
 
 _FACT_FAMILY_NAMES: tuple[str, ...] = (
     "annotations",

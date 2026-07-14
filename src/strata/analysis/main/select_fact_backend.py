@@ -9,6 +9,7 @@ from importlib.util import find_spec
 from types import ModuleType
 
 from strata.analysis.constants import FACT_BACKEND_ENV_VARIABLE, NATIVE_FACT_MODULE_NAME
+from strata.analysis.exceptions import NativeBackendUnavailableError
 from strata.analysis.models import FactBackendSelection
 from strata.analysis.types import FactBackend
 
@@ -19,44 +20,38 @@ def select_fact_backend() -> FactBackendSelection:
 
     requested: str = os.environ.get(FACT_BACKEND_ENV_VARIABLE, "").strip().lower()
     native_version: str | None = _native_backend_version()
-    default_backend: FactBackend = (
-        FactBackend.PYTHON if native_version is None else FactBackend.NATIVE
-    )
     if requested == FactBackend.PYTHON:
         return FactBackendSelection(
             backend=FactBackend.PYTHON,
             native_version=native_version,
             warning=None,
         )
-    if requested == FactBackend.NATIVE and native_version is None:
-        return FactBackendSelection(
-            backend=FactBackend.PYTHON,
-            native_version=None,
-            warning=(
-                f"The {FactBackend.NATIVE.value} fact backend was requested but "
-                f"{NATIVE_FACT_MODULE_NAME} is not installed; using the "
-                f"{FactBackend.PYTHON.value} backend."
-            ),
-        )
-    if requested == FactBackend.NATIVE:
+    if requested and requested != FactBackend.NATIVE:
+        if native_version is None:
+            raise _unavailable_error()
         return FactBackendSelection(
             backend=FactBackend.NATIVE,
-            native_version=native_version,
-            warning=None,
-        )
-    if requested:
-        return FactBackendSelection(
-            backend=default_backend,
             native_version=native_version,
             warning=(
                 f"Unknown {FACT_BACKEND_ENV_VARIABLE} value {requested!r}; expected "
                 f"{FactBackend.PYTHON.value!r} or {FactBackend.NATIVE.value!r}."
             ),
         )
+    if native_version is None:
+        raise _unavailable_error()
     return FactBackendSelection(
-        backend=default_backend,
+        backend=FactBackend.NATIVE,
         native_version=native_version,
         warning=None,
+    )
+
+
+def _unavailable_error() -> NativeBackendUnavailableError:
+    return NativeBackendUnavailableError(
+        f"The required native analysis module {NATIVE_FACT_MODULE_NAME!r} is not "
+        "importable. Reinstall stratalint to repair the installation, or set "
+        f"{FACT_BACKEND_ENV_VARIABLE}={FactBackend.PYTHON.value} to run the "
+        "unsupported pure-Python reference backend."
     )
 
 

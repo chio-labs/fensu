@@ -5,10 +5,11 @@ from typing import Any
 
 import pytest
 
+from strata.analysis.constants import NATIVE_FACT_MODULE_NAME
 from tests.unit.src.strata.analysis._test_types import ParseValidityTestCase
 from tests.unit.src.strata.analysis.helpers import cpython_parse_validity
 
-strata_facts: Any = pytest.importorskip("strata_facts")
+strata_facts: Any = pytest.importorskip(NATIVE_FACT_MODULE_NAME)
 
 
 @pytest.mark.parametrize(

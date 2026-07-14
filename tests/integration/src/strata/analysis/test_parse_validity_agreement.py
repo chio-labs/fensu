@@ -5,9 +5,10 @@ from pathlib import Path
 import pytest
 
 import strata
+from strata.analysis.constants import NATIVE_FACT_MODULE_NAME
 from tests.integration.src.strata.analysis._test_types import RepoParseAgreementTestCase
 
-_: object = pytest.importorskip("strata_facts")
+_: object = pytest.importorskip(NATIVE_FACT_MODULE_NAME)
 
 from tests.integration.src.strata.analysis.helpers import (  # noqa: E402
     parse_validity_divergences,

@@ -55,6 +55,7 @@ _BANNED_IMPORT_ROOTS: frozenset[str] = frozenset(
 _BANNED_BUILTIN_CALLS: frozenset[str] = frozenset({"__import__", "eval", "exec", "input", "open"})
 _BANNED_IMPORT_PREFIXES: tuple[str, ...] = (
     "strata_facts",
+    "strata.strata_facts",
     "strata.cache",
     "strata.analysis.classes.native_fact_analysis",
     "strata.analysis.main.parse_native_program",

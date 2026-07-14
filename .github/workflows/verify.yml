@@ -12,20 +12,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
       - run: uv python install 3.12
       - run: make verify
 
-  performance:
+  python-backend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
       - run: uv python install 3.12
+      - run: make test-python
       - run: make benchmark-budget
 
   rust:
@@ -45,7 +48,6 @@ jobs:
         with:
           enable-cache: true
       - run: uv python install 3.12
-      - run: make develop-native
       - run: make test-native
       - run: make check-parity
       - run: make benchmark-budget-native

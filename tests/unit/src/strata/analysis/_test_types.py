@@ -35,6 +35,15 @@ class FactBackendSelectionTestCase:
 
 
 @dataclass(frozen=True)
+class BackendUnavailableTestCase:
+    """Environment state expected to reject a missing native module."""
+
+    description: str
+    requested_value: str
+    expected_message_fragment: str
+
+
+@dataclass(frozen=True)
 class PythonSourceFactoryTestCase:
     """Exact source bytes and expected normalized analysis artifact."""
 

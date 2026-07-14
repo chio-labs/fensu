@@ -2,12 +2,6 @@ version = 1
 revision = 3
 requires-python = ">=3.12"
 
-[manifest]
-members = [
-    "stratalint",
-    "stratalint-native",
-]
-
 [[package]]
 name = "argcomplete"
 version = "3.6.3"
@@ -472,9 +466,6 @@ dev = [
     { name = "ruff" },
     { name = "ty" },
 ]
-native = [
-    { name = "stratalint-native" },
-]
 
 [package.metadata]
 
@@ -487,12 +478,6 @@ dev = [
     { name = "ruff", specifier = ">=0.12.0" },
     { name = "ty", specifier = ">=0.0.1a19" },
 ]
-native = [{ name = "stratalint-native", editable = "crates/strata-facts" }]
-
-[[package]]
-name = "stratalint-native"
-version = "0.1.0"
-source = { editable = "crates/strata-facts" }
 
 [[package]]
 name = "termcolor"

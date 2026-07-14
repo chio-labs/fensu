@@ -5,7 +5,9 @@ from typing import Any
 
 import pytest
 
-strata_facts: Any = pytest.importorskip("strata_facts")
+from strata.analysis.constants import NATIVE_FACT_MODULE_NAME
+
+strata_facts: Any = pytest.importorskip(NATIVE_FACT_MODULE_NAME)
 
 from tests.unit.src.strata.analysis._test_types import NativeFactParityTestCase  # noqa: E402
 from tests.unit.src.strata.analysis.helpers import fact_family_divergences  # noqa: E402

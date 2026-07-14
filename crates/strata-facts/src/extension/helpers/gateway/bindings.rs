@@ -6,22 +6,25 @@ use pyo3::{pyfunction, Bound, Py, PyAny, PyResult, Python};
 use ruff_python_ast::PythonVersion;
 
 use crate::constants;
-use crate::extension::helpers::convert_annotations::annotation_facts_object;
-use crate::extension::helpers::convert_contracts::function_contract_facts_object;
-use crate::extension::helpers::convert_declarations::module_declaration_facts_object;
-use crate::extension::helpers::convert_functions::{
+use crate::extension::helpers::conversion::annotations::annotation_facts_object;
+use crate::extension::helpers::conversion::contracts::function_contract_facts_object;
+use crate::extension::helpers::conversion::declarations::module_declaration_facts_object;
+use crate::extension::helpers::conversion::functions::{
     dataclass_facts_object, function_facts_object, parameter_mutation_facts_object,
     project_facts_objects,
 };
-use crate::extension::helpers::convert_hygiene::{
+use crate::extension::helpers::conversion::harness::{
+    evaluate_rule_call_facts_object, test_function_facts_object,
+};
+use crate::extension::helpers::conversion::hygiene::{
     control_flow_facts_objects, hygiene_facts_object,
 };
-use crate::extension::helpers::convert_references::{
+use crate::extension::helpers::conversion::references::{
     reference_facts_object, test_module_facts_object,
 };
-use crate::extension::helpers::convert_state::outer_state_mutation_facts_object;
-use crate::extension::helpers::model_types::model_type;
-use crate::extension::helpers::program::ProgramHandle;
+use crate::extension::helpers::conversion::state::outer_state_mutation_facts_object;
+use crate::extension::helpers::gateway::model_types::model_type;
+use crate::extension::helpers::gateway::program::ProgramHandle;
 use crate::facts::main::enumerate_nodes::enumerate_nodes;
 use crate::facts::main::extract_comments::extract_comments;
 use crate::parsing::main::parse_strict::parse_strict;
@@ -158,6 +161,24 @@ pub(crate) fn project_facts(
     path: &Bound<'_, PyAny>,
 ) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
     project_facts_objects(py, handle.get(), path)
+}
+
+#[pyfunction]
+pub(crate) fn evaluate_rule_call_facts(
+    py: Python<'_>,
+    handle: &Bound<'_, ProgramHandle>,
+    path: &Bound<'_, PyAny>,
+) -> PyResult<Py<PyAny>> {
+    evaluate_rule_call_facts_object(py, handle.get(), path)
+}
+
+#[pyfunction]
+pub(crate) fn test_function_facts(
+    py: Python<'_>,
+    handle: &Bound<'_, ProgramHandle>,
+    path: &Bound<'_, PyAny>,
+) -> PyResult<Py<PyAny>> {
+    test_function_facts_object(py, handle.get(), path)
 }
 
 #[pyfunction]

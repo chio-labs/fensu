@@ -5,8 +5,8 @@ use pyo3::types::{PyModule, PyModuleMethods};
 use pyo3::wrap_pyfunction;
 use pyo3::{Bound, PyResult};
 
-use crate::extension::helpers::bindings;
-use crate::extension::helpers::program::ProgramHandle;
+use crate::extension::helpers::gateway::bindings;
+use crate::extension::helpers::gateway::program::ProgramHandle;
 
 /// Expose the native fact-extraction functions to Python.
 #[pymodule]
@@ -18,6 +18,10 @@ pub fn strata_facts(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(bindings::project_facts, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::list_syntax_nodes, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::comment_facts, module)?)?;
+    module.add_function(wrap_pyfunction!(
+        bindings::evaluate_rule_call_facts,
+        module
+    )?)?;
     module.add_function(wrap_pyfunction!(bindings::function_contract_facts, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::function_facts, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::locate_byte_offset, module)?)?;
@@ -35,6 +39,7 @@ pub fn strata_facts(module: &Bound<'_, PyModule>) -> PyResult<()> {
     )?)?;
     module.add_function(wrap_pyfunction!(bindings::parse_program, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::reference_facts, module)?)?;
+    module.add_function(wrap_pyfunction!(bindings::test_function_facts, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::test_module_facts, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::hygiene_facts, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::control_flow_facts, module)?)?;

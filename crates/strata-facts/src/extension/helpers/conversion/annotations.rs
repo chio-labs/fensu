@@ -4,8 +4,8 @@ use pyo3::types::{PyAnyMethods, PyTuple};
 use pyo3::{Bound, Py, PyAny, PyResult, Python};
 
 use crate::constants;
-use crate::extension::helpers::model_types::model_type;
-use crate::extension::helpers::program::ProgramHandle;
+use crate::extension::helpers::gateway::model_types::model_type;
+use crate::extension::helpers::gateway::program::ProgramHandle;
 use crate::facts::main::extract_annotations::extract_annotations;
 use crate::facts::models::{LocalAnnotationRow, NamedLocationRow};
 

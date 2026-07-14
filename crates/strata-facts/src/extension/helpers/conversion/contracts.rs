@@ -4,10 +4,10 @@ use pyo3::types::{PyAnyMethods, PyTuple};
 use pyo3::{Bound, Py, PyAny, PyResult, Python};
 
 use crate::constants;
-use crate::extension::helpers::convert_annotations::location_object;
-use crate::extension::helpers::convert_declarations::to_object;
-use crate::extension::helpers::model_types::model_type;
-use crate::extension::helpers::program::ProgramHandle;
+use crate::extension::helpers::conversion::annotations::location_object;
+use crate::extension::helpers::conversion::declarations::to_object;
+use crate::extension::helpers::gateway::model_types::{model_type, type_member};
+use crate::extension::helpers::gateway::program::ProgramHandle;
 use crate::facts::main::extract_function_contracts::extract_function_contracts;
 
 pub(crate) fn function_contract_facts_object(
@@ -37,7 +37,12 @@ pub(crate) fn function_contract_facts_object(
             vec![
                 to_object(py, row.function_name)?,
                 location.unbind(),
-                to_object(py, row.category)?,
+                type_member(
+                    py,
+                    constants::RETURN_ANNOTATION_CATEGORY_NAME,
+                    &row.category,
+                )?
+                .unbind(),
                 to_object(py, row.annotation)?,
                 to_object(py, row.contains_yield)?,
                 meaningful,

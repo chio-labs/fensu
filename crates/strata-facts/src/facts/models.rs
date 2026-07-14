@@ -246,3 +246,74 @@ pub struct DiscardedCallRow {
     pub module_name: Option<String>,
     pub function_name: String,
 }
+
+/// One expression resolved to an absolute imported module symbol.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct StaticReferenceRow {
+    pub module_name: String,
+    pub symbol_name: String,
+}
+
+/// One pytest parametrization dimension and its provable RuleCase values.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DimensionRow {
+    pub line: u32,
+    pub column: u32,
+    pub parameter_names: Vec<String>,
+    pub values_location: Option<(u32, u32)>,
+    pub rule_case_locations: Vec<(u32, u32)>,
+    pub unknown_rule_case_count: bool,
+}
+
+/// One statically recognized strata.evaluate_rule call.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EvaluateRuleCallRow {
+    pub line: u32,
+    pub column: u32,
+    pub test_function_name: Option<String>,
+    pub test_function_location: Option<(u32, u32)>,
+    pub rule_expression: Option<Vec<String>>,
+    pub rule_location: Option<(u32, u32)>,
+    pub rule_reference: Option<StaticReferenceRow>,
+    pub test_case_expression: Option<Vec<String>>,
+    pub test_case_location: Option<(u32, u32)>,
+    pub test_case_form: String,
+    pub case_locations: Vec<(u32, u32)>,
+    pub unknown_case_count: bool,
+}
+
+/// One visible pytest parametrization case expression.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ParametrizeCaseRow {
+    pub line: u32,
+    pub column: u32,
+    pub constructor_name: Option<String>,
+    pub dictionary: bool,
+}
+
+/// Structured pytest parametrization decorator metadata.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ParametrizeRow {
+    pub argument_count: u32,
+    pub parameter_name: Option<String>,
+    pub ids_present: bool,
+    pub description_lambda_ids: bool,
+    pub values_is_comprehension: bool,
+    pub values_is_sequence: bool,
+    pub values_empty: bool,
+    pub cases: Vec<ParametrizeCaseRow>,
+}
+
+/// Reusable syntax metadata for one test function.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TestFunctionRow {
+    pub name: String,
+    pub line: u32,
+    pub column: u32,
+    pub parameter_names: Vec<String>,
+    pub test_case_annotation_name: Option<String>,
+    pub parametrize: Option<ParametrizeRow>,
+    pub references_expected_field: bool,
+    pub conditional_locations: Vec<(u32, u32)>,
+    pub dimensions: Vec<DimensionRow>,
+}

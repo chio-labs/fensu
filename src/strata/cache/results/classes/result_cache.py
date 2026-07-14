@@ -14,7 +14,6 @@ from strata.cache.results._helpers.serialization import (
     dependencies_from_record,
     dependencies_to_record,
     file_result_from_record,
-    file_result_to_record,
     index_from_record,
     index_to_record,
     metadata_from_record,
@@ -45,6 +44,7 @@ from strata.cache.results.models import (
     CacheStats,
     CheckCacheContext,
     DependencyObservation,
+    PreparedFileResult,
     PublicationCandidate,
     PublicationPreparation,
 )
@@ -148,20 +148,19 @@ class ResultCache:
         internal_error: bool = False
         for evaluation in evaluations:
             try:
-                result: CachedFileResult | None = build_cached_file_result(
+                prepared: PreparedFileResult | None = build_cached_file_result(
                     evaluation=evaluation,
                     repo_root=self._repo_root,
-                )
-                record: CacheRecord | None = (
-                    file_result_to_record(result) if result is not None else None
                 )
             except CacheRecordError:
                 internal_error = True
                 non_cacheable += 1
                 continue
-            if result is None or record is None:
+            if prepared is None:
                 non_cacheable += 1
                 continue
+            result: CachedFileResult = prepared.result
+            record: CacheRecord = prepared.record
             encoded: bytes = encode_record(record=record)
             fingerprints: FileResultFingerprints = file_result_fingerprints(
                 global_fingerprint=global_fingerprint,

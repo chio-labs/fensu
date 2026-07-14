@@ -12,7 +12,8 @@ from strata.cache.results._helpers.conversion import (
     build_cached_file_result,
     restore_file_evaluation,
 )
-from strata.cache.results.models import CachedFileResult
+from strata.cache.results._helpers.serialization import file_result_from_record
+from strata.cache.results.models import CachedFileResult, PreparedFileResult
 from strata.evaluation.models import FileEvaluation, RuleExceptionKey
 from strata.rules.authoring.models import Fault
 from tests.unit.src.strata.cache.results._test_types import (
@@ -84,18 +85,20 @@ def test_given_runtime_file_result_when_converting_then_returns_cache_safe_recor
         ),
     )
 
-    result: CachedFileResult | None = build_cached_file_result(
+    prepared: PreparedFileResult | None = build_cached_file_result(
         evaluation=evaluation,
         repo_root=tmp_path,
     )
 
-    assert result is not None
+    assert prepared is not None
+    result: CachedFileResult = prepared.result
     assert tuple(fault.code for fault in result.faults) == test_case.expected_fault_codes
     assert tuple(warning.code for warning in result.warnings) == test_case.expected_warning_codes
     assert (
         tuple(item.answer for item in result.dependencies) == test_case.expected_dependency_answers
     )
     assert result.path == test_case.relative_path
+    assert file_result_from_record(prepared.record) == result
     assert restore_file_evaluation(result=result, repo_root=tmp_path) == evaluation
 
 
@@ -136,12 +139,12 @@ def test_given_external_dependency_when_converting_then_returns_non_cacheable(
         ),
     )
 
-    result: CachedFileResult | None = build_cached_file_result(
+    prepared: PreparedFileResult | None = build_cached_file_result(
         evaluation=evaluation,
         repo_root=tmp_path,
     )
 
-    assert result == test_case.expected_result
+    assert prepared == test_case.expected_result
 
 
 @pytest.mark.parametrize(
@@ -173,9 +176,9 @@ def test_given_cross_file_fault_when_converting_then_returns_non_cacheable(
         dependencies=(),
     )
 
-    result: CachedFileResult | None = build_cached_file_result(
+    prepared: PreparedFileResult | None = build_cached_file_result(
         evaluation=evaluation,
         repo_root=tmp_path,
     )
 
-    assert result == test_case.expected_result
+    assert prepared == test_case.expected_result

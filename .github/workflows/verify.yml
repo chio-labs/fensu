@@ -48,3 +48,4 @@ jobs:
       - run: make develop-native
       - run: make test-native
       - run: make check-parity
+      - run: make benchmark-budget-native

@@ -15,7 +15,6 @@ from strata.analysis.models import (
 )
 from strata.analysis.types import (
     Analysis,
-    AnalysisBuild,
     ProjectDependencyKind,
     PythonSourceArtifact,
 )
@@ -82,6 +81,12 @@ class _EvaluationProjectAnalysis:
         self._parsed_modules.pop(path, None)
         self._queried_sources.discard(path)
         return parsed
+
+    def prewarm(self, *, parsed: ParsedModule) -> None:
+        """Adopt one pre-parsed discovered module for later single-use retrieval."""
+
+        path: Path = self._resolve(parsed.scoped_file.path)
+        _ = self._parsed_modules.setdefault(path, parsed)
 
     def analysis(self, *, requester: Path, path: Path) -> Analysis | None:
         """Return tolerant analysis for a queried path and record its dependency."""
@@ -344,11 +349,11 @@ def build_external_analysis(*, path: Path) -> ExternalAnalysisBuild:
         )
     except PythonSourceParseError:
         return ExternalAnalysisBuild(analysis=None, source_fingerprint=snapshot.fingerprint)
-    build: AnalysisBuild = build_analysis(
+    analysis: Analysis = build_analysis(
         path=artifact.path, source=artifact.source, module=artifact.module
     )
     return ExternalAnalysisBuild(
-        analysis=build.analysis,
+        analysis=analysis,
         source_fingerprint=artifact.source_fingerprint,
     )
 

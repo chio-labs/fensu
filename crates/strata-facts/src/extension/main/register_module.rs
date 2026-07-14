@@ -38,6 +38,7 @@ pub fn strata_facts(module: &Bound<'_, PyModule>) -> PyResult<()> {
         module
     )?)?;
     module.add_function(wrap_pyfunction!(bindings::parse_program, module)?)?;
+    module.add_function(wrap_pyfunction!(bindings::parse_programs, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::reference_facts, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::test_function_facts, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::test_module_facts, module)?)?;

@@ -266,7 +266,7 @@ class EvaluationRuleContext:
     def nodes(self, node_type: type[ast.AST]) -> list[ast.AST]:
         """Nodes of the given type from the shared single-pass index."""
 
-        return list(self._parsed_module.node_index.get(node_type, ()))
+        return list(self._parsed_module.syntax_artifacts.node_index.get(node_type, ()))
 
     def call_name(self, node: ast.Call) -> str | None:
         """The called name of a call node, if resolvable."""
@@ -301,7 +301,7 @@ class EvaluationRuleContext:
     def complex_comprehensions(self) -> tuple[ast.AST, ...]:
         """Comprehensions that combine generators or nest another comprehension."""
 
-        return ast_access.complex_comprehensions(self._parsed_module.node_index)
+        return ast_access.complex_comprehensions(self._parsed_module.syntax_artifacts.node_index)
 
     def parameter_names(self, fn: ast.AST) -> frozenset[str]:
         """The parameter names of a function."""
@@ -311,7 +311,10 @@ class EvaluationRuleContext:
     def inside_loop(self, node: ast.AST) -> bool:
         """Whether a node is lexically inside a loop."""
 
-        return ast_access.inside_loop(node=node, parent_by_node=self._parsed_module.parent_by_node)
+        return ast_access.inside_loop(
+            node=node,
+            parent_by_node=self._parsed_module.syntax_artifacts.parent_by_node,
+        )
 
     def threshold(self, *, name: Threshold, path: Path | None = None) -> int:
         """The applicable path, role, or global threshold for a reported path."""

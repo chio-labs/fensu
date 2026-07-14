@@ -19,7 +19,8 @@ def test_rules() -> tuple[RuleSpec, ...]:
 
 def _rule(*, code: SftCode, slug: str) -> RuleSpec:
     def check(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
-        return test_faults(module=module, ctx=ctx, code=code)
+        del module
+        return test_faults(ctx=ctx, code=code)
 
     details: tuple[str, str] = test_rule_details(code)
     message: str = details[0]

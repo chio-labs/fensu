@@ -370,7 +370,7 @@ def test_given_mapping_snapshot_when_indexing_then_does_not_build_analysis(
 ) -> None:
     source: MappingSource = write_mapping_project(tmp_path)
     analysis_build_spy: Mock = Mock(side_effect=AssertionError("mapping built full analysis"))
-    monkeypatch.setattr(building, "_index_nodes", analysis_build_spy)
+    monkeypatch.setattr(building, "index_module_nodes", analysis_build_spy)
 
     result: CachedCallMap = cached_map(root=tmp_path, source=source)
 

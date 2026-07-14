@@ -49,7 +49,7 @@ def test_given_unparseable_source_when_reading_fact_family_then_falls_back_to_py
     tmp_path: Path,
 ) -> None:
     facade: NativeFactAnalysis = NativeFactAnalysis(
-        python_facts=sentinel_fact_analysis(method_names=_FACT_FAMILY_NAMES),
+        python_facts=lambda: sentinel_fact_analysis(method_names=_FACT_FAMILY_NAMES),
         path=tmp_path / "module.py",
         source=_UNPARSEABLE_SOURCE,
     )

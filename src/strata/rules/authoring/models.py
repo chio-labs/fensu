@@ -46,6 +46,7 @@ class RuleSpec:
     source: str | None = None
     enabled_by_default: bool = True
     cacheable: bool | None = None
+    uses_module: bool = False
 
 
 @dataclass(frozen=True, slots=True)

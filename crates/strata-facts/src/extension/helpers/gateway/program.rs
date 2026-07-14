@@ -1,6 +1,7 @@
 //! A parsed-program handle shared by native fact-family bindings.
 
 use pyo3::pyclass;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use ruff_python_ast::token::Tokens;
 use ruff_python_ast::{ModModule, PythonVersion};
 use ruff_python_parser::Parsed;
@@ -28,6 +29,13 @@ impl ProgramHandle {
             index: index_lines(source),
             version,
         })
+    }
+
+    pub(crate) fn parse_many(sources: Vec<String>, version: PythonVersion) -> Vec<Option<Self>> {
+        sources
+            .into_par_iter()
+            .map(|source| Self::parse(&source, version).ok())
+            .collect()
     }
 
     pub(crate) fn source(&self) -> &str {

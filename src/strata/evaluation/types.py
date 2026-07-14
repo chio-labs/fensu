@@ -15,3 +15,7 @@ class EvaluationProjectAnalysis(ProjectAnalysis, Protocol):
     def parsed_module(self, scoped_file: ScopedFile) -> ParsedModule:
         """Return one strict discovered-file parse."""
         ...
+
+    def prewarm(self, *, parsed: ParsedModule) -> None:
+        """Adopt one pre-parsed discovered module for later single-use retrieval."""
+        ...

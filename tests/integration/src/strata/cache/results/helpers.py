@@ -218,6 +218,7 @@ def exception_fault_rule() -> RuleSpec:
         slug="cache-exception",
         message="cache exception",
         check=check,
+        uses_module=True,
     )
 
 

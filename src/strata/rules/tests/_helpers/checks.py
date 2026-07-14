@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import ast
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -62,7 +61,7 @@ class _LayoutMatch:
     issue: _LayoutIssue | None
 
 
-def test_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) -> list[Fault]:
+def test_faults(*, ctx: RuleContext, code: SftCode) -> list[Fault]:
     """Collect faults for a single tests-family rule."""
 
     if ctx.scope() is not ScopeName.TEST:
@@ -84,19 +83,19 @@ def test_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) -> list[
     if code == SftCode.NO_COMPLEX_COMPREHENSIONS:
         return [ctx.fault_at(location=location) for location in ctx.facts.complex_comprehensions()]
     if ctx.path.name == TestPathName.SCENARIO_MODELS and code == SftCode.TEST_LAYOUT:
-        return _scenario_models_faults(module=module, ctx=ctx)
+        return _scenario_models_faults(ctx=ctx)
     if code in _layout_codes():
         return _layout_faults(ctx=ctx, code=code)
     if code == SftCode.INIT_MODULE_EMPTY:
-        return _init_module_faults(module=module, ctx=ctx)
+        return _init_module_faults(ctx=ctx)
     if code == SftCode.ABSOLUTE_IMPORTS:
-        return _relative_import_faults(module=module, ctx=ctx)
+        return _relative_import_faults(ctx=ctx)
     if ctx.path.name == TestPathName.TEST_TYPES:
-        return _test_types_faults(module=module, ctx=ctx, code=code)
+        return _test_types_faults(ctx=ctx, code=code)
     if code in {SftCode.TEST_TYPES_DESCRIPTION, SftCode.TEST_TYPES_EXPECTED_FIELD}:
         return []
     if ctx.path.name.endswith(".py"):
-        return _test_file_faults(module=module, ctx=ctx, code=code)
+        return _test_file_faults(ctx=ctx, code=code)
     return []
 
 
@@ -271,15 +270,13 @@ def _path_fault(*, ctx: RuleContext, code: SftCode, message: str) -> Fault:
     return ctx.path_fault(message=message)
 
 
-def _init_module_faults(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
-    del module
+def _init_module_faults(*, ctx: RuleContext) -> list[Fault]:
     if ctx.path.name != TestPathName.INIT_MODULE or ctx.facts.test_module().empty_or_docstring_only:
         return []
     return [ctx.path_fault(message="__init__.py must be empty or docstring-only")]
 
 
-def _relative_import_faults(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
-    del module
+def _relative_import_faults(*, ctx: RuleContext) -> list[Fault]:
     return [
         ctx.fault_at(location=fact.location)
         for fact in ctx.facts.references().imports
@@ -287,8 +284,7 @@ def _relative_import_faults(*, module: ast.Module, ctx: RuleContext) -> list[Fau
     ]
 
 
-def _test_types_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) -> list[Fault]:
-    del module
+def _test_types_faults(*, ctx: RuleContext, code: SftCode) -> list[Fault]:
     faults: list[Fault] = []
     for fact in ctx.facts.dataclasses():
         if (
@@ -303,16 +299,14 @@ def _test_types_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) -
     return faults
 
 
-def _scenario_models_faults(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
-    del module
+def _scenario_models_faults(*, ctx: RuleContext) -> list[Fault]:
     return [
         ctx.fault_at(location=location)
         for location in ctx.facts.test_module().scenario_invalid_locations
     ]
 
 
-def _test_file_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) -> list[Fault]:
-    del module
+def _test_file_faults(*, ctx: RuleContext, code: SftCode) -> list[Fault]:
     local_test_types: _LocalTestTypes | None = None
     if code in {
         SftCode.LOCAL_TEST_TYPES_IMPORT,

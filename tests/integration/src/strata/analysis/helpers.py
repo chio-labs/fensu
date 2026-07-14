@@ -82,7 +82,7 @@ def _file_divergences(*, path: Path, source: str) -> tuple[str, ...]:
     python_facts: PythonFactAnalysis = _python_fact_backend(path=path, source=source, module=module)
     delegate: PythonFactAnalysis = _python_fact_backend(path=path, source=source, module=module)
     native_facts: NativeFactAnalysis = NativeFactAnalysis(
-        python_facts=delegate, path=path, source=source
+        python_facts=lambda: delegate, path=path, source=source
     )
     divergent: list[str] = []
     for family in FACT_FAMILY_NAMES:

@@ -53,6 +53,12 @@ _BANNED_IMPORT_ROOTS: frozenset[str] = frozenset(
     }
 )
 _BANNED_BUILTIN_CALLS: frozenset[str] = frozenset({"__import__", "eval", "exec", "input", "open"})
+_BANNED_IMPORT_PREFIXES: tuple[str, ...] = (
+    "strata_facts",
+    "strata.cache",
+    "strata.analysis.classes.native_fact_analysis",
+    "strata.analysis.main.parse_native_program",
+)
 _BANNED_OPERATION_ATTRIBUTES: frozenset[str] = frozenset(
     {
         "absolute",
@@ -107,7 +113,10 @@ class _HermeticityVisitor(ast.NodeVisitor):
 
     def visit_Import(self, node: ast.Import) -> None:
         banned: filter[ast.alias] = filter(
-            lambda alias: alias.name.split(".")[0] in _BANNED_IMPORT_ROOTS,
+            lambda alias: (
+                alias.name.split(".")[0] in _BANNED_IMPORT_ROOTS
+                or _matches_banned_prefix(module_name=alias.name)
+            ),
             node.names,
         )
         self.violations.extend(
@@ -116,7 +125,10 @@ class _HermeticityVisitor(ast.NodeVisitor):
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
         module_name: str = node.module or ""
-        forbidden: bool = node.level == 0 and module_name.split(".")[0] in _BANNED_IMPORT_ROOTS
+        forbidden: bool = node.level == 0 and (
+            module_name.split(".")[0] in _BANNED_IMPORT_ROOTS
+            or _matches_banned_prefix(module_name=module_name)
+        )
         self.violations.extend(
             {False: (), True: (f"{self._module}:{node.lineno} imports from {module_name}",)}[
                 forbidden
@@ -127,6 +139,13 @@ class _HermeticityVisitor(ast.NodeVisitor):
         violation: str | None = _call_violation(call=node, module=self._module)
         self.violations.extend(filter(None, (violation,)))
         self.generic_visit(node)
+
+
+def _matches_banned_prefix(*, module_name: str) -> bool:
+    return any(
+        module_name == prefix or module_name.startswith(f"{prefix}.")
+        for prefix in _BANNED_IMPORT_PREFIXES
+    )
 
 
 def empty_check(module: ast.Module, ctx: RuleContext) -> list[Fault]:

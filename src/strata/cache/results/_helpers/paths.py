@@ -8,6 +8,7 @@ from strata.cache.results.constants import (
     REPOSITORY_ROOT_PATH,
     WINDOWS_PATH_SEPARATOR,
 )
+from strata.instrumentation.constants import OPERATION_COUNTERS, RELATIVE_PATH_COMPUTE_OPERATION
 
 
 @cache
@@ -19,6 +20,7 @@ def relative_repository_path(
 ) -> str | None:
     """Return canonical repository-relative POSIX spelling without resolving paths."""
 
+    OPERATION_COUNTERS.record(operation=RELATIVE_PATH_COMPUTE_OPERATION)
     root: Path = repo_root.absolute()
     candidate: Path = path if path.is_absolute() else root / path
     try:

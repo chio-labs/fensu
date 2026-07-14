@@ -10,6 +10,7 @@ from tokenize import detect_encoding
 
 from strata.analysis.exceptions import PythonSourceParseError
 from strata.analysis.types import PythonSourceArtifact
+from strata.instrumentation.constants import OPERATION_COUNTERS, PARSE_OPERATION
 
 
 def parse_python_source(
@@ -17,6 +18,7 @@ def parse_python_source(
 ) -> PythonSourceArtifact:
     """Decode and parse one exact Python source snapshot."""
 
+    OPERATION_COUNTERS.record(operation=PARSE_OPERATION)
     try:
         encoding: str = detect_encoding(BytesIO(content).readline)[0]
         source: str = content.decode(encoding).replace("\r\n", "\n").replace("\r", "\n")

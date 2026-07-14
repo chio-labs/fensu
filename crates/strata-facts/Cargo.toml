@@ -14,11 +14,14 @@ path = "src/lib.rs"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+hex.workspace = true
 pyo3.workspace = true
 rayon.workspace = true
 ruff_python_ast.workspace = true
 ruff_python_parser.workspace = true
 ruff_text_size.workspace = true
+sha2.workspace = true
+walkdir.workspace = true
 
 [features]
 extension-module = ["pyo3/extension-module"]

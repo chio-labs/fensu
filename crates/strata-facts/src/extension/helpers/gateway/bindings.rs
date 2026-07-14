@@ -1,5 +1,8 @@
 //! Python-callable bindings over native domain entries.
 
+use std::ffi::OsString;
+use std::path::PathBuf;
+
 use pyo3::exceptions::PyValueError;
 use pyo3::types::{PyAnyMethods, PyTuple};
 use pyo3::{pyfunction, Bound, Py, PyAny, PyResult, Python};
@@ -29,6 +32,8 @@ use crate::facts::main::enumerate_nodes::enumerate_nodes;
 use crate::facts::main::extract_comments::extract_comments;
 use crate::parsing::main::parse_strict::parse_strict;
 use crate::positions::main::locate_offset::locate_offset;
+use crate::snapshot::main::hash_files::hash_files;
+use crate::snapshot::main::walk_python_files::walk_python_files as snapshot_walk;
 
 #[pyfunction]
 pub(crate) fn backend_version() -> String {
@@ -73,6 +78,33 @@ pub(crate) fn parse_programs(
 ) -> Vec<Option<ProgramHandle>> {
     let version = PythonVersion { major, minor };
     py.detach(move || ProgramHandle::parse_many(sources, version))
+}
+
+type WalkedEntryRow = (PathBuf, Option<PathBuf>, Option<Vec<OsString>>);
+
+#[pyfunction]
+pub(crate) fn walk_python_files(py: Python<'_>, roots: Vec<PathBuf>) -> Vec<Vec<WalkedEntryRow>> {
+    let walked = py.detach(move || snapshot_walk(&roots));
+    walked
+        .into_iter()
+        .map(|entries| {
+            entries
+                .into_iter()
+                .map(|entry| {
+                    (
+                        entry.entry_path,
+                        entry.canonical_path,
+                        entry.root_relative_parts,
+                    )
+                })
+                .collect()
+        })
+        .collect()
+}
+
+#[pyfunction]
+pub(crate) fn hash_source_files(py: Python<'_>, paths: Vec<PathBuf>) -> Vec<Option<String>> {
+    py.detach(move || hash_files(&paths))
 }
 
 #[pyfunction]

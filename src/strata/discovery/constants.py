@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 from strata.config.constants import DEFAULT_ROLE_FILE_NAMES
+from strata.discovery.classes.repository_snapshot import RepositorySnapshot
 from strata.discovery.types import RoleName
 from strata.rules.authoring.types import Family
+
+SNAPSHOT_TABLE: RepositorySnapshot = RepositorySnapshot()
 
 ROLE_FILE_TO_NAME: dict[str, str] = {
     file_name: file_name.removesuffix(".py") for file_name in DEFAULT_ROLE_FILE_NAMES

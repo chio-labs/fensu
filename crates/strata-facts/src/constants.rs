@@ -1,6 +1,7 @@
 //! Shared byte-level constants for native fact extraction.
 
 pub const NEWLINE_BYTE: u8 = b'\n';
+pub const PYTHON_FILE_SUFFIX_BYTES: &[u8] = b".py";
 pub const COMMENT_BYTE: u8 = b'#';
 pub const OPEN_PAREN_BYTE: u8 = b'(';
 pub const CLOSE_PAREN_BYTE: u8 = b')';

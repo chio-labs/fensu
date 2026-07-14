@@ -16,13 +16,19 @@ def write_custom_rule_file(
     rule_code: str,
     prelude: str = "",
     check_body: str = "    return []",
+    decorator_arguments: str = "",
 ) -> Path:
     """Write a custom rule file that registers one no-op rule."""
 
     path: Path = root / relative_path
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        _custom_rule_source(rule_code=rule_code, prelude=prelude, check_body=check_body),
+        _custom_rule_source(
+            rule_code=rule_code,
+            prelude=prelude,
+            check_body=check_body,
+            decorator_arguments=decorator_arguments,
+        ),
         encoding="utf-8",
     )
     return path
@@ -170,10 +176,18 @@ def catalogue_quality_issues(
 
 
 def _custom_rule_source(
-    *, rule_code: str, prelude: str = "", check_body: str = "    return []"
+    *,
+    rule_code: str,
+    prelude: str = "",
+    check_body: str = "    return []",
+    decorator_arguments: str = "",
 ) -> str:
     family: str = {False: "Family.LAYERS", True: "Family.CUSTOM"}[rule_code.startswith("X")]
-    return f'''
+    envelope: str = (
+        f'code="{rule_code}", family={family}, slug="custom-rule", '
+        f'message="custom message"{decorator_arguments}'
+    )
+    return f"""
 from __future__ import annotations
 
 import ast
@@ -182,7 +196,7 @@ from strata import Family, Fault, RuleContext, rule
 
 {prelude}
 
-@rule(code="{rule_code}", family={family}, slug="custom-rule", message="custom message")
+@rule({envelope})
 def custom_rule(module: ast.Module, ctx: RuleContext) -> list[Fault]:
 {check_body}
-'''
+"""

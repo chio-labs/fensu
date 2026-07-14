@@ -103,3 +103,12 @@ class RuleSelectorMatchTestCase:
     code: str
     selector: str
     expected_matches: bool
+
+
+@dataclass(frozen=True)
+class RuleCacheableFlagTestCase:
+    """One decorator cacheability declaration and its recorded spec value."""
+
+    description: str
+    cacheable: bool | None
+    expected_cacheable: bool | None

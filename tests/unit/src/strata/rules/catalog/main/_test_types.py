@@ -106,4 +106,26 @@ class CacheableRuleValidationTestCase:
     prelude: str
     check_body: str
     expected_error_fragment: str | None
-    expected_cacheable: bool
+    expected_cacheable: bool | None
+
+
+@dataclass(frozen=True)
+class DeclaredCacheableRuleTestCase:
+    """One decorator-declared cacheability outcome without the blanket policy."""
+
+    description: str
+    decorator_arguments: str
+    prelude: str
+    check_body: str
+    expected_error_fragment: str | None
+    expected_cacheable: bool | None
+
+
+@dataclass(frozen=True)
+class UndeclaredCacheableTestCase:
+    """One custom rule source and its expected appears-cacheable report."""
+
+    description: str
+    decorator_arguments: str
+    prelude: str
+    expected_codes: tuple[str, ...]

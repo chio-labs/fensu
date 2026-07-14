@@ -67,6 +67,8 @@ class NativeFactAnalysis:
         self._project_facts: tuple[tuple[ProjectFunctionFact, ...], ProjectCallFacts] | None = None
         self._references: ReferenceFacts | None = None
         self._test_module: PytestModuleFacts | None = None
+        self._test_functions: tuple[PytestFunctionFact, ...] | None = None
+        self._evaluate_rule_calls: tuple[EvaluateRuleCallFact, ...] | None = None
         self._hygiene: HygieneFacts | None = None
         self._control_flow: (
             tuple[
@@ -144,7 +146,14 @@ class NativeFactAnalysis:
     def evaluate_rule_calls(self) -> tuple[EvaluateRuleCallFact, ...]:
         """Return statically recognized public rule-harness calls."""
 
-        return self._python_facts.evaluate_rule_calls()
+        if self._evaluate_rule_calls is None:
+            program: object | None = self._parsed_program()
+            self._evaluate_rule_calls = (
+                self._python_facts.evaluate_rule_calls()
+                if program is None
+                else self._native.evaluate_rule_call_facts(program, self._path)
+            )
+        return self._evaluate_rule_calls
 
     def complex_comprehensions(self) -> tuple[SourceLocation, ...]:
         """Return complex comprehension locations."""
@@ -292,7 +301,14 @@ class NativeFactAnalysis:
     def test_functions(self) -> tuple[PytestFunctionFact, ...]:
         """Return reusable syntax metadata for test functions."""
 
-        return self._python_facts.test_functions()
+        if self._test_functions is None:
+            program: object | None = self._parsed_program()
+            self._test_functions = (
+                self._python_facts.test_functions()
+                if program is None
+                else self._native.test_function_facts(program, self._path)
+            )
+        return self._test_functions
 
     def top_level_definition_conditionals(self) -> tuple[SourceLocation, ...]:
         """Return test-policy conditionals owned by top-level definitions."""

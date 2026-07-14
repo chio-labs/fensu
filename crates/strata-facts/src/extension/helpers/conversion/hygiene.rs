@@ -4,10 +4,10 @@ use pyo3::types::{PyAnyMethods, PyTuple};
 use pyo3::{Bound, Py, PyAny, PyResult, Python};
 
 use crate::constants;
-use crate::extension::helpers::convert_declarations::{location_tuple, to_object};
-use crate::extension::helpers::convert_state::source_range_object;
-use crate::extension::helpers::model_types::model_type;
-use crate::extension::helpers::program::ProgramHandle;
+use crate::extension::helpers::conversion::declarations::{location_tuple, to_object};
+use crate::extension::helpers::conversion::state::source_range_object;
+use crate::extension::helpers::gateway::model_types::model_type;
+use crate::extension::helpers::gateway::program::ProgramHandle;
 use crate::facts::main::extract_control_flow::extract_control_flow;
 use crate::facts::main::extract_hygiene::extract_hygiene;
 use crate::facts::models::ControlFlowRows;

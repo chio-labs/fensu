@@ -4,10 +4,10 @@ use pyo3::types::{PyAnyMethods, PyTuple};
 use pyo3::{Bound, Py, PyAny, PyResult, Python};
 
 use crate::constants;
-use crate::extension::helpers::convert_annotations::location_object;
-use crate::extension::helpers::convert_declarations::{location_tuple, to_object};
-use crate::extension::helpers::model_types::model_type;
-use crate::extension::helpers::program::ProgramHandle;
+use crate::extension::helpers::conversion::annotations::location_object;
+use crate::extension::helpers::conversion::declarations::{location_tuple, to_object};
+use crate::extension::helpers::gateway::model_types::model_type;
+use crate::extension::helpers::gateway::program::ProgramHandle;
 use crate::facts::main::extract_references::extract_references;
 use crate::facts::main::extract_test_module::extract_test_module;
 use crate::facts::models::{ImportRow, ReferenceEventRow};

@@ -267,6 +267,28 @@ from tests.unit.src.strata.analysis.helpers import fact_family_divergences  # no
             expected_divergent=(),
         ),
         NativeFactParityTestCase(
+            description="harness calls with duplicate single and literal case forms",
+            source=(
+                "import pytest\n"
+                "import strata\n"
+                "from strata import RuleCase, evaluate_rule\n"
+                "CASES = [RuleCase(), RuleCase()]\n"
+                "@pytest.mark.parametrize('test_case', CASES)\n"
+                "@pytest.mark.parametrize('test_case', [RuleCase()])\n"
+                "def test_given_duplicate_dimensions_when_evaluating_then_unknown(test_case):\n"
+                "    evaluate_rule(rule=None, test_case=test_case)\n"
+                "@pytest.mark.parametrize('test_case', CASES)\n"
+                "def test_given_named_cases_when_evaluating_then_counted(test_case):\n"
+                "    strata.evaluate_rule(rule=strata.rules.demo, test_case=test_case)\n"
+                "def test_given_literal_case_when_evaluating_then_literal():\n"
+                "    evaluate_rule(rule=None, test_case=RuleCase(kind='x'))\n"
+                "def test_given_shadowed_harness_when_evaluating_then_skipped():\n"
+                "    evaluate_rule = object\n"
+                "    evaluate_rule(rule=None, test_case=RuleCase())\n"
+            ),
+            expected_divergent=(),
+        ),
+        NativeFactParityTestCase(
             description="decorated async functions and lambda scopes",
             source=(
                 "import functools\n"

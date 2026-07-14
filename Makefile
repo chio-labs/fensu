@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: benchmark benchmark-budget benchmark-profile check self-check skills test test-e2e test-integration test-unit verify
+.PHONY: benchmark benchmark-budget benchmark-profile check check-rust self-check skills test test-e2e test-integration test-rust test-unit verify
 
 BENCHMARK_PROJECT ?= ../sqlbuild
 BENCHMARK_RUNS ?= 5
@@ -19,6 +19,15 @@ check:
 	uv run ruff check --fix .
 	uv run ty check src tests scripts
 	uv run strata check
+	@command -v cargo >/dev/null && $(MAKE) --no-print-directory check-rust || true
+
+check-rust:
+	cargo fmt --check
+	cargo clippy --all-targets --quiet -- -D warnings
+	cargo run -p strata-structure-checker --quiet
+
+test-rust:
+	cargo test --all --quiet
 
 self-check:
 	uv run strata check

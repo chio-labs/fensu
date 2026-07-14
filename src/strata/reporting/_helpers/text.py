@@ -116,22 +116,22 @@ def _format_excerpt(*, fault: Fault, use_color: bool) -> tuple[str, ...]:
 
 
 def _format_location(*, fault: Fault, root: Path) -> str:
-    relative_path: Path = _display_path(path=fault.path, root=root)
+    relative_path: str = _display_path(path=fault.path, root=root)
     line_text: str = str(fault.line) if fault.line is not None else "-"
     column_text: str = str(fault.column) if fault.column is not None else "-"
     return f"{relative_path}:{line_text}:{column_text}"
 
 
 @cache
-def _display_path(*, path: Path, root: Path) -> Path:
+def _display_path(*, path: Path, root: Path) -> str:
     path_value: str = path.as_posix()
     root_prefix: str = root.as_posix() + _posix_path_separator
     if path_value.startswith(root_prefix):
-        return Path(path_value[len(root_prefix) :])
+        return path_value[len(root_prefix) :]
     try:
-        return path.relative_to(root)
+        return path.relative_to(root).as_posix()
     except ValueError:
-        return path
+        return path_value
 
 
 def _format_help(*, fault: Fault, use_color: bool, label: str) -> tuple[str, ...]:

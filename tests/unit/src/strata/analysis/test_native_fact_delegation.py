@@ -8,6 +8,8 @@ from strata.analysis.classes.native_fact_analysis import NativeFactAnalysis
 from tests.unit.src.strata.analysis._test_types import FactDelegationTestCase
 from tests.unit.src.strata.analysis.helpers import sentinel_fact_analysis
 
+_: object = pytest.importorskip("strata_facts")
+
 _FACT_FAMILY_NAMES: tuple[str, ...] = (
     "annotations",
     "comments",

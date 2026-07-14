@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.15.0](https://github.com/chio-labs/strata/compare/v0.14.0...v0.15.0) (2026-07-14)
+
+
+### Features
+
+* **analysis:** add native fact backend scaffolding with pass-through delegation ([5b4a9f4](https://github.com/chio-labs/strata/commit/5b4a9f4fd2a8dd12e3ce56a1ffcc1c291c57c4b5))
+* **discovery:** add native repository snapshot with canonical path and hash table ([4e0377b](https://github.com/chio-labs/strata/commit/4e0377babbb39857aa538c83475d53f508b76f74))
+* **evaluation:** make CPython AST lazy and prewarm native parses in parallel ([db72898](https://github.com/chio-labs/strata/commit/db728981959f0b3b1c82d80cdabe6716d8a85234))
+* **facts:** add strict native parser with CPython validity agreement ([06c0361](https://github.com/chio-labs/strata/commit/06c03612c2338999f6a1e9a2045cfdf63d840474))
+* **facts:** port harness fact families and close native parity ([8eaf1e0](https://github.com/chio-labs/strata/commit/8eaf1e0e93bccb017cc99e51ead588c862448aaa))
+* **facts:** port seventeen fact families to the native backend ([3be79ff](https://github.com/chio-labs/strata/commit/3be79ff1c7c5a64d4fd56f6d3055c1c2841ee4f6))
+* **tooling:** add Rust workspace structure checker ([b3b4f45](https://github.com/chio-labs/strata/commit/b3b4f459eb2073961432658dfc26a6df175659a5))
+* **tooling:** enforce native-backend performance budgets ([a5c4f58](https://github.com/chio-labs/strata/commit/a5c4f587e268a1ce9fd72e9dbc8deefce29aaf68))
+* **tooling:** harden Rust structure checks ([23edb8a](https://github.com/chio-labs/strata/commit/23edb8ac7dbe5cac2111c75296bd15e9ab1eeebe))
+* **tooling:** tighten native budget ceilings to measured CI reality ([0e5464a](https://github.com/chio-labs/strata/commit/0e5464a3809256d5b09a55fd707b97149fa3b98f))
+
+
+### Bug Fixes
+
+* **cache:** accept one concurrent publisher ([76db4da](https://github.com/chio-labs/strata/commit/76db4da06e966493dc72d315934db24104d78124))
+* **tests:** import the native extension lazily in parity helpers ([f3fa12f](https://github.com/chio-labs/strata/commit/f3fa12f1dda84443ef4b9c0aae3ad9f79045adb6))
+* **tests:** skip native delegation coverage without the extension ([7def24f](https://github.com/chio-labs/strata/commit/7def24fd6b311984e03545ea9156f65163b6c8a9))
+
+
+### Performance Improvements
+
+* **cache:** encode and validate each publication record once ([ad6420a](https://github.com/chio-labs/strata/commit/ad6420a7ce8a11bb7feabb2e19f976995fe19789))
+* **evaluation:** cut path churn and duplicate probe work on the uncached floor ([cf98316](https://github.com/chio-labs/strata/commit/cf983169e8ac26514967f9c1c282a600e66aabe0))
+* **evaluation:** remove repeated path, threshold, render, and encode work on hot check paths ([9fa37ae](https://github.com/chio-labs/strata/commit/9fa37aea719c00f38aeb8bdbf5022b8adf700713))
+
 ## [0.14.0](https://github.com/chio-labs/strata/compare/v0.13.0...v0.14.0) (2026-07-14)
 
 

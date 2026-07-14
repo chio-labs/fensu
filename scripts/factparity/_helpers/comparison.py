@@ -24,7 +24,7 @@ def compare_file(*, path: Path, source: str, module: ast.Module) -> tuple[Family
         path=path, source=source, module=module
     )
     native_facts: NativeFactAnalysis = NativeFactAnalysis(
-        python_facts=delegate_facts,
+        python_facts=lambda: delegate_facts,
         path=path,
         source=source,
     )

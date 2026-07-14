@@ -11,6 +11,7 @@ publish = false
 proc-macro2 = { version = "1", features = ["span-locations"] }
 pyo3 = { version = "0.29", features = ["abi3-py312"] }
 quote = "1"
+rayon = "1"
 ruff_python_ast = "=0.0.4"
 ruff_python_parser = "=0.0.4"
 ruff_text_size = "=0.0.4"

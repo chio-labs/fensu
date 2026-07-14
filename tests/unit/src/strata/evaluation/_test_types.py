@@ -363,3 +363,30 @@ class AnalysisContextTestCase:
     expected_line: int
     expected_column: int
     expected_message: str
+
+
+@dataclass(frozen=True)
+class ModuleGateTestCase:
+    """One undeclared raw-AST access expectation."""
+
+    description: str
+    files: tuple[tuple[str, str], ...]
+    expected_error_type: type[Exception]
+
+
+@dataclass(frozen=True)
+class PrewarmSeedTestCase:
+    """One native prewarm seeding expectation."""
+
+    description: str
+    source: bytes
+    expected_reparse_calls: int
+
+
+@dataclass(frozen=True)
+class PrewarmFallbackTestCase:
+    """One prewarm skip-and-fallback expectation for unparseable sources."""
+
+    description: str
+    source: bytes
+    expected_error_type: type[Exception]

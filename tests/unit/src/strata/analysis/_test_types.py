@@ -371,3 +371,15 @@ class NativeFactParityTestCase:
     description: str
     source: str
     expected_divergent: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class LazyArtifactsTestCase:
+    """One lazy CPython artifact construction expectation."""
+
+    description: str
+    source: str
+    provide_module: bool
+    accessed_properties: tuple[str, ...]
+    expected_parse_operations: int
+    expected_node_count: int

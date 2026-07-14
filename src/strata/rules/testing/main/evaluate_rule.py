@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -25,7 +26,7 @@ from strata.rules.testing.models import RuleCase, RuleResult
 def evaluate_rule(*, rule: RuleCheck | RuleSpec, test_case: RuleCase) -> RuleResult:
     """Evaluate a decorated rule against one isolated real-pipeline case."""
 
-    resolved_rule: RuleSpec = resolve_rule_spec(value=rule)
+    resolved_rule: RuleSpec = replace(resolve_rule_spec(value=rule), uses_module=True)
     validate_rule_case(test_case=test_case)
     config: Config = build_harness_config(test_case=test_case)
     with TemporaryDirectory(prefix="strata-rule-") as directory:

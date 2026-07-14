@@ -65,6 +65,17 @@ pub(crate) fn parse_program(source: &str, major: u8, minor: u8) -> PyResult<Prog
 }
 
 #[pyfunction]
+pub(crate) fn parse_programs(
+    py: Python<'_>,
+    sources: Vec<String>,
+    major: u8,
+    minor: u8,
+) -> Vec<Option<ProgramHandle>> {
+    let version = PythonVersion { major, minor };
+    py.detach(move || ProgramHandle::parse_many(sources, version))
+}
+
+#[pyfunction]
 pub(crate) fn annotation_facts(
     py: Python<'_>,
     handle: &Bound<'_, ProgramHandle>,

@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import ast
-
 from strata.rules.annotations.types import AnnotationCode
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import RuleContext
 
 
-def annotation_faults(*, module: ast.Module, ctx: RuleContext, code: AnnotationCode) -> list[Fault]:
+def annotation_faults(*, ctx: RuleContext, code: AnnotationCode) -> list[Fault]:
     """Collect annotation faults for a single annotation rule code."""
 
     if code == AnnotationCode.PARAMETER_ANNOTATION:

@@ -22,6 +22,7 @@ from strata.rules.authoring.main.matches_rule_selector import matches_rule_selec
 from strata.rules.authoring.models import CustomRuleRegistration, RuleSpec
 from strata.rules.authoring.types import Family, RuleKind
 from strata.rules.catalog._helpers.hermeticity import validate_cacheable_rules
+from strata.rules.catalog._helpers.module_use import check_uses_module
 from strata.rules.catalog.constants import CORE_RULES
 from strata.rules.catalog.models import RuleSelection
 
@@ -220,24 +221,13 @@ def _with_custom_source(*, rules: tuple[RuleSpec, ...], source: str) -> tuple[Ru
             )
         if not rule.code.startswith("X") or rule.kind is not RuleKind.CUSTOM:
             raise ConfigError(f"Custom rule {rule.code} from {source} must use the X* namespace.")
-        if rule.source is None:
-            result.append(
-                RuleSpec(
-                    code=rule.code,
-                    family=rule.family,
-                    slug=rule.slug,
-                    message=rule.message,
-                    check=rule.check,
-                    remediation=rule.remediation,
-                    severity=rule.severity,
-                    kind=rule.kind,
-                    source=source,
-                    enabled_by_default=rule.enabled_by_default,
-                    cacheable=rule.cacheable,
-                )
+        result.append(
+            replace(
+                rule,
+                source=source if rule.source is None else rule.source,
+                uses_module=check_uses_module(check=rule.check),
             )
-        else:
-            result.append(rule)
+        )
     return tuple(result)
 
 

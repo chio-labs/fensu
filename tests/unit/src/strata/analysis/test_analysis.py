@@ -32,7 +32,7 @@ from strata.analysis.models import (
     SourceRange,
     SyntaxHandle,
 )
-from strata.analysis.types import Analysis, AnalysisBuild
+from strata.analysis.types import Analysis
 from tests.unit.src.strata.analysis._test_types import (
     AnalysisErrorTestCase,
     AnnotationFactTestCase,
@@ -93,7 +93,7 @@ def test_given_project_calls_when_querying_facts_then_returns_backend_neutral_ta
         path=path,
         source=test_case.source,
         module=ast.parse(test_case.source),
-    ).analysis
+    )
     facts: ProjectCallFacts = analysis.facts.project_calls()
     function_facts: tuple[ProjectFunctionFact, ...] = analysis.facts.project_functions()
 
@@ -145,7 +145,7 @@ def test_given_test_module_when_querying_facts_then_returns_declaration_shape(
         path=path,
         source=test_case.source,
         module=ast.parse(test_case.source),
-    ).analysis
+    )
 
     facts: PytestModuleFacts = analysis.facts.test_module()
 
@@ -199,7 +199,7 @@ def test_given_test_functions_when_querying_facts_then_returns_pytest_metadata(
         path=path,
         source=test_case.source,
         module=ast.parse(test_case.source),
-    ).analysis
+    )
 
     facts: tuple[PytestFunctionFact, ...] = analysis.facts.test_functions()
     parametrizations: tuple[ParametrizeFact, ...] = tuple(
@@ -257,7 +257,7 @@ def test_given_test_conditionals_when_querying_facts_then_uses_sft104_semantics(
         path=path,
         source=test_case.source,
         module=ast.parse(test_case.source),
-    ).analysis
+    )
 
     facts: tuple[PytestFunctionFact, ...] = analysis.facts.test_functions()
     conditional_lines: list[int] = []
@@ -301,7 +301,7 @@ def test_given_dataclass_declarations_when_querying_facts_then_returns_model_met
         path=path,
         source=test_case.source,
         module=ast.parse(test_case.source),
-    ).analysis
+    )
 
     facts: tuple[DataclassFact, ...] = analysis.facts.dataclasses()
 
@@ -352,7 +352,7 @@ def test_given_module_declarations_when_querying_facts_then_returns_role_classif
         path=path,
         source=test_case.source,
         module=ast.parse(test_case.source),
-    ).analysis
+    )
 
     facts: ModuleDeclarationFacts = analysis.facts.module_declarations()
 
@@ -405,7 +405,7 @@ def test_given_function_returns_when_querying_facts_then_preserves_scope_ownersh
         path=path,
         source=test_case.source,
         module=ast.parse(test_case.source),
-    ).analysis
+    )
 
     facts: tuple[MeaningfulReturnFact, ...] = analysis.facts.meaningful_returns(
         name_patterns=("validate*",)
@@ -445,7 +445,7 @@ def test_given_function_contracts_when_querying_facts_then_returns_descriptive_s
         path=path,
         source=test_case.source,
         module=ast.parse(test_case.source),
-    ).analysis
+    )
 
     facts: tuple[FunctionContractFact, ...] = analysis.facts.function_contracts()
 
@@ -493,7 +493,7 @@ def test_given_hygiene_syntax_when_querying_facts_then_returns_policy_locations(
         path=path,
         source=test_case.source,
         module=ast.parse(test_case.source),
-    ).analysis
+    )
 
     facts: HygieneFacts = analysis.facts.hygiene()
 
@@ -548,7 +548,7 @@ def test_given_functions_when_querying_facts_then_returns_shared_structural_metr
         path=path,
         source=test_case.source,
         module=ast.parse(test_case.source),
-    ).analysis
+    )
 
     facts: FunctionFacts = analysis.facts.functions()
 
@@ -593,7 +593,7 @@ def test_given_source_comments_when_querying_facts_then_returns_token_positions(
         path=path,
         source=test_case.source,
         module=ast.parse(test_case.source),
-    ).analysis
+    )
 
     facts: tuple[CommentFact, ...] = analysis.facts.comments()
 
@@ -629,7 +629,7 @@ def test_given_imports_and_attributes_when_querying_facts_then_preserves_referen
         path=path,
         source=test_case.source,
         module=ast.parse(test_case.source),
-    ).analysis
+    )
 
     facts: ReferenceFacts = analysis.facts.references()
     imported_names: list[tuple[str, ...]] = []
@@ -672,7 +672,7 @@ def test_given_function_conditionals_when_querying_facts_then_returns_owner_meta
         path=path,
         source=test_case.source,
         module=ast.parse(test_case.source),
-    ).analysis
+    )
 
     facts: tuple[FunctionConditionalFact, ...] = analysis.facts.function_conditionals()
 
@@ -714,7 +714,7 @@ def test_given_missing_annotations_when_querying_facts_then_returns_all_fact_gro
         path=path,
         source=test_case.source,
         module=ast.parse(test_case.source),
-    ).analysis
+    )
 
     facts: AnnotationFacts = analysis.facts.annotations()
 
@@ -753,7 +753,7 @@ def test_given_outer_mutation_when_querying_facts_then_returns_exact_location(
         path=path,
         source=test_case.source,
         module=ast.parse(test_case.source),
-    ).analysis
+    )
 
     facts: tuple[OuterStateMutationFact, ...] = analysis.facts.outer_state_mutations()
 
@@ -822,7 +822,7 @@ def test_given_parameter_mutations_when_querying_facts_then_returns_first_mutati
         path=path,
         source=test_case.source,
         module=ast.parse(test_case.source),
-    ).analysis
+    )
 
     facts: tuple[ParameterMutationFact, ...] = analysis.facts.parameter_mutations()
 
@@ -851,12 +851,11 @@ def test_given_source_when_building_analysis_then_exposes_backend_neutral_querie
     test_case: SourceAnalysisTestCase,
 ) -> None:
     path: Path = tmp_path / "module.py"
-    build: AnalysisBuild = build_analysis(
+    analysis: Analysis = build_analysis(
         path=path,
         source=test_case.source,
         module=ast.parse(test_case.source),
     )
-    analysis: Analysis = build.analysis
     handle: SyntaxHandle = analysis.syntax.handles(kind=test_case.selected_kind)[0]
     source_range: SourceRange = analysis.syntax.range(handle)
     ancestor_kinds: tuple[str, ...] = tuple(
@@ -890,7 +889,7 @@ def test_given_foreign_handle_when_querying_analysis_then_raises_lookup_error(
         path=path,
         source=test_case.source,
         module=ast.parse(test_case.source),
-    ).analysis
+    )
     foreign_handle: SyntaxHandle = SyntaxHandle(path=tmp_path / "other.py", node_id=NodeId(0))
 
     with pytest.raises(test_case.expected_error_type):

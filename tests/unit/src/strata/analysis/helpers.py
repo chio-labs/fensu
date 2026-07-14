@@ -87,7 +87,7 @@ def meaningful_return_lines(facts: tuple[FunctionContractFact, ...]) -> tuple[in
 def build_test_analysis(*, path: Path, source: str) -> Analysis:
     """Build one analysis facade for static fact tests."""
 
-    return build_analysis(path=path, source=source, module=ast.parse(source)).analysis
+    return build_analysis(path=path, source=source, module=ast.parse(source))
 
 
 def build_module_analyses(
@@ -123,7 +123,7 @@ def fact_family_divergences(*, path: Path, source: str) -> tuple[str, ...]:
     python_facts: PythonFactAnalysis = _python_fact_backend(path=path, source=source, module=module)
     delegate: PythonFactAnalysis = _python_fact_backend(path=path, source=source, module=module)
     native_facts: NativeFactAnalysis = NativeFactAnalysis(
-        python_facts=delegate, path=path, source=source
+        python_facts=lambda: delegate, path=path, source=source
     )
     divergent: list[str] = []
     for family in FACT_FAMILY_NAMES:

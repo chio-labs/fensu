@@ -326,15 +326,31 @@ def _select_function(
         )
     elif symbol in manifest.functions:
         matches = (symbol,)
-    elif QUALIFIED_NAME_SEPARATOR not in symbol:
-        matches = manifest.bare_functions.get(symbol, ())
+    elif QUALIFIED_NAME_SEPARATOR in symbol:
+        selected_keys: list[str] = []
+        for declaration in manifest.files:
+            for item in declaration.functions:
+                if (
+                    item.qualified_name == symbol
+                    and manifest.functions.get(item.key) == declaration.identity
+                ):
+                    selected_keys.append(item.key)
+        matches = tuple(selected_keys)
     else:
-        matches = ()
+        matches = manifest.bare_functions.get(symbol, ())
     if len(matches) == 1:
         result: FunctionDefinition | None = resolver.get_function(matches[0])
         if result is not None:
             return result
     if not matches:
-        raise MapError(f"Unknown project function: {symbol}")
+        hint: str = (
+            f" Use a full dotted key or path::{symbol}."
+            if QUALIFIED_NAME_SEPARATOR in symbol
+            else ""
+        )
+        raise MapError(f"Unknown project function: {symbol}.{hint}")
     choices: str = ", ".join(sorted(matches))
-    raise MapError(f"Ambiguous function {symbol}; choose one of: {choices}")
+    raise MapError(
+        f"Ambiguous function {symbol}; choose a full dotted key: {choices}; "
+        f"or use path::{symbol if QUALIFIED_NAME_SEPARATOR in symbol else 'Class.method'}"
+    )

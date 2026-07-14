@@ -54,7 +54,7 @@ def write_check_diagnostics(
         project_root=project_root,
         invocation_root=invocation_root,
     ):
-        stderr.write("Strata skill files are out of date; run `strata skills update`.\n")
+        stderr.write("Strata skill files are out of date; run `strata skills`.\n")
 
 
 def render_check_result(

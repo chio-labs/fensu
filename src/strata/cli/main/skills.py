@@ -18,8 +18,7 @@ from strata.agentdocs.models import (
     SkillInstallPlan,
     SkillUpdateResult,
 )
-from strata.agentdocs.types import SkillCommand, SkillFreshnessReason, SkillTarget
-from strata.cli.constants import SKILLS_UPDATE_OPTION
+from strata.agentdocs.types import SkillFreshnessReason, SkillTarget
 from strata.config.exceptions import ConfigError
 from strata.config.main.load_project_config import load_project_config
 from strata.config.models import Config, LoadedConfig
@@ -41,16 +40,7 @@ def run_skills(
 
     command_args: tuple[str, ...] = () if argv is None else argv
     parser: argparse.ArgumentParser = _parser()
-    if command_args and command_args[0] == SKILLS_UPDATE_OPTION:
-        stderr.write("`update` is a subcommand, not an option. Run `strata skills update`.\n")
-        return 2
     args: argparse.Namespace = parser.parse_args(command_args)
-    if args.skills_command is None:
-        stderr.write(
-            "A skills command is required. Run `strata skills update` to generate files.\n\n"
-        )
-        parser.print_help(file=stderr)
-        return 2
     if args.global_install and args.install_root is not None:
         stderr.write("--install-root cannot be combined with --global.\n")
         return 2
@@ -129,25 +119,21 @@ def _execute_skills(
 
 def _parser() -> argparse.ArgumentParser:
     parser: argparse.ArgumentParser = argparse.ArgumentParser(prog="strata skills")
-    subparsers: argparse._SubParsersAction[argparse.ArgumentParser] = parser.add_subparsers(
-        dest="skills_command"
-    )
-    update_parser: argparse.ArgumentParser = subparsers.add_parser(SkillCommand.UPDATE)
-    update_parser.add_argument("--global", dest="global_install", action="store_true")
-    update_parser.add_argument(
+    parser.add_argument("--global", dest="global_install", action="store_true")
+    parser.add_argument(
         "--target",
         dest="targets",
         action="append",
         choices=tuple(SkillTarget),
         default=[],
     )
-    update_parser.add_argument("--force", action="store_true")
-    update_parser.add_argument(
+    parser.add_argument("--force", action="store_true")
+    parser.add_argument(
         "--check",
         action="store_true",
         help="verify deterministic installed bytes without writing files",
     )
-    update_parser.add_argument(
+    parser.add_argument(
         "--install-root",
         metavar="git|project|PATH",
         help="install locally at the Git root, project root, or an explicit path",

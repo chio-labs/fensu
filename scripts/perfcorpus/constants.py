@@ -7,8 +7,8 @@ TEST_SCOPE: str = "unit"
 FILES_PER_DOMAIN: int = 23
 SCAFFOLDING_FILE_COUNT: int = 6
 MINIMUM_DOMAINS: int = 2
-ANNOTATION_FAULT_EVERY: int = 5
-MAGIC_NUMBER_FAULT_EVERY: int = 7
+DEFAULT_ANNOTATION_FAULT_EVERY: int = 5
+DEFAULT_MAGIC_FAULT_EVERY: int = 7
 HELPER_MODULE_NAMES: tuple[str, ...] = (
     "record_shaping",
     "record_selection",

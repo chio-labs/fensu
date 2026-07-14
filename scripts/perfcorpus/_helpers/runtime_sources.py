@@ -6,9 +6,7 @@ from types import MappingProxyType
 
 from scripts.perfcorpus._helpers.naming import class_prefix
 from scripts.perfcorpus.constants import (
-    ANNOTATION_FAULT_EVERY,
     HELPER_MODULE_NAMES,
-    MAGIC_NUMBER_FAULT_EVERY,
     PACKAGE_NAME,
     RECORD_STATES,
     SOURCE_ROOT,
@@ -23,6 +21,8 @@ def render_runtime_domain(
     domain: str,
     dependency: str,
     helper_offset: int,
+    annotation_fault_every: int,
+    magic_fault_every: int,
 ) -> RenderedFiles:
     """Return one leaf domain's runtime files with deterministic fault injection."""
 
@@ -45,8 +45,8 @@ def render_runtime_domain(
     faults: int = 0
     for position, helper_name in enumerate(HELPER_MODULE_NAMES):
         helper_index: int = helper_offset + position
-        drop_annotation: bool = helper_index % ANNOTATION_FAULT_EVERY == 0
-        magic_comparison: bool = helper_index % MAGIC_NUMBER_FAULT_EVERY == 0
+        drop_annotation: bool = helper_index % annotation_fault_every == 0
+        magic_comparison: bool = helper_index % magic_fault_every == 0
         files[f"{base}/_helpers/{helper_name}.py"] = _helper_module(
             domain=domain,
             dependency=dependency,

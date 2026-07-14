@@ -8,10 +8,57 @@ import subprocess
 import time
 from pathlib import Path
 
-from scripts.perfbudget.models import ScenarioResult
+from scripts.perfbudget.constants import (
+    COLD_SCENARIO,
+    DENSE_COLD_SCENARIO,
+    DENSE_WARM_SCENARIO,
+    EDIT_APPENDIX,
+    EDIT_SCENARIO,
+    EDITED_HELPER_FILE_NAME,
+    UNCACHED_SCENARIO,
+    WARM_SCENARIO,
+)
+from scripts.perfbudget.models import BudgetSpec, ScenarioResult
 
 _CACHE_DIRECTORY_NAME: str = ".strata"
 _STATS_PREFIX: str = "Cache:"
+
+
+def standard_scenarios(*, spec: BudgetSpec, project: Path) -> dict[str, ScenarioResult]:
+    """Measure the uncached, cold, warm, and one-edit scenarios in order."""
+
+    results: dict[str, ScenarioResult] = {}
+    _ = cleared_cache(project=project)
+    results[UNCACHED_SCENARIO] = measured_check(
+        name=UNCACHED_SCENARIO, executable=spec.executable, project=project, cache=False
+    )
+    _ = cleared_cache(project=project)
+    results[COLD_SCENARIO] = measured_check(
+        name=COLD_SCENARIO, executable=spec.executable, project=project, cache=True
+    )
+    results[WARM_SCENARIO] = measured_check(
+        name=WARM_SCENARIO, executable=spec.executable, project=project, cache=True
+    )
+    edited: Path = sorted(project.rglob(EDITED_HELPER_FILE_NAME))[0]
+    edited.write_text(edited.read_text(encoding="utf-8") + EDIT_APPENDIX, encoding="utf-8")
+    results[EDIT_SCENARIO] = measured_check(
+        name=EDIT_SCENARIO, executable=spec.executable, project=project, cache=True
+    )
+    return results
+
+
+def dense_scenarios(*, spec: BudgetSpec, project: Path) -> dict[str, ScenarioResult]:
+    """Measure cold and warm scenarios against the fault-dense corpus."""
+
+    results: dict[str, ScenarioResult] = {}
+    _ = cleared_cache(project=project)
+    results[DENSE_COLD_SCENARIO] = measured_check(
+        name=DENSE_COLD_SCENARIO, executable=spec.executable, project=project, cache=True
+    )
+    results[DENSE_WARM_SCENARIO] = measured_check(
+        name=DENSE_WARM_SCENARIO, executable=spec.executable, project=project, cache=True
+    )
+    return results
 
 
 def measured_check(

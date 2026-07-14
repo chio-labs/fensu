@@ -6,6 +6,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
 
+from scripts.perfcorpus.constants import (
+    DEFAULT_ANNOTATION_FAULT_EVERY,
+    DEFAULT_MAGIC_FAULT_EVERY,
+)
+
 
 @dataclass(frozen=True, slots=True)
 class CorpusSpec:
@@ -14,6 +19,8 @@ class CorpusSpec:
     target: Path
     file_target: int
     seed: int
+    annotation_fault_every: int = DEFAULT_ANNOTATION_FAULT_EVERY
+    magic_fault_every: int = DEFAULT_MAGIC_FAULT_EVERY
 
 
 @dataclass(frozen=True, slots=True)

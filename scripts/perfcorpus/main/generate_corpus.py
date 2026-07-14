@@ -30,6 +30,8 @@ def generate_corpus(*, spec: CorpusSpec) -> CorpusSummary:
             domain=domain,
             dependency=dependency,
             helper_offset=index * len(HELPER_MODULE_NAMES),
+            annotation_fault_every=spec.annotation_fault_every,
+            magic_fault_every=spec.magic_fault_every,
         )
         tests: RenderedFiles = render_domain_tests(domain=domain)
         files.update(runtime.files)

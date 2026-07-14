@@ -235,46 +235,6 @@ def file_result_fingerprint(
     return canonical_fingerprint(payload)
 
 
-def file_result_record_fingerprint(result: CachedFileResult) -> CacheFingerprint:
-    """Return the integrity identity for every persisted file-result value."""
-
-    payload: CanonicalValue = {
-        "applied_exception_keys": [
-            {"path": item.path, "rule": item.rule, "symbol": item.symbol}
-            for item in result.applied_exception_keys
-        ],
-        "dependencies": [_dependency_observation_value(item) for item in result.dependencies],
-        "faults": [
-            {
-                "code": item.code,
-                "column": item.column,
-                "line": item.line,
-                "message": item.message,
-                "path": item.path,
-                "remediation": item.remediation,
-            }
-            for item in result.faults
-        ],
-        "warnings": [
-            {
-                "code": item.code,
-                "column": item.column,
-                "line": item.line,
-                "message": item.message,
-                "path": item.path,
-                "remediation": item.remediation,
-            }
-            for item in result.warnings
-        ],
-        "path": result.path,
-        "source_fingerprint": result.source_fingerprint.value,
-        "threshold_override_uses": [
-            _threshold_override_use_value(item) for item in result.threshold_override_uses
-        ],
-    }
-    return canonical_fingerprint(payload)
-
-
 def _rule_exception_value(item: RuleExceptionEntry) -> CanonicalValue:
     return {
         "path": item.path,

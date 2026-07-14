@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from typing import cast
 
+from strata.cache.fingerprints.main.source import fingerprint_source
 from strata.cache.fingerprints.types import CanonicalValue
 from strata.cache.storage.constants import (
     CACHE_RECORD_KEYS,
@@ -62,7 +63,11 @@ def decode_cache_record(*, data: bytes, expected_kind: str) -> CacheRecord | Non
         return None
     if not canonical_payload:
         return None
-    record: CacheRecord = CacheRecord(kind=kind, payload=cast(CanonicalValue, payload))
+    record: CacheRecord = CacheRecord(
+        kind=kind,
+        payload=cast(CanonicalValue, payload),
+        content_fingerprint=fingerprint_source(data),
+    )
     return record if encode_cache_record(record) == data else None
 
 

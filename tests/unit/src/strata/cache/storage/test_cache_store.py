@@ -91,7 +91,7 @@ def test_given_cache_record_when_writing_then_atomically_round_trips(
 
     assert written is test_case.expected_write
     assert loaded == test_case.expected_record
-    assert store.root.name == "v2.db"
+    assert store.root.name == "v3.db"
     with sqlite3.connect(store.root) as connection:
         journal_mode: tuple[str] | None = connection.execute("PRAGMA journal_mode").fetchone()
     assert journal_mode == ("wal",)

@@ -30,6 +30,7 @@ _MAX_PARSES_PER_FILE: int = 2
 _MAX_RELATIVE_COMPUTES_PER_FILE: int = 4
 _MAX_CANONICAL_ENCODES_PER_FILE: int = 4
 _MAX_DEPENDENCY_RECORDS_PER_FILE: int = 12
+_MAX_WARM_CANONICAL_ENCODES: int = 8
 
 
 @pytest.mark.parametrize(
@@ -100,7 +101,7 @@ def test_given_cold_then_warm_check_when_counting_then_warm_run_stays_pure(
     )
     assert warm_counts.get(PARSE_OPERATION, 0) == test_case.expected_warm_parses
     assert warm_counts[RELATIVE_PATH_COMPUTE_OPERATION] <= files * _MAX_RELATIVE_COMPUTES_PER_FILE
-    assert warm_counts[CANONICAL_ENCODE_OPERATION] <= files * _MAX_CANONICAL_ENCODES_PER_FILE
+    assert warm_counts.get(CANONICAL_ENCODE_OPERATION, 0) <= _MAX_WARM_CANONICAL_ENCODES
 
 
 @pytest.mark.parametrize(

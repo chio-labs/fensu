@@ -8,6 +8,8 @@ from dataclasses import replace
 from pathlib import Path
 from typing import TextIO
 
+from strata.analysis.main.select_fact_backend import select_fact_backend
+from strata.analysis.models import FactBackendSelection
 from strata.cli._helpers.check_evaluation import evaluated_check
 from strata.cli._helpers.check_output import check_stdout_text, persist_check_output
 from strata.cli._helpers.check_paths import invocation_path
@@ -34,6 +36,9 @@ def run_check(
     args: argparse.Namespace = _parser().parse_args(() if argv is None else argv)
     invocation_dir: Path = Path.cwd().resolve()
     use_color: bool = not args.no_color and stdout.isatty()
+    selection: FactBackendSelection = select_fact_backend()
+    if selection.warning is not None:
+        stderr.write(f"{selection.warning}\n")
     try:
         loaded: LoadedConfig = load_project_config(invocation_dir)
         project_dir: Path = loaded.source.path.parent.resolve()

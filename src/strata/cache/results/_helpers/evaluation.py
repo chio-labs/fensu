@@ -24,13 +24,17 @@ from strata.cache.results.models import (
 from strata.cache.results.types import DependencyStateCache
 from strata.cache.storage.exceptions import CachePathError, CacheRecordError
 from strata.config.models import Config
-from strata.discovery.models import DiscoveredTree
+from strata.discovery.constants import SNAPSHOT_TABLE
+from strata.discovery.main.prime_snapshot_hashes import prime_snapshot_hashes
+from strata.discovery.models import DiscoveredTree, ScopedFile
+from strata.evaluation.constants import PREWARM_CHUNK_SIZE
 from strata.evaluation.main.build_project import build_evaluation_project
 from strata.evaluation.main.build_targets import build_evaluation_targets
 from strata.evaluation.main.collect_result import collect_file_evaluations
 from strata.evaluation.main.evaluate import evaluate
 from strata.evaluation.main.evaluate_target import evaluate_target
 from strata.evaluation.main.merge_evaluations import merge_file_evaluations
+from strata.evaluation.main.prewarm_files import prewarm_evaluation_files
 from strata.evaluation.main.select_files import select_evaluation_files
 from strata.evaluation.models import (
     EvaluationResult,
@@ -41,6 +45,15 @@ from strata.evaluation.models import (
 from strata.evaluation.types import EvaluationProjectAnalysis
 from strata.rules.authoring.models import CustomRuleRegistration, RuleSpec
 from strata.rules.authoring.types import RuleKind
+
+
+@dataclass(frozen=True, slots=True)
+class _TargetDecision:
+    """One target's cache lookup outcome ahead of fresh evaluation."""
+
+    target: EvaluationTarget
+    entry: CacheIndexEntry | None
+    lookup: CacheLookup | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,6 +107,7 @@ def run_cached_evaluation(
     entries: dict[str, CacheIndexEntry] = (
         {entry.path: entry for entry in index.entries} if index is not None else {}
     )
+    prime_snapshot_hashes(paths=tuple(target.scoped_file.path for target in targets))
     target_paths: set[str] = set()
     source_fingerprints: dict[str, CacheFingerprint | None] = {}
     for target in targets:
@@ -133,35 +147,41 @@ def run_cached_evaluation(
     hits: int = 0
     misses: int = 0
     invalidations: int = sum(path not in target_paths for path in entries)
-    for target in targets:
-        path: str | None = relative_repository_path(
-            path=target.scoped_file.path,
-            repo_root=tree.repo_root.path,
-        )
-        source_fingerprint: CacheFingerprint | None = (
-            source_fingerprints.get(path) if path is not None else None
-        )
-        entry: CacheIndexEntry | None = entries.get(path) if path is not None else None
-        lookup: CacheLookup | None = None
-        if entry is not None and source_fingerprint is not None:
-            lookup = cache.loaded_candidate(
-                entry=entry,
-                source_fingerprint=source_fingerprint,
-                result=loaded_results.get(entry.path),
-                dependency_states=dependency_states,
-            )
+    decisions: tuple[_TargetDecision, ...] = _target_decisions(
+        targets=targets,
+        tree=tree,
+        cache=cache,
+        entries=entries,
+        source_fingerprints=source_fingerprints,
+        loaded_results=loaded_results,
+        dependency_states=dependency_states,
+    )
+    miss_files: tuple[ScopedFile, ...] = tuple(
+        decision.target.scoped_file
+        for decision in decisions
+        if decision.lookup is None or decision.lookup.result is None
+    )
+    evaluated_misses: int = 0
+    for decision in decisions:
+        lookup: CacheLookup | None = decision.lookup
         if lookup is not None and lookup.result is not None:
             ordered_results.append(lookup.result)
             hits += 1
-            if entry is not None:
-                retained_entries.append(entry)
+            if decision.entry is not None:
+                retained_entries.append(decision.entry)
             continue
         if lookup is None or lookup.missed:
             misses += 1
         else:
             invalidations += 1
+        if evaluated_misses % PREWARM_CHUNK_SIZE == 0:
+            prewarm_evaluation_files(
+                project=project,
+                scoped_files=miss_files[evaluated_misses : evaluated_misses + PREWARM_CHUNK_SIZE],
+            )
+        evaluated_misses += 1
         fresh: FileEvaluation = evaluate_target(
-            target=target,
+            target=decision.target,
             ruleset=scopes.cacheable_ruleset,
             warning_rules=scopes.cacheable_warning_rules,
             config=config,
@@ -251,6 +271,38 @@ def _materialized(
     if isinstance(item, FileEvaluation):
         return item
     return restore_file_evaluation(result=item, repo_root=repo_root)
+
+
+def _target_decisions(
+    *,
+    targets: tuple[EvaluationTarget, ...],
+    tree: DiscoveredTree,
+    cache: ResultCache,
+    entries: dict[str, CacheIndexEntry],
+    source_fingerprints: dict[str, CacheFingerprint | None],
+    loaded_results: dict[str, CachedFileResult | None],
+    dependency_states: DependencyStateCache,
+) -> tuple[_TargetDecision, ...]:
+    decisions: list[_TargetDecision] = []
+    for target in targets:
+        path: str | None = relative_repository_path(
+            path=target.scoped_file.path,
+            repo_root=tree.repo_root.path,
+        )
+        source_fingerprint: CacheFingerprint | None = (
+            source_fingerprints.get(path) if path is not None else None
+        )
+        entry: CacheIndexEntry | None = entries.get(path) if path is not None else None
+        lookup: CacheLookup | None = None
+        if entry is not None and source_fingerprint is not None:
+            lookup = cache.loaded_candidate(
+                entry=entry,
+                source_fingerprint=source_fingerprint,
+                result=loaded_results.get(entry.path),
+                dependency_states=dependency_states,
+            )
+        decisions.append(_TargetDecision(target=target, entry=entry, lookup=lookup))
+    return tuple(decisions)
 
 
 def _rule_scopes(
@@ -348,6 +400,9 @@ def _publish_results(
 
 
 def _source_fingerprint(path: Path) -> CacheFingerprint | None:
+    snapshot_hash: str | None = SNAPSHOT_TABLE.source_hash(path=path)
+    if snapshot_hash is not None:
+        return CacheFingerprint(value=snapshot_hash)
     try:
         return fingerprint_source(path.read_bytes())
     except OSError:

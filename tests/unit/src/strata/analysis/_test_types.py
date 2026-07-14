@@ -4,6 +4,46 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
+class ParseValidityTestCase:
+    """One source snippet with its expected validity under both parsers."""
+
+    description: str
+    source: str
+    expected_cpython_valid: bool
+    expected_native_valid: bool
+
+
+@dataclass(frozen=True)
+class FactDelegationTestCase:
+    """One fact family and the sentinel its delegation must return."""
+
+    description: str
+    method_name: str
+    expected_sentinel: str
+
+
+@dataclass(frozen=True)
+class FactBackendSelectionTestCase:
+    """Environment and availability state with the expected selection result."""
+
+    description: str
+    requested_value: str | None
+    native_available: bool
+    expected_backend: str
+    expected_native_version: str | None
+    expected_warning_present: bool
+
+
+@dataclass(frozen=True)
+class BackendUnavailableTestCase:
+    """Environment state expected to reject a missing native module."""
+
+    description: str
+    requested_value: str
+    expected_message_fragment: str
+
+
+@dataclass(frozen=True)
 class PythonSourceFactoryTestCase:
     """Exact source bytes and expected normalized analysis artifact."""
 
@@ -331,3 +371,24 @@ class PytestModuleFactTestCase:
     expected_helper_lines: tuple[int, ...]
     expected_case_list_lines: tuple[int, ...]
     expected_private_lines: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class NativeFactParityTestCase:
+    """One source whose fact families must match across backends."""
+
+    description: str
+    source: str
+    expected_divergent: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class LazyArtifactsTestCase:
+    """One lazy CPython artifact construction expectation."""
+
+    description: str
+    source: str
+    provide_module: bool
+    accessed_properties: tuple[str, ...]
+    expected_parse_operations: int
+    expected_node_count: int

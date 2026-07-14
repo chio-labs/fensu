@@ -8,6 +8,8 @@ import pytest
 
 from scripts.perfcorpus.main.generate_corpus import generate_corpus
 from scripts.perfcorpus.models import CorpusSpec
+from strata.analysis.constants import FACT_BACKEND_ENV_VARIABLE
+from strata.analysis.types import FactBackend
 from strata.instrumentation.constants import (
     CANONICAL_ENCODE_OPERATION,
     DEPENDENCY_RECORD_OPERATION,
@@ -37,7 +39,7 @@ _MAX_WARM_CANONICAL_ENCODES: int = 8
     "test_case",
     [
         UncachedCountsTestCase(
-            description="uncached checks parse each file boundedly and never touch cache paths",
+            description="python-backend uncached checks parse boundedly and never touch cache paths",
             file_target=120,
             seed=0,
             expected_relative_path_computes=0,
@@ -55,6 +57,7 @@ def test_given_uncached_check_when_counting_then_operations_stay_linear(
     )
     files: int = python_file_count(root=tmp_path)
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv(FACT_BACKEND_ENV_VARIABLE, FactBackend.PYTHON.value)
 
     counts: dict[str, int] = counted_check(argv=("--no-color", "--no-cache"))
 
@@ -70,7 +73,7 @@ def test_given_uncached_check_when_counting_then_operations_stay_linear(
     "test_case",
     [
         CachedCountsTestCase(
-            description="warm checks restore every file without parsing or re-evaluating",
+            description="python-backend warm checks restore every file without parsing",
             file_target=120,
             seed=0,
             expected_warm_fresh_evaluations=0,
@@ -89,6 +92,7 @@ def test_given_cold_then_warm_check_when_counting_then_warm_run_stays_pure(
     )
     files: int = python_file_count(root=tmp_path)
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv(FACT_BACKEND_ENV_VARIABLE, FactBackend.PYTHON.value)
 
     cold_counts: dict[str, int] = counted_check(argv=("--no-color", "--cache"))
     warm_counts: dict[str, int] = counted_check(argv=("--no-color", "--cache"))
@@ -108,7 +112,7 @@ def test_given_cold_then_warm_check_when_counting_then_warm_run_stays_pure(
     "test_case",
     [
         EditCountsTestCase(
-            description="one edited file re-evaluates exactly once",
+            description="python-backend one edited file re-evaluates and parses exactly once",
             file_target=120,
             seed=0,
             expected_fresh_evaluations=1,
@@ -126,6 +130,7 @@ def test_given_one_edited_file_when_counting_then_only_that_file_re_evaluates(
         spec=CorpusSpec(target=tmp_path, file_target=test_case.file_target, seed=test_case.seed)
     )
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv(FACT_BACKEND_ENV_VARIABLE, FactBackend.PYTHON.value)
     _ = counted_check(argv=("--no-color", "--cache"))
     edited: Path = sorted(tmp_path.rglob("record_shaping.py"))[0]
     _ = appended_module_constant(path=edited)

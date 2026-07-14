@@ -91,3 +91,4 @@ CACHEABLE_UNTRACKED_OPERATION_ATTRIBUTES: frozenset[str] = frozenset(
         "write_text",
     }
 )
+MODULE_PARAMETER_NAME: str = "module"

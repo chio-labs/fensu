@@ -22,6 +22,7 @@ from strata.discovery.models import (
     ProjectSource,
     ScopedFile,
 )
+from strata.discovery.types import ScopeName
 from strata.evaluation.models import ParsedModule
 from strata.evaluation.types import EvaluationProjectAnalysis
 from strata.rules.authoring.models import Fault, RuleSpec
@@ -275,6 +276,7 @@ def make_runtime_fault_rule() -> RuleSpec:
         slug="runtime-fault",
         message="runtime fault",
         check=check,
+        uses_module=True,
     )
 
 
@@ -286,7 +288,12 @@ def make_threshold_rule(*, threshold: Threshold) -> RuleSpec:
         return [ctx.fault(node=node, message=str(ctx.threshold(name=threshold)))]
 
     return RuleSpec(
-        code="XTH001", family=Family.CUSTOM, slug="threshold", message="threshold", check=check
+        code="XTH001",
+        family=Family.CUSTOM,
+        slug="threshold",
+        message="threshold",
+        check=check,
+        uses_module=True,
     )
 
 
@@ -299,7 +306,12 @@ def make_position_rule() -> RuleSpec:
         return [ctx.fault(node=node, message=message)]
 
     return RuleSpec(
-        code="XPO001", family=Family.CUSTOM, slug="position", message="position", check=check
+        code="XPO001",
+        family=Family.CUSTOM,
+        slug="position",
+        message="position",
+        check=check,
+        uses_module=True,
     )
 
 
@@ -364,7 +376,12 @@ def make_context_property_rule() -> RuleSpec:
         return [ctx.fault(node=node, message=message)]
 
     return RuleSpec(
-        code="XCP001", family=Family.CUSTOM, slug="ctx-props", message="ctx", check=check
+        code="XCP001",
+        family=Family.CUSTOM,
+        slug="ctx-props",
+        message="ctx",
+        check=check,
+        uses_module=True,
     )
 
 
@@ -385,6 +402,7 @@ def make_fault_factory_rule() -> RuleSpec:
         message="rule message",
         remediation="rule remediation",
         check=check,
+        uses_module=True,
     )
 
 
@@ -401,7 +419,12 @@ def make_context_ast_helper_rule() -> RuleSpec:
         return [ctx.fault(node=fn, message=message)]
 
     return RuleSpec(
-        code="XAH001", family=Family.CUSTOM, slug="ast-helpers", message="ast", check=check
+        code="XAH001",
+        family=Family.CUSTOM,
+        slug="ast-helpers",
+        message="ast",
+        check=check,
+        uses_module=True,
     )
 
 
@@ -443,4 +466,33 @@ def make_project_dependency_rule() -> RuleSpec:
         slug="project-dependency",
         message="project dependency",
         check=check,
+    )
+
+
+def make_undeclared_module_rule() -> RuleSpec:
+    """Build a fake rule that reads module without declaring raw-AST use."""
+
+    def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+        return [ctx.fault(node=module.body[0])]
+
+    return RuleSpec(
+        code="XUM001",
+        family=Family.CUSTOM,
+        slug="undeclared-module",
+        message="undeclared module",
+        check=check,
+    )
+
+
+def write_scoped_source(*, tmp_path: Path, source: bytes) -> ScopedFile:
+    """Write one discovered-source file and return its scoped identity."""
+
+    path: Path = tmp_path / "src/pkg/models.py"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _ = path.write_bytes(source)
+    return ScopedFile(
+        path=path,
+        root=tmp_path / "src/pkg",
+        scope=ScopeName.ROOT,
+        relative_parts=("models.py",),
     )

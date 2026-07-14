@@ -150,11 +150,20 @@ class CachedFileResult:
 
 
 @dataclass(frozen=True, slots=True)
+class PreparedFileResult:
+    """One converted file result paired with its validated storage record."""
+
+    result: CachedFileResult
+    record: CacheRecord
+
+
+@dataclass(frozen=True, slots=True)
 class PublicationCandidate:
     """One fresh cacheable result prepared for transactional publication."""
 
     entry: CacheIndexEntry
     record: CacheRecord
+    encoded: bytes
 
 
 @dataclass(frozen=True, slots=True)

@@ -15,13 +15,11 @@ permissions:
   contents: read
 
 jobs:
-  pypi:
-    name: Publish to PyPI
+  release-tag:
+    name: Resolve release tag
     runs-on: ubuntu-latest
-    environment: pypi
-    permissions:
-      contents: read
-      id-token: write
+    outputs:
+      tag: ${{ steps.release-tag.outputs.tag }}
     steps:
       - name: Resolve release tag
         id: release-tag
@@ -42,14 +40,70 @@ jobs:
 
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
+  wheels:
+    name: Build wheel (${{ matrix.platform.name }})
+    needs: release-tag
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      matrix:
+        platform:
+          - name: linux-x86_64
+            runner: ubuntu-latest
+          - name: linux-aarch64
+            runner: ubuntu-24.04-arm
+          - name: macos-x86_64
+            runner: macos-13
+          - name: macos-arm64
+            runner: macos-latest
+    steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ steps.release-tag.outputs.tag }}
+          ref: ${{ needs.release-tag.outputs.tag }}
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          args: --release --out dist
+          manylinux: auto
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel-${{ matrix.platform.name }}
+          path: dist
 
-      - uses: astral-sh/setup-uv@v6
+  sdist:
+    name: Build sdist
+    needs: release-tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-tag.outputs.tag }}
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist
 
-      - name: Build distributions
-        run: uv build
+  pypi:
+    name: Publish to PyPI
+    needs:
+      - release-tag
+      - wheels
+      - sdist
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist

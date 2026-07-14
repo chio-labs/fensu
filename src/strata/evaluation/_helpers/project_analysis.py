@@ -15,7 +15,6 @@ from strata.analysis.models import (
 )
 from strata.analysis.types import (
     Analysis,
-    AnalysisBuild,
     ProjectDependencyKind,
     PythonSourceArtifact,
 )
@@ -51,7 +50,7 @@ class _EvaluationProjectAnalysis:
             ),
         )
         self._scoped_files: dict[Path, ScopedFile] = {
-            scoped_file.path.resolve(): scoped_file for scoped_file in tree.files
+            scoped_file.path: scoped_file for scoped_file in tree.files
         }
         self._parsed_modules: dict[Path, ParsedModule] = {}
         self._external_analyses: dict[Path, Analysis] = {}
@@ -61,6 +60,16 @@ class _EvaluationProjectAnalysis:
         self._dependencies: list[ProjectDependency] = []
         self._dependencies_by_requester: dict[Path, list[ProjectDependency]] = {}
         self._dependency_set: set[ProjectDependency] = set()
+        self._recorded_queries: set[
+            tuple[
+                Path,
+                Path,
+                ProjectDependencyKind,
+                str | None,
+                bool,
+                None | bool | str | tuple[Path, ...],
+            ]
+        ] = set()
         self._resolved_paths: dict[Path, Path] = {}
         self._exists: dict[Path, bool] = {}
         self._directories: dict[Path, bool] = {}
@@ -82,6 +91,12 @@ class _EvaluationProjectAnalysis:
         self._parsed_modules.pop(path, None)
         self._queried_sources.discard(path)
         return parsed
+
+    def prewarm(self, *, parsed: ParsedModule) -> None:
+        """Adopt one pre-parsed discovered module for later single-use retrieval."""
+
+        path: Path = self._resolve(parsed.scoped_file.path)
+        _ = self._parsed_modules.setdefault(path, parsed)
 
     def analysis(self, *, requester: Path, path: Path) -> Analysis | None:
         """Return tolerant analysis for a queried path and record its dependency."""
@@ -299,6 +314,17 @@ class _EvaluationProjectAnalysis:
         pattern: str | None = None,
         recursive: bool = False,
     ) -> None:
+        query_key: tuple[
+            Path,
+            Path,
+            ProjectDependencyKind,
+            str | None,
+            bool,
+            None | bool | str | tuple[Path, ...],
+        ] = (requester, dependency, kind, pattern, recursive, answer)
+        if query_key in self._recorded_queries:
+            return
+        self._recorded_queries.add(query_key)
         query_path: Path = dependency.absolute()
         observed: ProjectDependency = ProjectDependency(
             requester=self._resolve(requester),
@@ -344,11 +370,11 @@ def build_external_analysis(*, path: Path) -> ExternalAnalysisBuild:
         )
     except PythonSourceParseError:
         return ExternalAnalysisBuild(analysis=None, source_fingerprint=snapshot.fingerprint)
-    build: AnalysisBuild = build_analysis(
+    analysis: Analysis = build_analysis(
         path=artifact.path, source=artifact.source, module=artifact.module
     )
     return ExternalAnalysisBuild(
-        analysis=build.analysis,
+        analysis=analysis,
         source_fingerprint=artifact.source_fingerprint,
     )
 

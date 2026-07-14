@@ -196,6 +196,8 @@ def global_fingerprint(
     config: CacheFingerprint,
     ruleset: CacheFingerprint,
     custom_rules: CacheFingerprint,
+    fact_backend: str,
+    fact_backend_version: str,
     warnings_enabled: bool = False,
     strata_version: str | None = None,
 ) -> CacheFingerprint:
@@ -205,6 +207,8 @@ def global_fingerprint(
         "config": config.value,
         "custom_rules": custom_rules.value,
         "evaluation_contract_version": EVALUATION_FINGERPRINT_CONTRACT_VERSION,
+        "fact_backend": fact_backend,
+        "fact_backend_version": fact_backend_version,
         "implementation": implementation.value,
         "python_implementation": platform.python_implementation(),
         "python_version": platform.python_version(),

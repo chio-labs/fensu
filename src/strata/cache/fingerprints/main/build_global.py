@@ -5,6 +5,8 @@ from __future__ import annotations
 from importlib.metadata import PackageNotFoundError
 from pathlib import Path
 
+from strata.analysis.main.select_fact_backend import select_fact_backend
+from strata.analysis.models import FactBackendSelection
 from strata.cache.fingerprints._helpers.fingerprints import (
     config_fingerprint,
     custom_rules_fingerprint,
@@ -56,12 +58,15 @@ def build_global_fingerprint(
                 fingerprint=None,
                 disabled_reason="the custom rule implementation identity is unavailable",
             )
+        selection: FactBackendSelection = select_fact_backend()
         return GlobalFingerprintBuild(
             fingerprint=global_fingerprint(
                 implementation=implementation_fingerprint(package_root=package_root),
                 config=config_fingerprint(config),
                 ruleset=ruleset_fingerprint(ruleset),
                 custom_rules=custom_rules,
+                fact_backend=selection.backend.value,
+                fact_backend_version=selection.native_version or "",
                 warnings_enabled=warnings_enabled,
             )
         )

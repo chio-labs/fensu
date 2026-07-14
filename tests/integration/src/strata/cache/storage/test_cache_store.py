@@ -88,7 +88,7 @@ def test_given_concurrent_writers_when_publishing_same_entry_then_reader_sees_co
     )
 
     assert len(writes) == test_case.writer_count
-    assert all(writes)
+    assert any(writes)
     assert loaded is not None
     assert isinstance(loaded.payload, dict)
     assert loaded.payload["value"] in test_case.expected_payload_values

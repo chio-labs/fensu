@@ -28,3 +28,7 @@ class PythonSourceParseError(Exception):
 
 class AnalysisLookupError(LookupError):
     """Raised when a query uses a handle outside its analysis context."""
+
+
+class NativeBackendUnavailableError(RuntimeError):
+    """Raised when the required native analysis module cannot be imported."""

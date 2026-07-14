@@ -129,3 +129,31 @@ class UndeclaredCacheableTestCase:
     decorator_arguments: str
     prelude: str
     expected_codes: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ModuleUseTestCase:
+    """One rule check shape and its expected raw-AST-use classification."""
+
+    description: str
+    check_name: str
+    expected_uses_module: bool
+
+
+@dataclass(frozen=True)
+class CoreModuleFreedomTestCase:
+    """One whole-catalogue raw-AST-freedom expectation."""
+
+    description: str
+    expected_minimum_rules: int
+    expected_module_using_codes: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class LoadedModuleUseTestCase:
+    """One loaded custom rule body and its expected raw-AST-use flag."""
+
+    description: str
+    rule_code: str
+    check_body: str
+    expected_uses_module: bool

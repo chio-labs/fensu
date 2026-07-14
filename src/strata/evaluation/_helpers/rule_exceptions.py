@@ -153,7 +153,7 @@ def _fault_owner(*, fault: Fault, parsed_module: ParsedModule) -> str | None:
     position: tuple[int, int] = (fault.line, fault.column or 0)
     candidates: list[ast.FunctionDef | ast.AsyncFunctionDef] = []
     for node_type in (ast.FunctionDef, ast.AsyncFunctionDef):
-        for node in parsed_module.node_index.get(node_type, ()):
+        for node in parsed_module.syntax_artifacts.node_index.get(node_type, ()):
             if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and _contains_position(
                 node=node, position=position
             ):
@@ -185,9 +185,9 @@ def _qualified_symbol(
     *, node: ast.FunctionDef | ast.AsyncFunctionDef, parsed_module: ParsedModule
 ) -> str:
     parts: list[str] = [node.name]
-    current: ast.AST | None = parsed_module.parent_by_node.get(node)
+    current: ast.AST | None = parsed_module.syntax_artifacts.parent_by_node.get(node)
     while current is not None:
         if isinstance(current, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
             parts.append(current.name)
-        current = parsed_module.parent_by_node.get(current)
+        current = parsed_module.syntax_artifacts.parent_by_node.get(current)
     return ".".join(reversed(parts))

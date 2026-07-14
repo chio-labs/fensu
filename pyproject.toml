@@ -41,6 +41,13 @@ dev = [
   "ruff>=0.12.0",
   "ty>=0.0.1a19",
 ]
+native = ["stratalint-native"]
+
+[tool.uv.workspace]
+members = ["crates/strata-facts"]
+
+[tool.uv.sources]
+stratalint-native = { workspace = true }
 
 [tool.ruff]
 target-version = "py312"

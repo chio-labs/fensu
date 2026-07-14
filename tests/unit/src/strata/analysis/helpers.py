@@ -1,11 +1,42 @@
 """Helpers for backend-neutral analysis tests."""
 
 import ast
+from collections.abc import Callable
 from pathlib import Path
+from types import ModuleType, SimpleNamespace
+from typing import cast
 
 from strata.analysis.main.build import build_analysis
 from strata.analysis.models import EvaluateRuleCallFact, FunctionContractFact, SourceLocation
-from strata.analysis.types import Analysis
+from strata.analysis.types import Analysis, FactAnalysis
+
+FAKE_NATIVE_VERSION: str = "9.9.9"
+
+
+def fake_find_spec(*, available: bool) -> Callable[[str], object | None]:
+    """Return a find_spec stand-in reporting the requested availability."""
+
+    specs: dict[bool, object | None] = {True: object(), False: None}
+    spec: object | None = specs[available]
+    return lambda name: spec
+
+
+def fake_import_module(name: str) -> ModuleType:
+    """Return a module stand-in exposing the fake native version."""
+
+    module: SimpleNamespace = SimpleNamespace(backend_version=lambda: FAKE_NATIVE_VERSION)
+    return cast(ModuleType, module)
+
+
+def sentinel_fact_analysis(*, method_names: tuple[str, ...]) -> FactAnalysis:
+    """Return a fact stand-in whose every family reports its own name."""
+
+    methods: dict[str, Callable[..., str]] = {name: _named_sentinel(name) for name in method_names}
+    return cast(FactAnalysis, SimpleNamespace(**methods))
+
+
+def _named_sentinel(name: str) -> Callable[..., str]:
+    return lambda **kwargs: name
 
 
 def meaningful_return_lines(facts: tuple[FunctionContractFact, ...]) -> tuple[int | None, ...]:

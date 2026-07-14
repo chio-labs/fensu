@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: benchmark benchmark-budget benchmark-profile check check-rust self-check skills test test-e2e test-integration test-rust test-unit verify
+.PHONY: benchmark benchmark-budget benchmark-profile check check-rust develop-native self-check skills test test-e2e test-integration test-native test-rust test-unit verify
 
 BENCHMARK_PROJECT ?= ../sqlbuild
 BENCHMARK_RUNS ?= 5
@@ -28,6 +28,12 @@ check-rust:
 
 test-rust:
 	cargo test --all --quiet
+
+develop-native:
+	uv sync --group native --reinstall-package stratalint-native
+
+test-native:
+	STRATA_FACT_BACKEND=native uv run pytest tests -q -n auto
 
 self-check:
 	uv run strata check

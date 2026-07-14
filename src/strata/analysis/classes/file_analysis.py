@@ -9,11 +9,19 @@ from typing import cast
 
 from strata.analysis._helpers.locations import line_offsets, source_range
 from strata.analysis.classes.fact_analysis import PythonFactAnalysis
+from strata.analysis.classes.native_fact_analysis import NativeFactAnalysis
 from strata.analysis.classes.relation_analysis import PythonRelationAnalysis
 from strata.analysis.classes.syntax_analysis import PythonSyntaxAnalysis
 from strata.analysis.classes.text_analysis import PythonTextAnalysis
+from strata.analysis.main.select_fact_backend import select_fact_backend
 from strata.analysis.models import NodeId, SourceRange, SyntaxHandle
-from strata.analysis.types import FactAnalysis, RelationAnalysis, SyntaxAnalysis, TextAnalysis
+from strata.analysis.types import (
+    FactAnalysis,
+    FactBackend,
+    RelationAnalysis,
+    SyntaxAnalysis,
+    TextAnalysis,
+)
 
 
 class PythonFileAnalysis:
@@ -46,13 +54,18 @@ class PythonFileAnalysis:
 
         if self._facts is None:
             module: ast.Module = cast(ast.Module, self._nodes[0])
-            self._facts = PythonFactAnalysis(
+            python_facts: PythonFactAnalysis = PythonFactAnalysis(
                 path=self._path,
                 source=self._source,
                 module=module,
                 nodes=self._nodes,
                 node_index=self._node_index,
                 parent_by_node=self._parent_by_node,
+            )
+            self._facts = (
+                NativeFactAnalysis(python_facts=python_facts)
+                if select_fact_backend().backend is FactBackend.NATIVE
+                else python_facts
             )
         return self._facts
 

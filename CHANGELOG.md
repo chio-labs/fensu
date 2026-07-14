@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.3](https://github.com/chio-labs/strata/compare/v0.15.2...v0.15.3) (2026-07-14)
+
+
+### Performance Improvements
+
+* **evaluation:** match rule exceptions once per file instead of per rule ([ad000e3](https://github.com/chio-labs/strata/commit/ad000e3d71a8970ede6370385550e9ef1c8bed25))
+
 ## [0.15.2](https://github.com/chio-labs/strata/compare/v0.15.1...v0.15.2) (2026-07-14)
 
 

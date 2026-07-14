@@ -5,14 +5,15 @@ import sys
 from collections import defaultdict, deque
 from collections.abc import Mapping
 from contextlib import suppress
+from importlib import import_module
 from io import BytesIO
 from pathlib import Path
 from tokenize import detect_encoding
-
-import strata_facts
+from types import ModuleType
 
 from strata.analysis.classes.fact_analysis import PythonFactAnalysis
 from strata.analysis.classes.native_fact_analysis import NativeFactAnalysis
+from strata.analysis.constants import NATIVE_FACT_MODULE_NAME
 
 FACT_FAMILY_NAMES: tuple[str, ...] = (
     "annotations",
@@ -63,6 +64,7 @@ def _cpython_validity(source: str) -> bool:
 
 
 def _native_validity(source: str) -> bool:
+    strata_facts: ModuleType = import_module(NATIVE_FACT_MODULE_NAME)
     failure: object = strata_facts.check_syntax(source, sys.version_info[0], sys.version_info[1])
     return failure is None
 

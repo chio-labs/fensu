@@ -621,7 +621,7 @@ def prepare_normal_check_skill_state(*, root: Path, state: str) -> None:
         "declined": lambda: None,
         "unmanaged": lambda: _write_user_skill(path),
         "malformed-marker": lambda: _write_malformed_skill(path),
-        "current": lambda: run_skills(argv=("update", "--target", "agents")),
+        "current": lambda: run_skills(argv=("--target", "agents")),
         "divergent": lambda: _install_then_mutate(root=root, state="divergent"),
         "stale-all": lambda: _install_all_then_stale(root),
     }
@@ -665,12 +665,12 @@ def _write_malformed_skill(path: Path) -> None:
 
 
 def _install_then_mutate(*, root: Path, state: str) -> None:
-    _ = run_skills(argv=("update", "--target", "agents"))
+    _ = run_skills(argv=("--target", "agents"))
     mutate_skill_freshness_state(root=root, state=state)
 
 
 def _install_all_then_stale(root: Path) -> None:
-    _ = run_skills(argv=("update",))
+    _ = run_skills(argv=())
     config: Path = root / "strata.toml"
     config.write_text(
         config.read_text(encoding="utf-8") + "\n[cache]\nenabled = false\n",
@@ -875,6 +875,10 @@ def write_cli_method_map_project(root: Path) -> None:
         "class Beta:\n"
         "    def select(self) -> None:\n"
         "        return None\n",
+        encoding="utf-8",
+    )
+    (package / "alternate.py").write_text(
+        "class Alpha:\n    def select(self) -> None:\n        return None\n",
         encoding="utf-8",
     )
     (package / "entry.py").write_text(

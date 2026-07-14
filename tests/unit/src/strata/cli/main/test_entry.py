@@ -29,9 +29,9 @@ from tests.unit.src.strata.cli.main._test_types import EntryDispatchTestCase, En
         ),
         EntryDispatchTestCase(
             description="skills command delegates remaining arguments",
-            argv=("skills", "update", "--target", "agents"),
+            argv=("skills", "--target", "agents"),
             runner_attribute="run_skills",
-            expected_forwarded_argv=("update", "--target", "agents"),
+            expected_forwarded_argv=("--target", "agents"),
             expected_exit_code=17,
         ),
         EntryDispatchTestCase(

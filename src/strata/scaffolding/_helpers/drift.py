@@ -70,7 +70,7 @@ def update_init_skills(
             f"{style.provenance(f'- {resolved}')}\n"
         )
     if not install:
-        stdout.write("\n    Run strata skills update when you are ready.\n")
+        stdout.write("\n    Run strata skills when you are ready.\n")
         return
     try:
         selection: RuleSelection = build_check_rule_selection(

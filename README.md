@@ -184,8 +184,8 @@ exceptions that no longer suppress a fault.
 Generate repository-aware guidance from the active ruleset:
 
 ```bash
-strata skills update
-strata skills update --global
+strata skills
+strata skills --global
 ```
 
 The generated skill includes Strata usage, rule-supported architecture examples,

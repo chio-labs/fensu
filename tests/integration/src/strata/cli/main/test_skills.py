@@ -40,46 +40,8 @@ from tests.integration.src.strata.cli.main.helpers import (
     "test_case",
     [
         SkillCommandTestCase(
-            description="missing subcommand explains the valid update command",
+            description="bare command writes every repository-local target",
             argv=(),
-            expected_exit_code=2,
-            expected_output_fragments=(
-                "A skills command is required.",
-                "`strata skills update`",
-                "usage: strata skills",
-            ),
-        ),
-        SkillCommandTestCase(
-            description="update option typo explains that update is a subcommand",
-            argv=("--update",),
-            expected_exit_code=2,
-            expected_output_fragments=(
-                "`update` is a subcommand, not an option.",
-                "`strata skills update`",
-            ),
-        ),
-    ],
-    ids=lambda case: case.description,
-)
-def test_given_missing_or_mistyped_subcommand_when_running_then_explains_update_syntax(
-    test_case: SkillCommandTestCase,
-) -> None:
-    stdout: CaptureOutput = CaptureOutput()
-    stderr: CaptureOutput = CaptureOutput()
-
-    exit_code: int = run_skills(argv=test_case.argv, stdout=stdout, stderr=stderr)
-
-    assert exit_code == test_case.expected_exit_code
-    assert stdout.getvalue() == ""
-    assert all(fragment in stderr.getvalue() for fragment in test_case.expected_output_fragments)
-
-
-@pytest.mark.parametrize(
-    "test_case",
-    [
-        SkillCommandTestCase(
-            description="default update writes every repository-local target",
-            argv=("update",),
             expected_exit_code=0,
             expected_output_fragments=("Updated Strata skill files:",),
             expected_written_paths=(
@@ -101,7 +63,7 @@ def test_given_missing_or_mistyped_subcommand_when_running_then_explains_update_
         ),
         SkillCommandTestCase(
             description="global target filter writes selected home locations",
-            argv=("update", "--global", "--target", "opencode", "--target", "agents"),
+            argv=("--global", "--target", "opencode", "--target", "agents"),
             expected_exit_code=0,
             expected_output_fragments=("Updated Strata skill files:",),
             expected_written_paths=(
@@ -168,7 +130,7 @@ def test_given_scope_and_targets_when_updating_skills_then_installs_active_rule_
     [
         SkillCommandTestCase(
             description="warning selection installs distinct resolved policy tiers",
-            argv=("update", "--target", "agents"),
+            argv=("--target", "agents"),
             expected_exit_code=0,
             expected_output_fragments=("Updated Strata skill files:",),
             expected_written_paths=(".agents/skills/strata-fixture/SKILL.md",),
@@ -221,7 +183,7 @@ def test_given_warning_configuration_when_updating_then_installs_distinct_tier_d
     [
         SkillCommandTestCase(
             description="nested invocation writes repository-local skill at the config root",
-            argv=("update", "--target", "agents"),
+            argv=("--target", "agents"),
             expected_exit_code=0,
             expected_output_fragments=("Updated Strata skill files:",),
             expected_written_paths=(".agents/skills/strata-fixture/SKILL.md",),
@@ -253,7 +215,7 @@ def test_given_nested_working_directory_when_updating_skills_then_writes_at_proj
     [
         SkillCommandTestCase(
             description="non-generated file is preserved without force",
-            argv=("update", "--target", "agents"),
+            argv=("--target", "agents"),
             expected_exit_code=2,
             expected_output_fragments=("refusing to overwrite unmanaged skill file",),
             expected_written_paths=(".agents/skills/strata-fixture/SKILL.md",),
@@ -261,7 +223,7 @@ def test_given_nested_working_directory_when_updating_skills_then_writes_at_proj
         ),
         SkillCommandTestCase(
             description="force replaces a non-generated file",
-            argv=("update", "--target", "agents", "--force"),
+            argv=("--target", "agents", "--force"),
             expected_exit_code=0,
             expected_output_fragments=("Updated Strata skill files:",),
             expected_written_paths=(".agents/skills/strata-fixture/SKILL.md",),
@@ -296,7 +258,7 @@ def test_given_existing_user_skill_when_updating_then_requires_explicit_force(
     [
         SkillCommandTestCase(
             description="later user-authored target prevents every default target write",
-            argv=("update",),
+            argv=(),
             expected_exit_code=2,
             expected_output_fragments=("refusing to overwrite unmanaged skill file",),
             expected_written_paths=(
@@ -342,7 +304,7 @@ def test_given_later_user_skill_when_updating_all_targets_then_writes_nothing(
     [
         SkillCommandTestCase(
             description="symlinked opencode parent cannot escape the repository",
-            argv=("update",),
+            argv=(),
             expected_exit_code=2,
             expected_output_fragments=("refusing to write unsafe skill target",),
             expected_written_paths=(
@@ -416,7 +378,7 @@ def test_given_write_time_failure_when_updating_then_restores_entire_target_set(
     monkeypatch.chdir(tmp_path)
     stderr: CaptureOutput = CaptureOutput()
 
-    exit_code: int = run_skills(argv=("update",), stderr=stderr)
+    exit_code: int = run_skills(argv=(), stderr=stderr)
 
     assert exit_code == test_case.expected_exit_code
     assert test_case.expected_error_fragment in stderr.getvalue()
@@ -458,7 +420,7 @@ def test_given_user_file_race_when_publishing_absent_target_then_preserves_user_
     monkeypatch.chdir(tmp_path)
     stderr: CaptureOutput = CaptureOutput()
 
-    exit_code: int = run_skills(argv=("update",), stderr=stderr)
+    exit_code: int = run_skills(argv=(), stderr=stderr)
 
     assert exit_code == test_case.expected_exit_code
     assert test_case.expected_error_fragment in stderr.getvalue()
@@ -472,7 +434,7 @@ def test_given_user_file_race_when_publishing_absent_target_then_preserves_user_
     [
         SkillCommandTestCase(
             description="default local update installs at parent Git root",
-            argv=("update", "--target", "agents"),
+            argv=("--target", "agents"),
             expected_exit_code=0,
             expected_output_fragments=("Updated Strata skill files:",),
             expected_written_paths=(".agents/skills/strata-fixture/SKILL.md",),
@@ -485,21 +447,21 @@ def test_given_user_file_race_when_publishing_absent_target_then_preserves_user_
         ),
         SkillCommandTestCase(
             description="explicit Git keyword installs at parent Git root",
-            argv=("update", "--target", "agents", "--install-root", "git"),
+            argv=("--target", "agents", "--install-root", "git"),
             expected_exit_code=0,
             expected_output_fragments=("Updated Strata skill files:",),
             expected_written_paths=(".agents/skills/strata-fixture/SKILL.md",),
         ),
         SkillCommandTestCase(
             description="project keyword installs at Strata config root",
-            argv=("update", "--target", "agents", "--install-root", "project"),
+            argv=("--target", "agents", "--install-root", "project"),
             expected_exit_code=0,
             expected_output_fragments=("Updated Strata skill files:",),
             expected_written_paths=("backend/.agents/skills/strata-fixture/SKILL.md",),
         ),
         SkillCommandTestCase(
             description="relative explicit path resolves from invocation directory",
-            argv=("update", "--target", "agents", "--install-root", "../custom"),
+            argv=("--target", "agents", "--install-root", "../custom"),
             expected_exit_code=0,
             expected_output_fragments=("Updated Strata skill files:",),
             expected_written_paths=("custom/.agents/skills/strata-fixture/SKILL.md",),
@@ -534,7 +496,7 @@ def test_given_monorepo_and_install_root_when_updating_then_resolves_expected_ta
     [
         SkillCommandTestCase(
             description="global and install-root options are explicitly incompatible",
-            argv=("update", "--global", "--install-root", "project"),
+            argv=("--global", "--install-root", "project"),
             expected_exit_code=2,
             expected_output_fragments=("--install-root cannot be combined with --global",),
         )
@@ -559,7 +521,7 @@ def test_given_global_and_install_root_when_updating_then_rejects_ambiguous_scop
     [
         SkillCommandTestCase(
             description="repeated identical targets are deterministically deduplicated",
-            argv=("update", "--target", "agents", "--target", "agents"),
+            argv=("--target", "agents", "--target", "agents"),
             expected_exit_code=0,
             expected_output_fragments=("Updated Strata skill files:",),
             expected_written_paths=(".agents/skills/strata-fixture/SKILL.md",),
@@ -588,7 +550,7 @@ def test_given_repeated_target_when_updating_then_writes_target_once(
     [
         SkillCommandTestCase(
             description="generated file carries complete structured ownership metadata",
-            argv=("update", "--target", "agents"),
+            argv=("--target", "agents"),
             expected_exit_code=0,
             expected_output_fragments=("Updated Strata skill files:",),
             expected_written_paths=(".agents/skills/strata-fixture/SKILL.md",),
@@ -626,7 +588,7 @@ def test_given_project_update_when_installing_then_embeds_structured_ownership_m
     [
         SkillCommandTestCase(
             description="force cannot overwrite a same-name skill owned by another project",
-            argv=("update", "--target", "agents", "--install-root", "../shared", "--force"),
+            argv=("--target", "agents", "--install-root", "../shared", "--force"),
             expected_exit_code=2,
             expected_output_fragments=("owned by another Strata project",),
             expected_written_paths=("shared/.agents/skills/strata-fixture/SKILL.md",),
@@ -646,9 +608,7 @@ def test_given_foreign_owner_collision_when_forcing_then_preserves_existing_proj
     write_cli_fixture_project(root=first_project, rule_code="XFO001")
     write_cli_fixture_project(root=second_project, rule_code="XFO002")
     monkeypatch.chdir(first_project)
-    first_exit: int = run_skills(
-        argv=("update", "--target", "agents", "--install-root", "../shared")
-    )
+    first_exit: int = run_skills(argv=("--target", "agents", "--install-root", "../shared"))
     target: Path = tmp_path / test_case.expected_written_paths[0]
     original: bytes = target.read_bytes()
     monkeypatch.chdir(second_project)
@@ -667,7 +627,7 @@ def test_given_foreign_owner_collision_when_forcing_then_preserves_existing_proj
     [
         SkillCommandTestCase(
             description="case-only normalized directory collision is rejected even with force",
-            argv=("update", "--target", "agents", "--force"),
+            argv=("--target", "agents", "--force"),
             expected_exit_code=2,
             expected_output_fragments=("identity normalization collides",),
             expected_written_paths=(".agents/skills/Strata-Fixture/user.txt",),
@@ -699,7 +659,7 @@ def test_given_case_colliding_skill_directory_when_updating_then_preserves_exist
     [
         SkillCommandTestCase(
             description="marker-owned generic skill migrates while user sibling remains",
-            argv=("update", "--target", "agents"),
+            argv=("--target", "agents"),
             expected_exit_code=0,
             expected_output_fragments=("Updated Strata skill files:",),
             expected_written_paths=(
@@ -737,7 +697,7 @@ def test_given_owned_generic_skill_when_updating_then_migrates_without_recursive
     [
         SkillCommandTestCase(
             description="unmanaged generic skill is never migrated",
-            argv=("update", "--target", "agents"),
+            argv=("--target", "agents"),
             expected_exit_code=0,
             expected_output_fragments=("Updated Strata skill files:",),
             expected_written_paths=(".agents/skills/strata/SKILL.md",),
@@ -745,7 +705,7 @@ def test_given_owned_generic_skill_when_updating_then_migrates_without_recursive
         ),
         SkillCommandTestCase(
             description="symlink generic skill aborts migration without publishing",
-            argv=("update", "--target", "agents"),
+            argv=("--target", "agents"),
             expected_exit_code=2,
             expected_output_fragments=("unsafe skill target",),
             expected_written_paths=(".agents/skills/strata/SKILL.md",),
@@ -816,7 +776,7 @@ def test_given_legacy_deletion_failure_when_migrating_then_rolls_back_whole_tran
     monkeypatch.chdir(tmp_path)
     stderr: CaptureOutput = CaptureOutput()
 
-    exit_code: int = run_skills(argv=("update",), stderr=stderr)
+    exit_code: int = run_skills(argv=(), stderr=stderr)
 
     assert exit_code == test_case.expected_exit_code
     assert test_case.expected_error_fragment in stderr.getvalue()
@@ -857,7 +817,7 @@ def test_given_legacy_replacement_race_when_migrating_then_preserves_user_replac
     stderr: CaptureOutput = CaptureOutput()
 
     exit_code: int = run_skills(
-        argv=("update", "--target", "agents"),
+        argv=("--target", "agents"),
         stderr=stderr,
     )
 
@@ -906,7 +866,7 @@ def test_given_existing_target_race_when_publishing_then_preserves_user_replacem
     monkeypatch.chdir(tmp_path)
     stderr: CaptureOutput = CaptureOutput()
 
-    exit_code: int = run_skills(argv=("update",), stderr=stderr)
+    exit_code: int = run_skills(argv=(), stderr=stderr)
 
     assert exit_code == test_case.expected_exit_code
     assert test_case.expected_error_fragment in stderr.getvalue()
@@ -964,14 +924,14 @@ def test_given_expected_target_state_when_checking_update_then_reports_exact_rea
 ) -> None:
     write_cli_fixture_project(root=tmp_path, rule_code="XFR001")
     monkeypatch.chdir(tmp_path)
-    installed: int = run_skills(argv=("update", "--target", "agents"))
+    installed: int = run_skills(argv=("--target", "agents"))
     mutate_skill_freshness_state(root=tmp_path, state=test_case.state)
     before: tuple[tuple[str, str, int, int, bytes], ...] = complete_filesystem_snapshot(tmp_path)
     stdout: CaptureOutput = CaptureOutput()
     stderr: CaptureOutput = CaptureOutput()
 
     exit_code: int = run_skills(
-        argv=("update", "--target", "agents", "--check"),
+        argv=("--target", "agents", "--check"),
         stdout=stdout,
         stderr=stderr,
     )
@@ -996,7 +956,7 @@ def test_given_expected_target_state_when_checking_update_then_reports_exact_rea
     [
         SkillCommandTestCase(
             description="check rejects force before loading or writing project state",
-            argv=("update", "--check", "--force"),
+            argv=("--check", "--force"),
             expected_exit_code=2,
             expected_output_fragments=("--check cannot be combined with --force.",),
         )
@@ -1024,7 +984,7 @@ def test_given_check_and_force_when_running_skills_then_rejects_write_only_optio
     [
         SkillCommandTestCase(
             description="all absent defaults are reported in path order",
-            argv=("update", "--check"),
+            argv=("--check",),
             expected_exit_code=1,
             expected_output_fragments=(
                 ".agents/skills/strata-fixture/SKILL.md: missing",

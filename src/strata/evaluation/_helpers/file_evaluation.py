@@ -8,9 +8,10 @@ from strata.config.models import Config
 from strata.discovery.main.route import families_for_scope
 from strata.discovery.models import DiscoveredTree, ScopedFile
 from strata.evaluation._helpers.execution import execute_rule
-from strata.evaluation._helpers.rule_exceptions import suppress_faults
+from strata.evaluation._helpers.rule_exceptions import file_exception_scope, suppress_faults
 from strata.evaluation.models import (
     FileEvaluation,
+    FileExceptionScope,
     ParsedModule,
     RuleExceptionKey,
     ThresholdOverrideUse,
@@ -39,6 +40,11 @@ def evaluate_file(
     file_cache: dict[str, object] = dict(file_cache_seed or {})
     threshold_override_uses: list[ThresholdOverrideUse] = []
     applicable_families: frozenset[Family] = families_for_scope(scoped_file=scoped_file)
+    exception_scope: FileExceptionScope | None = file_exception_scope(
+        path=scoped_file.path,
+        config=config,
+        repo_root=tree.repo_root.path,
+    )
     for tier_rules, tier_faults in ((ruleset, faults), (warning_rules, warnings)):
         for rule in tier_rules:
             if rule.family != Family.CUSTOM and rule.family not in applicable_families:
@@ -53,12 +59,11 @@ def evaluate_file(
                 file_cache=file_cache,
                 threshold_override_uses=threshold_override_uses,
             )
-            if config.rule_exceptions:
+            if exception_scope is not None:
                 retained, applied = suppress_faults(
                     faults=rule_faults,
                     parsed_module=parsed_module,
-                    config=config,
-                    repo_root=tree.repo_root.path,
+                    scope=exception_scope,
                 )
                 tier_faults.extend(retained)
                 applied_exceptions.update(applied)

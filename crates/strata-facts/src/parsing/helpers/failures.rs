@@ -1,12 +1,11 @@
 //! Convert parser diagnostics into position-resolved parse failures.
 
-use ruff_python_ast::ModModule;
 use ruff_python_parser::Parsed;
 
 use crate::parsing::models::ParseFailure;
 use crate::positions::main::locate_offset::locate_offset;
 
-pub(crate) fn earliest_failure(source: &str, parsed: &Parsed<ModModule>) -> Option<ParseFailure> {
+pub(crate) fn earliest_failure<T>(source: &str, parsed: &Parsed<T>) -> Option<ParseFailure> {
     let mut candidates: Vec<(usize, String)> = Vec::new();
     for error in parsed.errors() {
         candidates.push((error.location.start().to_usize(), error.error.to_string()));

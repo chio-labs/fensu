@@ -1,14 +1,39 @@
 """Helpers for backend-neutral analysis tests."""
 
 import ast
-from collections.abc import Callable
+from collections import defaultdict, deque
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from typing import cast
 
+from strata.analysis.classes.fact_analysis import PythonFactAnalysis
+from strata.analysis.classes.native_fact_analysis import NativeFactAnalysis
 from strata.analysis.main.build import build_analysis
 from strata.analysis.models import EvaluateRuleCallFact, FunctionContractFact, SourceLocation
 from strata.analysis.types import Analysis, FactAnalysis
+
+FACT_FAMILY_NAMES: tuple[str, ...] = (
+    "annotations",
+    "comments",
+    "complex_comprehensions",
+    "dataclasses",
+    "evaluate_rule_calls",
+    "function_conditionals",
+    "function_contracts",
+    "functions",
+    "hygiene",
+    "meaningful_returns",
+    "module_declarations",
+    "outer_state_mutations",
+    "parameter_mutations",
+    "project_calls",
+    "project_functions",
+    "references",
+    "test_functions",
+    "test_module",
+    "top_level_definition_conditionals",
+)
 
 FAKE_NATIVE_VERSION: str = "9.9.9"
 
@@ -89,3 +114,46 @@ def rule_case_location_lines(
             lines.append(location.line)
         call_lines.append(tuple(lines))
     return tuple(call_lines)
+
+
+def fact_family_divergences(*, path: Path, source: str) -> tuple[str, ...]:
+    """Return fact families whose Python and native backends disagree."""
+
+    module: ast.Module = ast.parse(source)
+    python_facts: PythonFactAnalysis = _python_fact_backend(path=path, source=source, module=module)
+    delegate: PythonFactAnalysis = _python_fact_backend(path=path, source=source, module=module)
+    native_facts: NativeFactAnalysis = NativeFactAnalysis(
+        python_facts=delegate, path=path, source=source
+    )
+    divergent: list[str] = []
+    for family in FACT_FAMILY_NAMES:
+        expected: object = getattr(python_facts, family)()
+        actual: object = getattr(native_facts, family)()
+        matching: dict[bool, tuple[str, ...]] = {True: (), False: (family,)}
+        divergent.extend(matching[expected == actual])
+    return tuple(divergent)
+
+
+def _python_fact_backend(*, path: Path, source: str, module: ast.Module) -> PythonFactAnalysis:
+    node_index: defaultdict[type[ast.AST], list[ast.AST]] = defaultdict(list)
+    parent_by_node: dict[ast.AST, ast.AST] = {}
+    nodes: list[ast.AST] = []
+    pending: deque[ast.AST] = deque((module,))
+    while pending:
+        node: ast.AST = pending.popleft()
+        nodes.append(node)
+        node_index[type(node)].append(node)
+        for child in ast.iter_child_nodes(node):
+            parent_by_node[child] = node
+            pending.append(child)
+    frozen_index: Mapping[type[ast.AST], tuple[ast.AST, ...]] = {
+        node_type: tuple(indexed) for node_type, indexed in node_index.items()
+    }
+    return PythonFactAnalysis(
+        path=path,
+        source=source,
+        module=module,
+        nodes=tuple(nodes),
+        node_index=frozen_index,
+        parent_by_node=parent_by_node,
+    )

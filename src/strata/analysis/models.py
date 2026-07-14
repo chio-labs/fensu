@@ -5,7 +5,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from strata.analysis.types import RuleCaseForm
+from strata.analysis.types import FactBackend, RuleCaseForm
+
+
+@dataclass(frozen=True, slots=True)
+class FactBackendSelection:
+    """The resolved fact backend with any selection warning."""
+
+    backend: FactBackend
+    native_version: str | None
+    warning: str | None
 
 
 @dataclass(frozen=True, slots=True)

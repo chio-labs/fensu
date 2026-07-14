@@ -4,6 +4,27 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
+class FactDelegationTestCase:
+    """One fact family and the sentinel its delegation must return."""
+
+    description: str
+    method_name: str
+    expected_sentinel: str
+
+
+@dataclass(frozen=True)
+class FactBackendSelectionTestCase:
+    """Environment and availability state with the expected selection result."""
+
+    description: str
+    requested_value: str | None
+    native_available: bool
+    expected_backend: str
+    expected_native_version: str | None
+    expected_warning_present: bool
+
+
+@dataclass(frozen=True)
 class PythonSourceFactoryTestCase:
     """Exact source bytes and expected normalized analysis artifact."""
 

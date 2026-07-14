@@ -139,6 +139,18 @@ class GlobalFingerprintTestCase:
 
 
 @dataclass(frozen=True)
+class FactBackendFingerprintTestCase:
+    """Two fact-backend identities and whether their global identities must match."""
+
+    description: str
+    first_backend: str
+    first_backend_version: str
+    second_backend: str
+    second_backend_version: str
+    expected_equal: bool
+
+
+@dataclass(frozen=True)
 class WarningModeFingerprintTestCase:
     """Two warning-mode states and whether their cache identities may match."""
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.15.1](https://github.com/chio-labs/strata/compare/v0.15.0...v0.15.1) (2026-07-14)
+
+
+### Bug Fixes
+
+* **docs:** document wheel platforms and the rust toolchain requirement ([7257bf4](https://github.com/chio-labs/strata/commit/7257bf4a6d9094b2dfc416ffc08f4115ceb8b652))
+* **docs:** document wheel platforms and the rust toolchain requirement ([c6edc0a](https://github.com/chio-labs/strata/commit/c6edc0a21c78e0ada5983c8b87fdd3b2209f1c34))
+
 ## [0.15.0](https://github.com/chio-labs/strata/compare/v0.14.0...v0.15.0) (2026-07-14)
 
 

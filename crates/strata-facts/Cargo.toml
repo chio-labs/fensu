@@ -14,6 +14,7 @@ path = "src/lib.rs"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+dunce.workspace = true
 hex.workspace = true
 pyo3.workspace = true
 rayon.workspace = true

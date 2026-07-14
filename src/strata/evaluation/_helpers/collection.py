@@ -20,12 +20,20 @@ from strata.evaluation.models import (
 )
 from strata.rules.authoring.models import Fault
 
+_posix_path_separator: str = "/"
+
 
 def sort_faults(*, faults: list[Fault], repo_root: Path) -> tuple[Fault, ...]:
     """Return faults sorted by path, line, column, and code."""
 
+    root_prefix: str = repo_root.as_posix() + _posix_path_separator
     return tuple(
-        sorted(faults, key=lambda fault: _fault_sort_key(fault=fault, repo_root=repo_root))
+        sorted(
+            faults,
+            key=lambda fault: _fault_sort_key(
+                fault=fault, repo_root=repo_root, root_prefix=root_prefix
+            ),
+        )
     )
 
 
@@ -78,14 +86,20 @@ def collect_evaluation_result(
     )
 
 
-def _fault_sort_key(*, fault: Fault, repo_root: Path) -> tuple[str, int, int, str]:
-    try:
-        relative_path: Path = fault.path.relative_to(repo_root)
-    except ValueError:
-        relative_path = fault.path
+def _fault_sort_key(
+    *, fault: Fault, repo_root: Path, root_prefix: str
+) -> tuple[str, int, int, str]:
+    path_value: str = fault.path.as_posix()
+    if path_value.startswith(root_prefix):
+        relative_value: str = path_value[len(root_prefix) :]
+    else:
+        try:
+            relative_value = fault.path.relative_to(repo_root).as_posix()
+        except ValueError:
+            relative_value = path_value
     line: int = -1 if fault.line is None else fault.line
     column: int = -1 if fault.column is None else fault.column
-    return (relative_path.as_posix(), line, column, fault.code)
+    return (relative_value, line, column, fault.code)
 
 
 def _override_use_key(use: ThresholdOverrideUse) -> tuple[str, str, int, str, str, int]:

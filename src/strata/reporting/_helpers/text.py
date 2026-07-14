@@ -18,6 +18,8 @@ from strata.reporting.constants import (
 )
 from strata.rules.authoring.models import Fault
 
+_posix_path_separator: str = "/"
+
 
 def render_text(
     *,
@@ -122,6 +124,10 @@ def _format_location(*, fault: Fault, root: Path) -> str:
 
 @cache
 def _display_path(*, path: Path, root: Path) -> Path:
+    path_value: str = path.as_posix()
+    root_prefix: str = root.as_posix() + _posix_path_separator
+    if path_value.startswith(root_prefix):
+        return Path(path_value[len(root_prefix) :])
     try:
         return path.relative_to(root)
     except ValueError:

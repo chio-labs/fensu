@@ -17,13 +17,20 @@ from strata.analysis.types import (
 )
 from strata.config.main.resolve_threshold import resolve_threshold
 from strata.config.models import Config, ThresholdResolution
-from strata.discovery.constants import INIT_MODULE_FILE_NAME, ROLE_FILE_TO_NAME
+from strata.discovery.constants import (
+    INIT_MODULE_FILE_NAME,
+    ROLE_FILE_TO_NAME,
+    SNAPSHOT_TABLE,
+)
 from strata.discovery.models import ProjectLayout, RepoRoot
 from strata.discovery.types import RoleName, ScopeName
 from strata.evaluation._helpers import ast_access
 from strata.evaluation.models import ParsedModule, ThresholdOverrideUse
 from strata.rules.authoring.models import Fault, RuleSpec
 from strata.rules.authoring.types import Threshold
+
+_POSIX_PATH_SEPARATOR: str = "/"
+_ROLE_DIRECTORY_NAMES: frozenset[str] = frozenset(role.value for role in RoleName)
 
 
 class EvaluationRuleContext:
@@ -199,6 +206,14 @@ class EvaluationRuleContext:
     def repo_relative_parts(self) -> tuple[str, ...]:
         """The current file's path parts relative to the repository root."""
 
+        return self._memoize(
+            key="repo_relative_parts", operation=self._computed_repo_relative_parts
+        )
+
+    def _computed_repo_relative_parts(self) -> tuple[str, ...]:
+        value: str | None = SNAPSHOT_TABLE.relative_path(path=self.path, repo_root=self.repo_root)
+        if value is not None:
+            return tuple(value.split(_POSIX_PATH_SEPARATOR))
         return self.path.relative_to(self.repo_root).parts
 
     def scope_root(self) -> Path:
@@ -221,8 +236,13 @@ class EvaluationRuleContext:
         return self._memoize(key="module_parts", operation=self._computed_module_parts)
 
     def _computed_module_parts(self) -> tuple[str, ...]:
-        relative: Path = self.path.relative_to(self.scope_root().parent)
-        parts: tuple[str, ...] = (*relative.parts[:-1], relative.stem)
+        root_parts: tuple[str, ...] = self.scope_root().parts
+        path_parts: tuple[str, ...] = self.path.parts
+        if len(root_parts) > 1 and path_parts[: len(root_parts)] == root_parts:
+            relative_parts: tuple[str, ...] = path_parts[len(root_parts) - 1 :]
+        else:
+            relative_parts = self.path.relative_to(self.scope_root().parent).parts
+        parts: tuple[str, ...] = (*relative_parts[:-1], self.path.stem)
         return (
             parts[:-1]
             if parts and parts[-1] == INIT_MODULE_FILE_NAME.removesuffix(".py")
@@ -353,7 +373,10 @@ class EvaluationRuleContext:
         )
 
     def _own_position(self) -> tuple[str, str | None]:
-        return (self.path.relative_to(self.repo_root).as_posix(), self.role_of())
+        value: str | None = SNAPSHOT_TABLE.relative_path(path=self.path, repo_root=self.repo_root)
+        if value is None:
+            value = self.path.relative_to(self.repo_root).as_posix()
+        return (value, self.role_of())
 
     def contracts(self) -> Mapping[str, str]:
         """Return configured function-name behavior contracts."""
@@ -363,8 +386,7 @@ class EvaluationRuleContext:
 
 def _role_for_path(*, path: Path, scope_root: Path) -> str | None:
     parts: tuple[str, ...] = path.relative_to(scope_root).parts
-    role_names: frozenset[str] = frozenset(role.value for role in RoleName)
     for part in parts[:-1]:
-        if part in role_names:
+        if part in _ROLE_DIRECTORY_NAMES:
             return part
     return ROLE_FILE_TO_NAME.get(parts[-1])

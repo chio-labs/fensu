@@ -108,6 +108,14 @@ def no_cross_package_internals(*, module: ast.Module, ctx: RuleContext) -> list[
 
 
 def _classify_import_target(*, ctx: RuleContext, module_parts: tuple[str, ...]) -> ModuleOwnership:
+    key: str = "layers.import_target:" + ".".join(module_parts)
+    return ctx._memoize(
+        key=key,
+        operation=lambda: _computed_import_target(ctx=ctx, module_parts=module_parts),
+    )
+
+
+def _computed_import_target(*, ctx: RuleContext, module_parts: tuple[str, ...]) -> ModuleOwnership:
     return classify_module_ownership(
         module_parts=module_parts,
         initializer=ctx.project.exists(

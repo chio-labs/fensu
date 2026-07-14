@@ -60,6 +60,16 @@ class _EvaluationProjectAnalysis:
         self._dependencies: list[ProjectDependency] = []
         self._dependencies_by_requester: dict[Path, list[ProjectDependency]] = {}
         self._dependency_set: set[ProjectDependency] = set()
+        self._recorded_queries: set[
+            tuple[
+                Path,
+                Path,
+                ProjectDependencyKind,
+                str | None,
+                bool,
+                None | bool | str | tuple[Path, ...],
+            ]
+        ] = set()
         self._resolved_paths: dict[Path, Path] = {}
         self._exists: dict[Path, bool] = {}
         self._directories: dict[Path, bool] = {}
@@ -304,6 +314,17 @@ class _EvaluationProjectAnalysis:
         pattern: str | None = None,
         recursive: bool = False,
     ) -> None:
+        query_key: tuple[
+            Path,
+            Path,
+            ProjectDependencyKind,
+            str | None,
+            bool,
+            None | bool | str | tuple[Path, ...],
+        ] = (requester, dependency, kind, pattern, recursive, answer)
+        if query_key in self._recorded_queries:
+            return
+        self._recorded_queries.add(query_key)
         query_path: Path = dependency.absolute()
         observed: ProjectDependency = ProjectDependency(
             requester=self._resolve(requester),

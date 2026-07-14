@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from functools import cache
 
 from strata.config.constants import PATH_SEPARATOR, RECURSIVE_GLOB, SINGLE_COMPONENT_GLOB
 
@@ -10,7 +11,7 @@ from strata.config.constants import PATH_SEPARATOR, RECURSIVE_GLOB, SINGLE_COMPO
 def path_pattern_matches(*, pattern: str, path: str) -> bool:
     """Return whether one normalized repository-relative path matches a glob."""
 
-    return re.fullmatch(_pattern_expression(pattern), path) is not None
+    return _compiled_pattern(pattern).fullmatch(path) is not None
 
 
 def matches_any_path_pattern(*, patterns: tuple[str, ...], path: str) -> bool:
@@ -19,6 +20,7 @@ def matches_any_path_pattern(*, patterns: tuple[str, ...], path: str) -> bool:
     return any(path_pattern_matches(pattern=pattern, path=path) for pattern in patterns)
 
 
+@cache
 def path_pattern_specificity(pattern: str) -> tuple[int, int, int, int]:
     """Return literal-segment, literal-character, globstar, and wildcard specificity."""
 
@@ -32,6 +34,11 @@ def path_pattern_specificity(pattern: str) -> tuple[int, int, int, int]:
         segment.count(SINGLE_COMPONENT_GLOB) for segment in segments if segment != RECURSIVE_GLOB
     )
     return (literal_segments, literal_characters, -globstars, -wildcards)
+
+
+@cache
+def _compiled_pattern(pattern: str) -> re.Pattern[str]:
+    return re.compile(_pattern_expression(pattern))
 
 
 def _pattern_expression(pattern: str) -> str:

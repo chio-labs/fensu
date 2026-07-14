@@ -37,6 +37,7 @@ from strata.config.models import (
 )
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Threshold
+from strata.rules.catalog.constants import CORE_RULES
 from strata.rules.catalog.main.build_ruleset import build_ruleset
 from tests.unit.src.strata.cache.fingerprints._test_types import (
     CacheBlockedRulesetTestCase,
@@ -865,16 +866,25 @@ def test_given_rule_path_sources_when_fingerprinting_then_tracks_every_file(
     "test_case",
     [
         CacheBlockedRulesetTestCase(
-            description="non-cacheable custom rule disables caching with named reason",
+            description="custom-only non-cacheable ruleset disables caching entirely",
             cacheable=False,
+            include_core=False,
             expected_blocked=True,
-            expected_reason_fragment="cache.require_cacheable is set: XFP001",
+            expected_reason_fragment="no cacheable rules are selected",
         ),
         CacheBlockedRulesetTestCase(
             description="declared cacheable custom rule does not block the identity",
             cacheable=True,
+            include_core=False,
             expected_blocked=False,
-            expected_reason_fragment="not declared cacheable",
+            expected_reason_fragment="no cacheable rules are selected",
+        ),
+        CacheBlockedRulesetTestCase(
+            description="mixed core and non-cacheable custom ruleset keeps the identity",
+            cacheable=False,
+            include_core=True,
+            expected_blocked=False,
+            expected_reason_fragment="no cacheable rules are selected",
         ),
     ],
     ids=lambda case: case.description,
@@ -883,7 +893,9 @@ def test_given_custom_ruleset_when_building_global_then_names_blocking_rules(
     tmp_path: Path,
     test_case: CacheBlockedRulesetTestCase,
 ) -> None:
+    core_rules: tuple[RuleSpec, ...] = {False: (), True: CORE_RULES[:1]}[test_case.include_core]
     ruleset: tuple[RuleSpec, ...] = (
+        *core_rules,
         custom_fingerprint_rule(code="XFP001", cacheable=test_case.cacheable),
     )
 

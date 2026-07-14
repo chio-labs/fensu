@@ -13,7 +13,10 @@ from strata.rules.catalog._helpers.loading import (
     build_catalogue_from_config,
     build_ruleset_from_config,
 )
-from tests.unit.src.strata.rules.catalog.main._test_types import CacheableRuleValidationTestCase
+from tests.unit.src.strata.rules.catalog.main._test_types import (
+    CacheableRuleValidationTestCase,
+    DeclaredCacheableRuleTestCase,
+)
 from tests.unit.src.strata.rules.catalog.main.helpers import (
     rule_by_code,
     write_custom_rule_file,
@@ -119,11 +122,11 @@ def test_given_require_cacheable_policy_when_rule_is_unhermetic_then_raises_conf
     "test_case",
     [
         CacheableRuleValidationTestCase(
-            description="without the policy custom rules load unscanned and uncacheable",
+            description="without the policy custom rules load unscanned and undeclared",
             prelude="import os",
             check_body="    return []",
             expected_error_fragment=None,
-            expected_cacheable=False,
+            expected_cacheable=None,
         )
     ],
     ids=lambda case: case.description,
@@ -175,3 +178,93 @@ def test_given_unselected_unhermetic_rule_when_building_ruleset_then_skips_scan(
 
     selected_codes: tuple[str, ...] = tuple(rule.code for rule in ruleset)
     assert ("XCH006" in selected_codes) is test_case.expected_cacheable
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        DeclaredCacheableRuleTestCase(
+            description="declared hermetic rule loads cacheable without the blanket policy",
+            decorator_arguments=", cacheable=True",
+            prelude='import re\n\n_NAME_PATTERN: str = r"[a-z_]+"',
+            check_body="    return []",
+            expected_error_fragment=None,
+            expected_cacheable=True,
+        ),
+        DeclaredCacheableRuleTestCase(
+            description="declared opt-out loads unscanned despite unhermetic imports",
+            decorator_arguments=", cacheable=False",
+            prelude="import os",
+            check_body="    return []",
+            expected_error_fragment=None,
+            expected_cacheable=False,
+        ),
+        DeclaredCacheableRuleTestCase(
+            description="undeclared rule stays unset without the blanket policy",
+            decorator_arguments="",
+            prelude="",
+            check_body="    return []",
+            expected_error_fragment=None,
+            expected_cacheable=None,
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_declared_flag_when_building_ruleset_then_records_promise(
+    tmp_path: Path,
+    test_case: DeclaredCacheableRuleTestCase,
+) -> None:
+    _ = write_custom_rule_file(
+        root=tmp_path,
+        relative_path="rules/custom.py",
+        rule_code="XCH010",
+        prelude=test_case.prelude,
+        check_body=test_case.check_body,
+        decorator_arguments=test_case.decorator_arguments,
+    )
+    config: Config = Config(roots=(), rule_paths=("rules",), select=("SF", "X"))
+
+    ruleset: tuple[RuleSpec, ...] = build_ruleset_from_config(config=config, repo_root=tmp_path)
+
+    loaded: RuleSpec = rule_by_code(rules=ruleset, code="XCH010")
+    assert loaded.cacheable is test_case.expected_cacheable
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        DeclaredCacheableRuleTestCase(
+            description="declared promise with unhermetic import stops the run at load",
+            decorator_arguments=", cacheable=True",
+            prelude="import os",
+            check_body="    return []",
+            expected_error_fragment="imports os",
+            expected_cacheable=None,
+        ),
+        DeclaredCacheableRuleTestCase(
+            description="declared promise with untracked read stops the run at load",
+            decorator_arguments=", cacheable=True",
+            prelude="",
+            check_body="    _ = ctx.path.read_text()\n    return []",
+            expected_error_fragment="untracked operation read_text",
+            expected_cacheable=None,
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_declared_promise_when_rule_is_unhermetic_then_raises_config_error(
+    tmp_path: Path,
+    test_case: DeclaredCacheableRuleTestCase,
+) -> None:
+    _ = write_custom_rule_file(
+        root=tmp_path,
+        relative_path="rules/custom.py",
+        rule_code="XCH011",
+        prelude=test_case.prelude,
+        check_body=test_case.check_body,
+        decorator_arguments=test_case.decorator_arguments,
+    )
+    config: Config = Config(roots=(), rule_paths=("rules",), select=("SF", "X"))
+
+    with pytest.raises(ConfigError, match=str(test_case.expected_error_fragment)):
+        build_ruleset_from_config(config=config, repo_root=tmp_path)

@@ -177,9 +177,12 @@ def _custom_cacheability_lines(*, require_cacheable: bool) -> tuple[str, ...]:
         "Because `require_cacheable = true`, every selected custom rule must satisfy the "
         "cacheability contract."
         if require_cacheable
-        else "Selected custom rules disable persistent caching by default. Set "
-        "`require_cacheable = true` only when every selected custom rule satisfies the "
-        "cacheability contract."
+        else "Undeclared custom rules re-run fresh on every check while cacheable rules "
+        "keep using the cache. Declare `cacheable=True` on `@rule` only when the rule "
+        "satisfies the cacheability contract (the declaration is validated and stops the "
+        "run on violations), or `cacheable=False` to silence the appears-cacheable notice. "
+        "Set `require_cacheable = true` to demand the contract from every selected custom "
+        "rule."
     )
     return (
         requirement,

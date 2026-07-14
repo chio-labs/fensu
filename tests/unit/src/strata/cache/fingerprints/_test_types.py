@@ -203,5 +203,6 @@ class CacheBlockedRulesetTestCase:
 
     description: str
     cacheable: bool
+    include_core: bool
     expected_blocked: bool
     expected_reason_fragment: str

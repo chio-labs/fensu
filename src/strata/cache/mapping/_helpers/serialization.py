@@ -7,13 +7,19 @@ from typing import cast
 from strata.cache.fingerprints.main.canonical import fingerprint_canonical
 from strata.cache.fingerprints.types import CanonicalValue
 from strata.cache.mapping.constants import (
+    MAP_CLASS_KEYS,
     MAP_FILE_KEYS,
     MAP_FILE_RECORD_KIND,
     MAP_FUNCTION_KEYS,
     MAP_MANIFEST_KEYS,
     MAP_MANIFEST_RECORD_KIND,
 )
-from strata.cache.mapping.models import FileDeclarations, FunctionDeclaration, MapManifest
+from strata.cache.mapping.models import (
+    ClassDeclaration,
+    FileDeclarations,
+    FunctionDeclaration,
+    MapManifest,
+)
 from strata.cache.storage.models import CacheRecord
 
 
@@ -41,7 +47,7 @@ def seal_file_declarations(value: FileDeclarations) -> FileDeclarations:
         path=value.path,
         module_name=value.module_name,
         functions=value.functions,
-        class_keys=value.class_keys,
+        classes=value.classes,
         record_fingerprint=fingerprint,
     )
 
@@ -58,6 +64,7 @@ def seal_manifest(value: MapManifest) -> MapManifest:
         functions=value.functions,
         classes=value.classes,
         bare_functions=value.bare_functions,
+        protocol_implementations=value.protocol_implementations,
     )
     fingerprint: str = fingerprint_canonical(_manifest_semantic_value(unsealed)).value
     return MapManifest(
@@ -66,6 +73,7 @@ def seal_manifest(value: MapManifest) -> MapManifest:
         functions=unsealed.functions,
         classes=unsealed.classes,
         bare_functions=unsealed.bare_functions,
+        protocol_implementations=unsealed.protocol_implementations,
         record_fingerprint=fingerprint,
     )
 
@@ -77,6 +85,9 @@ def _manifest_semantic_value(value: MapManifest) -> CanonicalValue:
         "files": [_file_value(item) for item in value.files],
         "functions": dict(sorted(value.functions.items())),
         "input_fingerprint": value.input_fingerprint,
+        "protocol_implementations": {
+            key: list(items) for key, items in sorted(value.protocol_implementations.items())
+        },
     }
 
 
@@ -119,6 +130,9 @@ def decode_manifest(record: CacheRecord | None) -> MapManifest | None:
     functions: dict[str, str] | None = _string_dict(payload["functions"])
     classes: dict[str, str] | None = _string_dict(payload["classes"])
     bare: dict[str, tuple[str, ...]] | None = _string_tuple_dict(payload["bare_functions"])
+    protocol_implementations: dict[str, tuple[str, ...]] | None = _string_tuple_dict(
+        payload["protocol_implementations"]
+    )
     if (
         not isinstance(input_fingerprint, str)
         or not isinstance(record_fingerprint, str)
@@ -131,7 +145,7 @@ def decode_manifest(record: CacheRecord | None) -> MapManifest | None:
         if decoded is None:
             return None
         files.append(decoded)
-    if functions is None or classes is None or bare is None:
+    if functions is None or classes is None or bare is None or protocol_implementations is None:
         return None
     manifest: MapManifest = MapManifest(
         input_fingerprint,
@@ -139,6 +153,7 @@ def decode_manifest(record: CacheRecord | None) -> MapManifest | None:
         functions,
         classes,
         bare,
+        protocol_implementations,
         record_fingerprint,
     )
     if any(
@@ -157,7 +172,14 @@ def _file_value(value: FileDeclarations) -> CanonicalValue:
 
 def _file_semantic_value(value: FileDeclarations) -> CanonicalValue:
     return {
-        "class_keys": list(value.class_keys),
+        "classes": [
+            {
+                "base_keys": list(item.base_keys),
+                "key": item.key,
+                "protocol": item.protocol,
+            }
+            for item in value.classes
+        ],
         "functions": [
             {
                 "key": item.key,
@@ -180,15 +202,29 @@ def _decode_file(value: object) -> FileDeclarations | None:
     identity: object = fields["identity"]
     path: object = fields["path"]
     module_name: object = fields["module_name"]
-    class_keys: object = fields["class_keys"]
+    raw_classes: object = fields["classes"]
     raw_functions: object = fields["functions"]
     record_fingerprint: object = fields["record_fingerprint"]
     if not all(isinstance(item, str) for item in (identity, path, module_name, record_fingerprint)):
         return None
-    if not isinstance(class_keys, list) or not all(isinstance(item, str) for item in class_keys):
+    if not isinstance(raw_classes, list) or not isinstance(raw_functions, list):
         return None
-    if not isinstance(raw_functions, list):
-        return None
+    classes: list[ClassDeclaration] = []
+    for raw in raw_classes:
+        if not isinstance(raw, dict) or set(raw) != MAP_CLASS_KEYS:
+            return None
+        class_fields: dict[str, object] = cast(dict[str, object], raw)
+        key: object = class_fields["key"]
+        base_keys: object = class_fields["base_keys"]
+        protocol: object = class_fields["protocol"]
+        if (
+            not isinstance(key, str)
+            or not isinstance(base_keys, list)
+            or not all(isinstance(item, str) for item in base_keys)
+            or not isinstance(protocol, bool)
+        ):
+            return None
+        classes.append(ClassDeclaration(key, tuple(cast(list[str], base_keys)), protocol))
     functions: list[FunctionDeclaration] = []
     for raw in raw_functions:
         if not isinstance(raw, dict) or set(raw) != MAP_FUNCTION_KEYS:
@@ -212,7 +248,7 @@ def _decode_file(value: object) -> FileDeclarations | None:
         cast(str, path),
         cast(str, module_name),
         tuple(functions),
-        tuple(cast(list[str], class_keys)),
+        tuple(classes),
         cast(str, record_fingerprint),
     )
 

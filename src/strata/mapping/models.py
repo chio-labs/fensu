@@ -125,6 +125,7 @@ class ClassDefinition:
     node: ast.ClassDef
     imports: ModuleImports
     bases: tuple[ast.expr, ...]
+    base_keys: tuple[str, ...]
     protocol: bool
     class_attributes: dict[str, ClassReference]
     instance_attributes: dict[str, ClassReference]
@@ -154,6 +155,7 @@ class ProjectIndex:
 
     functions: dict[str, FunctionDefinition]
     classes: dict[str, ClassDefinition]
+    protocol_implementations: dict[str, tuple[str, ...]]
 
     def get_function(self, key: str) -> FunctionDefinition | None:
         """Return one function by canonical key."""
@@ -164,6 +166,70 @@ class ProjectIndex:
         """Return one class by canonical key."""
 
         return self.classes.get(key)
+
+    def get_protocol_implementations(self, key: str) -> tuple[ClassDefinition, ...]:
+        """Return concrete project classes nominally implementing one protocol."""
+
+        return tuple(
+            definition
+            for implementation_key in self.protocol_implementations.get(key, ())
+            if (definition := self.classes.get(implementation_key)) is not None
+        )
+
+    @staticmethod
+    def build_protocol_implementation_keys(
+        *,
+        class_bases: dict[str, tuple[str, ...]],
+        protocol_keys: frozenset[str],
+    ) -> dict[str, tuple[str, ...]]:
+        """Index every concrete class by its nominal project protocol ancestors."""
+
+        ancestor_cache: dict[str, frozenset[str]] = {}
+        implementations: dict[str, list[str]] = {key: [] for key in protocol_keys}
+        for class_key in sorted(class_bases):
+            if class_key in protocol_keys:
+                continue
+            ancestors, ancestor_cache = ProjectIndex._protocol_ancestors(
+                class_key=class_key,
+                class_bases=class_bases,
+                protocol_keys=protocol_keys,
+                cache=ancestor_cache,
+                active=frozenset(),
+            )
+            for protocol_key in sorted(ancestors):
+                implementations[protocol_key].append(class_key)
+        return {key: tuple(values) for key, values in implementations.items()}
+
+    @staticmethod
+    def _protocol_ancestors(
+        *,
+        class_key: str,
+        class_bases: dict[str, tuple[str, ...]],
+        protocol_keys: frozenset[str],
+        cache: dict[str, frozenset[str]],
+        active: frozenset[str],
+    ) -> tuple[frozenset[str], dict[str, frozenset[str]]]:
+        cached: frozenset[str] | None = cache.get(class_key)
+        if cached is not None:
+            return cached, cache
+        if class_key in active:
+            return frozenset(), cache
+        ancestors: set[str] = set()
+        next_active: frozenset[str] = active | {class_key}
+        for base_key in class_bases.get(class_key, ()):
+            if base_key in protocol_keys:
+                ancestors.add(base_key)
+            inherited, cache = ProjectIndex._protocol_ancestors(
+                class_key=base_key,
+                class_bases=class_bases,
+                protocol_keys=protocol_keys,
+                cache=cache,
+                active=next_active,
+            )
+            ancestors.update(inherited)
+        result: frozenset[str] = frozenset(ancestors)
+        cache[class_key] = result
+        return result, cache
 
 
 @dataclass(frozen=True, slots=True)

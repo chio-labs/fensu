@@ -793,6 +793,106 @@ def test_given_dynamic_and_external_receivers_when_mapping_then_renders_only_pro
     "test_case",
     [
         MethodMapTestCase(
+            description="unique nominal implementation resolves through cache",
+            argv=("methods.nominal.run_unique",),
+            expected_exit_code=0,
+            expected_output_fragments=("UniqueRunner.execute(...)",),
+            expected_absent_fragments=("unresolved protocol dispatch", "UnrelatedRunner.execute"),
+        ),
+        MethodMapTestCase(
+            description="unique nominal implementation resolves without cache",
+            argv=("methods.nominal.run_unique", "--no-cache"),
+            expected_exit_code=0,
+            expected_output_fragments=("UniqueRunner.execute(...)",),
+            expected_absent_fragments=("unresolved protocol dispatch", "UnrelatedRunner.execute"),
+        ),
+        MethodMapTestCase(
+            description="inherited concrete implementation resolves through protocol base alias",
+            argv=("methods.nominal.run_inherited",),
+            expected_exit_code=0,
+            expected_output_fragments=("InheritedRunner.execute(...)",),
+            expected_absent_fragments=("unresolved protocol dispatch",),
+        ),
+        MethodMapTestCase(
+            description="multiple nominal implementations remain unresolved",
+            argv=("methods.nominal.run_shared",),
+            expected_exit_code=0,
+            expected_output_fragments=("unresolved protocol dispatch",),
+            expected_absent_fragments=("FirstRunner.execute", "SecondRunner.execute"),
+        ),
+        MethodMapTestCase(
+            description="protocol without nominal implementation remains unresolved",
+            argv=("methods.nominal.run_missing",),
+            expected_exit_code=0,
+            expected_output_fragments=("unresolved protocol dispatch",),
+            expected_absent_fragments=("UnrelatedRunner.execute",),
+        ),
+        MethodMapTestCase(
+            description="nominal implementation missing method remains unresolved",
+            argv=("methods.nominal.run_incomplete",),
+            expected_exit_code=0,
+            expected_output_fragments=("unresolved protocol dispatch",),
+            expected_absent_fragments=("IncompleteProtocol.execute",),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_protocol_method_when_mapping_then_resolves_only_unique_nominal_implementation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: MethodMapTestCase,
+) -> None:
+    write_cli_method_map_project(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    stdout: CaptureOutput = CaptureOutput()
+    stderr: CaptureOutput = CaptureOutput()
+
+    exit_code: int = run_map(argv=test_case.argv, stdout=stdout, stderr=stderr)
+    output: str = stdout.getvalue()
+
+    assert exit_code == test_case.expected_exit_code
+    assert all(fragment in output for fragment in test_case.expected_output_fragments)
+    assert all(fragment not in output for fragment in test_case.expected_absent_fragments)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        MethodMapTestCase(
+            description="warm manifest preserves unique nominal resolution",
+            argv=("methods.nominal.run_unique",),
+            expected_exit_code=0,
+            expected_output_fragments=("UniqueRunner.execute(...)",),
+            expected_absent_fragments=("unresolved protocol dispatch",),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_nominal_protocol_index_when_mapping_twice_then_warm_output_matches_cold(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: MethodMapTestCase,
+) -> None:
+    write_cli_method_map_project(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    cold_stdout: CaptureOutput = CaptureOutput()
+    warm_stdout: CaptureOutput = CaptureOutput()
+
+    cold_exit: int = run_map(argv=test_case.argv, stdout=cold_stdout)
+    warm_exit: int = run_map(argv=test_case.argv, stdout=warm_stdout)
+    output: str = warm_stdout.getvalue()
+
+    assert cold_exit == test_case.expected_exit_code
+    assert warm_exit == test_case.expected_exit_code
+    assert output == cold_stdout.getvalue()
+    assert all(fragment in output for fragment in test_case.expected_output_fragments)
+    assert all(fragment not in output for fragment in test_case.expected_absent_fragments)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        MethodMapTestCase(
             description="method cycle uses class-qualified callable identity",
             argv=("methods.workers.Worker.cycle_one", "--depth", "4"),
             expected_exit_code=0,

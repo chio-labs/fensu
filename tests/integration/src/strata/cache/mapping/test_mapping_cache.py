@@ -188,6 +188,12 @@ def test_given_reused_record_swept_before_publication_when_mapping_then_repairs_
             expected_manifest_hit=False,
             expected_reused_file_records=3,
         ),
+        ManifestAdversarialTestCase(
+            description="redirected protocol index misses and heals",
+            mutation="redirect-protocol",
+            expected_manifest_hit=False,
+            expected_reused_file_records=3,
+        ),
     ],
     ids=lambda case: case.description,
 )

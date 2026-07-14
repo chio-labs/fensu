@@ -46,7 +46,7 @@ def _build_node(
     index: SymbolResolver,
     remaining_depth: int,
     ancestors: frozenset[tuple[str, str | None]],
-    method_cache: dict[tuple[str, str], FunctionDefinition | None],
+    method_cache: dict[tuple[str, str, bool], FunctionDefinition | None],
 ) -> CallMapNode:
     key: tuple[str, str | None] = (definition.key, dispatch_class_key)
     dispatch_class_name: str | None = _dispatch_class_name(
@@ -100,7 +100,7 @@ def _call_entries(
     definition: FunctionDefinition,
     dispatch_class_key: str | None,
     index: SymbolResolver,
-    method_cache: dict[tuple[str, str], FunctionDefinition | None],
+    method_cache: dict[tuple[str, str, bool], FunctionDefinition | None],
 ) -> tuple[ResolvedCallable | UnresolvedCall, ...]:
     entries: list[ResolvedCallable | UnresolvedCall] = []
     seen: set[tuple[str, str | None]] = set()
@@ -151,7 +151,7 @@ def _resolve_call(
     index: SymbolResolver,
     local_types: dict[str, str | None],
     untyped_parameters: frozenset[str],
-    method_cache: dict[tuple[str, str], FunctionDefinition | None],
+    method_cache: dict[tuple[str, str, bool], FunctionDefinition | None],
 ) -> tuple[ResolvedCallable | None, UnresolvedCall | None]:
     if isinstance(call.func, ast.Name):
         if call.func.id in local_types:
@@ -172,6 +172,24 @@ def _resolve_call(
     )
     if receiver_class is not None:
         if receiver_class.protocol:
+            candidates: dict[tuple[str, str], ResolvedCallable] = {}
+            for implementation in index.get_protocol_implementations(receiver_class.key):
+                implementation_method: FunctionDefinition | None = _method_definition(
+                    class_definition=implementation,
+                    method_name=call.func.attr,
+                    index=index,
+                    cache=method_cache,
+                    active=frozenset(),
+                    exclude_protocol_bases=True,
+                )
+                if implementation_method is not None:
+                    candidate: ResolvedCallable = ResolvedCallable(
+                        implementation_method,
+                        dispatch_class_key=implementation.key,
+                    )
+                    candidates[(implementation_method.key, implementation.key)] = candidate
+            if len(candidates) == 1:
+                return next(iter(candidates.values())), None
             return None, _unresolved(call=call, reason="protocol dispatch")
         target: FunctionDefinition | None = _method_definition(
             class_definition=receiver_class,
@@ -205,7 +223,7 @@ def _receiver_class(
     dispatch_class_key: str | None,
     index: SymbolResolver,
     local_types: dict[str, str | None],
-    method_cache: dict[tuple[str, str], FunctionDefinition | None],
+    method_cache: dict[tuple[str, str, bool], FunctionDefinition | None],
 ) -> tuple[ClassDefinition | None, bool]:
     if isinstance(expression, ast.Name):
         if expression.id in METHOD_RECEIVER_NAMES and definition.owning_class is not None:
@@ -288,7 +306,7 @@ def _called_function(
     dispatch_class_key: str | None,
     index: SymbolResolver,
     local_types: dict[str, str | None],
-    method_cache: dict[tuple[str, str], FunctionDefinition | None],
+    method_cache: dict[tuple[str, str, bool], FunctionDefinition | None],
 ) -> FunctionDefinition | None:
     if isinstance(call.func, ast.Name):
         if call.func.id in local_types:
@@ -325,13 +343,19 @@ def _method_definition(
     class_definition: ClassDefinition,
     method_name: str,
     index: SymbolResolver,
-    cache: dict[tuple[str, str], FunctionDefinition | None],
+    cache: dict[tuple[str, str, bool], FunctionDefinition | None],
     active: frozenset[tuple[str, str]],
+    exclude_protocol_bases: bool = False,
 ) -> FunctionDefinition | None:
-    lookup_key: tuple[str, str] = (class_definition.key, method_name)
-    if lookup_key in cache:
-        return cache[lookup_key]
-    if lookup_key in active:
+    cache_key: tuple[str, str, bool] = (
+        class_definition.key,
+        method_name,
+        exclude_protocol_bases,
+    )
+    active_key: tuple[str, str] = (class_definition.key, method_name)
+    if cache_key in cache:
+        return cache[cache_key]
+    if active_key in active:
         return None
     direct_key: str = FunctionDefinition.build_key(
         module_name=class_definition.module_name,
@@ -340,10 +364,10 @@ def _method_definition(
     )
     direct: FunctionDefinition | None = index.get_function(direct_key)
     if direct is not None:
-        cache[lookup_key] = direct
+        cache[cache_key] = direct
         return direct
     candidates: dict[str, FunctionDefinition] = {}
-    next_active: frozenset[tuple[str, str]] = active | {lookup_key}
+    next_active: frozenset[tuple[str, str]] = active | {active_key}
     for base in class_definition.bases:
         base_class: ClassDefinition | None = _resolve_class_expression(
             expression=base,
@@ -352,12 +376,15 @@ def _method_definition(
         )
         if base_class is None:
             continue
+        if exclude_protocol_bases and base_class.protocol:
+            continue
         inherited: FunctionDefinition | None = _method_definition(
             class_definition=base_class,
             method_name=method_name,
             index=index,
             cache=cache,
             active=next_active,
+            exclude_protocol_bases=exclude_protocol_bases,
         )
         if inherited is not None:
             candidates[inherited.key] = inherited
@@ -365,7 +392,7 @@ def _method_definition(
         result: FunctionDefinition | None = next(iter(candidates.values()))
     else:
         result = None
-    cache[lookup_key] = result
+    cache[cache_key] = result
     return result
 
 
@@ -423,7 +450,7 @@ def _receiver_states(
     definition: FunctionDefinition,
     dispatch_class_key: str | None,
     index: SymbolResolver,
-    method_cache: dict[tuple[str, str], FunctionDefinition | None],
+    method_cache: dict[tuple[str, str, bool], FunctionDefinition | None],
 ) -> dict[ast.Call, dict[str, str | None]]:
     bindings: dict[str, str | None] = {name: None for name in _parameter_names(definition.node)}
     invalid: set[str] = set()
@@ -489,7 +516,7 @@ def _local_binding(
     dispatch_class_key: str | None,
     index: SymbolResolver,
     bindings: dict[str, str | None],
-    method_cache: dict[tuple[str, str], FunctionDefinition | None],
+    method_cache: dict[tuple[str, str, bool], FunctionDefinition | None],
 ) -> tuple[str | None, ClassDefinition | None]:
     if isinstance(statement, ast.AnnAssign) and isinstance(statement.target, ast.Name):
         return statement.target.id, _resolve_class_expression(

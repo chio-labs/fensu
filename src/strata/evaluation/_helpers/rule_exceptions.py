@@ -10,8 +10,10 @@ from strata.analysis.main.parse_source import parse_python_source
 from strata.analysis.types import PythonSourceArtifact
 from strata.config.exceptions import ConfigError
 from strata.config.models import Config, RuleExceptionEntry
-from strata.evaluation.models import ParsedModule, RuleExceptionKey
+from strata.evaluation.models import FileExceptionScope, ParsedModule, RuleExceptionKey
 from strata.rules.authoring.models import Fault
+
+_POSIX_PATH_SEPARATOR: str = "/"
 
 
 def validate_exception_targets(*, config: Config, repo_root: Path) -> None:
@@ -51,20 +53,34 @@ def configured_exception_keys(config: Config) -> frozenset[RuleExceptionKey]:
     return frozenset(keys)
 
 
+def file_exception_scope(
+    *,
+    path: Path,
+    config: Config,
+    repo_root: Path,
+) -> FileExceptionScope | None:
+    """Return the configured exceptions targeting one file, or None without any."""
+
+    if not config.rule_exceptions:
+        return None
+    relative_path: str = _repository_relative_path(path=path, repo_root=repo_root)
+    exceptions: tuple[RuleExceptionEntry, ...] = tuple(
+        exception for exception in config.rule_exceptions if exception.path == relative_path
+    )
+    if not exceptions:
+        return None
+    return FileExceptionScope(relative_path=relative_path, exceptions=exceptions)
+
+
 def suppress_faults(
     *,
     faults: list[Fault],
     parsed_module: ParsedModule,
-    config: Config,
-    repo_root: Path,
+    scope: FileExceptionScope,
 ) -> tuple[list[Fault], frozenset[RuleExceptionKey]]:
     """Suppress exact matching faults and return the applied exception keys."""
 
-    relative_path: str = parsed_module.scoped_file.path.relative_to(repo_root).as_posix()
-    exceptions: tuple[RuleExceptionEntry, ...] = tuple(
-        exception for exception in config.rule_exceptions if exception.path == relative_path
-    )
-    if not exceptions or not faults:
+    if not faults:
         return faults, frozenset()
     retained: list[Fault] = []
     applied: set[RuleExceptionKey] = set()
@@ -73,7 +89,7 @@ def suppress_faults(
         matching: RuleExceptionEntry | None = next(
             (
                 exception
-                for exception in exceptions
+                for exception in scope.exceptions
                 if exception.rule == fault.code
                 and (
                     (owner is None and not exception.symbols)
@@ -85,8 +101,16 @@ def suppress_faults(
         if matching is None:
             retained.append(fault)
             continue
-        applied.add(RuleExceptionKey(rule=fault.code, path=relative_path, symbol=owner))
+        applied.add(RuleExceptionKey(rule=fault.code, path=scope.relative_path, symbol=owner))
     return retained, frozenset(applied)
+
+
+def _repository_relative_path(*, path: Path, repo_root: Path) -> str:
+    prefix: str = repo_root.as_posix() + _POSIX_PATH_SEPARATOR
+    value: str = path.as_posix()
+    if value.startswith(prefix):
+        return value[len(prefix) :]
+    return path.relative_to(repo_root).as_posix()
 
 
 def stale_exception_error(

@@ -8,6 +8,7 @@ from pathlib import Path
 from strata.analysis.classes.lazy_syntax_artifacts import LazySyntaxArtifacts
 from strata.analysis.models import ProjectDependency
 from strata.analysis.types import Analysis
+from strata.config.models import RuleExceptionEntry
 from strata.discovery.models import PositionFacts, ScopedFile
 from strata.rules.authoring.models import CustomRuleRegistration, Fault
 from strata.rules.authoring.types import Threshold
@@ -32,6 +33,14 @@ class RuleExceptionKey:
     rule: str
     path: str
     symbol: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class FileExceptionScope:
+    """Configured rule exceptions that target one evaluated file."""
+
+    relative_path: str
+    exceptions: tuple[RuleExceptionEntry, ...]
 
 
 @dataclass(frozen=True, slots=True)

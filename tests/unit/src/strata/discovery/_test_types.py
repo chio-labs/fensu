@@ -103,3 +103,24 @@ class LayoutConfigErrorTestCase:
     tooling: tuple[str, ...]
     uses_external_root: bool
     expected_error_fragment: str
+
+
+@dataclass(frozen=True)
+class SnapshotRelativePathTestCase:
+    """Installed canonical paths and one relative-path lookup expectation."""
+
+    description: str
+    installed_relative_paths: tuple[str, ...]
+    query_relative_path: str
+    query_foreign_root: bool
+    expected_relative: str | None
+
+
+@dataclass(frozen=True)
+class SnapshotHashTestCase:
+    """Seeded hashes and one source-hash lookup expectation."""
+
+    description: str
+    seeded: bool
+    reinstalled: bool
+    expected_hash: str | None

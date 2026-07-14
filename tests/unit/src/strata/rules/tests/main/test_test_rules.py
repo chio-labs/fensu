@@ -7,6 +7,9 @@ from pathlib import Path
 
 import pytest
 
+from strata.analysis.constants import FACT_BACKEND_ENV_VARIABLE
+from strata.analysis.main.select_fact_backend import select_fact_backend
+from strata.analysis.types import FactBackend
 from strata.config.models import Config
 from strata.discovery.main.discover_files import discover_files
 from strata.discovery.models import ScopedFile
@@ -96,6 +99,8 @@ def test_given_complete_tests_family_when_evaluating_then_bounds_local_type_load
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(source, encoding="utf-8")
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv(FACT_BACKEND_ENV_VARIABLE, FactBackend.PYTHON.value)
+    select_fact_backend.cache_clear()
     config: Config = Config(roots=("src/strata",), tests=("tests",))
     parse_counts: list[int] = [0]
     layout_counts: list[int] = [0]
@@ -120,6 +125,8 @@ def test_given_complete_tests_family_when_evaluating_then_bounds_local_type_load
     _result: EvaluationResult = evaluate(
         tree=discover_files(config=config), ruleset=SFT_RULES, config=config
     )
+
+    select_fact_backend.cache_clear()
 
     assert parse_counts[0] == test_case.expected_parse_count
     assert layout_counts[0] == test_case.expected_layout_count

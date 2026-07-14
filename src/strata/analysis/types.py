@@ -46,6 +46,13 @@ class ProjectDependencyKind(StrEnum):
     PYTHON_ANCHOR = "python_anchor"
 
 
+class FactBackend(StrEnum):
+    """The implementation extracting semantic facts from parsed source."""
+
+    NATIVE = "native"
+    PYTHON = "python"
+
+
 class ReturnAnnotationCategory(StrEnum):
     """Normalized return-annotation shapes used by contract policies."""
 
@@ -283,10 +290,10 @@ class ProjectAnalysis(Protocol):
         ...
 
 
-class AnalysisBuild(NamedTuple):
-    """One analysis facade plus compatibility indexes from the same traversal."""
+class SyntaxIndexes(NamedTuple):
+    """One breadth-first node tuple plus its compatibility indexes."""
 
-    analysis: Analysis
+    nodes: tuple[ast.AST, ...]
     node_index: Mapping[type[ast.AST], tuple[ast.AST, ...]]
     parent_by_node: Mapping[ast.AST, ast.AST]
 

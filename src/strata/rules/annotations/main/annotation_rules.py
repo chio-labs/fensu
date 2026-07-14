@@ -57,7 +57,8 @@ def annotation_rules() -> tuple[RuleSpec, ...]:
 
 def _rule(*, code: AnnotationCode, slug: str, message: str, remediation: str) -> RuleSpec:
     def check(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
-        return annotation_faults(module=module, ctx=ctx, code=code)
+        del module
+        return annotation_faults(ctx=ctx, code=code)
 
     return RuleSpec(
         code=code,

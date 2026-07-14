@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import ast
-from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+from strata.analysis.classes.lazy_syntax_artifacts import LazySyntaxArtifacts
 from strata.analysis.models import ProjectDependency
 from strata.analysis.types import Analysis
 from strata.discovery.models import PositionFacts, ScopedFile
@@ -16,14 +15,12 @@ from strata.rules.authoring.types import Threshold
 
 @dataclass(frozen=True, slots=True)
 class ParsedModule:
-    """A discovered Python file parsed into an AST plus shared traversal facts."""
+    """A discovered Python file plus lazily shared CPython traversal facts."""
 
     scoped_file: ScopedFile
-    module: ast.Module
     source: str
     source_fingerprint: str
-    node_index: Mapping[type[ast.AST], tuple[ast.AST, ...]]
-    parent_by_node: Mapping[ast.AST, ast.AST]
+    syntax_artifacts: LazySyntaxArtifacts
     position: PositionFacts
     analysis: Analysis
 

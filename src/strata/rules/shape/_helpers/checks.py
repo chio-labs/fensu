@@ -138,15 +138,17 @@ def meaningful_project_result_discarded(*, module: ast.Module, ctx: RuleContext)
 def parameter_mutation_in_phase_helpers(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag direct parameter mutation in helper functions."""
 
+    del module
     if not ctx.in_role("helpers"):
         return []
-    return _parameter_mutation_faults(module=module, ctx=ctx, require_return=False)
+    return _parameter_mutation_faults(ctx=ctx, require_return=False)
 
 
 def default_mutation_return(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag parameter mutation unless all mutated parameters are returned."""
 
-    return _parameter_mutation_faults(module=module, ctx=ctx, require_return=True)
+    del module
+    return _parameter_mutation_faults(ctx=ctx, require_return=True)
 
 
 def keyword_only_arguments(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
@@ -199,10 +201,7 @@ def mutable_result_model(*, module: ast.Module, ctx: RuleContext) -> list[Fault]
     ]
 
 
-def _parameter_mutation_faults(
-    *, module: ast.Module, ctx: RuleContext, require_return: bool
-) -> list[Fault]:
-    del module
+def _parameter_mutation_faults(*, ctx: RuleContext, require_return: bool) -> list[Fault]:
     return [
         ctx.fault_at(location=fact.location)
         for fact in ctx.facts.parameter_mutations()

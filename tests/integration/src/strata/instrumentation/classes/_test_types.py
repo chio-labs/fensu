@@ -35,3 +35,24 @@ class EditCountsTestCase:
     seed: int
     expected_fresh_evaluations: int
     expected_parses: int
+
+
+@dataclass(frozen=True)
+class NativeUncachedCountsTestCase:
+    """One native-backend uncached-run parse expectation."""
+
+    description: str
+    file_target: int
+    seed: int
+    expected_python_parses: int
+
+
+@dataclass(frozen=True)
+class NativeEditCountsTestCase:
+    """One native-backend single-file-edit parse expectation."""
+
+    description: str
+    file_target: int
+    seed: int
+    expected_fresh_evaluations: int
+    expected_python_parses: int

@@ -22,7 +22,7 @@ def build_evaluation_targets(
     """Merge supplemental coverage work into records owned by each rule source."""
 
     targets: dict[Path, EvaluationTarget] = {
-        scoped_file.path.resolve(): EvaluationTarget(scoped_file=scoped_file, direct=True)
+        scoped_file.path: EvaluationTarget(scoped_file=scoped_file, direct=True)
         for scoped_file in selection.files
     }
     blocking_coverage: bool = any(
@@ -37,7 +37,7 @@ def build_evaluation_targets(
     for registration in custom_rule_registrations:
         grouped.setdefault(registration.source_path.resolve(), []).append(registration)
     discovered: dict[Path, ScopedFile] = {
-        scoped_file.path.resolve(): scoped_file for scoped_file in tree.files
+        scoped_file.path: scoped_file for scoped_file in tree.files
     }
     for path, registrations in grouped.items():
         current: EvaluationTarget | None = targets.get(path)

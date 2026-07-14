@@ -232,7 +232,10 @@ class CacheStore:
             if key in keys:
                 raise CachePathError(f"Cache publication contains duplicate key: {key}")
             keys.add(key)
-            rows.append((key, write.record.kind, encode_cache_record(write.record)))
+            encoded: bytes = (
+                write.encoded if write.encoded is not None else encode_cache_record(write.record)
+            )
+            rows.append((key, write.record.kind, encoded))
         return tuple(rows)
 
     def _key(self, relative_path: Path) -> str:

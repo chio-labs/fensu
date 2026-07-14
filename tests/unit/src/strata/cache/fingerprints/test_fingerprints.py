@@ -26,6 +26,7 @@ from strata.cache.fingerprints.models import (
 )
 from strata.cache.results._helpers.serialization import file_result_to_record
 from strata.cache.results.models import CachedFileResult
+from strata.cache.storage.main.encode_record import encode_record
 from strata.cache.storage.main.record_identity import record_content_fingerprint
 from strata.cache.storage.models import CacheRecord
 from strata.config.models import (
@@ -48,6 +49,7 @@ from tests.unit.src.strata.cache.fingerprints._test_types import (
     ContractFingerprintTestCase,
     CustomRulesFingerprintTestCase,
     EvaluationFingerprintTestCase,
+    FactBackendFingerprintTestCase,
     FileResultFingerprintTestCase,
     GlobalFingerprintBuilderTestCase,
     GlobalFingerprintTestCase,
@@ -165,12 +167,12 @@ def test_given_file_results_when_fingerprinting_then_separates_correctness_and_i
     first: FileResultFingerprints = file_result_fingerprints(
         global_fingerprint=CacheFingerprint(test_case.first_global),
         result=first_result,
-        record=first_record,
+        encoded=encode_record(record=first_record),
     )
     second: FileResultFingerprints = file_result_fingerprints(
         global_fingerprint=CacheFingerprint(test_case.second_global),
         result=second_result,
-        record=second_record,
+        encoded=encode_record(record=second_record),
     )
 
     assert (first.result == second.result) is test_case.expected_result_equal
@@ -642,6 +644,8 @@ def test_given_global_inputs_when_fingerprinting_then_captures_version_contract(
         config=common,
         ruleset=common,
         custom_rules=common,
+        fact_backend="python",
+        fact_backend_version="",
         strata_version=test_case.first_version,
     )
     second: CacheFingerprint = global_fingerprint(
@@ -649,7 +653,74 @@ def test_given_global_inputs_when_fingerprinting_then_captures_version_contract(
         config=common,
         ruleset=common,
         custom_rules=common,
+        fact_backend="python",
+        fact_backend_version="",
         strata_version=test_case.second_version,
+    )
+
+    assert (first == second) is test_case.expected_equal
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        FactBackendFingerprintTestCase(
+            description="native and python backends have distinct global identities",
+            first_backend="python",
+            first_backend_version="",
+            second_backend="native",
+            second_backend_version="0.1.0",
+            expected_equal=False,
+        ),
+        FactBackendFingerprintTestCase(
+            description="backend name alone distinguishes identities at equal versions",
+            first_backend="python",
+            first_backend_version="",
+            second_backend="native",
+            second_backend_version="",
+            expected_equal=False,
+        ),
+        FactBackendFingerprintTestCase(
+            description="native backend version change invalidates global identity",
+            first_backend="native",
+            first_backend_version="0.1.0",
+            second_backend="native",
+            second_backend_version="0.2.0",
+            expected_equal=False,
+        ),
+        FactBackendFingerprintTestCase(
+            description="matching backend identities share the global identity",
+            first_backend="python",
+            first_backend_version="",
+            second_backend="python",
+            second_backend_version="",
+            expected_equal=True,
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_fact_backend_identity_when_fingerprinting_then_captures_backend_contract(
+    test_case: FactBackendFingerprintTestCase,
+) -> None:
+    common: CacheFingerprint = source_fingerprint(b"common")
+
+    first: CacheFingerprint = global_fingerprint(
+        implementation=common,
+        config=common,
+        ruleset=common,
+        custom_rules=common,
+        fact_backend=test_case.first_backend,
+        fact_backend_version=test_case.first_backend_version,
+        strata_version="1.0.0",
+    )
+    second: CacheFingerprint = global_fingerprint(
+        implementation=common,
+        config=common,
+        ruleset=common,
+        custom_rules=common,
+        fact_backend=test_case.second_backend,
+        fact_backend_version=test_case.second_backend_version,
+        strata_version="1.0.0",
     )
 
     assert (first == second) is test_case.expected_equal
@@ -677,6 +748,8 @@ def test_given_warning_mode_state_when_fingerprinting_then_captures_invocation_i
         config=common,
         ruleset=common,
         custom_rules=common,
+        fact_backend="python",
+        fact_backend_version="",
         warnings_enabled=test_case.first_enabled,
         strata_version="1.0.0",
     )
@@ -685,6 +758,8 @@ def test_given_warning_mode_state_when_fingerprinting_then_captures_invocation_i
         config=common,
         ruleset=common,
         custom_rules=common,
+        fact_backend="python",
+        fact_backend_version="",
         warnings_enabled=test_case.second_enabled,
         strata_version="1.0.0",
     )
@@ -734,6 +809,8 @@ def test_given_runtime_semantics_when_fingerprinting_then_captures_contract_iden
         config=common,
         ruleset=common,
         custom_rules=common,
+        fact_backend="python",
+        fact_backend_version="",
         strata_version="1.0.0",
     )
     monkeypatch.setattr(
@@ -751,6 +828,8 @@ def test_given_runtime_semantics_when_fingerprinting_then_captures_contract_iden
         config=common,
         ruleset=common,
         custom_rules=common,
+        fact_backend="python",
+        fact_backend_version="",
         strata_version="1.0.0",
     )
 

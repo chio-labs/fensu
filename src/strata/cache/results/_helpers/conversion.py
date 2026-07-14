@@ -16,8 +16,10 @@ from strata.cache.results.models import (
     CachedRuleExceptionKey,
     CachedThresholdOverrideUse,
     DependencyObservation,
+    PreparedFileResult,
 )
 from strata.cache.results.types import DependencyAnswer
+from strata.cache.storage.models import CacheRecord
 from strata.evaluation.models import FileEvaluation, RuleExceptionKey, ThresholdOverrideUse
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import Threshold
@@ -27,8 +29,8 @@ def build_cached_file_result(
     *,
     evaluation: FileEvaluation,
     repo_root: Path,
-) -> CachedFileResult | None:
-    """Return a cache-safe file result or None for unsupported path ownership."""
+) -> PreparedFileResult | None:
+    """Return a cache-safe file result with its record, or None for unsupported ownership."""
 
     path: str | None = relative_repository_path(path=evaluation.path, repo_root=repo_root)
     if path is None:
@@ -83,8 +85,8 @@ def build_cached_file_result(
             _cached_threshold_override_use(use) for use in evaluation.threshold_override_uses
         ),
     )
-    _ = file_result_to_record(result)
-    return result
+    record: CacheRecord = file_result_to_record(result)
+    return PreparedFileResult(result=result, record=record)
 
 
 def restore_file_evaluation(*, result: CachedFileResult, repo_root: Path) -> FileEvaluation:

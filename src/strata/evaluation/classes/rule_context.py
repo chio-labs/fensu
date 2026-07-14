@@ -17,13 +17,20 @@ from strata.analysis.types import (
 )
 from strata.config.main.resolve_threshold import resolve_threshold
 from strata.config.models import Config, ThresholdResolution
-from strata.discovery.constants import INIT_MODULE_FILE_NAME, ROLE_FILE_TO_NAME
+from strata.discovery.constants import (
+    INIT_MODULE_FILE_NAME,
+    ROLE_FILE_TO_NAME,
+    SNAPSHOT_TABLE,
+)
 from strata.discovery.models import ProjectLayout, RepoRoot
 from strata.discovery.types import RoleName, ScopeName
 from strata.evaluation._helpers import ast_access
 from strata.evaluation.models import ParsedModule, ThresholdOverrideUse
 from strata.rules.authoring.models import Fault, RuleSpec
 from strata.rules.authoring.types import Threshold
+
+_POSIX_PATH_SEPARATOR: str = "/"
+_ROLE_DIRECTORY_NAMES: frozenset[str] = frozenset(role.value for role in RoleName)
 
 
 class EvaluationRuleContext:
@@ -199,6 +206,14 @@ class EvaluationRuleContext:
     def repo_relative_parts(self) -> tuple[str, ...]:
         """The current file's path parts relative to the repository root."""
 
+        return self._memoize(
+            key="repo_relative_parts", operation=self._computed_repo_relative_parts
+        )
+
+    def _computed_repo_relative_parts(self) -> tuple[str, ...]:
+        value: str | None = SNAPSHOT_TABLE.relative_path(path=self.path, repo_root=self.repo_root)
+        if value is not None:
+            return tuple(value.split(_POSIX_PATH_SEPARATOR))
         return self.path.relative_to(self.repo_root).parts
 
     def scope_root(self) -> Path:
@@ -218,8 +233,16 @@ class EvaluationRuleContext:
     def module_parts(self) -> tuple[str, ...]:
         """The current file's complete importable module parts."""
 
-        relative: Path = self.path.relative_to(self.scope_root().parent)
-        parts: tuple[str, ...] = (*relative.parts[:-1], relative.stem)
+        return self._memoize(key="module_parts", operation=self._computed_module_parts)
+
+    def _computed_module_parts(self) -> tuple[str, ...]:
+        root_parts: tuple[str, ...] = self.scope_root().parts
+        path_parts: tuple[str, ...] = self.path.parts
+        if len(root_parts) > 1 and path_parts[: len(root_parts)] == root_parts:
+            relative_parts: tuple[str, ...] = path_parts[len(root_parts) - 1 :]
+        else:
+            relative_parts = self.path.relative_to(self.scope_root().parent).parts
+        parts: tuple[str, ...] = (*relative_parts[:-1], self.path.stem)
         return (
             parts[:-1]
             if parts and parts[-1] == INIT_MODULE_FILE_NAME.removesuffix(".py")
@@ -266,7 +289,7 @@ class EvaluationRuleContext:
     def nodes(self, node_type: type[ast.AST]) -> list[ast.AST]:
         """Nodes of the given type from the shared single-pass index."""
 
-        return list(self._parsed_module.node_index.get(node_type, ()))
+        return list(self._parsed_module.syntax_artifacts.node_index.get(node_type, ()))
 
     def call_name(self, node: ast.Call) -> str | None:
         """The called name of a call node, if resolvable."""
@@ -301,7 +324,7 @@ class EvaluationRuleContext:
     def complex_comprehensions(self) -> tuple[ast.AST, ...]:
         """Comprehensions that combine generators or nest another comprehension."""
 
-        return ast_access.complex_comprehensions(self._parsed_module.node_index)
+        return ast_access.complex_comprehensions(self._parsed_module.syntax_artifacts.node_index)
 
     def parameter_names(self, fn: ast.AST) -> frozenset[str]:
         """The parameter names of a function."""
@@ -311,21 +334,15 @@ class EvaluationRuleContext:
     def inside_loop(self, node: ast.AST) -> bool:
         """Whether a node is lexically inside a loop."""
 
-        return ast_access.inside_loop(node=node, parent_by_node=self._parsed_module.parent_by_node)
+        return ast_access.inside_loop(
+            node=node,
+            parent_by_node=self._parsed_module.syntax_artifacts.parent_by_node,
+        )
 
     def threshold(self, *, name: Threshold, path: Path | None = None) -> int:
         """The applicable path, role, or global threshold for a reported path."""
 
-        reported_path: Path = self.path if path is None else path
-        relative_path: str = reported_path.relative_to(self.repo_root).as_posix()
-        role: str | None = (
-            self.role_of()
-            if path is None
-            else _role_for_path(path=reported_path, scope_root=self.scope_root())
-        )
-        resolution: ThresholdResolution = resolve_threshold(
-            config=self._config, name=name, path=relative_path, role=role
-        )
+        resolution: ThresholdResolution = self._resolved_threshold(name=name, path=path)
         if (
             resolution.matched_pattern is not None
             and resolution.reason is not None
@@ -343,6 +360,24 @@ class EvaluationRuleContext:
             )
         return resolution.effective_value
 
+    def _resolved_threshold(self, *, name: Threshold, path: Path | None) -> ThresholdResolution:
+        relative_path, role = self._threshold_position(path=path)
+        return resolve_threshold(config=self._config, name=name, path=relative_path, role=role)
+
+    def _threshold_position(self, *, path: Path | None) -> tuple[str, str | None]:
+        if path is None:
+            return self._memoize(key="threshold:own_position", operation=self._own_position)
+        return (
+            path.relative_to(self.repo_root).as_posix(),
+            _role_for_path(path=path, scope_root=self.scope_root()),
+        )
+
+    def _own_position(self) -> tuple[str, str | None]:
+        value: str | None = SNAPSHOT_TABLE.relative_path(path=self.path, repo_root=self.repo_root)
+        if value is None:
+            value = self.path.relative_to(self.repo_root).as_posix()
+        return (value, self.role_of())
+
     def contracts(self) -> Mapping[str, str]:
         """Return configured function-name behavior contracts."""
 
@@ -351,8 +386,7 @@ class EvaluationRuleContext:
 
 def _role_for_path(*, path: Path, scope_root: Path) -> str | None:
     parts: tuple[str, ...] = path.relative_to(scope_root).parts
-    role_names: frozenset[str] = frozenset(role.value for role in RoleName)
     for part in parts[:-1]:
-        if part in role_names:
+        if part in _ROLE_DIRECTORY_NAMES:
             return part
     return ROLE_FILE_TO_NAME.get(parts[-1])

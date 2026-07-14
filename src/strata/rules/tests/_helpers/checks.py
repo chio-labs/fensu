@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import ast
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -34,6 +33,38 @@ _test_function_rule_codes: frozenset[SftCode] = frozenset(
         SftCode.DESCRIPTION_LAMBDA_IDS,
     }
 )
+_layout_rule_codes: frozenset[SftCode] = frozenset(
+    {
+        SftCode.TEST_LAYOUT,
+        SftCode.TEST_SCOPE,
+        SftCode.TEST_MIRRORED_ROOT,
+        SftCode.SRC_MIRROR_DEPTH,
+        SftCode.SRC_PACKAGE_EXISTS,
+        SftCode.SRC_AREA_EXISTS,
+        SftCode.SCRIPTS_MIRROR_DEPTH,
+        SftCode.SCRIPTS_AREA_EXISTS,
+    }
+)
+_helper_module_names: frozenset[str] = frozenset({TestPathName.HELPERS, TestPathName.TEST_HELPERS})
+_non_test_module_names: frozenset[str] = frozenset(
+    {
+        TestPathName.TEST_HELPERS,
+        TestPathName.TEST_TYPES,
+        TestPathName.HELPERS,
+        TestPathName.CONFTEST,
+        TestPathName.INIT_MODULE,
+    }
+)
+_skipped_layout_module_names: frozenset[str] = frozenset(
+    {TestPathName.INIT_MODULE, TestPathName.CONFTEST}
+)
+_local_types_rule_codes: frozenset[SftCode] = frozenset(
+    {
+        SftCode.LOCAL_TEST_TYPES_IMPORT,
+        SftCode.TEST_CASE_ANNOTATION,
+        SftCode.LOCAL_TEST_CASE_CONSTRUCTORS,
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -46,6 +77,12 @@ class _LocalTestTypes:
 class _TestModuleContext:
     imported_local_test_case_types: frozenset[str]
     test_case_annotation_names: frozenset[str]
+
+
+_EMPTY_MODULE_CONTEXT: _TestModuleContext = _TestModuleContext(
+    imported_local_test_case_types=frozenset(),
+    test_case_annotation_names=frozenset(),
+)
 
 
 @dataclass(frozen=True)
@@ -62,13 +99,13 @@ class _LayoutMatch:
     issue: _LayoutIssue | None
 
 
-def test_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) -> list[Fault]:
+def test_faults(*, ctx: RuleContext, code: SftCode) -> list[Fault]:
     """Collect faults for a single tests-family rule."""
 
     if ctx.scope() is not ScopeName.TEST:
         return []
     if code == SftCode.NO_IF_IN_TESTS:
-        if ctx.path.name in {TestPathName.HELPERS, TestPathName.TEST_HELPERS}:
+        if ctx.path.name in _helper_module_names:
             return [
                 ctx.fault_at(location=location)
                 for location in ctx.facts.top_level_definition_conditionals()
@@ -84,24 +121,24 @@ def test_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) -> list[
     if code == SftCode.NO_COMPLEX_COMPREHENSIONS:
         return [ctx.fault_at(location=location) for location in ctx.facts.complex_comprehensions()]
     if ctx.path.name == TestPathName.SCENARIO_MODELS and code == SftCode.TEST_LAYOUT:
-        return _scenario_models_faults(module=module, ctx=ctx)
-    if code in _layout_codes():
+        return _scenario_models_faults(ctx=ctx)
+    if code in _layout_rule_codes:
         return _layout_faults(ctx=ctx, code=code)
     if code == SftCode.INIT_MODULE_EMPTY:
-        return _init_module_faults(module=module, ctx=ctx)
+        return _init_module_faults(ctx=ctx)
     if code == SftCode.ABSOLUTE_IMPORTS:
-        return _relative_import_faults(module=module, ctx=ctx)
+        return _relative_import_faults(ctx=ctx)
     if ctx.path.name == TestPathName.TEST_TYPES:
-        return _test_types_faults(module=module, ctx=ctx, code=code)
+        return _test_types_faults(ctx=ctx, code=code)
     if code in {SftCode.TEST_TYPES_DESCRIPTION, SftCode.TEST_TYPES_EXPECTED_FIELD}:
         return []
     if ctx.path.name.endswith(".py"):
-        return _test_file_faults(module=module, ctx=ctx, code=code)
+        return _test_file_faults(ctx=ctx, code=code)
     return []
 
 
 def _layout_faults(*, ctx: RuleContext, code: SftCode) -> list[Fault]:
-    if ctx.path.name in {TestPathName.INIT_MODULE, TestPathName.CONFTEST}:
+    if ctx.path.name in _skipped_layout_module_names:
         return []
     issue: _LayoutIssue | None = ctx._memoize(
         key="tests.layout_issue",
@@ -271,15 +308,13 @@ def _path_fault(*, ctx: RuleContext, code: SftCode, message: str) -> Fault:
     return ctx.path_fault(message=message)
 
 
-def _init_module_faults(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
-    del module
+def _init_module_faults(*, ctx: RuleContext) -> list[Fault]:
     if ctx.path.name != TestPathName.INIT_MODULE or ctx.facts.test_module().empty_or_docstring_only:
         return []
     return [ctx.path_fault(message="__init__.py must be empty or docstring-only")]
 
 
-def _relative_import_faults(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
-    del module
+def _relative_import_faults(*, ctx: RuleContext) -> list[Fault]:
     return [
         ctx.fault_at(location=fact.location)
         for fact in ctx.facts.references().imports
@@ -287,8 +322,7 @@ def _relative_import_faults(*, module: ast.Module, ctx: RuleContext) -> list[Fau
     ]
 
 
-def _test_types_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) -> list[Fault]:
-    del module
+def _test_types_faults(*, ctx: RuleContext, code: SftCode) -> list[Fault]:
     faults: list[Fault] = []
     for fact in ctx.facts.dataclasses():
         if (
@@ -303,27 +337,26 @@ def _test_types_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) -
     return faults
 
 
-def _scenario_models_faults(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
-    del module
+def _scenario_models_faults(*, ctx: RuleContext) -> list[Fault]:
     return [
         ctx.fault_at(location=location)
         for location in ctx.facts.test_module().scenario_invalid_locations
     ]
 
 
-def _test_file_faults(*, module: ast.Module, ctx: RuleContext, code: SftCode) -> list[Fault]:
-    del module
+def _test_file_faults(*, ctx: RuleContext, code: SftCode) -> list[Fault]:
     local_test_types: _LocalTestTypes | None = None
-    if code in {
-        SftCode.LOCAL_TEST_TYPES_IMPORT,
-        SftCode.TEST_CASE_ANNOTATION,
-        SftCode.LOCAL_TEST_CASE_CONSTRUCTORS,
-    } and _is_test_module(ctx.path):
-        local_test_types = _local_test_types(
-            ctx=ctx,
-            inspect_dataclasses=code != SftCode.LOCAL_TEST_TYPES_IMPORT,
+    inspect_dataclasses: bool = code != SftCode.LOCAL_TEST_TYPES_IMPORT
+    if code in _local_types_rule_codes and _is_test_module(ctx.path):
+        local_test_types = ctx._memoize(
+            key=f"tests.local_types:{inspect_dataclasses}",
+            operation=lambda: _local_test_types(ctx=ctx, inspect_dataclasses=inspect_dataclasses),
         )
-    module_context: _TestModuleContext = _module_context(ctx=ctx, local_test_types=local_test_types)
+    module_context: _TestModuleContext = _memoized_module_context(
+        ctx=ctx,
+        local_test_types=local_test_types,
+        inspect_dataclasses=inspect_dataclasses,
+    )
     faults: list[Fault] = []
     if (
         code == SftCode.LOCAL_TEST_TYPES_FILE
@@ -489,14 +522,22 @@ def _local_test_types(*, ctx: RuleContext, inspect_dataclasses: bool) -> _LocalT
     )
 
 
-def _module_context(
-    *, ctx: RuleContext, local_test_types: _LocalTestTypes | None
+def _memoized_module_context(
+    *,
+    ctx: RuleContext,
+    local_test_types: _LocalTestTypes | None,
+    inspect_dataclasses: bool,
 ) -> _TestModuleContext:
     if local_test_types is None:
-        return _TestModuleContext(
-            imported_local_test_case_types=frozenset(),
-            test_case_annotation_names=frozenset(),
-        )
+        return _EMPTY_MODULE_CONTEXT
+    bound_types: _LocalTestTypes = local_test_types
+    return ctx._memoize(
+        key=f"tests.module_context:{inspect_dataclasses}",
+        operation=lambda: _module_context(ctx=ctx, local_test_types=bound_types),
+    )
+
+
+def _module_context(*, ctx: RuleContext, local_test_types: _LocalTestTypes) -> _TestModuleContext:
     imported: set[str] = set()
     for fact in ctx.facts.references().imports:
         if (
@@ -518,29 +559,8 @@ def _module_name_for_file(*, path: Path, repo_root: Path) -> str:
 
 
 def _is_test_module(path: Path) -> bool:
-    return path.name not in {
-        TestPathName.TEST_HELPERS,
-        TestPathName.TEST_TYPES,
-        TestPathName.HELPERS,
-        TestPathName.CONFTEST,
-        TestPathName.INIT_MODULE,
-    }
+    return path.name not in _non_test_module_names
 
 
 def _is_local_constructor(*, constructor_name: str | None, context: _TestModuleContext) -> bool:
     return constructor_name in context.imported_local_test_case_types
-
-
-def _layout_codes() -> frozenset[SftCode]:
-    return frozenset(
-        {
-            SftCode.TEST_LAYOUT,
-            SftCode.TEST_SCOPE,
-            SftCode.TEST_MIRRORED_ROOT,
-            SftCode.SRC_MIRROR_DEPTH,
-            SftCode.SRC_PACKAGE_EXISTS,
-            SftCode.SRC_AREA_EXISTS,
-            SftCode.SCRIPTS_MIRROR_DEPTH,
-            SftCode.SCRIPTS_AREA_EXISTS,
-        }
-    )

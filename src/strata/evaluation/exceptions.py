@@ -5,6 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 
 
+class ModuleUnavailableError(Exception):
+    """Raised when a rule declared module-free reads the raw module parameter."""
+
+
 class ParseError(Exception):
     """Raised when a Python file cannot be parsed by the running interpreter."""
 

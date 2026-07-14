@@ -200,3 +200,35 @@ from strata import Family, Fault, RuleContext, rule
 def custom_rule(module: ast.Module, ctx: RuleContext) -> list[Fault]:
 {check_body}
 """
+
+
+def _deleting_check(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    del module, ctx
+    return []
+
+
+def _reading_check(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    del ctx
+    return [] * len(module.body)
+
+
+def _forwarding_check(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    del ctx
+    return _forwarded_faults(module=module)
+
+
+def _forwarded_faults(*, module: ast.Module) -> list[Fault]:
+    del module
+    return []
+
+
+def module_use_check(*, name: str) -> object:
+    """Return one named rule check shape for raw-AST-use classification tests."""
+
+    checks: dict[str, object] = {
+        "deletes-module": _deleting_check,
+        "reads-module": _reading_check,
+        "forwards-module": _forwarding_check,
+        "no-source": len,
+    }
+    return checks[name]

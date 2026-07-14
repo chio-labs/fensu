@@ -6,11 +6,15 @@ from pathlib import Path
 
 import pytest
 
+from strata.analysis.constants import FACT_BACKEND_ENV_VARIABLE
+from strata.analysis.main.select_fact_backend import select_fact_backend
+from strata.analysis.types import FactBackend
 from strata.config.models import Config, ThresholdOverride
 from strata.discovery.main.position import position_facts
 from strata.discovery.main.route import families_for_scope
 from strata.discovery.models import PositionFacts, ScopedFile
 from strata.evaluation._helpers.parsing import parse_scoped_file
+from strata.evaluation.exceptions import ModuleUnavailableError
 from strata.evaluation.main.evaluate import evaluate
 from strata.evaluation.models import EvaluationResult, ParsedModule, ThresholdOverrideUse
 from strata.rules.authoring.types import Family, Threshold
@@ -23,6 +27,7 @@ from tests.unit.src.strata.evaluation._test_types import (
     EvaluationFaultTestCase,
     EvaluationOperationTestCase,
     FaultFactoryTestCase,
+    ModuleGateTestCase,
     ProjectDependencyEvaluationTestCase,
     ThresholdObservationTestCase,
 )
@@ -41,6 +46,7 @@ from tests.unit.src.strata.evaluation.helpers import (
     make_runtime_fault_rule,
     make_static_fault_rule,
     make_threshold_rule,
+    make_undeclared_module_rule,
     write_sources,
 )
 
@@ -146,6 +152,8 @@ def test_given_multiple_rules_when_evaluating_then_file_facts_are_computed_once(
 ) -> None:
     write_sources(repo_root=tmp_path, files=test_case.files)
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv(FACT_BACKEND_ENV_VARIABLE, FactBackend.PYTHON.value)
+    select_fact_backend.cache_clear()
     config: Config = Config(roots=("src/pkg",))
     parse_counts: list[int] = [0]
     position_counts: list[int] = [0]
@@ -178,6 +186,8 @@ def test_given_multiple_rules_when_evaluating_then_file_facts_are_computed_once(
         ruleset=(make_runtime_fault_rule(), make_runtime_fault_rule()),
         config=config,
     )
+
+    select_fact_backend.cache_clear()
 
     assert parse_counts[0] == test_case.expected_parse_count
     assert position_counts[0] == test_case.expected_position_count
@@ -581,3 +591,31 @@ def test_given_unsorted_faults_when_evaluating_then_returns_stable_sorted_faults
         "b.py",
         "b.py",
     )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ModuleGateTestCase(
+            description="undeclared module read fails loud instead of parsing",
+            files=(("src/pkg/models.py", "value: int = 1\n"),),
+            expected_error_type=ModuleUnavailableError,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_module_free_declaration_when_rule_reads_module_then_raises(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: ModuleGateTestCase,
+) -> None:
+    write_sources(repo_root=tmp_path, files=test_case.files)
+    monkeypatch.chdir(tmp_path)
+    config: Config = Config(roots=("src/pkg",))
+
+    with pytest.raises(test_case.expected_error_type):
+        _ = evaluate(
+            tree=discover_test_tree(config=config),
+            ruleset=(make_undeclared_module_rule(),),
+            config=config,
+        )

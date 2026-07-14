@@ -8,7 +8,9 @@ from pathlib import Path
 
 import pytest
 
-from strata.analysis.types import PythonSourceArtifact
+from strata.analysis.constants import FACT_BACKEND_ENV_VARIABLE
+from strata.analysis.main.select_fact_backend import select_fact_backend
+from strata.analysis.types import FactBackend, PythonSourceArtifact
 from strata.discovery.main.discover_files import discover_files
 from strata.discovery.models import ScopedFile
 from strata.discovery.types import ScopeName
@@ -139,8 +141,11 @@ def test_given_source_snapshot_when_evaluation_parses_then_delegates_to_analysis
         return original_factory(path=path, content=content, source_fingerprint=source_fingerprint)
 
     monkeypatch.setattr(parsing, "parse_python_source", observe_factory)
+    monkeypatch.setenv(FACT_BACKEND_ENV_VARIABLE, FactBackend.PYTHON.value)
+    select_fact_backend.cache_clear()
 
     _ = parsing.parse_scoped_file(scoped_file=scoped_file)
+    select_fact_backend.cache_clear()
     direct_parse_paths: tuple[str, ...] = direct_ast_parse_paths(root=Path("src/strata/evaluation"))
 
     expected_call: tuple[bytes, str] = (

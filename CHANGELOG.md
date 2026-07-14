@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.11.0](https://github.com/chio-labs/strata/compare/v0.10.1...v0.11.0) (2026-07-14)
+
+
+### Features
+
+* **instrumentation:** add operation counters with corpus-backed invariants ([a10b1b8](https://github.com/chio-labs/strata/commit/a10b1b85a3cfda473a74921b81fb81597ad790ef))
+* **tooling:** add deterministic performance corpus generator ([b3e2a79](https://github.com/chio-labs/strata/commit/b3e2a7916c6bd044e4426bad8a032f204a780fdd))
+* **tooling:** add fault-dense budget scenarios ([296edd9](https://github.com/chio-labs/strata/commit/296edd95dcea6a824eb02ce39639c1f1d2eb0438))
+* **tooling:** enforce wall-clock performance budgets in CI ([c431cf2](https://github.com/chio-labs/strata/commit/c431cf2c898738fea652a1d2ce91e26c1a0524b2))
+
+
+### Performance Improvements
+
+* **cache:** replay aggregated observations to skip record decode on warm runs ([816f35f](https://github.com/chio-labs/strata/commit/816f35f134068d77c57574e016ca002d9268f55b))
+* **cache:** short-circuit unchanged warm checks with stored output ([ef51060](https://github.com/chio-labs/strata/commit/ef510601e9a4c4cbdc733309a46900b4dd027392))
+* **cache:** verify records by stored-bytes identity instead of re-encoding ([f5ee5a1](https://github.com/chio-labs/strata/commit/f5ee5a146f3e1706d2a15ac4381c85ffcabd6555))
+* **reporting:** read excerpted sources once per file, not per fault ([7ae1614](https://github.com/chio-labs/strata/commit/7ae16148dd854419ae954ff1039f0874d7a762c6))
+
 ## [0.10.1](https://github.com/chio-labs/strata/compare/v0.10.0...v0.10.1) (2026-07-14)
 
 

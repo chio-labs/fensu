@@ -24,7 +24,7 @@ self-check:
 	uv run strata check
 
 skills:
-	uv run strata skills update
+	uv run strata skills
 
 test:
 	uv run pytest tests -q -n auto

@@ -93,7 +93,7 @@ from tests.integration.src.strata.cli.main.helpers import (
             expected_tooling=(),
             expected_output_fragments=(
                 "Tooling scope",
-                "Run strata skills update when you are ready.",
+                "Run strata skills when you are ready.",
             ),
         ),
     ],
@@ -459,7 +459,7 @@ def test_given_explicit_scope_adoption_and_skill_options_when_initializing_then_
         existing_relative_paths(root=tmp_path, paths=test_case.expected_skill_paths)
         == test_case.expected_skill_paths
     )
-    assert ("Run strata skills update" in stdout.getvalue()) is (not test_case.expected_skill_paths)
+    assert ("Run strata skills" in stdout.getvalue()) is (not test_case.expected_skill_paths)
 
 
 @pytest.mark.parametrize(
@@ -561,7 +561,7 @@ def test_given_local_configuration_when_rerunning_init_then_succeeds_before_opti
             stdout_isatty=True,
             expected_exit_code=0,
             expected_config=None,
-            expected_output_fragments=("Run strata skills update when you are ready.",),
+            expected_output_fragments=("Run strata skills when you are ready.",),
         )
     ],
     ids=lambda case: case.description,
@@ -812,7 +812,7 @@ def test_given_terminal_color_controls_when_initializing_then_applies_semantic_t
             expected_output_fragments=(
                 "Wrote strata.toml",
                 "Install agent skill files? [Y/n]",
-                "Run strata skills update when you are ready.",
+                "Run strata skills when you are ready.",
                 "--> Next",
             ),
             expected_warning_fragment="Warning: could not measure current drift: Could not parse",
@@ -856,7 +856,7 @@ def test_given_invalid_python_after_write_when_measuring_drift_then_warns_and_co
             expected_output_fragments=(
                 "Wrote strata.toml",
                 "Install agent skill files? [Y/n]",
-                "Run strata skills update when you are ready.",
+                "Run strata skills when you are ready.",
                 "--> Next",
             ),
             expected_warning_fragment="Warning: could not measure current drift:",
@@ -1096,7 +1096,7 @@ def test_given_unsafe_local_config_target_when_initializing_then_refuses_without
                 "\n"
                 "--> Install agent skill files? [Y/n] \n"
                 "\n"
-                "    Run strata skills update when you are ready.\n"
+                "    Run strata skills when you are ready.\n"
                 "\n"
                 "--> Next\n"
                 "\n"
@@ -1120,7 +1120,7 @@ def test_given_unsafe_local_config_target_when_initializing_then_refuses_without
                 "\n"
                 "--> Agent skill files - no\n"
                 "\n"
-                "    Run strata skills update when you are ready.\n"
+                "    Run strata skills when you are ready.\n"
                 "\n"
                 "--> Next\n"
                 "\n"

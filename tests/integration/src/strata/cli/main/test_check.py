@@ -963,7 +963,7 @@ def test_given_default_local_skill_state_when_checking_then_warns_only_for_owned
         stdout=stdout,
         stderr=stderr,
     )
-    warning: str = "Strata skill files are out of date; run `strata skills update`."
+    warning: str = "Strata skill files are out of date; run `strata skills`."
 
     assert exit_code == test_case.expected_exit_code
     assert "Found 1 fault" in stdout.getvalue()
@@ -995,7 +995,7 @@ def test_given_clean_project_and_divergent_owned_skill_when_checking_then_exit_r
         encoding="utf-8",
     )
     monkeypatch.chdir(tmp_path)
-    installed: int = run_skills(argv=("update", "--target", "agents"))
+    installed: int = run_skills(argv=("--target", "agents"))
     mutate_skill_freshness_state(root=tmp_path, state="divergent")
     stdout: CaptureOutput = CaptureOutput()
     stderr: CaptureOutput = CaptureOutput()
@@ -1027,7 +1027,7 @@ def test_given_current_owned_skill_when_checking_then_uses_bounded_renderer_free
 ) -> None:
     write_cli_fixture_project(root=tmp_path, rule_code="XFP001")
     monkeypatch.chdir(tmp_path)
-    installed: int = run_skills(argv=("update", "--target", "agents"))
+    installed: int = run_skills(argv=("--target", "agents"))
     reader: SkillReadCounter = SkillReadCounter(freshness._read_skill_content)
     monkeypatch.setattr(freshness, "_read_skill_content", reader)
     monkeypatch.setattr(check_install, "generate_skill", fail_skill_renderer)

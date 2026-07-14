@@ -62,7 +62,7 @@ def generate_skill(*, context: SkillGenerationContext) -> str:
         "- Run `strata check` after architecture-relevant changes.",
         "- Run `strata rule <CODE>` to inspect a diagnostic and its remediation.",
         "- Run `strata map <SYMBOL>` for a conservative downstream project call tree.",
-        "- Run `strata skills update` after changing rule selection or custom rules.",
+        "- Run `strata skills` after changing rule selection or custom rules.",
         "",
     ]
     lines.extend(navigation_workflow_lines())

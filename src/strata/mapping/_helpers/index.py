@@ -132,18 +132,28 @@ def select_function(
         )
     elif symbol in definitions:
         return definitions[symbol]
+    elif QUALIFIED_NAME_SEPARATOR in symbol:
+        matches = tuple(
+            definition for definition in definitions.values() if definition.qualified_name == symbol
+        )
     else:
         matches = tuple(
-            definition
-            for definition in definitions.values()
-            if definition.name == symbol and QUALIFIED_NAME_SEPARATOR not in symbol
+            definition for definition in definitions.values() if definition.name == symbol
         )
     if len(matches) == 1:
         return matches[0]
     if not matches:
-        raise MapError(f"Unknown project function: {symbol}")
+        hint: str = (
+            f" Use a full dotted key or path::{symbol}."
+            if QUALIFIED_NAME_SEPARATOR in symbol
+            else ""
+        )
+        raise MapError(f"Unknown project function: {symbol}.{hint}")
     choices: str = ", ".join(sorted(definition.key for definition in matches))
-    raise MapError(f"Ambiguous function {symbol}; choose one of: {choices}")
+    raise MapError(
+        f"Ambiguous function {symbol}; choose a full dotted key: {choices}; "
+        f"or use path::{symbol if QUALIFIED_NAME_SEPARATOR in symbol else 'Class.method'}"
+    )
 
 
 def _function_definition(

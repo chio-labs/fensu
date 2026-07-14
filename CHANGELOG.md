@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.1](https://github.com/chio-labs/strata/compare/v0.10.0...v0.10.1) (2026-07-14)
+
+
+### Performance Improvements
+
+* **cache:** remove quadratic dependency scans and pathlib churn ([1e34299](https://github.com/chio-labs/strata/commit/1e34299f4fcf527da8a63ec3dee98798948ee13e))
+* **cache:** remove quadratic dependency scans and pathlib churn ([aa6ac50](https://github.com/chio-labs/strata/commit/aa6ac50e6819a8a5d2a9f489e6dbee81c7e8f408))
+
 ## [0.10.0](https://github.com/chio-labs/strata/compare/v0.9.0...v0.10.0) (2026-07-13)
 
 

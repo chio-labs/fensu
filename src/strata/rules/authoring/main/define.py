@@ -23,6 +23,7 @@ def rule(
     remediation: str | None = None,
     severity: Severity = Severity.ERROR,
     enabled_by_default: bool = True,
+    cacheable: bool | None = None,
 ) -> Callable[[RuleCheck], RuleCheck]:
     """Attach a compiled rule spec to the decorated function and return it unchanged."""
 
@@ -45,6 +46,7 @@ def rule(
             severity=severity,
             kind=kind,
             enabled_by_default=enabled_by_default,
+            cacheable=cacheable,
         )
         _ = setattr(check, _RULE_SPEC_ATTRIBUTE, spec)
         return check

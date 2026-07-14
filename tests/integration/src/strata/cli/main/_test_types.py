@@ -476,3 +476,39 @@ class ReplayFastPathTestCase:
     expected_exit_code: int
     expected_warm_loads: int
     expected_edited_loads: int
+
+
+@dataclass(frozen=True)
+class ScopedCacheWarningTestCase:
+    """One scoped warn-mode cache expectation for an uncacheable custom rule."""
+
+    description: str
+    argv: tuple[str, ...]
+    expected_exit_code: int
+    expected_output_fragment: str
+    expected_cold_stats: str
+    expected_warm_stats: str
+
+
+@dataclass(frozen=True)
+class MixedRulesetCacheTestCase:
+    """One mixed cacheable/non-cacheable ruleset parity and purity expectation."""
+
+    description: str
+    argv: tuple[str, ...]
+    expected_exit_code: int
+    expected_custom_fragment: str
+    expected_core_fragment: str
+    expected_cold_stats: str
+    expected_warm_stats: str
+
+
+@dataclass(frozen=True)
+class CacheableNoticeTestCase:
+    """One custom-rule declaration state and the expected stderr notice."""
+
+    description: str
+    decorator_arguments: str
+    argv: tuple[str, ...]
+    expected_exit_code: int
+    expected_notice: bool

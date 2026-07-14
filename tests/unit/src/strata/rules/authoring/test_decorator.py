@@ -11,6 +11,7 @@ from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Family, RuleCheck, RuleKind
 from tests.unit.src.strata.rules.authoring._test_types import (
     InvalidEnvelopeTestCase,
+    RuleCacheableFlagTestCase,
     RuleEnvelopeTestCase,
 )
 from tests.unit.src.strata.rules.authoring.helpers import empty_check
@@ -219,3 +220,39 @@ def test_given_missing_required_keyword_when_decorating_then_raises_type_error(
         )
 
     assert test_case.expected_error_fragment in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        RuleCacheableFlagTestCase(
+            description="declared promise records cacheable True",
+            cacheable=True,
+            expected_cacheable=True,
+        ),
+        RuleCacheableFlagTestCase(
+            description="declared opt-out records cacheable False",
+            cacheable=False,
+            expected_cacheable=False,
+        ),
+        RuleCacheableFlagTestCase(
+            description="undeclared cacheability stays unset",
+            cacheable=None,
+            expected_cacheable=None,
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_cacheable_declaration_when_decorating_then_records_flag(
+    test_case: RuleCacheableFlagTestCase,
+) -> None:
+    decorated: RuleCheck = rule(
+        code="XCF001",
+        family=Family.CUSTOM,
+        slug="cache-flag",
+        message="cache flag declaration",
+        cacheable=test_case.cacheable,
+    )(empty_check)
+    spec: RuleSpec = getattr(decorated, _RULE_SPEC_ATTRIBUTE)
+
+    assert spec.cacheable is test_case.expected_cacheable

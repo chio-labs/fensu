@@ -522,13 +522,14 @@ def test_given_config_and_active_rules_when_generating_then_shows_only_proven_gu
             ),
         ),
         SkillContentTestCase(
-            description="selected custom rules explain default cache disablement",
+            description="selected custom rules explain per-rule cacheability declarations",
             context=custom_default_cache_generation_context(),
             expected_fragments=(
                 "## Cacheability",
                 "Configured cache enabled: `true`",
                 "Configured `require_cacheable`: `false`",
-                "Selected custom rules disable persistent caching by default",
+                "Undeclared custom rules re-run fresh on every check",
+                "Declare `cacheable=True` on `@rule`",
                 "`require_cacheable = true`",
             ),
             expected_absent_fragments=("Because `require_cacheable = true`",),

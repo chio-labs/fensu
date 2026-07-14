@@ -28,16 +28,10 @@ def build_global_fingerprint(
 ) -> GlobalFingerprintBuild:
     """Return a complete installed/editable identity or the reason it is unavailable."""
 
-    blocking_codes: tuple[str, ...] = tuple(
-        rule.code for rule in ruleset if rule.kind is RuleKind.CUSTOM and not rule.cacheable
-    )
-    if blocking_codes:
+    if ruleset and all(rule.kind is RuleKind.CUSTOM and not rule.cacheable for rule in ruleset):
         return GlobalFingerprintBuild(
             fingerprint=None,
-            disabled_reason=(
-                "custom rules disable caching unless cache.require_cacheable is set: "
-                f"{', '.join(blocking_codes)}"
-            ),
+            disabled_reason="no cacheable rules are selected",
         )
     package_root: Path | None = _loaded_package_root()
     if package_root is None:

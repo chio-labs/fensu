@@ -657,9 +657,9 @@ def test_given_selected_scope_python_symlink_when_executing_then_rejects_before_
         ),
         GitIgnorePlanTestCase(
             description="later negation uncovers cache database and requires append",
-            initial=b".strata/\n!.strata/cache/v3.db\n",
+            initial=b".strata/\n!.strata/cache/v4.db\n",
             greenfield=False,
-            expected_desired=b".strata/\n!.strata/cache/v3.db\n" + STRATA_GITIGNORE_BLOCK,
+            expected_desired=b".strata/\n!.strata/cache/v4.db\n" + STRATA_GITIGNORE_BLOCK,
         ),
         GitIgnorePlanTestCase(
             description="leading whitespace is significant and does not cover root cache",
@@ -669,7 +669,7 @@ def test_given_selected_scope_python_symlink_when_executing_then_rejects_before_
         ),
         GitIgnorePlanTestCase(
             description="escaped leading exclamation is literal rather than a negation",
-            initial=b".strata/\n\\!.strata/cache/v3.db\n",
+            initial=b".strata/\n\\!.strata/cache/v4.db\n",
             greenfield=False,
             expected_desired=None,
         ),

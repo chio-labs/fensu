@@ -17,11 +17,13 @@ from strata.cache.results._helpers.validation import (
 )
 from strata.cache.results.constants import (
     CACHE_CHECK_OUTPUT_KIND,
+    CACHE_DEPENDENCIES_KIND,
     CACHE_FACT_KIND,
     CACHE_FILE_RESULT_KIND,
     CACHE_INDEX_KIND,
     CACHE_METADATA_KIND,
     CHECK_OUTPUT_PAYLOAD_KEYS,
+    DEPENDENCIES_PAYLOAD_KEYS,
     DEPENDENCY_OBSERVATION_KEYS,
     FACT_PAYLOAD_KEYS,
     FAULT_KEYS,
@@ -104,6 +106,32 @@ def index_from_record(record: CacheRecord) -> CacheIndex | None:
         entries.append(entry)
     result: CacheIndex = CacheIndex(global_fingerprint=global_fingerprint, entries=tuple(entries))
     return result if _index_entries_are_ordered(result.entries) else None
+
+
+def dependencies_to_record(observations: tuple[DependencyObservation, ...]) -> CacheRecord:
+    """Return a validated storage record for aggregated dependency observations."""
+
+    record: CacheRecord = CacheRecord(
+        kind=CACHE_DEPENDENCIES_KIND,
+        payload={"observations": [_dependency_value(item) for item in observations]},
+    )
+    if dependencies_from_record(record) != observations:
+        raise CacheRecordError("Aggregated observations contain invalid or noncanonical values.")
+    return record
+
+
+def dependencies_from_record(record: CacheRecord) -> tuple[DependencyObservation, ...] | None:
+    """Return typed aggregated observations or None for a semantic miss."""
+
+    payload: dict[str, CanonicalValue] | None = _payload(
+        record=record, kind=CACHE_DEPENDENCIES_KIND
+    )
+    if payload is None or set(payload) != DEPENDENCIES_PAYLOAD_KEYS:
+        return None
+    raw_observations: CanonicalValue = payload["observations"]
+    if not isinstance(raw_observations, list):
+        return None
+    return _decode_sequence(values=raw_observations, decoder=_dependency)
 
 
 def check_output_to_record(output: CachedCheckOutput) -> CacheRecord:

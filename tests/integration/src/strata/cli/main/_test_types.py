@@ -466,3 +466,13 @@ class ShortCircuitCheckTestCase:
     expected_warm_restores: int
     expected_edited_restores: int
     expected_edited_fragment: str
+
+
+@dataclass(frozen=True)
+class ReplayFastPathTestCase:
+    """One warm-run record-decode bypass expectation."""
+
+    description: str
+    expected_exit_code: int
+    expected_warm_loads: int
+    expected_edited_loads: int

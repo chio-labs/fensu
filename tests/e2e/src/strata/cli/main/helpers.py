@@ -10,7 +10,7 @@ import tomllib
 from pathlib import Path
 from typing import cast
 
-from strata.cache.results.constants import CACHE_FILE_RESULT_KIND
+from strata.cache.results.constants import CACHE_CHECK_OUTPUT_KIND, CACHE_FILE_RESULT_KIND
 from strata.cache.storage.constants import CACHE_DATABASE_RELATIVE_PATH
 from tests.e2e.src.strata.cli.main._test_types import (
     CliProjectFile,
@@ -147,3 +147,15 @@ def corrupt_result_cache_record(root: Path) -> str:
         key: str = row[0]
         connection.execute("UPDATE records SET data = ? WHERE key = ?", (b"{", key))
     return key
+
+
+def remove_check_output_record(root: Path) -> int:
+    """Delete the stored rendered-output surface and return removed row count."""
+
+    database: Path = root / CACHE_DATABASE_RELATIVE_PATH
+    with sqlite3.connect(database) as connection:
+        cursor: sqlite3.Cursor = connection.execute(
+            "DELETE FROM records WHERE kind = ?",
+            (CACHE_CHECK_OUTPUT_KIND,),
+        )
+    return cursor.rowcount

@@ -73,10 +73,11 @@ class CachedCheckOutput:
 
 @dataclass(frozen=True, slots=True)
 class CheckCacheContext:
-    """Validated index and optional rendered-output surface for one check."""
+    """Validated index, rendered-output surface, and aggregated observations."""
 
     index: CacheIndex | None
     output: CachedCheckOutput | None
+    observations: tuple[DependencyObservation, ...] | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -163,6 +164,7 @@ class PublicationPreparation:
     candidates: tuple[PublicationCandidate, ...]
     non_cacheable: int
     internal_error: bool
+    observations: tuple[DependencyObservation, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

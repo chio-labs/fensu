@@ -25,16 +25,19 @@ from tests.integration.src.strata.cli.main._test_types import (
     CheckSkillFreshnessTestCase,
     EvaluationCheckTestCase,
     NestedContainerCacheTestCase,
+    ReplayFastPathTestCase,
     ShortCircuitCheckTestCase,
     ThresholdOverrideCheckTestCase,
     WarningCacheIdentityTestCase,
     WarningCheckTestCase,
 )
 from tests.integration.src.strata.cli.main.helpers import (
+    CallCounter,
     CaptureOutput,
     RestoreProbe,
     SkillReadCounter,
     cache_snapshot,
+    counting_load_results,
     fail_skill_renderer,
     mutate_skill_freshness_state,
     prepare_normal_check_skill_state,
@@ -1160,3 +1163,58 @@ def test_given_unchanged_tree_when_rechecking_then_short_circuits_stored_output(
     assert warm_restores == test_case.expected_warm_restores
     assert probe.calls - warm_restores == test_case.expected_edited_restores
     assert test_case.expected_edited_fragment in edited_stdout.getvalue()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ReplayFastPathTestCase(
+            description="unchanged warm run replays observations without reading records",
+            expected_exit_code=1,
+            expected_warm_loads=0,
+            expected_edited_loads=1,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_unchanged_tree_when_rechecking_then_skips_record_loads(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: ReplayFastPathTestCase,
+) -> None:
+    (tmp_path / "strata.toml").write_text(
+        'roots = ["src/pkg"]\ntests = []\nselect = ["SFA101"]\n',
+        encoding="utf-8",
+    )
+    package: Path = tmp_path / "src/pkg"
+    package.mkdir(parents=True)
+    (package / "faulty.py").write_text("TARGET = 1\n", encoding="utf-8")
+    (package / "clean.py").write_text("CLEAN: int = 1\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    counter: CallCounter = CallCounter()
+    monkeypatch.setattr(
+        "strata.cache.results.classes.result_cache.ResultCache.load_results",
+        counting_load_results(counter),
+    )
+    cold_stdout: CaptureOutput = CaptureOutput()
+    warm_stdout: CaptureOutput = CaptureOutput()
+
+    cold_exit: int = run_check(
+        argv=("--no-color", "--cache"), stdout=cold_stdout, stderr=CaptureOutput()
+    )
+    cold_loads: int = counter.calls
+    warm_exit: int = run_check(
+        argv=("--no-color", "--cache"), stdout=warm_stdout, stderr=CaptureOutput()
+    )
+    warm_loads: int = counter.calls - cold_loads
+    (package / "faulty.py").write_text("TARGET = 1\nEXTRA = 2\n", encoding="utf-8")
+    edited_exit: int = run_check(
+        argv=("--no-color", "--cache"), stdout=CaptureOutput(), stderr=CaptureOutput()
+    )
+
+    assert cold_exit == test_case.expected_exit_code
+    assert warm_exit == test_case.expected_exit_code
+    assert edited_exit == test_case.expected_exit_code
+    assert warm_stdout.getvalue() == cold_stdout.getvalue()
+    assert warm_loads == test_case.expected_warm_loads
+    assert counter.calls - cold_loads - warm_loads == test_case.expected_edited_loads

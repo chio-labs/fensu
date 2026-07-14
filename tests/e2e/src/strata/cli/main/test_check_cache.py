@@ -19,6 +19,7 @@ from tests.e2e.src.strata.cli.main._test_types import (
 from tests.e2e.src.strata.cli.main.helpers import (
     cache_snapshot,
     corrupt_result_cache_record,
+    remove_check_output_record,
     run_cli_check,
     write_cli_project,
 )
@@ -235,6 +236,7 @@ def test_given_malformed_result_when_running_installed_check_then_recomputes_ide
     )
     first: subprocess.CompletedProcess[str] = run_cli_check(root=tmp_path, argv=("--cache",))
     corrupted_key: str = corrupt_result_cache_record(tmp_path)
+    _ = remove_check_output_record(tmp_path)
 
     second: subprocess.CompletedProcess[str] = run_cli_check(root=tmp_path, argv=("--cache",))
 

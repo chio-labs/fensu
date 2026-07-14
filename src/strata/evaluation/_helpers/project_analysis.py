@@ -24,6 +24,7 @@ from strata.evaluation._helpers.parsing import parse_scoped_file, read_source_sn
 from strata.evaluation.exceptions import ParseError
 from strata.evaluation.models import ExternalAnalysisBuild, ParsedModule, SourceSnapshot
 from strata.evaluation.types import EvaluationProjectAnalysis
+from strata.instrumentation.constants import DEPENDENCY_RECORD_OPERATION, OPERATION_COUNTERS
 
 _test_types_file_name: str = "_test_types.py"
 
@@ -312,6 +313,7 @@ class _EvaluationProjectAnalysis:
             self._dependency_set.add(observed)
             self._dependencies.append(observed)
             self._dependencies_by_requester.setdefault(observed.requester, []).append(observed)
+            OPERATION_COUNTERS.record(operation=DEPENDENCY_RECORD_OPERATION)
 
     def _resolve(self, path: Path) -> Path:
         resolved: Path | None = self._resolved_paths.get(path)

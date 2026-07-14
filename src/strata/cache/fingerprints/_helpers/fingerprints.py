@@ -29,6 +29,7 @@ from strata.cache.results.models import (
 )
 from strata.cache.storage.constants import CACHE_SCHEMA_VERSION
 from strata.config.models import Config, RuleExceptionEntry
+from strata.instrumentation.constants import CANONICAL_ENCODE_OPERATION, OPERATION_COUNTERS
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import RuleCheck, Threshold
 
@@ -36,6 +37,7 @@ from strata.rules.authoring.types import RuleCheck, Threshold
 def canonical_fingerprint(value: CanonicalValue) -> CacheFingerprint:
     """Return a SHA-256 identity for one canonical JSON value."""
 
+    OPERATION_COUNTERS.record(operation=CANONICAL_ENCODE_OPERATION)
     encoded: bytes = json.dumps(
         value,
         ensure_ascii=True,

@@ -39,6 +39,16 @@ def _named_sentinel(name: str) -> Callable[..., str]:
     return lambda **kwargs: name
 
 
+def cpython_parse_validity(source: str) -> bool:
+    """Return whether ast.parse accepts the source, mirroring the strict path."""
+
+    try:
+        ast.parse(source)
+    except SyntaxError:
+        return False
+    return True
+
+
 def meaningful_return_lines(facts: tuple[FunctionContractFact, ...]) -> tuple[int | None, ...]:
     """Return optional meaningful-return lines from contract facts."""
 

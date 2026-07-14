@@ -11,6 +11,7 @@ use crate::extension::helpers::bindings;
 #[pymodule]
 pub fn strata_facts(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(bindings::backend_version, module)?)?;
+    module.add_function(wrap_pyfunction!(bindings::check_syntax, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::locate_byte_offset, module)?)?;
     Ok(())
 }

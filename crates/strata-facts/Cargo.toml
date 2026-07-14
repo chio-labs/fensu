@@ -12,6 +12,9 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 pyo3 = { version = "0.29", features = ["abi3-py312"] }
+ruff_python_ast = "=0.0.4"
+ruff_python_parser = "=0.0.4"
+ruff_text_size = "=0.0.4"
 
 [features]
 extension-module = ["pyo3/extension-module"]

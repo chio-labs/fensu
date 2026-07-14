@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.14.0](https://github.com/chio-labs/strata/compare/v0.13.0...v0.14.0) (2026-07-14)
+
+
+### Features
+
+* **mapping:** resolve unique nominal protocol dispatch ([c519a28](https://github.com/chio-labs/strata/commit/c519a289b7af457011deb145661f671900fb97e6))
+* **mapping:** resolve unique nominal protocol dispatch ([2f1c5c2](https://github.com/chio-labs/strata/commit/2f1c5c2909e450330c2b14627efaa720b5dd0808))
+
 ## [0.13.0](https://github.com/chio-labs/strata/compare/v0.12.0...v0.13.0) (2026-07-14)
 
 

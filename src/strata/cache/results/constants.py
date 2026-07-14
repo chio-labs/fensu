@@ -6,8 +6,10 @@ CACHE_METADATA_KIND: str = "metadata"
 CACHE_INDEX_KIND: str = "index"
 CACHE_FILE_RESULT_KIND: str = "file_result"
 CACHE_FACT_KIND: str = "fact"
+CACHE_CHECK_OUTPUT_KIND: str = "check_output"
 CACHE_METADATA_PATH: Path = Path("metadata.json")
 CACHE_INDEX_PATH: Path = Path("index.json")
+CACHE_CHECK_OUTPUT_PATH: Path = Path("output.json")
 CACHE_RESULTS_DIRECTORY: Path = Path("results")
 CACHE_JSON_SUFFIX: str = ".json"
 FINGERPRINT_DIRECTORY_PREFIX_LENGTH: int = 2
@@ -23,6 +25,16 @@ METADATA_PAYLOAD_KEYS: frozenset[str] = frozenset({"global_fingerprint"})
 INDEX_PAYLOAD_KEYS: frozenset[str] = frozenset({"entries", "global_fingerprint"})
 INDEX_ENTRY_KEYS: frozenset[str] = frozenset(
     {"path", "record_fingerprint", "result_fingerprint", "source_fingerprint"}
+)
+CHECK_OUTPUT_PAYLOAD_KEYS: frozenset[str] = frozenset(
+    {
+        "color_output",
+        "exit_code",
+        "global_fingerprint",
+        "index_fingerprint",
+        "plain_output",
+        "targets",
+    }
 )
 FILE_RESULT_PAYLOAD_KEYS: frozenset[str] = frozenset(
     {

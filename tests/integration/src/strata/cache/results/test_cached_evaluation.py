@@ -11,6 +11,7 @@ from strata.cache.results.main.evaluate import evaluate_with_cache
 from strata.cache.results.models import CacheEvaluation
 from strata.config.models import Config, EvaluationConfig
 from strata.discovery.models import DiscoveredTree
+from strata.evaluation.models import EvaluationSelection
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import RuleKind
 from strata.rules.naming.constants import SFN_RULES
@@ -31,6 +32,7 @@ from tests.integration.src.strata.cache.results.helpers import (
     context_source_fault_rule,
     dependency_fault_rule,
     discover_project,
+    evaluated_result,
     exception_config,
     exception_fault_rule,
     failing_rule,
@@ -105,14 +107,15 @@ def test_given_excluded_cached_dependency_when_changed_then_invalidates_selected
         global_fingerprint=_GLOBAL_FINGERPRINT,
     )
 
-    assert cold.result.selection is not None
-    assert cold.result.selection.discovered_count == test_case.expected_discovered_count
-    assert len(cold.result.selection.files) == test_case.expected_target_count
+    cold_selection: EvaluationSelection | None = evaluated_result(cold).selection
+    assert cold_selection is not None
+    assert cold_selection.discovered_count == test_case.expected_discovered_count
+    assert len(cold_selection.files) == test_case.expected_target_count
     assert cold.stats.misses == test_case.expected_cold_misses
     assert warm.stats.hits == test_case.expected_warm_hits
-    assert warm.result.faults == cold.result.faults
+    assert evaluated_result(warm).faults == evaluated_result(cold).faults
     assert changed.stats.invalidations == test_case.expected_invalidations
-    assert changed.result.faults[0].message == test_case.expected_changed_message
+    assert evaluated_result(changed).faults[0].message == test_case.expected_changed_message
 
 
 @pytest.mark.parametrize(
@@ -156,9 +159,9 @@ def test_given_cached_naming_facts_when_evaluating_warm_then_preserves_exact_fau
         global_fingerprint=_GLOBAL_FINGERPRINT,
     )
 
-    assert tuple(fault.code for fault in cold.result.faults) == test_case.expected_codes
+    assert tuple(fault.code for fault in evaluated_result(cold).faults) == test_case.expected_codes
     assert warm.stats.hits == test_case.expected_warm_hits
-    assert warm.result.faults == cold.result.faults
+    assert evaluated_result(warm).faults == evaluated_result(cold).faults
 
 
 @pytest.mark.parametrize(
@@ -210,8 +213,8 @@ def test_given_published_result_when_evaluating_warm_then_reuses_without_rule_ex
     assert warm.stats.hits == test_case.expected_warm_hits
     assert warm.stats.misses == test_case.expected_warm_misses
     assert warm.stats.writes == test_case.expected_warm_writes
-    assert len(warm.result.faults) == test_case.expected_fault_count
-    assert warm.result.faults == cold.result.faults
+    assert len(evaluated_result(warm).faults) == test_case.expected_fault_count
+    assert evaluated_result(warm).faults == evaluated_result(cold).faults
 
 
 @pytest.mark.parametrize(
@@ -257,7 +260,7 @@ def test_given_published_result_when_source_changes_then_recomputes_diagnostic(
     )
 
     assert changed.stats.invalidations == test_case.expected_invalidations
-    assert changed.result.faults[0].message == test_case.expected_message
+    assert evaluated_result(changed).faults[0].message == test_case.expected_message
 
 
 @pytest.mark.parametrize(
@@ -300,7 +303,7 @@ def test_given_negative_dependency_when_file_appears_then_recomputes_requester(
     )
 
     assert changed.stats.invalidations == test_case.expected_invalidations
-    assert changed.result.faults[0].message == test_case.expected_message
+    assert evaluated_result(changed).faults[0].message == test_case.expected_message
 
 
 @pytest.mark.parametrize(
@@ -352,10 +355,16 @@ def test_given_cached_leaf_when_asset_directory_gains_python_then_invalidates_do
         global_fingerprint=_GLOBAL_FINGERPRINT,
     )
 
-    assert tuple(fault.code for fault in initial.result.faults) == test_case.expected_initial_codes
+    assert (
+        tuple(fault.code for fault in evaluated_result(initial).faults)
+        == test_case.expected_initial_codes
+    )
     assert changed.stats.invalidations == test_case.expected_invalidations
     assert changed.stats.misses == test_case.expected_misses
-    assert tuple(fault.code for fault in changed.result.faults) == test_case.expected_changed_codes
+    assert (
+        tuple(fault.code for fault in evaluated_result(changed).faults)
+        == test_case.expected_changed_codes
+    )
 
 
 @pytest.mark.parametrize(
@@ -404,9 +413,15 @@ def test_given_cached_domain_when_matching_sibling_is_added_then_invalidates_pre
         global_fingerprint=_GLOBAL_FINGERPRINT,
     )
 
-    assert tuple(fault.code for fault in initial.result.faults) == test_case.expected_initial_codes
+    assert (
+        tuple(fault.code for fault in evaluated_result(initial).faults)
+        == test_case.expected_initial_codes
+    )
     assert changed.stats.invalidations == test_case.expected_invalidations
-    assert tuple(fault.code for fault in changed.result.faults) == test_case.expected_changed_codes
+    assert (
+        tuple(fault.code for fault in evaluated_result(changed).faults)
+        == test_case.expected_changed_codes
+    )
 
 
 @pytest.mark.parametrize(
@@ -457,7 +472,7 @@ def test_given_changed_manifest_when_evaluating_then_combines_hits_and_new_files
     assert changed.stats.hits == test_case.expected_hits
     assert changed.stats.misses == test_case.expected_misses
     assert changed.stats.invalidations == test_case.expected_invalidations
-    assert tuple(fault.path.name for fault in changed.result.faults) == (
+    assert tuple(fault.path.name for fault in evaluated_result(changed).faults) == (
         test_case.expected_fault_paths
     )
 
@@ -508,8 +523,8 @@ def test_given_cacheable_custom_rule_when_evaluating_then_reuses_published_resul
     assert warm.stats.hits == test_case.expected_warm_hits
     assert warm.stats.misses == test_case.expected_warm_misses
     assert warm.stats.writes == test_case.expected_warm_writes
-    assert len(warm.result.faults) == test_case.expected_fault_count
-    assert warm.result.faults == cold.result.faults
+    assert len(evaluated_result(warm).faults) == test_case.expected_fault_count
+    assert evaluated_result(warm).faults == evaluated_result(cold).faults
     assert (tmp_path / ".strata").exists()
 
 
@@ -558,7 +573,7 @@ def test_given_custom_rule_when_evaluating_then_bypasses_persistent_cache(
     assert first.stats.misses == test_case.expected_cold_misses
     assert second.stats.hits == test_case.expected_warm_hits
     assert second.stats.misses == test_case.expected_warm_misses
-    assert len(second.result.faults) == test_case.expected_fault_count
+    assert len(evaluated_result(second).faults) == test_case.expected_fault_count
     assert not (tmp_path / ".strata").exists()
 
 
@@ -609,8 +624,8 @@ def test_given_applied_exception_when_reusing_result_then_preserves_global_valid
     assert warm.stats.hits == test_case.expected_warm_hits
     assert warm.stats.misses == test_case.expected_warm_misses
     assert warm.stats.writes == test_case.expected_warm_writes
-    assert len(warm.result.faults) == test_case.expected_fault_count
-    assert warm.result.applied_exception_count == 1
+    assert len(evaluated_result(warm).faults) == test_case.expected_fault_count
+    assert evaluated_result(warm).applied_exception_count == 1
 
 
 @pytest.mark.parametrize(
@@ -758,7 +773,7 @@ def test_given_schema_rejected_fault_when_evaluating_then_degrades_without_crash
     assert degraded.stats.non_cacheable == test_case.expected_non_cacheable
     assert degraded.stats.internal_error is test_case.expected_internal_error
     assert degraded.stats.storage_failed is test_case.expected_storage_failed
-    assert len(degraded.result.faults) == test_case.expected_fault_count
+    assert len(evaluated_result(degraded).faults) == test_case.expected_fault_count
 
 
 @pytest.mark.parametrize(
@@ -801,7 +816,7 @@ def test_given_publication_error_when_evaluating_then_degrades_without_crashing(
     assert degraded.stats.non_cacheable == test_case.expected_non_cacheable
     assert degraded.stats.internal_error is test_case.expected_internal_error
     assert degraded.stats.storage_failed is test_case.expected_storage_failed
-    assert len(degraded.result.faults) == test_case.expected_fault_count
+    assert len(evaluated_result(degraded).faults) == test_case.expected_fault_count
 
 
 @pytest.mark.parametrize(

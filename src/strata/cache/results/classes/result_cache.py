@@ -9,6 +9,8 @@ from strata.cache.fingerprints.models import CacheFingerprint, FileResultFingerp
 from strata.cache.results._helpers.conversion import build_cached_file_result
 from strata.cache.results._helpers.dependencies import dependencies_are_current
 from strata.cache.results._helpers.serialization import (
+    check_output_from_record,
+    check_output_to_record,
     file_result_from_record,
     file_result_to_record,
     index_from_record,
@@ -18,6 +20,8 @@ from strata.cache.results._helpers.serialization import (
 )
 from strata.cache.results._helpers.validation import is_fingerprint
 from strata.cache.results.constants import (
+    CACHE_CHECK_OUTPUT_KIND,
+    CACHE_CHECK_OUTPUT_PATH,
     CACHE_FILE_RESULT_KIND,
     CACHE_INDEX_KIND,
     CACHE_INDEX_PATH,
@@ -28,12 +32,14 @@ from strata.cache.results.constants import (
     FINGERPRINT_DIRECTORY_PREFIX_LENGTH,
 )
 from strata.cache.results.models import (
+    CachedCheckOutput,
     CachedFileResult,
     CacheIndex,
     CacheIndexEntry,
     CacheLookup,
     CacheMetadata,
     CacheStats,
+    CheckCacheContext,
     PublicationCandidate,
     PublicationPreparation,
 )
@@ -248,6 +254,77 @@ class ResultCache:
             swept_prefix=CACHE_RESULTS_DIRECTORY,
             retained_paths=tuple(_result_path(entry.result_fingerprint) for entry in index.entries),
         )
+
+    def load_check_context(self, *, global_fingerprint: CacheFingerprint) -> CheckCacheContext:
+        """Return the validated index plus any rendered surface bound to it."""
+
+        records: tuple[CacheRecord | None, ...] = self._store.read_batch(
+            reads=(
+                CacheRead(relative_path=CACHE_METADATA_PATH, expected_kind=CACHE_METADATA_KIND),
+                CacheRead(relative_path=CACHE_INDEX_PATH, expected_kind=CACHE_INDEX_KIND),
+                CacheRead(
+                    relative_path=CACHE_CHECK_OUTPUT_PATH,
+                    expected_kind=CACHE_CHECK_OUTPUT_KIND,
+                ),
+            )
+        )
+        index: CacheIndex | None = _decoded_index(
+            metadata_record=records[0],
+            index_record=records[1],
+            global_fingerprint=global_fingerprint,
+        )
+        index_record: CacheRecord | None = records[1]
+        output_record: CacheRecord | None = records[2]
+        if index is None or index_record is None or output_record is None:
+            return CheckCacheContext(index=index, output=None)
+        output: CachedCheckOutput | None = check_output_from_record(output_record)
+        if (
+            output is None
+            or output.global_fingerprint != global_fingerprint
+            or index_record.content_fingerprint is None
+            or output.index_fingerprint != index_record.content_fingerprint
+        ):
+            return CheckCacheContext(index=index, output=None)
+        return CheckCacheContext(index=index, output=output)
+
+    def store_check_output(
+        self,
+        *,
+        global_fingerprint: CacheFingerprint,
+        targets: tuple[str, ...],
+        plain_output: str,
+        color_output: str,
+        exit_code: int,
+    ) -> bool:
+        """Bind one rendered check surface to the current cache generation."""
+
+        records: tuple[CacheRecord | None, ...] = self._store.read_batch(
+            reads=(
+                CacheRead(relative_path=CACHE_METADATA_PATH, expected_kind=CACHE_METADATA_KIND),
+                CacheRead(relative_path=CACHE_INDEX_PATH, expected_kind=CACHE_INDEX_KIND),
+            )
+        )
+        index: CacheIndex | None = _decoded_index(
+            metadata_record=records[0],
+            index_record=records[1],
+            global_fingerprint=global_fingerprint,
+        )
+        index_record: CacheRecord | None = records[1]
+        if index is None or index_record is None or index_record.content_fingerprint is None:
+            return False
+        output: CachedCheckOutput = CachedCheckOutput(
+            global_fingerprint=global_fingerprint,
+            index_fingerprint=index_record.content_fingerprint,
+            targets=tuple(sorted(targets)),
+            plain_output=plain_output,
+            color_output=color_output,
+            exit_code=exit_code,
+        )
+        try:
+            record: CacheRecord = check_output_to_record(output)
+        except CacheRecordError:
+            return False
+        return self._store.write(relative_path=CACHE_CHECK_OUTPUT_PATH, record=record)
 
     def load_index(self, *, global_fingerprint: CacheFingerprint) -> CacheIndex | None:
         """Return the index only when metadata and index share the active identity."""

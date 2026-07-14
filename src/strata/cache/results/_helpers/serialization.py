@@ -16,10 +16,12 @@ from strata.cache.results._helpers.validation import (
     is_rule_exception_symbol,
 )
 from strata.cache.results.constants import (
+    CACHE_CHECK_OUTPUT_KIND,
     CACHE_FACT_KIND,
     CACHE_FILE_RESULT_KIND,
     CACHE_INDEX_KIND,
     CACHE_METADATA_KIND,
+    CHECK_OUTPUT_PAYLOAD_KEYS,
     DEPENDENCY_OBSERVATION_KEYS,
     FACT_PAYLOAD_KEYS,
     FAULT_KEYS,
@@ -31,6 +33,7 @@ from strata.cache.results.constants import (
     THRESHOLD_OVERRIDE_USE_KEYS,
 )
 from strata.cache.results.models import (
+    CachedCheckOutput,
     CachedFact,
     CachedFault,
     CachedFileResult,
@@ -101,6 +104,64 @@ def index_from_record(record: CacheRecord) -> CacheIndex | None:
         entries.append(entry)
     result: CacheIndex = CacheIndex(global_fingerprint=global_fingerprint, entries=tuple(entries))
     return result if _index_entries_are_ordered(result.entries) else None
+
+
+def check_output_to_record(output: CachedCheckOutput) -> CacheRecord:
+    """Return a validated storage record for one rendered check surface."""
+
+    record: CacheRecord = CacheRecord(
+        kind=CACHE_CHECK_OUTPUT_KIND,
+        payload={
+            "color_output": output.color_output,
+            "exit_code": output.exit_code,
+            "global_fingerprint": output.global_fingerprint.value,
+            "index_fingerprint": output.index_fingerprint.value,
+            "plain_output": output.plain_output,
+            "targets": list(output.targets),
+        },
+    )
+    if check_output_from_record(record) != output:
+        raise CacheRecordError("Check output contains invalid or noncanonical values.")
+    return record
+
+
+def check_output_from_record(record: CacheRecord) -> CachedCheckOutput | None:
+    """Return a typed rendered check surface or None for a semantic miss."""
+
+    payload: dict[str, CanonicalValue] | None = _payload(
+        record=record, kind=CACHE_CHECK_OUTPUT_KIND
+    )
+    if payload is None or set(payload) != CHECK_OUTPUT_PAYLOAD_KEYS:
+        return None
+    global_fingerprint: CacheFingerprint | None = fingerprint_or_none(payload["global_fingerprint"])
+    index_fingerprint: CacheFingerprint | None = fingerprint_or_none(payload["index_fingerprint"])
+    raw_targets: CanonicalValue = payload["targets"]
+    plain_output: CanonicalValue = payload["plain_output"]
+    color_output: CanonicalValue = payload["color_output"]
+    exit_code: CanonicalValue = payload["exit_code"]
+    if not (
+        global_fingerprint is not None
+        and index_fingerprint is not None
+        and isinstance(raw_targets, list)
+        and isinstance(plain_output, str)
+        and isinstance(color_output, str)
+        and type(exit_code) is int
+        and exit_code >= 0
+    ):
+        return None
+    if not all(is_relative_path(value=target) for target in raw_targets):
+        return None
+    targets: tuple[str, ...] = tuple(cast(list[str], raw_targets))
+    if tuple(sorted(targets)) != targets:
+        return None
+    return CachedCheckOutput(
+        global_fingerprint=global_fingerprint,
+        index_fingerprint=index_fingerprint,
+        targets=targets,
+        plain_output=plain_output,
+        color_output=color_output,
+        exit_code=exit_code,
+    )
 
 
 def file_result_to_record(result: CachedFileResult) -> CacheRecord:

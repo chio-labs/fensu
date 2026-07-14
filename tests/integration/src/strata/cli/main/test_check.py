@@ -25,12 +25,14 @@ from tests.integration.src.strata.cli.main._test_types import (
     CheckSkillFreshnessTestCase,
     EvaluationCheckTestCase,
     NestedContainerCacheTestCase,
+    ShortCircuitCheckTestCase,
     ThresholdOverrideCheckTestCase,
     WarningCacheIdentityTestCase,
     WarningCheckTestCase,
 )
 from tests.integration.src.strata.cli.main.helpers import (
     CaptureOutput,
+    RestoreProbe,
     SkillReadCounter,
     cache_snapshot,
     fail_skill_renderer,
@@ -839,7 +841,9 @@ def test_given_fresh_project_when_running_no_cache_then_bypasses_all_cache_work(
         del kwargs
         raise AssertionError("no-cache attempted global fingerprinting")
 
-    monkeypatch.setattr("strata.cli.main.check.build_global_fingerprint", fail_fingerprint)
+    monkeypatch.setattr(
+        "strata.cli._helpers.check_evaluation.build_global_fingerprint", fail_fingerprint
+    )
 
     exit_code: int = run_check(argv=test_case.uncached_argv, stdout=stdout)
 
@@ -1050,7 +1054,7 @@ def test_given_incomplete_global_identity_when_running_cache_then_falls_back_saf
     stdout: CaptureOutput = CaptureOutput()
 
     monkeypatch.setattr(
-        "strata.cli.main.check.build_global_fingerprint",
+        "strata.cli._helpers.check_evaluation.build_global_fingerprint",
         lambda **kwargs: GlobalFingerprintBuild(
             fingerprint=None,
             disabled_reason="the loaded implementation files are unavailable",
@@ -1090,7 +1094,7 @@ def test_given_disabled_cache_when_requesting_stats_then_reports_disabled_reason
     stderr: CaptureOutput = CaptureOutput()
 
     monkeypatch.setattr(
-        "strata.cli.main.check.build_global_fingerprint",
+        "strata.cli._helpers.check_evaluation.build_global_fingerprint",
         lambda **kwargs: GlobalFingerprintBuild(
             fingerprint=None,
             disabled_reason="the loaded implementation files are unavailable",
@@ -1102,3 +1106,57 @@ def test_given_disabled_cache_when_requesting_stats_then_reports_disabled_reason
     assert exit_code == test_case.expected_exit_code
     assert test_case.expected_output_fragment in stdout.getvalue()
     assert test_case.expected_warning_fragment in stderr.getvalue()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ShortCircuitCheckTestCase(
+            description="unchanged warm run emits stored output without restoring records",
+            expected_exit_code=1,
+            expected_warm_restores=0,
+            expected_edited_restores=1,
+            expected_edited_fragment="module-level variable 'EXTRA'",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_unchanged_tree_when_rechecking_then_short_circuits_stored_output(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: ShortCircuitCheckTestCase,
+) -> None:
+    (tmp_path / "strata.toml").write_text(
+        'roots = ["src/pkg"]\ntests = []\nselect = ["SFA101"]\n',
+        encoding="utf-8",
+    )
+    package: Path = tmp_path / "src/pkg"
+    package.mkdir(parents=True)
+    (package / "faulty.py").write_text("TARGET = 1\n", encoding="utf-8")
+    (package / "clean.py").write_text("CLEAN: int = 1\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    probe: RestoreProbe = RestoreProbe()
+    monkeypatch.setattr("strata.cache.results._helpers.evaluation.restore_file_evaluation", probe)
+    cold_stdout: CaptureOutput = CaptureOutput()
+    warm_stdout: CaptureOutput = CaptureOutput()
+    edited_stdout: CaptureOutput = CaptureOutput()
+
+    cold_exit: int = run_check(
+        argv=("--no-color", "--cache"), stdout=cold_stdout, stderr=CaptureOutput()
+    )
+    warm_exit: int = run_check(
+        argv=("--no-color", "--cache"), stdout=warm_stdout, stderr=CaptureOutput()
+    )
+    warm_restores: int = probe.calls
+    (package / "faulty.py").write_text("TARGET = 1\nEXTRA = 2\n", encoding="utf-8")
+    edited_exit: int = run_check(
+        argv=("--no-color", "--cache"), stdout=edited_stdout, stderr=CaptureOutput()
+    )
+
+    assert cold_exit == test_case.expected_exit_code
+    assert warm_exit == test_case.expected_exit_code
+    assert edited_exit == test_case.expected_exit_code
+    assert warm_stdout.getvalue() == cold_stdout.getvalue()
+    assert warm_restores == test_case.expected_warm_restores
+    assert probe.calls - warm_restores == test_case.expected_edited_restores
+    assert test_case.expected_edited_fragment in edited_stdout.getvalue()

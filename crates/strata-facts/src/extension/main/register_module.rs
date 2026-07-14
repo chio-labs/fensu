@@ -44,6 +44,8 @@ pub fn strata_facts(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(bindings::test_module_facts, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::hygiene_facts, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::control_flow_facts, module)?)?;
+    module.add_function(wrap_pyfunction!(bindings::walk_python_files, module)?)?;
+    module.add_function(wrap_pyfunction!(bindings::hash_source_files, module)?)?;
     module.add_class::<ProgramHandle>()?;
     Ok(())
 }

@@ -24,6 +24,8 @@ from strata.cache.results.models import (
 from strata.cache.results.types import DependencyStateCache
 from strata.cache.storage.exceptions import CachePathError, CacheRecordError
 from strata.config.models import Config
+from strata.discovery.constants import SNAPSHOT_TABLE
+from strata.discovery.main.prime_snapshot_hashes import prime_snapshot_hashes
 from strata.discovery.models import DiscoveredTree, ScopedFile
 from strata.evaluation.constants import PREWARM_CHUNK_SIZE
 from strata.evaluation.main.build_project import build_evaluation_project
@@ -105,6 +107,7 @@ def run_cached_evaluation(
     entries: dict[str, CacheIndexEntry] = (
         {entry.path: entry for entry in index.entries} if index is not None else {}
     )
+    prime_snapshot_hashes(paths=tuple(target.scoped_file.path for target in targets))
     target_paths: set[str] = set()
     source_fingerprints: dict[str, CacheFingerprint | None] = {}
     for target in targets:
@@ -397,6 +400,9 @@ def _publish_results(
 
 
 def _source_fingerprint(path: Path) -> CacheFingerprint | None:
+    snapshot_hash: str | None = SNAPSHOT_TABLE.source_hash(path=path)
+    if snapshot_hash is not None:
+        return CacheFingerprint(value=snapshot_hash)
     try:
         return fingerprint_source(path.read_bytes())
     except OSError:

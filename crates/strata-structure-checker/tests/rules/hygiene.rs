@@ -56,6 +56,24 @@ fn given_hygiene_fixtures_when_checking_then_reports_expected_codes() {
             expected_violation_codes: vec!["RSH010", "RSH010"],
         },
         test_types::CheckRepoTestCase {
+            description: "safe option fallback methods are allowed",
+            repo_files: vec![test_types::RepoFile {
+                path: "crates/example/src/reading/helpers/loading.rs".to_owned(),
+                contents: "fn load(first: Option<usize>, second: Option<usize>) -> usize {\n    first.unwrap_or_default() + second.unwrap_or(1)\n}\n"
+                    .to_owned(),
+            }],
+            expected_violation_codes: vec![],
+        },
+        test_types::CheckRepoTestCase {
+            description: "associated panic extraction is reported",
+            repo_files: vec![test_types::RepoFile {
+                path: "crates/example/src/reading/helpers/loading.rs".to_owned(),
+                contents: "fn load(value: Option<usize>) -> usize {\n    Option::expect(value, \"present\")\n}\n"
+                    .to_owned(),
+            }],
+            expected_violation_codes: vec!["RSH010"],
+        },
+        test_types::CheckRepoTestCase {
             description: "stdio macro outside the bin adapter is reported",
             repo_files: vec![test_types::RepoFile {
                 path: "crates/example/src/reading/main/read_value.rs".to_owned(),
@@ -79,6 +97,22 @@ fn given_hygiene_fixtures_when_checking_then_reports_expected_codes() {
                 contents: "pub mod reading;\n".to_owned(),
             }],
             expected_violation_codes: vec!["RSH012"],
+        },
+        test_types::CheckRepoTestCase {
+            description: "forbid unsafe text does not satisfy the crate attribute",
+            repo_files: vec![test_types::RepoFile {
+                path: "crates/example/src/lib.rs".to_owned(),
+                contents: "//! #![forbid(unsafe_code)]\n".to_owned(),
+            }],
+            expected_violation_codes: vec!["RSH012"],
+        },
+        test_types::CheckRepoTestCase {
+            description: "parsed forbid unsafe attribute is accepted",
+            repo_files: vec![test_types::RepoFile {
+                path: "crates/example/src/lib.rs".to_owned(),
+                contents: "#![forbid(unsafe_code)]\n".to_owned(),
+            }],
+            expected_violation_codes: vec![],
         },
         test_types::CheckRepoTestCase {
             description: "unwrap in test code is reported",
@@ -112,6 +146,22 @@ fn given_hygiene_fixtures_when_checking_then_reports_expected_codes() {
                     .to_owned(),
             }],
             expected_violation_codes: vec!["RSH008"],
+        },
+        test_types::CheckRepoTestCase {
+            description: "unparseable Rust source fails closed",
+            repo_files: vec![test_types::RepoFile {
+                path: "crates/example/src/reading/main/read_value.rs".to_owned(),
+                contents: "pub fn read_value( {\n".to_owned(),
+            }],
+            expected_violation_codes: vec!["RSH902"],
+        },
+        test_types::CheckRepoTestCase {
+            description: "inline lint suppression is reported",
+            repo_files: vec![test_types::RepoFile {
+                path: "crates/example/src/reading/helpers/loading.rs".to_owned(),
+                contents: "#[allow(dead_code)]\nfn load() {}\n".to_owned(),
+            }],
+            expected_violation_codes: vec!["RSH013"],
         },
     ];
 

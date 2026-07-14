@@ -1,5 +1,6 @@
 //! Hygiene rules: comments, doc length, panics, asserts, unwraps, stdio, unsafe.
 
+use syn::spanned::Spanned;
 use syn::visit::Visit;
 
 use crate::constants;
@@ -14,7 +15,10 @@ pub(crate) fn check_source(
 ) -> Vec<models::Violation> {
     let mut violations = check_doc_comment_length(file);
     violations.extend(check_comment_lines(file));
-    if kind == FileKind::LibraryRoot && !file.source.contains(constants::FORBID_UNSAFE_ATTRIBUTE) {
+    let Some(syntax) = syntax else {
+        return violations;
+    };
+    if kind == FileKind::LibraryRoot && !forbids_unsafe_code(syntax) {
         violations.push(models::Violation::new(
             "RSH012",
             file.relative_path(),
@@ -23,16 +27,21 @@ pub(crate) fn check_source(
             "add #![forbid(unsafe_code)] to lib.rs",
         ));
     }
-    let Some(syntax) = syntax else {
-        return violations;
-    };
     let invocations = collect_invocations(syntax);
+    for line in &invocations.suppressions {
+        violations.push(models::Violation::new(
+            "RSH013",
+            file.relative_path(),
+            Some(*line),
+            "inline lint suppression weakens workspace policy",
+            "remove the attribute and fix the underlying fault",
+        ));
+    }
     for (name, line) in &invocations.macros {
         violations.extend(macro_violation(file, name, *line, kind));
     }
     for (name, line) in &invocations.method_calls {
-        let banned = name == constants::UNWRAP_METHOD || name == constants::EXPECT_METHOD;
-        if banned {
+        if constants::PANIC_EXTRACTION_METHODS.contains(&name.as_str()) {
             violations.push(models::Violation::new(
                 "RSH010",
                 file.relative_path(),
@@ -57,7 +66,7 @@ pub(crate) fn check_test_file(
     };
     let invocations = collect_invocations(syntax);
     for (name, line) in &invocations.method_calls {
-        if name == constants::UNWRAP_METHOD {
+        if constants::TEST_PANIC_EXTRACTION_METHODS.contains(&name.as_str()) {
             violations.push(models::Violation::new(
                 "RSH010",
                 file.relative_path(),
@@ -73,14 +82,24 @@ pub(crate) fn check_test_file(
 struct Invocations {
     macros: Vec<(String, usize)>,
     method_calls: Vec<(String, usize)>,
+    suppressions: Vec<usize>,
 }
 
 struct InvocationVisitor {
     macros: Vec<(String, usize)>,
     method_calls: Vec<(String, usize)>,
+    suppressions: Vec<usize>,
 }
 
 impl<'ast> Visit<'ast> for InvocationVisitor {
+    fn visit_attribute(&mut self, node: &'ast syn::Attribute) {
+        let path = node.path();
+        if path.is_ident(constants::ALLOW_ATTRIBUTE) || path.is_ident(constants::EXPECT_ATTRIBUTE) {
+            self.suppressions.push(path.span().start().line);
+        }
+        syn::visit::visit_attribute(self, node);
+    }
+
     fn visit_macro(&mut self, node: &'ast syn::Macro) {
         if let Some(segment) = node.path.segments.last() {
             let line = segment.ident.span().start().line;
@@ -94,17 +113,49 @@ impl<'ast> Visit<'ast> for InvocationVisitor {
         self.method_calls.push((node.method.to_string(), line));
         syn::visit::visit_expr_method_call(self, node);
     }
+
+    fn visit_expr_call(&mut self, node: &'ast syn::ExprCall) {
+        if let syn::Expr::Path(path) = node.func.as_ref() {
+            if let Some(segment) = path.path.segments.last() {
+                self.method_calls
+                    .push((segment.ident.to_string(), segment.ident.span().start().line));
+            }
+        }
+        syn::visit::visit_expr_call(self, node);
+    }
+}
+
+fn forbids_unsafe_code(syntax: &syn::File) -> bool {
+    syntax.attrs.iter().any(|attribute| {
+        if !attribute.path().is_ident(constants::FORBID_ATTRIBUTE) {
+            return false;
+        }
+        let syn::Meta::List(arguments) = &attribute.meta else {
+            return false;
+        };
+        arguments
+            .parse_args_with(
+                syn::punctuated::Punctuated::<syn::Path, syn::Token![,]>::parse_terminated,
+            )
+            .is_ok_and(|paths| {
+                paths
+                    .iter()
+                    .any(|path| path.is_ident(constants::UNSAFE_CODE_LINT))
+            })
+    })
 }
 
 fn collect_invocations(syntax: &syn::File) -> Invocations {
     let mut visitor = InvocationVisitor {
         macros: Vec::new(),
         method_calls: Vec::new(),
+        suppressions: Vec::new(),
     };
     visitor.visit_file(syntax);
     Invocations {
         macros: visitor.macros,
         method_calls: visitor.method_calls,
+        suppressions: visitor.suppressions,
     }
 }
 

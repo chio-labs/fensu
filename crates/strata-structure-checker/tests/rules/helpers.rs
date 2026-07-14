@@ -15,6 +15,17 @@ pub(crate) fn write_temp_repo(test_case: &test_types::CheckRepoTestCase) -> path
         std::process::id()
     ));
     fs::create_dir_all(&root).expect("temporary repository root is writable");
+    fs::write(
+        root.join("Cargo.toml"),
+        "[workspace]\nmembers = [\"crates/example\"]\nresolver = \"2\"\n\n[workspace.package]\nedition = \"2021\"\nlicense = \"Apache-2.0\"\npublish = false\n\n[workspace.dependencies]\nstrata-structure-checker = { path = \"crates/strata-structure-checker\" }\n\n[workspace.lints.rust]\nunsafe_code = \"forbid\"\nunreachable_pub = \"deny\"\nunused_must_use = \"deny\"\n\n[workspace.lints.clippy]\nawait_holding_lock = \"deny\"\n",
+    )
+    .expect("temporary workspace manifest is writable");
+    fs::create_dir_all(root.join("crates/example")).expect("temporary fixture crate is writable");
+    fs::write(
+        root.join("crates/example/Cargo.toml"),
+        "[package]\nname = \"example\"\nversion = \"0.1.0\"\nedition.workspace = true\nlicense.workspace = true\npublish.workspace = true\n\n[lints]\nworkspace = true\n",
+    )
+    .expect("temporary crate manifest is writable");
     for file in &test_case.repo_files {
         let file_path = root.join(&file.path);
         let parent = file_path.parent().expect("fixture paths name a parent");

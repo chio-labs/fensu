@@ -14,14 +14,37 @@ pub(crate) fn check_test_mirroring(
     let mut violations: Vec<models::Violation> = Vec::new();
     let tests_root = crate_dir.join(constants::TESTS_DIRECTORY);
     let src_root = crate_dir.join(constants::SOURCE_DIRECTORY);
-    let Ok(entries) = std::fs::read_dir(&tests_root) else {
+    if !tests_root.exists() {
         return violations;
+    }
+    let entries = match std::fs::read_dir(&tests_root) {
+        Ok(entries) => entries,
+        Err(error) => {
+            let relative = tests_root.strip_prefix(repo_root).unwrap_or(&tests_root);
+            return vec![models::Violation::new(
+                "RSH901",
+                relative,
+                None,
+                format!("cannot read Rust test directory: {error}"),
+                "restore a readable test directory before checking structure",
+            )];
+        }
     };
     let mut area_names: Vec<String> = Vec::new();
-    for entry in entries.flatten() {
-        if entry.path().is_dir() {
-            let name = entry.file_name().to_string_lossy().into_owned();
-            area_names.push(name);
+    for result in entries {
+        match result {
+            Ok(entry) if entry.path().is_dir() => {
+                let name = entry.file_name().to_string_lossy().into_owned();
+                area_names.push(name);
+            }
+            Ok(_) => {}
+            Err(error) => violations.push(models::Violation::new(
+                "RSH901",
+                tests_root.strip_prefix(repo_root).unwrap_or(&tests_root),
+                None,
+                format!("cannot inspect Rust test directory entry: {error}"),
+                "restore a readable test directory before checking structure",
+            )),
         }
     }
     area_names.sort();

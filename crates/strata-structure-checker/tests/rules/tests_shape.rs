@@ -105,6 +105,21 @@ fn given_test_shape_fixtures_when_checking_then_reports_expected_codes() {
             expected_violation_codes: vec!["RST404"],
         },
         test_types::CheckRepoTestCase {
+            description: "tests without assertions are reported",
+            repo_files: vec![
+                test_types::RepoFile {
+                    path: "crates/example/src/rules/mod.rs".to_owned(),
+                    contents: String::new(),
+                },
+                test_types::RepoFile {
+                    path: "crates/example/tests/rules/checking.rs".to_owned(),
+                    contents: "use crate::test_types;\n\n#[test]\nfn given_a_when_b_then_c() {\n    let test_cases = [test_types::ValueTestCase { description: \"d\", expected_value: 1 }];\n\n    for test_case in &test_cases {\n        consume(test_case.expected_value);\n    }\n}\n"
+                        .to_owned(),
+                },
+            ],
+            expected_violation_codes: vec!["RST404"],
+        },
+        test_types::CheckRepoTestCase {
             description: "assertions without the description are reported",
             repo_files: vec![
                 test_types::RepoFile {

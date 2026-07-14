@@ -16,6 +16,13 @@ use crate::facts::helpers::shape::spans::start_of;
 use crate::facts::models::{DimensionRow, EvaluateRuleCallRow};
 use crate::positions::models::LineIndex;
 
+struct CallContext<'context, 'module> {
+    nodes: &'context [ShapeNode<'module>],
+    bindings: &'context BindingIndex<'module>,
+    index: &'context LineIndex,
+    source: &'context str,
+}
+
 pub(crate) fn evaluate_rule_call_rows(
     module: &ModModule,
     index: &LineIndex,
@@ -26,20 +33,26 @@ pub(crate) fn evaluate_rule_call_rows(
     let mut dimension_cache: HashMap<usize, Vec<DimensionRow>> = HashMap::new();
     let mut shadow_cache: HashMap<usize, HashSet<&str>> = HashMap::new();
     let mut rows: Vec<EvaluateRuleCallRow> = Vec::new();
+    let context = CallContext {
+        nodes: &nodes,
+        bindings: &bindings,
+        index,
+        source,
+    };
     for (position, node) in nodes.iter().enumerate() {
         let ShapeNode::Expr(Expr::Call(call)) = node else {
             continue;
         };
         let owner_position = test_owner_position(&nodes, &parents, position);
-        let shadowed: HashSet<&str> = match owner_position {
+        let no_shadowed_names: HashSet<&str> = HashSet::new();
+        let shadowed = match owner_position {
             Some(owner) => shadow_cache
                 .entry(owner)
-                .or_insert_with(|| owner_shadowed_names(&nodes, owner))
-                .clone(),
-            None => HashSet::new(),
+                .or_insert_with(|| owner_shadowed_names(&nodes, owner)),
+            None => &no_shadowed_names,
         };
         let is_harness_call = bindings
-            .resolve_expression(&call.func, &shadowed)
+            .resolve_expression(&call.func, shadowed)
             .is_some_and(|reference| {
                 reference.module_name == constants::STRATA_MODULE_NAME
                     && reference.symbol_name == constants::EVALUATE_RULE_NAME
@@ -51,12 +64,9 @@ pub(crate) fn evaluate_rule_call_rows(
             call,
             node,
             owner_position,
-            &nodes,
-            &shadowed,
-            &bindings,
+            shadowed,
             &mut dimension_cache,
-            index,
-            source,
+            &context,
         ));
     }
     rows
@@ -105,77 +115,72 @@ fn owner_function<'a>(nodes: &[ShapeNode<'a>], owner: usize) -> Option<&'a StmtF
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-fn call_row(
+fn call_row<'module>(
     call: &ExprCall,
-    node: &ShapeNode<'_>,
+    node: &ShapeNode<'module>,
     owner_position: Option<usize>,
-    nodes: &[ShapeNode<'_>],
     shadowed: &HashSet<&str>,
-    bindings: &BindingIndex<'_>,
     dimension_cache: &mut HashMap<usize, Vec<DimensionRow>>,
-    index: &LineIndex,
-    source: &str,
+    context: &CallContext<'_, 'module>,
 ) -> EvaluateRuleCallRow {
     let rule_expression = keyword_value(call, constants::RULE_KEYWORD_NAME);
     let test_case_expression = keyword_value(call, constants::TEST_CASE_KEYWORD_NAME);
     let (form, case_locations, unknown) = test_case_fact(
         test_case_expression,
         owner_position,
-        nodes,
         shadowed,
-        bindings,
         dimension_cache,
-        index,
-        source,
+        context,
     );
-    let (line, column) = start_of(node, index, source);
-    let owner = owner_position.and_then(|position| owner_function(nodes, position));
+    let (line, column) = start_of(node, context.index, context.source);
+    let owner = owner_position.and_then(|position| owner_function(context.nodes, position));
     EvaluateRuleCallRow {
         line,
         column,
         test_function_name: owner.map(|function| function.name.as_str().to_owned()),
         test_function_location: owner_position
-            .map(|position| start_of(&nodes[position], index, source)),
+            .map(|position| start_of(&context.nodes[position], context.index, context.source)),
         rule_expression: rule_expression.and_then(owned_expression_parts),
-        rule_location: rule_expression
-            .map(|expression| start_of(&ShapeNode::Expr(expression), index, source)),
+        rule_location: rule_expression.map(|expression| {
+            start_of(&ShapeNode::Expr(expression), context.index, context.source)
+        }),
         rule_reference: rule_expression
-            .and_then(|expression| bindings.resolve_expression(expression, shadowed)),
+            .and_then(|expression| context.bindings.resolve_expression(expression, shadowed)),
         test_case_expression: test_case_expression.and_then(owned_expression_parts),
-        test_case_location: test_case_expression
-            .map(|expression| start_of(&ShapeNode::Expr(expression), index, source)),
+        test_case_location: test_case_expression.map(|expression| {
+            start_of(&ShapeNode::Expr(expression), context.index, context.source)
+        }),
         test_case_form: form.to_owned(),
         case_locations,
         unknown_case_count: unknown,
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-fn test_case_fact(
+fn test_case_fact<'module>(
     expression: Option<&Expr>,
     owner_position: Option<usize>,
-    nodes: &[ShapeNode<'_>],
     shadowed: &HashSet<&str>,
-    bindings: &BindingIndex<'_>,
     dimension_cache: &mut HashMap<usize, Vec<DimensionRow>>,
-    index: &LineIndex,
-    source: &str,
+    context: &CallContext<'_, 'module>,
 ) -> (&'static str, Vec<(u32, u32)>, bool) {
     let Some(inner) = expression else {
         return (constants::MISSING_CASE_FORM, Vec::new(), true);
     };
-    if bindings.is_rule_case_call(inner, shadowed) {
+    if context.bindings.is_rule_case_call(inner, shadowed) {
         return (
             constants::LITERAL_CASE_FORM,
-            vec![start_of(&ShapeNode::Expr(inner), index, source)],
+            vec![start_of(
+                &ShapeNode::Expr(inner),
+                context.index,
+                context.source,
+            )],
             false,
         );
     }
     let Expr::Name(name) = inner else {
         return (constants::DYNAMIC_CASE_FORM, Vec::new(), true);
     };
-    let owner = owner_position.and_then(|position| owner_function(nodes, position));
+    let owner = owner_position.and_then(|position| owner_function(context.nodes, position));
     let named_parameter =
         owner.is_some_and(|function| all_parameter_names(function).contains(&name.id.as_str()));
     if !named_parameter {
@@ -191,9 +196,9 @@ fn test_case_fact(
     let Some(function) = owner else {
         return (constants::DYNAMIC_CASE_FORM, Vec::new(), true);
     };
-    let dimensions = dimension_cache
-        .entry(owner_index)
-        .or_insert_with(|| dimension_rows(function, bindings, index, source));
+    let dimensions = dimension_cache.entry(owner_index).or_insert_with(|| {
+        dimension_rows(function, context.bindings, context.index, context.source)
+    });
     let matching: Vec<&DimensionRow> = dimensions
         .iter()
         .filter(|dimension| dimension.parameter_names == [name.id.as_str()])

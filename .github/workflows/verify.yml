@@ -27,3 +27,11 @@ jobs:
           enable-cache: true
       - run: uv python install 3.12
       - run: make benchmark-budget
+
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - run: make check-rust
+      - run: make test-rust

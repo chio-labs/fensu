@@ -42,7 +42,11 @@ def build_project_index(*, sources: tuple[MappingSource, ...]) -> ProjectIndex:
         indexed: ProjectIndex = build_file_index(snapshot=snapshot)
         functions.update(indexed.functions)
         classes.update(indexed.classes)
-    return ProjectIndex(functions=functions, classes=classes)
+    return ProjectIndex(
+        functions=functions,
+        classes=classes,
+        protocol_implementations=_protocol_implementations(classes),
+    )
 
 
 def discover_source_snapshots(
@@ -114,7 +118,11 @@ def build_file_index(*, snapshot: SourceSnapshot) -> ProjectIndex:
                     owning_class=node.name,
                 )
                 functions[definition.key] = definition
-    return ProjectIndex(functions=functions, classes=classes)
+    return ProjectIndex(
+        functions=functions,
+        classes=classes,
+        protocol_implementations=_protocol_implementations(classes),
+    )
 
 
 def select_function(
@@ -188,6 +196,11 @@ def _class_definition(
         node=node,
         imports=imports,
         bases=tuple(node.bases),
+        base_keys=_base_keys(
+            bases=tuple(node.bases),
+            module_name=module_name,
+            imports=imports,
+        ),
         protocol=_is_protocol(
             bases=tuple(node.bases),
             imports=imports,
@@ -198,6 +211,44 @@ def _class_definition(
             imports=imports,
         ),
     )
+
+
+def _protocol_implementations(
+    classes: dict[str, ClassDefinition],
+) -> dict[str, tuple[str, ...]]:
+    return ProjectIndex.build_protocol_implementation_keys(
+        class_bases={key: definition.base_keys for key, definition in classes.items()},
+        protocol_keys=frozenset(key for key, definition in classes.items() if definition.protocol),
+    )
+
+
+def _base_keys(
+    *, bases: tuple[ast.expr, ...], module_name: str, imports: ModuleImports
+) -> tuple[str, ...]:
+    keys: list[str] = []
+    for base in bases:
+        key: str | None = _base_key(expression=base, module_name=module_name, imports=imports)
+        if key is not None:
+            keys.append(key)
+    return tuple(keys)
+
+
+def _base_key(*, expression: ast.expr, module_name: str, imports: ModuleImports) -> str | None:
+    if isinstance(expression, ast.Subscript):
+        return _base_key(expression=expression.value, module_name=module_name, imports=imports)
+    if isinstance(expression, ast.Name):
+        imported: tuple[str, str] | None = imports.runtime.symbols.get(expression.id)
+        if imported is not None:
+            return ClassDefinition.build_key(module_name=imported[0], name=imported[1])
+        return ClassDefinition.build_key(module_name=module_name, name=expression.id)
+    if isinstance(expression, ast.Attribute):
+        spelling: str = _expression_name(expression)
+        first, separator, remainder = spelling.partition(QUALIFIED_NAME_SEPARATOR)
+        imported_module: str | None = imports.runtime.modules.get(first)
+        if separator and imported_module is not None:
+            return f"{imported_module}.{remainder}"
+        return spelling
+    return None
 
 
 def _class_attributes(node: ast.ClassDef) -> dict[str, ClassReference]:

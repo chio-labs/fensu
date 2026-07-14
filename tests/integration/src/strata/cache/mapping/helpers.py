@@ -13,7 +13,11 @@ from strata.cache.mapping._helpers.serialization import (
     file_declarations_record,
     manifest_record,
 )
-from strata.cache.mapping.constants import MAP_MANIFEST_PATH, MAP_MANIFEST_RECORD_KIND
+from strata.cache.mapping.constants import (
+    MAP_FILE_RECORD_KIND,
+    MAP_MANIFEST_PATH,
+    MAP_MANIFEST_RECORD_KIND,
+)
 from strata.cache.mapping.main.build import build_cached_call_map
 from strata.cache.mapping.models import CachedCallMap, FileDeclarations, MapManifest
 from strata.cache.storage.classes.cache_store import CacheStore
@@ -26,6 +30,7 @@ from strata.mapping.types import PathMode
 _OMIT_FUNCTION_MUTATION: str = "omit-function"
 _REDIRECT_FUNCTION_MUTATION: str = "redirect-function"
 _REDIRECT_CLASS_MUTATION: str = "redirect-class"
+_REDIRECT_PROTOCOL_MUTATION: str = "redirect-protocol"
 
 
 def _omit_function(manifest: MapManifest) -> MapManifest:
@@ -46,6 +51,13 @@ def _redirect_class(manifest: MapManifest) -> MapManifest:
 
 def _redirect_bare_function(manifest: MapManifest) -> MapManifest:
     return replace(manifest, bare_functions={"run": ("pkg.steps.step",)})
+
+
+def _redirect_protocol_implementation(manifest: MapManifest) -> MapManifest:
+    return replace(
+        manifest,
+        protocol_implementations={"pkg.Contract": ("pkg.unused.Owner",)},
+    )
 
 
 def write_mapping_project(root: Path) -> MappingSource:
@@ -104,6 +116,7 @@ def mutate_manifest(*, root: Path, mutation: str) -> None:
         _OMIT_FUNCTION_MUTATION: _omit_function,
         _REDIRECT_FUNCTION_MUTATION: _redirect_function,
         _REDIRECT_CLASS_MUTATION: _redirect_class,
+        _REDIRECT_PROTOCOL_MUTATION: _redirect_protocol_implementation,
     }
     mutate: Callable[[MapManifest], MapManifest] = mutations.get(mutation, _redirect_bare_function)
     changed: MapManifest = mutate(manifest)
@@ -124,7 +137,7 @@ def mutate_file_record(*, root: Path) -> None:
     target: FileDeclarations = manifest.files[-1]
     record_path: Path = Path("mapping/files") / target.identity
     declarations: FileDeclarations | None = decode_file_declarations(
-        store.read(relative_path=record_path, expected_kind="map-file-declarations-v1")
+        store.read(relative_path=record_path, expected_kind=MAP_FILE_RECORD_KIND)
     )
     assert declarations is not None, "fixture file declarations were not published"
     redirected: FileDeclarations = replace(declarations, path="src/pkg/redirected.py")
@@ -215,7 +228,7 @@ def current_file_record_count(root: Path) -> int:
         reads=tuple(
             CacheRead(
                 relative_path=Path("mapping/files") / item.identity,
-                expected_kind="map-file-declarations-v1",
+                expected_kind=MAP_FILE_RECORD_KIND,
             )
             for item in manifest_files
         )

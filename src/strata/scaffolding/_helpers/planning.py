@@ -76,7 +76,7 @@ def _capture_local_file(*, path: Path, label: str) -> bytes | None:
     try:
         descriptor: int = os.open(
             path,
-            os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | os.O_NONBLOCK,
+            os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0),
         )
     except FileNotFoundError:
         return None

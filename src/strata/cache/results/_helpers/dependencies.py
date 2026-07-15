@@ -15,6 +15,11 @@ from strata.cache.results.types import (
     DependencyStateCache,
     DependencyStateKey,
 )
+from strata.instrumentation.constants import (
+    OPERATION_COUNTERS,
+    PROJECT_QUERY_CACHE_HIT_OPERATION,
+    PROJECT_QUERY_CACHE_MISS_OPERATION,
+)
 
 _OBSERVER: QueryObserver = QueryObserver()
 
@@ -52,8 +57,10 @@ def _observation_is_current(
         observation.recursive,
     )
     if key in states:
+        OPERATION_COUNTERS.record(operation=PROJECT_QUERY_CACHE_HIT_OPERATION)
         state: DependencyState | None = states[key]
     else:
+        OPERATION_COUNTERS.record(operation=PROJECT_QUERY_CACHE_MISS_OPERATION)
         reobserved: DependencyObservation | None = _reobserve(
             observation=observation,
             repo_root=repo_root,

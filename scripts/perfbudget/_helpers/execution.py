@@ -7,6 +7,8 @@ import math
 import os
 import shutil
 import subprocess
+import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -35,6 +37,7 @@ from strata.analysis.constants import FACT_BACKEND_ENV_VARIABLE
 _CACHE_DIRECTORY_NAME: str = ".strata"
 _STATS_PREFIX: str = "Cache:"
 _FALLBACK_WARNING_FRAGMENT: str = "fact backend was requested but"
+_GNU_TIME_PATH: Path = Path("/usr/bin/time")
 
 
 def standard_scenarios(*, spec: BudgetSpec, project: Path) -> dict[str, ScenarioResult]:
@@ -168,15 +171,37 @@ def measured_check(
 
     cache_flag: str = "--cache" if cache else "--no-cache"
     environment: dict[str, str] = {**os.environ, FACT_BACKEND_ENV_VARIABLE: backend}
+    command: list[str] = [
+        str(executable),
+        "check",
+        cache_flag,
+        "--cache-stats",
+        "--no-color",
+    ]
+    timing_path: Path | None = _timing_path()
+    if timing_path is not None:
+        command = [
+            str(_GNU_TIME_PATH),
+            "-f",
+            "%M",
+            "-o",
+            str(timing_path),
+            *command,
+        ]
     started: float = time.perf_counter()
-    completed: subprocess.CompletedProcess[str] = subprocess.run(
-        [str(executable), "check", cache_flag, "--cache-stats", "--no-color"],
-        cwd=project,
-        capture_output=True,
-        text=True,
-        check=False,
-        env=environment,
-    )
+    try:
+        completed: subprocess.CompletedProcess[str] = subprocess.run(
+            command,
+            cwd=project,
+            capture_output=True,
+            text=True,
+            check=False,
+            env=environment,
+        )
+        max_rss_kib: int | None = _read_max_rss(timing_path=timing_path)
+    finally:
+        if timing_path is not None:
+            timing_path.unlink(missing_ok=True)
     elapsed: float = time.perf_counter() - started
     return ScenarioResult(
         name=name,
@@ -185,6 +210,7 @@ def measured_check(
         output_sha256=hashlib.sha256(completed.stdout.encode("utf-8")).hexdigest(),
         cache_stats=_stats_line(stderr=completed.stderr),
         fallback_warned=_FALLBACK_WARNING_FRAGMENT in completed.stderr,
+        max_rss_kib=max_rss_kib,
     )
 
 
@@ -203,6 +229,29 @@ def _change_source_ratio(*, project: Path, numerator: int, denominator: int) -> 
     for path in changed:
         path.write_text(path.read_text(encoding="utf-8") + CHURN_APPENDIX, encoding="utf-8")
     return changed
+
+
+def _timing_path() -> Path | None:
+    if not sys.platform.startswith("linux") or not _GNU_TIME_PATH.is_file():
+        return None
+    created: tuple[int, str] = tempfile.mkstemp(
+        prefix="strata-perfbudget-rss-",
+    )
+    descriptor: int = created[0]
+    path: Path = Path(created[1])
+    os.close(descriptor)
+    return path
+
+
+def _read_max_rss(*, timing_path: Path | None) -> int | None:
+    if timing_path is None:
+        return None
+    try:
+        lines: list[str] = timing_path.read_text(encoding="utf-8").splitlines()
+        value: str = lines[-1].strip() if lines else ""
+        return int(value) if value else None
+    except (OSError, ValueError):
+        return None
 
 
 def _stats_line(*, stderr: str) -> str:

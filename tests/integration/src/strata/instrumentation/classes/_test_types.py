@@ -15,6 +15,8 @@ class UncachedCountsTestCase:
     expected_relative_path_computes: int
     expected_min_discovery_nanoseconds: int
     expected_min_full_evaluation_nanoseconds: int
+    expected_min_query_cache_hits: int
+    expected_min_query_cache_misses: int
 
 
 @dataclass(frozen=True)

@@ -62,6 +62,24 @@ def budget_failures(
     return tuple(failures)
 
 
+def repeated_run_failures(
+    *, runs: tuple[dict[str, ScenarioResult], ...]
+) -> tuple[ScenarioFailure, ...]:
+    """Return output-identity failures across equivalent repeated matrices."""
+
+    failures: list[ScenarioFailure] = []
+    for name in runs[0]:
+        hashes: frozenset[str] = frozenset(run[name].output_sha256 for run in runs)
+        if len(hashes) != 1:
+            failures.append(
+                ScenarioFailure(
+                    scenario=name,
+                    reason="rendered output changed across repeated corpus runs",
+                )
+            )
+    return tuple(failures)
+
+
 def _identity_failures(*, results: dict[str, ScenarioResult]) -> tuple[ScenarioFailure, ...]:
     failures: list[ScenarioFailure] = []
     groups: tuple[tuple[str, tuple[str, ...]], ...] = (

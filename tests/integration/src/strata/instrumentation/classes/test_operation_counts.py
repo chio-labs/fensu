@@ -24,7 +24,16 @@ from strata.instrumentation.constants import (
     PHASE_DISCOVERY_NANOSECONDS,
     PHASE_FULL_EVALUATION_NANOSECONDS,
     PHASE_GLOBAL_FINGERPRINT_NANOSECONDS,
+    PROJECT_QUERY_CACHE_HIT_OPERATION,
+    PROJECT_QUERY_CACHE_MISS_OPERATION,
+    PROJECT_QUERY_DIRECTORY_ENTRIES_OPERATION,
+    PROJECT_QUERY_EXISTS_OPERATION,
+    PROJECT_QUERY_GLOB_OPERATION,
+    PROJECT_QUERY_IS_DIR_OPERATION,
+    PROJECT_QUERY_IS_FILE_OPERATION,
     PROJECT_QUERY_OBSERVATION_OPERATION,
+    PROJECT_QUERY_PYTHON_ANCHOR_OPERATION,
+    PROJECT_QUERY_SOURCE_OPERATION,
     RELATIVE_PATH_COMPUTE_OPERATION,
 )
 from tests.integration.src.strata.instrumentation.classes._test_types import (
@@ -57,6 +66,8 @@ _MAX_WARM_CANONICAL_ENCODES: int = 8
             expected_relative_path_computes=0,
             expected_min_discovery_nanoseconds=1,
             expected_min_full_evaluation_nanoseconds=1,
+            expected_min_query_cache_hits=1,
+            expected_min_query_cache_misses=1,
         )
     ],
     ids=lambda case: case.description,
@@ -85,6 +96,21 @@ def test_given_uncached_check_when_counting_then_operations_stay_linear(
     assert counts[PHASE_FULL_EVALUATION_NANOSECONDS] >= (
         test_case.expected_min_full_evaluation_nanoseconds
     )
+    assert counts[PROJECT_QUERY_CACHE_HIT_OPERATION] >= test_case.expected_min_query_cache_hits
+    assert counts[PROJECT_QUERY_CACHE_MISS_OPERATION] >= test_case.expected_min_query_cache_misses
+    query_kind_observations: int = sum(
+        counts.get(operation, 0)
+        for operation in (
+            PROJECT_QUERY_SOURCE_OPERATION,
+            PROJECT_QUERY_EXISTS_OPERATION,
+            PROJECT_QUERY_IS_FILE_OPERATION,
+            PROJECT_QUERY_IS_DIR_OPERATION,
+            PROJECT_QUERY_DIRECTORY_ENTRIES_OPERATION,
+            PROJECT_QUERY_GLOB_OPERATION,
+            PROJECT_QUERY_PYTHON_ANCHOR_OPERATION,
+        )
+    )
+    assert query_kind_observations == counts[PROJECT_QUERY_OBSERVATION_OPERATION]
 
 
 @pytest.mark.parametrize(

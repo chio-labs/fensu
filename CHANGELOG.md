@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.16.0](https://github.com/chio-labs/strata/compare/v0.15.3...v0.16.0) (2026-07-15)
+
+
+### Features
+
+* **roles:** enforce leaf and helper ownership ([42775b5](https://github.com/chio-labs/strata/commit/42775b51d4aa916cb671511acda903c17033e0c2))
+
+
+### Bug Fixes
+
+* **reporting:** render repository paths with posix separators on every platform ([31ca3b7](https://github.com/chio-labs/strata/commit/31ca3b78ca181dcbae816335da39496c79bc6c93))
+* **scaffolding:** make descriptor io, rollback, and map selectors windows-safe ([ca4cae8](https://github.com/chio-labs/strata/commit/ca4cae82ad68485e82465a6c8ccb3e1b81d9b929))
+* **scaffolding:** refuse symlinks and directories portably when capturing files ([1aa051e](https://github.com/chio-labs/strata/commit/1aa051e808ffccf55ecfd8dbf5f990d98a338603))
+* **windows:** make output and config publication portable ([240b261](https://github.com/chio-labs/strata/commit/240b261164a57f8dad8df9015c28e2a492538e0f))
+* **windows:** normalize paths and portable test contracts ([bafad7a](https://github.com/chio-labs/strata/commit/bafad7a6858e69da047d595ef4e1a734c07585b9))
+
+
+### Performance Improvements
+
+* **config:** compile path patterns once instead of per match ([c11d227](https://github.com/chio-labs/strata/commit/c11d2276817957713ec95524edb9c1632e76c81b))
+
+
+### Documentation
+
+* **rules:** standardize the custom rule package path ([6b9edf3](https://github.com/chio-labs/strata/commit/6b9edf3bc7ae189e7bdd2342cd75e8389a35d457))
+
 ## [0.15.3](https://github.com/chio-labs/strata/compare/v0.15.2...v0.15.3) (2026-07-14)
 
 

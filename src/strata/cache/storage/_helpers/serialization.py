@@ -64,7 +64,7 @@ def decode_cache_record(*, data: bytes, expected_kind: str) -> CacheRecord | Non
     if encoded is None:
         return None
     try:
-        value: object = json.loads(encoded)
+        value: object = json.loads(encoded, parse_float=str, parse_constant=str)
     except (UnicodeDecodeError, json.JSONDecodeError, RecursionError, ValueError):
         return None
     if not isinstance(value, dict) or set(value) != CACHE_RECORD_KEYS:
@@ -76,18 +76,12 @@ def decode_cache_record(*, data: bytes, expected_kind: str) -> CacheRecord | Non
         return None
     if not isinstance(kind, str) or not kind or kind != expected_kind:
         return None
-    try:
-        canonical_payload: bool = _is_canonical_value(payload)
-    except RecursionError:
-        return None
-    if not canonical_payload:
-        return None
     record: CacheRecord = CacheRecord(
         kind=kind,
         payload=cast(CanonicalValue, payload),
         content_fingerprint=fingerprint_source(data),
     )
-    return record if encode_cache_record(record=record) == data else None
+    return record if encode_cache_record(record=record, payload_is_validated=True) == data else None
 
 
 def _decompressed_record(data: bytes) -> bytes | None:

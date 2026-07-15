@@ -128,7 +128,7 @@ def test_given_oversized_compressed_record_when_decoding_then_returns_miss(
         ),
         InvalidCacheRecordTestCase(
             description="noncanonical floating payload is a cache miss",
-            data=b'{"kind":"metadata","payload":1.5,"schema_version":1}',
+            data=b'{"kind":"metadata","payload":1.5,"schema_version":4}',
             expected_kind="metadata",
             expected_record=None,
         ),

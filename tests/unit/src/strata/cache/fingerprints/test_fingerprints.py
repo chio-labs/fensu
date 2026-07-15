@@ -57,6 +57,7 @@ from tests.unit.src.strata.cache.fingerprints._test_types import (
     GlobalRuntimeFingerprintTestCase,
     ImplementationFingerprintTestCase,
     RulesetFingerprintTestCase,
+    RulesetSourceReuseTestCase,
     SkillsFingerprintTestCase,
     SourceFingerprintTestCase,
     ThresholdOverrideFingerprintTestCase,
@@ -587,6 +588,36 @@ def test_given_effective_rulesets_when_fingerprinting_then_captures_rule_metadat
     second: CacheFingerprint = ruleset_fingerprint((second_rule,))
 
     assert (first == second) is test_case.expected_equal
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        RulesetSourceReuseTestCase(
+            description="rules sharing one module hash its source once",
+            expected_source_reads=1,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_rules_from_same_module_when_fingerprinting_then_reuses_source_identity(
+    monkeypatch: pytest.MonkeyPatch,
+    test_case: RulesetSourceReuseTestCase,
+) -> None:
+    source_fingerprint_reader: Mock = Mock(wraps=fingerprint_module._source_path_fingerprint)
+    monkeypatch.setattr(
+        fingerprint_module,
+        "_source_path_fingerprint",
+        source_fingerprint_reader,
+    )
+    ruleset: tuple[RuleSpec, ...] = (
+        rule_with_message("first message"),
+        rule_with_message("second message"),
+    )
+
+    _ = ruleset_fingerprint(ruleset)
+
+    assert source_fingerprint_reader.call_count == test_case.expected_source_reads
 
 
 @pytest.mark.parametrize(

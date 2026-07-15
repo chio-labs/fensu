@@ -6,11 +6,7 @@ import sys
 from importlib import metadata
 
 from strata.analysis.exceptions import NativeBackendUnavailableError
-from strata.cli.main.check import run_check
-from strata.cli.main.init import run_init
-from strata.cli.main.map import run_map
-from strata.cli.main.rule import run_rule
-from strata.cli.main.skills import run_skills
+from strata.cli._helpers.lazy_commands import run_check, run_init, run_map, run_rule, run_skills
 from strata.cli.types import CliCommand, CliOption
 
 

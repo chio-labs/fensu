@@ -6,12 +6,14 @@ import hashlib
 import importlib.util
 import inspect
 import json
+import os
 import platform
 from collections.abc import Mapping
 from importlib.machinery import ModuleSpec
 from importlib.metadata import version
 from pathlib import Path
 
+from strata.analysis.main.hash_repository_files import hash_repository_files
 from strata.cache.fingerprints.constants import (
     BYTECODE_SUFFIX,
     EVALUATION_FINGERPRINT_CONTRACT_VERSION,
@@ -84,6 +86,7 @@ def config_fingerprint(config: Config) -> CacheFingerprint:
 def ruleset_fingerprint(ruleset: tuple[RuleSpec, ...]) -> CacheFingerprint:
     """Return a deterministic identity for the effective ordered ruleset."""
 
+    source_fingerprints: dict[Path, CanonicalValue] = {}
     payload: CanonicalValue = [
         {
             "cacheable": bool(rule.cacheable),
@@ -98,7 +101,10 @@ def ruleset_fingerprint(ruleset: tuple[RuleSpec, ...]) -> CacheFingerprint:
             "severity": rule.severity.value,
             "slug": rule.slug,
             "source": rule.source,
-            "source_fingerprint": _check_source_fingerprint(rule.check),
+            "source_fingerprint": _check_source_fingerprint(
+                check=rule.check,
+                source_fingerprints=source_fingerprints,
+            ),
         }
         for rule in ruleset
     ]
@@ -182,11 +188,15 @@ def implementation_fingerprint(
     implementation_paths: tuple[Path, ...] = (
         paths if paths is not None else collect_implementation_paths(package_root=package_root)
     )
-    for path in implementation_paths:
+    native_hashes: tuple[str | None, ...] = hash_repository_files(paths=implementation_paths)
+    for path, native_hash in zip(implementation_paths, native_hashes, strict=True):
+        digest: str = (
+            native_hash if native_hash is not None else source_fingerprint(path.read_bytes()).value
+        )
         files.append(
             [
                 path.relative_to(package_root).as_posix(),
-                source_fingerprint(path.read_bytes()).value,
+                digest,
             ]
         )
     return canonical_fingerprint(files)
@@ -252,7 +262,11 @@ def _check_name(check: RuleCheck) -> str:
     return name if isinstance(name, str) else type(check).__qualname__
 
 
-def _check_source_fingerprint(check: RuleCheck) -> CanonicalValue:
+def _check_source_fingerprint(
+    *,
+    check: RuleCheck,
+    source_fingerprints: dict[Path, CanonicalValue],
+) -> CanonicalValue:
     try:
         source_path: str | None = inspect.getsourcefile(check)
     except TypeError:
@@ -262,6 +276,12 @@ def _check_source_fingerprint(check: RuleCheck) -> CanonicalValue:
     path: Path = Path(source_path)
     if not path.is_file():
         return None
+    if path not in source_fingerprints:
+        source_fingerprints[path] = _source_path_fingerprint(path)
+    return source_fingerprints[path]
+
+
+def _source_path_fingerprint(path: Path) -> str:
     return source_fingerprint(path.read_bytes()).value
 
 
@@ -273,10 +293,15 @@ def _bytecode_source_path(bytecode_path: Path) -> Path:
 
 
 def _implementation_paths(package_root: Path) -> tuple[Path, ...]:
-    paths: set[Path] = set(package_root.rglob(f"*{PYTHON_SOURCE_SUFFIX}"))
-    for bytecode_path in package_root.rglob(f"*{BYTECODE_SUFFIX}"):
-        if not _bytecode_source_path(bytecode_path).is_file():
-            paths.add(bytecode_path)
-    for suffix in NATIVE_MODULE_SUFFIXES:
-        paths.update(package_root.rglob(f"*{suffix}"))
+    paths: set[Path] = set()
+    for directory, directory_names, file_names in os.walk(package_root):
+        root: Path = Path(directory)
+        for name in (*directory_names, *file_names):
+            path: Path = root / name
+            if name.endswith(PYTHON_SOURCE_SUFFIX):
+                paths.add(path)
+            elif name.endswith(BYTECODE_SUFFIX) and not _bytecode_source_path(path).is_file():
+                paths.add(path)
+            elif name.endswith(NATIVE_MODULE_SUFFIXES):
+                paths.add(path)
     return tuple(sorted(paths))

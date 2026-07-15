@@ -11,6 +11,7 @@ from scripts.perfcorpus.models import CorpusSpec
 from strata.analysis.constants import FACT_BACKEND_ENV_VARIABLE
 from strata.analysis.types import FactBackend
 from strata.instrumentation.constants import (
+    CACHE_MANIFEST_VALIDATION_OPERATION,
     CACHE_RECORD_DELETE_OPERATION,
     CACHE_RECORD_READ_OPERATION,
     CACHE_RECORD_SCAN_OPERATION,
@@ -83,6 +84,7 @@ def test_given_uncached_check_when_counting_then_operations_stay_linear(
             seed=0,
             expected_warm_fresh_evaluations=0,
             expected_warm_parses=0,
+            expected_warm_manifest_validations=1,
         )
     ],
     ids=lambda case: case.description,
@@ -109,6 +111,9 @@ def test_given_cold_then_warm_check_when_counting_then_warm_run_stays_pure(
         test_case.expected_warm_fresh_evaluations
     )
     assert warm_counts.get(PARSE_OPERATION, 0) == test_case.expected_warm_parses
+    assert warm_counts.get(CACHE_MANIFEST_VALIDATION_OPERATION, 0) == (
+        test_case.expected_warm_manifest_validations
+    )
     assert warm_counts[RELATIVE_PATH_COMPUTE_OPERATION] <= files * _MAX_RELATIVE_COMPUTES_PER_FILE
     assert warm_counts.get(CANONICAL_ENCODE_OPERATION, 0) <= _MAX_WARM_CANONICAL_ENCODES
 

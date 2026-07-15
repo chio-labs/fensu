@@ -24,6 +24,7 @@ class CachedCountsTestCase:
     seed: int
     expected_warm_fresh_evaluations: int
     expected_warm_parses: int
+    expected_warm_manifest_validations: int
 
 
 @dataclass(frozen=True)

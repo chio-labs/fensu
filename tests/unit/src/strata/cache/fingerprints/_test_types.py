@@ -196,6 +196,7 @@ class GlobalFingerprintBuilderTestCase:
     source_available: bool
     complete_source: bool
     expected_available: bool
+    expected_implementation_scans: int
 
 
 @dataclass(frozen=True)

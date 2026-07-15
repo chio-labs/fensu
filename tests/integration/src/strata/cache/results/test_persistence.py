@@ -123,7 +123,10 @@ def test_given_typed_result_when_reopening_store_then_preserves_complete_result(
         expected_kind=CACHE_FILE_RESULT_KIND,
     )
     assert loaded is not None
-    decoded: CachedFileResult | None = file_result_from_record(loaded)
+    decoded: CachedFileResult | None = file_result_from_record(
+        record=loaded,
+        dependency_observations=test_case.result.dependencies,
+    )
 
     assert written is test_case.expected_write
     assert decoded == test_case.expected_result

@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from scripts.benchmarking.models import ProfileReport
+from scripts.benchmarking.models import OperationReport, ProfileReport
+
+_NANOSECONDS_SUFFIX: str = "_nanoseconds"
+_NANOSECONDS_PER_SECOND: int = 1_000_000_000
 
 
 def render_profile(*, report: ProfileReport, rule_limit: int = 20) -> str:
@@ -26,4 +29,17 @@ def render_profile(*, report: ProfileReport, rule_limit: int = 20) -> str:
     lines.append("top_rules:")
     for code, seconds, calls in report.rule_timings[:rule_limit]:
         lines.append(f"  {code} seconds={seconds:.4f} calls={calls}")
+    return "\n".join(lines)
+
+
+def render_operations(*, report: OperationReport) -> str:
+    """Render deterministic counts and phase seconds for one cache state."""
+
+    lines: list[str] = [f"operation_mode={report.mode}"]
+    for operation, count in report.counts:
+        if operation.endswith(_NANOSECONDS_SUFFIX):
+            seconds: float = count / _NANOSECONDS_PER_SECOND
+            lines.append(f"{operation.removesuffix(_NANOSECONDS_SUFFIX)}_seconds={seconds:.6f}")
+        else:
+            lines.append(f"{operation}={count}")
     return "\n".join(lines)

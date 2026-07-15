@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from strata.analysis.main.select_fact_backend import select_fact_backend
@@ -12,6 +13,7 @@ from strata.discovery._helpers.repo_root import resolve_repo_root
 from strata.discovery._helpers.scope import discover_scoped_files
 from strata.discovery.constants import SNAPSHOT_TABLE
 from strata.discovery.models import DiscoveredTree, ProjectLayout, RepoRoot, ScopedFile
+from strata.instrumentation.constants import OPERATION_COUNTERS, SNAPSHOT_ROOT_RELATIVIZE_OPERATION
 
 
 def discover_files(*, config: Config, repo_root: Path | None = None) -> DiscoveredTree:
@@ -29,5 +31,31 @@ def _seed_snapshot(*, repo_root: RepoRoot, files: tuple[ScopedFile, ...]) -> Non
         return
     SNAPSHOT_TABLE.install(
         repo_root=repo_root.path,
-        canonical_paths=tuple(scoped_file.path for scoped_file in files),
+        relative_by_path=_snapshot_relative_paths(repo_root=repo_root, files=files),
     )
+
+
+def _snapshot_relative_paths(
+    *,
+    repo_root: RepoRoot,
+    files: tuple[ScopedFile, ...],
+) -> dict[str, str]:
+    root_parts: dict[Path, tuple[str, ...] | None] = {}
+    relative_by_path: dict[str, str] = {}
+    repo_root_value: str = str(repo_root.path)
+    repo_prefix: str = repo_root_value + os.sep
+    for scoped_file in files:
+        if scoped_file.root not in root_parts:
+            OPERATION_COUNTERS.record(operation=SNAPSHOT_ROOT_RELATIVIZE_OPERATION)
+            try:
+                root_parts[scoped_file.root] = scoped_file.root.relative_to(repo_root.path).parts
+            except ValueError:
+                root_parts[scoped_file.root] = None
+        prefix: tuple[str, ...] | None = root_parts[scoped_file.root]
+        if prefix is None:
+            continue
+        path_value: str = str(scoped_file.path)
+        if path_value != repo_root_value and not path_value.startswith(repo_prefix):
+            continue
+        relative_by_path[path_value] = "/".join((*prefix, *scoped_file.relative_parts))
+    return relative_by_path

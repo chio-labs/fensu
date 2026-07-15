@@ -26,8 +26,10 @@ from tests.integration.scripts.perfbudget.main.helpers import (  # noqa: E402
             backend="native",
             file_target=120,
             seed=0,
+            runs=1,
             ceiling_seconds=300.0,
             expected_exit_code=0,
+            expected_run_count=1,
         )
     ],
     ids=lambda case: case.description,
@@ -39,6 +41,7 @@ def test_given_native_backend_when_running_budget_then_returns_expected_exit_cod
         backend=test_case.backend,
         file_target=test_case.file_target,
         seed=test_case.seed,
+        runs=test_case.runs,
         ceiling_seconds=test_case.ceiling_seconds,
     )
 

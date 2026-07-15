@@ -3,11 +3,18 @@
 from __future__ import annotations
 
 from scripts.perfbudget.constants import (
+    CHURN_1_PERCENT_SCENARIO,
+    CHURN_25_PERCENT_SCENARIO,
+    CHURN_75_PERCENT_SCENARIO,
+    CHURN_100_PERCENT_SCENARIO,
+    CHURN_UNCACHED_SCENARIO,
     COLD_SCENARIO,
     DENSE_COLD_SCENARIO,
     DENSE_WARM_SCENARIO,
     EDIT_SCENARIO,
     FAULT_EXIT_CODE,
+    GLOBAL_MISMATCH_SCENARIO,
+    GLOBAL_MISMATCH_UNCACHED_SCENARIO,
     UNCACHED_SCENARIO,
     WARM_MISS_FREE_FRAGMENT,
     WARM_SCENARIO,
@@ -32,8 +39,7 @@ def budget_failures(
         DENSE_WARM_SCENARIO: spec.warm_ceiling,
     }
     failures: list[ScenarioFailure] = []
-    for name, ceiling in ceilings.items():
-        result: ScenarioResult = results[name]
+    for name, result in results.items():
         if result.exit_code != FAULT_EXIT_CODE:
             failures.append(
                 ScenarioFailure(
@@ -41,6 +47,8 @@ def budget_failures(
                     reason=f"exit code {result.exit_code} != {FAULT_EXIT_CODE}",
                 )
             )
+    for name, ceiling in ceilings.items():
+        result: ScenarioResult = results[name]
         if result.seconds > ceiling:
             failures.append(
                 ScenarioFailure(
@@ -54,15 +62,49 @@ def budget_failures(
     return tuple(failures)
 
 
-def _identity_failures(*, results: dict[str, ScenarioResult]) -> tuple[ScenarioFailure, ...]:
-    reference: ScenarioResult = results[UNCACHED_SCENARIO]
+def repeated_run_failures(
+    *, runs: tuple[dict[str, ScenarioResult], ...]
+) -> tuple[ScenarioFailure, ...]:
+    """Return output-identity failures across equivalent repeated matrices."""
+
     failures: list[ScenarioFailure] = []
-    for name in (COLD_SCENARIO, WARM_SCENARIO):
-        if results[name].output_sha256 != reference.output_sha256:
+    for name in runs[0]:
+        hashes: frozenset[str] = frozenset(run[name].output_sha256 for run in runs)
+        if len(hashes) != 1:
             failures.append(
                 ScenarioFailure(
                     scenario=name,
-                    reason="rendered output diverged from the uncached run",
+                    reason="rendered output changed across repeated corpus runs",
+                )
+            )
+    return tuple(failures)
+
+
+def _identity_failures(*, results: dict[str, ScenarioResult]) -> tuple[ScenarioFailure, ...]:
+    failures: list[ScenarioFailure] = []
+    groups: tuple[tuple[str, tuple[str, ...]], ...] = (
+        (UNCACHED_SCENARIO, (COLD_SCENARIO, WARM_SCENARIO)),
+        (
+            CHURN_UNCACHED_SCENARIO,
+            (
+                EDIT_SCENARIO,
+                CHURN_1_PERCENT_SCENARIO,
+                CHURN_25_PERCENT_SCENARIO,
+                CHURN_75_PERCENT_SCENARIO,
+                CHURN_100_PERCENT_SCENARIO,
+            ),
+        ),
+        (GLOBAL_MISMATCH_UNCACHED_SCENARIO, (GLOBAL_MISMATCH_SCENARIO,)),
+    )
+    for reference_name, compared_names in groups:
+        reference: ScenarioResult = results[reference_name]
+        for name in compared_names:
+            if results[name].output_sha256 == reference.output_sha256:
+                continue
+            failures.append(
+                ScenarioFailure(
+                    scenario=name,
+                    reason=f"rendered output diverged from {reference_name}",
                 )
             )
     dense_cold: ScenarioResult = results[DENSE_COLD_SCENARIO]

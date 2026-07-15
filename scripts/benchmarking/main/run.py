@@ -7,14 +7,20 @@ from pathlib import Path
 from shutil import which
 
 from scripts.benchmarking._helpers.execution import benchmark_processes, render_benchmark
-from scripts.benchmarking._helpers.profiling import profile_check
-from scripts.benchmarking._helpers.rendering import render_profile
+from scripts.benchmarking._helpers.profiling import profile_check, profile_operations
+from scripts.benchmarking._helpers.rendering import render_operations, render_profile
 from scripts.benchmarking.exceptions import BenchmarkError
-from scripts.benchmarking.models import BenchmarkReport, ProfileReport
+from scripts.benchmarking.models import BenchmarkReport, OperationReport, ProfileReport
+from scripts.benchmarking.types import OperationProfileMode
 
 
 def run_benchmark(
-    *, project: Path, runs: int, profile: bool, executable: Path | None = None
+    *,
+    project: Path,
+    runs: int,
+    profile: bool,
+    operations: OperationProfileMode | None = None,
+    executable: Path | None = None,
 ) -> int:
     """Run the selected benchmark against one configured repository."""
 
@@ -23,7 +29,13 @@ def run_benchmark(
         sys.stderr.write(f"Benchmark project does not exist: {resolved_project}\n")
         return 2
     try:
-        if profile:
+        if operations is not None:
+            operation_report: OperationReport = profile_operations(
+                project=resolved_project,
+                mode=operations,
+            )
+            sys.stdout.write(render_operations(report=operation_report))
+        elif profile:
             report: ProfileReport = profile_check(resolved_project)
             sys.stdout.write(render_profile(report=report))
         else:

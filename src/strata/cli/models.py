@@ -3,10 +3,25 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from strata.cache.fingerprints.models import CacheFingerprint
 from strata.cache.results.models import CachedCheckOutput, CacheStats
+from strata.config.models import Config, LoadedConfig
+from strata.discovery.models import DiscoveredTree
 from strata.evaluation.models import EvaluationResult
+from strata.rules.catalog.models import RuleSelection
+
+
+@dataclass(frozen=True, slots=True)
+class CheckInputs:
+    """Configured catalogue and discovered tree for one check invocation."""
+
+    loaded: LoadedConfig
+    project_dir: Path
+    rule_selection: RuleSelection
+    config: Config
+    tree: DiscoveredTree
 
 
 @dataclass(frozen=True, slots=True)
@@ -19,3 +34,4 @@ class CheckEvaluation:
     short_circuit: CachedCheckOutput | None
     surface_targets: tuple[str, ...] | None
     global_fingerprint: CacheFingerprint | None
+    surface_index_fingerprint: CacheFingerprint | None

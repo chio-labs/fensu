@@ -11,7 +11,8 @@ from strata.cache.results.main.evaluate import evaluate_with_cache
 from strata.cache.results.models import CacheEvaluation
 from strata.config.models import Config, EvaluationConfig
 from strata.discovery.models import DiscoveredTree
-from strata.evaluation.models import EvaluationSelection
+from strata.evaluation.main.evaluate import evaluate
+from strata.evaluation.models import EvaluationResult, EvaluationSelection
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import RuleKind
 from strata.rules.naming.constants import SFN_RULES
@@ -27,9 +28,11 @@ from tests.integration.src.strata.cache.results._test_types import (
     CachedEvaluationSweepTestCase,
     CachedLeafMainInvalidationTestCase,
     CachedNamingParityTestCase,
+    CachedResultReadFilteringTestCase,
     CachedSharedDomainPrefixInvalidationTestCase,
 )
 from tests.integration.src.strata.cache.results.helpers import (
+    ResultLoadProbe,
     context_source_fault_rule,
     dependency_fault_rule,
     discover_project,
@@ -39,6 +42,7 @@ from tests.integration.src.strata.cache.results.helpers import (
     failing_rule,
     install_cache_write_rejection,
     install_publish_error,
+    install_result_load_probe,
     install_rule_execution_failure,
     invalid_fault_rule,
     result_record_keys,
@@ -262,6 +266,91 @@ def test_given_published_result_when_source_changes_then_recomputes_diagnostic(
 
     assert changed.stats.invalidations == test_case.expected_invalidations
     assert evaluated_result(changed).faults[0].message == test_case.expected_message
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CachedResultReadFilteringTestCase(
+            description="one changed source is rejected before old result records are read",
+            initial_files=(
+                ("src/pkg/alpha.py", "VALUE: int = 1\n"),
+                ("src/pkg/bravo.py", "VALUE: int = 1\n"),
+                ("src/pkg/charlie.py", "VALUE: int = 1\n"),
+                ("src/pkg/delta.py", "VALUE: int = 1\n"),
+            ),
+            changed_files=(("src/pkg/alpha.py", "VALUE: int = 2\n"),),
+            expected_loaded_paths=(
+                "src/pkg/bravo.py",
+                "src/pkg/charlie.py",
+                "src/pkg/delta.py",
+            ),
+            expected_invalidations=1,
+        ),
+        CachedResultReadFilteringTestCase(
+            description="three changed sources are rejected before old result records are read",
+            initial_files=(
+                ("src/pkg/alpha.py", "VALUE: int = 1\n"),
+                ("src/pkg/bravo.py", "VALUE: int = 1\n"),
+                ("src/pkg/charlie.py", "VALUE: int = 1\n"),
+                ("src/pkg/delta.py", "VALUE: int = 1\n"),
+            ),
+            changed_files=(
+                ("src/pkg/alpha.py", "VALUE: int = 2\n"),
+                ("src/pkg/bravo.py", "VALUE: int = 2\n"),
+                ("src/pkg/charlie.py", "VALUE: int = 2\n"),
+            ),
+            expected_loaded_paths=("src/pkg/delta.py",),
+            expected_invalidations=3,
+        ),
+        CachedResultReadFilteringTestCase(
+            description="all changed sources are rejected before old result records are read",
+            initial_files=(
+                ("src/pkg/alpha.py", "VALUE: int = 1\n"),
+                ("src/pkg/bravo.py", "VALUE: int = 1\n"),
+                ("src/pkg/charlie.py", "VALUE: int = 1\n"),
+                ("src/pkg/delta.py", "VALUE: int = 1\n"),
+            ),
+            changed_files=(
+                ("src/pkg/alpha.py", "VALUE: int = 2\n"),
+                ("src/pkg/bravo.py", "VALUE: int = 2\n"),
+                ("src/pkg/charlie.py", "VALUE: int = 2\n"),
+                ("src/pkg/delta.py", "VALUE: int = 2\n"),
+            ),
+            expected_loaded_paths=(),
+            expected_invalidations=4,
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_changed_sources_when_loading_cache_then_reads_only_source_equal_results(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: CachedResultReadFilteringTestCase,
+) -> None:
+    write_project_sources(repo_root=tmp_path, files=test_case.initial_files)
+    config, tree = discover_project(repo_root=tmp_path)
+    ruleset: tuple[RuleSpec, ...] = (source_fault_rule(),)
+    _ = evaluate_with_cache(
+        tree=tree,
+        ruleset=ruleset,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+    write_project_sources(repo_root=tmp_path, files=test_case.changed_files)
+    probe: ResultLoadProbe = install_result_load_probe(monkeypatch=monkeypatch)
+
+    changed: CacheEvaluation = evaluate_with_cache(
+        tree=tree,
+        ruleset=ruleset,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+    uncached: EvaluationResult = evaluate(tree=tree, ruleset=ruleset, config=config)
+
+    assert probe.loaded_paths == test_case.expected_loaded_paths
+    assert changed.stats.invalidations == test_case.expected_invalidations
+    assert evaluated_result(changed).faults == uncached.faults
 
 
 @pytest.mark.parametrize(

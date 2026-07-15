@@ -22,11 +22,6 @@ from strata.cache.fingerprints.constants import (
 )
 from strata.cache.fingerprints.models import CacheFingerprint
 from strata.cache.fingerprints.types import CanonicalValue
-from strata.cache.results.models import (
-    CachedFileResult,
-    CachedThresholdOverrideUse,
-    DependencyObservation,
-)
 from strata.cache.storage.constants import CACHE_SCHEMA_VERSION
 from strata.config.models import Config, RuleExceptionEntry
 from strata.instrumentation.constants import CANONICAL_ENCODE_OPERATION, OPERATION_COUNTERS
@@ -170,11 +165,24 @@ def _installed_module_location(module_name: str) -> Path | None:
     return origin.parent if origin.name == PACKAGE_INIT_FILE_NAME else origin
 
 
-def implementation_fingerprint(*, package_root: Path) -> CacheFingerprint:
+def collect_implementation_paths(*, package_root: Path) -> tuple[Path, ...]:
+    """Return the complete deterministic implementation path set."""
+
+    return _implementation_paths(package_root)
+
+
+def implementation_fingerprint(
+    *,
+    package_root: Path,
+    paths: tuple[Path, ...] | None = None,
+) -> CacheFingerprint:
     """Return a content identity for all Python implementation files."""
 
     files: list[CanonicalValue] = []
-    for path in _implementation_paths(package_root):
+    implementation_paths: tuple[Path, ...] = (
+        paths if paths is not None else collect_implementation_paths(package_root=package_root)
+    )
+    for path in implementation_paths:
         files.append(
             [
                 path.relative_to(package_root).as_posix(),
@@ -182,12 +190,6 @@ def implementation_fingerprint(*, package_root: Path) -> CacheFingerprint:
             ]
         )
     return canonical_fingerprint(files)
-
-
-def implementation_identity_is_complete(*, package_root: Path) -> bool:
-    """Return whether the loaded package exposes fingerprintable implementation files."""
-
-    return bool(_implementation_paths(package_root))
 
 
 def global_fingerprint(
@@ -220,59 +222,12 @@ def global_fingerprint(
     return canonical_fingerprint(payload)
 
 
-def file_result_fingerprint(
-    *,
-    global_fingerprint: CacheFingerprint,
-    result: CachedFileResult,
-) -> CacheFingerprint:
-    """Return the correctness identity for one reusable file result."""
-
-    payload: CanonicalValue = {
-        "dependencies": [_dependency_observation_value(item) for item in result.dependencies],
-        "global_fingerprint": global_fingerprint.value,
-        "path": result.path,
-        "source_fingerprint": result.source_fingerprint.value,
-        "threshold_override_uses": [
-            _threshold_override_use_value(item) for item in result.threshold_override_uses
-        ],
-    }
-    return canonical_fingerprint(payload)
-
-
 def _rule_exception_value(item: RuleExceptionEntry) -> CanonicalValue:
     return {
         "path": item.path,
         "reason": item.reason,
         "rule": item.rule,
         "symbols": list(item.symbols),
-    }
-
-
-def _dependency_observation_value(item: DependencyObservation) -> CanonicalValue:
-    answer: CanonicalValue
-    if isinstance(item.answer, tuple):
-        answer = list(item.answer)
-    else:
-        answer = item.answer
-    return {
-        "answer": answer,
-        "dependency_path": item.dependency_path,
-        "kind": item.kind.value,
-        "pattern": item.pattern,
-        "query_path": item.query_path,
-        "recursive": item.recursive,
-        "requester_path": item.requester_path,
-    }
-
-
-def _threshold_override_use_value(item: CachedThresholdOverrideUse) -> CanonicalValue:
-    return {
-        "effective_value": item.effective_value,
-        "matched_pattern": item.matched_pattern,
-        "override_order": item.override_order,
-        "reason": item.reason,
-        "repository_path": item.repository_path,
-        "threshold": item.threshold,
     }
 
 

@@ -22,6 +22,7 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--files", type=int, default=DEFAULT_FILE_TARGET)
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    parser.add_argument("--runs", type=int, default=1)
     parser.add_argument("--uncached-ceiling", type=float, default=None)
     parser.add_argument("--cold-ceiling", type=float, default=None)
     parser.add_argument("--warm-ceiling", type=float, default=None)
@@ -37,6 +38,7 @@ def main() -> int:
         backend=args.backend,
         files=args.files,
         seed=args.seed,
+        runs=args.runs,
         uncached_ceiling=args.uncached_ceiling,
         cold_ceiling=args.cold_ceiling,
         warm_ceiling=args.warm_ceiling,

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Mapping
 from pathlib import Path
 
 _WINDOWS_PATH_SEPARATOR: str = "\\"
@@ -16,21 +16,16 @@ class RepositorySnapshot:
         self._relative_by_path: dict[str, str] = {}
         self._hash_by_path: dict[str, str] = {}
 
-    def install(self, *, repo_root: Path, canonical_paths: Iterable[Path]) -> None:
-        """Replace the table with paths relativized against one repository root."""
+    def install(self, *, repo_root: Path, relative_by_path: Mapping[str, str]) -> None:
+        """Replace the table with validated canonical-to-relative path identities."""
 
-        relative_by_path: dict[str, str] = {}
-        for path in canonical_paths:
-            value: str = str(path)
-            try:
-                relative: str = path.relative_to(repo_root).as_posix()
-            except ValueError:
-                continue
+        installed: dict[str, str] = {}
+        for path, relative in relative_by_path.items():
             if _WINDOWS_PATH_SEPARATOR in relative:
                 continue
-            relative_by_path[value] = relative
+            installed[path] = relative
         self._repo_root = str(repo_root)
-        self._relative_by_path = relative_by_path
+        self._relative_by_path = installed
         self._hash_by_path = {}
 
     def clear(self) -> None:

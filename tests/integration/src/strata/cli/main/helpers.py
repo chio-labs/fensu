@@ -1291,8 +1291,14 @@ def counting_load_results(
         *,
         global_fingerprint: CacheFingerprint,
         entries: tuple[CacheIndexEntry, ...],
+        dependency_fingerprint: CacheFingerprint | None = None,
     ) -> dict[str, CachedFileResult | None]:
         counter.calls += 1
-        return original(cache, global_fingerprint=global_fingerprint, entries=entries)
+        return original(
+            cache,
+            global_fingerprint=global_fingerprint,
+            entries=entries,
+            dependency_fingerprint=dependency_fingerprint,
+        )
 
     return _load_results

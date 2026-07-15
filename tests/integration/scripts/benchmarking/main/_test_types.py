@@ -31,3 +31,12 @@ class ProfileBenchmarkTestCase:
     description: str
     expected_file_count: int
     expected_rule_count: int
+
+
+@dataclass(frozen=True)
+class OperationProfileTestCase:
+    """One cache state and required deterministic operation names."""
+
+    description: str
+    mode: str
+    expected_operations: tuple[str, ...]

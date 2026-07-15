@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from strata.analysis.models import ProjectDependency
@@ -43,6 +43,7 @@ from strata.evaluation.models import (
     FileEvaluation,
 )
 from strata.evaluation.types import EvaluationProjectAnalysis
+from strata.instrumentation.constants import CACHE_MANIFEST_VALIDATION_OPERATION, OPERATION_COUNTERS
 from strata.rules.authoring.models import CustomRuleRegistration, RuleSpec
 from strata.rules.authoring.types import RuleKind
 
@@ -120,25 +121,32 @@ def run_cached_evaluation(
             source_fingerprints[discovered_path] = _source_fingerprint(target.scoped_file.path)
     sorted_targets: tuple[str, ...] = tuple(sorted(target_paths))
     dependency_states: DependencyStateCache = {}
-    if not scopes.scoped and _replay_hit(
-        context=context,
-        entries=entries,
-        sorted_targets=sorted_targets,
-        source_fingerprints=source_fingerprints,
-        repo_root=tree.repo_root.path,
-        states=dependency_states,
-    ):
-        return CacheEvaluation(
-            result=None,
-            stats=CacheStats(hits=len(targets)),
-            short_circuit=context.output,
+    if (
+        replayed := _replayed_evaluation(
+            cache=cache,
+            scopes=scopes,
+            context=context,
+            entries=entries,
+            sorted_targets=sorted_targets,
+            source_fingerprints=source_fingerprints,
+            repo_root=tree.repo_root.path,
+            states=dependency_states,
+            global_fingerprint=global_fingerprint,
+            target_count=len(targets),
         )
+    ) is not None:
+        return replayed
     loaded_entries: tuple[CacheIndexEntry, ...] = tuple(
-        entry for path, entry in entries.items() if path in target_paths
+        entry
+        for path, entry in entries.items()
+        if path in target_paths and source_fingerprints.get(path) == entry.source_fingerprint
     )
     loaded_results: dict[str, CachedFileResult | None] = cache.load_results(
         global_fingerprint=global_fingerprint,
         entries=loaded_entries,
+        dependency_fingerprint=(
+            context.index.dependencies_fingerprint if context.index is not None else None
+        ),
     )
     project: EvaluationProjectAnalysis = build_evaluation_project(tree=tree)
     ordered_results: list[FileEvaluation | CachedFileResult] = []
@@ -241,12 +249,14 @@ def run_cached_evaluation(
         fresh_evaluations=tuple(fresh_evaluations),
         retained_entries=tuple(retained_entries),
         retained_results=tuple(retained_results),
+        existing_index_fingerprint=context.index_fingerprint,
     )
     surface_ready: bool = (
         not scopes.scoped
         and publication.non_cacheable == 0
         and not publication.storage_failed
         and not publication.internal_error
+        and publication.index_fingerprint is not None
     )
     return CacheEvaluation(
         result=result,
@@ -260,6 +270,45 @@ def run_cached_evaluation(
             internal_error=publication.internal_error,
         ),
         surface_targets=sorted_targets if surface_ready else None,
+        surface_index_fingerprint=publication.index_fingerprint if surface_ready else None,
+    )
+
+
+def _replayed_evaluation(
+    *,
+    cache: ResultCache,
+    scopes: _RuleScopes,
+    context: CheckCacheContext,
+    entries: dict[str, CacheIndexEntry],
+    sorted_targets: tuple[str, ...],
+    source_fingerprints: dict[str, CacheFingerprint | None],
+    repo_root: Path,
+    states: DependencyStateCache,
+    global_fingerprint: CacheFingerprint,
+    target_count: int,
+) -> CacheEvaluation | None:
+    if scopes.scoped or not _replay_manifest_is_current(
+        context=context,
+        entries=entries,
+        sorted_targets=sorted_targets,
+        source_fingerprints=source_fingerprints,
+    ):
+        return None
+    replay_context: CheckCacheContext = cache.load_check_surface(
+        global_fingerprint=global_fingerprint,
+        context=context,
+    )
+    if not _replay_hit(
+        context=replay_context,
+        sorted_targets=sorted_targets,
+        repo_root=repo_root,
+        states=states,
+    ):
+        return None
+    return CacheEvaluation(
+        result=None,
+        stats=CacheStats(hits=target_count),
+        short_circuit=replay_context.output,
     )
 
 
@@ -358,26 +407,37 @@ def _supplemented(
 def _replay_hit(
     *,
     context: CheckCacheContext,
-    entries: dict[str, CacheIndexEntry],
     sorted_targets: tuple[str, ...],
-    source_fingerprints: dict[str, CacheFingerprint | None],
     repo_root: Path,
     states: DependencyStateCache,
 ) -> bool:
     if context.output is None or context.observations is None:
         return False
-    if context.output.targets != sorted_targets or len(entries) != len(sorted_targets):
+    if context.output.targets != sorted_targets:
+        return False
+    return dependencies_are_current(
+        observations=context.observations,
+        repo_root=repo_root,
+        states=states,
+    )
+
+
+def _replay_manifest_is_current(
+    *,
+    context: CheckCacheContext,
+    entries: dict[str, CacheIndexEntry],
+    sorted_targets: tuple[str, ...],
+    source_fingerprints: dict[str, CacheFingerprint | None],
+) -> bool:
+    OPERATION_COUNTERS.record(operation=CACHE_MANIFEST_VALIDATION_OPERATION)
+    if context.index is None or len(entries) != len(sorted_targets):
         return False
     for path in sorted_targets:
         entry: CacheIndexEntry | None = entries.get(path)
         fingerprint: CacheFingerprint | None = source_fingerprints.get(path)
         if entry is None or fingerprint is None or entry.source_fingerprint != fingerprint:
             return False
-    return dependencies_are_current(
-        observations=context.observations,
-        repo_root=repo_root,
-        states=states,
-    )
+    return True
 
 
 def _publish_results(
@@ -387,13 +447,21 @@ def _publish_results(
     fresh_evaluations: tuple[FileEvaluation, ...],
     retained_entries: tuple[CacheIndexEntry, ...],
     retained_results: tuple[CachedFileResult, ...],
+    existing_index_fingerprint: CacheFingerprint | None,
 ) -> CacheStats:
     try:
-        return cache.publish(
+        stats: CacheStats = cache.publish(
             global_fingerprint=global_fingerprint,
             evaluations=fresh_evaluations,
             retained_entries=retained_entries,
             retained_results=retained_results,
+        )
+        return (
+            replace(stats, index_fingerprint=existing_index_fingerprint)
+            if stats.index_fingerprint is None
+            and not stats.storage_failed
+            and not stats.internal_error
+            else stats
         )
     except (CachePathError, CacheRecordError, TypeError, ValueError):
         return CacheStats(storage_failed=True, internal_error=True)

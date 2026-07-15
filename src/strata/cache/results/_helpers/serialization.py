@@ -25,6 +25,7 @@ from strata.cache.results.constants import (
     CHECK_OUTPUT_PAYLOAD_KEYS,
     DEPENDENCIES_PAYLOAD_KEYS,
     DEPENDENCY_OBSERVATION_KEYS,
+    DEPENDENCY_REFERENCE_KEYS,
     FACT_PAYLOAD_KEYS,
     FAULT_KEYS,
     FILE_RESULT_PAYLOAD_KEYS,
@@ -46,11 +47,13 @@ from strata.cache.results.models import (
     CacheMetadata,
     DependencyObservation,
 )
-from strata.cache.results.types import DependencyAnswer
+from strata.cache.results.types import DependencyAnswer, DependencyReferenceKey
 from strata.cache.storage.exceptions import CacheRecordError
 from strata.cache.storage.models import CacheRecord
 from strata.rules.authoring.main.is_rule_code import is_rule_code
 from strata.rules.authoring.types import Threshold
+
+_THRESHOLD_VALUES: frozenset[str] = frozenset(item.value for item in Threshold)
 
 
 def metadata_to_record(metadata: CacheMetadata) -> CacheRecord:
@@ -82,9 +85,18 @@ def index_to_record(index: CacheIndex) -> CacheRecord:
         index.entries
     ):
         raise CacheRecordError("Cache index contains invalid identity or entry ordering.")
+    dependencies_fingerprint: str | None = (
+        index.dependencies_fingerprint.value if index.dependencies_fingerprint is not None else None
+    )
+    if dependencies_fingerprint is not None and not is_fingerprint(dependencies_fingerprint):
+        raise CacheRecordError("Cache index contains an invalid dependency identity.")
     return CacheRecord(
         kind=CACHE_INDEX_KIND,
-        payload={"entries": entries, "global_fingerprint": index.global_fingerprint.value},
+        payload={
+            "dependencies_fingerprint": dependencies_fingerprint,
+            "entries": entries,
+            "global_fingerprint": index.global_fingerprint.value,
+        },
     )
 
 
@@ -95,8 +107,18 @@ def index_from_record(record: CacheRecord) -> CacheIndex | None:
     if payload is None or set(payload) != INDEX_PAYLOAD_KEYS:
         return None
     global_fingerprint: CacheFingerprint | None = fingerprint_or_none(payload["global_fingerprint"])
+    raw_dependencies_fingerprint: CanonicalValue = payload["dependencies_fingerprint"]
+    dependencies_fingerprint: CacheFingerprint | None = (
+        fingerprint_or_none(raw_dependencies_fingerprint)
+        if raw_dependencies_fingerprint is not None
+        else None
+    )
     raw_entries: CanonicalValue = payload["entries"]
-    if global_fingerprint is None or not isinstance(raw_entries, list):
+    if (
+        global_fingerprint is None
+        or not isinstance(raw_entries, list)
+        or (raw_dependencies_fingerprint is not None and dependencies_fingerprint is None)
+    ):
         return None
     entries: list[CacheIndexEntry] = []
     for raw_entry in raw_entries:
@@ -104,7 +126,11 @@ def index_from_record(record: CacheRecord) -> CacheIndex | None:
         if entry is None:
             return None
         entries.append(entry)
-    result: CacheIndex = CacheIndex(global_fingerprint=global_fingerprint, entries=tuple(entries))
+    result: CacheIndex = CacheIndex(
+        global_fingerprint=global_fingerprint,
+        entries=tuple(entries),
+        dependencies_fingerprint=dependencies_fingerprint,
+    )
     return result if _index_entries_are_ordered(result.entries) else None
 
 
@@ -195,14 +221,37 @@ def check_output_from_record(record: CacheRecord) -> CachedCheckOutput | None:
 def file_result_to_record(result: CachedFileResult) -> CacheRecord:
     """Return a validated storage record for one file evaluation."""
 
-    payload: CanonicalValue = _file_result_value(result)
-    record: CacheRecord = CacheRecord(kind=CACHE_FILE_RESULT_KIND, payload=payload)
-    if file_result_from_record(record) != result:
+    if not _file_result_is_valid(result):
         raise CacheRecordError("File result contains invalid or noncanonical values.")
-    return record
+    return CacheRecord(kind=CACHE_FILE_RESULT_KIND, payload=_file_result_value(result))
 
 
-def file_result_from_record(record: CacheRecord) -> CachedFileResult | None:
+def prepared_file_result_to_record(
+    *,
+    result: CachedFileResult,
+    dependency_references: list[CanonicalValue] | None = None,
+) -> CacheRecord:
+    """Return a record for a conversion-validated file evaluation."""
+
+    if not (
+        is_relative_path(value=result.path)
+        and is_fingerprint(result.source_fingerprint.value)
+        and _file_result_relationships_are_valid(result)
+    ):
+        raise CacheRecordError("Prepared file result contains invalid ownership relationships.")
+    payload: CanonicalValue = _file_result_value(result)
+    if dependency_references is not None and isinstance(payload, dict):
+        payload["dependencies"] = dependency_references
+    return CacheRecord(kind=CACHE_FILE_RESULT_KIND, payload=payload)
+
+
+def file_result_from_record(
+    *,
+    record: CacheRecord,
+    dependency_observations: tuple[DependencyObservation, ...] = (),
+    dependency_observations_by_key: dict[DependencyReferenceKey, DependencyObservation]
+    | None = None,
+) -> CachedFileResult | None:
     """Return a typed file result or None for a semantic miss."""
 
     payload: dict[str, CanonicalValue] | None = _payload(record=record, kind=CACHE_FILE_RESULT_KIND)
@@ -230,8 +279,14 @@ def file_result_from_record(record: CacheRecord) -> CachedFileResult | None:
     exceptions: tuple[CachedRuleExceptionKey, ...] | None = _decode_sequence(
         values=raw_exceptions, decoder=_exception_key
     )
-    dependencies: tuple[DependencyObservation, ...] | None = _decode_sequence(
-        values=raw_dependencies, decoder=_dependency
+    dependencies: tuple[DependencyObservation, ...] | None = _resolved_dependencies(
+        values=raw_dependencies,
+        requester_path=cast(str, path),
+        observations_by_key=(
+            dependency_observation_index(dependency_observations)
+            if dependency_observations_by_key is None
+            else dependency_observations_by_key
+        ),
     )
     override_uses: tuple[CachedThresholdOverrideUse, ...] | None = _decode_sequence(
         values=raw_override_uses, decoder=_threshold_override_use
@@ -274,6 +329,14 @@ def fact_to_record(fact: CachedFact) -> CacheRecord:
             "source_fingerprint": fact.source_fingerprint.value,
         },
     )
+
+
+def dependency_observation_index(
+    observations: tuple[DependencyObservation, ...],
+) -> dict[DependencyReferenceKey, DependencyObservation]:
+    """Index normalized dependency observations for file-result restoration."""
+
+    return {_dependency_reference_key(observation): observation for observation in observations}
 
 
 def fact_from_record(record: CacheRecord) -> CachedFact | None:
@@ -368,19 +431,71 @@ def _file_result_relationships_are_valid(result: CachedFileResult) -> bool:
     )
 
 
+def _file_result_is_valid(result: CachedFileResult) -> bool:
+    return (
+        is_relative_path(value=result.path)
+        and is_fingerprint(result.source_fingerprint.value)
+        and all(_fault_is_valid(fault) for fault in (*result.faults, *result.warnings))
+        and all(_exception_key_is_valid(key) for key in result.applied_exception_keys)
+        and all(
+            isinstance(observation.kind, ProjectDependencyKind)
+            and is_dependency_observation(observation)
+            for observation in result.dependencies
+        )
+        and all(_threshold_override_use_is_valid(use) for use in result.threshold_override_uses)
+        and _file_result_relationships_are_valid(result)
+    )
+
+
+def _fault_is_valid(fault: CachedFault) -> bool:
+    return (
+        is_rule_code(fault.code)
+        and is_relative_path(value=fault.path)
+        and isinstance(fault.message, str)
+        and _optional_position(value=fault.line, minimum=1)
+        and _optional_position(value=fault.column, minimum=0)
+        and (fault.line is not None or fault.column is None)
+        and (fault.remediation is None or isinstance(fault.remediation, str))
+    )
+
+
+def _exception_key_is_valid(key: CachedRuleExceptionKey) -> bool:
+    return (
+        is_relative_path(value=key.path)
+        and is_rule_code(key.rule)
+        and (key.symbol is None or is_rule_exception_symbol(key.symbol))
+    )
+
+
+def _threshold_override_use_is_valid(use: CachedThresholdOverrideUse) -> bool:
+    return (
+        isinstance(use.threshold, str)
+        and use.threshold in _THRESHOLD_VALUES
+        and type(use.effective_value) is int
+        and use.effective_value >= 0
+        and isinstance(use.matched_pattern, str)
+        and bool(use.matched_pattern)
+        and isinstance(use.reason, str)
+        and bool(use.reason.strip())
+        and type(use.override_order) is int
+        and use.override_order >= 0
+        and is_relative_path(value=use.repository_path)
+    )
+
+
 def _file_result_value(result: CachedFileResult) -> CanonicalValue:
     return {
         "applied_exception_keys": [
             _exception_key_value(item) for item in result.applied_exception_keys
         ],
-        "dependencies": [_dependency_value(item) for item in result.dependencies],
+        "dependencies": [_dependency_reference_value(item) for item in result.dependencies],
         "faults": [_fault_value(item) for item in result.faults],
-        "warnings": [_fault_value(item) for item in result.warnings],
         "path": result.path,
         "source_fingerprint": result.source_fingerprint.value,
         "threshold_override_uses": [
             _threshold_override_use_value(item) for item in result.threshold_override_uses
         ],
+        "warnings": [_fault_value(item) for item in result.warnings],
     }
 
 
@@ -519,6 +634,73 @@ def _dependency_value(observation: DependencyObservation) -> CanonicalValue:
         "recursive": observation.recursive,
         "requester_path": observation.requester_path,
     }
+
+
+def _dependency_reference_value(observation: DependencyObservation) -> CanonicalValue:
+    return {
+        "kind": observation.kind.value,
+        "pattern": observation.pattern,
+        "query_path": observation.query_path,
+        "recursive": observation.recursive,
+    }
+
+
+def _dependency_reference(value: CanonicalValue) -> DependencyReferenceKey | None:
+    if not isinstance(value, dict) or set(value) != DEPENDENCY_REFERENCE_KEYS:
+        return None
+    try:
+        kind: ProjectDependencyKind = ProjectDependencyKind(value["kind"])
+    except (TypeError, ValueError):
+        return None
+    query_path: CanonicalValue = value["query_path"]
+    pattern: CanonicalValue = value["pattern"]
+    recursive: CanonicalValue = value["recursive"]
+    if not (
+        is_relative_path(value=query_path, allow_root=True)
+        and (pattern is None or isinstance(pattern, str))
+        and type(recursive) is bool
+        and ((kind is ProjectDependencyKind.GLOB and bool(pattern)) or pattern is None)
+        and (kind is ProjectDependencyKind.GLOB or not recursive)
+    ):
+        return None
+    return (cast(str, query_path), kind, cast(str | None, pattern), recursive)
+
+
+def _resolved_dependencies(
+    *,
+    values: list[CanonicalValue],
+    requester_path: str,
+    observations_by_key: dict[DependencyReferenceKey, DependencyObservation],
+) -> tuple[DependencyObservation, ...] | None:
+    resolved: list[DependencyObservation] = []
+    for value in values:
+        key: DependencyReferenceKey | None = _dependency_reference(value)
+        observation: DependencyObservation | None = (
+            observations_by_key.get(key) if key is not None else None
+        )
+        if observation is None:
+            return None
+        resolved.append(
+            DependencyObservation(
+                requester_path=requester_path,
+                query_path=observation.query_path,
+                dependency_path=observation.dependency_path,
+                kind=observation.kind,
+                answer=observation.answer,
+                pattern=observation.pattern,
+                recursive=observation.recursive,
+            )
+        )
+    return tuple(resolved)
+
+
+def _dependency_reference_key(observation: DependencyObservation) -> DependencyReferenceKey:
+    return (
+        observation.query_path,
+        observation.kind,
+        observation.pattern,
+        observation.recursive,
+    )
 
 
 def _dependency(value: CanonicalValue) -> DependencyObservation | None:

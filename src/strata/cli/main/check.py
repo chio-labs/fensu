@@ -13,7 +13,7 @@ from strata.analysis.models import FactBackendSelection
 from strata.cli._helpers.check_evaluation import evaluated_check
 from strata.cli._helpers.check_output import check_stdout_text, persist_check_output
 from strata.cli._helpers.check_paths import invocation_path
-from strata.cli._helpers.check_reporting import write_check_diagnostics
+from strata.cli._helpers.check_reporting import skill_freshness_footer, write_check_diagnostics
 from strata.cli.models import CheckEvaluation
 from strata.config.exceptions import ConfigError
 from strata.config.main.load_project_config import load_project_config
@@ -63,12 +63,17 @@ def run_check(
     write_check_diagnostics(
         loaded=loaded,
         selection=rule_selection,
-        project_root=project_dir,
-        invocation_root=invocation_dir,
         stderr=stderr,
         stats=evaluation.stats,
         show_stats=args.cache_stats,
         disabled_reason=evaluation.disabled_reason,
+    )
+    freshness_footer: str = skill_freshness_footer(
+        loaded=loaded,
+        selection=rule_selection,
+        project_root=project_dir,
+        invocation_root=invocation_dir,
+        use_color=not args.no_color and stderr.isatty(),
     )
     if evaluation.short_circuit is not None:
         stdout.write(
@@ -76,6 +81,7 @@ def run_check(
             if use_color
             else evaluation.short_circuit.plain_output
         )
+        stderr.write(freshness_footer)
         return evaluation.short_circuit.exit_code
     if evaluation.result is None:
         stderr.write("Cached evaluation returned no result.\n")
@@ -96,6 +102,7 @@ def run_check(
             show_warnings=args.warn,
         )
     stdout.write(text)
+    stderr.write(freshness_footer)
     return 1 if fault_count else 0
 
 

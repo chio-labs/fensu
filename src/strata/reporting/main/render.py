@@ -17,6 +17,7 @@ def render(
     root: Path,
     use_color: bool = False,
     show_warnings: bool = False,
+    evaluation_summary: str | None = None,
     applied_exception_count: int = 0,
     threshold_override_uses: tuple[ThresholdOverrideUse, ...] = (),
 ) -> RenderedReport:
@@ -29,6 +30,7 @@ def render(
             root=root,
             use_color=use_color,
             show_warnings=show_warnings,
+            evaluation_summary=evaluation_summary,
             applied_exception_count=applied_exception_count,
             threshold_override_uses=threshold_override_uses,
         ),

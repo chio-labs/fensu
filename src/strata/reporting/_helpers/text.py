@@ -28,6 +28,7 @@ def render_text(
     root: Path,
     use_color: bool,
     show_warnings: bool,
+    evaluation_summary: str | None,
     applied_exception_count: int,
     threshold_override_uses: tuple[ThresholdOverrideUse, ...],
 ) -> str:
@@ -52,6 +53,8 @@ def render_text(
         warning_noun: str = "warning" if warning_count == 1 else "warnings"
         summary = f"{summary} and {warning_count} {warning_noun}"
     lines.append(_format_summary(text=summary, count=count, use_color=use_color))
+    if evaluation_summary is not None:
+        lines.append(_format_metadata(text=evaluation_summary, use_color=use_color))
     if applied_exception_count:
         exception_noun: str = "exception" if applied_exception_count == 1 else "exceptions"
         lines.append(f"Applied {applied_exception_count} rule {exception_noun}")
@@ -196,3 +199,7 @@ def _format_summary(*, text: str, count: int, use_color: bool) -> str:
         return text
     color: str = ANSI_BOLD_RED if count else ANSI_BOLD_GREEN
     return f"{color}{text}{ANSI_RESET}"
+
+
+def _format_metadata(*, text: str, use_color: bool) -> str:
+    return f"{ANSI_DIM}{text}{ANSI_RESET}" if use_color else text

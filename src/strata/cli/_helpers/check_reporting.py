@@ -10,7 +10,8 @@ from strata.cli._helpers.skill_freshness import installed_skill_is_stale
 from strata.cli.main.cache_status import write_cache_status
 from strata.config.models import LoadedConfig
 from strata.discovery.models import DiscoveredTree
-from strata.evaluation.models import EvaluationResult
+from strata.evaluation.models import EvaluationResult, EvaluationSelection
+from strata.reporting.classes.cli_style import CliStyle
 from strata.reporting.main.render import render
 from strata.reporting.models import RenderedReport
 from strata.rules.catalog.main.undeclared_cacheable import undeclared_cacheable_codes
@@ -21,14 +22,12 @@ def write_check_diagnostics(
     *,
     loaded: LoadedConfig,
     selection: RuleSelection,
-    project_root: Path,
-    invocation_root: Path,
     stderr: TextIO,
     stats: CacheStats | None,
     show_stats: bool,
     disabled_reason: str | None,
 ) -> None:
-    """Write cache status and skill freshness diagnostics to stderr."""
+    """Write cache diagnostics to stderr."""
 
     write_cache_status(
         stderr=stderr,
@@ -48,13 +47,30 @@ def write_check_diagnostics(
                 "Custom rules appear cacheable; declare cacheable=True to enable "
                 f"caching for them: {', '.join(undeclared)}\n"
             )
-    if installed_skill_is_stale(
+
+
+def skill_freshness_footer(
+    *,
+    loaded: LoadedConfig,
+    selection: RuleSelection,
+    project_root: Path,
+    invocation_root: Path,
+    use_color: bool,
+) -> str:
+    """Return a final actionable notice when installed skill files are stale."""
+
+    if not installed_skill_is_stale(
         loaded=loaded,
         selection=selection,
         project_root=project_root,
         invocation_root=invocation_root,
     ):
-        stderr.write("Strata skill files are out of date; run `strata skills`.\n")
+        return ""
+    style: CliStyle = CliStyle(use_color=use_color)
+    return (
+        f"\n{style.warning('Strata skill files are out of date')}\n"
+        f"  Run: {style.link('strata skills')}\n"
+    )
 
 
 def render_check_result(
@@ -68,6 +84,19 @@ def render_check_result(
         root=tree.repo_root.path,
         use_color=use_color,
         show_warnings=show_warnings,
+        evaluation_summary=_evaluation_summary(result=result),
         applied_exception_count=result.applied_exception_count,
         threshold_override_uses=result.threshold_override_uses,
+    )
+
+
+def _evaluation_summary(*, result: EvaluationResult) -> str | None:
+    selection: EvaluationSelection | None = result.selection
+    if selection is None or not selection.filtered:
+        return None
+    return (
+        "Evaluation: "
+        f"{selection.discovered_count - selection.excluded_count:,} of "
+        f"{selection.discovered_count:,} Python files "
+        f"({selection.excluded_count:,} excluded by config)"
     )

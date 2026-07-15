@@ -43,6 +43,7 @@ from strata.evaluation.models import (
     FileEvaluation,
 )
 from strata.evaluation.types import EvaluationProjectAnalysis
+from strata.instrumentation.constants import CACHE_MANIFEST_VALIDATION_OPERATION, OPERATION_COUNTERS
 from strata.rules.authoring.models import CustomRuleRegistration, RuleSpec
 from strata.rules.authoring.types import RuleKind
 
@@ -299,9 +300,7 @@ def _replayed_evaluation(
     )
     if not _replay_hit(
         context=replay_context,
-        entries=entries,
         sorted_targets=sorted_targets,
-        source_fingerprints=source_fingerprints,
         repo_root=repo_root,
         states=states,
     ):
@@ -408,21 +407,14 @@ def _supplemented(
 def _replay_hit(
     *,
     context: CheckCacheContext,
-    entries: dict[str, CacheIndexEntry],
     sorted_targets: tuple[str, ...],
-    source_fingerprints: dict[str, CacheFingerprint | None],
     repo_root: Path,
     states: DependencyStateCache,
 ) -> bool:
     if context.output is None or context.observations is None:
         return False
-    if context.output.targets != sorted_targets or len(entries) != len(sorted_targets):
+    if context.output.targets != sorted_targets:
         return False
-    for path in sorted_targets:
-        entry: CacheIndexEntry | None = entries.get(path)
-        fingerprint: CacheFingerprint | None = source_fingerprints.get(path)
-        if entry is None or fingerprint is None or entry.source_fingerprint != fingerprint:
-            return False
     return dependencies_are_current(
         observations=context.observations,
         repo_root=repo_root,
@@ -437,6 +429,7 @@ def _replay_manifest_is_current(
     sorted_targets: tuple[str, ...],
     source_fingerprints: dict[str, CacheFingerprint | None],
 ) -> bool:
+    OPERATION_COUNTERS.record(operation=CACHE_MANIFEST_VALIDATION_OPERATION)
     if context.index is None or len(entries) != len(sorted_targets):
         return False
     for path in sorted_targets:

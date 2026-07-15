@@ -283,6 +283,30 @@ _ESCAPED_OVERRIDE_REASON: str = 'Generated "API" path.\nKeep \\ escapes.'
             ),
         ),
         GuidanceTestCase(
+            description="ownership rules require meaningful leaf entries and sibling role files",
+            config=Config(roots=("src/acme",), tests=(), tooling=()),
+            rule_codes=(
+                "SFR301",
+                "SFR302",
+                "SFR303",
+                "SFR304",
+                "SFR305",
+                "SFR306",
+                "SFR307",
+                "SFR309",
+            ),
+            expected_fragments=(
+                "└── main/",
+                "Every leaf domain or subdomain must contain a direct `main/` boundary",
+                "Branch-domain parents do not need their own `main/`",
+                "Do not add placeholder `main/` packages.",
+                "move them into the closest domain or subdomain",
+                "Fixed role filenames such as `models.py`, `types.py`, `constants.py`",
+                "must never be nested beneath `_helpers/`",
+            ),
+            expected_absent_fragments=(),
+        ),
+        GuidanceTestCase(
             description="all configured layout roots appear in generated guidance",
             config=Config(
                 roots=("python/mypkg", "lib/shared"),

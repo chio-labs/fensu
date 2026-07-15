@@ -47,7 +47,11 @@ def evaluate_tests_rule_test_case(
 
     _write_file(tmp_path=tmp_path, relative_path="src/strata/__init__.py", source="")
     for runtime_path in test_case.runtime_paths:
-        _write_file(tmp_path=tmp_path, relative_path=runtime_path, source="value: int = 1\n")
+        runtime_source: str = {
+            False: "value: int = 1\n",
+            True: "def run() -> None:\n    return None\n",
+        }["/main/" in runtime_path]
+        _write_file(tmp_path=tmp_path, relative_path=runtime_path, source=runtime_source)
     for tooling_path in test_case.tooling_paths:
         _write_file(tmp_path=tmp_path, relative_path=tooling_path, source="value: int = 1\n")
     for file in test_case.files:

@@ -73,9 +73,11 @@ structural rules; tests receive test-convention and annotation rules.
 
 ## Default Structure
 
-Product code uses domain, subdomain, then role. Tests mirror the code they cover;
-tooling uses one ownership level because `scripts/` already establishes the outer
-boundary.
+Product code uses domain, optional subdomain, then role. Every leaf domain or
+subdomain owns meaningful behavior through a direct `main/` containing at least one
+entry module. Branch-domain parents do not need their own `main/`; their leaf
+subdomains do. Tests mirror the code they cover; tooling uses one ownership level
+because `scripts/` already establishes the outer boundary.
 
 ```text
 src/my_package/
@@ -99,6 +101,12 @@ scripts/
     ├── _helpers/
     └── classes/
 ```
+
+Do not create an empty or initializer-only `main/` to satisfy the layout. If a
+package contains only passive models, types, constants, exceptions, or classes,
+move those declarations into the closest domain or subdomain whose `main/` behavior
+owns and uses them. Fixed role files are siblings of `_helpers/`, never descendants
+such as `_helpers/entry/models.py`.
 
 Direct `scripts/*.py` files are thin command adapters. Supporting logic belongs
 under `scripts/<tool>/<role>/`.

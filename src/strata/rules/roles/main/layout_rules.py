@@ -6,6 +6,8 @@ from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Family, RuleCheck
 from strata.rules.roles._helpers.checks import (
     helpers_package_layout,
+    helpers_reserved_role_filenames,
+    leaf_main_boundary,
     main_package_layout,
     nested_direct_modules,
     nested_direct_subpackages,
@@ -32,6 +34,11 @@ def layout_rules() -> tuple[RuleSpec, ...]:
             check=main_package_layout,
         ),
         _rule(
+            code=RoleCode.HELPERS_RESERVED_ROLE_FILENAMES,
+            slug="helpers-reserved-role-filenames",
+            check=helpers_reserved_role_filenames,
+        ),
+        _rule(
             code=RoleCode.NESTED_DIRECT_MODULES,
             slug="nested-direct-modules",
             check=nested_direct_modules,
@@ -55,6 +62,11 @@ def layout_rules() -> tuple[RuleSpec, ...]:
             code=RoleCode.SHARED_DOMAIN_PREFIX,
             slug="shared-domain-prefix",
             check=shared_domain_prefix,
+        ),
+        _rule(
+            code=RoleCode.LEAF_MAIN_BOUNDARY,
+            slug="leaf-main-boundary",
+            check=leaf_main_boundary,
         ),
     )
 

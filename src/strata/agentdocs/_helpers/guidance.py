@@ -130,8 +130,13 @@ def _runtime_guidance(
 
 
 def _runtime_role_entries(*, active_codes: frozenset[str]) -> tuple[str, ...]:
+    main_entries: tuple[str, ...] = (
+        ("main/",)
+        if RUNTIME_MAIN_CODES.issubset(active_codes) or RoleCode.LEAF_MAIN_BOUNDARY in active_codes
+        else ()
+    )
     return (
-        *_entry_when(label="main/", evidence=RUNTIME_MAIN_CODES, active=active_codes),
+        *main_entries,
         *_entry_when(label="_helpers/", evidence=RUNTIME_HELPERS_CODES, active=active_codes),
         *_entry_when(label="classes/", evidence=RUNTIME_CLASSES_CODES, active=active_codes),
         *_entry_when(label="models.py", evidence=RUNTIME_MODELS_CODES, active=active_codes),
@@ -158,6 +163,23 @@ def _domain_shape_lines(*, active_codes: frozenset[str]) -> tuple[str, ...]:
         "Promote a leaf to a branch only when multiple real capabilities exist.",
         "",
     ]
+    if RoleCode.LEAF_MAIN_BOUNDARY in active_codes:
+        lines.extend(
+            (
+                (
+                    "Every leaf domain or subdomain must contain a direct `main/` boundary with "
+                    "at least one non-`__init__.py` Python entry module. Branch-domain parents do "
+                    "not need their own `main/`; their leaf subdomains do."
+                ),
+                "",
+                (
+                    "Do not add placeholder `main/` packages. If a package owns only passive "
+                    "models, types, constants, exceptions, or classes, move them into the closest "
+                    "domain or subdomain whose `main/` behavior owns and uses them."
+                ),
+                "",
+            )
+        )
     if RUNTIME_PACKAGE_NAMING_CODES.issubset(active_codes):
         lines.extend(
             (
@@ -222,6 +244,17 @@ def _container_guidance(*, config: Config, active_codes: frozenset[str]) -> tupl
             (
                 "Generic bucket names remain SFR204 concerns and do not receive a second "
                 "container-layout fault.",
+                "",
+            )
+        )
+    if RoleCode.HELPERS_RESERVED_ROLE_FILENAMES in active_codes:
+        lines.extend(
+            (
+                (
+                    "Fixed role filenames such as `models.py`, `types.py`, `constants.py`, and "
+                    "`exceptions.py` are sibling roles and must never be nested beneath "
+                    "`_helpers/`."
+                ),
                 "",
             )
         )

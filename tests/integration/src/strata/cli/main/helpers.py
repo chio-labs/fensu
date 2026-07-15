@@ -684,6 +684,9 @@ def write_cli_no_fault_project(root: Path) -> None:
     source_dir: Path = root / "src" / "pkg" / "domain" / "core"
     source_dir.mkdir(parents=True)
     (source_dir / "constants.py").write_text("VALUE: int = 1\n", encoding="utf-8")
+    main: Path = source_dir / "main/run.py"
+    main.parent.mkdir()
+    main.write_text("def run() -> None:\n    return None\n", encoding="utf-8")
     (root / "strata.toml").write_text('roots = ["src/pkg"]\n', encoding="utf-8")
 
 

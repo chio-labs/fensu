@@ -18,6 +18,13 @@ from tests.unit.src.strata.rules.roles._test_types import SfrCatalogueTestCase
             expected_codes=tuple(code.value for code in RoleCode),
             expected_unique_count=len(RoleCode),
             expected_sfr204_message="runtime package directories must identify an owner",
+            expected_sfr303_slug="helpers-reserved-role-filenames",
+            expected_sfr303_message=("_helpers/ packages must not contain reserved role filenames"),
+            expected_sfr303_remediation=(
+                "Rename the helper module after its specific operation, or move role-owned "
+                "declarations to the corresponding sibling models, types, constants, or "
+                "exceptions role."
+            ),
             expected_sfr306_symbolic_name="TOP_LEVEL_DOMAIN_SHAPE",
             expected_sfr306_slug="top-level-domain-shape",
             expected_sfr306_message=(
@@ -38,6 +45,15 @@ from tests.unit.src.strata.rules.roles._test_types import SfrCatalogueTestCase
             expected_sfr308_remediation=(
                 "Create one parent domain from the shared prefix and move each remaining suffix "
                 "beneath it as a named subdomain."
+            ),
+            expected_sfr309_slug="leaf-main-boundary",
+            expected_sfr309_message=(
+                "leaf runtime domains and subdomains must expose meaningful behavior through main/"
+            ),
+            expected_sfr309_remediation=(
+                "Add a focused main/ entry module only when the leaf owns behavior; otherwise "
+                "move passive declarations into the closest domain or subdomain whose main/ "
+                "behavior owns and uses them."
             ),
             expected_sfr706_slug="descriptive-rule-module-names",
             expected_sfr706_message=(
@@ -62,6 +78,9 @@ def test_given_roles_rule_catalogue_when_reading_codes_then_matches_role_code_en
     assert RoleCode("SFR306").name == test_case.expected_sfr306_symbolic_name
     rules_by_code: dict[str, RuleSpec] = {rule.code: rule for rule in SFR_RULES}
     assert rules_by_code["SFR204"].message == test_case.expected_sfr204_message
+    assert rules_by_code["SFR303"].slug == test_case.expected_sfr303_slug
+    assert rules_by_code["SFR303"].message == test_case.expected_sfr303_message
+    assert rules_by_code["SFR303"].remediation == test_case.expected_sfr303_remediation
     assert rules_by_code["SFR306"].slug == test_case.expected_sfr306_slug
     assert rules_by_code["SFR306"].message == test_case.expected_sfr306_message
     assert rules_by_code["SFR306"].remediation == test_case.expected_sfr306_remediation
@@ -70,6 +89,9 @@ def test_given_roles_rule_catalogue_when_reading_codes_then_matches_role_code_en
     assert rules_by_code["SFR308"].slug == test_case.expected_sfr308_slug
     assert rules_by_code["SFR308"].message == test_case.expected_sfr308_message
     assert rules_by_code["SFR308"].remediation == test_case.expected_sfr308_remediation
+    assert rules_by_code["SFR309"].slug == test_case.expected_sfr309_slug
+    assert rules_by_code["SFR309"].message == test_case.expected_sfr309_message
+    assert rules_by_code["SFR309"].remediation == test_case.expected_sfr309_remediation
     assert rules_by_code["SFR706"].slug == test_case.expected_sfr706_slug
     assert rules_by_code["SFR706"].message == test_case.expected_sfr706_message
     assert rules_by_code["SFR706"].remediation == test_case.expected_sfr706_remediation

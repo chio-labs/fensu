@@ -1036,7 +1036,10 @@ def test_given_test_comprehensions_when_checking_then_flags_only_complex_forms(
             ),
             expected_codes=("SFT408",),
             expected_lines=(11,),
-            runtime_paths=("src/strata/rules/core/constants.py",),
+            runtime_paths=(
+                "src/strata/rules/core/constants.py",
+                "src/strata/rules/core/main/run.py",
+            ),
         ),
         SftRuleTestCase(
             description="empty parametrized values are flagged",

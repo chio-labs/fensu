@@ -129,6 +129,14 @@ class RulesetFingerprintTestCase:
 
 
 @dataclass(frozen=True)
+class RulesetSourceReuseTestCase:
+    """Rules sharing one source and expected source read count."""
+
+    description: str
+    expected_source_reads: int
+
+
+@dataclass(frozen=True)
 class GlobalFingerprintTestCase:
     """Two Strata versions and whether their global identities must match."""
 

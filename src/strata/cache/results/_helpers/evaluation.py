@@ -4,11 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from strata.analysis.models import ProjectDependency
 from strata.cache.fingerprints.main.source import fingerprint_source
 from strata.cache.fingerprints.models import CacheFingerprint
-from strata.cache.results._helpers.conversion import restore_file_evaluation
 from strata.cache.results._helpers.dependencies import dependencies_are_current
 from strata.cache.results._helpers.paths import relative_repository_path
 from strata.cache.results.classes.result_cache import ResultCache
@@ -23,29 +22,26 @@ from strata.cache.results.models import (
 )
 from strata.cache.results.types import DependencyStateCache
 from strata.cache.storage.exceptions import CachePathError, CacheRecordError
-from strata.config.models import Config
 from strata.discovery.constants import SNAPSHOT_TABLE
 from strata.discovery.main.prime_snapshot_hashes import prime_snapshot_hashes
-from strata.discovery.models import DiscoveredTree, ScopedFile
 from strata.evaluation.constants import PREWARM_CHUNK_SIZE
-from strata.evaluation.main.build_project import build_evaluation_project
 from strata.evaluation.main.build_targets import build_evaluation_targets
-from strata.evaluation.main.collect_result import collect_file_evaluations
-from strata.evaluation.main.evaluate import evaluate
-from strata.evaluation.main.evaluate_target import evaluate_target
-from strata.evaluation.main.merge_evaluations import merge_file_evaluations
-from strata.evaluation.main.prewarm_files import prewarm_evaluation_files
 from strata.evaluation.main.select_files import select_evaluation_files
-from strata.evaluation.models import (
-    EvaluationResult,
-    EvaluationSelection,
-    EvaluationTarget,
-    FileEvaluation,
-)
-from strata.evaluation.types import EvaluationProjectAnalysis
 from strata.instrumentation.constants import CACHE_MANIFEST_VALIDATION_OPERATION, OPERATION_COUNTERS
-from strata.rules.authoring.models import CustomRuleRegistration, RuleSpec
 from strata.rules.authoring.types import RuleKind
+
+if TYPE_CHECKING:
+    from strata.analysis.models import ProjectDependency
+    from strata.config.models import Config
+    from strata.discovery.models import DiscoveredTree, ScopedFile
+    from strata.evaluation.models import (
+        EvaluationResult,
+        EvaluationSelection,
+        EvaluationTarget,
+        FileEvaluation,
+    )
+    from strata.evaluation.types import EvaluationProjectAnalysis
+    from strata.rules.authoring.models import CustomRuleRegistration, RuleSpec
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,6 +87,8 @@ def run_cached_evaluation(
     )
     scopes: _RuleScopes = _rule_scopes(ruleset=ruleset, warning_rules=warning_rules)
     if scopes.fully_fresh:
+        from strata.evaluation.main.evaluate import evaluate
+
         result: EvaluationResult = evaluate(
             tree=tree,
             ruleset=ruleset,
@@ -108,17 +106,10 @@ def run_cached_evaluation(
     entries: dict[str, CacheIndexEntry] = (
         {entry.path: entry for entry in index.entries} if index is not None else {}
     )
-    prime_snapshot_hashes(paths=tuple(target.scoped_file.path for target in targets))
-    target_paths: set[str] = set()
-    source_fingerprints: dict[str, CacheFingerprint | None] = {}
-    for target in targets:
-        discovered_path: str | None = relative_repository_path(
-            path=target.scoped_file.path,
-            repo_root=tree.repo_root.path,
-        )
-        if discovered_path is not None:
-            target_paths.add(discovered_path)
-            source_fingerprints[discovered_path] = _source_fingerprint(target.scoped_file.path)
+    target_paths, source_fingerprints = _target_source_state(
+        targets=targets,
+        repo_root=tree.repo_root.path,
+    )
     sorted_targets: tuple[str, ...] = tuple(sorted(target_paths))
     dependency_states: DependencyStateCache = {}
     if (
@@ -136,6 +127,10 @@ def run_cached_evaluation(
         )
     ) is not None:
         return replayed
+    from strata.evaluation.main.build_project import build_evaluation_project
+    from strata.evaluation.main.evaluate_target import evaluate_target
+    from strata.evaluation.main.prewarm_files import prewarm_evaluation_files
+
     loaded_entries: tuple[CacheIndexEntry, ...] = tuple(
         entry
         for path, entry in entries.items()
@@ -231,6 +226,8 @@ def run_cached_evaluation(
     for file_evaluation in evaluations:
         collected_dependencies.extend(file_evaluation.dependencies)
     dependencies: tuple[ProjectDependency, ...] = tuple(collected_dependencies)
+    from strata.evaluation.main.collect_result import collect_file_evaluations
+
     result = collect_file_evaluations(
         file_evaluations=evaluations,
         dependencies=dependencies,
@@ -317,9 +314,31 @@ def _materialized(
     item: FileEvaluation | CachedFileResult,
     repo_root: Path,
 ) -> FileEvaluation:
+    from strata.cache.results._helpers.conversion import restore_file_evaluation
+    from strata.evaluation.models import FileEvaluation
+
     if isinstance(item, FileEvaluation):
         return item
     return restore_file_evaluation(result=item, repo_root=repo_root)
+
+
+def _target_source_state(
+    *,
+    targets: tuple[EvaluationTarget, ...],
+    repo_root: Path,
+) -> tuple[set[str], dict[str, CacheFingerprint | None]]:
+    prime_snapshot_hashes(paths=tuple(target.scoped_file.path for target in targets))
+    target_paths: set[str] = set()
+    source_fingerprints: dict[str, CacheFingerprint | None] = {}
+    for target in targets:
+        discovered_path: str | None = relative_repository_path(
+            path=target.scoped_file.path,
+            repo_root=repo_root,
+        )
+        if discovered_path is not None:
+            target_paths.add(discovered_path)
+            source_fingerprints[discovered_path] = _source_fingerprint(target.scoped_file.path)
+    return target_paths, source_fingerprints
 
 
 def _target_decisions(
@@ -391,6 +410,10 @@ def _supplemented(
     tree: DiscoveredTree,
     project: EvaluationProjectAnalysis,
 ) -> FileEvaluation:
+    from strata.evaluation.main.evaluate_target import evaluate_target
+    from strata.evaluation.main.merge_evaluations import merge_file_evaluations
+    from strata.evaluation.models import EvaluationTarget
+
     if not target.direct:
         return evaluation
     fresh: FileEvaluation = evaluate_target(

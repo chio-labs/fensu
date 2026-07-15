@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+import subprocess
+import sys
 from unittest.mock import Mock
 
 import pytest
 
 from strata.cli.main import entry as entry_module
-from tests.unit.src.strata.cli.main._test_types import EntryDispatchTestCase, EntryUsageTestCase
+from tests.unit.src.strata.cli.main._test_types import (
+    EntryDispatchTestCase,
+    EntryLazyImportTestCase,
+    EntryUsageTestCase,
+)
 
 
 @pytest.mark.parametrize(
@@ -166,3 +172,36 @@ def test_given_missing_distribution_when_reading_version_then_prints_unknown(
     assert exit_code == test_case.expected_exit_code
     assert captured[0] == test_case.expected_stdout
     assert captured[1] == test_case.expected_stderr
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        EntryLazyImportTestCase(
+            description="version avoids importing the check implementation",
+            argv=("--version",),
+            module_name="strata.cli.main.check",
+            expected_imported=False,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_lightweight_option_when_running_isolated_then_skips_command_imports(
+    test_case: EntryLazyImportTestCase,
+) -> None:
+    source: str = (
+        "import sys\n"
+        "from strata.cli.main.entry import main\n"
+        f"_ = main({test_case.argv!r})\n"
+        f"print({test_case.module_name!r} in sys.modules)\n"
+    )
+
+    completed: subprocess.CompletedProcess[str] = subprocess.run(
+        (sys.executable, "-c", source),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    imported: bool = completed.stdout.splitlines()[-1] == "True"
+    assert imported is test_case.expected_imported

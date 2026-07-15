@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from strata.cache.fingerprints.main.build_global import build_global_fingerprint
 from strata.cache.fingerprints.models import CacheFingerprint, GlobalFingerprintBuild
@@ -11,16 +12,17 @@ from strata.cache.results.models import CacheEvaluation
 from strata.cli.models import CheckEvaluation
 from strata.config.models import Config
 from strata.discovery.models import DiscoveredTree
-from strata.evaluation.main.evaluate import evaluate
-from strata.evaluation.models import EvaluationResult
 from strata.instrumentation.constants import (
     OPERATION_COUNTERS,
     PHASE_CACHE_EVALUATION_NANOSECONDS,
     PHASE_FULL_EVALUATION_NANOSECONDS,
     PHASE_GLOBAL_FINGERPRINT_NANOSECONDS,
 )
-from strata.rules.authoring.models import RuleSpec
-from strata.rules.catalog.models import RuleSelection
+
+if TYPE_CHECKING:
+    from strata.evaluation.models import EvaluationResult
+    from strata.rules.authoring.models import RuleSpec
+    from strata.rules.catalog.models import RuleSelection
 
 
 def evaluated_check(
@@ -52,6 +54,8 @@ def evaluated_check(
         None if fingerprint_build is None else fingerprint_build.fingerprint
     )
     if fingerprint_build is None or global_fingerprint is None:
+        from strata.evaluation.main.evaluate import evaluate
+
         result: EvaluationResult = OPERATION_COUNTERS.measure(
             operation=PHASE_FULL_EVALUATION_NANOSECONDS,
             callback=lambda: evaluate(

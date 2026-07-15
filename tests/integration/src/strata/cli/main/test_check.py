@@ -1199,7 +1199,7 @@ def test_given_unchanged_tree_when_rechecking_then_short_circuits_stored_output(
     (package / "clean.py").write_text("CLEAN: int = 1\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     probe: RestoreProbe = RestoreProbe()
-    monkeypatch.setattr("strata.cache.results._helpers.evaluation.restore_file_evaluation", probe)
+    monkeypatch.setattr("strata.cache.results._helpers.conversion.restore_file_evaluation", probe)
     cold_stdout: CaptureOutput = CaptureOutput()
     warm_stdout: CaptureOutput = CaptureOutput()
     edited_stdout: CaptureOutput = CaptureOutput()

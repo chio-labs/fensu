@@ -46,6 +46,18 @@ pub fn strata_facts(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(bindings::control_flow_facts, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::walk_python_files, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::hash_source_files, module)?)?;
+    module.add_function(wrap_pyfunction!(
+        bindings::observe_repository_stats,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(
+        bindings::observe_repository_python_globs,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(
+        bindings::observe_repository_contexts,
+        module
+    )?)?;
     module.add_class::<ProgramHandle>()?;
     Ok(())
 }

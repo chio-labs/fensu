@@ -1,61 +1,6 @@
 """Strata: an architecture linter for Python repos, with a public rule-authoring API."""
 
-from __future__ import annotations
-
-from strata.analysis.models import (
-    AnnotationFacts,
-    AttributeReferenceFact,
-    CommentFact,
-    DataclassFact,
-    DiscardedProjectCallFact,
-    EvaluateRuleCallFact,
-    FunctionConditionalFact,
-    FunctionFacts,
-    FunctionMetricFact,
-    HygieneFacts,
-    ImportAliasFact,
-    ImportFact,
-    MeaningfulReturnFact,
-    MissingLocalAnnotationFact,
-    MissingParameterAnnotationFact,
-    MissingReturnAnnotationFact,
-    MissingVariableAnnotationFact,
-    ModuleDeclarationFacts,
-    ModuleStatementFact,
-    NamedCallFact,
-    NodeId,
-    OuterStateMutationFact,
-    ParameterMutationFact,
-    ParametrizeCaseFact,
-    ParametrizeDimensionFact,
-    ParametrizeFact,
-    ProjectCallFacts,
-    ProjectDependency,
-    ProjectFunctionFact,
-    PytestFunctionFact,
-    PytestModuleFacts,
-    ReferenceFacts,
-    RuleTestAssociationFact,
-    SourceLocation,
-    SourcePosition,
-    SourceRange,
-    StaticReferenceFact,
-    SyntaxHandle,
-    TypeDeclarationFact,
-)
-from strata.analysis.types import (
-    FactAnalysis,
-    ProjectAnalysis,
-    RelationAnalysis,
-    RuleCaseForm,
-    SyntaxAnalysis,
-    TextAnalysis,
-)
-from strata.rules.authoring.main.define import rule
-from strata.rules.authoring.models import Fault
-from strata.rules.authoring.types import Family, RuleContext, Severity, Threshold
-from strata.rules.testing.main.evaluate_rule import evaluate_rule
-from strata.rules.testing.models import RuleCase, RuleFile, RuleResult
+from strata.public_api.main.load_attribute import load_public_attribute as __getattr__  # noqa: F401
 
 __all__ = [
     "AnnotationFacts",

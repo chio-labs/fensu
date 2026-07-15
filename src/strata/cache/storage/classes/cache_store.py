@@ -29,6 +29,8 @@ from strata.cache.storage.models import (
 )
 from strata.cache.storage.types import CacheMutator
 from strata.instrumentation.constants import (
+    CACHE_RECORD_BYTES_READ_OPERATION,
+    CACHE_RECORD_BYTES_WRITTEN_OPERATION,
     CACHE_RECORD_DELETE_OPERATION,
     CACHE_RECORD_READ_OPERATION,
     CACHE_RECORD_SCAN_OPERATION,
@@ -133,6 +135,10 @@ class CacheStore:
                 return False
             connection.executemany(_UPSERT_RECORD_SQL, rows)
             OPERATION_COUNTERS.record(operation=CACHE_RECORD_WRITE_OPERATION, amount=len(rows))
+            OPERATION_COUNTERS.record(
+                operation=CACHE_RECORD_BYTES_WRITTEN_OPERATION,
+                amount=sum(len(encoded) for _, _, encoded in rows),
+            )
             connection.commit()
             return True
         except (OSError, RuntimeError, sqlite3.Error):
@@ -190,6 +196,10 @@ class CacheStore:
             OPERATION_COUNTERS.record(
                 operation=CACHE_RECORD_WRITE_OPERATION,
                 amount=len(encoded_rows),
+            )
+            OPERATION_COUNTERS.record(
+                operation=CACHE_RECORD_BYTES_WRITTEN_OPERATION,
+                amount=sum(len(encoded) for _, _, encoded, _ in encoded_rows),
             )
             written_keys: tuple[str, ...] = tuple(key for key, _, _, _ in encoded_rows)
             if mutation.swept_prefix is not None:
@@ -377,6 +387,7 @@ def _fetch_rows(
 ) -> dict[str, tuple[object, ...]]:
     OPERATION_COUNTERS.record(operation=CACHE_RECORD_READ_OPERATION, amount=len(keys))
     rows_by_key: dict[str, tuple[object, ...]] = {}
+    encoded_bytes: int = 0
     for offset in range(0, len(keys), CACHE_DATABASE_READ_CHUNK_SIZE):
         chunk: tuple[str, ...] = keys[offset : offset + CACHE_DATABASE_READ_CHUNK_SIZE]
         placeholders: str = ",".join("?" for _ in chunk)
@@ -386,6 +397,13 @@ def _fetch_rows(
         for row in rows:
             if len(row) == CACHE_DATABASE_SELECTED_COLUMN_COUNT and isinstance(row[0], str):
                 rows_by_key[row[0]] = row[1:]
+                data: object = row[2]
+                if isinstance(data, bytes):
+                    encoded_bytes += len(data)
+    OPERATION_COUNTERS.record(
+        operation=CACHE_RECORD_BYTES_READ_OPERATION,
+        amount=encoded_bytes,
+    )
     return rows_by_key
 
 

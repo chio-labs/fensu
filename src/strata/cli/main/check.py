@@ -4,24 +4,21 @@ from __future__ import annotations
 
 import argparse
 import sys
-from dataclasses import replace
 from pathlib import Path
 from typing import TextIO
 
 from strata.analysis.main.select_fact_backend import select_fact_backend
 from strata.analysis.models import FactBackendSelection
+from strata.cache.fingerprints.models import CacheFingerprint
 from strata.cli._helpers.check_evaluation import evaluated_check
 from strata.cli._helpers.check_output import check_stdout_text, persist_check_output
-from strata.cli._helpers.check_paths import invocation_path
 from strata.cli._helpers.check_reporting import skill_freshness_footer, write_check_diagnostics
-from strata.cli.models import CheckEvaluation
+from strata.cli._helpers.check_setup import prepare_check_inputs
+from strata.cli.models import CheckEvaluation, CheckInputs
 from strata.config.exceptions import ConfigError
-from strata.config.main.load_project_config import load_project_config
-from strata.config.models import Config, LoadedConfig
-from strata.discovery.main.discover_files import discover_files
+from strata.config.models import LoadedConfig
 from strata.discovery.models import DiscoveredTree
-from strata.evaluation.main.validate_rule_exceptions import validate_rule_exceptions
-from strata.rules.catalog.main.build_check_rule_selection import build_check_rule_selection
+from strata.evaluation.models import EvaluationResult
 from strata.rules.catalog.models import RuleSelection
 
 
@@ -40,19 +37,14 @@ def run_check(
     if selection.warning is not None:
         stderr.write(f"{selection.warning}\n")
     try:
-        loaded: LoadedConfig = load_project_config(invocation_dir)
-        project_dir: Path = loaded.source.path.parent.resolve()
-        rule_selection: RuleSelection = build_check_rule_selection(
-            config=loaded.config,
-            repo_root=project_dir,
-            include_warnings=args.warn,
-        )
-        config: Config = _configured(args=args, loaded=loaded, invocation_dir=invocation_dir)
-        tree: DiscoveredTree = discover_files(config=config, repo_root=project_dir)
-        validate_rule_exceptions(config=config, repo_root=tree.repo_root.path)
+        inputs: CheckInputs = prepare_check_inputs(args=args, invocation_dir=invocation_dir)
+        loaded: LoadedConfig = inputs.loaded
+        project_dir: Path = inputs.project_dir
+        rule_selection: RuleSelection = inputs.rule_selection
+        tree: DiscoveredTree = inputs.tree
         evaluation: CheckEvaluation = evaluated_check(
             tree=tree,
-            config=config,
+            config=inputs.config,
             rule_selection=rule_selection,
             project_dir=project_dir,
             warn=args.warn,
@@ -83,57 +75,39 @@ def run_check(
         )
         stderr.write(freshness_footer)
         return evaluation.short_circuit.exit_code
-    if evaluation.result is None:
+    result: EvaluationResult | None = evaluation.result
+    if result is None:
         stderr.write("Cached evaluation returned no result.\n")
         return 2
     text, fault_count = check_stdout_text(
-        result=evaluation.result,
+        result=result,
         tree=tree,
         use_color=use_color,
         show_warnings=args.warn,
     )
+    surface_targets: tuple[str, ...] | None = evaluation.surface_targets
+    global_fingerprint: CacheFingerprint | None = evaluation.global_fingerprint
+    surface_index_fingerprint: CacheFingerprint | None = evaluation.surface_index_fingerprint
     if (
-        evaluation.surface_targets is not None
-        and evaluation.global_fingerprint is not None
-        and evaluation.surface_index_fingerprint is not None
+        surface_targets is not None
+        and global_fingerprint is not None
+        and surface_index_fingerprint is not None
     ):
         _ = persist_check_output(
             repo_root=project_dir,
-            global_fingerprint=evaluation.global_fingerprint,
-            targets=evaluation.surface_targets,
-            result=evaluation.result,
+            global_fingerprint=global_fingerprint,
+            targets=surface_targets,
+            result=result,
             tree=tree,
             show_warnings=args.warn,
             selected_output=text,
             selected_fault_count=fault_count,
             selected_use_color=use_color,
-            expected_index_fingerprint=evaluation.surface_index_fingerprint,
+            expected_index_fingerprint=surface_index_fingerprint,
         )
     stdout.write(text)
     stderr.write(freshness_footer)
     return 1 if fault_count else 0
-
-
-def _configured(
-    *,
-    args: argparse.Namespace,
-    loaded: LoadedConfig,
-    invocation_dir: Path,
-) -> Config:
-    config: Config = loaded.config
-    if args.paths:
-        config = replace(
-            config,
-            roots=tuple(
-                invocation_path(value=value, invocation_dir=invocation_dir) for value in args.paths
-            ),
-        )
-    if args.cache_enabled is not None:
-        config = replace(
-            config,
-            cache=replace(config.cache, enabled=args.cache_enabled),
-        )
-    return config
 
 
 def _parser() -> argparse.ArgumentParser:

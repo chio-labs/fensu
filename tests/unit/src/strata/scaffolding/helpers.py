@@ -115,6 +115,67 @@ class RacingExclusiveOpener:
         destination.symlink_to(self._user_content.decode())
 
 
+class RacingExclusiveLinker:
+    """Create a racing destination immediately before an exclusive hard link."""
+
+    def __init__(
+        self,
+        *,
+        root: Path,
+        destination_name: str,
+        user_content: bytes,
+        link: Callable[..., None],
+        destination_kind: str = "regular",
+    ) -> None:
+        self._root: Path = root
+        self._destination_name: str = destination_name
+        self._user_content: bytes = user_content
+        self._destination_kind: str = destination_kind
+        self._link: Callable[..., None] = link
+        self._raced: bool = False
+
+    def __call__(self, source: Path, target: Path, *, follow_symlinks: bool) -> None:
+        should_race: bool = not self._raced and Path(target).name == self._destination_name
+        race: Callable[[], None] = {
+            False: self._skip_race,
+            True: self._publish_racing_destination,
+        }[should_race]
+        race()
+        self._link(source, target, follow_symlinks=follow_symlinks)
+
+    def _skip_race(self) -> None:
+        return None
+
+    def _publish_racing_destination(self) -> None:
+        destination: Path = self._root / self._destination_name
+        publish: Callable[[Path], None] = {
+            "regular": self._write_regular_destination,
+            "symlink": self._write_symlink_destination,
+        }[self._destination_kind]
+        publish(destination)
+        self._raced = True
+
+    def _write_regular_destination(self, destination: Path) -> None:
+        destination.write_bytes(self._user_content)
+
+    def _write_symlink_destination(self, destination: Path) -> None:
+        destination.symlink_to(self._user_content.decode())
+
+
+class RacingConfigStageLinker:
+    """Replace a staged config pathname immediately before publication."""
+
+    def __init__(self, *, user_content: bytes, link: Callable[..., None]) -> None:
+        self._user_content: bytes = user_content
+        self._link: Callable[..., None] = link
+
+    def __call__(self, source: Path, target: Path, *, follow_symlinks: bool) -> None:
+        replacement: Path = source.with_name(f"racing-user-{source.name}")
+        replacement.write_bytes(self._user_content)
+        _ = replacement.replace(source)
+        self._link(source, target, follow_symlinks=follow_symlinks)
+
+
 class SwappingDirectoryOpener:
     """Swap one scaffold parent for an outside symlink before descriptor opening."""
 
@@ -458,6 +519,7 @@ def config_destination_kind(*, root: Path) -> str:
         (False, False): "missing",
         (False, True): "regular",
         (True, False): "symlink",
+        (True, True): "symlink",
     }[(path.is_symlink(), path.is_file())]
 
 

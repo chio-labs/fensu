@@ -10,15 +10,19 @@ def write_fake_strata(*, root: Path, output: str, changing: bool = False) -> Pat
 
     check_script: Path = root / "check"
     changing_body: str = (
+        "import sys\n"
         "from pathlib import Path\n"
         'state = Path.cwd() / ".count"\n'
         "count = int(state.read_text()) if state.is_file() else 0\n"
         "count += 1\n"
         "state.write_text(str(count))\n"
-        'print(f"Found {count} faults")\n'
+        'sys.stdout.buffer.write(f"Found {count} faults\\n".encode("utf-8"))\n'
         "raise SystemExit(1)\n"
     )
-    stable_body: str = f"import sys\nsys.stdout.write({output!r})\nraise SystemExit(1)\n"
+    output_bytes: bytes = output.encode("utf-8")
+    stable_body: str = (
+        f"import sys\nsys.stdout.buffer.write({output_bytes!r})\nraise SystemExit(1)\n"
+    )
     body: str = {False: stable_body, True: changing_body}[changing]
     check_script.write_text(body, encoding="utf-8")
     return Path(sys.executable)

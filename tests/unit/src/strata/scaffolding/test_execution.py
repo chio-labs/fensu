@@ -43,6 +43,8 @@ from tests.unit.src.strata.scaffolding.helpers import (
     CountingFileOpener,
     FailingPublicationWriter,
     NoDirFdOpener,
+    RacingConfigStageLinker,
+    RacingExclusiveLinker,
     RacingExclusiveOpener,
     RacingGitIgnorePublisher,
     SwappingDirectoryOpener,
@@ -233,6 +235,7 @@ def test_given_existing_config_path_when_executing_then_refuses_before_atomic_st
             expected_temp_paths=(),
             expected_destination_kind="regular",
             expected_destination_value="racing config\n",
+            expected_absent_paths=(),
         ),
         AtomicRaceTestCase(
             description="concurrent config symlink is never overwritten",
@@ -242,6 +245,7 @@ def test_given_existing_config_path_when_executing_then_refuses_before_atomic_st
             expected_temp_paths=(),
             expected_destination_kind="symlink",
             expected_destination_value="racing-target",
+            expected_absent_paths=("racing-target",),
         ),
     ],
     ids=lambda case: case.description,
@@ -250,14 +254,15 @@ def test_given_racing_config_destination_when_publishing_then_never_overwrites_a
     test_case: AtomicRaceTestCase, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     build_repository(root=tmp_path, files=(("src/pkg/__init__.py", ""),))
-    opener: RacingExclusiveOpener = RacingExclusiveOpener(
+    linker: RacingExclusiveLinker = RacingExclusiveLinker(
         root=tmp_path,
         destination_name="strata.toml",
         user_content=test_case.expected_destination_value.encode(),
         destination_kind=test_case.destination_kind,
-        open_file=os.open,
+        link=os.link,
     )
-    monkeypatch.setattr(os, "open", opener)
+    monkeypatch.setattr(capabilities_module, "supports_dir_fd_operations", lambda: False)
+    monkeypatch.setattr(os, "link", linker)
     plan: InitPlan = InitPlan(roots=("src/pkg",), tests=("tests",), tooling=())
 
     with pytest.raises(test_case.expected_error_type) as error:
@@ -267,7 +272,49 @@ def test_given_racing_config_destination_when_publishing_then_never_overwrites_a
     assert config_temp_paths(root=tmp_path) == test_case.expected_temp_paths
     assert config_destination_kind(root=tmp_path) == test_case.expected_destination_kind
     assert config_destination_value(root=tmp_path) == test_case.expected_destination_value
+    assert absent_paths(root=tmp_path, paths=test_case.expected_absent_paths) == (
+        test_case.expected_absent_paths
+    )
     assert not (tmp_path / ".gitignore").exists()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        PublicationFailureTestCase(
+            description="replaced config stage is never trusted or published",
+            expected_error_fragment="changed concurrently",
+            expected_absent_paths=("strata.toml", ".gitignore"),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+@pytest.mark.skipif(os.name == "nt", reason="Windows prevents replacing an open file")
+def test_given_replaced_config_stage_when_publishing_then_refuses_untrusted_content(
+    test_case: PublicationFailureTestCase,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    build_repository(root=tmp_path, files=(("src/pkg/__init__.py", ""),))
+    user_content: bytes = b"untrusted staged config\n"
+    linker: RacingConfigStageLinker = RacingConfigStageLinker(
+        user_content=user_content,
+        link=os.link,
+    )
+    monkeypatch.setattr(capabilities_module, "supports_dir_fd_operations", lambda: False)
+    monkeypatch.setattr(os, "link", linker)
+    plan: InitPlan = InitPlan(roots=("src/pkg",), tests=("tests",), tooling=())
+
+    with pytest.raises(InitError) as error:
+        execute_init_plan(repository=tmp_path, plan=plan)
+
+    temporary_paths: tuple[str, ...] = config_temp_paths(root=tmp_path)
+    assert test_case.expected_error_fragment in str(error.value)
+    assert absent_paths(root=tmp_path, paths=test_case.expected_absent_paths) == (
+        test_case.expected_absent_paths
+    )
+    assert len(temporary_paths) == 1
+    assert (tmp_path / temporary_paths[0]).read_bytes() == user_content
 
 
 @pytest.mark.parametrize(
@@ -380,8 +427,11 @@ def test_given_intermediate_parent_swap_when_scaffolding_then_refuses_without_wr
 )
 @pytest.mark.skipif(os.name == "nt", reason="umask mode semantics are POSIX-only")
 def test_given_restrictive_umask_when_scaffolding_then_regular_files_are_non_executable(
-    test_case: ScaffoldModeTestCase, tmp_path: Path
+    test_case: ScaffoldModeTestCase,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(capabilities_module, "supports_dir_fd_operations", lambda: False)
     previous_umask: int = os.umask(test_case.umask)
     try:
         plan: InitPlan = InitPlan(

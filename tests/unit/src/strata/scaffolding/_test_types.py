@@ -155,6 +155,7 @@ class AtomicRaceTestCase:
     expected_temp_paths: tuple[str, ...]
     expected_destination_kind: str
     expected_destination_value: str
+    expected_absent_paths: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

@@ -102,13 +102,11 @@ def _load_rule_modules(*, module_names: tuple[str, ...], repo_root: Path) -> tup
             loaded.extend(
                 _with_custom_source(
                     rules=rule_specs_in_module(module=module),
-                    source=str(
-                        _repository_module_path(
-                            module=module,
-                            module_name=module_name,
-                            repo_root=repo_root,
-                        )
-                    ),
+                    source=_repository_module_path(
+                        module=module,
+                        module_name=module_name,
+                        repo_root=repo_root,
+                    ).as_posix(),
                 )
             )
     finally:
@@ -161,7 +159,7 @@ def _load_rule_file(*, path: Path, repo_root: Path) -> tuple[RuleSpec, ...]:
         )
         sys.modules.update(displaced_modules)
         _remove_repository_import_path(repository_path)
-    return _with_custom_source(rules=rule_specs_in_module(module=module), source=str(path))
+    return _with_custom_source(rules=rule_specs_in_module(module=module), source=path.as_posix())
 
 
 def _synthetic_module_name(path: Path) -> str:

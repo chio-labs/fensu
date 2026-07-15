@@ -51,12 +51,15 @@ def render_benchmark(report: BenchmarkReport) -> str:
 
 def _run_check(*, project: Path, executable: Path) -> CheckRun:
     started: float = time.perf_counter()
-    completed: subprocess.CompletedProcess[bytes] = subprocess.run(
-        (str(executable), "check", "--no-color"),
-        cwd=project,
-        capture_output=True,
-        check=False,
-    )
+    try:
+        completed: subprocess.CompletedProcess[bytes] = subprocess.run(
+            (str(executable), "check", "--no-color"),
+            cwd=project,
+            capture_output=True,
+            check=False,
+        )
+    except OSError as error:
+        raise BenchmarkError(f"Could not execute Strata check at {executable}: {error}") from error
     elapsed: float = time.perf_counter() - started
     if completed.returncode not in _allowed_check_return_codes:
         error: str = completed.stderr.decode("utf-8", errors="replace").strip()

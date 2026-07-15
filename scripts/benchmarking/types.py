@@ -3,10 +3,19 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from enum import StrEnum
 from typing import Protocol
 
 from strata.evaluation.models import ExternalAnalysisBuild, ParsedModule
 from strata.rules.authoring.models import Fault
+
+
+class OperationProfileMode(StrEnum):
+    """Supported cache states for deterministic operation profiling."""
+
+    UNCACHED = "uncached"
+    COLD = "cold"
+    WARM = "warm"
 
 
 class EvaluatorModule(Protocol):

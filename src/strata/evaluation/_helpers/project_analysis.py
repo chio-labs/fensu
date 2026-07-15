@@ -23,7 +23,14 @@ from strata.evaluation._helpers.parsing import parse_scoped_file, read_source_sn
 from strata.evaluation.exceptions import ParseError
 from strata.evaluation.models import ExternalAnalysisBuild, ParsedModule, SourceSnapshot
 from strata.evaluation.types import EvaluationProjectAnalysis
-from strata.instrumentation.constants import DEPENDENCY_RECORD_OPERATION, OPERATION_COUNTERS
+from strata.instrumentation.constants import (
+    DEPENDENCY_RECORD_OPERATION,
+    OPERATION_COUNTERS,
+    PROJECT_QUERY_CACHE_HIT_OPERATION,
+    PROJECT_QUERY_CACHE_MISS_OPERATION,
+    PROJECT_QUERY_OBSERVATION_OPERATION,
+    PROJECT_QUERY_SOURCE_OPERATION,
+)
 
 _test_types_file_name: str = "_test_types.py"
 
@@ -105,7 +112,10 @@ class _EvaluationProjectAnalysis:
         parsed: ParsedModule | None = self._parsed_modules.get(resolved_path)
         external: Analysis | None = self._external_analyses.get(resolved_path)
         answer: str | None
+        _record_query_cache(hit=resolved_path in self._queried_sources)
         if resolved_path not in self._queried_sources:
+            OPERATION_COUNTERS.record(operation=PROJECT_QUERY_OBSERVATION_OPERATION)
+            OPERATION_COUNTERS.record(operation=PROJECT_QUERY_SOURCE_OPERATION)
             scoped_file: ScopedFile | None = self._scoped_files.get(resolved_path)
             if scoped_file is not None:
                 parsed, answer = _build_discovered_analysis(scoped_file=scoped_file)
@@ -161,6 +171,7 @@ class _EvaluationProjectAnalysis:
         """Return direct children and record a directory namespace dependency."""
 
         query_path: Path = path.absolute()
+        _record_query_cache(hit=query_path in self._directory_entries)
         if query_path not in self._directory_entries:
             self._directory_entries[query_path] = self._observer.directory_entries(
                 query_path=query_path
@@ -197,6 +208,7 @@ class _EvaluationProjectAnalysis:
         """Return whether a path exists and record the dependency."""
 
         resolved_path: Path = self._resolve(path)
+        _record_query_cache(hit=resolved_path in self._exists)
         if resolved_path not in self._exists:
             self._exists[resolved_path] = self._observer.exists(resolved_path=resolved_path)
         answer: bool = self._exists[resolved_path]
@@ -212,6 +224,7 @@ class _EvaluationProjectAnalysis:
         """Return whether a path is a directory and record the dependency."""
 
         resolved_path: Path = self._resolve(path)
+        _record_query_cache(hit=resolved_path in self._directories)
         if resolved_path not in self._directories:
             self._directories[resolved_path] = self._observer.is_dir(resolved_path=resolved_path)
         answer: bool = self._directories[resolved_path]
@@ -227,6 +240,7 @@ class _EvaluationProjectAnalysis:
         """Return whether a path is a file and record the dependency."""
 
         resolved_path: Path = self._resolve(path)
+        _record_query_cache(hit=resolved_path in self._files)
         if resolved_path not in self._files:
             self._files[resolved_path] = self._observer.is_file(resolved_path=resolved_path)
         answer: bool = self._files[resolved_path]
@@ -250,6 +264,7 @@ class _EvaluationProjectAnalysis:
 
         query_path: Path = path.absolute()
         cache_key: tuple[Path, str, bool] = (query_path, pattern, recursive)
+        _record_query_cache(hit=cache_key in self._globs)
         if cache_key not in self._globs:
             self._globs[cache_key] = self._observer.glob(
                 query_path=query_path,
@@ -271,6 +286,7 @@ class _EvaluationProjectAnalysis:
         """Return and record one compact deterministic Python ownership anchor."""
 
         query_path: Path = path.absolute()
+        _record_query_cache(hit=query_path in self._python_anchors)
         if query_path not in self._python_anchors:
             self._python_anchors[query_path] = self._observer.python_anchor(query_path=query_path)
         anchor: Path | None = self._python_anchors[query_path]
@@ -353,6 +369,13 @@ def build_project_analysis(*, tree: DiscoveredTree) -> EvaluationProjectAnalysis
     """Build one evaluation-scoped project analysis."""
 
     return _EvaluationProjectAnalysis(tree=tree)
+
+
+def _record_query_cache(*, hit: bool) -> None:
+    operation: str = (
+        PROJECT_QUERY_CACHE_HIT_OPERATION if hit else PROJECT_QUERY_CACHE_MISS_OPERATION
+    )
+    OPERATION_COUNTERS.record(operation=operation)
 
 
 def build_external_analysis(*, path: Path) -> ExternalAnalysisBuild:

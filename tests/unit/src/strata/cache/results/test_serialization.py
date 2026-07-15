@@ -167,13 +167,10 @@ _C_FINGERPRINT: str = "c" * 64
                 CACHE_FACT_KIND,
             ),
             expected_dependency_payload={
-                "answer": ["tests/b.py", "tests/a.py"],
-                "dependency_path": "tests",
                 "kind": "glob",
                 "pattern": "*.py",
                 "query_path": "tests",
                 "recursive": True,
-                "requester_path": "src/example.py",
             },
         )
     ],
@@ -189,13 +186,16 @@ def test_given_typed_records_when_round_tripping_storage_then_preserves_contract
         fact_to_record(test_case.fact),
     )
     stored: tuple[CacheRecord | None, ...] = tuple(
-        decode_cache_record(data=encode_cache_record(record), expected_kind=record.kind)
+        decode_cache_record(data=encode_cache_record(record=record), expected_kind=record.kind)
         for record in records
     )
     decoded: tuple[object | None, ...] = (
         metadata_from_record(records[0]),
         index_from_record(records[1]),
-        file_result_from_record(records[2]),
+        file_result_from_record(
+            record=records[2],
+            dependency_observations=test_case.file_result.dependencies,
+        ),
         fact_from_record(records[3]),
     )
 
@@ -204,7 +204,13 @@ def test_given_typed_records_when_round_tripping_storage_then_preserves_contract
     assert decoded == (test_case.metadata, test_case.index, test_case.file_result, test_case.fact)
     assert isinstance(records[2].payload, dict)
     assert isinstance(records[2].payload["warnings"], list)
-    assert file_result_from_record(records[2]) == test_case.file_result
+    assert (
+        file_result_from_record(
+            record=records[2],
+            dependency_observations=test_case.file_result.dependencies,
+        )
+        == test_case.file_result
+    )
     assert isinstance(records[2].payload["dependencies"], list)
     assert records[2].payload["dependencies"][6] == test_case.expected_dependency_payload
 
@@ -405,7 +411,7 @@ def test_given_semantically_invalid_file_record_when_decoding_then_returns_miss(
     test_case: InvalidFileResultRecordTestCase,
 ) -> None:
     result: CachedFileResult | None = file_result_from_record(
-        CacheRecord(kind=CACHE_FILE_RESULT_KIND, payload=test_case.payload)
+        record=CacheRecord(kind=CACHE_FILE_RESULT_KIND, payload=test_case.payload)
     )
 
     assert result == test_case.expected_result
@@ -480,7 +486,7 @@ def test_given_dependency_with_wrong_contract_when_decoding_then_returns_miss(
         "source_fingerprint": _A_FINGERPRINT,
     }
     result: CachedFileResult | None = file_result_from_record(
-        CacheRecord(kind=CACHE_FILE_RESULT_KIND, payload=payload)
+        record=CacheRecord(kind=CACHE_FILE_RESULT_KIND, payload=payload)
     )
 
     assert result == test_case.expected_result

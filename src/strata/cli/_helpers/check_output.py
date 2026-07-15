@@ -47,27 +47,40 @@ def persist_check_output(
     result: EvaluationResult,
     tree: DiscoveredTree,
     show_warnings: bool,
+    selected_output: str,
+    selected_fault_count: int,
+    selected_use_color: bool,
+    expected_index_fingerprint: CacheFingerprint,
 ) -> bool:
     """Store both rendered stdout variants for the current cache generation."""
 
-    plain: _CheckStdout = _rendered_stdout(
-        result=result,
-        tree=tree,
-        use_color=False,
-        show_warnings=show_warnings,
+    selected: _CheckStdout = _CheckStdout(
+        text=selected_output,
+        fault_count=selected_fault_count,
     )
-    color: _CheckStdout = _rendered_stdout(
-        result=result,
-        tree=tree,
-        use_color=True,
-        show_warnings=show_warnings,
-    )
+    if selected_use_color:
+        color: _CheckStdout = selected
+        plain: _CheckStdout = _rendered_stdout(
+            result=result,
+            tree=tree,
+            use_color=False,
+            show_warnings=show_warnings,
+        )
+    else:
+        plain = selected
+        color = _rendered_stdout(
+            result=result,
+            tree=tree,
+            use_color=True,
+            show_warnings=show_warnings,
+        )
     return ResultCache(repo_root=repo_root).store_check_output(
         global_fingerprint=global_fingerprint,
         targets=targets,
         plain_output=plain.text,
         color_output=color.text,
         exit_code=1 if plain.fault_count else 0,
+        expected_index_fingerprint=expected_index_fingerprint,
     )
 
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import MappingProxyType
+from unittest.mock import Mock
 
 import pytest
 
@@ -116,15 +117,15 @@ def test_given_canonical_values_when_fingerprinting_then_preserves_semantic_orde
             expected_record_equal=True,
         ),
         FileResultFingerprintTestCase(
-            description="dependency answer changes correctness and integrity",
+            description="normalized dependency answer does not duplicate file-record identity",
             first_global="g" * 64,
             second_global="g" * 64,
             first_dependency_answer=False,
             second_dependency_answer=True,
             first_fault_message="missing annotation",
             second_fault_message="missing annotation",
-            expected_result_equal=False,
-            expected_record_equal=False,
+            expected_result_equal=True,
+            expected_record_equal=True,
         ),
         FileResultFingerprintTestCase(
             description="fault mutation changes integrity but not correctness inputs",
@@ -134,7 +135,7 @@ def test_given_canonical_values_when_fingerprinting_then_preserves_semantic_orde
             second_dependency_answer=False,
             first_fault_message="missing annotation",
             second_fault_message="changed diagnostic",
-            expected_result_equal=True,
+            expected_result_equal=False,
             expected_record_equal=False,
         ),
         FileResultFingerprintTestCase(
@@ -166,12 +167,10 @@ def test_given_file_results_when_fingerprinting_then_separates_correctness_and_i
     second_record: CacheRecord = file_result_to_record(second_result)
     first: FileResultFingerprints = file_result_fingerprints(
         global_fingerprint=CacheFingerprint(test_case.first_global),
-        result=first_result,
         encoded=encode_record(record=first_record),
     )
     second: FileResultFingerprints = file_result_fingerprints(
         global_fingerprint=CacheFingerprint(test_case.second_global),
-        result=second_result,
         encoded=encode_record(record=second_record),
     )
 
@@ -845,6 +844,7 @@ def test_given_runtime_semantics_when_fingerprinting_then_captures_contract_iden
             source_available=True,
             complete_source=True,
             expected_available=True,
+            expected_implementation_scans=2,
         ),
         GlobalFingerprintBuilderTestCase(
             description="unavailable package conservatively disables caching",
@@ -852,6 +852,7 @@ def test_given_runtime_semantics_when_fingerprinting_then_captures_contract_iden
             source_available=False,
             complete_source=False,
             expected_available=False,
+            expected_implementation_scans=0,
         ),
         GlobalFingerprintBuilderTestCase(
             description="source-less package conservatively disables caching",
@@ -859,6 +860,7 @@ def test_given_runtime_semantics_when_fingerprinting_then_captures_contract_iden
             source_available=False,
             complete_source=False,
             expected_available=False,
+            expected_implementation_scans=0,
         ),
         GlobalFingerprintBuilderTestCase(
             description="orphan bytecode participates in complete implementation identity",
@@ -866,6 +868,7 @@ def test_given_runtime_semantics_when_fingerprinting_then_captures_contract_iden
             source_available=True,
             complete_source=False,
             expected_available=True,
+            expected_implementation_scans=2,
         ),
     ],
     ids=lambda case: case.description,
@@ -882,6 +885,8 @@ def test_given_loaded_package_when_building_global_then_requires_complete_source
         complete_source=test_case.complete_source,
         empty_package_root=tmp_path / "strata",
     )
+    implementation_paths: Mock = Mock(wraps=fingerprint_module._implementation_paths)
+    monkeypatch.setattr(fingerprint_module, "_implementation_paths", implementation_paths)
 
     first: GlobalFingerprintBuild = build_global_fingerprint(
         config=Config(roots=()), ruleset=(), repo_root=tmp_path
@@ -892,6 +897,7 @@ def test_given_loaded_package_when_building_global_then_requires_complete_source
 
     assert (first.fingerprint is not None) is test_case.expected_available
     assert (first.disabled_reason is None) is test_case.expected_available
+    assert implementation_paths.call_count == test_case.expected_implementation_scans
     assert first == second
     assert not (tmp_path / ".strata").exists()
 

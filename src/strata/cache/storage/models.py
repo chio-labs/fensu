@@ -28,6 +28,16 @@ class CacheWrite:
 
 
 @dataclass(frozen=True, slots=True)
+class EncodedCacheWrite:
+    """One prevalidated canonical record update without its payload tree."""
+
+    relative_path: Path
+    kind: str
+    encoded: bytes
+    insert_only: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class CacheRead:
     """One logical record lookup in a cache read batch."""
 
@@ -39,9 +49,10 @@ class CacheRead:
 class CacheMutation:
     """One transactional publication with an optional unreferenced-record sweep."""
 
-    writes: tuple[CacheWrite, ...]
+    writes: tuple[CacheWrite | EncodedCacheWrite, ...]
     swept_prefix: Path | None = None
     retained_paths: tuple[Path, ...] = ()
+    deleted_paths: tuple[Path, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

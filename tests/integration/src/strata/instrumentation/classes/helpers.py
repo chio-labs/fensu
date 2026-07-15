@@ -38,3 +38,12 @@ def appended_module_constant(*, path: Path) -> Path:
 
     path.write_text(path.read_text(encoding="utf-8") + "\nEDIT_MARKER: int = 1\n", encoding="utf-8")
     return path
+
+
+def append_source_newlines(*, root: Path) -> tuple[Path, ...]:
+    """Change every Python source by appending semantically inert whitespace."""
+
+    paths: tuple[Path, ...] = tuple(sorted(root.rglob("*.py")))
+    for path in paths:
+        path.write_text(path.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+    return paths

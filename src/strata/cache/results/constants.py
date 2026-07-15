@@ -24,7 +24,9 @@ CURRENT_PATH_PART: str = "."
 REPOSITORY_ROOT_PATH: str = "."
 RULE_EXCEPTION_SYMBOL_PATTERN: str = r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?"
 METADATA_PAYLOAD_KEYS: frozenset[str] = frozenset({"global_fingerprint"})
-INDEX_PAYLOAD_KEYS: frozenset[str] = frozenset({"entries", "global_fingerprint"})
+INDEX_PAYLOAD_KEYS: frozenset[str] = frozenset(
+    {"dependencies_fingerprint", "entries", "global_fingerprint"}
+)
 INDEX_ENTRY_KEYS: frozenset[str] = frozenset(
     {"path", "record_fingerprint", "result_fingerprint", "source_fingerprint"}
 )
@@ -75,4 +77,7 @@ DEPENDENCY_OBSERVATION_KEYS: frozenset[str] = frozenset(
         "recursive",
         "requester_path",
     }
+)
+DEPENDENCY_REFERENCE_KEYS: frozenset[str] = frozenset(
+    {"kind", "pattern", "query_path", "recursive"}
 )

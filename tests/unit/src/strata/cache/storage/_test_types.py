@@ -19,6 +19,26 @@ class CacheRecordRoundTripTestCase:
 
 
 @dataclass(frozen=True)
+class CompressedCacheRecordTestCase:
+    """One large canonical payload and compressed storage expectation."""
+
+    description: str
+    payload_size: int
+    expected_prefix: bytes
+    expected_smaller: bool
+
+
+@dataclass(frozen=True)
+class BoundedCompressedCacheRecordTestCase:
+    """One compressed payload and maximum decoded-size expectation."""
+
+    description: str
+    decoded_limit: int
+    payload_size: int
+    expected_record: None
+
+
+@dataclass(frozen=True)
 class InvalidCacheRecordTestCase:
     """Unsupported cache bytes and the expected miss."""
 

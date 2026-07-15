@@ -10,6 +10,7 @@ def uniform_budget_run(
     backend: str,
     file_target: int,
     seed: int,
+    runs: int,
     ceiling_seconds: float,
 ) -> int:
     """Run every scenario with one shared ceiling and return the exit code."""
@@ -18,6 +19,7 @@ def uniform_budget_run(
         backend=backend,
         files=file_target,
         seed=seed,
+        runs=runs,
         uncached_ceiling=ceiling_seconds,
         cold_ceiling=ceiling_seconds,
         warm_ceiling=ceiling_seconds,

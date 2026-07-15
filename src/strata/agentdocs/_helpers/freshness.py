@@ -56,7 +56,12 @@ def _read_skill_content(path: Path) -> tuple[bytes | None, bool]:
                 return None, True
         if path.is_symlink():
             return None, True
-        flags: int = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NOATIME", 0)
+        flags: int = (
+            os.O_RDONLY
+            | getattr(os, "O_NOFOLLOW", 0)
+            | getattr(os, "O_NOATIME", 0)
+            | getattr(os, "O_BINARY", 0)
+        )
         try:
             descriptor: int = os.open(path, flags)
         except FileNotFoundError:

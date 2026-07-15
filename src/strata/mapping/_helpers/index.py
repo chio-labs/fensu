@@ -14,11 +14,13 @@ from strata.mapping.constants import (
     INIT_MODULE_FILE_NAME,
     INIT_MODULE_NAME,
     PATH_SYMBOL_SEPARATOR,
+    POSIX_PATH_SEPARATOR,
     PROPERTY_DECORATOR_NAMES,
     PROTOCOL_BASE_NAMES,
     QUALIFIED_NAME_SEPARATOR,
     SELF_RECEIVER_NAME,
     TYPE_CHECKING_NAMES,
+    WINDOWS_PATH_SEPARATOR,
 )
 from strata.mapping.exceptions import MapError
 from strata.mapping.models import (
@@ -124,11 +126,14 @@ def select_function(
 
     if PATH_SYMBOL_SEPARATOR in symbol:
         path_fragment, function_name = symbol.rsplit(PATH_SYMBOL_SEPARATOR, maxsplit=1)
+        normalized_fragment: str = path_fragment.replace(
+            WINDOWS_PATH_SEPARATOR, POSIX_PATH_SEPARATOR
+        ).removesuffix(".py")
         matches: tuple[FunctionDefinition, ...] = tuple(
             definition
             for definition in definitions.values()
             if definition.qualified_name == function_name
-            and str(definition.path).removesuffix(".py").endswith(path_fragment.removesuffix(".py"))
+            and definition.path.as_posix().removesuffix(".py").endswith(normalized_fragment)
         )
     elif symbol in definitions:
         return definitions[symbol]

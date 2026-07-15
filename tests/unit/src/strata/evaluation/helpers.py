@@ -64,7 +64,7 @@ def write_sources(*, repo_root: Path, files: tuple[tuple[str, str], ...]) -> Non
     for relative_path, source in files:
         path: Path = repo_root / relative_path
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(source, encoding="utf-8")
+        path.write_bytes(source.encode("utf-8"))
 
 
 def selection_context_rule() -> RuleSpec:
@@ -114,7 +114,7 @@ def direct_ast_parse_paths(*, root: Path) -> tuple[str, ...]:
         lambda candidate: "ast.parse" in candidate.read_text(encoding="utf-8"),
         root.rglob("*.py"),
     )
-    return tuple(str(candidate.relative_to(root)) for candidate in candidates)
+    return tuple(candidate.relative_to(root).as_posix() for candidate in candidates)
 
 
 def write_exception_target(*, repo_root: Path, path: str, create_path: bool) -> None:

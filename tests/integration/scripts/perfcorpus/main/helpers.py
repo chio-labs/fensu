@@ -11,7 +11,7 @@ def tree_digest(*, root: Path) -> str:
 
     chunks: list[bytes] = []
     for path in sorted(filter(Path.is_file, root.rglob("*"))):
-        chunks.append(str(path.relative_to(root)).encode("utf-8"))
+        chunks.append(path.relative_to(root).as_posix().encode("utf-8"))
         chunks.append(path.read_bytes())
     return hashlib.sha256(b"".join(chunks)).hexdigest()
 

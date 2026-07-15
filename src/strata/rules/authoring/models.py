@@ -28,7 +28,7 @@ class Fault:
             relative_path = self.path
         line_text: str = str(self.line) if self.line is not None else "-"
         column_text: str = str(self.column) if self.column is not None else "-"
-        return f"{relative_path}:{line_text}:{column_text}: {self.code} {self.message}"
+        return f"{relative_path.as_posix()}:{line_text}:{column_text}: {self.code} {self.message}"
 
 
 @dataclass(frozen=True, slots=True)

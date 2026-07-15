@@ -5,9 +5,11 @@ from __future__ import annotations
 import errno
 import json
 import os
+import secrets
 import stat
 import tomllib
 from collections.abc import Mapping
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
@@ -33,6 +35,7 @@ from strata.scaffolding.models import GitIgnorePlan, InitExecution, InitPlan
 
 _READ_CHUNK_SIZE: int = 65_536
 _FILE_MODE: int = 0o644
+_STAGE_CREATE_ATTEMPTS: int = 16
 
 
 @dataclass(frozen=True, slots=True)
@@ -291,6 +294,45 @@ def _atomic_write_config(*, repository: Path, text: str) -> _PublishedPath:
 
 def _atomic_write_config_by_path(*, repository: Path, text: str) -> _PublishedPath:
     path: Path = repository / CONFIG_FILE_NAME
+    content: bytes = text.encode()
+    descriptor: int
+    staged_path: Path
+    metadata: os.stat_result
+    descriptor, staged_path, metadata = _open_config_stage(repository=repository)
+    try:
+        _write_all(descriptor=descriptor, content=content)
+        os.fsync(descriptor)
+        metadata = os.fstat(descriptor)
+        _verify_path_identity(path=staged_path, metadata=metadata)
+        try:
+            os.link(staged_path, path, follow_symlinks=False)
+        except OSError as error:
+            if os.path.lexists(path):
+                raise InitError(
+                    f"Refusing to replace configuration path created concurrently: {path}"
+                ) from error
+            raise InitError(
+                f"Could not publish configuration path safely: {path}: {error}"
+            ) from error
+        try:
+            _verify_path_identity(path=path, metadata=metadata)
+        except (InitError, OSError):
+            _unlink_config_publication(
+                path=path,
+                staged_path=staged_path,
+                metadata=metadata,
+            )
+            raise
+    finally:
+        _cleanup_config_stage(
+            descriptor=descriptor,
+            staged_path=staged_path,
+            metadata=metadata,
+        )
+    return _publication(path=path, metadata=metadata, content=content)
+
+
+def _open_config_stage(*, repository: Path) -> tuple[int, Path, os.stat_result]:
     flags: int = (
         os.O_WRONLY
         | os.O_CREAT
@@ -298,23 +340,38 @@ def _atomic_write_config_by_path(*, repository: Path, text: str) -> _PublishedPa
         | getattr(os, "O_NOFOLLOW", 0)
         | getattr(os, "O_BINARY", 0)
     )
-    try:
-        descriptor: int = os.open(path, flags, _FILE_MODE)
-    except FileExistsError as error:
-        raise InitError(
-            f"Refusing to replace configuration path created concurrently: {path}"
-        ) from error
-    metadata: os.stat_result = os.fstat(descriptor)
-    try:
-        _write_all(descriptor=descriptor, content=text.encode())
-        os.fsync(descriptor)
-        _verify_path_identity(path=path, metadata=metadata)
-    except (InitError, OSError):
+    for _attempt in range(_STAGE_CREATE_ATTEMPTS):
+        token: str = secrets.token_hex(16)
+        path: Path = repository / f".{CONFIG_FILE_NAME}.{token}.tmp"
+        try:
+            descriptor: int = os.open(path, flags, _FILE_MODE)
+        except FileExistsError:
+            continue
+        try:
+            return descriptor, path, os.fstat(descriptor)
+        except OSError:
+            with suppress(OSError):
+                os.close(descriptor)
+            with suppress(OSError):
+                path.unlink(missing_ok=True)
+            raise
+    raise InitError(f"Could not allocate configuration staging path in: {repository}")
+
+
+def _cleanup_config_stage(*, descriptor: int, staged_path: Path, metadata: os.stat_result) -> None:
+    with suppress(OSError):
         os.close(descriptor)
-        _unlink_path_if_identity(path=path, metadata=metadata)
-        raise
-    os.close(descriptor)
-    return _publication(path=path, metadata=metadata, content=text.encode())
+    with suppress(OSError):
+        _unlink_path_if_identity(path=staged_path, metadata=metadata)
+
+
+def _unlink_config_publication(*, path: Path, staged_path: Path, metadata: os.stat_result) -> None:
+    _unlink_path_if_identity(path=path, metadata=metadata)
+    try:
+        staged_metadata: os.stat_result = staged_path.lstat()
+    except FileNotFoundError:
+        return
+    _unlink_path_if_identity(path=path, metadata=staged_metadata)
 
 
 def _ensure_config_absent(*, repository: Path) -> None:

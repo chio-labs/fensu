@@ -137,6 +137,19 @@ class CachedDomainShapeInvalidationTestCase:
 
 
 @dataclass(frozen=True)
+class CachedLeafMainInvalidationTestCase:
+    """One added main entry and expected cached SFR309 invalidation."""
+
+    description: str
+    role_relative_path: str
+    main_relative_path: str
+    expected_initial_codes: tuple[str, ...]
+    expected_invalidations: int
+    expected_misses: int
+    expected_changed_codes: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class CachedSharedDomainPrefixInvalidationTestCase:
     """One added sibling domain and expected cached SFR308 invalidation."""
 

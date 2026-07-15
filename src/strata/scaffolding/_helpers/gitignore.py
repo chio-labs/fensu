@@ -100,7 +100,7 @@ def publish_gitignore_update(*, repository: Path, plan: GitIgnorePlan) -> None:
     if plan.original is None:
         _publish_new_gitignore(repository=repository, path=path, desired=plan.desired)
         return
-    flags: int = os.O_RDWR | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0)
+    flags: int = os.O_RDWR | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0)
     descriptor: int = os.open(path, flags)
     appended: bool = False
     try:
@@ -129,7 +129,13 @@ def publish_gitignore_update(*, repository: Path, plan: GitIgnorePlan) -> None:
 
 
 def _publish_new_gitignore(*, repository: Path, path: Path, desired: bytes) -> None:
-    flags: int = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    flags: int = (
+        os.O_WRONLY
+        | os.O_CREAT
+        | os.O_EXCL
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_BINARY", 0)
+    )
     if not capabilities_module.supports_dir_fd_operations():
         _publish_new_gitignore_by_path(path=path, desired=desired, flags=flags)
         return
@@ -191,10 +197,10 @@ def _publish_new_gitignore_by_path(*, path: Path, desired: bytes, flags: int) ->
         ):
             raise InitError(f"Refusing root gitignore path replaced concurrently: {path}")
     except (InitError, OSError):
+        os.close(descriptor)
         _unlink_path_if_identity(path=path, metadata=metadata)
         raise
-    finally:
-        os.close(descriptor)
+    os.close(descriptor)
 
 
 def _open_repository(*, repository: Path) -> int:
@@ -298,15 +304,22 @@ def _parse_rule(*, source_line: str) -> _IgnoreRule | None:
 
 
 def _capture_regular_file(*, path: Path) -> tuple[bytes, os.stat_result] | None:
+    if path.is_symlink():
+        raise InitError(f"Root gitignore path is not a regular file: {path}")
     try:
         descriptor: int = os.open(
             path,
-            os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | os.O_NONBLOCK,
+            os.O_RDONLY
+            | getattr(os, "O_NOFOLLOW", 0)
+            | getattr(os, "O_NONBLOCK", 0)
+            | getattr(os, "O_BINARY", 0),
         )
     except FileNotFoundError:
         return None
     except OSError as error:
         if error.errno == errno.ELOOP:
+            raise InitError(f"Root gitignore path is not a regular file: {path}") from error
+        if error.errno in {errno.EACCES, errno.EISDIR} and path.is_dir():
             raise InitError(f"Root gitignore path is not a regular file: {path}") from error
         raise
     try:

@@ -28,6 +28,7 @@ RUNTIME_HELPERS_CODES: frozenset[str] = frozenset(
     {
         RoleCode.HELPERS_MODULE_NAME,
         RoleCode.HELPERS_PACKAGE_LAYOUT,
+        RoleCode.HELPERS_RESERVED_ROLE_FILENAMES,
         RoleCode.HELPERS_PACKAGE_SHAPE,
     }
 )

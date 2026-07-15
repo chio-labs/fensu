@@ -16,11 +16,27 @@ from strata.discovery.constants import (
 from strata.discovery.models import ScopedFile
 from strata.discovery.types import RoleName, ScopeName
 
+_WINDOWS_DEVICE_PREFIX: str = "\\\\?\\"
+_WINDOWS_UNC_DEVICE_PREFIX: str = "\\\\?\\UNC\\"
+
+
+def normalize_path_spelling(path: Path) -> Path:
+    """Return a path without Windows extended-length device spelling."""
+
+    value: str = str(path)
+    if value.startswith(_WINDOWS_UNC_DEVICE_PREFIX):
+        return Path(f"\\\\{value[len(_WINDOWS_UNC_DEVICE_PREFIX) :]}")
+    if value.startswith(_WINDOWS_DEVICE_PREFIX):
+        return Path(value[len(_WINDOWS_DEVICE_PREFIX) :])
+    return path
+
 
 def relative_parts(*, path: Path, root: Path) -> tuple[str, ...]:
     """Return file path parts relative to its configured matching root."""
 
-    return path.resolve().relative_to(root.resolve()).parts
+    resolved_path: Path = normalize_path_spelling(path.resolve())
+    resolved_root: Path = normalize_path_spelling(root.resolve())
+    return resolved_path.relative_to(resolved_root).parts
 
 
 def domain(scoped_file: ScopedFile) -> str | None:

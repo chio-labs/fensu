@@ -118,17 +118,17 @@ def _location(*, path: Path, line: int, repo_root: Path, path_mode: PathMode) ->
     display_path: Path = path
     if path_mode is not PathMode.ABSOLUTE and path.is_relative_to(repo_root):
         display_path = path.relative_to(repo_root)
-    path_text: str = str(display_path)
+    path_text: str = display_path.as_posix()
     if path_mode is PathMode.COMPACT:
         path_text = _compact_path(path_text)
     return f"  {path_text}:{line}"
 
 
 def _compact_path(path: str) -> str:
-    parts: tuple[str, ...] = Path(path).parts
+    parts: tuple[str, ...] = tuple(path.split("/"))
     if len(parts) <= MAX_COMPACT_PATH_PARTS:
         return path
-    return str(Path(*parts[:2], "…", *parts[-2:]))
+    return "/".join((*parts[:2], "…", *parts[-2:]))
 
 
 def _color(*, text: str, style: str, enabled: bool) -> str:

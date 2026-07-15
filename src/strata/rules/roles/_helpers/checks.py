@@ -20,6 +20,7 @@ from strata.discovery.constants import (
     LEGACY_HELPERS_DIRECTORY_NAME,
     PYTHON_FILE_SUFFIX,
     ROLE_DIRECTORY_TO_NAME,
+    ROLE_FILE_TO_NAME,
 )
 from strata.discovery.types import RoleName, ScopeName
 from strata.rules.authoring.constants import CUSTOM_RULE_REGISTRATIONS_CACHE_KEY
@@ -285,6 +286,23 @@ def main_package_layout(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     )
 
 
+def helpers_reserved_role_filenames(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Reject fixed role filenames nested beneath a helpers boundary."""
+
+    del module
+    parts: tuple[str, ...] = ctx.relative_parts()
+    if HELPERS_DIRECTORY_NAME not in parts[:-1] or parts[-1] not in ROLE_FILE_TO_NAME:
+        return []
+    return [
+        ctx.path_fault(
+            message=(
+                f"reserved role filename '{parts[-1]}' cannot be nested beneath "
+                f"{HELPERS_DIRECTORY_NAME}/"
+            )
+        )
+    ]
+
+
 def nested_direct_modules(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag ad hoc direct modules in nested non-role packages."""
 
@@ -346,6 +364,38 @@ def nested_direct_subpackages(*, module: ast.Module, ctx: RuleContext) -> list[F
     return []
 
 
+def _runtime_leaf_dir(*, ctx: RuleContext) -> Path | None:
+    if ctx.scope() is not ScopeName.ROOT:
+        return None
+    parts: tuple[str, ...] = ctx.relative_parts()
+    if len(parts) < _top_level_role_parts:
+        return None
+    domain_dir: Path = ctx.scope_root() / parts[0]
+    if (
+        len(parts) < _minimum_nested_module_parts
+        or parts[1] in _role_names
+        or parts[1].endswith(PYTHON_FILE_SUFFIX)
+    ):
+        return domain_dir
+    return domain_dir / parts[1]
+
+
+def _named_subdomain_dirs(*, ctx: RuleContext, entries: tuple[Path, ...]) -> tuple[Path, ...]:
+    return tuple(
+        entry
+        for entry in entries
+        if entry.name not in _role_names
+        and entry.name != _python_cache_directory_name
+        and ctx.project.is_dir(requester=ctx.path, path=entry)
+        and ctx.project.glob(
+            requester=ctx.path,
+            path=entry,
+            pattern="*.py",
+            recursive=True,
+        )
+    )
+
+
 def top_level_domain_shape(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Flag top-level domains that mix direct roles with named subdomains."""
 
@@ -366,19 +416,7 @@ def top_level_domain_shape(*, module: ast.Module, ctx: RuleContext) -> list[Faul
         if entry.name in _role_names
         or (entry.suffix == PYTHON_FILE_SUFFIX and entry.name in _role_filenames)
     )
-    named_subdomains: tuple[Path, ...] = tuple(
-        entry
-        for entry in entries
-        if entry.name not in _role_names
-        and entry.name != _python_cache_directory_name
-        and ctx.project.is_dir(requester=ctx.path, path=entry)
-        and ctx.project.glob(
-            requester=ctx.path,
-            path=entry,
-            pattern="*.py",
-            recursive=True,
-        )
-    )
+    named_subdomains: tuple[Path, ...] = _named_subdomain_dirs(ctx=ctx, entries=entries)
     if not direct_role_content or not named_subdomains:
         return []
     init_path: Path = domain_dir / INIT_MODULE_FILE_NAME
@@ -401,6 +439,46 @@ def top_level_domain_shape(*, module: ast.Module, ctx: RuleContext) -> list[Faul
     if ctx.path != anchor:
         return []
     return [ctx.path_fault(message="top-level domain mixes direct roles and named subdomains")]
+
+
+def leaf_main_boundary(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Require every runtime leaf to expose at least one real main entry module."""
+
+    del module
+    leaf_dir: Path | None = _runtime_leaf_dir(ctx=ctx)
+    if leaf_dir is None:
+        return []
+    anchor: Path | None = ctx.project.python_anchor(requester=ctx.path, path=leaf_dir)
+    if anchor is None or ctx.path != anchor:
+        return []
+    scope_root: Path = ctx.scope_root()
+    domain_dir: Path = scope_root / ctx.relative_parts()[0]
+    if leaf_dir == domain_dir:
+        entries: tuple[Path, ...] = ctx.project.directory_entries(
+            requester=ctx.path,
+            path=domain_dir,
+        )
+        if _named_subdomain_dirs(ctx=ctx, entries=entries):
+            return []
+    main_dir: Path = leaf_dir / RoleName.MAIN
+    entry_modules: tuple[Path, ...] = tuple(
+        path
+        for path in ctx.project.glob(
+            requester=ctx.path,
+            path=main_dir,
+            pattern="*.py",
+            recursive=True,
+        )
+        if path.name != INIT_MODULE_FILE_NAME
+    )
+    if entry_modules:
+        return []
+    leaf_name: str = leaf_dir.relative_to(scope_root).as_posix()
+    return [
+        ctx.path_fault(
+            message=f"leaf runtime package '{leaf_name}/' has no meaningful main/ entry module"
+        )
+    ]
 
 
 def top_level_direct_modules(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:

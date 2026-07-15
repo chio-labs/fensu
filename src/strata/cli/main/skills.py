@@ -63,18 +63,18 @@ def run_skills(
         if command_result.issues:
             stdout.write("Strata skill files require update:\n")
             for issue in command_result.issues:
-                stdout.write(f"  {issue.path}: {issue.reason.value}\n")
+                stdout.write(f"  {issue.path.as_posix()}: {issue.reason.value}\n")
             collision: bool = any(
                 issue.reason is SkillFreshnessReason.COLLISION for issue in command_result.issues
             )
             return 2 if collision else 1
         stdout.write("Strata skill files are current:\n")
         for inspected_path in command_result.inspected_paths:
-            stdout.write(f"  {inspected_path}\n")
+            stdout.write(f"  {inspected_path.as_posix()}\n")
         return 0
     stdout.write("Updated Strata skill files:\n")
     for written_path in command_result.written_paths:
-        stdout.write(f"  {written_path}\n")
+        stdout.write(f"  {written_path.as_posix()}\n")
     return 0
 
 

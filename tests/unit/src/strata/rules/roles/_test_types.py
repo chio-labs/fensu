@@ -13,6 +13,9 @@ class SfrCatalogueTestCase:
     expected_codes: tuple[str, ...]
     expected_unique_count: int
     expected_sfr204_message: str
+    expected_sfr303_slug: str
+    expected_sfr303_message: str
+    expected_sfr303_remediation: str
     expected_sfr306_symbolic_name: str
     expected_sfr306_slug: str
     expected_sfr306_message: str
@@ -22,6 +25,9 @@ class SfrCatalogueTestCase:
     expected_sfr308_slug: str
     expected_sfr308_message: str
     expected_sfr308_remediation: str
+    expected_sfr309_slug: str
+    expected_sfr309_message: str
+    expected_sfr309_remediation: str
     expected_sfr706_slug: str
     expected_sfr706_message: str
     expected_sfr706_remediation: str

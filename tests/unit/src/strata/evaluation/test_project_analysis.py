@@ -96,8 +96,9 @@ def test_given_missing_module_when_querying_then_records_all_candidate_dependenc
     assert tuple(item.requester for item in dependencies) == (requester.resolve(),) * len(
         test_case.expected_dependency_paths
     )
-    assert tuple(str(item.dependency.relative_to(tmp_path)) for item in dependencies) == (
-        test_case.expected_dependency_paths
+    assert (
+        tuple(item.dependency.relative_to(tmp_path).as_posix() for item in dependencies)
+        == test_case.expected_dependency_paths
     )
     assert tuple(item.kind for item in dependencies) == test_case.expected_dependency_kinds
     assert tuple(item.answer for item in dependencies) == test_case.expected_dependency_answers
@@ -177,7 +178,7 @@ def test_given_directory_queries_when_observing_then_records_aggregate_dependenc
     assert repeated_entries == entries
     assert tuple(path.name for path in direct_matches) == test_case.expected_direct_matches
     assert (
-        tuple(str(path.relative_to(package)) for path in recursive_matches)
+        tuple(path.relative_to(package).as_posix() for path in recursive_matches)
         == test_case.expected_recursive_matches
     )
     assert no_matches == ()
@@ -257,7 +258,7 @@ def test_given_repeated_source_query_when_source_mutates_then_reuses_first_answe
 ) -> None:
     path: Path = tmp_path / "src/pkg/domain/models.py"
     path.parent.mkdir(parents=True)
-    path.write_text(test_case.source, encoding="utf-8")
+    path.write_bytes(test_case.source.encode("utf-8"))
     project: EvaluationProjectAnalysis = build_project_analysis(
         tree=DiscoveredTree(
             files=(),
@@ -267,7 +268,7 @@ def test_given_repeated_source_query_when_source_mutates_then_reuses_first_answe
     )
 
     first: Analysis | None = project.analysis(requester=path.parent / "first.py", path=path)
-    path.write_text(test_case.mutated_source, encoding="utf-8")
+    path.write_bytes(test_case.mutated_source.encode("utf-8"))
     second: Analysis | None = project.analysis(requester=path.parent / "second.py", path=path)
     dependencies: tuple[ProjectDependency, ...] = project.dependencies()
     expected_answer: str = hashlib.sha256(test_case.source.encode("utf-8")).hexdigest()
@@ -417,7 +418,7 @@ def test_given_malformed_discovered_file_when_querying_then_only_normal_parse_ra
 ) -> None:
     path: Path = tmp_path / "src/pkg/domain/broken.py"
     path.parent.mkdir(parents=True)
-    path.write_text(test_case.source, encoding="utf-8")
+    path.write_bytes(test_case.source.encode("utf-8"))
     scoped_file: ScopedFile = ScopedFile(
         path=path,
         root=tmp_path / "src/pkg",

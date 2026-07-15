@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from shutil import which
 
 from scripts.benchmarking._helpers.execution import benchmark_processes, render_benchmark
 from scripts.benchmarking._helpers.profiling import profile_check
@@ -27,9 +28,7 @@ def run_benchmark(
             sys.stdout.write(render_profile(report=report))
         else:
             resolved_executable: Path = (
-                Path(sys.executable).with_name("strata")
-                if executable is None
-                else executable.resolve()
+                _installed_strata() if executable is None else executable.resolve()
             )
             benchmark: BenchmarkReport = benchmark_processes(
                 project=resolved_project,
@@ -42,3 +41,10 @@ def run_benchmark(
     except BenchmarkError as error:
         sys.stderr.write(f"{error}\n")
         return 2
+
+
+def _installed_strata() -> Path:
+    located: str | None = which("strata", path=str(Path(sys.executable).parent))
+    if located is None:
+        raise BenchmarkError("Could not locate the installed Strata executable.")
+    return Path(located)

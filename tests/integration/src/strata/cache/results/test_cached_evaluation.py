@@ -25,6 +25,7 @@ from tests.integration.src.strata.cache.results._test_types import (
     CachedEvaluationReuseTestCase,
     CachedEvaluationSelectionTestCase,
     CachedEvaluationSweepTestCase,
+    CachedLeafMainInvalidationTestCase,
     CachedNamingParityTestCase,
     CachedSharedDomainPrefixInvalidationTestCase,
 )
@@ -345,6 +346,63 @@ def test_given_cached_leaf_when_asset_directory_gains_python_then_invalidates_do
     write_project_sources(
         repo_root=tmp_path,
         files=((test_case.namespace_relative_path, ""),),
+    )
+    final_tree: DiscoveredTree = discover_project(repo_root=tmp_path)[1]
+
+    changed: CacheEvaluation = evaluate_with_cache(
+        tree=final_tree,
+        ruleset=ruleset,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+
+    assert (
+        tuple(fault.code for fault in evaluated_result(initial).faults)
+        == test_case.expected_initial_codes
+    )
+    assert changed.stats.invalidations == test_case.expected_invalidations
+    assert changed.stats.misses == test_case.expected_misses
+    assert (
+        tuple(fault.code for fault in evaluated_result(changed).faults)
+        == test_case.expected_changed_codes
+    )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CachedLeafMainInvalidationTestCase(
+            description="added main entry invalidates cached SFR309",
+            role_relative_path="src/pkg/domain/models.py",
+            main_relative_path="src/pkg/domain/main/run.py",
+            expected_initial_codes=("SFR309",),
+            expected_invalidations=1,
+            expected_misses=1,
+            expected_changed_codes=(),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_cached_leaf_when_main_entry_appears_then_invalidates_main_boundary(
+    tmp_path: Path,
+    test_case: CachedLeafMainInvalidationTestCase,
+) -> None:
+    write_project_sources(
+        repo_root=tmp_path,
+        files=((test_case.role_relative_path, ""),),
+    )
+    config, initial_tree = discover_project(repo_root=tmp_path)
+    sfr309: RuleSpec = role_rule(code="SFR309")
+    ruleset: tuple[RuleSpec, ...] = (sfr309,)
+    initial: CacheEvaluation = evaluate_with_cache(
+        tree=initial_tree,
+        ruleset=ruleset,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+    write_project_sources(
+        repo_root=tmp_path,
+        files=((test_case.main_relative_path, "def run() -> None:\n    return None\n"),),
     )
     final_tree: DiscoveredTree = discover_project(repo_root=tmp_path)[1]
 

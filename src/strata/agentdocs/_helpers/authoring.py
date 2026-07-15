@@ -104,7 +104,7 @@ def rule_testing_lines(context: SkillGenerationContext) -> tuple[str, ...]:
         "import pytest",
         "",
         "from strata import RuleCase, RuleResult, evaluate_rule",
-        "from scripts.policy.rules import no_global_client",
+        "from scripts.strata.rules.client_ownership import no_global_client",
         "",
         "@pytest.mark.parametrize(",
         '    "test_case",',

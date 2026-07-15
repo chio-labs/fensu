@@ -449,7 +449,7 @@ def test_given_absolute_path_mode_when_mapping_then_renders_filesystem_paths(
     exit_code: int = run_map(argv=test_case.argv, stdout=stdout, stderr=stderr)
 
     assert exit_code == test_case.expected_exit_code
-    assert str(tmp_path / test_case.expected_output_fragments[0]) in stdout.getvalue()
+    assert (tmp_path / test_case.expected_output_fragments[0]).as_posix() in stdout.getvalue()
 
 
 @pytest.mark.parametrize(

@@ -2108,7 +2108,7 @@ def test_given_path_level_role_fault_when_evaluating_then_inherits_actionable_me
         SfrRuleTestCase(
             description="rules role allows multiple decorated functions",
             rule_code="SFR704",
-            relative_path="strata_rules/rules/imports.py",
+            relative_path="strata/rules/imports.py",
             source=(
                 "from strata import Family, rule\n\n"
                 "@rule(code='XIM001', family=Family.CUSTOM, slug='first', message='first')\n"
@@ -2125,7 +2125,7 @@ def test_given_path_level_role_fault_when_evaluating_then_inherits_actionable_me
         SfrRuleTestCase(
             description="undecorated function in rules role is flagged",
             rule_code="SFR704",
-            relative_path="strata_rules/rules/imports.py",
+            relative_path="strata/rules/imports.py",
             source="def helper() -> None:\n    return None\n",
             expected_codes=("SFR704",),
             expected_lines=(1,),
@@ -2180,7 +2180,7 @@ def test_given_configured_tooling_when_checking_structure_then_enforces_tool_rol
         SfrRuleTestCase(
             description="lowercase core rule code module name is flagged",
             rule_code="SFR706",
-            relative_path="strata_rules/rules/sft104.py",
+            relative_path="strata/rules/sft104.py",
             source="",
             expected_codes=("SFR706",),
             expected_lines=(None,),
@@ -2189,7 +2189,7 @@ def test_given_configured_tooling_when_checking_structure_then_enforces_tool_rol
         SfrRuleTestCase(
             description="lowercase custom rule code module name is flagged",
             rule_code="SFR706",
-            relative_path="strata_rules/rules/xjt001.py",
+            relative_path="strata/rules/xjt001.py",
             source="",
             expected_codes=("SFR706",),
             expected_lines=(None,),
@@ -2198,7 +2198,7 @@ def test_given_configured_tooling_when_checking_structure_then_enforces_tool_rol
         SfrRuleTestCase(
             description="rule own lowercase code module name is flagged",
             rule_code="SFR706",
-            relative_path="strata_rules/rules/sfr706.py",
+            relative_path="strata/rules/sfr706.py",
             source="",
             expected_codes=("SFR706",),
             expected_lines=(None,),
@@ -2207,7 +2207,7 @@ def test_given_configured_tooling_when_checking_structure_then_enforces_tool_rol
         SfrRuleTestCase(
             description="descriptive rule module name is allowed",
             rule_code="SFR706",
-            relative_path="strata_rules/rules/conditional_test_flow.py",
+            relative_path="strata/rules/conditional_test_flow.py",
             source="",
             expected_codes=(),
             expected_lines=(),
@@ -2216,7 +2216,7 @@ def test_given_configured_tooling_when_checking_structure_then_enforces_tool_rol
         SfrRuleTestCase(
             description="underscore-separated code-like module name is allowed",
             rule_code="SFR706",
-            relative_path="strata_rules/rules/sfr_706.py",
+            relative_path="strata/rules/sfr_706.py",
             source="",
             expected_codes=(),
             expected_lines=(),
@@ -2225,7 +2225,7 @@ def test_given_configured_tooling_when_checking_structure_then_enforces_tool_rol
         SfrRuleTestCase(
             description="code with suffix module name is allowed",
             rule_code="SFR706",
-            relative_path="strata_rules/rules/sft104x.py",
+            relative_path="strata/rules/sft104x.py",
             source="",
             expected_codes=(),
             expected_lines=(),
@@ -2234,7 +2234,7 @@ def test_given_configured_tooling_when_checking_structure_then_enforces_tool_rol
         SfrRuleTestCase(
             description="code-like module name outside rules role is allowed",
             rule_code="SFR706",
-            relative_path="strata_rules/main/sft104.py",
+            relative_path="strata/main/sft104.py",
             source="",
             expected_codes=(),
             expected_lines=(),

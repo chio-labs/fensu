@@ -447,7 +447,8 @@ def test_given_config_and_active_rules_when_generating_then_shows_only_proven_gu
                 '- Blocking rule codes: ["SFN001", "XAC001"]',
                 '- Warning rule codes: ["SFR706"]',
                 '- Ignored matched rule codes: ["SFH001"]',
-                '- `rule_paths`: ["scripts/other_rules", "scripts/policy/rules.py"]',
+                '- `rule_paths`: ["scripts/other_rules", '
+                '"scripts/strata/rules/client_ownership.py"]',
                 '- `rule_modules`: ["acme.more_policy", "acme.policy"]',
                 "- Cache enabled: `true`",
                 "- Cache requires cacheable rules: `true`",

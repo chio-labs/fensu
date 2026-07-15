@@ -103,7 +103,7 @@ def comprehensive_generation_context(*, reverse_mappings: bool = False) -> Skill
         select=("XAC001", "SFN"),
         warn=("SFR706",),
         ignore=("SFH001",),
-        rule_paths=("scripts/policy/rules.py", "scripts/other_rules"),
+        rule_paths=("scripts/strata/rules/client_ownership.py", "scripts/other_rules"),
         rule_modules=("acme.policy", "acme.more_policy"),
         rule_exceptions=(
             RuleExceptionEntry(
@@ -150,7 +150,7 @@ def comprehensive_generation_context(*, reverse_mappings: bool = False) -> Skill
         message="approved custom contract must hold",
         remediation="Restore the approved custom boundary.",
         kind=RuleKind.CUSTOM,
-        source="scripts/policy/rules.py",
+        source="scripts/strata/rules/client_ownership.py",
         cacheable=True,
     )
     original_catalogue: tuple[RuleSpec, ...] = (

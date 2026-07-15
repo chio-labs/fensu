@@ -87,7 +87,7 @@ def write_module_package(*, root: Path, package_name: str, rule_code: str) -> st
 def write_importing_custom_rule_package(*, root: Path, rule_code: str) -> Path:
     """Write a scripts rule package whose decorated rule imports a local helper."""
 
-    package: Path = root / "scripts/strata_rules"
+    package: Path = root / "scripts/strata"
     rules_path: Path = package / "rules/custom.py"
     helper_path: Path = package / "_helpers/names.py"
     rules_path.parent.mkdir(parents=True)
@@ -106,7 +106,7 @@ from __future__ import annotations
 
 import ast
 
-from scripts.strata_rules._helpers.names import RULE_MESSAGE
+from scripts.strata._helpers.names import RULE_MESSAGE
 from strata import Family, Fault, RuleContext, rule
 
 

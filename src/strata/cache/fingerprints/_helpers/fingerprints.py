@@ -165,11 +165,24 @@ def _installed_module_location(module_name: str) -> Path | None:
     return origin.parent if origin.name == PACKAGE_INIT_FILE_NAME else origin
 
 
-def implementation_fingerprint(*, package_root: Path) -> CacheFingerprint:
+def collect_implementation_paths(*, package_root: Path) -> tuple[Path, ...]:
+    """Return the complete deterministic implementation path set."""
+
+    return _implementation_paths(package_root)
+
+
+def implementation_fingerprint(
+    *,
+    package_root: Path,
+    paths: tuple[Path, ...] | None = None,
+) -> CacheFingerprint:
     """Return a content identity for all Python implementation files."""
 
     files: list[CanonicalValue] = []
-    for path in _implementation_paths(package_root):
+    implementation_paths: tuple[Path, ...] = (
+        paths if paths is not None else collect_implementation_paths(package_root=package_root)
+    )
+    for path in implementation_paths:
         files.append(
             [
                 path.relative_to(package_root).as_posix(),
@@ -177,12 +190,6 @@ def implementation_fingerprint(*, package_root: Path) -> CacheFingerprint:
             ]
         )
     return canonical_fingerprint(files)
-
-
-def implementation_identity_is_complete(*, package_root: Path) -> bool:
-    """Return whether the loaded package exposes fingerprintable implementation files."""
-
-    return bool(_implementation_paths(package_root))
 
 
 def global_fingerprint(

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import MappingProxyType
+from unittest.mock import Mock
 
 import pytest
 
@@ -843,6 +844,7 @@ def test_given_runtime_semantics_when_fingerprinting_then_captures_contract_iden
             source_available=True,
             complete_source=True,
             expected_available=True,
+            expected_implementation_scans=2,
         ),
         GlobalFingerprintBuilderTestCase(
             description="unavailable package conservatively disables caching",
@@ -850,6 +852,7 @@ def test_given_runtime_semantics_when_fingerprinting_then_captures_contract_iden
             source_available=False,
             complete_source=False,
             expected_available=False,
+            expected_implementation_scans=0,
         ),
         GlobalFingerprintBuilderTestCase(
             description="source-less package conservatively disables caching",
@@ -857,6 +860,7 @@ def test_given_runtime_semantics_when_fingerprinting_then_captures_contract_iden
             source_available=False,
             complete_source=False,
             expected_available=False,
+            expected_implementation_scans=0,
         ),
         GlobalFingerprintBuilderTestCase(
             description="orphan bytecode participates in complete implementation identity",
@@ -864,6 +868,7 @@ def test_given_runtime_semantics_when_fingerprinting_then_captures_contract_iden
             source_available=True,
             complete_source=False,
             expected_available=True,
+            expected_implementation_scans=2,
         ),
     ],
     ids=lambda case: case.description,
@@ -880,6 +885,8 @@ def test_given_loaded_package_when_building_global_then_requires_complete_source
         complete_source=test_case.complete_source,
         empty_package_root=tmp_path / "strata",
     )
+    implementation_paths: Mock = Mock(wraps=fingerprint_module._implementation_paths)
+    monkeypatch.setattr(fingerprint_module, "_implementation_paths", implementation_paths)
 
     first: GlobalFingerprintBuild = build_global_fingerprint(
         config=Config(roots=()), ruleset=(), repo_root=tmp_path
@@ -890,6 +897,7 @@ def test_given_loaded_package_when_building_global_then_requires_complete_source
 
     assert (first.fingerprint is not None) is test_case.expected_available
     assert (first.disabled_reason is None) is test_case.expected_available
+    assert implementation_paths.call_count == test_case.expected_implementation_scans
     assert first == second
     assert not (tmp_path / ".strata").exists()
 

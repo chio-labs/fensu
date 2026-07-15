@@ -84,14 +84,4 @@ def _rendered_stdout(
         use_color=use_color,
         show_warnings=show_warnings,
     )
-    lines: list[str] = []
-    if result.selection is not None and result.selection.filtered:
-        lines.append(
-            f"Evaluation: "
-            f"{result.selection.discovered_count - result.selection.excluded_count:,} of "
-            f"{result.selection.discovered_count:,} Python files "
-            f"({result.selection.excluded_count:,} excluded by config)\n"
-        )
-    lines.append(report.text)
-    lines.append("\n")
-    return _CheckStdout(text="".join(lines), fault_count=report.fault_count)
+    return _CheckStdout(text=f"{report.text}\n", fault_count=report.fault_count)

@@ -136,9 +136,18 @@ class EvaluationCheckTestCase:
 
     description: str
     expected_exit_code: int
-    expected_summary: str
+    expected_evaluation_footer: str
     expected_fault_fragment: str
     expected_absent_fragment: str
+
+
+@dataclass(frozen=True)
+class CheckFooterTestCase:
+    """Combined check stream and expected actionable footer hierarchy."""
+
+    description: str
+    expected_exit_code: int
+    expected_output: str
 
 
 @dataclass(frozen=True)

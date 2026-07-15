@@ -25,6 +25,7 @@ from tests.unit.src.strata.reporting.classes._test_types import CliStyleTestCase
                 "\033[1;32mWrote strata.toml\033[0m|"
                 "\033[38;5;208mSFA\033[0m|"
                 "\033[1;38;5;208m12 faults\033[0m|"
+                "\033[1;38;5;208mAction required\033[0m|"
                 "\033[1;36mdocs.stratalint.com/adoption\033[0m"
             ),
         ),
@@ -33,7 +34,8 @@ from tests.unit.src.strata.reporting.classes._test_types import CliStyleTestCase
             use_color=False,
             expected_rendered=(
                 "-->|Header|value|src/pkg|pyproject signal|[Y/n]|none detected|"
-                "Wrote strata.toml|SFA|12 faults|docs.stratalint.com/adoption"
+                "Wrote strata.toml|SFA|12 faults|Action required|"
+                "docs.stratalint.com/adoption"
             ),
         ),
     ],
@@ -56,6 +58,7 @@ def test_given_color_setting_when_styling_cli_text_then_returns_exact_semantic_s
             style.success("Wrote strata.toml"),
             style.family_fault_code("SFA"),
             style.fault_count("12 faults"),
+            style.warning("Action required"),
             style.link("docs.stratalint.com/adoption"),
         )
     )

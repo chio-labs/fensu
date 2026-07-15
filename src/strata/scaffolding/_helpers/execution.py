@@ -143,7 +143,13 @@ def _create_empty_file(
             repository=repository, relative=Path(relative).parent, descriptors=descriptors
         )
         file_name: str = Path(relative).name
-        flags: int = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+        flags: int = (
+            os.O_WRONLY
+            | os.O_CREAT
+            | os.O_EXCL
+            | getattr(os, "O_NOFOLLOW", 0)
+            | getattr(os, "O_BINARY", 0)
+        )
         try:
             descriptor: int = os.open(file_name, flags, _FILE_MODE, dir_fd=descriptors[-1])
         except FileExistsError:
@@ -198,7 +204,13 @@ def _create_empty_file_by_path(
         _validate_scaffold_path(repository=repository, path=current)
         if made_directory:
             created = (*created, _publication(path=current, metadata=metadata, content=None))
-    flags: int = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    flags: int = (
+        os.O_WRONLY
+        | os.O_CREAT
+        | os.O_EXCL
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_BINARY", 0)
+    )
     try:
         descriptor: int = os.open(path, flags, _FILE_MODE)
     except FileExistsError:
@@ -211,10 +223,10 @@ def _create_empty_file_by_path(
             _validate_scaffold_path(repository=repository, path=path)
             _verify_path_identity(path=path, metadata=metadata)
         except (InitError, OSError):
+            os.close(descriptor)
             _unlink_path_if_identity(path=path, metadata=metadata)
             raise
-        finally:
-            os.close(descriptor)
+        os.close(descriptor)
         created = (*created, _publication(path=path, metadata=metadata, content=b""))
     return created
 
@@ -224,7 +236,13 @@ def _atomic_write_config(*, repository: Path, text: str) -> _PublishedPath:
     if not capabilities_module.supports_dir_fd_operations():
         return _atomic_write_config_by_path(repository=repository, text=text)
     repository_descriptor: int = _open_repository(repository=repository)
-    flags: int = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    flags: int = (
+        os.O_WRONLY
+        | os.O_CREAT
+        | os.O_EXCL
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_BINARY", 0)
+    )
     try:
         try:
             descriptor: int = os.open(
@@ -268,7 +286,13 @@ def _atomic_write_config(*, repository: Path, text: str) -> _PublishedPath:
 
 def _atomic_write_config_by_path(*, repository: Path, text: str) -> _PublishedPath:
     path: Path = repository / CONFIG_FILE_NAME
-    flags: int = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    flags: int = (
+        os.O_WRONLY
+        | os.O_CREAT
+        | os.O_EXCL
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_BINARY", 0)
+    )
     try:
         descriptor: int = os.open(path, flags, _FILE_MODE)
     except FileExistsError as error:
@@ -281,10 +305,10 @@ def _atomic_write_config_by_path(*, repository: Path, text: str) -> _PublishedPa
         os.fsync(descriptor)
         _verify_path_identity(path=path, metadata=metadata)
     except (InitError, OSError):
+        os.close(descriptor)
         _unlink_path_if_identity(path=path, metadata=metadata)
         raise
-    finally:
-        os.close(descriptor)
+    os.close(descriptor)
     return _publication(path=path, metadata=metadata, content=text.encode())
 
 
@@ -482,7 +506,7 @@ def _rollback_publication(*, publication: _PublishedPath) -> None:
     try:
         descriptor: int = os.open(
             publication.path,
-            os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0),
+            os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0),
         )
     except OSError as error:
         if error.errno in (errno.ELOOP, errno.ENOENT):

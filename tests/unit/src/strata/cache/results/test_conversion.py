@@ -98,7 +98,13 @@ def test_given_runtime_file_result_when_converting_then_returns_cache_safe_recor
         tuple(item.answer for item in result.dependencies) == test_case.expected_dependency_answers
     )
     assert result.path == test_case.relative_path
-    assert file_result_from_record(prepared.record) == result
+    assert (
+        file_result_from_record(
+            record=prepared.record,
+            dependency_observations=result.dependencies,
+        )
+        == result
+    )
     assert restore_file_evaluation(result=result, repo_root=tmp_path) == evaluation
 
 

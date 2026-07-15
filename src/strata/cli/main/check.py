@@ -92,7 +92,11 @@ def run_check(
         use_color=use_color,
         show_warnings=args.warn,
     )
-    if evaluation.surface_targets is not None and evaluation.global_fingerprint is not None:
+    if (
+        evaluation.surface_targets is not None
+        and evaluation.global_fingerprint is not None
+        and evaluation.surface_index_fingerprint is not None
+    ):
         _ = persist_check_output(
             repo_root=project_dir,
             global_fingerprint=evaluation.global_fingerprint,
@@ -100,6 +104,10 @@ def run_check(
             result=evaluation.result,
             tree=tree,
             show_warnings=args.warn,
+            selected_output=text,
+            selected_fault_count=fault_count,
+            selected_use_color=use_color,
+            expected_index_fingerprint=evaluation.surface_index_fingerprint,
         )
     stdout.write(text)
     stderr.write(freshness_footer)

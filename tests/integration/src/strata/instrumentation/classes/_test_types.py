@@ -38,6 +38,17 @@ class EditCountsTestCase:
 
 
 @dataclass(frozen=True)
+class ChurnCountsTestCase:
+    """One complete source-churn cache IO expectation."""
+
+    description: str
+    file_target: int
+    seed: int
+    expected_cache_record_reads: int
+    expected_cache_record_scans: int
+
+
+@dataclass(frozen=True)
 class NativeUncachedCountsTestCase:
     """One native-backend uncached-run parse expectation."""
 

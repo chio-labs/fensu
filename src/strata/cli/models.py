@@ -19,3 +19,4 @@ class CheckEvaluation:
     short_circuit: CachedCheckOutput | None
     surface_targets: tuple[str, ...] | None
     global_fingerprint: CacheFingerprint | None
+    surface_index_fingerprint: CacheFingerprint | None

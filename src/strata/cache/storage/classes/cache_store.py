@@ -25,8 +25,16 @@ from strata.cache.storage.models import (
     CacheRead,
     CacheRecord,
     CacheWrite,
+    EncodedCacheWrite,
 )
 from strata.cache.storage.types import CacheMutator
+from strata.instrumentation.constants import (
+    CACHE_RECORD_DELETE_OPERATION,
+    CACHE_RECORD_READ_OPERATION,
+    CACHE_RECORD_SCAN_OPERATION,
+    CACHE_RECORD_WRITE_OPERATION,
+    OPERATION_COUNTERS,
+)
 
 _CREATE_RECORDS_SQL: str = (
     "CREATE TABLE records ("
@@ -36,6 +44,7 @@ _CREATE_RECORDS_SQL: str = (
     ") WITHOUT ROWID"
 )
 _READ_RECORDS_SQL_PREFIX: str = "SELECT key, kind, data FROM records WHERE key IN"
+_INSERT_RECORDS_SQL_PREFIX: str = "INSERT INTO records(key, kind, data) VALUES"
 _UPSERT_RECORD_SQL: str = (
     "INSERT INTO records(key, kind, data) VALUES (?, ?, ?) "
     "ON CONFLICT(key) DO UPDATE SET kind = excluded.kind, data = excluded.data"
@@ -111,7 +120,10 @@ class CacheStore:
 
         if not writes:
             return True
-        rows: tuple[tuple[str, str, bytes], ...] = self._encoded_rows(writes)
+        encoded_rows: tuple[tuple[str, str, bytes, bool], ...] = self._encoded_rows(writes)
+        rows: tuple[tuple[str, str, bytes], ...] = tuple(
+            (key, kind, encoded) for key, kind, encoded, _ in encoded_rows
+        )
         connection: sqlite3.Connection | None = self._writable_connection()
         if connection is None:
             return False
@@ -120,6 +132,7 @@ class CacheStore:
                 _rollback_connection(connection)
                 return False
             connection.executemany(_UPSERT_RECORD_SQL, rows)
+            OPERATION_COUNTERS.record(operation=CACHE_RECORD_WRITE_OPERATION, amount=len(rows))
             connection.commit()
             return True
         except (OSError, RuntimeError, sqlite3.Error):
@@ -159,14 +172,38 @@ class CacheStore:
             if mutation is None:
                 _rollback_connection(connection)
                 return CacheMutationOutcome(published=True, mutation=None)
-            rows: tuple[tuple[str, str, bytes], ...] = self._encoded_rows(mutation.writes)
-            connection.executemany(_UPSERT_RECORD_SQL, rows)
+            encoded_rows: tuple[tuple[str, str, bytes, bool], ...] = self._encoded_rows(
+                mutation.writes
+            )
+            insert_rows: tuple[tuple[str, str, bytes], ...] = tuple(
+                (key, kind, encoded)
+                for key, kind, encoded, insert_only in encoded_rows
+                if insert_only
+            )
+            upsert_rows: tuple[tuple[str, str, bytes], ...] = tuple(
+                (key, kind, encoded)
+                for key, kind, encoded, insert_only in encoded_rows
+                if not insert_only
+            )
+            _insert_records(connection=connection, rows=insert_rows)
+            connection.executemany(_UPSERT_RECORD_SQL, upsert_rows)
+            OPERATION_COUNTERS.record(
+                operation=CACHE_RECORD_WRITE_OPERATION,
+                amount=len(encoded_rows),
+            )
+            written_keys: tuple[str, ...] = tuple(key for key, _, _, _ in encoded_rows)
             if mutation.swept_prefix is not None:
                 self._sweep_unreferenced(
                     connection=connection,
                     prefix=mutation.swept_prefix,
                     retained_paths=mutation.retained_paths,
-                    written_keys=tuple(key for key, _, _ in rows),
+                    written_keys=written_keys,
+                )
+            if mutation.deleted_paths:
+                self._delete_records(
+                    connection=connection,
+                    paths=mutation.deleted_paths,
+                    written_keys=written_keys,
                 )
             connection.commit()
             return CacheMutationOutcome(published=True, mutation=mutation)
@@ -216,26 +253,60 @@ class CacheStore:
         rows: tuple[tuple[object, ...], ...] = tuple(
             connection.execute(_SELECT_PREFIX_KEYS_SQL, (f"{prefix.as_posix()}/%",)).fetchall()
         )
+        OPERATION_COUNTERS.record(operation=CACHE_RECORD_SCAN_OPERATION, amount=len(rows))
         doomed: tuple[str, ...] = tuple(
             row[0] for row in rows if isinstance(row[0], str) and row[0] not in retained
         )
-        for offset in range(0, len(doomed), CACHE_DATABASE_READ_CHUNK_SIZE):
-            chunk: tuple[str, ...] = doomed[offset : offset + CACHE_DATABASE_READ_CHUNK_SIZE]
+        self._delete_keys(connection=connection, keys=doomed)
+
+    def _delete_records(
+        self,
+        *,
+        connection: sqlite3.Connection,
+        paths: tuple[Path, ...],
+        written_keys: tuple[str, ...],
+    ) -> None:
+        written: frozenset[str] = frozenset(written_keys)
+        keys: tuple[str, ...] = tuple(dict.fromkeys(self._key(path) for path in paths))
+        doomed: tuple[str, ...] = tuple(key for key in keys if key not in written)
+        self._delete_keys(connection=connection, keys=doomed)
+
+    def _delete_keys(
+        self,
+        *,
+        connection: sqlite3.Connection,
+        keys: tuple[str, ...],
+    ) -> None:
+        OPERATION_COUNTERS.record(operation=CACHE_RECORD_DELETE_OPERATION, amount=len(keys))
+        for offset in range(0, len(keys), CACHE_DATABASE_READ_CHUNK_SIZE):
+            chunk: tuple[str, ...] = keys[offset : offset + CACHE_DATABASE_READ_CHUNK_SIZE]
             placeholders: str = ",".join("?" for _ in chunk)
             connection.execute(f"{_DELETE_RECORDS_SQL_PREFIX} ({placeholders})", chunk)
 
-    def _encoded_rows(self, writes: tuple[CacheWrite, ...]) -> tuple[tuple[str, str, bytes], ...]:
+    def _encoded_rows(
+        self,
+        writes: tuple[CacheWrite | EncodedCacheWrite, ...],
+    ) -> tuple[tuple[str, str, bytes, bool], ...]:
         keys: set[str] = set()
-        rows: list[tuple[str, str, bytes]] = []
+        rows: list[tuple[str, str, bytes, bool]] = []
         for write in writes:
             key: str = self._key(write.relative_path)
             if key in keys:
                 raise CachePathError(f"Cache publication contains duplicate key: {key}")
             keys.add(key)
-            encoded: bytes = (
-                write.encoded if write.encoded is not None else encode_cache_record(write.record)
-            )
-            rows.append((key, write.record.kind, encoded))
+            if isinstance(write, EncodedCacheWrite):
+                kind: str = write.kind
+                encoded: bytes = write.encoded
+                insert_only: bool = write.insert_only
+            else:
+                kind = write.record.kind
+                insert_only = False
+                encoded = (
+                    write.encoded
+                    if write.encoded is not None
+                    else encode_cache_record(record=write.record)
+                )
+            rows.append((key, kind, encoded, insert_only))
         return tuple(rows)
 
     def _key(self, relative_path: Path) -> str:
@@ -304,6 +375,7 @@ def _fetch_rows(
     connection: sqlite3.Connection,
     keys: tuple[str, ...],
 ) -> dict[str, tuple[object, ...]]:
+    OPERATION_COUNTERS.record(operation=CACHE_RECORD_READ_OPERATION, amount=len(keys))
     rows_by_key: dict[str, tuple[object, ...]] = {}
     for offset in range(0, len(keys), CACHE_DATABASE_READ_CHUNK_SIZE):
         chunk: tuple[str, ...] = keys[offset : offset + CACHE_DATABASE_READ_CHUNK_SIZE]
@@ -315,6 +387,22 @@ def _fetch_rows(
             if len(row) == CACHE_DATABASE_SELECTED_COLUMN_COUNT and isinstance(row[0], str):
                 rows_by_key[row[0]] = row[1:]
     return rows_by_key
+
+
+def _insert_records(
+    *,
+    connection: sqlite3.Connection,
+    rows: tuple[tuple[str, str, bytes], ...],
+) -> None:
+    for offset in range(0, len(rows), CACHE_DATABASE_READ_CHUNK_SIZE):
+        chunk: tuple[tuple[str, str, bytes], ...] = rows[
+            offset : offset + CACHE_DATABASE_READ_CHUNK_SIZE
+        ]
+        placeholders: str = ",".join("(?, ?, ?)" for _ in chunk)
+        values: list[str | bytes] = []
+        for row in chunk:
+            values.extend(row)
+        connection.execute(f"{_INSERT_RECORDS_SQL_PREFIX} {placeholders}", values)
 
 
 def _database_identity_is_current(connection: sqlite3.Connection) -> bool:

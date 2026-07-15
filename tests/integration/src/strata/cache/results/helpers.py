@@ -2,6 +2,7 @@
 
 import ast
 import sqlite3
+from collections.abc import Callable
 from pathlib import Path
 from typing import cast
 
@@ -10,8 +11,14 @@ import pytest
 import strata.evaluation._helpers.file_evaluation as file_evaluation_module
 from strata.analysis.models import ProjectDependency
 from strata.analysis.types import Analysis, ProjectDependencyKind
+from strata.cache.fingerprints.models import CacheFingerprint
 from strata.cache.results.classes.result_cache import ResultCache
-from strata.cache.results.models import CacheEvaluation, CacheStats
+from strata.cache.results.models import (
+    CachedFileResult,
+    CacheEvaluation,
+    CacheIndexEntry,
+    CacheStats,
+)
 from strata.cache.storage.classes.cache_store import CacheStore
 from strata.cache.storage.constants import CACHE_DATABASE_RELATIVE_PATH
 from strata.cache.storage.exceptions import CacheRecordError
@@ -24,6 +31,57 @@ from strata.evaluation.models import EvaluationResult, FileEvaluation
 from strata.rules.authoring.models import Fault, RuleSpec
 from strata.rules.authoring.types import Family, RuleContext, RuleKind
 from strata.rules.roles.constants import SFR_RULES
+
+
+class ResultLoadProbe:
+    """Record indexed result paths requested through one cache load."""
+
+    def __init__(
+        self,
+        *,
+        load_results: Callable[..., dict[str, CachedFileResult | None]],
+    ) -> None:
+        self._load_results: Callable[..., dict[str, CachedFileResult | None]] = load_results
+        self.loaded_paths: tuple[str, ...] = ()
+
+    def load(
+        self,
+        cache: ResultCache,
+        *,
+        global_fingerprint: CacheFingerprint,
+        entries: tuple[CacheIndexEntry, ...],
+        dependency_fingerprint: CacheFingerprint | None = None,
+    ) -> dict[str, CachedFileResult | None]:
+        self.loaded_paths = tuple(entry.path for entry in entries)
+        return self._load_results(
+            cache,
+            global_fingerprint=global_fingerprint,
+            entries=entries,
+            dependency_fingerprint=dependency_fingerprint,
+        )
+
+
+def install_result_load_probe(*, monkeypatch: pytest.MonkeyPatch) -> ResultLoadProbe:
+    """Install and return an indexed result-read probe."""
+
+    probe: ResultLoadProbe = ResultLoadProbe(load_results=ResultCache.load_results)
+
+    def load_results(
+        cache: ResultCache,
+        *,
+        global_fingerprint: CacheFingerprint,
+        entries: tuple[CacheIndexEntry, ...],
+        dependency_fingerprint: CacheFingerprint | None = None,
+    ) -> dict[str, CachedFileResult | None]:
+        return probe.load(
+            cache,
+            global_fingerprint=global_fingerprint,
+            entries=entries,
+            dependency_fingerprint=dependency_fingerprint,
+        )
+
+    monkeypatch.setattr(ResultCache, "load_results", load_results)
+    return probe
 
 
 def file_evaluation(

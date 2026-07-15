@@ -11,6 +11,9 @@ from scripts.perfcorpus.models import CorpusSpec
 from strata.analysis.constants import FACT_BACKEND_ENV_VARIABLE
 from strata.analysis.types import FactBackend
 from strata.instrumentation.constants import (
+    CACHE_RECORD_DELETE_OPERATION,
+    CACHE_RECORD_READ_OPERATION,
+    CACHE_RECORD_SCAN_OPERATION,
     CANONICAL_ENCODE_OPERATION,
     DEPENDENCY_RECORD_OPERATION,
     FRESH_EVALUATION_OPERATION,
@@ -19,10 +22,12 @@ from strata.instrumentation.constants import (
 )
 from tests.integration.src.strata.instrumentation.classes._test_types import (
     CachedCountsTestCase,
+    ChurnCountsTestCase,
     EditCountsTestCase,
     UncachedCountsTestCase,
 )
 from tests.integration.src.strata.instrumentation.classes.helpers import (
+    append_source_newlines,
     appended_module_constant,
     counted_check,
     python_file_count,
@@ -139,3 +144,37 @@ def test_given_one_edited_file_when_counting_then_only_that_file_re_evaluates(
 
     assert counts[FRESH_EVALUATION_OPERATION] == test_case.expected_fresh_evaluations
     assert counts[PARSE_OPERATION] == test_case.expected_parses
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ChurnCountsTestCase(
+            description="all changed files avoid result reads and prefix scans",
+            file_target=120,
+            seed=0,
+            expected_cache_record_reads=6,
+            expected_cache_record_scans=0,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_all_sources_changed_when_counting_then_cache_io_stays_generation_bounded(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: ChurnCountsTestCase,
+) -> None:
+    _ = generate_corpus(
+        spec=CorpusSpec(target=tmp_path, file_target=test_case.file_target, seed=test_case.seed)
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv(FACT_BACKEND_ENV_VARIABLE, FactBackend.PYTHON.value)
+    _ = counted_check(argv=("--no-color", "--cache"))
+    changed: tuple[Path, ...] = append_source_newlines(root=tmp_path)
+
+    counts: dict[str, int] = counted_check(argv=("--no-color", "--cache"))
+
+    assert counts[CACHE_RECORD_READ_OPERATION] == test_case.expected_cache_record_reads
+    assert counts.get(CACHE_RECORD_SCAN_OPERATION, 0) == test_case.expected_cache_record_scans
+    assert counts[FRESH_EVALUATION_OPERATION] == len(changed)
+    assert counts[CACHE_RECORD_DELETE_OPERATION] == len(changed)

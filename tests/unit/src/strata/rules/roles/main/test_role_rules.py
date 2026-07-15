@@ -1424,6 +1424,13 @@ def test_given_shared_domain_prefix_when_reporting_then_names_broad_parent_and_s
             rule_code="SFR",
             relative_path="domain/orders/_helpers/shared/parsing/read.py",
             source="def read() -> None:\n    return None\n",
+            support_files=(
+                SfrSupportFile(
+                    description="meaningful leaf main entry",
+                    relative_path="domain/orders/main/run.py",
+                    source="def run() -> None:\n    return None\n",
+                ),
+            ),
             thresholds={Threshold.MAX_ROLE_DEPTH: 2},
             expected_codes=("SFR204",),
             expected_lines=(None,),
@@ -1591,11 +1598,29 @@ def test_given_deeper_role_bucket_when_evaluating_then_anchor_queries_remain_com
             rule_code="SF",
             relative_path="domain/orders/_helpers/main/read.py",
             source="def _prepare() -> None:\n    value: int = build()\n",
+            support_files=(
+                SfrSupportFile(
+                    description="meaningful leaf main entry",
+                    relative_path="domain/orders/main/run.py",
+                    source="def run() -> None:\n    return None\n",
+                ),
+            ),
             thresholds={
                 Threshold.MAX_STATEMENTS: 0,
                 Threshold.MAX_DISTINCT_CALLS: 0,
                 Threshold.MAX_LOCALS: 0,
             },
+            threshold_overrides=(
+                ThresholdOverride(
+                    paths=("src/pkg/domain/orders/main/run.py",),
+                    thresholds={
+                        Threshold.MAX_STATEMENTS: 1,
+                        Threshold.MAX_DISTINCT_CALLS: 1,
+                        Threshold.MAX_LOCALS: 1,
+                    },
+                    reason="Keep the support entry valid while probing helper ownership.",
+                ),
+            ),
             expected_codes=("SFR301",),
             expected_lines=(None,),
             expected_messages=("_helpers/ bucket 'main/' uses a runtime role name",),
@@ -2254,3 +2279,189 @@ def test_given_rule_module_name_when_checking_roles_then_requires_descriptive_na
 
     assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
     assert tuple(fault.line for fault in result.faults) == test_case.expected_lines
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SfrRuleTestCase(
+            description="grouped helper models filename cannot claim the sibling models role",
+            rule_code="SFR303",
+            relative_path="commands/plan/_helpers/entry/models.py",
+            source=(
+                "from dataclasses import dataclass\n\n"
+                "@dataclass(frozen=True)\n"
+                "class PlanCommandRequest:\n"
+                "    target: str\n"
+            ),
+            expected_codes=("SFR303",),
+            expected_lines=(None,),
+            expected_messages=(
+                "reserved role filename 'models.py' cannot be nested beneath _helpers/",
+            ),
+            expected_paths=("commands/plan/_helpers/entry/models.py",),
+        ),
+        SfrRuleTestCase(
+            description="helper types filename cannot claim the sibling types role",
+            rule_code="SFR303",
+            relative_path="commands/plan/_helpers/types.py",
+            source="",
+            expected_codes=("SFR303",),
+            expected_lines=(None,),
+            expected_messages=(
+                "reserved role filename 'types.py' cannot be nested beneath _helpers/",
+            ),
+            expected_paths=("commands/plan/_helpers/types.py",),
+        ),
+        SfrRuleTestCase(
+            description="helper constants filename cannot claim the sibling constants role",
+            rule_code="SFR303",
+            relative_path="commands/plan/_helpers/state/constants.py",
+            source="",
+            expected_codes=("SFR303",),
+            expected_lines=(None,),
+            expected_messages=(
+                "reserved role filename 'constants.py' cannot be nested beneath _helpers/",
+            ),
+            expected_paths=("commands/plan/_helpers/state/constants.py",),
+        ),
+        SfrRuleTestCase(
+            description="helper exceptions filename cannot claim the sibling exceptions role",
+            rule_code="SFR303",
+            relative_path="commands/plan/_helpers/errors/exceptions.py",
+            source="",
+            expected_codes=("SFR303",),
+            expected_lines=(None,),
+            expected_messages=(
+                "reserved role filename 'exceptions.py' cannot be nested beneath _helpers/",
+            ),
+            expected_paths=("commands/plan/_helpers/errors/exceptions.py",),
+        ),
+        SfrRuleTestCase(
+            description="sibling models role remains valid",
+            rule_code="SFR303",
+            relative_path="commands/plan/models.py",
+            source="",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        SfrRuleTestCase(
+            description="descriptive helper module remains valid",
+            rule_code="SFR303",
+            relative_path="commands/plan/_helpers/model_conversion.py",
+            source="",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        SfrRuleTestCase(
+            description="passive top-level leaf without main is rejected",
+            rule_code="SFR309",
+            relative_path="python_nodes/models.py",
+            source="",
+            expected_codes=("SFR309",),
+            expected_lines=(None,),
+            expected_messages=(
+                "leaf runtime package 'python_nodes/' has no meaningful main/ entry module",
+            ),
+            expected_paths=("python_nodes/models.py",),
+        ),
+        SfrRuleTestCase(
+            description="initializer-only main does not satisfy meaningful ownership",
+            rule_code="SFR309",
+            relative_path="python_nodes/models.py",
+            source="",
+            support_files=(
+                SfrSupportFile(
+                    description="placeholder main initializer",
+                    relative_path="python_nodes/main/__init__.py",
+                    source="",
+                ),
+            ),
+            expected_codes=("SFR309",),
+            expected_lines=(None,),
+            expected_messages=(
+                "leaf runtime package 'python_nodes/' has no meaningful main/ entry module",
+            ),
+            expected_paths=("python_nodes/models.py",),
+        ),
+        SfrRuleTestCase(
+            description="top-level leaf with a focused main entry is valid",
+            rule_code="SFR309",
+            relative_path="compiler/models.py",
+            source="",
+            support_files=(
+                SfrSupportFile(
+                    description="compiler entry",
+                    relative_path="compiler/main/compile_project.py",
+                    source="def compile_project() -> None:\n    return None\n",
+                ),
+            ),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        SfrRuleTestCase(
+            description="branch parent does not need main when its subdomain owns behavior",
+            rule_code="SFR309",
+            relative_path="commands/__init__.py",
+            source="",
+            support_files=(
+                SfrSupportFile(
+                    description="plan entry",
+                    relative_path="commands/plan/main/run_plan.py",
+                    source="def run_plan() -> None:\n    return None\n",
+                ),
+            ),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        SfrRuleTestCase(
+            description="passive subdomain without main is rejected",
+            rule_code="SFR309",
+            relative_path="commands/__init__.py",
+            source="",
+            support_files=(
+                SfrSupportFile(
+                    description="orphan plan contracts",
+                    relative_path="commands/plan/models.py",
+                    source="",
+                ),
+            ),
+            expected_codes=("SFR309",),
+            expected_lines=(None,),
+            expected_messages=(
+                "leaf runtime package 'commands/plan/' has no meaningful main/ entry module",
+            ),
+            expected_paths=("commands/plan/models.py",),
+        ),
+        SfrRuleTestCase(
+            description="tooling package is outside the runtime leaf-main policy",
+            rule_code="SFR309",
+            relative_path="release/models.py",
+            source="",
+            scope=ScopeName.TOOLING,
+            expected_codes=(),
+            expected_lines=(),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_runtime_ownership_path_when_checking_then_enforces_role_and_main_boundaries(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: SfrRuleTestCase,
+) -> None:
+    result: EvaluationResult = evaluate_role_test_case(
+        test_case=test_case,
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+    )
+    scope_root: Path = (
+        tmp_path / {False: "src/pkg", True: "scripts"}[test_case.scope is ScopeName.TOOLING]
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
+    assert tuple(fault.line for fault in result.faults) == test_case.expected_lines
+    assert tuple(fault.message for fault in result.faults) == test_case.expected_messages
+    assert tuple(fault.path.relative_to(scope_root).as_posix() for fault in result.faults) == (
+        test_case.expected_paths
+    )

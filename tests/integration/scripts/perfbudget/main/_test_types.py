@@ -13,8 +13,10 @@ class BudgetRunTestCase:
     backend: str
     file_target: int
     seed: int
+    runs: int
     ceiling_seconds: float
     expected_exit_code: int
+    expected_run_count: int
 
 
 @dataclass(frozen=True)

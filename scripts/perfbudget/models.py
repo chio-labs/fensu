@@ -30,6 +30,7 @@ class ScenarioResult:
     output_sha256: str
     cache_stats: str
     fallback_warned: bool
+    max_rss_kib: int | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,3 +39,13 @@ class ScenarioFailure:
 
     scenario: str
     reason: str
+
+
+@dataclass(frozen=True, slots=True)
+class BudgetMeasurement:
+    """Repeated complete scenario matrices over equivalent generated corpora."""
+
+    corpus_files: int
+    corpus_faults: int
+    dense_faults: int
+    runs: tuple[dict[str, ScenarioResult], ...]

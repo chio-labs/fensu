@@ -8,7 +8,14 @@ from pathlib import Path
 from strata.instrumentation.constants import (
     OPERATION_COUNTERS,
     PROJECT_QUERY_ANSWER_ITEM_OPERATION,
+    PROJECT_QUERY_DIRECTORY_ENTRIES_OPERATION,
+    PROJECT_QUERY_EXISTS_OPERATION,
+    PROJECT_QUERY_GLOB_OPERATION,
+    PROJECT_QUERY_IS_DIR_OPERATION,
+    PROJECT_QUERY_IS_FILE_OPERATION,
     PROJECT_QUERY_OBSERVATION_OPERATION,
+    PROJECT_QUERY_PYTHON_ANCHOR_OPERATION,
+    PROJECT_QUERY_SOURCE_OPERATION,
 )
 
 
@@ -19,6 +26,7 @@ class QueryObserver:
         """Return the SHA-256 identity of the path's bytes or None when unreadable."""
 
         OPERATION_COUNTERS.record(operation=PROJECT_QUERY_OBSERVATION_OPERATION)
+        OPERATION_COUNTERS.record(operation=PROJECT_QUERY_SOURCE_OPERATION)
         try:
             content: bytes = path.read_bytes()
         except OSError:
@@ -30,6 +38,7 @@ class QueryObserver:
         """Return whether a resolved path exists."""
 
         OPERATION_COUNTERS.record(operation=PROJECT_QUERY_OBSERVATION_OPERATION)
+        OPERATION_COUNTERS.record(operation=PROJECT_QUERY_EXISTS_OPERATION)
         OPERATION_COUNTERS.record(operation=PROJECT_QUERY_ANSWER_ITEM_OPERATION)
         return resolved_path.exists()
 
@@ -37,6 +46,7 @@ class QueryObserver:
         """Return whether a resolved path is a regular file."""
 
         OPERATION_COUNTERS.record(operation=PROJECT_QUERY_OBSERVATION_OPERATION)
+        OPERATION_COUNTERS.record(operation=PROJECT_QUERY_IS_FILE_OPERATION)
         OPERATION_COUNTERS.record(operation=PROJECT_QUERY_ANSWER_ITEM_OPERATION)
         return resolved_path.is_file()
 
@@ -44,6 +54,7 @@ class QueryObserver:
         """Return whether a resolved path is a directory."""
 
         OPERATION_COUNTERS.record(operation=PROJECT_QUERY_OBSERVATION_OPERATION)
+        OPERATION_COUNTERS.record(operation=PROJECT_QUERY_IS_DIR_OPERATION)
         OPERATION_COUNTERS.record(operation=PROJECT_QUERY_ANSWER_ITEM_OPERATION)
         return resolved_path.is_dir()
 
@@ -51,6 +62,7 @@ class QueryObserver:
         """Return the direct children of a directory in observation order."""
 
         OPERATION_COUNTERS.record(operation=PROJECT_QUERY_OBSERVATION_OPERATION)
+        OPERATION_COUNTERS.record(operation=PROJECT_QUERY_DIRECTORY_ENTRIES_OPERATION)
         entries: tuple[Path, ...] = tuple(query_path.iterdir())
         OPERATION_COUNTERS.record(
             operation=PROJECT_QUERY_ANSWER_ITEM_OPERATION,
@@ -62,6 +74,7 @@ class QueryObserver:
         """Return direct or recursive pattern matches in observation order."""
 
         OPERATION_COUNTERS.record(operation=PROJECT_QUERY_OBSERVATION_OPERATION)
+        OPERATION_COUNTERS.record(operation=PROJECT_QUERY_GLOB_OPERATION)
         matches: tuple[Path, ...] = tuple(
             query_path.rglob(pattern) if recursive else query_path.glob(pattern)
         )
@@ -75,6 +88,7 @@ class QueryObserver:
         """Return init, first direct module, or first descendant module in that order."""
 
         OPERATION_COUNTERS.record(operation=PROJECT_QUERY_OBSERVATION_OPERATION)
+        OPERATION_COUNTERS.record(operation=PROJECT_QUERY_PYTHON_ANCHOR_OPERATION)
         init_path: Path = query_path / "__init__.py"
         if init_path.is_file():
             OPERATION_COUNTERS.record(operation=PROJECT_QUERY_ANSWER_ITEM_OPERATION)

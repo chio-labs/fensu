@@ -116,15 +116,15 @@ def test_given_canonical_values_when_fingerprinting_then_preserves_semantic_orde
             expected_record_equal=True,
         ),
         FileResultFingerprintTestCase(
-            description="dependency answer changes correctness and integrity",
+            description="normalized dependency answer does not duplicate file-record identity",
             first_global="g" * 64,
             second_global="g" * 64,
             first_dependency_answer=False,
             second_dependency_answer=True,
             first_fault_message="missing annotation",
             second_fault_message="missing annotation",
-            expected_result_equal=False,
-            expected_record_equal=False,
+            expected_result_equal=True,
+            expected_record_equal=True,
         ),
         FileResultFingerprintTestCase(
             description="fault mutation changes integrity but not correctness inputs",
@@ -134,7 +134,7 @@ def test_given_canonical_values_when_fingerprinting_then_preserves_semantic_orde
             second_dependency_answer=False,
             first_fault_message="missing annotation",
             second_fault_message="changed diagnostic",
-            expected_result_equal=True,
+            expected_result_equal=False,
             expected_record_equal=False,
         ),
         FileResultFingerprintTestCase(
@@ -166,12 +166,10 @@ def test_given_file_results_when_fingerprinting_then_separates_correctness_and_i
     second_record: CacheRecord = file_result_to_record(second_result)
     first: FileResultFingerprints = file_result_fingerprints(
         global_fingerprint=CacheFingerprint(test_case.first_global),
-        result=first_result,
         encoded=encode_record(record=first_record),
     )
     second: FileResultFingerprints = file_result_fingerprints(
         global_fingerprint=CacheFingerprint(test_case.second_global),
-        result=second_result,
         encoded=encode_record(record=second_record),
     )
 

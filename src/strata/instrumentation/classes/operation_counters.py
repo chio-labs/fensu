@@ -23,11 +23,11 @@ class OperationCounters:
 
         self._enabled = False
 
-    def record(self, *, operation: str) -> None:
-        """Count one operation while counting is enabled."""
+    def record(self, *, operation: str, amount: int = 1) -> None:
+        """Count operations while counting is enabled."""
 
-        if self._enabled:
-            self._counts[operation] = self._counts.get(operation, 0) + 1
+        if self._enabled and amount:
+            self._counts[operation] = self._counts.get(operation, 0) + amount
 
     def snapshot(self) -> dict[str, int]:
         """Return a copy of the recorded operation counts."""

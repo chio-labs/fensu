@@ -56,6 +56,7 @@ def evaluated_check(
             short_circuit=None,
             surface_targets=None,
             global_fingerprint=None,
+            surface_index_fingerprint=None,
         )
     cached: CacheEvaluation = evaluate_with_cache(
         tree=tree,
@@ -72,4 +73,5 @@ def evaluated_check(
         short_circuit=cached.short_circuit,
         surface_targets=cached.surface_targets,
         global_fingerprint=fingerprint_build.fingerprint,
+        surface_index_fingerprint=cached.surface_index_fingerprint,
     )

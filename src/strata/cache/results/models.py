@@ -35,6 +35,7 @@ class CacheIndex:
 
     global_fingerprint: CacheFingerprint
     entries: tuple[CacheIndexEntry, ...]
+    dependencies_fingerprint: CacheFingerprint | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,6 +49,7 @@ class CacheStats:
     non_cacheable: int = 0
     storage_failed: bool = False
     internal_error: bool = False
+    index_fingerprint: CacheFingerprint | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,6 +80,7 @@ class CheckCacheContext:
     index: CacheIndex | None
     output: CachedCheckOutput | None
     observations: tuple[DependencyObservation, ...] | None
+    index_fingerprint: CacheFingerprint | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,6 +91,7 @@ class CacheEvaluation:
     stats: CacheStats
     short_circuit: CachedCheckOutput | None = None
     surface_targets: tuple[str, ...] | None = None
+    surface_index_fingerprint: CacheFingerprint | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -162,7 +166,6 @@ class PublicationCandidate:
     """One fresh cacheable result prepared for transactional publication."""
 
     entry: CacheIndexEntry
-    record: CacheRecord
     encoded: bytes
 
 
@@ -174,6 +177,7 @@ class PublicationPreparation:
     non_cacheable: int
     internal_error: bool
     observations: tuple[DependencyObservation, ...] = ()
+    observations_conflicted: bool = False
 
 
 @dataclass(frozen=True, slots=True)

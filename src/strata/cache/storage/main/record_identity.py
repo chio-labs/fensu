@@ -11,4 +11,4 @@ from strata.cache.storage.models import CacheRecord
 def record_content_fingerprint(*, record: CacheRecord) -> CacheFingerprint:
     """Return the SHA-256 identity of one record's exact stored bytes."""
 
-    return fingerprint_source(encode_cache_record(record))
+    return fingerprint_source(encode_cache_record(record=record))

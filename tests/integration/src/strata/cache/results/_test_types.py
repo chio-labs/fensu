@@ -123,6 +123,17 @@ class CachedEvaluationInvalidationTestCase:
 
 
 @dataclass(frozen=True)
+class CachedResultReadFilteringTestCase:
+    """Source mutations and expected old-result read boundaries."""
+
+    description: str
+    initial_files: tuple[tuple[str, str], ...]
+    changed_files: tuple[tuple[str, str], ...]
+    expected_loaded_paths: tuple[str, ...]
+    expected_invalidations: int
+
+
+@dataclass(frozen=True)
 class CachedDomainShapeInvalidationTestCase:
     """One namespace-source transition and expected cached SFR306 invalidation."""
 

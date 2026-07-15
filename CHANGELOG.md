@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.17.0](https://github.com/chio-labs/strata/compare/v0.16.0...v0.17.0) (2026-07-15)
+
+
+### Features
+
+* **cli:** prioritize actionable check output ([d85924f](https://github.com/chio-labs/strata/commit/d85924f6b095dee8a9e7fe8e98ddf9b96f685bf2))
+* **cli:** prioritize actionable check output ([79167f5](https://github.com/chio-labs/strata/commit/79167f5bb3bcafd752ecead5d2060fae5377e11d))
+
 ## [0.16.0](https://github.com/chio-labs/strata/compare/v0.15.3...v0.16.0) (2026-07-15)
 
 

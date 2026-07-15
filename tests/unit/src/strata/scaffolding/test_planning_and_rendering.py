@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from io import StringIO
 from pathlib import Path
 
@@ -42,6 +43,8 @@ from tests.unit.src.strata.scaffolding.helpers import (
     detected_nonempty_without_roots,
     init_options,
 )
+
+_WINDOWS_PLATFORM: bool = sys.platform.startswith("win")
 
 
 @pytest.mark.parametrize(
@@ -403,6 +406,9 @@ def test_given_partial_explicit_scopes_when_building_plan_then_displays_effectiv
     assert all(fragment in transcript for fragment in test_case.expected_transcript_fragments)
 
 
+@pytest.mark.skipif(
+    _WINDOWS_PLATFORM, reason="rename over an open descriptor requires posix semantics"
+)
 @pytest.mark.parametrize(
     "test_case",
     [

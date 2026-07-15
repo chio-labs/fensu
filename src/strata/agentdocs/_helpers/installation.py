@@ -226,7 +226,9 @@ def _capture_skill_file(
             inode=None,
             expected_owner=expected_owner,
         )
-    descriptor: int = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    descriptor: int = os.open(
+        path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0)
+    )
     with os.fdopen(descriptor, "rb") as existing_file:
         metadata: os.stat_result = os.fstat(existing_file.fileno())
         if not stat.S_ISREG(metadata.st_mode):
@@ -328,7 +330,7 @@ def _publish_existing_skill(*, staged_path: Path, snapshot: _SkillFileSnapshot) 
     installed_content: bytes = staged_path.read_bytes()
     descriptor: int = os.open(
         snapshot.path,
-        os.O_RDWR | getattr(os, "O_NOFOLLOW", 0),
+        os.O_RDWR | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0),
     )
     with os.fdopen(descriptor, "r+b") as target_file:
         _validate_open_skill_file(target_file=target_file, snapshot=snapshot)
@@ -388,7 +390,7 @@ def _rollback_skill_files(*, published_files: list[_PublishedSkillFile]) -> None
 def _restore_existing_skill(*, published_file: _PublishedSkillFile) -> None:
     descriptor: int = os.open(
         published_file.installed.path,
-        os.O_RDWR | getattr(os, "O_NOFOLLOW", 0),
+        os.O_RDWR | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0),
     )
     with os.fdopen(descriptor, "r+b") as target_file:
         _validate_open_skill_file(

@@ -98,7 +98,7 @@ def direct_ast_parse_paths(*, root: Path) -> tuple[str, ...]:
         lambda candidate: "ast.parse" in candidate.read_text(encoding="utf-8"),
         root.rglob("*.py"),
     )
-    return tuple(str(candidate.relative_to(root)) for candidate in candidates)
+    return tuple(candidate.relative_to(root).as_posix() for candidate in candidates)
 
 
 def mutate_manifest(*, root: Path, mutation: str) -> None:

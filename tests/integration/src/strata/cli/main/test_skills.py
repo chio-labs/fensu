@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Callable
 from pathlib import Path
 
@@ -839,6 +840,7 @@ def test_given_legacy_replacement_race_when_migrating_then_preserves_user_replac
     ],
     ids=lambda case: case.description,
 )
+@pytest.mark.skipif(os.name == "nt", reason="Windows prevents replacing an open file")
 def test_given_existing_target_race_when_publishing_then_preserves_user_replacement(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -937,11 +939,12 @@ def test_given_expected_target_state_when_checking_update_then_reports_exact_rea
     )
     after: tuple[tuple[str, str, int, int, bytes], ...] = complete_filesystem_snapshot(tmp_path)
     target: Path = tmp_path / ".agents/skills/strata-fixture/SKILL.md"
+    rendered_target: str = target.as_posix()
     expected_output: str = {
-        "current": f"Strata skill files are current:\n  {target}\n",
+        "current": f"Strata skill files are current:\n  {rendered_target}\n",
     }.get(
         test_case.expected_reason,
-        f"Strata skill files require update:\n  {target}: {test_case.expected_reason}\n",
+        f"Strata skill files require update:\n  {rendered_target}: {test_case.expected_reason}\n",
     )
 
     assert installed == 0

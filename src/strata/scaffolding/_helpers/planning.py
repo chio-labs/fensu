@@ -73,16 +73,23 @@ def find_local_config(*, repository: Path) -> Path | None:
 
 
 def _capture_local_file(*, path: Path, label: str) -> bytes | None:
+    if path.is_symlink():
+        raise InitRefusalError(f"{label} path is a symlink: {path}")
     try:
         descriptor: int = os.open(
             path,
-            os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0),
+            os.O_RDONLY
+            | getattr(os, "O_NOFOLLOW", 0)
+            | getattr(os, "O_NONBLOCK", 0)
+            | getattr(os, "O_BINARY", 0),
         )
     except FileNotFoundError:
         return None
     except OSError as error:
         if error.errno == errno.ELOOP:
             raise InitRefusalError(f"{label} path is a symlink: {path}") from error
+        if error.errno in {errno.EACCES, errno.EISDIR} and path.is_dir():
+            raise InitRefusalError(f"{label} path is not a regular file: {path}") from error
         raise
     try:
         metadata: os.stat_result = os.fstat(descriptor)

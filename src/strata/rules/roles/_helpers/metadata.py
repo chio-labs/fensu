@@ -19,6 +19,12 @@ def role_rule_details(code: RoleCode) -> tuple[str, str]:
             "Keep main/ flat or group every entry into bounded shallow buckets; do not mix "
             "modules and Python-containing buckets in one container.",
         ),
+        RoleCode.HELPERS_RESERVED_ROLE_FILENAMES: (
+            "_helpers/ packages must not contain reserved role filenames",
+            "Rename the helper module after its specific operation, or move role-owned "
+            "declarations to the corresponding sibling models, types, constants, or "
+            "exceptions role.",
+        ),
         RoleCode.NESTED_DIRECT_MODULES: (
             "nested runtime packages may contain only role-oriented direct modules",
             "Move additional implementation modules under the package's _helpers/ boundary.",
@@ -41,6 +47,12 @@ def role_rule_details(code: RoleCode) -> tuple[str, str]:
             "sibling domains must not encode one parent domain through a shared name prefix",
             "Create one parent domain from the shared prefix and move each remaining suffix "
             "beneath it as a named subdomain.",
+        ),
+        RoleCode.LEAF_MAIN_BOUNDARY: (
+            "leaf runtime domains and subdomains must expose meaningful behavior through main/",
+            "Add a focused main/ entry module only when the leaf owns behavior; otherwise move "
+            "passive declarations into the closest domain or subdomain whose main/ behavior "
+            "owns and uses them.",
         ),
         RoleCode.ENTRY_MODULE_SHAPE: (
             "main/ entry modules must expose one focused public function",

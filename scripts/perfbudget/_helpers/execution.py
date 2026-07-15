@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 import os
 import shutil
 import subprocess
@@ -10,12 +11,21 @@ import time
 from pathlib import Path
 
 from scripts.perfbudget.constants import (
+    CHURN_1_PERCENT_SCENARIO,
+    CHURN_25_PERCENT_SCENARIO,
+    CHURN_75_PERCENT_SCENARIO,
+    CHURN_100_PERCENT_SCENARIO,
+    CHURN_APPENDIX,
+    CHURN_UNCACHED_SCENARIO,
     COLD_SCENARIO,
     DENSE_COLD_SCENARIO,
     DENSE_WARM_SCENARIO,
     EDIT_APPENDIX,
     EDIT_SCENARIO,
     EDITED_HELPER_FILE_NAME,
+    GLOBAL_MISMATCH_CONFIG_APPENDIX,
+    GLOBAL_MISMATCH_SCENARIO,
+    GLOBAL_MISMATCH_UNCACHED_SCENARIO,
     UNCACHED_SCENARIO,
     WARM_SCENARIO,
 )
@@ -28,7 +38,7 @@ _FALLBACK_WARNING_FRAGMENT: str = "fact backend was requested but"
 
 
 def standard_scenarios(*, spec: BudgetSpec, project: Path) -> dict[str, ScenarioResult]:
-    """Measure the uncached, cold, warm, and one-edit scenarios in order."""
+    """Measure the complete deterministic cache-change scenario matrix."""
 
     results: dict[str, ScenarioResult] = {}
     _ = cleared_cache(project=project)
@@ -61,6 +71,64 @@ def standard_scenarios(*, spec: BudgetSpec, project: Path) -> dict[str, Scenario
         executable=spec.executable,
         project=project,
         cache=True,
+        backend=spec.backend,
+    )
+    _change_source_ratio(project=project, numerator=1, denominator=100)
+    results[CHURN_1_PERCENT_SCENARIO] = measured_check(
+        name=CHURN_1_PERCENT_SCENARIO,
+        executable=spec.executable,
+        project=project,
+        cache=True,
+        backend=spec.backend,
+    )
+    _change_source_ratio(project=project, numerator=25, denominator=100)
+    results[CHURN_25_PERCENT_SCENARIO] = measured_check(
+        name=CHURN_25_PERCENT_SCENARIO,
+        executable=spec.executable,
+        project=project,
+        cache=True,
+        backend=spec.backend,
+    )
+    _change_source_ratio(project=project, numerator=75, denominator=100)
+    results[CHURN_75_PERCENT_SCENARIO] = measured_check(
+        name=CHURN_75_PERCENT_SCENARIO,
+        executable=spec.executable,
+        project=project,
+        cache=True,
+        backend=spec.backend,
+    )
+    _change_source_ratio(project=project, numerator=100, denominator=100)
+    results[CHURN_100_PERCENT_SCENARIO] = measured_check(
+        name=CHURN_100_PERCENT_SCENARIO,
+        executable=spec.executable,
+        project=project,
+        cache=True,
+        backend=spec.backend,
+    )
+    results[CHURN_UNCACHED_SCENARIO] = measured_check(
+        name=CHURN_UNCACHED_SCENARIO,
+        executable=spec.executable,
+        project=project,
+        cache=False,
+        backend=spec.backend,
+    )
+    config_path: Path = project / "strata.toml"
+    config_path.write_text(
+        config_path.read_text(encoding="utf-8") + GLOBAL_MISMATCH_CONFIG_APPENDIX,
+        encoding="utf-8",
+    )
+    results[GLOBAL_MISMATCH_SCENARIO] = measured_check(
+        name=GLOBAL_MISMATCH_SCENARIO,
+        executable=spec.executable,
+        project=project,
+        cache=True,
+        backend=spec.backend,
+    )
+    results[GLOBAL_MISMATCH_UNCACHED_SCENARIO] = measured_check(
+        name=GLOBAL_MISMATCH_UNCACHED_SCENARIO,
+        executable=spec.executable,
+        project=project,
+        cache=False,
         backend=spec.backend,
     )
     return results
@@ -126,6 +194,15 @@ def cleared_cache(*, project: Path) -> Path:
     cache_directory: Path = project / _CACHE_DIRECTORY_NAME
     shutil.rmtree(cache_directory, ignore_errors=True)
     return cache_directory
+
+
+def _change_source_ratio(*, project: Path, numerator: int, denominator: int) -> tuple[Path, ...]:
+    paths: tuple[Path, ...] = tuple(sorted(project.rglob("*.py")))
+    changed_count: int = max(1, math.ceil(len(paths) * numerator / denominator))
+    changed: tuple[Path, ...] = paths[:changed_count]
+    for path in changed:
+        path.write_text(path.read_text(encoding="utf-8") + CHURN_APPENDIX, encoding="utf-8")
+    return changed
 
 
 def _stats_line(*, stderr: str) -> str:

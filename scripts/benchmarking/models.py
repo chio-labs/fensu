@@ -43,3 +43,11 @@ class ProfileReport:
     rendered_bytes: int
     family_seconds: tuple[tuple[str, float], ...]
     rule_timings: tuple[tuple[str, float, int], ...]
+
+
+@dataclass(frozen=True, slots=True)
+class OperationReport:
+    """One deterministic engine operation profile for a cache state."""
+
+    mode: str
+    counts: tuple[tuple[str, int], ...]

@@ -8,11 +8,14 @@ from pathlib import Path
 
 import pytest
 
+from scripts.benchmarking._helpers.profiling import profile_operations
 from scripts.benchmarking.classes.check_profiler import CheckProfiler
-from scripts.benchmarking.models import ProfileReport
+from scripts.benchmarking.models import OperationReport, ProfileReport
+from scripts.benchmarking.types import OperationProfileMode
 from strata.cli.main.check import run_check
 from tests.integration.scripts.benchmarking.main._test_types import (
     BenchmarkErrorTestCase,
+    OperationProfileTestCase,
     ProcessBenchmarkTestCase,
     ProfileBenchmarkTestCase,
 )
@@ -110,3 +113,34 @@ def test_given_profile_project_when_running_profiler_then_completes_instrumented
     assert report.file_count == test_case.expected_file_count
     assert report.rule_count == test_case.expected_rule_count
     assert report.rendered_bytes == len(stdout.getvalue().removesuffix("\n").encode("utf-8"))
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        OperationProfileTestCase(
+            description="warm operation profile includes shared phases and cache bytes",
+            mode="warm",
+            expected_operations=(
+                "cache_record_bytes_read",
+                "phase_cache_evaluation_nanoseconds",
+                "phase_discovery_nanoseconds",
+                "phase_global_fingerprint_nanoseconds",
+            ),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_warm_project_when_profiling_operations_then_reports_shared_boundaries(
+    tmp_path: Path,
+    test_case: OperationProfileTestCase,
+) -> None:
+    write_profile_project(tmp_path)
+
+    report: OperationReport = profile_operations(
+        project=tmp_path,
+        mode=OperationProfileMode(test_case.mode),
+    )
+
+    operation_names: tuple[str, ...] = tuple(name for name, _ in report.counts)
+    assert all(name in operation_names for name in test_case.expected_operations)

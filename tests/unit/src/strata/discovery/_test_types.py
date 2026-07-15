@@ -124,3 +124,14 @@ class SnapshotHashTestCase:
     seeded: bool
     reinstalled: bool
     expected_hash: str | None
+
+
+@dataclass(frozen=True)
+class SnapshotInstallScaleTestCase:
+    """Scoped roots and expected bounded snapshot relativization work."""
+
+    description: str
+    files_per_root: int
+    expected_root_relativizations: int
+    expected_installed_paths: int
+    expected_relative_path: str

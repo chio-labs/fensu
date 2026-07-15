@@ -73,7 +73,7 @@ def run_budget(
     for result in results.values():
         print(
             f"scenario={result.name} seconds={result.seconds:.2f} "
-            f"exit={result.exit_code} {result.cache_stats}"
+            f"exit={result.exit_code} output_sha256={result.output_sha256} {result.cache_stats}"
         )
     failures: tuple[ScenarioFailure, ...] = budget_failures(spec=spec, results=results)
     for failure in failures:

@@ -13,6 +13,8 @@ class UncachedCountsTestCase:
     file_target: int
     seed: int
     expected_relative_path_computes: int
+    expected_min_discovery_nanoseconds: int
+    expected_min_full_evaluation_nanoseconds: int
 
 
 @dataclass(frozen=True)
@@ -25,6 +27,10 @@ class CachedCountsTestCase:
     expected_warm_fresh_evaluations: int
     expected_warm_parses: int
     expected_warm_manifest_validations: int
+    expected_min_warm_cache_bytes_read: int
+    expected_min_warm_query_observations: int
+    expected_min_warm_fingerprint_nanoseconds: int
+    expected_min_warm_cache_evaluation_nanoseconds: int
 
 
 @dataclass(frozen=True)

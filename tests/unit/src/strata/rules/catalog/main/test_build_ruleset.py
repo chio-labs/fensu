@@ -168,7 +168,7 @@ def test_given_rule_path_when_building_ruleset_then_does_not_add_rule_dir_to_sys
             description="scripts rule package imports its local helper through repository root",
             rule_code="XRG004",
             expected_code="XRG004",
-            expected_source_fragment="scripts/strata_rules/rules/custom.py",
+            expected_source_fragment="scripts/strata/rules/custom.py",
         )
     ],
     ids=lambda case: case.description,

@@ -206,7 +206,15 @@ skills. Rules can use `ctx.facts`, `ctx.project`, `ctx.text`, `ctx.syntax`, and
 `ctx.relations`; these are the same backend-neutral analysis zones used by Strata's
 built-in rules. Project and filesystem reads made through `ctx.project` are tracked
 for cache invalidation. Raw `ast.Module` access remains available for checks that need
-unrestricted Python syntax traversal. See the
+unrestricted Python syntax traversal. Keep project-owned checks in the canonical
+`scripts/strata/rules/` tooling role and load them explicitly:
+
+```toml
+tooling = ["scripts"]
+rule_paths = ["scripts/strata/rules"]
+```
+
+See the
 [custom-rule guide](https://github.com/chio-labs/strata-docs/blob/main/concepts/custom-rules.mdx)
 for the complete API and configuration.
 

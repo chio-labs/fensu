@@ -257,15 +257,17 @@ def test_given_valid_config_when_loading_then_applies_defaults(
         ),
         ConfigListFieldTestCase(
             description="rule paths override is normalized",
-            config_text='roots = ["src/pkg"]\nrule_paths = ["strata_rules"]\n',
+            config_text='roots = ["src/pkg"]\nrule_paths = ["scripts/strata/rules"]\n',
             expected_field_name="rule_paths",
-            expected_value=("strata_rules",),
+            expected_value=("scripts/strata/rules",),
         ),
         ConfigListFieldTestCase(
             description="rule modules override is normalized",
-            config_text='roots = ["src/pkg"]\nrule_modules = ["pkg.strata_rules"]\n',
+            config_text=(
+                'roots = ["src/pkg"]\nrule_modules = ["scripts.strata.rules.client_ownership"]\n'
+            ),
             expected_field_name="rule_modules",
-            expected_value=("pkg.strata_rules",),
+            expected_value=("scripts.strata.rules.client_ownership",),
         ),
     ],
     ids=lambda case: case.description,

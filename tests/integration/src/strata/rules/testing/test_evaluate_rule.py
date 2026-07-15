@@ -106,7 +106,7 @@ EVALUATION_CASES: tuple[HarnessEvaluationTestCase, ...] = (
             description="tooling policy context",
             source="VALUE = 1\n",
             expected_fault_count=1,
-            path="scripts/policy/rules/check_clients.py",
+            path="scripts/strata/rules/check_clients.py",
             scope="tooling",
             scope_root="scripts",
             config={"contracts": {"inspect_*": "returns-bool"}},

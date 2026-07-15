@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 
@@ -20,18 +19,17 @@ class RepositorySnapshot:
     def install(self, *, repo_root: Path, canonical_paths: Iterable[Path]) -> None:
         """Replace the table with paths relativized against one repository root."""
 
-        root: str = str(repo_root)
-        prefix: str = root + os.sep
         relative_by_path: dict[str, str] = {}
         for path in canonical_paths:
             value: str = str(path)
-            if not value.startswith(prefix):
+            try:
+                relative: str = path.relative_to(repo_root).as_posix()
+            except ValueError:
                 continue
-            relative: str = value[len(prefix) :]
             if _WINDOWS_PATH_SEPARATOR in relative:
                 continue
-            relative_by_path[value] = relative.replace(os.sep, "/")
-        self._repo_root = root
+            relative_by_path[value] = relative
+        self._repo_root = str(repo_root)
         self._relative_by_path = relative_by_path
         self._hash_by_path = {}
 

@@ -213,10 +213,15 @@ def _create_empty_file_by_path(
     )
     try:
         descriptor: int = os.open(path, flags, _FILE_MODE)
-    except FileExistsError:
-        metadata = path.lstat()
+    except OSError as error:
+        try:
+            metadata = path.lstat()
+        except FileNotFoundError:
+            raise error from None
         if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
-            raise InitError(f"Scaffold file path is not a file: {path}") from None
+            raise InitError(f"Scaffold file path is not a file: {path}") from error
+        if not isinstance(error, FileExistsError):
+            raise
     else:
         metadata = os.fstat(descriptor)
         try:

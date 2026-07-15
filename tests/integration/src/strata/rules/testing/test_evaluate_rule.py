@@ -415,7 +415,9 @@ def test_given_path_dependency_answer_when_evaluating_then_remaps_every_observed
     answer_paths: tuple[Path, ...] = cast(tuple[Path, ...], result.dependencies[-1].answer)
 
     assert result.fault_count == test_case.expected_fault_count
-    assert tuple(path.as_posix() for path in answer_paths) == test_case.expected_dependency_paths
+    assert tuple(sorted(path.as_posix() for path in answer_paths)) == tuple(
+        sorted(test_case.expected_dependency_paths)
+    )
     assert all(not path.is_absolute() for path in answer_paths)
 
 

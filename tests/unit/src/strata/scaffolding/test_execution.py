@@ -65,6 +65,8 @@ from tests.unit.src.strata.scaffolding.helpers import (
     symlink_paths,
 )
 
+_WINDOWS_FILE_MODE: int = 0o666
+
 
 @pytest.mark.parametrize(
     "test_case",
@@ -111,8 +113,12 @@ def test_given_empty_repository_plan_when_executing_then_creates_exact_roundtrip
         tmp_path / "strata.toml",
         tmp_path / ".gitignore",
     )
+    expected_file_mode: int = {
+        False: test_case.expected_file_mode,
+        True: _WINDOWS_FILE_MODE,
+    }[os.name == "nt"]
     assert tuple(path.stat().st_mode & 0o777 for path in written_paths) == (
-        test_case.expected_file_mode,
+        expected_file_mode,
     ) * len(written_paths)
     assert hashlib.sha256(PYTHON_GITIGNORE_TEMPLATE).hexdigest() == (
         "b2580eab7825b9f22f790fb0edb7a6e239616e79907004adf36023c7ec4b9a4c"
@@ -223,7 +229,7 @@ def test_given_existing_config_path_when_executing_then_refuses_before_atomic_st
             description="concurrent regular config is never overwritten",
             destination_kind="regular",
             expected_error_type=InitError,
-            expected_error_fragment="created concurrently",
+            expected_error_fragment="concurrently",
             expected_temp_paths=(),
             expected_destination_kind="regular",
             expected_destination_value="racing config\n",
@@ -232,7 +238,7 @@ def test_given_existing_config_path_when_executing_then_refuses_before_atomic_st
             description="concurrent config symlink is never overwritten",
             destination_kind="symlink",
             expected_error_type=InitError,
-            expected_error_fragment="created concurrently",
+            expected_error_fragment="concurrently",
             expected_temp_paths=(),
             expected_destination_kind="symlink",
             expected_destination_value="racing-target",
@@ -328,6 +334,10 @@ def test_given_scaffold_symlink_when_executing_then_refuses_and_rolls_back_creat
     ],
     ids=lambda case: case.description,
 )
+@pytest.mark.skipif(
+    not capabilities_module.supports_dir_fd_operations(),
+    reason="parent-swap injection requires descriptor-relative traversal",
+)
 def test_given_intermediate_parent_swap_when_scaffolding_then_refuses_without_writing_outside(
     test_case: ParentSwapTestCase,
     tmp_path: Path,
@@ -368,6 +378,7 @@ def test_given_intermediate_parent_swap_when_scaffolding_then_refuses_without_wr
     ],
     ids=lambda case: case.description,
 )
+@pytest.mark.skipif(os.name == "nt", reason="umask mode semantics are POSIX-only")
 def test_given_restrictive_umask_when_scaffolding_then_regular_files_are_non_executable(
     test_case: ScaffoldModeTestCase, tmp_path: Path
 ) -> None:

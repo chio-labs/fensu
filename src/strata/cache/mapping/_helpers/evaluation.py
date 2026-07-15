@@ -45,7 +45,12 @@ from strata.cache.storage.models import (
     CacheWrite,
 )
 from strata.cache.storage.types import CacheMutator, CacheStorage
-from strata.mapping.constants import PATH_SYMBOL_SEPARATOR, QUALIFIED_NAME_SEPARATOR
+from strata.mapping.constants import (
+    PATH_SYMBOL_SEPARATOR,
+    POSIX_PATH_SEPARATOR,
+    QUALIFIED_NAME_SEPARATOR,
+    WINDOWS_PATH_SEPARATOR,
+)
 from strata.mapping.exceptions import MapError
 from strata.mapping.main.discover_sources import discover_mapping_sources
 from strata.mapping.main.index_file import index_mapping_file
@@ -307,14 +312,17 @@ def _select_function(
     matches: tuple[str, ...]
     if PATH_SYMBOL_SEPARATOR in symbol:
         path_fragment, function_name = symbol.rsplit(PATH_SYMBOL_SEPARATOR, maxsplit=1)
+        normalized_fragment: str = path_fragment.replace(
+            WINDOWS_PATH_SEPARATOR, POSIX_PATH_SEPARATOR
+        ).removesuffix(".py")
         selected: list[tuple[str, str]] = []
         paths: dict[str, str] = {
-            identity: str(snapshot.path)
+            identity: snapshot.path.as_posix()
             for identity, snapshot in zip(identities, snapshots, strict=True)
         }
         for declaration in manifest.files:
             absolute_path: str = paths[declaration.identity]
-            if not absolute_path.removesuffix(".py").endswith(path_fragment.removesuffix(".py")):
+            if not absolute_path.removesuffix(".py").endswith(normalized_fragment):
                 continue
             selected.extend(
                 (item.key, declaration.identity)

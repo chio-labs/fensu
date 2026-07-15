@@ -8,19 +8,20 @@ from pathlib import Path
 def write_fake_strata(*, root: Path, output: str, changing: bool = False) -> Path:
     """Write a fake Strata executable with stable or changing diagnostics."""
 
-    executable: Path = root / "strata"
+    check_script: Path = root / "check"
     changing_body: str = (
-        '#!/bin/bash\nstate="$PWD/.count"\ncount=0\n'
-        'if [[ -f "$state" ]]; then count=$(<"$state"); fi\n'
-        'count=$((count + 1))\nprintf "%s" "$count" > "$state"\n'
-        'printf "Found %s faults\\n" "$count"\nexit 1\n'
+        "from pathlib import Path\n"
+        'state = Path.cwd() / ".count"\n'
+        "count = int(state.read_text()) if state.is_file() else 0\n"
+        "count += 1\n"
+        "state.write_text(str(count))\n"
+        'print(f"Found {count} faults")\n'
+        "raise SystemExit(1)\n"
     )
-    escaped: str = output.replace("'", "'\\''")
-    stable_body: str = f"#!/bin/bash\nprintf '%s' '{escaped}'\nexit 1\n"
+    stable_body: str = f"import sys\nsys.stdout.write({output!r})\nraise SystemExit(1)\n"
     body: str = {False: stable_body, True: changing_body}[changing]
-    executable.write_text(body, encoding="utf-8")
-    executable.chmod(0o755)
-    return executable
+    check_script.write_text(body, encoding="utf-8")
+    return Path(sys.executable)
 
 
 def run_benchmark_command(

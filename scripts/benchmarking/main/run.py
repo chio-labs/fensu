@@ -45,6 +45,6 @@ def run_benchmark(
 
 def _installed_strata() -> Path:
     located: str | None = which("strata", path=str(Path(sys.executable).parent))
-    if located is not None:
-        return Path(located)
-    return Path(sys.executable).with_name("strata")
+    if located is None:
+        raise BenchmarkError("Could not locate the installed Strata executable.")
+    return Path(located)

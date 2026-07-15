@@ -9,7 +9,7 @@ from types import ModuleType
 from strata.analysis.constants import NATIVE_FACT_MODULE_NAME
 from strata.analysis.main.select_fact_backend import select_fact_backend
 from strata.analysis.types import FactBackend
-from strata.discovery._helpers.position import relative_parts
+from strata.discovery._helpers.position import normalize_path_spelling, relative_parts
 from strata.discovery.models import ProjectLayout, ScopedFile
 from strata.discovery.types import ScopeName
 
@@ -20,18 +20,21 @@ def discover_scoped_files(*, layout: ProjectLayout) -> tuple[ScopedFile, ...]:
     scope_roots: tuple[tuple[ScopeName, Path], ...] = _configured_scope_roots(layout=layout)
     discovered: dict[Path, ScopedFile] = {}
     for scope, root, walked in _walked_scope_roots(scope_roots=scope_roots):
+        resolved_root: Path = normalize_path_spelling(root.resolve())
         for path, canonical, parts in walked:
-            resolved_path: Path = canonical if canonical is not None else path.resolve()
+            resolved_path: Path = normalize_path_spelling(
+                canonical if canonical is not None else path.resolve()
+            )
             if resolved_path in discovered:
                 continue
             discovered[resolved_path] = ScopedFile(
                 path=resolved_path,
-                root=root,
+                root=resolved_root,
                 scope=scope,
                 relative_parts=(
                     tuple(parts)
                     if parts is not None
-                    else relative_parts(path=resolved_path, root=root)
+                    else relative_parts(path=resolved_path, root=resolved_root)
                 ),
             )
     return tuple(discovered[path] for path in sorted(discovered))

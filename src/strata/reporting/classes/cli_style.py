@@ -49,6 +49,9 @@ class CliStyle:
     def fault_count(self, text: str) -> str:
         return self._apply(text=text, ansi=ANSI_BOLD_RED)
 
+    def warning(self, text: str) -> str:
+        return self._apply(text=text, ansi=ANSI_BOLD_RED)
+
     def link(self, text: str) -> str:
         return self._apply(text=text, ansi=ANSI_BOLD_CYAN)
 

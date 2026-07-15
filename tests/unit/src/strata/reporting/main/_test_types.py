@@ -34,6 +34,17 @@ class ExceptionRenderTestCase:
 
 
 @dataclass(frozen=True)
+class EvaluationRenderTestCase:
+    """Evaluation metadata and expected report footer hierarchy."""
+
+    description: str
+    use_color: bool
+    evaluation_summary: str
+    applied_exception_count: int
+    expected_text: str
+
+
+@dataclass(frozen=True)
 class WarningRenderTestCase:
     """Warning rendering mode and expected labeled summary behavior."""
 

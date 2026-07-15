@@ -9,6 +9,7 @@ import pytest
 from strata.reporting.main.render import render
 from strata.reporting.models import RenderedReport
 from tests.unit.src.strata.reporting.main._test_types import (
+    EvaluationRenderTestCase,
     ExceptionRenderTestCase,
     RemediationRenderTestCase,
     RenderReportTestCase,
@@ -273,6 +274,38 @@ def test_given_applied_exceptions_when_rendering_then_reports_exception_count(
 
     assert report.text == test_case.expected_text
     assert report.applied_exception_count == test_case.applied_exception_count
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        EvaluationRenderTestCase(
+            description="evaluation metadata is dimmed before normal exception count",
+            use_color=True,
+            evaluation_summary="Evaluation: 1 of 2 Python files (1 excluded by config)",
+            applied_exception_count=1,
+            expected_text=(
+                "\033[1;32mFound 0 faults\033[0m\n"
+                "\033[2mEvaluation: 1 of 2 Python files (1 excluded by config)\033[0m\n"
+                "Applied 1 rule exception"
+            ),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_filtered_evaluation_when_rendering_then_uses_footer_hierarchy(
+    tmp_path: Path,
+    test_case: EvaluationRenderTestCase,
+) -> None:
+    report: RenderedReport = render(
+        faults=(),
+        root=tmp_path,
+        use_color=test_case.use_color,
+        evaluation_summary=test_case.evaluation_summary,
+        applied_exception_count=test_case.applied_exception_count,
+    )
+
+    assert report.text == test_case.expected_text
 
 
 @pytest.mark.parametrize(

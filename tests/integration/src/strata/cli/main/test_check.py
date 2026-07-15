@@ -22,6 +22,7 @@ from tests.integration.src.strata.cli.main._test_types import (
     CheckCacheWarningTestCase,
     CheckCommandTestCase,
     CheckErrorTestCase,
+    CheckFooterTestCase,
     CheckNoFaultTestCase,
     CheckSkillFreshnessTestCase,
     EvaluationCheckTestCase,
@@ -59,7 +60,7 @@ from tests.integration.src.strata.cli.main.helpers import (
         EvaluationCheckTestCase(
             description="configured filter has byte-identical cached and uncached reporting",
             expected_exit_code=1,
-            expected_summary="Evaluation: 1 of 2 Python files (1 excluded by config)\n",
+            expected_evaluation_footer=("Evaluation: 1 of 2 Python files (1 excluded by config)\n"),
             expected_fault_fragment="src/pkg/target.py",
             expected_absent_fragment="src/pkg/context.py",
         )
@@ -96,7 +97,8 @@ def test_given_evaluation_filter_when_running_check_then_reports_exact_cached_pa
     assert cached_exit == test_case.expected_exit_code
     assert uncached_exit == test_case.expected_exit_code
     assert cached_stdout.getvalue() == uncached_stdout.getvalue()
-    assert cached_stdout.getvalue().startswith(test_case.expected_summary)
+    assert test_case.expected_evaluation_footer in cached_stdout.getvalue()
+    assert cached_stdout.getvalue().endswith(test_case.expected_evaluation_footer)
     assert test_case.expected_fault_fragment in cached_stdout.getvalue()
     assert test_case.expected_absent_fragment not in cached_stdout.getvalue()
 
@@ -963,7 +965,7 @@ def test_given_default_local_skill_state_when_checking_then_warns_only_for_owned
         stdout=stdout,
         stderr=stderr,
     )
-    warning: str = "Strata skill files are out of date; run `strata skills`."
+    warning: str = "Strata skill files are out of date"
 
     assert exit_code == test_case.expected_exit_code
     assert "Found 1 fault" in stdout.getvalue()
@@ -1006,6 +1008,50 @@ def test_given_clean_project_and_divergent_owned_skill_when_checking_then_exit_r
     assert exit_code == test_case.expected_exit_code
     assert test_case.expected_output_fragment in stdout.getvalue()
     assert "Strata skill files are out of date" in stderr.getvalue()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CheckFooterTestCase(
+            description="filtered exception check ends with actionable styled skill notice",
+            expected_exit_code=0,
+            expected_output=(
+                "\033[1;32mFound 0 faults\033[0m\n"
+                "\033[2mEvaluation: 1 of 2 Python files (1 excluded by config)\033[0m\n"
+                "Applied 1 rule exception\n"
+                "\n\033[1;38;5;208mStrata skill files are out of date\033[0m\n"
+                "  Run: \033[1;36mstrata skills\033[0m\n"
+            ),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_stale_skill_and_filtered_exception_when_checking_then_orders_footer_actions(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: CheckFooterTestCase,
+) -> None:
+    write_cli_exception_project(tmp_path)
+    config: Path = tmp_path / "strata.toml"
+    config.write_text(
+        config.read_text(encoding="utf-8")
+        + '\n[evaluation]\ninclude = ["src/pkg/external.py"]\n'
+        + '[skills]\nname = "fixture"\n',
+        encoding="utf-8",
+    )
+    excluded: Path = tmp_path / "src/pkg/excluded.py"
+    excluded.write_text("VALUE: int = 1\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    installed: int = run_skills(argv=("--target", "agents"))
+    mutate_skill_freshness_state(root=tmp_path, state="divergent")
+    output: CaptureOutput = CaptureOutput(is_terminal=True)
+
+    exit_code: int = run_check(argv=("--no-cache",), stdout=output, stderr=output)
+
+    assert installed == 0
+    assert exit_code == test_case.expected_exit_code
+    assert output.getvalue() == test_case.expected_output
 
 
 @pytest.mark.parametrize(

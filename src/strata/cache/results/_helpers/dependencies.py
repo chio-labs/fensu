@@ -5,6 +5,14 @@ from __future__ import annotations
 from pathlib import Path
 
 from strata.analysis.classes.query_observer import QueryObserver
+from strata.analysis.main.observe_repository_contexts import observe_repository_contexts
+from strata.analysis.main.observe_repository_python_globs import observe_repository_python_globs
+from strata.analysis.main.observe_repository_stats import observe_repository_stats
+from strata.analysis.models import (
+    RepositoryContextAnswer,
+    RepositoryGlobAnswer,
+    RepositoryStatAnswer,
+)
 from strata.analysis.types import ProjectDependencyKind
 from strata.cache.results._helpers.paths import relative_repository_path
 from strata.cache.results._helpers.validation import is_dependency_observation, is_relative_path
@@ -16,12 +24,49 @@ from strata.cache.results.types import (
     DependencyStateKey,
 )
 from strata.instrumentation.constants import (
+    NATIVE_REPOSITORY_CONTEXT_BATCH_OPERATION,
+    NATIVE_REPOSITORY_GLOB_BATCH_OPERATION,
+    NATIVE_REPOSITORY_STAT_BATCH_OPERATION,
     OPERATION_COUNTERS,
+    PROJECT_QUERY_ANSWER_ITEM_OPERATION,
     PROJECT_QUERY_CACHE_HIT_OPERATION,
     PROJECT_QUERY_CACHE_MISS_OPERATION,
+    PROJECT_QUERY_DIRECTORY_ENTRIES_OPERATION,
+    PROJECT_QUERY_EXISTS_OPERATION,
+    PROJECT_QUERY_GLOB_OPERATION,
+    PROJECT_QUERY_IS_DIR_OPERATION,
+    PROJECT_QUERY_IS_FILE_OPERATION,
+    PROJECT_QUERY_OBSERVATION_OPERATION,
+    PROJECT_QUERY_PYTHON_ANCHOR_OPERATION,
+    PROJECT_QUERY_SOURCE_OPERATION,
 )
 
 _OBSERVER: QueryObserver = QueryObserver()
+_stat_kinds: frozenset[ProjectDependencyKind] = frozenset(
+    {
+        ProjectDependencyKind.EXISTS,
+        ProjectDependencyKind.IS_FILE,
+        ProjectDependencyKind.IS_DIR,
+    }
+)
+_stat_operations: dict[ProjectDependencyKind, str] = {
+    ProjectDependencyKind.EXISTS: PROJECT_QUERY_EXISTS_OPERATION,
+    ProjectDependencyKind.IS_FILE: PROJECT_QUERY_IS_FILE_OPERATION,
+    ProjectDependencyKind.IS_DIR: PROJECT_QUERY_IS_DIR_OPERATION,
+}
+_python_glob_pattern: str = "*.py"
+_context_kinds: frozenset[ProjectDependencyKind] = frozenset(
+    {
+        ProjectDependencyKind.SOURCE,
+        ProjectDependencyKind.DIRECTORY_ENTRIES,
+        ProjectDependencyKind.PYTHON_ANCHOR,
+    }
+)
+_context_operations: dict[ProjectDependencyKind, str] = {
+    ProjectDependencyKind.SOURCE: PROJECT_QUERY_SOURCE_OPERATION,
+    ProjectDependencyKind.DIRECTORY_ENTRIES: PROJECT_QUERY_DIRECTORY_ENTRIES_OPERATION,
+    ProjectDependencyKind.PYTHON_ANCHOR: PROJECT_QUERY_PYTHON_ANCHOR_OPERATION,
+}
 
 
 def dependencies_are_current(
@@ -33,12 +78,39 @@ def dependencies_are_current(
     """Return whether every project-query answer and resolved target is unchanged."""
 
     active_states: DependencyStateCache = {} if states is None else states
-    for observation in observations:
-        current, active_states = _observation_is_current(
-            observation=observation,
+    native_states: DependencyStateCache = _native_stat_states(
+        observations=observations,
+        repo_root=repo_root,
+        states=active_states,
+    )
+    native_states.update(
+        _native_glob_states(
+            observations=observations,
             repo_root=repo_root,
             states=active_states,
         )
+    )
+    native_states.update(
+        _native_context_states(
+            observations=observations,
+            repo_root=repo_root,
+            states=active_states,
+        )
+    )
+    active_states.update(native_states)
+    for observation in observations:
+        key: DependencyStateKey = _state_key(observation)
+        if key in native_states:
+            current: bool = native_states[key] == (
+                observation.dependency_path,
+                observation.answer,
+            )
+        else:
+            current, active_states = _observation_is_current(
+                observation=observation,
+                repo_root=repo_root,
+                states=active_states,
+            )
         if not current:
             return False
     return True
@@ -50,12 +122,7 @@ def _observation_is_current(
     repo_root: Path,
     states: DependencyStateCache,
 ) -> tuple[bool, DependencyStateCache]:
-    key: DependencyStateKey = (
-        observation.query_path,
-        observation.kind,
-        observation.pattern,
-        observation.recursive,
-    )
+    key: DependencyStateKey = _state_key(observation)
     if key in states:
         OPERATION_COUNTERS.record(operation=PROJECT_QUERY_CACHE_HIT_OPERATION)
         state: DependencyState | None = states[key]
@@ -68,6 +135,145 @@ def _observation_is_current(
         state = None if reobserved is None else (reobserved.dependency_path, reobserved.answer)
         states[key] = state
     return state == (observation.dependency_path, observation.answer), states
+
+
+def _native_stat_states(
+    *,
+    observations: tuple[DependencyObservation, ...],
+    repo_root: Path,
+    states: DependencyStateCache,
+) -> DependencyStateCache:
+    selected: dict[DependencyStateKey, DependencyObservation] = {}
+    for observation in observations:
+        key: DependencyStateKey = _state_key(observation)
+        if (
+            key not in states
+            and observation.kind in _stat_kinds
+            and is_dependency_observation(observation)
+            and is_relative_path(value=observation.query_path, allow_root=True)
+        ):
+            selected.setdefault(key, observation)
+    if not selected:
+        return {}
+    answers: tuple[RepositoryStatAnswer | None, ...] = observe_repository_stats(
+        repo_root=repo_root,
+        queries=tuple(
+            (observation.query_path, observation.kind) for observation in selected.values()
+        ),
+    )
+    observed: DependencyStateCache = {}
+    for (key, observation), answer in zip(selected.items(), answers, strict=True):
+        if answer is None:
+            continue
+        state: DependencyState = (answer.dependency_path, answer.answer)
+        observed[key] = state
+        OPERATION_COUNTERS.record(operation=PROJECT_QUERY_CACHE_MISS_OPERATION)
+        OPERATION_COUNTERS.record(operation=PROJECT_QUERY_OBSERVATION_OPERATION)
+        OPERATION_COUNTERS.record(operation=PROJECT_QUERY_ANSWER_ITEM_OPERATION)
+        OPERATION_COUNTERS.record(operation=_stat_operations[observation.kind])
+    if observed:
+        OPERATION_COUNTERS.record(operation=NATIVE_REPOSITORY_STAT_BATCH_OPERATION)
+    return observed
+
+
+def _native_glob_states(
+    *,
+    observations: tuple[DependencyObservation, ...],
+    repo_root: Path,
+    states: DependencyStateCache,
+) -> DependencyStateCache:
+    selected: dict[DependencyStateKey, DependencyObservation] = {}
+    for observation in observations:
+        key: DependencyStateKey = _state_key(observation)
+        if (
+            key not in states
+            and observation.kind is ProjectDependencyKind.GLOB
+            and observation.pattern == _python_glob_pattern
+            and is_dependency_observation(observation)
+            and is_relative_path(value=observation.query_path, allow_root=True)
+        ):
+            selected.setdefault(key, observation)
+    if not selected:
+        return {}
+    answers: tuple[RepositoryGlobAnswer | None, ...] = observe_repository_python_globs(
+        repo_root=repo_root,
+        queries=tuple(
+            (observation.query_path, observation.recursive) for observation in selected.values()
+        ),
+    )
+    observed: DependencyStateCache = {}
+    for (key, _observation), answer in zip(selected.items(), answers, strict=True):
+        if answer is None:
+            continue
+        state: DependencyState = (answer.dependency_path, answer.answer)
+        observed[key] = state
+        OPERATION_COUNTERS.record(operation=PROJECT_QUERY_CACHE_MISS_OPERATION)
+        OPERATION_COUNTERS.record(operation=PROJECT_QUERY_OBSERVATION_OPERATION)
+        OPERATION_COUNTERS.record(
+            operation=PROJECT_QUERY_ANSWER_ITEM_OPERATION,
+            amount=len(answer.answer),
+        )
+        OPERATION_COUNTERS.record(operation=PROJECT_QUERY_GLOB_OPERATION)
+    if observed:
+        OPERATION_COUNTERS.record(operation=NATIVE_REPOSITORY_GLOB_BATCH_OPERATION)
+    return observed
+
+
+def _native_context_states(
+    *,
+    observations: tuple[DependencyObservation, ...],
+    repo_root: Path,
+    states: DependencyStateCache,
+) -> DependencyStateCache:
+    selected: dict[DependencyStateKey, DependencyObservation] = {}
+    for observation in observations:
+        key: DependencyStateKey = _state_key(observation)
+        if (
+            key not in states
+            and observation.kind in _context_kinds
+            and is_dependency_observation(observation)
+            and is_relative_path(value=observation.query_path, allow_root=True)
+        ):
+            selected.setdefault(key, observation)
+    if not selected:
+        return {}
+    answers: tuple[RepositoryContextAnswer | None, ...] = observe_repository_contexts(
+        repo_root=repo_root,
+        queries=tuple(
+            (observation.query_path, observation.kind) for observation in selected.values()
+        ),
+    )
+    observed: DependencyStateCache = {}
+    for (key, observation), answer in zip(selected.items(), answers, strict=True):
+        if answer is None:
+            continue
+        state: DependencyState = (answer.dependency_path, answer.answer)
+        observed[key] = state
+        OPERATION_COUNTERS.record(operation=PROJECT_QUERY_CACHE_MISS_OPERATION)
+        OPERATION_COUNTERS.record(operation=PROJECT_QUERY_OBSERVATION_OPERATION)
+        OPERATION_COUNTERS.record(
+            operation=PROJECT_QUERY_ANSWER_ITEM_OPERATION,
+            amount=_context_answer_count(answer=answer),
+        )
+        OPERATION_COUNTERS.record(operation=_context_operations[observation.kind])
+    if observed:
+        OPERATION_COUNTERS.record(operation=NATIVE_REPOSITORY_CONTEXT_BATCH_OPERATION)
+    return observed
+
+
+def _context_answer_count(*, answer: RepositoryContextAnswer) -> int:
+    if answer.answer is None:
+        return 0
+    return len(answer.answer) if isinstance(answer.answer, tuple) else 1
+
+
+def _state_key(observation: DependencyObservation) -> DependencyStateKey:
+    return (
+        observation.query_path,
+        observation.kind,
+        observation.pattern,
+        observation.recursive,
+    )
 
 
 def _reobserve(

@@ -56,85 +56,82 @@ class _EvaluationProjectAnalysis:
                 for root in tree.layout.test_roots
             ),
         )
-        self._scoped_files: dict[Path, ScopedFile] = {
-            scoped_file.path: scoped_file for scoped_file in tree.files
+        self._scoped_files: dict[str, ScopedFile] = {
+            str(scoped_file.path): scoped_file for scoped_file in tree.files
         }
-        self._parsed_modules: dict[Path, ParsedModule] = {}
-        self._external_analyses: dict[Path, Analysis] = {}
-        self._queried_sources: set[Path] = set()
-        self._source_answers: dict[Path, str | None] = {}
-        self._dataclasses: dict[Path, tuple[DataclassFact, ...]] = {}
+        self._parsed_modules: dict[str, ParsedModule] = {}
+        self._external_analyses: dict[str, Analysis] = {}
+        self._queried_sources: set[str] = set()
+        self._source_answers: dict[str, str | None] = {}
+        self._dataclasses: dict[str, tuple[DataclassFact, ...]] = {}
         self._dependencies: list[ProjectDependency] = []
-        self._dependencies_by_requester: dict[Path, list[ProjectDependency]] = {}
+        self._dependencies_by_requester: dict[str, list[ProjectDependency]] = {}
         self._dependency_set: set[ProjectDependency] = set()
-        self._recorded_queries: set[
-            tuple[
-                Path,
-                Path,
-                ProjectDependencyKind,
-                str | None,
-                bool,
-                None | bool | str | tuple[Path, ...],
-            ]
-        ] = set()
-        self._resolved_paths: dict[Path, Path] = {}
-        self._exists: dict[Path, bool] = {}
-        self._directories: dict[Path, bool] = {}
-        self._files: dict[Path, bool] = {}
-        self._directory_entries: dict[Path, tuple[Path, ...]] = {}
-        self._globs: dict[tuple[Path, str, bool], tuple[Path, ...]] = {}
-        self._python_anchors: dict[Path, Path | None] = {}
+        self._recorded_queries: set[tuple[str, str, ProjectDependencyKind, str | None, bool]] = (
+            set()
+        )
+        self._resolved_paths: dict[str, Path] = {
+            str(scoped_file.path): scoped_file.path for scoped_file in tree.files
+        }
+        self._exists: dict[str, bool] = {}
+        self._directories: dict[str, bool] = {}
+        self._files: dict[str, bool] = {}
+        self._directory_entries: dict[str, tuple[Path, ...]] = {}
+        self._globs: dict[tuple[str, str, bool], tuple[Path, ...]] = {}
+        self._python_anchors: dict[str, Path | None] = {}
 
     def parsed_module(self, scoped_file: ScopedFile) -> ParsedModule:
         """Return one strict discovered-file parse, reusing project queries."""
 
         path: Path = self._resolve(scoped_file.path)
-        parsed: ParsedModule | None = self._parsed_modules.get(path)
+        path_key: str = str(path)
+        parsed: ParsedModule | None = self._parsed_modules.get(path_key)
         if parsed is None:
             parsed = parse_scoped_file(scoped_file=scoped_file)
-        self._source_answers[path] = parsed.source_fingerprint
+        self._source_answers[path_key] = parsed.source_fingerprint
         if scoped_file.path.name == _test_types_file_name:
-            self._dataclasses[path] = parsed.analysis.facts.dataclasses()
-        self._parsed_modules.pop(path, None)
-        self._queried_sources.discard(path)
+            self._dataclasses[path_key] = parsed.analysis.facts.dataclasses()
+        self._parsed_modules.pop(path_key, None)
+        self._queried_sources.discard(path_key)
         return parsed
 
     def prewarm(self, *, parsed: ParsedModule) -> None:
         """Adopt one pre-parsed discovered module for later single-use retrieval."""
 
         path: Path = self._resolve(parsed.scoped_file.path)
-        _ = self._parsed_modules.setdefault(path, parsed)
+        _ = self._parsed_modules.setdefault(str(path), parsed)
 
     def analysis(self, *, requester: Path, path: Path) -> Analysis | None:
         """Return tolerant analysis for a queried path and record its dependency."""
 
         resolved_path: Path = self._resolve(path)
-        parsed: ParsedModule | None = self._parsed_modules.get(resolved_path)
-        external: Analysis | None = self._external_analyses.get(resolved_path)
+        path_key: str = str(resolved_path)
+        parsed: ParsedModule | None = self._parsed_modules.get(path_key)
+        external: Analysis | None = self._external_analyses.get(path_key)
         answer: str | None
-        _record_query_cache(hit=resolved_path in self._queried_sources)
-        if resolved_path not in self._queried_sources:
+        _record_query_cache(hit=path_key in self._queried_sources)
+        if path_key not in self._queried_sources:
             OPERATION_COUNTERS.record(operation=PROJECT_QUERY_OBSERVATION_OPERATION)
             OPERATION_COUNTERS.record(operation=PROJECT_QUERY_SOURCE_OPERATION)
-            scoped_file: ScopedFile | None = self._scoped_files.get(resolved_path)
+            scoped_file: ScopedFile | None = self._scoped_files.get(path_key)
             if scoped_file is not None:
                 parsed, answer = _build_discovered_analysis(scoped_file=scoped_file)
                 if parsed is not None:
-                    self._parsed_modules[resolved_path] = parsed
+                    self._parsed_modules[path_key] = parsed
             else:
                 external_build: ExternalAnalysisBuild = build_external_analysis(path=resolved_path)
                 external = external_build.analysis
                 answer = external_build.source_fingerprint
                 if external is not None:
-                    self._external_analyses[resolved_path] = external
-            self._queried_sources.add(resolved_path)
-            self._source_answers[resolved_path] = answer
+                    self._external_analyses[path_key] = external
+            self._queried_sources.add(path_key)
+            self._source_answers[path_key] = answer
         result: Analysis | None = parsed.analysis if parsed is not None else external
         self._record(
             requester=requester,
             dependency=path,
             kind=ProjectDependencyKind.SOURCE,
-            answer=self._source_answers[resolved_path],
+            answer=self._source_answers[path_key],
         )
         return result
 
@@ -147,36 +144,38 @@ class _EvaluationProjectAnalysis:
         """Return deterministic dependencies observed for one requester."""
 
         resolved_requester: Path = self._resolve(requester)
-        return tuple(self._dependencies_by_requester.get(resolved_requester, ()))
+        return tuple(self._dependencies_by_requester.get(str(resolved_requester), ()))
 
     def dataclasses(self, *, requester: Path, path: Path) -> tuple[DataclassFact, ...]:
         """Return top-level dataclass facts for a project path."""
 
         resolved_path: Path = self._resolve(path)
-        if resolved_path not in self._dataclasses:
+        path_key: str = str(resolved_path)
+        if path_key not in self._dataclasses:
             analysis: Analysis | None = self.analysis(requester=requester, path=path)
             if analysis is None:
                 return ()
-            self._dataclasses[resolved_path] = analysis.facts.dataclasses()
+            self._dataclasses[path_key] = analysis.facts.dataclasses()
         else:
             self._record(
                 requester=requester,
                 dependency=path,
                 kind=ProjectDependencyKind.SOURCE,
-                answer=self._source_answers[resolved_path],
+                answer=self._source_answers[path_key],
             )
-        return self._dataclasses[resolved_path]
+        return self._dataclasses[path_key]
 
     def directory_entries(self, *, requester: Path, path: Path) -> tuple[Path, ...]:
         """Return direct children and record a directory namespace dependency."""
 
         query_path: Path = path.absolute()
-        _record_query_cache(hit=query_path in self._directory_entries)
-        if query_path not in self._directory_entries:
-            self._directory_entries[query_path] = self._observer.directory_entries(
+        path_key: str = str(query_path)
+        _record_query_cache(hit=path_key in self._directory_entries)
+        if path_key not in self._directory_entries:
+            self._directory_entries[path_key] = self._observer.directory_entries(
                 query_path=query_path
             )
-        entries: tuple[Path, ...] = self._directory_entries[query_path]
+        entries: tuple[Path, ...] = self._directory_entries[path_key]
         self._record(
             requester=requester,
             dependency=query_path,
@@ -208,10 +207,11 @@ class _EvaluationProjectAnalysis:
         """Return whether a path exists and record the dependency."""
 
         resolved_path: Path = self._resolve(path)
-        _record_query_cache(hit=resolved_path in self._exists)
-        if resolved_path not in self._exists:
-            self._exists[resolved_path] = self._observer.exists(resolved_path=resolved_path)
-        answer: bool = self._exists[resolved_path]
+        path_key: str = str(resolved_path)
+        _record_query_cache(hit=path_key in self._exists)
+        if path_key not in self._exists:
+            self._exists[path_key] = self._observer.exists(resolved_path=resolved_path)
+        answer: bool = self._exists[path_key]
         self._record(
             requester=requester,
             dependency=path,
@@ -224,10 +224,11 @@ class _EvaluationProjectAnalysis:
         """Return whether a path is a directory and record the dependency."""
 
         resolved_path: Path = self._resolve(path)
-        _record_query_cache(hit=resolved_path in self._directories)
-        if resolved_path not in self._directories:
-            self._directories[resolved_path] = self._observer.is_dir(resolved_path=resolved_path)
-        answer: bool = self._directories[resolved_path]
+        path_key: str = str(resolved_path)
+        _record_query_cache(hit=path_key in self._directories)
+        if path_key not in self._directories:
+            self._directories[path_key] = self._observer.is_dir(resolved_path=resolved_path)
+        answer: bool = self._directories[path_key]
         self._record(
             requester=requester,
             dependency=path,
@@ -240,10 +241,11 @@ class _EvaluationProjectAnalysis:
         """Return whether a path is a file and record the dependency."""
 
         resolved_path: Path = self._resolve(path)
-        _record_query_cache(hit=resolved_path in self._files)
-        if resolved_path not in self._files:
-            self._files[resolved_path] = self._observer.is_file(resolved_path=resolved_path)
-        answer: bool = self._files[resolved_path]
+        path_key: str = str(resolved_path)
+        _record_query_cache(hit=path_key in self._files)
+        if path_key not in self._files:
+            self._files[path_key] = self._observer.is_file(resolved_path=resolved_path)
+        answer: bool = self._files[path_key]
         self._record(
             requester=requester,
             dependency=path,
@@ -263,7 +265,7 @@ class _EvaluationProjectAnalysis:
         """Return direct or recursive path matches and record an aggregate dependency."""
 
         query_path: Path = path.absolute()
-        cache_key: tuple[Path, str, bool] = (query_path, pattern, recursive)
+        cache_key: tuple[str, str, bool] = (str(query_path), pattern, recursive)
         _record_query_cache(hit=cache_key in self._globs)
         if cache_key not in self._globs:
             self._globs[cache_key] = self._observer.glob(
@@ -286,10 +288,11 @@ class _EvaluationProjectAnalysis:
         """Return and record one compact deterministic Python ownership anchor."""
 
         query_path: Path = path.absolute()
-        _record_query_cache(hit=query_path in self._python_anchors)
-        if query_path not in self._python_anchors:
-            self._python_anchors[query_path] = self._observer.python_anchor(query_path=query_path)
-        anchor: Path | None = self._python_anchors[query_path]
+        path_key: str = str(query_path)
+        _record_query_cache(hit=path_key in self._python_anchors)
+        if path_key not in self._python_anchors:
+            self._python_anchors[path_key] = self._observer.python_anchor(query_path=query_path)
+        anchor: Path | None = self._python_anchors[path_key]
         answer: tuple[Path, ...] = () if anchor is None else (anchor,)
         self._record(
             requester=requester,
@@ -330,14 +333,13 @@ class _EvaluationProjectAnalysis:
         pattern: str | None = None,
         recursive: bool = False,
     ) -> None:
-        query_key: tuple[
-            Path,
-            Path,
-            ProjectDependencyKind,
-            str | None,
-            bool,
-            None | bool | str | tuple[Path, ...],
-        ] = (requester, dependency, kind, pattern, recursive, answer)
+        query_key: tuple[str, str, ProjectDependencyKind, str | None, bool] = (
+            str(requester),
+            str(dependency),
+            kind,
+            pattern,
+            recursive,
+        )
         if query_key in self._recorded_queries:
             return
         self._recorded_queries.add(query_key)
@@ -354,14 +356,15 @@ class _EvaluationProjectAnalysis:
         if observed not in self._dependency_set:
             self._dependency_set.add(observed)
             self._dependencies.append(observed)
-            self._dependencies_by_requester.setdefault(observed.requester, []).append(observed)
+            self._dependencies_by_requester.setdefault(str(observed.requester), []).append(observed)
             OPERATION_COUNTERS.record(operation=DEPENDENCY_RECORD_OPERATION)
 
     def _resolve(self, path: Path) -> Path:
-        resolved: Path | None = self._resolved_paths.get(path)
+        path_key: str = str(path)
+        resolved: Path | None = self._resolved_paths.get(path_key)
         if resolved is None:
             resolved = path.resolve()
-            self._resolved_paths[path] = resolved
+            self._resolved_paths[path_key] = resolved
         return resolved
 
 

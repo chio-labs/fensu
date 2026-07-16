@@ -1,11 +1,9 @@
 //! Python-callable bindings over native domain entries.
 
-use std::ffi::OsString;
-use std::path::PathBuf;
-
 use pyo3::exceptions::PyValueError;
 use pyo3::types::{PyAnyMethods, PyTuple};
 use pyo3::{pyfunction, Bound, Py, PyAny, PyResult, Python};
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use ruff_python_ast::PythonVersion;
 
 use crate::constants;
@@ -30,10 +28,9 @@ use crate::extension::helpers::gateway::model_types::model_type;
 use crate::extension::helpers::gateway::program::ProgramHandle;
 use crate::facts::main::enumerate_nodes::enumerate_nodes;
 use crate::facts::main::extract_comments::extract_comments;
+use crate::facts::models::FactFamily;
 use crate::parsing::main::parse_strict::parse_strict;
 use crate::positions::main::locate_offset::locate_offset;
-use crate::snapshot::main::hash_files::hash_files;
-use crate::snapshot::main::walk_python_files::walk_python_files as snapshot_walk;
 
 #[pyfunction]
 pub(crate) fn backend_version() -> String {
@@ -80,31 +77,48 @@ pub(crate) fn parse_programs(
     py.detach(move || ProgramHandle::parse_many(sources, version))
 }
 
-type WalkedEntryRow = (PathBuf, Option<PathBuf>, Option<Vec<OsString>>);
-
 #[pyfunction]
-pub(crate) fn walk_python_files(py: Python<'_>, roots: Vec<PathBuf>) -> Vec<Vec<WalkedEntryRow>> {
-    let walked = py.detach(move || snapshot_walk(&roots));
-    walked
+pub(crate) fn extract_fact_rows(
+    py: Python<'_>,
+    requests: Vec<(Py<ProgramHandle>, Vec<String>)>,
+) -> usize {
+    let prepared: Vec<(Py<ProgramHandle>, Vec<FactFamily>)> = requests
         .into_iter()
-        .map(|entries| {
-            entries
-                .into_iter()
-                .map(|entry| {
-                    (
-                        entry.entry_path,
-                        entry.canonical_path,
-                        entry.root_relative_parts,
-                    )
-                })
-                .collect()
+        .map(|(handle, names)| {
+            let families: Vec<FactFamily> =
+                names.iter().filter_map(|name| fact_family(name)).collect();
+            (handle, families)
         })
-        .collect()
+        .collect();
+    py.detach(move || {
+        prepared
+            .par_iter()
+            .map(|(handle, families)| {
+                let program = handle.get();
+                for family in families {
+                    program.extract_rows(*family);
+                }
+                families.len()
+            })
+            .sum()
+    })
 }
 
-#[pyfunction]
-pub(crate) fn hash_source_files(py: Python<'_>, paths: Vec<PathBuf>) -> Vec<Option<String>> {
-    py.detach(move || hash_files(&paths))
+fn fact_family(name: &str) -> Option<FactFamily> {
+    match name {
+        "annotations" => Some(FactFamily::Annotations),
+        "contracts" => Some(FactFamily::Contracts),
+        "control_flow" => Some(FactFamily::ControlFlow),
+        "declarations" => Some(FactFamily::Declarations),
+        "functions" => Some(FactFamily::Functions),
+        "hygiene" => Some(FactFamily::Hygiene),
+        "outer_state_mutations" => Some(FactFamily::OuterStateMutations),
+        "parameter_mutations" => Some(FactFamily::ParameterMutations),
+        "references" => Some(FactFamily::References),
+        "test_functions" => Some(FactFamily::TestFunctions),
+        "test_module" => Some(FactFamily::TestModule),
+        _ => None,
+    }
 }
 
 #[pyfunction]

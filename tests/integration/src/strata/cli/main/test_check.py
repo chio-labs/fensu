@@ -28,6 +28,7 @@ from tests.integration.src.strata.cli.main._test_types import (
     EvaluationCheckTestCase,
     MixedRulesetCacheTestCase,
     NestedContainerCacheTestCase,
+    ParallelCheckTestCase,
     ReplayFastPathTestCase,
     ScopedCacheWarningTestCase,
     ShortCircuitCheckTestCase,
@@ -101,6 +102,52 @@ def test_given_evaluation_filter_when_running_check_then_reports_exact_cached_pa
     assert cached_stdout.getvalue().endswith(test_case.expected_evaluation_footer)
     assert test_case.expected_fault_fragment in cached_stdout.getvalue()
     assert test_case.expected_absent_fragment not in cached_stdout.getvalue()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ParallelCheckTestCase(
+            description="parallel workers produce byte-identical no-cache reporting",
+            jobs="2",
+            expected_exit_code=1,
+            expected_fault_fragments=("src/pkg/alpha.py", "src/pkg/gamma.py"),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_parallel_jobs_when_running_check_then_matches_serial_output(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: ParallelCheckTestCase,
+) -> None:
+    (tmp_path / "strata.toml").write_text(
+        'roots = ["src/pkg"]\ntests = []\nselect = ["SFA101"]\n',
+        encoding="utf-8",
+    )
+    package: Path = tmp_path / "src/pkg"
+    package.mkdir(parents=True)
+    (package / "alpha.py").write_text("ALPHA = 1\n", encoding="utf-8")
+    (package / "beta.py").write_text("BETA: int = 1\n", encoding="utf-8")
+    (package / "gamma.py").write_text("GAMMA = 1\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    serial_stdout: CaptureOutput = CaptureOutput()
+    parallel_stdout: CaptureOutput = CaptureOutput()
+
+    serial_exit: int = run_check(
+        argv=("--no-color", "--no-cache"), stdout=serial_stdout, stderr=CaptureOutput()
+    )
+    parallel_exit: int = run_check(
+        argv=("--no-color", "--no-cache", "--jobs", test_case.jobs),
+        stdout=parallel_stdout,
+        stderr=CaptureOutput(),
+    )
+
+    assert serial_exit == test_case.expected_exit_code
+    assert parallel_exit == test_case.expected_exit_code
+    assert parallel_stdout.getvalue() == serial_stdout.getvalue()
+    for fragment in test_case.expected_fault_fragments:
+        assert fragment in parallel_stdout.getvalue()
 
 
 @pytest.mark.parametrize(
@@ -1178,7 +1225,7 @@ def test_given_disabled_cache_when_requesting_stats_then_reports_disabled_reason
             description="unchanged warm run emits stored output without restoring records",
             expected_exit_code=1,
             expected_warm_restores=0,
-            expected_edited_restores=1,
+            expected_edited_restores=0,
             expected_edited_fragment="module-level variable 'EXTRA'",
         )
     ],
@@ -1199,7 +1246,7 @@ def test_given_unchanged_tree_when_rechecking_then_short_circuits_stored_output(
     (package / "clean.py").write_text("CLEAN: int = 1\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     probe: RestoreProbe = RestoreProbe()
-    monkeypatch.setattr("strata.cache.results._helpers.evaluation.restore_file_evaluation", probe)
+    monkeypatch.setattr("strata.cache.results._helpers.conversion.restore_file_evaluation", probe)
     cold_stdout: CaptureOutput = CaptureOutput()
     warm_stdout: CaptureOutput = CaptureOutput()
     edited_stdout: CaptureOutput = CaptureOutput()
@@ -1229,10 +1276,10 @@ def test_given_unchanged_tree_when_rechecking_then_short_circuits_stored_output(
     "test_case",
     [
         ReplayFastPathTestCase(
-            description="unchanged warm run replays observations without reading records",
+            description="warm and edited runs replay observations without reading records",
             expected_exit_code=1,
             expected_warm_loads=0,
-            expected_edited_loads=1,
+            expected_edited_loads=0,
         )
     ],
     ids=lambda case: case.description,

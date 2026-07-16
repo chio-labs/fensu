@@ -30,6 +30,7 @@ def evaluate_file(
     tree: DiscoveredTree,
     project: EvaluationProjectAnalysis,
     file_cache_seed: Mapping[str, object] | None = None,
+    applicable_rule_codes: frozenset[str] | None = None,
 ) -> FileEvaluation:
     """Return unrendered output and observed inputs for one source file."""
 
@@ -47,6 +48,8 @@ def evaluate_file(
     )
     for tier_rules, tier_faults in ((ruleset, faults), (warning_rules, warnings)):
         for rule in tier_rules:
+            if applicable_rule_codes is not None and rule.code not in applicable_rule_codes:
+                continue
             if rule.family != Family.CUSTOM and rule.family not in applicable_families:
                 continue
             rule_faults: list[Fault] = execute_rule(

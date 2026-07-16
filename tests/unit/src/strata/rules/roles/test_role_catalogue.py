@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from strata.rules.authoring.models import RuleSpec
+from strata.rules.authoring.types import ExecutionOwner
 from strata.rules.roles.constants import SFR_RULES
 from strata.rules.roles.types import RoleCode
 from tests.unit.src.strata.rules.roles._test_types import SfrCatalogueTestCase
@@ -18,6 +19,8 @@ from tests.unit.src.strata.rules.roles._test_types import SfrCatalogueTestCase
             expected_codes=tuple(code.value for code in RoleCode),
             expected_unique_count=len(RoleCode),
             expected_sfr204_message="runtime package directories must identify an owner",
+            expected_sfr301_owner=ExecutionOwner.PACKAGE,
+            expected_sfr302_owner=ExecutionOwner.PACKAGE,
             expected_sfr303_slug="helpers-reserved-role-filenames",
             expected_sfr303_message=("_helpers/ packages must not contain reserved role filenames"),
             expected_sfr303_remediation=(
@@ -34,6 +37,7 @@ from tests.unit.src.strata.rules.roles._test_types import SfrCatalogueTestCase
                 "Keep direct role content in a leaf domain, or move it into a named subdomain "
                 "when the domain contains subdomains."
             ),
+            expected_sfr306_owner=ExecutionOwner.DOMAIN,
             expected_sfr307_message="top-level domains must not contain ad hoc direct modules",
             expected_sfr307_remediation=(
                 "Move the module under a direct role boundary or into an owning named subdomain."
@@ -46,6 +50,7 @@ from tests.unit.src.strata.rules.roles._test_types import SfrCatalogueTestCase
                 "Create one parent domain from the shared prefix and move each remaining suffix "
                 "beneath it as a named subdomain."
             ),
+            expected_sfr308_owner=ExecutionOwner.SCOPE,
             expected_sfr309_slug="leaf-main-boundary",
             expected_sfr309_message=(
                 "leaf runtime domains and subdomains must expose meaningful behavior through main/"
@@ -55,6 +60,7 @@ from tests.unit.src.strata.rules.roles._test_types import SfrCatalogueTestCase
                 "move passive declarations into the closest domain or subdomain whose main/ "
                 "behavior owns and uses them."
             ),
+            expected_sfr309_owner=ExecutionOwner.LEAF,
             expected_sfr706_slug="descriptive-rule-module-names",
             expected_sfr706_message=(
                 "rule module filenames must describe their policy rather than repeat one rule code"
@@ -78,20 +84,25 @@ def test_given_roles_rule_catalogue_when_reading_codes_then_matches_role_code_en
     assert RoleCode("SFR306").name == test_case.expected_sfr306_symbolic_name
     rules_by_code: dict[str, RuleSpec] = {rule.code: rule for rule in SFR_RULES}
     assert rules_by_code["SFR204"].message == test_case.expected_sfr204_message
+    assert rules_by_code["SFR301"].execution_owner is test_case.expected_sfr301_owner
+    assert rules_by_code["SFR302"].execution_owner is test_case.expected_sfr302_owner
     assert rules_by_code["SFR303"].slug == test_case.expected_sfr303_slug
     assert rules_by_code["SFR303"].message == test_case.expected_sfr303_message
     assert rules_by_code["SFR303"].remediation == test_case.expected_sfr303_remediation
     assert rules_by_code["SFR306"].slug == test_case.expected_sfr306_slug
     assert rules_by_code["SFR306"].message == test_case.expected_sfr306_message
     assert rules_by_code["SFR306"].remediation == test_case.expected_sfr306_remediation
+    assert rules_by_code["SFR306"].execution_owner is test_case.expected_sfr306_owner
     assert rules_by_code["SFR307"].message == test_case.expected_sfr307_message
     assert rules_by_code["SFR307"].remediation == test_case.expected_sfr307_remediation
     assert rules_by_code["SFR308"].slug == test_case.expected_sfr308_slug
     assert rules_by_code["SFR308"].message == test_case.expected_sfr308_message
     assert rules_by_code["SFR308"].remediation == test_case.expected_sfr308_remediation
+    assert rules_by_code["SFR308"].execution_owner is test_case.expected_sfr308_owner
     assert rules_by_code["SFR309"].slug == test_case.expected_sfr309_slug
     assert rules_by_code["SFR309"].message == test_case.expected_sfr309_message
     assert rules_by_code["SFR309"].remediation == test_case.expected_sfr309_remediation
+    assert rules_by_code["SFR309"].execution_owner is test_case.expected_sfr309_owner
     assert rules_by_code["SFR706"].slug == test_case.expected_sfr706_slug
     assert rules_by_code["SFR706"].message == test_case.expected_sfr706_message
     assert rules_by_code["SFR706"].remediation == test_case.expected_sfr706_remediation

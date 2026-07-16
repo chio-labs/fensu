@@ -89,6 +89,7 @@ class EvaluationTarget:
     direct: bool
     custom_rule_registrations: tuple[CustomRuleRegistration, ...] = ()
     custom_rule_coverage_warning: bool = False
+    applicable_rule_codes: frozenset[str] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,6 +103,15 @@ class FileEvaluation:
     dependencies: tuple[ProjectDependency, ...]
     warnings: tuple[Fault, ...] = ()
     threshold_override_uses: tuple[ThresholdOverrideUse, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class PartitionEvaluation:
+    """Raw per-file evaluations for one target partition before collection."""
+
+    file_evaluations: tuple[FileEvaluation, ...]
+    dependencies: tuple[ProjectDependency, ...]
+    selection: EvaluationSelection
 
 
 @dataclass(frozen=True, slots=True)

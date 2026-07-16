@@ -177,6 +177,8 @@ def measured_check(
         cache_flag,
         "--cache-stats",
         "--no-color",
+        "--jobs",
+        "1",
     ]
     timing_path: Path | None = _timing_path()
     if timing_path is not None:

@@ -49,6 +49,18 @@ class RuleKind(StrEnum):
     CUSTOM = "custom"
 
 
+class ExecutionOwner(StrEnum):
+    """The repository owner that receives one rule invocation."""
+
+    FILE = "file"
+    PACKAGE = "package"
+    DOMAIN = "domain"
+    SUBDOMAIN = "subdomain"
+    LEAF = "leaf"
+    SCOPE = "scope"
+    PROJECT = "project"
+
+
 class Threshold(StrEnum):
     """Named, config-overridable numeric limits resolved per reported path."""
 

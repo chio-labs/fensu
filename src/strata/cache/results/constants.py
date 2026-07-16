@@ -8,10 +8,12 @@ CACHE_FILE_RESULT_KIND: str = "file_result"
 CACHE_FACT_KIND: str = "fact"
 CACHE_CHECK_OUTPUT_KIND: str = "check_output"
 CACHE_DEPENDENCIES_KIND: str = "dependencies"
+CACHE_COLLECTION_KIND: str = "collection"
 CACHE_METADATA_PATH: Path = Path("metadata.json")
 CACHE_INDEX_PATH: Path = Path("index.json")
 CACHE_CHECK_OUTPUT_PATH: Path = Path("output.json")
 CACHE_DEPENDENCIES_PATH: Path = Path("dependencies.json")
+CACHE_COLLECTION_PATH: Path = Path("collection.json")
 CACHE_RESULTS_DIRECTORY: Path = Path("results")
 CACHE_JSON_SUFFIX: str = ".json"
 FINGERPRINT_DIRECTORY_PREFIX_LENGTH: int = 2
@@ -25,12 +27,22 @@ REPOSITORY_ROOT_PATH: str = "."
 RULE_EXCEPTION_SYMBOL_PATTERN: str = r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?"
 METADATA_PAYLOAD_KEYS: frozenset[str] = frozenset({"global_fingerprint"})
 INDEX_PAYLOAD_KEYS: frozenset[str] = frozenset(
-    {"dependencies_fingerprint", "entries", "global_fingerprint"}
+    {"collection_fingerprint", "dependencies_fingerprint", "entries", "global_fingerprint"}
 )
 INDEX_ENTRY_KEYS: frozenset[str] = frozenset(
     {"path", "record_fingerprint", "result_fingerprint", "source_fingerprint"}
 )
 DEPENDENCIES_PAYLOAD_KEYS: frozenset[str] = frozenset({"observations"})
+COLLECTION_PAYLOAD_KEYS: frozenset[str] = frozenset({"contributions"})
+COLLECTION_CONTRIBUTION_KEYS: frozenset[str] = frozenset(
+    {
+        "applied_exception_keys",
+        "faults",
+        "path",
+        "threshold_override_uses",
+        "warnings",
+    }
+)
 CHECK_OUTPUT_PAYLOAD_KEYS: frozenset[str] = frozenset(
     {
         "color_output",

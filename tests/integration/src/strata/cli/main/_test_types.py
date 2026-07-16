@@ -142,6 +142,16 @@ class EvaluationCheckTestCase:
 
 
 @dataclass(frozen=True)
+class ParallelCheckTestCase:
+    """One multi-file faulty project and the worker count expected to match serial."""
+
+    description: str
+    jobs: str
+    expected_exit_code: int
+    expected_fault_fragments: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class CheckFooterTestCase:
     """Combined check stream and expected actionable footer hierarchy."""
 

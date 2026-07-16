@@ -9,6 +9,7 @@ from strata.analysis.classes.file_analysis import PythonFileAnalysis
 from strata.analysis.classes.lazy_syntax_artifacts import LazySyntaxArtifacts
 from strata.analysis.exceptions import PythonSourceParseError
 from strata.analysis.main.decode_source import decode_python_source
+from strata.analysis.main.extract_native_fact_rows import extract_native_fact_rows
 from strata.analysis.main.parse_native_program import parse_native_program
 from strata.analysis.main.parse_native_programs import parse_native_programs
 from strata.analysis.main.parse_source import parse_python_source
@@ -16,9 +17,29 @@ from strata.analysis.main.select_fact_backend import select_fact_backend
 from strata.analysis.types import FactBackend, PythonSourceArtifact
 from strata.discovery.main.position import position_facts
 from strata.discovery.models import ScopedFile
+from strata.discovery.types import ScopeName
 from strata.evaluation.exceptions import ParseError
 from strata.evaluation.models import ParsedModule, SourceSnapshot
 from strata.evaluation.types import EvaluationProjectAnalysis
+
+_RUNTIME_FACT_FAMILIES: tuple[str, ...] = (
+    "annotations",
+    "contracts",
+    "control_flow",
+    "declarations",
+    "functions",
+    "hygiene",
+    "outer_state_mutations",
+    "parameter_mutations",
+    "references",
+)
+_TEST_FACT_FAMILIES: tuple[str, ...] = (
+    "annotations",
+    "control_flow",
+    "references",
+    "test_functions",
+    "test_module",
+)
 
 
 def read_source_snapshot(*, path: Path) -> SourceSnapshot:
@@ -88,6 +109,13 @@ def prewarm_scoped_files(
     programs: tuple[object | None, ...] = parse_native_programs(
         sources=tuple(source for _, _, source in readable)
     )
+    _ = extract_native_fact_rows(
+        requests=tuple(
+            (program, _prewarm_fact_families(scoped_file))
+            for (scoped_file, _, _), program in zip(readable, programs, strict=True)
+            if program is not None
+        )
+    )
     for (scoped_file, snapshot, source), program in zip(readable, programs, strict=True):
         if program is None:
             continue
@@ -101,6 +129,12 @@ def prewarm_scoped_files(
                 program=program,
             )
         )
+
+
+def _prewarm_fact_families(scoped_file: ScopedFile) -> tuple[str, ...]:
+    if scoped_file.scope is ScopeName.TEST:
+        return _TEST_FACT_FAMILIES
+    return _RUNTIME_FACT_FAMILIES
 
 
 def _parse_native_scoped_file(

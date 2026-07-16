@@ -7,7 +7,6 @@ use crate::constants;
 use crate::extension::helpers::conversion::annotations::location_object;
 use crate::extension::helpers::gateway::model_types::model_type;
 use crate::extension::helpers::gateway::program::ProgramHandle;
-use crate::facts::main::extract_module_declarations::extract_module_declarations;
 use crate::facts::models::{ModuleStatementRow, NamedCallRow, TypeDeclarationRow};
 
 pub(crate) fn module_declaration_facts_object(
@@ -15,7 +14,7 @@ pub(crate) fn module_declaration_facts_object(
     program: &ProgramHandle,
     path: &Bound<'_, PyAny>,
 ) -> PyResult<Py<PyAny>> {
-    let rows = extract_module_declarations(program.module(), program.index(), program.source());
+    let rows = program.declaration_rows();
     let statements = statement_facts(py, path, &rows.statements)?;
     let constructor = model_type(py, constants::MODULE_DECLARATION_FACTS_NAME)?;
     let arguments = PyTuple::new(

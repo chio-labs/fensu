@@ -436,9 +436,12 @@ def top_level_domain_shape(*, module: ast.Module, ctx: RuleContext) -> list[Faul
         if not python_files:
             return []
         anchor = python_files[0]
-    if ctx.path != anchor:
-        return []
-    return [ctx.path_fault(message="top-level domain mixes direct roles and named subdomains")]
+    return [
+        ctx.path_fault(
+            path=anchor,
+            message="top-level domain mixes direct roles and named subdomains",
+        )
+    ]
 
 
 def leaf_main_boundary(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
@@ -447,9 +450,6 @@ def leaf_main_boundary(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     del module
     leaf_dir: Path | None = _runtime_leaf_dir(ctx=ctx)
     if leaf_dir is None:
-        return []
-    anchor: Path | None = ctx.project.python_anchor(requester=ctx.path, path=leaf_dir)
-    if anchor is None or ctx.path != anchor:
         return []
     scope_root: Path = ctx.scope_root()
     domain_dir: Path = scope_root / ctx.relative_parts()[0]
@@ -473,10 +473,14 @@ def leaf_main_boundary(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     )
     if entry_modules:
         return []
+    anchor: Path | None = ctx.project.python_anchor(requester=ctx.path, path=leaf_dir)
+    if anchor is None:
+        return []
     leaf_name: str = leaf_dir.relative_to(scope_root).as_posix()
     return [
         ctx.path_fault(
-            message=f"leaf runtime package '{leaf_name}/' has no meaningful main/ entry module"
+            path=anchor,
+            message=f"leaf runtime package '{leaf_name}/' has no meaningful main/ entry module",
         )
     ]
 
@@ -510,7 +514,7 @@ def shared_domain_prefix(*, module: ast.Module, ctx: RuleContext) -> list[Fault]
         return []
     scope_root: Path = ctx.scope_root()
     anchor: Path | None = _scope_root_anchor(scope_root=scope_root, ctx=ctx)
-    if anchor is None or ctx.path != anchor:
+    if anchor is None:
         return []
     minimum: int = ctx.threshold(
         name=Threshold.MIN_SHARED_DOMAIN_PREFIX_PACKAGES,
@@ -543,6 +547,7 @@ def shared_domain_prefix(*, module: ast.Module, ctx: RuleContext) -> list[Fault]
         )
         faults.append(
             ctx.path_fault(
+                path=anchor,
                 message=(f"sibling domains {domains_text} share the {prefix}_ owner prefix"),
                 remediation=remediation,
             )

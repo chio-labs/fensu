@@ -30,6 +30,8 @@ from tests.integration.src.strata.cache.results._test_types import (
     CachedNamingParityTestCase,
     CachedResultReadFilteringTestCase,
     CachedSharedDomainPrefixInvalidationTestCase,
+    EditReplayDependencyTestCase,
+    EditReplayFastPathTestCase,
 )
 from tests.integration.src.strata.cache.results.helpers import (
     ResultLoadProbe,
@@ -272,7 +274,7 @@ def test_given_published_result_when_source_changes_then_recomputes_diagnostic(
     "test_case",
     [
         CachedResultReadFilteringTestCase(
-            description="one changed source is rejected before old result records are read",
+            description="one changed source replays unchanged files without result reads",
             initial_files=(
                 ("src/pkg/alpha.py", "VALUE: int = 1\n"),
                 ("src/pkg/bravo.py", "VALUE: int = 1\n"),
@@ -280,15 +282,11 @@ def test_given_published_result_when_source_changes_then_recomputes_diagnostic(
                 ("src/pkg/delta.py", "VALUE: int = 1\n"),
             ),
             changed_files=(("src/pkg/alpha.py", "VALUE: int = 2\n"),),
-            expected_loaded_paths=(
-                "src/pkg/bravo.py",
-                "src/pkg/charlie.py",
-                "src/pkg/delta.py",
-            ),
+            expected_loaded_paths=(),
             expected_invalidations=1,
         ),
         CachedResultReadFilteringTestCase(
-            description="three changed sources are rejected before old result records are read",
+            description="three changed sources replay unchanged files without result reads",
             initial_files=(
                 ("src/pkg/alpha.py", "VALUE: int = 1\n"),
                 ("src/pkg/bravo.py", "VALUE: int = 1\n"),
@@ -300,7 +298,7 @@ def test_given_published_result_when_source_changes_then_recomputes_diagnostic(
                 ("src/pkg/bravo.py", "VALUE: int = 2\n"),
                 ("src/pkg/charlie.py", "VALUE: int = 2\n"),
             ),
-            expected_loaded_paths=("src/pkg/delta.py",),
+            expected_loaded_paths=(),
             expected_invalidations=3,
         ),
         CachedResultReadFilteringTestCase(
@@ -351,6 +349,114 @@ def test_given_changed_sources_when_loading_cache_then_reads_only_source_equal_r
     assert probe.loaded_paths == test_case.expected_loaded_paths
     assert changed.stats.invalidations == test_case.expected_invalidations
     assert evaluated_result(changed).faults == uncached.faults
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        EditReplayDependencyTestCase(
+            description="editing a queried file recomputes every dependent result",
+            initial_context_source="CONTEXT: int = 1\n",
+            changed_context_source="CONTEXT: int = 2\n",
+            expected_invalidations=2,
+            expected_messages=("CONTEXT: int = 2", "CONTEXT: int = 2"),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_edited_queried_file_when_replaying_then_recomputes_dependents(
+    tmp_path: Path,
+    test_case: EditReplayDependencyTestCase,
+) -> None:
+    write_project_sources(
+        repo_root=tmp_path,
+        files=(
+            ("src/pkg/context.py", test_case.initial_context_source),
+            ("src/pkg/target.py", "TARGET: int = 1\n"),
+        ),
+    )
+    config, tree = discover_project(repo_root=tmp_path)
+    ruleset: tuple[RuleSpec, ...] = (context_source_fault_rule(),)
+    _ = evaluate_with_cache(
+        tree=tree,
+        ruleset=ruleset,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+    write_project_sources(
+        repo_root=tmp_path,
+        files=(("src/pkg/context.py", test_case.changed_context_source),),
+    )
+    changed_tree: DiscoveredTree = discover_project(repo_root=tmp_path)[1]
+
+    changed: CacheEvaluation = evaluate_with_cache(
+        tree=changed_tree,
+        ruleset=ruleset,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+
+    assert changed.stats.invalidations == test_case.expected_invalidations
+    assert (
+        tuple(fault.message for fault in evaluated_result(changed).faults)
+        == test_case.expected_messages
+    )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        EditReplayFastPathTestCase(
+            description="independent edit replays unchanged results without record reads",
+            initial_target_source="TARGET: int = 1\n",
+            changed_target_source="TARGET: int = 2\n",
+            expected_invalidations=1,
+            expected_loaded_paths=(),
+            expected_messages=("CONTEXT: int = 1", "CONTEXT: int = 1"),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_independent_edit_when_replaying_then_skips_unchanged_record_reads(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: EditReplayFastPathTestCase,
+) -> None:
+    write_project_sources(
+        repo_root=tmp_path,
+        files=(
+            ("src/pkg/context.py", "CONTEXT: int = 1\n"),
+            ("src/pkg/target.py", test_case.initial_target_source),
+        ),
+    )
+    config, tree = discover_project(repo_root=tmp_path)
+    ruleset: tuple[RuleSpec, ...] = (context_source_fault_rule(),)
+    _ = evaluate_with_cache(
+        tree=tree,
+        ruleset=ruleset,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+    write_project_sources(
+        repo_root=tmp_path,
+        files=(("src/pkg/target.py", test_case.changed_target_source),),
+    )
+    changed_tree: DiscoveredTree = discover_project(repo_root=tmp_path)[1]
+    probe: ResultLoadProbe = install_result_load_probe(monkeypatch=monkeypatch)
+
+    changed: CacheEvaluation = evaluate_with_cache(
+        tree=changed_tree,
+        ruleset=ruleset,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+
+    assert probe.loaded_paths == test_case.expected_loaded_paths
+    assert changed.stats.invalidations == test_case.expected_invalidations
+    assert (
+        tuple(fault.message for fault in evaluated_result(changed).faults)
+        == test_case.expected_messages
+    )
 
 
 @pytest.mark.parametrize(

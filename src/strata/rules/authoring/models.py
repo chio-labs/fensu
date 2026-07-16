@@ -5,7 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from strata.rules.authoring.types import Family, RuleCheck, RuleKind, Severity
+from strata.rules.authoring.types import (
+    ExecutionOwner,
+    Family,
+    RuleCheck,
+    RuleKind,
+    Severity,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +53,7 @@ class RuleSpec:
     enabled_by_default: bool = True
     cacheable: bool | None = None
     uses_module: bool = False
+    execution_owner: ExecutionOwner = ExecutionOwner.FILE
 
 
 @dataclass(frozen=True, slots=True)

@@ -9,7 +9,6 @@ use crate::extension::helpers::conversion::declarations::{location_tuple, to_obj
 use crate::extension::helpers::gateway::model_types::{model_type, type_member};
 use crate::extension::helpers::gateway::program::ProgramHandle;
 use crate::facts::main::extract_evaluate_rule_calls::extract_evaluate_rule_calls;
-use crate::facts::main::extract_test_functions::extract_test_functions;
 use crate::facts::models::{DimensionRow, ParametrizeRow, StaticReferenceRow};
 
 pub(crate) fn evaluate_rule_call_facts_object(
@@ -47,7 +46,7 @@ pub(crate) fn test_function_facts_object(
     program: &ProgramHandle,
     path: &Bound<'_, PyAny>,
 ) -> PyResult<Py<PyAny>> {
-    let rows = extract_test_functions(program.module(), program.index(), program.source());
+    let rows = program.test_function_rows();
     let constructor = model_type(py, constants::PYTEST_FUNCTION_FACT_NAME)?;
     let mut objects: Vec<Py<PyAny>> = Vec::with_capacity(rows.len());
     for row in rows {
@@ -59,10 +58,10 @@ pub(crate) fn test_function_facts_object(
         let arguments = PyTuple::new(
             py,
             vec![
-                to_object(py, row.name)?,
+                to_object(py, &row.name)?,
                 location_object(py, path, row.line, row.column)?.unbind(),
                 parameter_names.into_any().unbind(),
-                to_object(py, row.test_case_annotation_name)?,
+                to_object(py, row.test_case_annotation_name.as_deref())?,
                 parametrize,
                 to_object(py, row.references_expected_field)?,
                 location_tuple(py, path, &row.conditional_locations)?,

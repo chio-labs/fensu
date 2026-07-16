@@ -38,7 +38,7 @@ from strata.config.models import (
     ThresholdOverride,
 )
 from strata.rules.authoring.models import RuleSpec
-from strata.rules.authoring.types import Threshold
+from strata.rules.authoring.types import ExecutionOwner, Threshold
 from strata.rules.catalog.constants import CORE_RULES
 from strata.rules.catalog.main.build_ruleset import build_ruleset
 from tests.unit.src.strata.cache.fingerprints._test_types import (
@@ -56,7 +56,9 @@ from tests.unit.src.strata.cache.fingerprints._test_types import (
     GlobalFingerprintTestCase,
     GlobalRuntimeFingerprintTestCase,
     ImplementationFingerprintTestCase,
+    RulesetExecutionOwnerFingerprintTestCase,
     RulesetFingerprintTestCase,
+    RulesetSourceReuseTestCase,
     SkillsFingerprintTestCase,
     SourceFingerprintTestCase,
     ThresholdOverrideFingerprintTestCase,
@@ -215,6 +217,36 @@ def test_given_validated_configs_when_fingerprinting_then_captures_policy_inputs
 
     first: CacheFingerprint = config_fingerprint(first_config)
     second: CacheFingerprint = config_fingerprint(second_config)
+
+    assert (first == second) is test_case.expected_equal
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        RulesetExecutionOwnerFingerprintTestCase(
+            description="execution-owner change invalidates ruleset identity",
+            first_owner=ExecutionOwner.FILE,
+            second_owner=ExecutionOwner.DOMAIN,
+            expected_equal=False,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_execution_owner_when_fingerprinting_then_captures_owner_semantics(
+    test_case: RulesetExecutionOwnerFingerprintTestCase,
+) -> None:
+    first_rule: RuleSpec = rule_with_message(
+        "message",
+        execution_owner=test_case.first_owner,
+    )
+    second_rule: RuleSpec = rule_with_message(
+        "message",
+        execution_owner=test_case.second_owner,
+    )
+
+    first: CacheFingerprint = ruleset_fingerprint((first_rule,))
+    second: CacheFingerprint = ruleset_fingerprint((second_rule,))
 
     assert (first == second) is test_case.expected_equal
 
@@ -587,6 +619,36 @@ def test_given_effective_rulesets_when_fingerprinting_then_captures_rule_metadat
     second: CacheFingerprint = ruleset_fingerprint((second_rule,))
 
     assert (first == second) is test_case.expected_equal
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        RulesetSourceReuseTestCase(
+            description="rules sharing one module hash its source once",
+            expected_source_reads=1,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_rules_from_same_module_when_fingerprinting_then_reuses_source_identity(
+    monkeypatch: pytest.MonkeyPatch,
+    test_case: RulesetSourceReuseTestCase,
+) -> None:
+    source_fingerprint_reader: Mock = Mock(wraps=fingerprint_module._source_path_fingerprint)
+    monkeypatch.setattr(
+        fingerprint_module,
+        "_source_path_fingerprint",
+        source_fingerprint_reader,
+    )
+    ruleset: tuple[RuleSpec, ...] = (
+        rule_with_message("first message"),
+        rule_with_message("second message"),
+    )
+
+    _ = ruleset_fingerprint(ruleset)
+
+    assert source_fingerprint_reader.call_count == test_case.expected_source_reads
 
 
 @pytest.mark.parametrize(

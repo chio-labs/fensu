@@ -207,6 +207,7 @@ def _rule_value(rule: RuleSpec) -> dict[str, object]:
         "source": rule.source,
         "enabled_by_default": rule.enabled_by_default,
         "cacheable": bool(rule.cacheable),
+        "execution_owner": rule.execution_owner.value,
     }
 
 

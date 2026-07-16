@@ -8,11 +8,12 @@ from strata.rules.authoring.constants import _RULE_SPEC_ATTRIBUTE
 from strata.rules.authoring.exceptions import RuleDefinitionError
 from strata.rules.authoring.main.define import rule
 from strata.rules.authoring.models import RuleSpec
-from strata.rules.authoring.types import Family, RuleCheck, RuleKind
+from strata.rules.authoring.types import ExecutionOwner, Family, RuleCheck, RuleKind
 from tests.unit.src.strata.rules.authoring._test_types import (
     InvalidEnvelopeTestCase,
     RuleCacheableFlagTestCase,
     RuleEnvelopeTestCase,
+    RuleExecutionOwnerTestCase,
 )
 from tests.unit.src.strata.rules.authoring.helpers import empty_check
 
@@ -77,6 +78,33 @@ def test_given_valid_envelope_when_decorating_then_registers_expected_spec(
     assert spec.code == test_case.expected_code
     assert spec.family == test_case.expected_family
     assert spec.kind == test_case.expected_kind
+    assert spec.execution_owner is test_case.expected_execution_owner
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        RuleExecutionOwnerTestCase(
+            description="explicit domain owner is recorded on the compiled rule",
+            execution_owner=ExecutionOwner.DOMAIN,
+            expected_execution_owner=ExecutionOwner.DOMAIN,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_execution_owner_when_decorating_then_records_explicit_owner(
+    test_case: RuleExecutionOwnerTestCase,
+) -> None:
+    decorated: RuleCheck = rule(
+        code="XOW001",
+        family=Family.CUSTOM,
+        slug="execution-owner",
+        message="owner",
+        execution_owner=test_case.execution_owner,
+    )(empty_check)
+    spec: RuleSpec = getattr(decorated, _RULE_SPEC_ATTRIBUTE)
+
+    assert spec.execution_owner is test_case.expected_execution_owner
 
 
 @pytest.mark.parametrize(

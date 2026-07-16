@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from strata.rules.authoring.types import Family, RuleKind
+from strata.rules.authoring.types import ExecutionOwner, Family, RuleKind
 
 
 @dataclass(frozen=True)
@@ -43,6 +43,16 @@ class RuleEnvelopeTestCase:
     expected_code: str
     expected_family: Family
     expected_kind: RuleKind
+    expected_execution_owner: ExecutionOwner = ExecutionOwner.FILE
+
+
+@dataclass(frozen=True)
+class RuleExecutionOwnerTestCase:
+    """One explicit owner declaration and its compiled spec value."""
+
+    description: str
+    execution_owner: ExecutionOwner
+    expected_execution_owner: ExecutionOwner
 
 
 @dataclass(frozen=True)

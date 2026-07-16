@@ -38,7 +38,7 @@ from strata.config.models import (
     ThresholdOverride,
 )
 from strata.rules.authoring.models import RuleSpec
-from strata.rules.authoring.types import Threshold
+from strata.rules.authoring.types import ExecutionOwner, Threshold
 from strata.rules.catalog.constants import CORE_RULES
 from strata.rules.catalog.main.build_ruleset import build_ruleset
 from tests.unit.src.strata.cache.fingerprints._test_types import (
@@ -56,6 +56,7 @@ from tests.unit.src.strata.cache.fingerprints._test_types import (
     GlobalFingerprintTestCase,
     GlobalRuntimeFingerprintTestCase,
     ImplementationFingerprintTestCase,
+    RulesetExecutionOwnerFingerprintTestCase,
     RulesetFingerprintTestCase,
     RulesetSourceReuseTestCase,
     SkillsFingerprintTestCase,
@@ -216,6 +217,36 @@ def test_given_validated_configs_when_fingerprinting_then_captures_policy_inputs
 
     first: CacheFingerprint = config_fingerprint(first_config)
     second: CacheFingerprint = config_fingerprint(second_config)
+
+    assert (first == second) is test_case.expected_equal
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        RulesetExecutionOwnerFingerprintTestCase(
+            description="execution-owner change invalidates ruleset identity",
+            first_owner=ExecutionOwner.FILE,
+            second_owner=ExecutionOwner.DOMAIN,
+            expected_equal=False,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_execution_owner_when_fingerprinting_then_captures_owner_semantics(
+    test_case: RulesetExecutionOwnerFingerprintTestCase,
+) -> None:
+    first_rule: RuleSpec = rule_with_message(
+        "message",
+        execution_owner=test_case.first_owner,
+    )
+    second_rule: RuleSpec = rule_with_message(
+        "message",
+        execution_owner=test_case.second_owner,
+    )
+
+    first: CacheFingerprint = ruleset_fingerprint((first_rule,))
+    second: CacheFingerprint = ruleset_fingerprint((second_rule,))
 
     assert (first == second) is test_case.expected_equal
 

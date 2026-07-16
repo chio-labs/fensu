@@ -417,7 +417,11 @@ def _supplemented(
     if not target.direct:
         return evaluation
     fresh: FileEvaluation = evaluate_target(
-        target=EvaluationTarget(scoped_file=target.scoped_file, direct=True),
+        target=EvaluationTarget(
+            scoped_file=target.scoped_file,
+            direct=True,
+            applicable_rule_codes=target.applicable_rule_codes,
+        ),
         ruleset=fresh_ruleset,
         warning_rules=fresh_warning_rules,
         config=config,

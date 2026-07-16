@@ -94,6 +94,7 @@ def ruleset_fingerprint(ruleset: tuple[RuleSpec, ...]) -> CacheFingerprint:
             "check_name": _check_name(rule.check),
             "code": rule.code,
             "enabled_by_default": rule.enabled_by_default,
+            "execution_owner": rule.execution_owner.value,
             "family": rule.family.value,
             "kind": rule.kind.value,
             "message": rule.message,

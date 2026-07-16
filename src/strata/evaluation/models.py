@@ -89,6 +89,7 @@ class EvaluationTarget:
     direct: bool
     custom_rule_registrations: tuple[CustomRuleRegistration, ...] = ()
     custom_rule_coverage_warning: bool = False
+    applicable_rule_codes: frozenset[str] | None = None
 
 
 @dataclass(frozen=True, slots=True)

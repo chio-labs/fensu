@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from strata.rules.authoring.types import Threshold
+from strata.rules.authoring.types import ExecutionOwner, Threshold
 
 
 @dataclass(frozen=True)
@@ -188,6 +188,16 @@ class EvaluationOperationTestCase:
     expected_parse_count: int
     expected_position_count: int
     expected_routing_count: int
+
+
+@dataclass(frozen=True)
+class ExecutionOwnerEvaluationTestCase:
+    """One owner plan and expected callback anchor paths."""
+
+    description: str
+    files: tuple[tuple[str, str], ...]
+    execution_owner: ExecutionOwner
+    expected_invocation_paths: tuple[str, ...]
 
 
 @dataclass(frozen=True)

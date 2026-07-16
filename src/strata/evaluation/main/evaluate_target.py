@@ -36,6 +36,7 @@ def evaluate_target(
                 config=config,
                 tree=tree,
                 project=project,
+                applicable_rule_codes=target.applicable_rule_codes,
             )
         )
     if target.custom_rule_registrations:

@@ -17,7 +17,7 @@ from strata.evaluation._helpers.parsing import parse_scoped_file
 from strata.evaluation.exceptions import ModuleUnavailableError
 from strata.evaluation.main.evaluate import evaluate
 from strata.evaluation.models import EvaluationResult, ParsedModule, ThresholdOverrideUse
-from strata.rules.authoring.types import Family, Threshold
+from strata.rules.authoring.types import ExecutionOwner, Family, Threshold
 from tests.unit.src.strata.evaluation._test_types import (
     AnalysisContextTestCase,
     AstHelperContextTestCase,
@@ -26,6 +26,7 @@ from tests.unit.src.strata.evaluation._test_types import (
     EmptyEvaluationTestCase,
     EvaluationFaultTestCase,
     EvaluationOperationTestCase,
+    ExecutionOwnerEvaluationTestCase,
     FaultFactoryTestCase,
     ModuleGateTestCase,
     ProjectDependencyEvaluationTestCase,
@@ -37,10 +38,12 @@ from tests.unit.src.strata.evaluation.helpers import (
     make_config_with_entry_threshold,
     make_context_ast_helper_rule,
     make_context_property_rule,
+    make_default_invocation_rule,
     make_fault_factory_rule,
     make_loop_rule,
     make_node_count_rule,
     make_none_location_rule,
+    make_owned_invocation_rule,
     make_position_rule,
     make_project_dependency_rule,
     make_runtime_fault_rule,
@@ -192,6 +195,123 @@ def test_given_multiple_rules_when_evaluating_then_file_facts_are_computed_once(
     assert parse_counts[0] == test_case.expected_parse_count
     assert position_counts[0] == test_case.expected_position_count
     assert routing_counts[0] == test_case.expected_routing_count
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ExecutionOwnerEvaluationTestCase(
+            description="omitted ownership invokes the rule for every applicable file",
+            files=(
+                ("src/pkg/alpha/main/a.py", "VALUE: int = 1\n"),
+                ("src/pkg/alpha/models.py", "VALUE: int = 2\n"),
+            ),
+            execution_owner=ExecutionOwner.FILE,
+            expected_invocation_paths=(
+                "src/pkg/alpha/main/a.py",
+                "src/pkg/alpha/models.py",
+            ),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_omitted_owner_when_evaluating_then_invokes_every_file(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: ExecutionOwnerEvaluationTestCase,
+) -> None:
+    write_sources(repo_root=tmp_path, files=test_case.files)
+    monkeypatch.chdir(tmp_path)
+    config: Config = Config(roots=("src/pkg",))
+    invocations: list[Path] = []
+
+    _result: EvaluationResult = evaluate(
+        tree=discover_test_tree(config=config),
+        ruleset=(make_default_invocation_rule(invocations=invocations),),
+        config=config,
+    )
+
+    assert tuple(path.relative_to(tmp_path).as_posix() for path in invocations) == (
+        test_case.expected_invocation_paths
+    )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ExecutionOwnerEvaluationTestCase(
+            description="package ownership invokes one direct-module anchor per package",
+            files=(
+                ("src/pkg/alpha/__init__.py", ""),
+                ("src/pkg/alpha/z.py", "VALUE: int = 1\n"),
+                ("src/pkg/beta/z.py", "VALUE: int = 2\n"),
+                ("src/pkg/beta/a.py", "VALUE: int = 3\n"),
+            ),
+            execution_owner=ExecutionOwner.PACKAGE,
+            expected_invocation_paths=(
+                "src/pkg/alpha/__init__.py",
+                "src/pkg/beta/a.py",
+            ),
+        ),
+        ExecutionOwnerEvaluationTestCase(
+            description="domain ownership invokes one deterministic anchor per domain",
+            files=(
+                ("src/pkg/alpha/__init__.py", ""),
+                ("src/pkg/alpha/models.py", "VALUE: int = 1\n"),
+                ("src/pkg/beta/main/z.py", "VALUE: int = 2\n"),
+            ),
+            execution_owner=ExecutionOwner.DOMAIN,
+            expected_invocation_paths=(
+                "src/pkg/alpha/__init__.py",
+                "src/pkg/beta/main/z.py",
+            ),
+        ),
+        ExecutionOwnerEvaluationTestCase(
+            description="leaf ownership invokes one anchor per domain location",
+            files=(
+                ("src/pkg/alpha/__init__.py", ""),
+                ("src/pkg/alpha/models.py", "VALUE: int = 1\n"),
+                ("src/pkg/alpha/red/__init__.py", ""),
+                ("src/pkg/alpha/red/main/z.py", "VALUE: int = 2\n"),
+                ("src/pkg/beta/models.py", "VALUE: int = 3\n"),
+                ("src/pkg/gamma/classes/a.py", "VALUE: int = 4\n"),
+                ("src/pkg/gamma/constants.py", "VALUE: int = 5\n"),
+            ),
+            execution_owner=ExecutionOwner.LEAF,
+            expected_invocation_paths=(
+                "src/pkg/alpha/__init__.py",
+                "src/pkg/alpha/red/__init__.py",
+                "src/pkg/beta/models.py",
+                "src/pkg/gamma/constants.py",
+            ),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_broader_owner_when_evaluating_then_invokes_one_anchor_per_owner(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: ExecutionOwnerEvaluationTestCase,
+) -> None:
+    write_sources(repo_root=tmp_path, files=test_case.files)
+    monkeypatch.chdir(tmp_path)
+    config: Config = Config(roots=("src/pkg",))
+    invocations: list[Path] = []
+
+    _result: EvaluationResult = evaluate(
+        tree=discover_test_tree(config=config),
+        ruleset=(
+            make_owned_invocation_rule(
+                invocations=invocations,
+                execution_owner=test_case.execution_owner,
+            ),
+        ),
+        config=config,
+    )
+
+    assert tuple(path.relative_to(tmp_path).as_posix() for path in invocations) == (
+        test_case.expected_invocation_paths
+    )
 
 
 @pytest.mark.parametrize(

@@ -9,6 +9,7 @@ import pytest
 
 from strata.analysis.constants import FACT_BACKEND_ENV_VARIABLE
 from strata.analysis.main.select_fact_backend import select_fact_backend
+from strata.analysis.models import SourceLocation
 from strata.analysis.types import FactBackend
 from strata.config.models import Config
 from strata.discovery.main.discover_files import discover_files
@@ -19,6 +20,7 @@ from strata.evaluation.models import EvaluationResult, ParsedModule
 from strata.rules.authoring.types import RuleContext
 from strata.rules.tests._helpers import checks as test_checks
 from strata.rules.tests.constants import SFT_RULES
+from strata.rules.tests.types import SftCode
 from tests.unit.src.strata.rules.tests.main._test_types import (
     SftConfiguredLayoutTestCase,
     SftOperationTestCase,
@@ -79,6 +81,7 @@ def test_given_configured_layout_when_checking_all_layout_rules_then_accepts_exa
             description="complete tests family parses each discovered file only once",
             expected_parse_count=3,
             expected_layout_count=2,
+            expected_function_issue_count=1,
         )
     ],
     ids=lambda case: case.description,
@@ -104,8 +107,12 @@ def test_given_complete_tests_family_when_evaluating_then_bounds_local_type_load
     config: Config = Config(roots=("src/strata",), tests=("tests",))
     parse_counts: list[int] = [0]
     layout_counts: list[int] = [0]
+    function_issue_counts: list[int] = [0]
     original_layout_issue: Callable[..., test_checks._LayoutIssue | None] = (
         test_checks._layout_issue
+    )
+    original_function_issues: Callable[..., dict[SftCode, tuple[SourceLocation, ...]]] = (
+        test_checks._test_function_issue_locations
     )
 
     def count_parse(scoped_file: ScopedFile) -> ParsedModule:
@@ -116,11 +123,24 @@ def test_given_complete_tests_family_when_evaluating_then_bounds_local_type_load
         layout_counts[0] += 1
         return original_layout_issue(ctx=ctx)
 
+    def count_function_issues(
+        *,
+        ctx: RuleContext,
+        module_context: test_checks._TestModuleContext,
+    ) -> dict[SftCode, tuple[SourceLocation, ...]]:
+        function_issue_counts[0] += 1
+        return original_function_issues(ctx=ctx, module_context=module_context)
+
     monkeypatch.setattr(
         "strata.evaluation._helpers.project_analysis.parse_scoped_file",
         count_parse,
     )
     monkeypatch.setattr(test_checks, "_layout_issue", count_layout_issue)
+    monkeypatch.setattr(
+        test_checks,
+        "_test_function_issue_locations",
+        count_function_issues,
+    )
 
     _result: EvaluationResult = evaluate(
         tree=discover_files(config=config), ruleset=SFT_RULES, config=config
@@ -130,6 +150,7 @@ def test_given_complete_tests_family_when_evaluating_then_bounds_local_type_load
 
     assert parse_counts[0] == test_case.expected_parse_count
     assert layout_counts[0] == test_case.expected_layout_count
+    assert function_issue_counts[0] == test_case.expected_function_issue_count
 
 
 @pytest.mark.parametrize(

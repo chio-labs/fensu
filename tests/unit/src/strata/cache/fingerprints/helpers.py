@@ -16,7 +16,13 @@ from strata.cache.results.models import CachedFault, CachedFileResult, Dependenc
 from strata.config.constants import DEFAULT_THRESHOLDS
 from strata.config.models import Config
 from strata.rules.authoring.models import Fault, RuleSpec
-from strata.rules.authoring.types import Family, RuleContext, RuleKind, Threshold
+from strata.rules.authoring.types import (
+    ExecutionOwner,
+    Family,
+    RuleContext,
+    RuleKind,
+    Threshold,
+)
 
 
 def _leave_package_available(*, monkeypatch: pytest.MonkeyPatch, root: Path) -> None:
@@ -67,7 +73,11 @@ def write_implementation(*, root: Path, source: str) -> None:
     path.write_text(source, encoding="utf-8")
 
 
-def rule_with_message(message: str) -> RuleSpec:
+def rule_with_message(
+    message: str,
+    *,
+    execution_owner: ExecutionOwner = ExecutionOwner.FILE,
+) -> RuleSpec:
     """Return one deterministic fake rule for ruleset fingerprint tests."""
 
     def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
@@ -80,6 +90,7 @@ def rule_with_message(message: str) -> RuleSpec:
         slug="cache-test",
         message=message,
         check=check,
+        execution_owner=execution_owner,
     )
 
 

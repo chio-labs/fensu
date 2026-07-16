@@ -49,6 +49,10 @@ def execute_check(
             rule_selection=rule_selection,
             project_dir=project_dir,
             warn=args.warn,
+            jobs=args.jobs,
+            invocation_dir=invocation_dir,
+            argument_paths=tuple(args.paths),
+            cache_enabled=args.cache_enabled,
         )
     except ConfigError as error:
         stderr.write(f"{error}\n")
@@ -140,5 +144,18 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="write cache operation counts to stderr when caching is enabled",
     )
+    parser.add_argument(
+        "--jobs",
+        type=_positive_int,
+        default=1,
+        help="evaluate files across this many worker processes on full evaluations",
+    )
     parser.add_argument("paths", nargs="*", help="configured root paths to check")
     return parser
+
+
+def _positive_int(value: str) -> int:
+    parsed: int = int(value)
+    if parsed < 1:
+        raise argparse.ArgumentTypeError("jobs must be at least 1")
+    return parsed

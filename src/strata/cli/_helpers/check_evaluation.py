@@ -32,6 +32,10 @@ def evaluated_check(
     rule_selection: RuleSelection,
     project_dir: Path,
     warn: bool,
+    jobs: int = 1,
+    invocation_dir: Path | None = None,
+    argument_paths: tuple[str, ...] = (),
+    cache_enabled: bool | None = None,
 ) -> CheckEvaluation:
     """Evaluate the tree with caching when available and return observability."""
 
@@ -54,16 +58,17 @@ def evaluated_check(
         None if fingerprint_build is None else fingerprint_build.fingerprint
     )
     if fingerprint_build is None or global_fingerprint is None:
-        from strata.evaluation.main.evaluate import evaluate
-
         result: EvaluationResult = OPERATION_COUNTERS.measure(
             operation=PHASE_FULL_EVALUATION_NANOSECONDS,
-            callback=lambda: evaluate(
+            callback=lambda: _full_evaluation(
                 tree=tree,
-                ruleset=ruleset,
-                warning_rules=warning_rules,
                 config=config,
-                custom_rule_registrations=rule_selection.custom_registrations,
+                rule_selection=rule_selection,
+                warn=warn,
+                jobs=jobs,
+                invocation_dir=invocation_dir,
+                argument_paths=argument_paths,
+                cache_enabled=cache_enabled,
             ),
         )
         return CheckEvaluation(
@@ -96,4 +101,39 @@ def evaluated_check(
         surface_targets=cached.surface_targets,
         global_fingerprint=global_fingerprint,
         surface_index_fingerprint=cached.surface_index_fingerprint,
+    )
+
+
+def _full_evaluation(
+    *,
+    tree: DiscoveredTree,
+    config: Config,
+    rule_selection: RuleSelection,
+    warn: bool,
+    jobs: int,
+    invocation_dir: Path | None,
+    argument_paths: tuple[str, ...],
+    cache_enabled: bool | None,
+) -> EvaluationResult:
+    if jobs > 1 and invocation_dir is not None:
+        from strata.cli._helpers.parallel_evaluation import parallel_full_evaluation
+
+        return parallel_full_evaluation(
+            tree=tree,
+            config=config,
+            rule_selection=rule_selection,
+            invocation_dir=invocation_dir,
+            argument_paths=argument_paths,
+            cache_enabled=cache_enabled,
+            warn=warn,
+            jobs=jobs,
+        )
+    from strata.evaluation.main.evaluate import evaluate
+
+    return evaluate(
+        tree=tree,
+        ruleset=rule_selection.blocking,
+        warning_rules=rule_selection.warnings if warn else (),
+        config=config,
+        custom_rule_registrations=rule_selection.custom_registrations,
     )

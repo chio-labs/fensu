@@ -106,6 +106,15 @@ class FileEvaluation:
 
 
 @dataclass(frozen=True, slots=True)
+class PartitionEvaluation:
+    """Raw per-file evaluations for one target partition before collection."""
+
+    file_evaluations: tuple[FileEvaluation, ...]
+    dependencies: tuple[ProjectDependency, ...]
+    selection: EvaluationSelection
+
+
+@dataclass(frozen=True, slots=True)
 class EvaluationResult:
     """Evaluation output for a discovered tree."""
 

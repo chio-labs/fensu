@@ -13,3 +13,13 @@ class PartitionPlanTestCase:
     paths: tuple[str, ...]
     jobs: int
     expected_partitions: tuple[tuple[str, ...], ...]
+
+
+@dataclass(frozen=True)
+class DefaultWorkerCountTestCase:
+    """One repository size, host CPU count, and the expected automatic workers."""
+
+    description: str
+    target_count: int
+    cpu_count: int | None
+    expected_workers: int

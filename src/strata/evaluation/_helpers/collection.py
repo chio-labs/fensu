@@ -7,6 +7,7 @@ from pathlib import Path
 from strata.analysis.models import ProjectDependency
 from strata.config.exceptions import ConfigError
 from strata.config.models import Config
+from strata.discovery.constants import SNAPSHOT_TABLE
 from strata.evaluation._helpers.rule_exceptions import (
     configured_exception_keys,
     stale_exception_error,
@@ -64,7 +65,8 @@ def collect_evaluation_result(
         )
     if selection is not None and selection.filtered:
         target_paths: frozenset[str] = frozenset(
-            scoped_file.path.relative_to(repo_root).as_posix() for scoped_file in selection.files
+            _repository_relative_path(path=scoped_file.path, repo_root=repo_root)
+            for scoped_file in selection.files
         )
         configured_exceptions = frozenset(
             key for key in configured_exceptions if key.path in target_paths
@@ -84,6 +86,13 @@ def collect_evaluation_result(
         threshold_override_uses=tuple(sorted(threshold_override_uses, key=_override_use_key)),
         selection=selection,
     )
+
+
+def _repository_relative_path(*, path: Path, repo_root: Path) -> str:
+    snapshot_value: str | None = SNAPSHOT_TABLE.relative_path(path=path, repo_root=repo_root)
+    if snapshot_value is not None:
+        return snapshot_value
+    return path.relative_to(repo_root).as_posix()
 
 
 def _fault_sort_key(

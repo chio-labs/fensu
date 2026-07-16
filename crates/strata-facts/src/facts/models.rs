@@ -1,5 +1,21 @@
 //! Fact models shared across extraction entries.
 
+/// One cacheable fact family that can be extracted ahead of conversion.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FactFamily {
+    Annotations,
+    Contracts,
+    ControlFlow,
+    Declarations,
+    Functions,
+    Hygiene,
+    OuterStateMutations,
+    ParameterMutations,
+    References,
+    TestFunctions,
+    TestModule,
+}
+
 /// One traversed node: its CPython kind name and optional CPython span.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct LocatedNode {

@@ -8,19 +8,13 @@ use crate::extension::helpers::conversion::annotations::location_object;
 use crate::extension::helpers::conversion::declarations::to_object;
 use crate::extension::helpers::gateway::model_types::{model_type, type_member};
 use crate::extension::helpers::gateway::program::ProgramHandle;
-use crate::facts::main::extract_function_contracts::extract_function_contracts;
 
 pub(crate) fn function_contract_facts_object(
     py: Python<'_>,
     program: &ProgramHandle,
     path: &Bound<'_, PyAny>,
 ) -> PyResult<Option<Py<PyAny>>> {
-    let rows = extract_function_contracts(
-        program.module(),
-        program.index(),
-        program.source(),
-        program.version(),
-    );
+    let rows = program.contract_rows();
     if rows.iter().any(|row| row.annotation.is_none()) {
         return Ok(None);
     }
@@ -35,7 +29,7 @@ pub(crate) fn function_contract_facts_object(
         let arguments = PyTuple::new(
             py,
             vec![
-                to_object(py, row.function_name)?,
+                to_object(py, &row.function_name)?,
                 location.unbind(),
                 type_member(
                     py,
@@ -43,7 +37,7 @@ pub(crate) fn function_contract_facts_object(
                     &row.category,
                 )?
                 .unbind(),
-                to_object(py, row.annotation)?,
+                to_object(py, row.annotation.as_deref())?,
                 to_object(py, row.contains_yield)?,
                 meaningful,
             ],

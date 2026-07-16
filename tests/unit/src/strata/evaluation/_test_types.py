@@ -201,6 +201,15 @@ class ExecutionOwnerEvaluationTestCase:
 
 
 @dataclass(frozen=True)
+class PrewarmFamilyPlanTestCase:
+    """Mixed-scope sources and the expected per-file native fact-family plans."""
+
+    description: str
+    files: tuple[tuple[str, str], ...]
+    expected_family_plans: tuple[tuple[str, ...], ...]
+
+
+@dataclass(frozen=True)
 class ProjectRetentionTestCase:
     """Project-query order and expected strict parse count."""
 

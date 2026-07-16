@@ -6,7 +6,6 @@ use pyo3::{Bound, Py, PyAny, PyResult, Python};
 use crate::constants;
 use crate::extension::helpers::gateway::model_types::model_type;
 use crate::extension::helpers::gateway::program::ProgramHandle;
-use crate::facts::main::extract_annotations::extract_annotations;
 use crate::facts::models::{LocalAnnotationRow, NamedLocationRow};
 
 pub(crate) fn annotation_facts_object(
@@ -14,7 +13,7 @@ pub(crate) fn annotation_facts_object(
     program: &ProgramHandle,
     path: &Bound<'_, PyAny>,
 ) -> PyResult<Py<PyAny>> {
-    let rows = extract_annotations(program.module(), program.index(), program.source());
+    let rows = program.annotation_rows();
     let parameters = named_facts(
         py,
         path,

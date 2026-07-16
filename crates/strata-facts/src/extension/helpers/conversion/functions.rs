@@ -8,19 +8,16 @@ use crate::extension::helpers::conversion::annotations::location_object;
 use crate::extension::helpers::conversion::declarations::to_object;
 use crate::extension::helpers::gateway::model_types::model_type;
 use crate::extension::helpers::gateway::program::ProgramHandle;
-use crate::facts::main::extract_functions::extract_functions;
-use crate::facts::main::extract_parameter_mutations::extract_parameter_mutations;
 
 pub(crate) fn function_facts_object(
     py: Python<'_>,
     program: &ProgramHandle,
     path: &Bound<'_, PyAny>,
 ) -> PyResult<Py<PyAny>> {
-    let (rows, top_level_slots) =
-        extract_functions(program.module(), program.index(), program.source());
+    let (rows, top_level_slots) = program.function_rows();
     let constructor = model_type(py, constants::FUNCTION_METRIC_FACT_NAME)?;
     let mut objects: Vec<Py<PyAny>> = Vec::with_capacity(rows.len());
-    for row in &rows {
+    for row in rows {
         let arguments = PyTuple::new(
             py,
             vec![
@@ -38,7 +35,7 @@ pub(crate) fn function_facts_object(
     }
     let mut top_level: Vec<Py<PyAny>> = Vec::with_capacity(top_level_slots.len());
     for slot in top_level_slots {
-        if let Some(fact) = objects.get(slot) {
+        if let Some(fact) = objects.get(*slot) {
             top_level.push(fact.clone_ref(py));
         }
     }
@@ -55,15 +52,15 @@ pub(crate) fn parameter_mutation_facts_object(
     program: &ProgramHandle,
     path: &Bound<'_, PyAny>,
 ) -> PyResult<Py<PyAny>> {
-    let rows = extract_parameter_mutations(program.module(), program.index(), program.source());
+    let rows = program.parameter_mutation_rows();
     let constructor = model_type(py, constants::PARAMETER_MUTATION_FACT_NAME)?;
     let mut objects: Vec<Py<PyAny>> = Vec::with_capacity(rows.len());
     for row in rows {
         let arguments = PyTuple::new(
             py,
             vec![
-                to_object(py, row.function_name)?,
-                to_object(py, row.parameter_name)?,
+                to_object(py, &row.function_name)?,
+                to_object(py, &row.parameter_name)?,
                 location_object(py, path, row.line, row.column)?.unbind(),
                 to_object(py, row.returned)?,
                 to_object(py, row.dunder)?,

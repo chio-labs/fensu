@@ -7,6 +7,7 @@ use pyo3::{Bound, PyResult};
 
 use crate::extension::helpers::gateway::bindings;
 use crate::extension::helpers::gateway::program::ProgramHandle;
+use crate::extension::helpers::gateway::repository_bindings;
 
 /// Expose the native fact-extraction functions to Python.
 #[pymodule]
@@ -37,6 +38,7 @@ pub fn strata_facts(module: &Bound<'_, PyModule>) -> PyResult<()> {
         bindings::outer_state_mutation_facts,
         module
     )?)?;
+    module.add_function(wrap_pyfunction!(bindings::extract_fact_rows, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::parse_program, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::parse_programs, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::reference_facts, module)?)?;
@@ -44,18 +46,24 @@ pub fn strata_facts(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(bindings::test_module_facts, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::hygiene_facts, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::control_flow_facts, module)?)?;
-    module.add_function(wrap_pyfunction!(bindings::walk_python_files, module)?)?;
-    module.add_function(wrap_pyfunction!(bindings::hash_source_files, module)?)?;
     module.add_function(wrap_pyfunction!(
-        bindings::observe_repository_stats,
+        repository_bindings::walk_python_files,
         module
     )?)?;
     module.add_function(wrap_pyfunction!(
-        bindings::observe_repository_python_globs,
+        repository_bindings::hash_source_files,
         module
     )?)?;
     module.add_function(wrap_pyfunction!(
-        bindings::observe_repository_contexts,
+        repository_bindings::observe_repository_stats,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(
+        repository_bindings::observe_repository_python_globs,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(
+        repository_bindings::observe_repository_contexts,
         module
     )?)?;
     module.add_class::<ProgramHandle>()?;

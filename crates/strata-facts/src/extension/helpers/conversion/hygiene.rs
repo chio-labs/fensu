@@ -8,8 +8,6 @@ use crate::extension::helpers::conversion::declarations::{location_tuple, to_obj
 use crate::extension::helpers::conversion::state::source_range_object;
 use crate::extension::helpers::gateway::model_types::model_type;
 use crate::extension::helpers::gateway::program::ProgramHandle;
-use crate::facts::main::extract_control_flow::extract_control_flow;
-use crate::facts::main::extract_hygiene::extract_hygiene;
 use crate::facts::models::ControlFlowRows;
 
 pub(crate) fn hygiene_facts_object(
@@ -17,7 +15,7 @@ pub(crate) fn hygiene_facts_object(
     program: &ProgramHandle,
     path: &Bound<'_, PyAny>,
 ) -> PyResult<Py<PyAny>> {
-    let rows = extract_hygiene(program.module(), program.index(), program.source());
+    let rows = program.hygiene_rows();
     let constructor = model_type(py, constants::HYGIENE_FACTS_NAME)?;
     let arguments = PyTuple::new(
         py,
@@ -38,8 +36,7 @@ pub(crate) fn control_flow_facts_objects(
     program: &ProgramHandle,
     path: &Bound<'_, PyAny>,
 ) -> PyResult<(Py<PyAny>, Py<PyAny>, Py<PyAny>)> {
-    let rows: ControlFlowRows =
-        extract_control_flow(program.module(), program.index(), program.source());
+    let rows: &ControlFlowRows = program.control_flow_rows();
     let conditional_constructor = model_type(py, constants::FUNCTION_CONDITIONAL_FACT_NAME)?;
     let mut conditional_objects: Vec<Py<PyAny>> =
         Vec::with_capacity(rows.function_conditionals.len());

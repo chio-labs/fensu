@@ -7,6 +7,7 @@ PUBLIC_ATTRIBUTES: dict[str, tuple[str, str]] = {
     "DataclassFact": ("strata.analysis.models", "DataclassFact"),
     "DiscardedProjectCallFact": ("strata.analysis.models", "DiscardedProjectCallFact"),
     "EvaluateRuleCallFact": ("strata.analysis.models", "EvaluateRuleCallFact"),
+    "ExecutionOwner": ("strata.rules.authoring.types", "ExecutionOwner"),
     "FactAnalysis": ("strata.analysis.types", "FactAnalysis"),
     "Fault": ("strata.rules.authoring.models", "Fault"),
     "Family": ("strata.rules.authoring.types", "Family"),

@@ -26,7 +26,13 @@ from strata.discovery.types import ScopeName
 from strata.evaluation.models import ParsedModule
 from strata.evaluation.types import EvaluationProjectAnalysis
 from strata.rules.authoring.models import Fault, RuleSpec
-from strata.rules.authoring.types import Family, RuleContext, RuleKind, Threshold
+from strata.rules.authoring.types import (
+    ExecutionOwner,
+    Family,
+    RuleContext,
+    RuleKind,
+    Threshold,
+)
 from strata.rules.layers.constants import SFL_RULES
 
 
@@ -277,6 +283,46 @@ def make_runtime_fault_rule() -> RuleSpec:
         message="runtime fault",
         check=check,
         uses_module=True,
+    )
+
+
+def make_default_invocation_rule(
+    *,
+    invocations: list[Path],
+) -> RuleSpec:
+    """Build a rule with omitted ownership that records every invocation path."""
+
+    def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+        del module
+        invocations.append(ctx.path)
+        return []
+
+    return RuleSpec(
+        code="XOW001",
+        family=Family.CUSTOM,
+        slug="default-owner",
+        message="default owner",
+        check=check,
+    )
+
+
+def make_owned_invocation_rule(
+    *, invocations: list[Path], execution_owner: ExecutionOwner
+) -> RuleSpec:
+    """Build an explicitly owned rule that records every invocation path."""
+
+    def check(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+        del module
+        invocations.append(ctx.path)
+        return []
+
+    return RuleSpec(
+        code="XOW002",
+        family=Family.CUSTOM,
+        slug="explicit-owner",
+        message="explicit owner",
+        check=check,
+        execution_owner=execution_owner,
     )
 
 

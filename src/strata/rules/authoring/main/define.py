@@ -11,7 +11,13 @@ from strata.rules.authoring._helpers.envelope import (
 )
 from strata.rules.authoring.constants import _RULE_SPEC_ATTRIBUTE
 from strata.rules.authoring.models import RuleSpec
-from strata.rules.authoring.types import Family, RuleCheck, RuleKind, Severity
+from strata.rules.authoring.types import (
+    ExecutionOwner,
+    Family,
+    RuleCheck,
+    RuleKind,
+    Severity,
+)
 
 
 def rule(
@@ -24,6 +30,7 @@ def rule(
     severity: Severity = Severity.ERROR,
     enabled_by_default: bool = True,
     cacheable: bool | None = None,
+    execution_owner: ExecutionOwner = ExecutionOwner.FILE,
 ) -> Callable[[RuleCheck], RuleCheck]:
     """Attach a compiled rule spec to the decorated function and return it unchanged."""
 
@@ -47,6 +54,7 @@ def rule(
             kind=kind,
             enabled_by_default=enabled_by_default,
             cacheable=cacheable,
+            execution_owner=execution_owner,
         )
         _ = setattr(check, _RULE_SPEC_ATTRIBUTE, spec)
         return check

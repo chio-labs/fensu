@@ -9,6 +9,7 @@ __all__ = [
     "DataclassFact",
     "DiscardedProjectCallFact",
     "EvaluateRuleCallFact",
+    "ExecutionOwner",
     "FactAnalysis",
     "Fault",
     "Family",

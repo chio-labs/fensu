@@ -32,7 +32,7 @@ def evaluated_check(
     rule_selection: RuleSelection,
     project_dir: Path,
     warn: bool,
-    jobs: int = 1,
+    jobs: int | None = None,
     invocation_dir: Path | None = None,
     argument_paths: tuple[str, ...] = (),
     cache_enabled: bool | None = None,
@@ -110,14 +110,20 @@ def _full_evaluation(
     config: Config,
     rule_selection: RuleSelection,
     warn: bool,
-    jobs: int,
+    jobs: int | None,
     invocation_dir: Path | None,
     argument_paths: tuple[str, ...],
     cache_enabled: bool | None,
 ) -> EvaluationResult:
-    if jobs > 1 and invocation_dir is not None:
-        from strata.cli._helpers.parallel_evaluation import parallel_full_evaluation
+    from strata.cli._helpers.parallel_evaluation import (
+        default_worker_count,
+        parallel_full_evaluation,
+    )
 
+    resolved_jobs: int = (
+        jobs if jobs is not None else default_worker_count(target_count=len(tree.files))
+    )
+    if resolved_jobs > 1 and invocation_dir is not None:
         return parallel_full_evaluation(
             tree=tree,
             config=config,
@@ -126,7 +132,7 @@ def _full_evaluation(
             argument_paths=argument_paths,
             cache_enabled=cache_enabled,
             warn=warn,
-            jobs=jobs,
+            jobs=resolved_jobs,
         )
     from strata.evaluation.main.evaluate import evaluate
 

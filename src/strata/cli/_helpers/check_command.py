@@ -147,8 +147,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--jobs",
         type=_positive_int,
-        default=1,
-        help="evaluate files across this many worker processes on full evaluations",
+        default=None,
+        help="worker processes for full evaluations (default: automatic)",
     )
     parser.add_argument("paths", nargs="*", help="configured root paths to check")
     return parser

@@ -49,8 +49,8 @@ def profile_operations(*, project: Path, mode: OperationProfileMode) -> Operatio
 
 def _operation_argv(*, mode: OperationProfileMode) -> tuple[str, ...]:
     if mode is OperationProfileMode.UNCACHED:
-        return ("--no-color", "--no-cache")
-    return ("--no-color", "--cache")
+        return ("--no-color", "--no-cache", "--jobs", "1")
+    return ("--no-color", "--cache", "--jobs", "1")
 
 
 def _clear_process_caches() -> None:

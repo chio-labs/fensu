@@ -39,6 +39,16 @@ from strata.rules.catalog.models import RuleSelection
 
 _WORKER_START_METHOD: str = "spawn"
 _NATIVE_THREAD_ENV_VARIABLE: str = "RAYON_NUM_THREADS"
+_MAXIMUM_AUTO_WORKERS: int = 8
+_MINIMUM_PARALLEL_TARGETS: int = 200
+
+
+def default_worker_count(*, target_count: int) -> int:
+    """Return the measured-breakeven automatic worker count for one full evaluation."""
+
+    if target_count < _MINIMUM_PARALLEL_TARGETS:
+        return 1
+    return max(1, min(_MAXIMUM_AUTO_WORKERS, os.cpu_count() or 1))
 
 
 def parallel_full_evaluation(

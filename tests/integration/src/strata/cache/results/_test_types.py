@@ -134,6 +134,29 @@ class CachedResultReadFilteringTestCase:
 
 
 @dataclass(frozen=True)
+class EditReplayDependencyTestCase:
+    """One edit changing a queried answer and the expected dependent updates."""
+
+    description: str
+    initial_context_source: str
+    changed_context_source: str
+    expected_invalidations: int
+    expected_messages: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class EditReplayFastPathTestCase:
+    """One independent edit and the expected zero-result-read replay."""
+
+    description: str
+    initial_target_source: str
+    changed_target_source: str
+    expected_invalidations: int
+    expected_loaded_paths: tuple[str, ...]
+    expected_messages: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class CachedDomainShapeInvalidationTestCase:
     """One namespace-source transition and expected cached SFR306 invalidation."""
 

@@ -1225,7 +1225,7 @@ def test_given_disabled_cache_when_requesting_stats_then_reports_disabled_reason
             description="unchanged warm run emits stored output without restoring records",
             expected_exit_code=1,
             expected_warm_restores=0,
-            expected_edited_restores=1,
+            expected_edited_restores=0,
             expected_edited_fragment="module-level variable 'EXTRA'",
         )
     ],
@@ -1276,10 +1276,10 @@ def test_given_unchanged_tree_when_rechecking_then_short_circuits_stored_output(
     "test_case",
     [
         ReplayFastPathTestCase(
-            description="unchanged warm run replays observations without reading records",
+            description="warm and edited runs replay observations without reading records",
             expected_exit_code=1,
             expected_warm_loads=0,
-            expected_edited_loads=1,
+            expected_edited_loads=0,
         )
     ],
     ids=lambda case: case.description,

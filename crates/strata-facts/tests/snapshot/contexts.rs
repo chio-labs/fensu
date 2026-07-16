@@ -1,5 +1,6 @@
 //! Repository source and namespace observation behavior.
 
+use std::fs;
 use std::path::PathBuf;
 
 use strata_facts::snapshot::main::observe_repository_contexts::observe_repository_contexts;
@@ -13,7 +14,7 @@ fn given_repository_tree_when_observing_contexts_then_returns_ordered_answers() 
     let test_cases = [ContextTestCase {
         description: "returns source identity, directory order, and the first Python anchor",
         expected_source_hash: "9e26bf369911c45c243c684147b23fc9e1dcfcf257d299a1c632016a6fcd33f4",
-        expected_directory_entries: &["pkg/alpha.py", "pkg/source.py", "pkg/zeta.py", "pkg/deep"],
+        expected_directory_entries: &["pkg/alpha.py", "pkg/deep", "pkg/source.py", "pkg/zeta.py"],
         expected_anchor: "pkg/alpha.py",
     }];
     for test_case in test_cases {
@@ -67,14 +68,26 @@ fn given_repository_tree_when_observing_contexts_then_returns_ordered_answers() 
         let directory = answers[1]
             .as_ref()
             .expect("directory observation is supported");
+        let mut sorted_entries = directory.path_answer.clone();
+        sorted_entries.sort();
         assert_eq!(
-            directory.path_answer,
+            sorted_entries,
             test_case
                 .expected_directory_entries
                 .iter()
                 .map(ToString::to_string)
                 .collect::<Vec<_>>(),
             "{}",
+            test_case.description
+        );
+        let observation_order: Vec<String> = fs::read_dir(root.join("pkg"))
+            .expect("fixture directory is readable")
+            .map(|entry| entry.expect("fixture entry is readable"))
+            .map(|entry| format!("pkg/{}", entry.file_name().to_string_lossy()))
+            .collect();
+        assert_eq!(
+            directory.path_answer, observation_order,
+            "directory answers must preserve filesystem observation order; {}",
             test_case.description
         );
         let anchor = answers[2]

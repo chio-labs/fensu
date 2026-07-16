@@ -70,7 +70,9 @@ class _EvaluationProjectAnalysis:
         self._recorded_queries: set[tuple[str, str, ProjectDependencyKind, str | None, bool]] = (
             set()
         )
-        self._resolved_paths: dict[str, Path] = {}
+        self._resolved_paths: dict[str, Path] = {
+            str(scoped_file.path): scoped_file.path for scoped_file in tree.files
+        }
         self._exists: dict[str, bool] = {}
         self._directories: dict[str, bool] = {}
         self._files: dict[str, bool] = {}

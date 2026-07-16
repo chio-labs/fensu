@@ -17,12 +17,15 @@ from strata.cache.results._helpers.validation import (
 )
 from strata.cache.results.constants import (
     CACHE_CHECK_OUTPUT_KIND,
+    CACHE_COLLECTION_KIND,
     CACHE_DEPENDENCIES_KIND,
     CACHE_FACT_KIND,
     CACHE_FILE_RESULT_KIND,
     CACHE_INDEX_KIND,
     CACHE_METADATA_KIND,
     CHECK_OUTPUT_PAYLOAD_KEYS,
+    COLLECTION_CONTRIBUTION_KEYS,
+    COLLECTION_PAYLOAD_KEYS,
     DEPENDENCIES_PAYLOAD_KEYS,
     DEPENDENCY_OBSERVATION_KEYS,
     DEPENDENCY_REFERENCE_KEYS,
@@ -37,6 +40,7 @@ from strata.cache.results.constants import (
 )
 from strata.cache.results.models import (
     CachedCheckOutput,
+    CachedCollectionContribution,
     CachedFact,
     CachedFault,
     CachedFileResult,
@@ -90,9 +94,15 @@ def index_to_record(index: CacheIndex) -> CacheRecord:
     )
     if dependencies_fingerprint is not None and not is_fingerprint(dependencies_fingerprint):
         raise CacheRecordError("Cache index contains an invalid dependency identity.")
+    collection_fingerprint: str | None = (
+        index.collection_fingerprint.value if index.collection_fingerprint is not None else None
+    )
+    if collection_fingerprint is not None and not is_fingerprint(collection_fingerprint):
+        raise CacheRecordError("Cache index contains an invalid collection identity.")
     return CacheRecord(
         kind=CACHE_INDEX_KIND,
         payload={
+            "collection_fingerprint": collection_fingerprint,
             "dependencies_fingerprint": dependencies_fingerprint,
             "entries": entries,
             "global_fingerprint": index.global_fingerprint.value,
@@ -113,11 +123,18 @@ def index_from_record(record: CacheRecord) -> CacheIndex | None:
         if raw_dependencies_fingerprint is not None
         else None
     )
+    raw_collection_fingerprint: CanonicalValue = payload["collection_fingerprint"]
+    collection_fingerprint: CacheFingerprint | None = (
+        fingerprint_or_none(raw_collection_fingerprint)
+        if raw_collection_fingerprint is not None
+        else None
+    )
     raw_entries: CanonicalValue = payload["entries"]
     if (
         global_fingerprint is None
         or not isinstance(raw_entries, list)
         or (raw_dependencies_fingerprint is not None and dependencies_fingerprint is None)
+        or (raw_collection_fingerprint is not None and collection_fingerprint is None)
     ):
         return None
     entries: list[CacheIndexEntry] = []
@@ -130,6 +147,7 @@ def index_from_record(record: CacheRecord) -> CacheIndex | None:
         global_fingerprint=global_fingerprint,
         entries=tuple(entries),
         dependencies_fingerprint=dependencies_fingerprint,
+        collection_fingerprint=collection_fingerprint,
     )
     return result if _index_entries_are_ordered(result.entries) else None
 
@@ -158,6 +176,94 @@ def dependencies_from_record(record: CacheRecord) -> tuple[DependencyObservation
     if not isinstance(raw_observations, list):
         return None
     return _decode_sequence(values=raw_observations, decoder=_dependency)
+
+
+def collection_to_record(
+    contributions: tuple[CachedCollectionContribution, ...],
+) -> CacheRecord:
+    """Return a validated storage record for sparse global-collection inputs."""
+
+    record: CacheRecord = CacheRecord(
+        kind=CACHE_COLLECTION_KIND,
+        payload={"contributions": [_contribution_value(item) for item in contributions]},
+    )
+    if collection_from_record(record) != contributions:
+        raise CacheRecordError("Collection contributions contain invalid or noncanonical values.")
+    return record
+
+
+def collection_from_record(
+    record: CacheRecord,
+) -> tuple[CachedCollectionContribution, ...] | None:
+    """Return typed sparse collection contributions or None for a semantic miss."""
+
+    payload: dict[str, CanonicalValue] | None = _payload(record=record, kind=CACHE_COLLECTION_KIND)
+    if payload is None or set(payload) != COLLECTION_PAYLOAD_KEYS:
+        return None
+    raw_contributions: CanonicalValue = payload["contributions"]
+    if not isinstance(raw_contributions, list):
+        return None
+    contributions: tuple[CachedCollectionContribution, ...] | None = _decode_sequence(
+        values=raw_contributions, decoder=_contribution
+    )
+    if contributions is None:
+        return None
+    ordered: bool = all(
+        contributions[index - 1].path < contributions[index].path
+        for index in range(1, len(contributions))
+    )
+    return contributions if ordered else None
+
+
+def _contribution_value(contribution: CachedCollectionContribution) -> CanonicalValue:
+    return {
+        "applied_exception_keys": [
+            _exception_key_value(item) for item in contribution.applied_exception_keys
+        ],
+        "faults": [_fault_value(item) for item in contribution.faults],
+        "path": contribution.path,
+        "threshold_override_uses": [
+            _threshold_override_use_value(item) for item in contribution.threshold_override_uses
+        ],
+        "warnings": [_fault_value(item) for item in contribution.warnings],
+    }
+
+
+def _contribution(value: CanonicalValue) -> CachedCollectionContribution | None:
+    if not isinstance(value, dict) or set(value) != COLLECTION_CONTRIBUTION_KEYS:
+        return None
+    path: CanonicalValue = value["path"]
+    raw_faults: CanonicalValue = value["faults"]
+    raw_warnings: CanonicalValue = value["warnings"]
+    raw_exceptions: CanonicalValue = value["applied_exception_keys"]
+    raw_override_uses: CanonicalValue = value["threshold_override_uses"]
+    if not (
+        is_relative_path(value=path)
+        and isinstance(raw_faults, list)
+        and isinstance(raw_warnings, list)
+        and isinstance(raw_exceptions, list)
+        and isinstance(raw_override_uses, list)
+    ):
+        return None
+    faults: tuple[CachedFault, ...] | None = _decode_sequence(values=raw_faults, decoder=_fault)
+    warnings: tuple[CachedFault, ...] | None = _decode_sequence(values=raw_warnings, decoder=_fault)
+    exceptions: tuple[CachedRuleExceptionKey, ...] | None = _decode_sequence(
+        values=raw_exceptions, decoder=_exception_key
+    )
+    override_uses: tuple[CachedThresholdOverrideUse, ...] | None = _decode_sequence(
+        values=raw_override_uses, decoder=_threshold_override_use
+    )
+    if faults is None or warnings is None or exceptions is None or override_uses is None:
+        return None
+    if not (faults or warnings or exceptions or override_uses):
+        return None
+    return CachedCollectionContribution(
+        path=cast(str, path),
+        faults=faults,
+        warnings=warnings,
+        applied_exception_keys=exceptions,
+        threshold_override_uses=override_uses,
+    )
 
 
 def check_output_to_record(output: CachedCheckOutput) -> CacheRecord:

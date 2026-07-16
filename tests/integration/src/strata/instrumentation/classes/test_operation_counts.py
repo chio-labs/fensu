@@ -212,7 +212,7 @@ def test_given_one_edited_file_when_counting_then_only_that_file_re_evaluates(
             description="all changed files avoid result reads and prefix scans",
             file_target=120,
             seed=0,
-            expected_cache_record_reads=6,
+            expected_cache_record_reads=8,
             expected_cache_record_scans=0,
         )
     ],

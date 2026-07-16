@@ -23,7 +23,7 @@ from strata.discovery.main.discover_files import discover_files
 from strata.discovery.models import DiscoveredTree
 from strata.evaluation.exceptions import ParseError
 from strata.evaluation.main.build_targets import build_evaluation_targets
-from strata.evaluation.main.collect_results import collect_merged_evaluations
+from strata.evaluation.main.collect_result import collect_file_evaluations
 from strata.evaluation.main.evaluate_partition import evaluate_partition
 from strata.evaluation.main.select_files import select_evaluation_files
 from strata.evaluation.models import (
@@ -90,7 +90,7 @@ def parallel_full_evaluation(
     )
     outcomes: tuple[EvaluationWorkerOutcome, ...] = _run_workers(requests=requests)
     _raise_worker_parse_failure(outcomes=outcomes)
-    return collect_merged_evaluations(
+    return collect_file_evaluations(
         file_evaluations=_ordered_evaluations(outcomes=outcomes, ordered_paths=ordered_paths),
         dependencies=_merged_dependencies(outcomes=outcomes),
         config=config,

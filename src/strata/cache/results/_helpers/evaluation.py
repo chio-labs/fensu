@@ -12,6 +12,7 @@ from strata.cache.results._helpers.dependencies import dependencies_are_current
 from strata.cache.results._helpers.paths import relative_repository_path
 from strata.cache.results.classes.result_cache import ResultCache
 from strata.cache.results.models import (
+    CachedCollectionContribution,
     CachedFileResult,
     CacheEvaluation,
     CacheIndex,
@@ -19,6 +20,8 @@ from strata.cache.results.models import (
     CacheLookup,
     CacheStats,
     CheckCacheContext,
+    DependencyObservation,
+    EditReplaySurface,
 )
 from strata.cache.results.types import DependencyStateCache
 from strata.cache.storage.exceptions import CachePathError, CacheRecordError
@@ -42,6 +45,25 @@ if TYPE_CHECKING:
     )
     from strata.evaluation.types import EvaluationProjectAnalysis
     from strata.rules.authoring.models import CustomRuleRegistration, RuleSpec
+
+
+@dataclass(frozen=True, slots=True)
+class _EditReplayInputs:
+    """Validated inputs shared by one edit-replay qualification attempt."""
+
+    scopes: _RuleScopes
+    context: CheckCacheContext
+    entries: dict[str, CacheIndexEntry]
+    targets: tuple[EvaluationTarget, ...]
+    sorted_targets: tuple[str, ...]
+    source_fingerprints: dict[str, CacheFingerprint | None]
+    selection: EvaluationSelection
+    config: Config
+    tree: DiscoveredTree
+    states: DependencyStateCache
+    global_fingerprint: CacheFingerprint
+    evaluated_rules: tuple[RuleSpec, ...]
+    custom_rule_registrations: tuple[CustomRuleRegistration, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,17 +135,23 @@ def run_cached_evaluation(
     sorted_targets: tuple[str, ...] = tuple(sorted(target_paths))
     dependency_states: DependencyStateCache = {}
     if (
-        replayed := _replayed_evaluation(
+        replayed := _attempted_replays(
             cache=cache,
-            scopes=scopes,
-            context=context,
-            entries=entries,
-            sorted_targets=sorted_targets,
-            source_fingerprints=source_fingerprints,
-            repo_root=tree.repo_root.path,
-            states=dependency_states,
-            global_fingerprint=global_fingerprint,
-            target_count=len(targets),
+            inputs=_EditReplayInputs(
+                scopes=scopes,
+                context=context,
+                entries=entries,
+                targets=targets,
+                sorted_targets=sorted_targets,
+                source_fingerprints=source_fingerprints,
+                selection=selection,
+                config=config,
+                tree=tree,
+                states=dependency_states,
+                global_fingerprint=global_fingerprint,
+                evaluated_rules=evaluated_rules,
+                custom_rule_registrations=custom_rule_registrations,
+            ),
         )
     ) is not None:
         return replayed
@@ -240,6 +268,12 @@ def run_cached_evaluation(
     for item in ordered_results:
         if isinstance(item, CachedFileResult):
             retained_results.append(item)
+    collection: tuple[CachedCollectionContribution, ...] | None = _slow_path_collection(
+        scopes=scopes,
+        custom_rule_registrations=custom_rule_registrations,
+        evaluations=evaluations,
+        repo_root=tree.repo_root.path,
+    )
     publication: CacheStats = _publish_results(
         cache=cache,
         global_fingerprint=global_fingerprint,
@@ -247,6 +281,7 @@ def run_cached_evaluation(
         retained_entries=tuple(retained_entries),
         retained_results=tuple(retained_results),
         existing_index_fingerprint=context.index_fingerprint,
+        collection=collection,
     )
     surface_ready: bool = (
         not scopes.scoped
@@ -269,6 +304,190 @@ def run_cached_evaluation(
         surface_targets=sorted_targets if surface_ready else None,
         surface_index_fingerprint=publication.index_fingerprint if surface_ready else None,
     )
+
+
+def _slow_path_collection(
+    *,
+    scopes: _RuleScopes,
+    custom_rule_registrations: tuple[CustomRuleRegistration, ...],
+    evaluations: tuple[FileEvaluation, ...],
+    repo_root: Path,
+) -> tuple[CachedCollectionContribution, ...] | None:
+    if scopes.scoped or custom_rule_registrations:
+        return None
+    from strata.cache.results._helpers.conversion import build_collection_contributions
+
+    return build_collection_contributions(evaluations=evaluations, repo_root=repo_root)
+
+
+def _attempted_replays(
+    *,
+    cache: ResultCache,
+    inputs: _EditReplayInputs,
+) -> CacheEvaluation | None:
+    replayed: CacheEvaluation | None = _replayed_evaluation(
+        cache=cache,
+        scopes=inputs.scopes,
+        context=inputs.context,
+        entries=inputs.entries,
+        sorted_targets=inputs.sorted_targets,
+        source_fingerprints=inputs.source_fingerprints,
+        repo_root=inputs.tree.repo_root.path,
+        states=inputs.states,
+        global_fingerprint=inputs.global_fingerprint,
+        target_count=len(inputs.targets),
+    )
+    if replayed is not None:
+        return replayed
+    return _edit_replayed_evaluation(cache=cache, inputs=inputs)
+
+
+def _edit_replayed_evaluation(
+    *,
+    cache: ResultCache,
+    inputs: _EditReplayInputs,
+) -> CacheEvaluation | None:
+    if inputs.scopes.scoped or inputs.custom_rule_registrations or inputs.context.index is None:
+        return None
+    entries: dict[str, CacheIndexEntry] = inputs.entries
+    sorted_targets: tuple[str, ...] = inputs.sorted_targets
+    if len(entries) != len(sorted_targets) or any(path not in entries for path in sorted_targets):
+        return None
+    changed: frozenset[str] = frozenset(
+        path
+        for path in sorted_targets
+        if inputs.source_fingerprints.get(path) is None
+        or entries[path].source_fingerprint != inputs.source_fingerprints[path]
+    )
+    if not changed:
+        return None
+    surface: EditReplaySurface | None = cache.load_edit_surface(context=inputs.context)
+    if surface is None:
+        return None
+    if not dependencies_are_current(
+        observations=surface.observations,
+        repo_root=inputs.tree.repo_root.path,
+        states=inputs.states,
+    ):
+        return None
+    fresh_evaluations: tuple[FileEvaluation, ...] = _fresh_edit_evaluations(
+        inputs=inputs,
+        changed=changed,
+    )
+    from strata.cache.results._helpers.conversion import (
+        build_collection_contributions,
+        restore_contribution_evaluation,
+    )
+    from strata.evaluation.main.collect_result import collect_file_evaluations
+
+    fresh_collection: tuple[CachedCollectionContribution, ...] | None = (
+        build_collection_contributions(
+            evaluations=fresh_evaluations,
+            repo_root=inputs.tree.repo_root.path,
+        )
+    )
+    if fresh_collection is None:
+        return None
+    retained_contributions: tuple[CachedCollectionContribution, ...] = tuple(
+        contribution
+        for contribution in surface.contributions
+        if contribution.path not in changed and contribution.path in entries
+    )
+    restored: tuple[FileEvaluation, ...] = tuple(
+        restore_contribution_evaluation(
+            contribution=contribution,
+            source_fingerprint=entries[contribution.path].source_fingerprint,
+            repo_root=inputs.tree.repo_root.path,
+        )
+        for contribution in retained_contributions
+    )
+    fresh_dependencies: list[ProjectDependency] = []
+    for evaluation in fresh_evaluations:
+        fresh_dependencies.extend(evaluation.dependencies)
+    result: EvaluationResult = collect_file_evaluations(
+        file_evaluations=(*restored, *fresh_evaluations),
+        dependencies=tuple(fresh_dependencies),
+        config=inputs.config,
+        repo_root=inputs.tree.repo_root.path,
+        evaluated_rule_codes=frozenset(rule.code for rule in inputs.evaluated_rules),
+        selection=inputs.selection,
+    )
+    merged_collection: tuple[CachedCollectionContribution, ...] = tuple(
+        sorted(
+            (*retained_contributions, *fresh_collection),
+            key=lambda contribution: contribution.path,
+        )
+    )
+    publication: CacheStats = _publish_results(
+        cache=cache,
+        global_fingerprint=inputs.global_fingerprint,
+        fresh_evaluations=fresh_evaluations,
+        retained_entries=tuple(entries[path] for path in sorted_targets if path not in changed),
+        retained_results=(),
+        existing_index_fingerprint=inputs.context.index_fingerprint,
+        retained_observations=surface.observations,
+        collection=merged_collection,
+    )
+    surface_ready: bool = (
+        publication.non_cacheable == 0
+        and not publication.storage_failed
+        and not publication.internal_error
+        and publication.index_fingerprint is not None
+    )
+    return CacheEvaluation(
+        result=result,
+        stats=CacheStats(
+            hits=len(sorted_targets) - len(changed),
+            misses=0,
+            invalidations=len(changed),
+            writes=publication.writes,
+            non_cacheable=publication.non_cacheable,
+            storage_failed=publication.storage_failed,
+            internal_error=publication.internal_error,
+        ),
+        surface_targets=sorted_targets if surface_ready else None,
+        surface_index_fingerprint=publication.index_fingerprint if surface_ready else None,
+    )
+
+
+def _fresh_edit_evaluations(
+    *,
+    inputs: _EditReplayInputs,
+    changed: frozenset[str],
+) -> tuple[FileEvaluation, ...]:
+    from strata.evaluation.main.build_project import build_evaluation_project
+    from strata.evaluation.main.evaluate_target import evaluate_target
+    from strata.evaluation.main.prewarm_files import prewarm_evaluation_files
+
+    changed_targets: tuple[EvaluationTarget, ...] = tuple(
+        target
+        for target in inputs.targets
+        if relative_repository_path(
+            path=target.scoped_file.path,
+            repo_root=inputs.tree.repo_root.path,
+        )
+        in changed
+    )
+    project: EvaluationProjectAnalysis = build_evaluation_project(tree=inputs.tree)
+    fresh_evaluations: list[FileEvaluation] = []
+    for start in range(0, len(changed_targets), PREWARM_CHUNK_SIZE):
+        chunk: tuple[EvaluationTarget, ...] = changed_targets[start : start + PREWARM_CHUNK_SIZE]
+        prewarm_evaluation_files(
+            project=project,
+            scoped_files=tuple(target.scoped_file for target in chunk),
+        )
+        for target in chunk:
+            fresh_evaluations.append(
+                evaluate_target(
+                    target=target,
+                    ruleset=inputs.scopes.cacheable_ruleset,
+                    warning_rules=inputs.scopes.cacheable_warning_rules,
+                    config=inputs.config,
+                    tree=inputs.tree,
+                    project=project,
+                )
+            )
+    return tuple(fresh_evaluations)
 
 
 def _replayed_evaluation(
@@ -475,6 +694,8 @@ def _publish_results(
     retained_entries: tuple[CacheIndexEntry, ...],
     retained_results: tuple[CachedFileResult, ...],
     existing_index_fingerprint: CacheFingerprint | None,
+    retained_observations: tuple[DependencyObservation, ...] | None = None,
+    collection: tuple[CachedCollectionContribution, ...] | None = None,
 ) -> CacheStats:
     try:
         stats: CacheStats = cache.publish(
@@ -482,6 +703,8 @@ def _publish_results(
             evaluations=fresh_evaluations,
             retained_entries=retained_entries,
             retained_results=retained_results,
+            retained_observations=retained_observations,
+            collection=collection,
         )
         return (
             replace(stats, index_fingerprint=existing_index_fingerprint)

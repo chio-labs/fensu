@@ -13,6 +13,7 @@ from strata.cache.fingerprints.types import CanonicalValue
 from strata.cache.results._helpers.paths import relative_repository_path
 from strata.cache.results._helpers.serialization import prepared_file_result_to_record
 from strata.cache.results.models import (
+    CachedCollectionContribution,
     CachedFault,
     CachedFileResult,
     CachedRuleExceptionKey,
@@ -346,6 +347,104 @@ def build_cached_file_result(
     )
     record: CacheRecord = prepared_file_result_to_record(result=result)
     return PreparedFileResult(result=result, record=record)
+
+
+def build_collection_contributions(
+    *,
+    evaluations: tuple[FileEvaluation, ...],
+    repo_root: Path,
+) -> tuple[CachedCollectionContribution, ...] | None:
+    """Return sorted nonempty collection inputs, or None for unsupported ownership."""
+
+    contributions: list[CachedCollectionContribution] = []
+    try:
+        for evaluation in evaluations:
+            contribution: CachedCollectionContribution | None = _collection_contribution(
+                evaluation=evaluation,
+                repo_root=repo_root,
+            )
+            if contribution is not None:
+                contributions.append(contribution)
+    except CacheRecordError:
+        return None
+    return tuple(sorted(contributions, key=lambda contribution: contribution.path))
+
+
+def _collection_contribution(
+    *,
+    evaluation: FileEvaluation,
+    repo_root: Path,
+) -> CachedCollectionContribution | None:
+    if not (
+        evaluation.faults
+        or evaluation.warnings
+        or evaluation.applied_exception_keys
+        or evaluation.threshold_override_uses
+    ):
+        return None
+    path: str | None = relative_repository_path(path=evaluation.path, repo_root=repo_root)
+    if path is None:
+        raise CacheRecordError("Collection contribution path is outside the repository.")
+    faults: list[CachedFault] = []
+    for fault in evaluation.faults:
+        cached_fault: CachedFault | None = _cached_fault(
+            fault=fault,
+            requester_path=path,
+            repo_root=repo_root,
+        )
+        if cached_fault is None:
+            raise CacheRecordError("Collection contribution fault is not cache-safe.")
+        faults.append(cached_fault)
+    warnings: list[CachedFault] = []
+    for warning in evaluation.warnings:
+        cached_warning: CachedFault | None = _cached_fault(
+            fault=warning,
+            requester_path=path,
+            repo_root=repo_root,
+        )
+        if cached_warning is None:
+            raise CacheRecordError("Collection contribution warning is not cache-safe.")
+        warnings.append(cached_warning)
+    exception_keys: list[CachedRuleExceptionKey] = []
+    for key in evaluation.applied_exception_keys:
+        cached_key: CachedRuleExceptionKey | None = _cached_exception_key(
+            key=key,
+            requester_path=path,
+        )
+        if cached_key is None:
+            raise CacheRecordError("Collection contribution exception key is not cache-safe.")
+        exception_keys.append(cached_key)
+    return CachedCollectionContribution(
+        path=path,
+        faults=tuple(faults),
+        warnings=tuple(warnings),
+        applied_exception_keys=tuple(exception_keys),
+        threshold_override_uses=tuple(
+            _cached_threshold_override_use(use) for use in evaluation.threshold_override_uses
+        ),
+    )
+
+
+def restore_contribution_evaluation(
+    *,
+    contribution: CachedCollectionContribution,
+    source_fingerprint: CacheFingerprint,
+    repo_root: Path,
+) -> FileEvaluation:
+    """Restore one persisted collection contribution to runtime evaluation models."""
+
+    return restore_file_evaluation(
+        result=CachedFileResult(
+            path=contribution.path,
+            source_fingerprint=source_fingerprint,
+            faults=contribution.faults,
+            warnings=contribution.warnings,
+            applied_exception_keys=contribution.applied_exception_keys,
+            dependencies=(),
+            threshold_override_uses=contribution.threshold_override_uses,
+        ),
+        repo_root=repo_root,
+    )
 
 
 def restore_file_evaluation(*, result: CachedFileResult, repo_root: Path) -> FileEvaluation:

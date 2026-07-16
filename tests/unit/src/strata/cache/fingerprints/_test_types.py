@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 
 from strata.cache.fingerprints.types import CanonicalValue
+from strata.rules.authoring.types import ExecutionOwner
 
 
 @dataclass(frozen=True)
@@ -129,6 +130,14 @@ class RulesetFingerprintTestCase:
 
 
 @dataclass(frozen=True)
+class RulesetSourceReuseTestCase:
+    """Rules sharing one source and expected source read count."""
+
+    description: str
+    expected_source_reads: int
+
+
+@dataclass(frozen=True)
 class GlobalFingerprintTestCase:
     """Two Strata versions and whether their global identities must match."""
 
@@ -184,6 +193,16 @@ class GlobalRuntimeFingerprintTestCase:
     second_python_implementation: str
     first_contract_version: int
     second_contract_version: int
+    expected_equal: bool
+
+
+@dataclass(frozen=True)
+class RulesetExecutionOwnerFingerprintTestCase:
+    """Two execution owners and their expected ruleset identity relationship."""
+
+    description: str
+    first_owner: ExecutionOwner
+    second_owner: ExecutionOwner
     expected_equal: bool
 
 

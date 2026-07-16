@@ -6,7 +6,12 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from strata.analysis.models import ParametrizeFact, PytestFunctionFact, PytestModuleFacts
+from strata.analysis.models import (
+    ParametrizeFact,
+    PytestFunctionFact,
+    PytestModuleFacts,
+    SourceLocation,
+)
 from strata.discovery.types import ScopeName
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import RuleContext
@@ -347,7 +352,8 @@ def _scenario_models_faults(*, ctx: RuleContext) -> list[Fault]:
 def _test_file_faults(*, ctx: RuleContext, code: SftCode) -> list[Fault]:
     local_test_types: _LocalTestTypes | None = None
     inspect_dataclasses: bool = code != SftCode.LOCAL_TEST_TYPES_IMPORT
-    if code in _local_types_rule_codes and _is_test_module(ctx.path):
+    test_module: bool = _is_test_module(ctx.path)
+    if (code in _local_types_rule_codes or code in _test_function_rule_codes) and test_module:
         local_test_types = ctx._memoize(
             key=f"tests.local_types:{inspect_dataclasses}",
             operation=lambda: _local_test_types(ctx=ctx, inspect_dataclasses=inspect_dataclasses),
@@ -360,31 +366,26 @@ def _test_file_faults(*, ctx: RuleContext, code: SftCode) -> list[Fault]:
     faults: list[Fault] = []
     if (
         code == SftCode.LOCAL_TEST_TYPES_FILE
-        and _is_test_module(ctx.path)
+        and test_module
         and not ctx.project.is_file(
             requester=ctx.path,
             path=ctx.path.parent / "_test_types.py",
         )
     ):
         faults.append(ctx.path_fault())
-    if (
-        code == SftCode.TEST_FILE_NAME
-        and _is_test_module(ctx.path)
-        and not ctx.path.name.startswith("test_")
-    ):
+    if code == SftCode.TEST_FILE_NAME and test_module and not ctx.path.name.startswith("test_"):
         faults.append(ctx.path_fault())
     faults.extend(_module_shape_faults(ctx=ctx, code=code))
     faults.extend(_local_import_faults(ctx=ctx, code=code, local_test_types=local_test_types))
     if code in _test_function_rule_codes:
-        for fact in ctx.facts.test_functions():
-            faults.extend(
-                _test_function_faults(
-                    fact=fact,
-                    ctx=ctx,
-                    code=code,
-                    module_context=module_context,
-                )
-            )
+        locations_by_code: dict[SftCode, tuple[SourceLocation, ...]] = ctx._memoize(
+            key="tests.function_issue_locations",
+            operation=lambda: _test_function_issue_locations(
+                ctx=ctx,
+                module_context=module_context,
+            ),
+        )
+        faults.extend(ctx.fault_at(location=location) for location in locations_by_code[code])
     return faults
 
 
@@ -421,88 +422,75 @@ def _local_import_faults(
     return faults
 
 
-def _test_function_faults(
+def _test_function_issue_locations(
     *,
-    fact: PytestFunctionFact,
     ctx: RuleContext,
-    code: SftCode,
     module_context: _TestModuleContext,
-) -> list[Fault]:
-    faults: list[Fault] = []
-    if code == SftCode.TEST_FUNCTION_NAME and not _test_name_pattern.match(fact.name):
-        faults.append(ctx.fault_at(location=fact.location))
-    parametrize: ParametrizeFact | None = fact.parametrize
-    if parametrize is None:
-        if code == SftCode.DATACLASS_PARAMETRIZE:
-            faults.append(ctx.fault_at(location=fact.location))
-        return faults
-    test_case_present: bool = TestSymbol.TEST_CASE in fact.parameter_names
-    if code == SftCode.ACCEPTS_TEST_CASE and not test_case_present:
-        faults.append(ctx.fault_at(location=fact.location))
-    if code == SftCode.TEST_CASE_ANNOTATION and (
-        not test_case_present
-        or fact.test_case_annotation_name not in module_context.test_case_annotation_names
-    ):
-        faults.append(ctx.fault_at(location=fact.location))
-    faults.extend(
-        _parametrize_faults(
+) -> dict[SftCode, tuple[SourceLocation, ...]]:
+    grouped: dict[SftCode, list[SourceLocation]] = {code: [] for code in _test_function_rule_codes}
+    for fact in ctx.facts.test_functions():
+        if not _test_name_pattern.match(fact.name):
+            grouped[SftCode.TEST_FUNCTION_NAME].append(fact.location)
+        parametrize: ParametrizeFact | None = fact.parametrize
+        if parametrize is None:
+            grouped[SftCode.DATACLASS_PARAMETRIZE].append(fact.location)
+            continue
+        test_case_present: bool = TestSymbol.TEST_CASE in fact.parameter_names
+        if not test_case_present:
+            grouped[SftCode.ACCEPTS_TEST_CASE].append(fact.location)
+        if (
+            not test_case_present
+            or fact.test_case_annotation_name not in module_context.test_case_annotation_names
+        ):
+            grouped[SftCode.TEST_CASE_ANNOTATION].append(fact.location)
+        grouped = _append_parametrize_issue_locations(
             function=fact,
-            ctx=ctx,
-            code=code,
             decorator=parametrize,
             module_context=module_context,
+            grouped=grouped,
         )
-    )
-    if code == SftCode.EXPECTED_FIELD_ASSERTION and not fact.references_expected_field:
-        faults.append(ctx.fault_at(location=fact.location))
-    return faults
+        if not fact.references_expected_field:
+            grouped[SftCode.EXPECTED_FIELD_ASSERTION].append(fact.location)
+    return {code: tuple(locations) for code, locations in grouped.items()}
 
 
-def _parametrize_faults(
+def _append_parametrize_issue_locations(
     *,
     function: PytestFunctionFact,
-    ctx: RuleContext,
-    code: SftCode,
     decorator: ParametrizeFact,
     module_context: _TestModuleContext,
-) -> list[Fault]:
+    grouped: dict[SftCode, list[SourceLocation]],
+) -> dict[SftCode, list[SourceLocation]]:
     if decorator.argument_count < _minimum_parametrize_arguments:
-        return (
-            [ctx.fault_at(location=function.location)]
-            if code == SftCode.PARAMETRIZE_ARGUMENTS
-            else []
-        )
-    faults: list[Fault] = []
-    if code == SftCode.PARAMETRIZE_TEST_CASE and decorator.parameter_name != TestSymbol.TEST_CASE:
-        faults.append(ctx.fault_at(location=function.location))
-    if code == SftCode.PARAMETRIZE_IDS and not decorator.ids_present:
-        faults.append(ctx.fault_at(location=function.location))
+        grouped[SftCode.PARAMETRIZE_ARGUMENTS].append(function.location)
+        return grouped
+    if decorator.parameter_name != TestSymbol.TEST_CASE:
+        grouped[SftCode.PARAMETRIZE_TEST_CASE].append(function.location)
+    if not decorator.ids_present:
+        grouped[SftCode.PARAMETRIZE_IDS].append(function.location)
     if not decorator.values_is_sequence and not decorator.values_is_comprehension:
-        return faults + (
-            [ctx.fault_at(location=function.location)]
-            if code == SftCode.INLINE_PARAMETRIZE_VALUES
-            else []
-        )
+        grouped[SftCode.INLINE_PARAMETRIZE_VALUES].append(function.location)
+        return grouped
     if decorator.values_is_comprehension:
-        if code == SftCode.LOCAL_TEST_CASE_CONSTRUCTORS and not _is_local_constructor(
+        if not _is_local_constructor(
             constructor_name=decorator.cases[0].constructor_name, context=module_context
         ):
-            faults.append(ctx.fault_at(location=decorator.cases[0].location))
-        if code == SftCode.DESCRIPTION_LAMBDA_IDS and not decorator.description_lambda_ids:
-            faults.append(ctx.fault_at(location=function.location))
-        return faults
-    if code == SftCode.NONEMPTY_PARAMETRIZE_VALUES and decorator.values_empty:
-        faults.append(ctx.fault_at(location=function.location))
+            grouped[SftCode.LOCAL_TEST_CASE_CONSTRUCTORS].append(decorator.cases[0].location)
+        if not decorator.description_lambda_ids:
+            grouped[SftCode.DESCRIPTION_LAMBDA_IDS].append(function.location)
+        return grouped
+    if decorator.values_empty:
+        grouped[SftCode.NONEMPTY_PARAMETRIZE_VALUES].append(function.location)
     for case in decorator.cases:
-        if code == SftCode.NO_DICT_TEST_CASES and case.dictionary:
-            faults.append(ctx.fault_at(location=case.location))
-        elif code == SftCode.LOCAL_TEST_CASE_CONSTRUCTORS and not _is_local_constructor(
+        if case.dictionary:
+            grouped[SftCode.NO_DICT_TEST_CASES].append(case.location)
+        elif not _is_local_constructor(
             constructor_name=case.constructor_name, context=module_context
         ):
-            faults.append(ctx.fault_at(location=case.location))
-    if code == SftCode.DESCRIPTION_LAMBDA_IDS and not decorator.description_lambda_ids:
-        faults.append(ctx.fault_at(location=function.location))
-    return faults
+            grouped[SftCode.LOCAL_TEST_CASE_CONSTRUCTORS].append(case.location)
+    if not decorator.description_lambda_ids:
+        grouped[SftCode.DESCRIPTION_LAMBDA_IDS].append(function.location)
+    return grouped
 
 
 def _local_test_types(*, ctx: RuleContext, inspect_dataclasses: bool) -> _LocalTestTypes:

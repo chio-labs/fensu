@@ -282,6 +282,40 @@ def test_given_symlink_observation_when_target_changes_then_invalidates(
 @pytest.mark.parametrize(
     "test_case",
     [
+        DependencyInvalidationTestCase(
+            description="dangling symlink falls back and invalidates when its target appears",
+            expected_before=True,
+            expected_after=False,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_dangling_symlink_probe_when_target_appears_then_invalidates(
+    tmp_path: Path,
+    test_case: DependencyInvalidationTestCase,
+) -> None:
+    target: Path = tmp_path / "missing.py"
+    link: Path = tmp_path / "link.py"
+    link.symlink_to(target)
+    observation: DependencyObservation = DependencyObservation(
+        requester_path="src/pkg/models.py",
+        query_path="link.py",
+        dependency_path="missing.py",
+        kind=ProjectDependencyKind.EXISTS,
+        answer=False,
+    )
+
+    before: bool = dependencies_are_current(observations=(observation,), repo_root=tmp_path)
+    target.write_text("", encoding="utf-8")
+    after: bool = dependencies_are_current(observations=(observation,), repo_root=tmp_path)
+
+    assert before is test_case.expected_before
+    assert after is test_case.expected_after
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
         DependencyReuseTestCase(
             description="equivalent requester queries share one filesystem observation",
             requester_paths=("src/pkg/first.py", "src/pkg/second.py"),
@@ -306,8 +340,8 @@ def test_given_equivalent_dependency_queries_when_validating_batch_then_reuses_o
         )
         for requester_path in test_case.requester_paths
     )
-    observer: Mock = Mock(wraps=dependency_module._reobserve)
-    monkeypatch.setattr(dependency_module, "_reobserve", observer)
+    observer: Mock = Mock(wraps=dependency_module.observe_repository_stats)
+    monkeypatch.setattr(dependency_module, "observe_repository_stats", observer)
     states: DependencyStateCache = {}
 
     current: bool = dependencies_are_current(
@@ -318,3 +352,4 @@ def test_given_equivalent_dependency_queries_when_validating_batch_then_reuses_o
 
     assert current is test_case.expected_current
     assert observer.call_count == test_case.expected_observation_count
+    assert len(observer.call_args.kwargs["queries"]) == test_case.expected_observation_count

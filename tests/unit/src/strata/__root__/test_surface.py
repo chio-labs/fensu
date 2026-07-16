@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import subprocess
+import sys
+
 import pytest
 
 import strata
 from strata import Threshold
-from tests.unit.src.strata.__root__._test_types import PublicSurfaceTestCase
+from tests.unit.src.strata.__root__._test_types import (
+    LazyPublicSurfaceTestCase,
+    PublicSurfaceTestCase,
+)
 
 
 @pytest.mark.parametrize(
@@ -21,6 +27,7 @@ from tests.unit.src.strata.__root__._test_types import PublicSurfaceTestCase
                 "DataclassFact",
                 "DiscardedProjectCallFact",
                 "EvaluateRuleCallFact",
+                "ExecutionOwner",
                 "FactAnalysis",
                 "Fault",
                 "Family",
@@ -96,6 +103,7 @@ def test_given_strata_package_when_reading_all_then_matches_expected(
                 "DataclassFact",
                 "DiscardedProjectCallFact",
                 "EvaluateRuleCallFact",
+                "ExecutionOwner",
                 "FactAnalysis",
                 "Fault",
                 "Family",
@@ -160,3 +168,32 @@ def test_given_public_names_when_importing_then_all_resolve(
     assert all(item is not None for item in resolved)
     assert len(resolved) == len(test_case.expected_all)
     assert threshold.value == test_case.expected_threshold_value
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        LazyPublicSurfaceTestCase(
+            description="bare package import defers the rule evaluation harness",
+            expected_absent_module="strata.rules.testing.main.evaluate_rule",
+            expected_return_code=0,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_bare_package_import_when_loading_then_defers_testing_harness(
+    test_case: LazyPublicSurfaceTestCase,
+) -> None:
+    script: str = (
+        "import sys; import strata; raise SystemExit("
+        f"int({test_case.expected_absent_module!r} in sys.modules))"
+    )
+
+    completed: subprocess.CompletedProcess[str] = subprocess.run(
+        [sys.executable, "-c", script],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == test_case.expected_return_code

@@ -30,6 +30,16 @@ class EntryUsageTestCase:
 
 
 @dataclass(frozen=True)
+class EntryLazyImportTestCase:
+    """One lightweight option and command module expected to remain unloaded."""
+
+    description: str
+    argv: tuple[str, ...]
+    module_name: str
+    expected_imported: bool
+
+
+@dataclass(frozen=True)
 class InitAdapterTestCase:
     """Init argv and expected core options."""
 

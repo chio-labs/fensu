@@ -15,7 +15,8 @@ from strata.analysis.constants import FACT_BACKEND_ENV_VARIABLE  # noqa: E402
 from strata.analysis.main.select_fact_backend import select_fact_backend  # noqa: E402
 from strata.analysis.types import FactBackend  # noqa: E402
 from strata.config.models import Config  # noqa: E402
-from strata.discovery.models import ScopedFile  # noqa: E402
+from strata.discovery.models import DiscoveredTree, ScopedFile  # noqa: E402
+from strata.evaluation._helpers import parsing as parsing_module  # noqa: E402
 from strata.evaluation._helpers import project_analysis as project_analysis_module  # noqa: E402
 from strata.evaluation._helpers.parsing import prewarm_scoped_files  # noqa: E402
 from strata.evaluation._helpers.project_analysis import build_project_analysis  # noqa: E402
@@ -24,11 +25,13 @@ from strata.evaluation.models import ParsedModule  # noqa: E402
 from strata.evaluation.types import EvaluationProjectAnalysis  # noqa: E402
 from tests.unit.src.strata.evaluation._test_types import (  # noqa: E402
     PrewarmFallbackTestCase,
+    PrewarmFamilyPlanTestCase,
     PrewarmSeedTestCase,
 )
 from tests.unit.src.strata.evaluation.helpers import (  # noqa: E402
     discover_test_tree,
     write_scoped_source,
+    write_sources,
 )
 
 
@@ -71,6 +74,68 @@ def test_given_prewarmed_file_when_reading_parsed_module_then_skips_reparse(
     assert len(reparse_calls) == test_case.expected_reparse_calls
     assert parsed.scoped_file.path == scoped_file.path
     assert parsed.source == test_case.source.decode()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        PrewarmFamilyPlanTestCase(
+            description="prewarm extracts scope-planned fact families per file",
+            files=(
+                ("src/pkg/alpha/models.py", "VALUE: int = 1\n"),
+                ("tests/unit/test_example.py", "VALUE: int = 2\n"),
+            ),
+            expected_family_plans=(
+                (
+                    "annotations",
+                    "contracts",
+                    "control_flow",
+                    "declarations",
+                    "functions",
+                    "hygiene",
+                    "outer_state_mutations",
+                    "parameter_mutations",
+                    "references",
+                ),
+                (
+                    "annotations",
+                    "control_flow",
+                    "references",
+                    "test_functions",
+                    "test_module",
+                ),
+            ),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_mixed_scopes_when_prewarming_then_plans_families_by_scope(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: PrewarmFamilyPlanTestCase,
+) -> None:
+    monkeypatch.setenv(FACT_BACKEND_ENV_VARIABLE, FactBackend.NATIVE.value)
+    select_fact_backend.cache_clear()
+    write_sources(repo_root=tmp_path, files=test_case.files)
+    monkeypatch.chdir(tmp_path)
+    config: Config = Config(roots=("src/pkg",), tests=("tests",))
+    tree: DiscoveredTree = discover_test_tree(config=config)
+    project: EvaluationProjectAnalysis = build_project_analysis(tree=tree)
+    captured: list[tuple[object, tuple[str, ...]]] = []
+
+    def record_requests(*, requests: tuple[tuple[object, tuple[str, ...]], ...]) -> int:
+        captured.extend(requests)
+        return 0
+
+    monkeypatch.setattr(parsing_module, "extract_native_fact_rows", record_requests)
+    ordered_files: tuple[ScopedFile, ...] = tuple(
+        sorted(tree.files, key=lambda scoped_file: str(scoped_file.path))
+    )
+
+    prewarm_scoped_files(project=project, scoped_files=ordered_files)
+
+    select_fact_backend.cache_clear()
+    assert tuple(families for _, families in captured) == test_case.expected_family_plans
 
 
 @pytest.mark.parametrize(

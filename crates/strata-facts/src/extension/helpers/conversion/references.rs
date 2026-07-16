@@ -8,8 +8,6 @@ use crate::extension::helpers::conversion::annotations::location_object;
 use crate::extension::helpers::conversion::declarations::{location_tuple, to_object};
 use crate::extension::helpers::gateway::model_types::model_type;
 use crate::extension::helpers::gateway::program::ProgramHandle;
-use crate::facts::main::extract_references::extract_references;
-use crate::facts::main::extract_test_module::extract_test_module;
 use crate::facts::models::{ImportRow, ReferenceEventRow};
 
 pub(crate) fn reference_facts_object(
@@ -17,7 +15,7 @@ pub(crate) fn reference_facts_object(
     program: &ProgramHandle,
     path: &Bound<'_, PyAny>,
 ) -> PyResult<Py<PyAny>> {
-    let rows = extract_references(program.module(), program.index(), program.source());
+    let rows = program.reference_rows();
     let mut import_objects: Vec<Py<PyAny>> = Vec::with_capacity(rows.imports.len());
     for row in &rows.imports {
         import_objects.push(import_fact_object(py, path, row)?);
@@ -93,7 +91,7 @@ pub(crate) fn test_module_facts_object(
     program: &ProgramHandle,
     path: &Bound<'_, PyAny>,
 ) -> PyResult<Py<PyAny>> {
-    let rows = extract_test_module(program.module(), program.index(), program.source());
+    let rows = program.test_module_rows();
     let constructor = model_type(py, constants::PYTEST_MODULE_FACTS_NAME)?;
     let arguments = PyTuple::new(
         py,

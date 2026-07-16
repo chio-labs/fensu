@@ -38,6 +38,7 @@ class SftOperationTestCase:
     description: str
     expected_parse_count: int
     expected_layout_count: int
+    expected_function_issue_count: int
 
 
 @dataclass(frozen=True)

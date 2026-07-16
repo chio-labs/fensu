@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from strata.cache.fingerprints.main.build_global import build_global_fingerprint
 from strata.cache.fingerprints.models import CacheFingerprint, GlobalFingerprintBuild
@@ -11,16 +12,17 @@ from strata.cache.results.models import CacheEvaluation
 from strata.cli.models import CheckEvaluation
 from strata.config.models import Config
 from strata.discovery.models import DiscoveredTree
-from strata.evaluation.main.evaluate import evaluate
-from strata.evaluation.models import EvaluationResult
 from strata.instrumentation.constants import (
     OPERATION_COUNTERS,
     PHASE_CACHE_EVALUATION_NANOSECONDS,
     PHASE_FULL_EVALUATION_NANOSECONDS,
     PHASE_GLOBAL_FINGERPRINT_NANOSECONDS,
 )
-from strata.rules.authoring.models import RuleSpec
-from strata.rules.catalog.models import RuleSelection
+
+if TYPE_CHECKING:
+    from strata.evaluation.models import EvaluationResult
+    from strata.rules.authoring.models import RuleSpec
+    from strata.rules.catalog.models import RuleSelection
 
 
 def evaluated_check(
@@ -30,6 +32,10 @@ def evaluated_check(
     rule_selection: RuleSelection,
     project_dir: Path,
     warn: bool,
+    jobs: int | None = None,
+    invocation_dir: Path | None = None,
+    argument_paths: tuple[str, ...] = (),
+    cache_enabled: bool | None = None,
 ) -> CheckEvaluation:
     """Evaluate the tree with caching when available and return observability."""
 
@@ -54,12 +60,15 @@ def evaluated_check(
     if fingerprint_build is None or global_fingerprint is None:
         result: EvaluationResult = OPERATION_COUNTERS.measure(
             operation=PHASE_FULL_EVALUATION_NANOSECONDS,
-            callback=lambda: evaluate(
+            callback=lambda: _full_evaluation(
                 tree=tree,
-                ruleset=ruleset,
-                warning_rules=warning_rules,
                 config=config,
-                custom_rule_registrations=rule_selection.custom_registrations,
+                rule_selection=rule_selection,
+                warn=warn,
+                jobs=jobs,
+                invocation_dir=invocation_dir,
+                argument_paths=argument_paths,
+                cache_enabled=cache_enabled,
             ),
         )
         return CheckEvaluation(
@@ -92,4 +101,45 @@ def evaluated_check(
         surface_targets=cached.surface_targets,
         global_fingerprint=global_fingerprint,
         surface_index_fingerprint=cached.surface_index_fingerprint,
+    )
+
+
+def _full_evaluation(
+    *,
+    tree: DiscoveredTree,
+    config: Config,
+    rule_selection: RuleSelection,
+    warn: bool,
+    jobs: int | None,
+    invocation_dir: Path | None,
+    argument_paths: tuple[str, ...],
+    cache_enabled: bool | None,
+) -> EvaluationResult:
+    from strata.cli._helpers.parallel_evaluation import (
+        default_worker_count,
+        parallel_full_evaluation,
+    )
+
+    resolved_jobs: int = (
+        jobs if jobs is not None else default_worker_count(target_count=len(tree.files))
+    )
+    if resolved_jobs > 1 and invocation_dir is not None:
+        return parallel_full_evaluation(
+            tree=tree,
+            config=config,
+            rule_selection=rule_selection,
+            invocation_dir=invocation_dir,
+            argument_paths=argument_paths,
+            cache_enabled=cache_enabled,
+            warn=warn,
+            jobs=resolved_jobs,
+        )
+    from strata.evaluation.main.evaluate import evaluate
+
+    return evaluate(
+        tree=tree,
+        ruleset=rule_selection.blocking,
+        warning_rules=rule_selection.warnings if warn else (),
+        config=config,
+        custom_rule_registrations=rule_selection.custom_registrations,
     )

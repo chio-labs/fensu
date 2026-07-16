@@ -36,6 +36,7 @@ class CacheIndex:
     global_fingerprint: CacheFingerprint
     entries: tuple[CacheIndexEntry, ...]
     dependencies_fingerprint: CacheFingerprint | None = None
+    collection_fingerprint: CacheFingerprint | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,6 +82,14 @@ class CheckCacheContext:
     output: CachedCheckOutput | None
     observations: tuple[DependencyObservation, ...] | None
     index_fingerprint: CacheFingerprint | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class EditReplaySurface:
+    """Validated aggregate observations and collection inputs for edit replay."""
+
+    observations: tuple[DependencyObservation, ...]
+    contributions: tuple[CachedCollectionContribution, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -138,6 +147,17 @@ class CachedThresholdOverrideUse:
     reason: str
     override_order: int
     repository_path: str
+
+
+@dataclass(frozen=True, slots=True)
+class CachedCollectionContribution:
+    """One file's nonempty global-collection inputs within a cache generation."""
+
+    path: str
+    faults: tuple[CachedFault, ...]
+    warnings: tuple[CachedFault, ...]
+    applied_exception_keys: tuple[CachedRuleExceptionKey, ...]
+    threshold_override_uses: tuple[CachedThresholdOverrideUse, ...]
 
 
 @dataclass(frozen=True, slots=True)

@@ -12,6 +12,8 @@ from strata.cache.results._helpers.dependencies import dependencies_are_current
 from strata.cache.results._helpers.serialization import (
     check_output_from_record,
     check_output_to_record,
+    collection_from_record,
+    collection_to_record,
     dependencies_from_record,
     dependencies_to_record,
     dependency_observation_index,
@@ -25,6 +27,8 @@ from strata.cache.results._helpers.validation import is_fingerprint
 from strata.cache.results.constants import (
     CACHE_CHECK_OUTPUT_KIND,
     CACHE_CHECK_OUTPUT_PATH,
+    CACHE_COLLECTION_KIND,
+    CACHE_COLLECTION_PATH,
     CACHE_DEPENDENCIES_KIND,
     CACHE_DEPENDENCIES_PATH,
     CACHE_FILE_RESULT_KIND,
@@ -38,6 +42,7 @@ from strata.cache.results.constants import (
 )
 from strata.cache.results.models import (
     CachedCheckOutput,
+    CachedCollectionContribution,
     CachedFileResult,
     CacheIndex,
     CacheIndexEntry,
@@ -46,6 +51,7 @@ from strata.cache.results.models import (
     CacheStats,
     CheckCacheContext,
     DependencyObservation,
+    EditReplaySurface,
     PublicationPreparation,
 )
 from strata.cache.results.types import DependencyReferenceKey, DependencyStateCache
@@ -80,6 +86,8 @@ class ResultCache:
         evaluations: tuple[FileEvaluation, ...],
         retained_entries: tuple[CacheIndexEntry, ...] = (),
         retained_results: tuple[CachedFileResult, ...] = (),
+        retained_observations: tuple[DependencyObservation, ...] | None = None,
+        collection: tuple[CachedCollectionContribution, ...] | None = None,
     ) -> CacheStats:
         """Merge, publish, and sweep one complete generation in one transaction."""
 
@@ -91,6 +99,7 @@ class ResultCache:
         aggregate: tuple[DependencyObservation, ...] | None = _aggregated_observations(
             preparation=preparation,
             retained_results=retained_results,
+            retained_observations=retained_observations,
         )
         if (
             not preparation.candidates
@@ -100,6 +109,7 @@ class ResultCache:
                 retained_entries=retained_entries,
             )
             and self._aggregate_is_current(aggregate=aggregate)
+            and self._collection_is_current(collection=collection)
         ):
             return CacheStats(
                 misses=len(evaluations),
@@ -118,6 +128,7 @@ class ResultCache:
                 preparation=preparation,
                 retained_entries=retained_entries,
                 aggregate=aggregate,
+                collection=collection,
             ),
         )
         conflicted: bool = _publication_conflicted(outcome)
@@ -170,6 +181,21 @@ class ResultCache:
             return False
         return dependencies_from_record(existing) == aggregate
 
+    def _collection_is_current(
+        self,
+        *,
+        collection: tuple[CachedCollectionContribution, ...] | None,
+    ) -> bool:
+        if collection is None:
+            return True
+        existing: CacheRecord | None = self._store.read(
+            relative_path=CACHE_COLLECTION_PATH,
+            expected_kind=CACHE_COLLECTION_KIND,
+        )
+        if existing is None:
+            return False
+        return collection_from_record(existing) == collection
+
     def _merged_mutation(
         self,
         *,
@@ -178,6 +204,7 @@ class ResultCache:
         preparation: PublicationPreparation,
         retained_entries: tuple[CacheIndexEntry, ...],
         aggregate: tuple[DependencyObservation, ...] | None,
+        collection: tuple[CachedCollectionContribution, ...] | None,
     ) -> CacheMutation | None:
         existing_index: CacheIndex | None = _decoded_index(
             metadata_record=records[0],
@@ -207,6 +234,18 @@ class ResultCache:
                     encoded=aggregate_encoded,
                 )
             )
+        collection_fingerprint: CacheFingerprint | None = None
+        if collection is not None and aggregate is not None:
+            collection_record: CacheRecord = collection_to_record(collection)
+            collection_encoded: bytes = encode_record(record=collection_record)
+            collection_fingerprint = fingerprint_source(collection_encoded)
+            writes.append(
+                EncodedCacheWrite(
+                    relative_path=CACHE_COLLECTION_PATH,
+                    kind=CACHE_COLLECTION_KIND,
+                    encoded=collection_encoded,
+                )
+            )
         for candidate in preparation.candidates:
             entries.append(candidate.entry)
             existing_entry: CacheIndexEntry | None = existing_entries.get(candidate.entry.path)
@@ -225,6 +264,7 @@ class ResultCache:
             global_fingerprint=global_fingerprint,
             entries=tuple(sorted(entries, key=lambda entry: entry.path)),
             dependencies_fingerprint=dependencies_fingerprint,
+            collection_fingerprint=collection_fingerprint,
         )
         if index != existing_index:
             index_record: CacheRecord = index_to_record(index)
@@ -260,6 +300,8 @@ class ResultCache:
         )
         if aggregate is None:
             deleted_paths.append(CACHE_DEPENDENCIES_PATH)
+        if collection_fingerprint is None:
+            deleted_paths.append(CACHE_COLLECTION_PATH)
         return CacheMutation(
             writes=tuple(writes),
             swept_prefix=CACHE_RESULTS_DIRECTORY if existing_index is None else None,
@@ -341,6 +383,50 @@ class ResultCache:
             observations=observations,
             index_fingerprint=context.index_fingerprint,
         )
+
+    def load_edit_surface(
+        self,
+        *,
+        context: CheckCacheContext,
+    ) -> EditReplaySurface | None:
+        """Load fingerprint-bound observations and collection inputs for edit replay."""
+
+        if (
+            context.index is None
+            or context.index.dependencies_fingerprint is None
+            or context.index.collection_fingerprint is None
+        ):
+            return None
+        records: tuple[CacheRecord | None, ...] = self._store.read_batch(
+            reads=(
+                CacheRead(
+                    relative_path=CACHE_DEPENDENCIES_PATH,
+                    expected_kind=CACHE_DEPENDENCIES_KIND,
+                ),
+                CacheRead(
+                    relative_path=CACHE_COLLECTION_PATH,
+                    expected_kind=CACHE_COLLECTION_KIND,
+                ),
+            )
+        )
+        dependencies_record: CacheRecord | None = records[0]
+        collection_record: CacheRecord | None = records[1]
+        if (
+            dependencies_record is None
+            or collection_record is None
+            or dependencies_record.content_fingerprint != context.index.dependencies_fingerprint
+            or collection_record.content_fingerprint != context.index.collection_fingerprint
+        ):
+            return None
+        observations: tuple[DependencyObservation, ...] | None = dependencies_from_record(
+            dependencies_record
+        )
+        contributions: tuple[CachedCollectionContribution, ...] | None = collection_from_record(
+            collection_record
+        )
+        if observations is None or contributions is None:
+            return None
+        return EditReplaySurface(observations=observations, contributions=contributions)
 
     def store_check_output(
         self,
@@ -650,14 +736,20 @@ def _aggregated_observations(
     *,
     preparation: PublicationPreparation,
     retained_results: tuple[CachedFileResult, ...],
+    retained_observations: tuple[DependencyObservation, ...] | None = None,
 ) -> tuple[DependencyObservation, ...] | None:
     if preparation.observations_conflicted:
         return None
     merged: dict[tuple[str, str, str | None, bool], DependencyObservation] = {
         _observation_key(observation): observation for observation in preparation.observations
     }
-    for result in retained_results:
-        for observation in result.dependencies:
+    retained: list[tuple[DependencyObservation, ...]] = [
+        result.dependencies for result in retained_results
+    ]
+    if retained_observations is not None:
+        retained.append(retained_observations)
+    for observations in retained:
+        for observation in observations:
             key: tuple[str, str, str | None, bool] = _observation_key(observation)
             existing: DependencyObservation | None = merged.get(key)
             if existing is None:

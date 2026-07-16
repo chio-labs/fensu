@@ -3,6 +3,7 @@
 from strata.config.exceptions import ConfigError
 from strata.config.main.path_matches import path_matches
 from strata.config.models import EvaluationConfig
+from strata.discovery.constants import SNAPSHOT_TABLE
 from strata.discovery.models import DiscoveredTree, ScopedFile
 from strata.evaluation.models import EvaluationSelection
 
@@ -21,7 +22,7 @@ def select_evaluation_files(
             filtered=False,
         )
     repository_paths: tuple[tuple[ScopedFile, str], ...] = tuple(
-        (scoped_file, scoped_file.path.relative_to(tree.repo_root.path).as_posix())
+        (scoped_file, _repository_path(tree=tree, scoped_file=scoped_file))
         for scoped_file in tree.files
     )
     for pattern in config.include:
@@ -45,3 +46,13 @@ def select_evaluation_files(
         excluded_count=discovered_count - len(selected),
         filtered=bool(config.include or config.exclude),
     )
+
+
+def _repository_path(*, tree: DiscoveredTree, scoped_file: ScopedFile) -> str:
+    snapshot_path: str | None = SNAPSHOT_TABLE.relative_path(
+        path=scoped_file.path,
+        repo_root=tree.repo_root.path,
+    )
+    if snapshot_path is not None:
+        return snapshot_path
+    return scoped_file.path.relative_to(tree.repo_root.path).as_posix()

@@ -1,7 +1,18 @@
-"""Type stubs for the native fact-extraction extension."""
+"""Type stubs for Strata's private native extension."""
 
 from pathlib import Path
 from typing import Any
+
+type MemorySummary = tuple[int, int, int, int, int, int, int, int, int]
+type SyncSummary = tuple[int, int, int, int, int, bool, bool, int, int, int]
+type MemoryOverview = tuple[int, int, int, int, int, int, int, int, int, int, int, int]
+type MemorySchemaRelationSummary = tuple[str, str, str]
+type MemorySchema = tuple[int, int, tuple[MemorySchemaRelationSummary, ...]]
+type MemorySchemaColumn = tuple[str, str, bool, str]
+type MemoryRelationSchema = tuple[str, str, str, tuple[MemorySchemaColumn, ...]]
+type MemoryQueryValue = (
+    None | bool | int | float | str | list[MemoryQueryValue] | dict[str, MemoryQueryValue]
+)
 
 class ProgramHandle: ...
 
@@ -38,3 +49,19 @@ def walk_python_files(
     roots: list[Path],
 ) -> list[list[tuple[Path, Path | None, list[str] | None]]]: ...
 def hash_source_files(paths: list[Path]) -> list[str | None]: ...
+def memory_summary(repository_root: Path) -> MemorySummary: ...
+def memory_rebuild(repository_root: Path, database_path: Path) -> MemorySummary: ...
+def memory_sync(repository_root: Path, database_path: Path) -> SyncSummary: ...
+def memory_overview(database_path: Path) -> MemoryOverview: ...
+def memory_schema_sql() -> str: ...
+def memory_schema() -> MemorySchema: ...
+def memory_relation_schema(name: str) -> MemoryRelationSchema | None: ...
+def memory_query(
+    database_path: Path, sql: str, limit: int
+) -> tuple[
+    tuple[str, ...],
+    tuple[str, ...],
+    tuple[tuple[MemoryQueryValue, ...], ...],
+    bool,
+]: ...
+def memory_dependency_probe(repository_root: Path) -> str: ...

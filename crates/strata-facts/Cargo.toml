@@ -11,7 +11,7 @@ workspace = true
 [lib]
 name = "strata_facts"
 path = "src/lib.rs"
-crate-type = ["cdylib", "rlib"]
+crate-type = ["rlib"]
 
 [dependencies]
 dunce.workspace = true
@@ -23,6 +23,3 @@ ruff_python_parser.workspace = true
 ruff_text_size.workspace = true
 sha2.workspace = true
 walkdir.workspace = true
-
-[features]
-extension-module = ["pyo3/extension-module"]

@@ -34,6 +34,8 @@ from strata.config.models import (
     CacheConfig,
     Config,
     EvaluationConfig,
+    MemoryConfig,
+    MemoryTasksConfig,
     SkillsConfig,
     ThresholdOverride,
 )
@@ -55,6 +57,7 @@ from tests.unit.src.strata.cache.fingerprints._test_types import (
     GlobalFingerprintTestCase,
     GlobalRuntimeFingerprintTestCase,
     ImplementationFingerprintTestCase,
+    MemoryPreferenceFingerprintTestCase,
     NativeBackendFingerprintTestCase,
     RulesetExecutionOwnerFingerprintTestCase,
     RulesetFingerprintTestCase,
@@ -357,6 +360,45 @@ def test_given_cache_preferences_when_fingerprinting_then_excludes_operational_m
         Config(
             roots=("src/pkg",),
             cache=CacheConfig(enabled=test_case.second_enabled),
+        )
+    )
+
+    assert (first == second) is test_case.expected_equal
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        MemoryPreferenceFingerprintTestCase(
+            description="memory preferences do not alter diagnostic identity",
+            first_enabled=False,
+            second_enabled=True,
+            first_archive_after_days=7,
+            second_archive_after_days=30,
+            expected_equal=True,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_memory_preferences_when_fingerprinting_then_excludes_operational_state(
+    test_case: MemoryPreferenceFingerprintTestCase,
+) -> None:
+    first: CacheFingerprint = config_fingerprint(
+        Config(
+            roots=("src/pkg",),
+            memory=MemoryConfig(
+                enabled=test_case.first_enabled,
+                tasks=MemoryTasksConfig(archive_after_days=test_case.first_archive_after_days),
+            ),
+        )
+    )
+    second: CacheFingerprint = config_fingerprint(
+        Config(
+            roots=("src/pkg",),
+            memory=MemoryConfig(
+                enabled=test_case.second_enabled,
+                tasks=MemoryTasksConfig(archive_after_days=test_case.second_archive_after_days),
+            ),
         )
     )
 

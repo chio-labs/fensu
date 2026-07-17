@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: benchmark benchmark-budget benchmark-profile check check-rust develop-native self-check skills test test-e2e test-integration test-rust test-unit verify
+.PHONY: benchmark benchmark-budget benchmark-profile check check-rust develop-memory develop-native self-check skills test test-e2e test-integration test-memory test-rust test-unit verify
 
 BENCHMARK_PROJECT ?= ../sqlbuild
 BENCHMARK_RUNS ?= 5
@@ -32,6 +32,9 @@ test-rust:
 develop-native:
 	uv sync --reinstall-package stratalint
 
+develop-memory:
+	uvx --from 'maturin>=1.14,<2' maturin develop --uv --features extension-module,memory
+
 self-check:
 	uv run strata check
 
@@ -46,6 +49,9 @@ test-unit:
 
 test-integration:
 	uv run pytest tests/integration -q -n auto
+
+test-memory:
+	cargo test -p strata-memory --features duckdb-engine
 
 test-e2e:
 	uv run pytest tests/e2e -q -n auto

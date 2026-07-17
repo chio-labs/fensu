@@ -22,12 +22,59 @@ from tests.unit.src.strata.config._test_types import (
     ConfigListFieldTestCase,
     ConfigThresholdTestCase,
     EvaluationConfigTestCase,
+    MemoryConfigTestCase,
     RuleExceptionConfigTestCase,
     SkillsConfigTestCase,
     ThresholdOverrideConfigTestCase,
     ThresholdResolutionTestCase,
 )
 from tests.unit.src.strata.config.helpers import write_strata_toml
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        MemoryConfigTestCase(
+            description="omitted memory table applies disabled retention defaults",
+            config_text='roots = ["src/pkg"]\n',
+            expected_enabled=False,
+            expected_archive_after_days=7,
+        ),
+        MemoryConfigTestCase(
+            description="memory table enables persistence and overrides task retention",
+            config_text=(
+                'roots = ["src/pkg"]\n[memory]\nenabled = true\n'
+                "[memory.tasks]\narchive_after_days = 30\n"
+            ),
+            expected_enabled=True,
+            expected_archive_after_days=30,
+        ),
+        MemoryConfigTestCase(
+            description="zero archive age disables automatic task age eligibility",
+            config_text=('roots = ["src/pkg"]\n[memory.tasks]\narchive_after_days = 0\n'),
+            expected_enabled=False,
+            expected_archive_after_days=0,
+        ),
+        MemoryConfigTestCase(
+            description="archive age has no arbitrary upper bound",
+            config_text=(
+                'roots = ["src/pkg"]\n[memory.tasks]\narchive_after_days = 9223372036854775807\n'
+            ),
+            expected_enabled=False,
+            expected_archive_after_days=9223372036854775807,
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_memory_preferences_when_loading_then_applies_nested_defaults_and_overrides(
+    tmp_path: Path, test_case: MemoryConfigTestCase
+) -> None:
+    write_strata_toml(root=tmp_path, contents=test_case.config_text)
+
+    config: Config = load_config(tmp_path)
+
+    assert config.memory.enabled is test_case.expected_enabled
+    assert config.memory.tasks.archive_after_days == test_case.expected_archive_after_days
 
 
 @pytest.mark.parametrize(

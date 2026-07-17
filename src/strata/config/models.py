@@ -10,6 +10,8 @@ from types import MappingProxyType
 from strata.config.constants import (
     DEFAULT_CACHE_ENABLED,
     DEFAULT_CONTRACTS,
+    DEFAULT_MEMORY_ENABLED,
+    DEFAULT_MEMORY_TASKS_ARCHIVE_AFTER_DAYS,
     DEFAULT_THRESHOLDS,
 )
 from strata.config.types import ConfigSourceKind
@@ -48,6 +50,21 @@ class CacheConfig:
 
     enabled: bool
     require_cacheable: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class MemoryTasksConfig:
+    """Task retention preferences for Strata Memory."""
+
+    archive_after_days: int = DEFAULT_MEMORY_TASKS_ARCHIVE_AFTER_DAYS
+
+
+@dataclass(frozen=True, slots=True)
+class MemoryConfig:
+    """Operational Strata Memory preferences."""
+
+    enabled: bool = DEFAULT_MEMORY_ENABLED
+    tasks: MemoryTasksConfig = field(default_factory=MemoryTasksConfig)
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,3 +134,4 @@ class Config:
     contracts: Mapping[str, str] = field(
         default_factory=lambda: MappingProxyType(dict(DEFAULT_CONTRACTS))
     )
+    memory: MemoryConfig = field(default_factory=MemoryConfig)

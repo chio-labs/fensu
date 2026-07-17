@@ -1,0 +1,112 @@
+"""Typed conversion at the private native memory boundary."""
+
+from __future__ import annotations
+
+import strata._native as _native
+from strata.memory.constants import MEMORY_SCHEMA_PREFIX
+from strata.memory.exceptions import MemoryOperationError, MemoryRelationNotFoundError
+from strata.memory.models import (
+    MemoryIndexSummary,
+    MemoryOverview,
+    MemoryProject,
+    MemoryQueryResult,
+    MemoryRelationSchema,
+    MemorySchema,
+    MemorySchemaColumn,
+    MemorySchemaRelation,
+    MemorySyncSummary,
+)
+
+
+def synchronize(project: MemoryProject) -> MemorySyncSummary:
+    """Synchronize repository memory sources through the native engine."""
+
+    try:
+        values: tuple[int, int, int, int, int, bool, bool, int, int, int] = _native.memory_sync(
+            project.repository_root, project.database_path
+        )
+    except RuntimeError as error:
+        raise MemoryOperationError(f"Memory sync failed: {error}") from error
+    return MemorySyncSummary(*values)
+
+
+def rebuild(project: MemoryProject) -> MemoryIndexSummary:
+    """Rebuild the persistent memory index through the native engine."""
+
+    try:
+        values: tuple[int, int, int, int, int, int, int, int, int] = _native.memory_rebuild(
+            project.repository_root, project.database_path
+        )
+    except RuntimeError as error:
+        raise MemoryOperationError(f"Memory rebuild failed: {error}") from error
+    return MemoryIndexSummary(*values)
+
+
+def overview(project: MemoryProject) -> MemoryOverview:
+    """Read current memory counts through the native engine."""
+
+    try:
+        values: tuple[int, int, int, int, int, int, int, int, int, int, int, int] = (
+            _native.memory_overview(project.database_path)
+        )
+    except RuntimeError as error:
+        raise MemoryOperationError(f"Memory overview failed: {error}") from error
+    return MemoryOverview(*values)
+
+
+def schema_overview() -> MemorySchema:
+    """Read compiled public schema metadata through the native engine."""
+
+    try:
+        schema_version, parser_version, raw_relations = _native.memory_schema()
+    except RuntimeError as error:
+        raise MemoryOperationError(f"Memory schema failed: {error}") from error
+    relations: tuple[MemorySchemaRelation, ...] = tuple(
+        MemorySchemaRelation(name=name, kind=kind, comment=comment)
+        for name, kind, comment in raw_relations
+    )
+    return MemorySchema(
+        schema_version=schema_version,
+        parser_contract_version=parser_version,
+        relations=relations,
+    )
+
+
+def relation_schema(name: str) -> MemoryRelationSchema:
+    """Read compiled metadata for one qualified public relation."""
+
+    qualified: str = name if name.startswith(MEMORY_SCHEMA_PREFIX) else MEMORY_SCHEMA_PREFIX + name
+    try:
+        raw_relation: tuple[str, str, str, tuple[tuple[str, str, bool, str], ...]] | None = (
+            _native.memory_relation_schema(qualified)
+        )
+    except RuntimeError as error:
+        raise MemoryOperationError(f"Memory schema failed: {error}") from error
+    if raw_relation is None:
+        raise MemoryRelationNotFoundError(f"Unknown memory relation: {qualified}")
+    relation_name, kind, comment, raw_columns = raw_relation
+    columns: tuple[MemorySchemaColumn, ...] = tuple(
+        MemorySchemaColumn(
+            name=column_name,
+            data_type=data_type,
+            nullable=nullable,
+            comment=column_comment,
+        )
+        for column_name, data_type, nullable, column_comment in raw_columns
+    )
+    return MemoryRelationSchema(
+        name=relation_name,
+        kind=kind,
+        comment=comment,
+        columns=columns,
+    )
+
+
+def query(*, project: MemoryProject, sql: str, limit: int) -> MemoryQueryResult:
+    """Run one bounded read-only query through the native engine."""
+
+    try:
+        columns, types, rows, truncated = _native.memory_query(project.database_path, sql, limit)
+    except RuntimeError as error:
+        raise MemoryOperationError(f"Memory query failed: {error}") from error
+    return MemoryQueryResult(columns=columns, types=types, rows=rows, truncated=truncated)

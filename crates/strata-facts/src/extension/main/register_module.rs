@@ -1,6 +1,5 @@
-//! Register the strata_facts Python module surface.
+//! Register native fact-extraction functions on the umbrella extension.
 
-use pyo3::pymodule;
 use pyo3::types::{PyModule, PyModuleMethods};
 use pyo3::wrap_pyfunction;
 use pyo3::{Bound, PyResult};
@@ -11,8 +10,7 @@ use crate::extension::helpers::gateway::repository_bindings;
 use crate::extension::helpers::gateway::rule_authoring_bindings;
 
 /// Expose the native fact-extraction functions to Python.
-#[pymodule]
-pub fn strata_facts(module: &Bound<'_, PyModule>) -> PyResult<()> {
+pub fn register_fact_functions(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(bindings::annotation_facts, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::backend_version, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::check_syntax, module)?)?;

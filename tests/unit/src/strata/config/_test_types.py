@@ -85,6 +85,16 @@ class CacheConfigTestCase:
 
 
 @dataclass(frozen=True)
+class MemoryConfigTestCase:
+    """Memory preferences and their expected normalized values."""
+
+    description: str
+    config_text: str
+    expected_enabled: bool
+    expected_archive_after_days: int
+
+
+@dataclass(frozen=True)
 class EvaluationConfigTestCase:
     """Evaluation path configuration and its expected normalized values."""
 

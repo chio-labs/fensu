@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "stratalint"
-version = "0.18.0"
+version = "0.18.1"
 description = "Architecture linting for Python repositories"
 readme = "README.md"
 requires-python = ">=3.12"

@@ -22,8 +22,8 @@ from strata.rules.authoring.main.matches_rule_selector import matches_rule_selec
 from strata.rules.authoring.models import CustomRuleRegistration, RuleSpec
 from strata.rules.authoring.types import Family, RuleKind
 from strata.rules.catalog._helpers.hermeticity import validate_cacheable_rules
-from strata.rules.catalog._helpers.module_use import check_uses_module
 from strata.rules.catalog.constants import CORE_RULES
+from strata.rules.catalog.main.check_module_use import check_uses_module
 from strata.rules.catalog.models import RuleSelection
 
 

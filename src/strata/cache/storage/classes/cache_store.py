@@ -97,12 +97,12 @@ class CacheStore:
             )
             connection.execute("PRAGMA query_only = ON")
             connection.execute("BEGIN")
-            if not _database_identity_is_current(connection):
-                return misses
             rows_by_key: dict[str, tuple[object, ...]] = _fetch_rows(
                 connection=connection,
                 keys=tuple(key for key, _ in keyed_reads),
             )
+            if not _database_identity_is_current(connection):
+                return misses
             return tuple(
                 _decode_row(row=rows_by_key.get(key), expected_kind=expected_kind)
                 for key, expected_kind in keyed_reads
@@ -237,8 +237,10 @@ class CacheStore:
             )
             connection.execute(f"PRAGMA busy_timeout = {CACHE_DATABASE_BUSY_TIMEOUT_MS}")
             journal_mode: tuple[object, ...] | None = connection.execute(
-                "PRAGMA journal_mode = WAL"
+                "PRAGMA journal_mode"
             ).fetchone()
+            if journal_mode is not None and str(journal_mode[0]).lower() != CACHE_DATABASE_WAL_MODE:
+                journal_mode = connection.execute("PRAGMA journal_mode = WAL").fetchone()
             if journal_mode is None or str(journal_mode[0]).lower() != CACHE_DATABASE_WAL_MODE:
                 _close_connection(connection)
                 return None

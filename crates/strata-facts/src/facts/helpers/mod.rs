@@ -10,6 +10,7 @@ pub mod metrics;
 pub mod naming;
 pub mod project;
 pub mod references;
+pub mod rule_authoring;
 pub mod shape;
 pub mod state;
 pub mod wording;

@@ -13,7 +13,7 @@ from strata.analysis._helpers.control_flow import (
     function_conditional_facts,
     test_conditional_locations,
 )
-from strata.analysis._helpers.declarations import module_declaration_facts
+from strata.analysis._helpers.declarations import class_declaration_facts, module_declaration_facts
 from strata.analysis._helpers.function_metrics import (
     dataclass_facts,
     function_facts,
@@ -24,8 +24,16 @@ from strata.analysis._helpers.locations import line_offsets, source_range
 from strata.analysis._helpers.outer_state import (
     outer_state_mutation_nodes,
     parameter_mutation_facts,
+    parameter_mutation_occurrence_facts,
 )
-from strata.analysis._helpers.references import reference_facts, test_module_facts
+from strata.analysis._helpers.references import (
+    assignment_reference_facts,
+    comparison_facts,
+    local_call_edge_facts,
+    named_call_facts,
+    reference_facts,
+    test_module_facts,
+)
 from strata.analysis._helpers.returns import (
     function_contract_facts,
     project_call_facts,
@@ -34,17 +42,23 @@ from strata.analysis._helpers.returns import (
 from strata.analysis.classes.harness_use_extractor import HarnessUseExtractor
 from strata.analysis.models import (
     AnnotationFacts,
+    AssignmentReferenceFact,
+    ClassDeclarationFact,
     CommentFact,
+    ComparisonFact,
     DataclassFact,
     EvaluateRuleCallFact,
     FunctionConditionalFact,
     FunctionContractFact,
     FunctionFacts,
     HygieneFacts,
+    LocalCallEdgeFact,
     MeaningfulReturnFact,
     ModuleDeclarationFacts,
+    NamedCallFact,
     OuterStateMutationFact,
     ParameterMutationFact,
+    ParameterMutationOccurrenceFact,
     ProjectCallFacts,
     ProjectFunctionFact,
     PytestFunctionFact,
@@ -76,7 +90,10 @@ class PythonFactAnalysis:
         self._node_index: Mapping[type[ast.AST], tuple[ast.AST, ...]] = node_index
         self._parent_by_node: Mapping[ast.AST, ast.AST] = parent_by_node
         self._annotations: AnnotationFacts | None = None
+        self._assignment_references: tuple[AssignmentReferenceFact, ...] | None = None
+        self._class_declarations: tuple[ClassDeclarationFact, ...] | None = None
         self._comments: tuple[CommentFact, ...] | None = None
+        self._comparisons: tuple[ComparisonFact, ...] | None = None
         self._dataclasses: tuple[DataclassFact, ...] | None = None
         self._complex_comprehensions: tuple[SourceLocation, ...] | None = None
         self._function_conditionals: tuple[FunctionConditionalFact, ...] | None = None
@@ -85,9 +102,14 @@ class PythonFactAnalysis:
         self._hygiene: HygieneFacts | None = None
         self._harness_use_extractor: HarnessUseExtractor | None = None
         self._meaningful_returns: dict[tuple[str, ...], tuple[MeaningfulReturnFact, ...]] = {}
+        self._local_call_edges: tuple[LocalCallEdgeFact, ...] | None = None
         self._module_declarations: ModuleDeclarationFacts | None = None
+        self._named_calls: tuple[NamedCallFact, ...] | None = None
         self._outer_state_mutations: tuple[OuterStateMutationFact, ...] | None = None
         self._parameter_mutations: tuple[ParameterMutationFact, ...] | None = None
+        self._parameter_mutation_occurrences: tuple[ParameterMutationOccurrenceFact, ...] | None = (
+            None
+        )
         self._project_calls: ProjectCallFacts | None = None
         self._project_functions: tuple[ProjectFunctionFact, ...] | None = None
         self._references: ReferenceFacts | None = None
@@ -105,6 +127,28 @@ class PythonFactAnalysis:
                 node_index=self._node_index,
             )
         return self._annotations
+
+    def assignment_references(self) -> tuple[AssignmentReferenceFact, ...]:
+        """Return assignments with lexical owners and strict RHS references."""
+
+        if self._assignment_references is None:
+            self._assignment_references = assignment_reference_facts(
+                path=self._path,
+                nodes=self._nodes,
+                parent_by_node=self._parent_by_node,
+            )
+        return self._assignment_references
+
+    def class_declarations(self) -> tuple[ClassDeclarationFact, ...]:
+        """Return class declarations and direct methods in traversal order."""
+
+        if self._class_declarations is None:
+            self._class_declarations = class_declaration_facts(
+                path=self._path,
+                node_index=self._node_index,
+                parent_by_node=self._parent_by_node,
+            )
+        return self._class_declarations
 
     def comments(self) -> tuple[CommentFact, ...]:
         """Return source comments in token order."""
@@ -129,6 +173,13 @@ class PythonFactAnalysis:
                 node_index=self._node_index,
             )
         return self._complex_comprehensions
+
+    def comparisons(self) -> tuple[ComparisonFact, ...]:
+        """Return comparisons with position-aligned operand references."""
+
+        if self._comparisons is None:
+            self._comparisons = comparison_facts(path=self._path, nodes=self._nodes)
+        return self._comparisons
 
     def outer_state_mutations(self) -> tuple[OuterStateMutationFact, ...]:
         """Return direct mutations resolving to state owned by an outer scope."""
@@ -178,6 +229,18 @@ class PythonFactAnalysis:
                 parent_by_node=self._parent_by_node,
             )
         return self._parameter_mutations
+
+    def parameter_mutation_occurrences(self) -> tuple[ParameterMutationOccurrenceFact, ...]:
+        """Return every direct mutation occurrence of function parameters."""
+
+        if self._parameter_mutation_occurrences is None:
+            self._parameter_mutation_occurrences = parameter_mutation_occurrence_facts(
+                path=self._path,
+                nodes=self._nodes,
+                node_index=self._node_index,
+                parent_by_node=self._parent_by_node,
+            )
+        return self._parameter_mutation_occurrences
 
     def project_calls(self) -> ProjectCallFacts:
         """Return project-resolvable discarded calls."""
@@ -264,6 +327,28 @@ class PythonFactAnalysis:
                 node_index=self._node_index,
             )
         return self._module_declarations
+
+    def local_call_edges(self) -> tuple[LocalCallEdgeFact, ...]:
+        """Return calls attributed to every enclosing named function."""
+
+        if self._local_call_edges is None:
+            self._local_call_edges = local_call_edge_facts(
+                path=self._path,
+                nodes=self._nodes,
+                parent_by_node=self._parent_by_node,
+            )
+        return self._local_call_edges
+
+    def named_calls(self) -> tuple[NamedCallFact, ...]:
+        """Return all calls with nearest-first lexical owner chains."""
+
+        if self._named_calls is None:
+            self._named_calls = named_call_facts(
+                path=self._path,
+                nodes=self._nodes,
+                parent_by_node=self._parent_by_node,
+            )
+        return self._named_calls
 
     def references(self) -> ReferenceFacts:
         """Return import and attribute-reference facts."""

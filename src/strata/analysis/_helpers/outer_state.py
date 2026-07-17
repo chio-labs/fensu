@@ -8,7 +8,7 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from strata.analysis._helpers.locations import source_location
-from strata.analysis.models import ParameterMutationFact
+from strata.analysis.models import ParameterMutationFact, ParameterMutationOccurrenceFact
 
 _mutator_methods: frozenset[str] = frozenset(
     {"add", "append", "clear", "extend", "insert", "pop", "remove", "setdefault", "update"}
@@ -142,6 +142,96 @@ def parameter_mutation_facts(
                 ParameterMutationFact(
                     function_name=node.name,
                     parameter_name=parameter_name,
+                    location=source_location(path=path, node=mutation),
+                    returned=parameter_name in function_returned_names,
+                    dunder=node.name.startswith("__") and node.name.endswith("__"),
+                    setter=any(
+                        _decorator_name(decorator).endswith(".setter")
+                        for decorator in node.decorator_list
+                    ),
+                )
+            )
+    return tuple(facts)
+
+
+def _parameter_kinds(node: ast.FunctionDef | ast.AsyncFunctionDef) -> dict[str, str]:
+    kinds: dict[str, str] = {}
+    for argument in node.args.posonlyargs:
+        kinds[argument.arg] = "positional_only"
+    for argument in node.args.args:
+        kinds[argument.arg] = "positional_or_keyword"
+    for argument in node.args.kwonlyargs:
+        kinds[argument.arg] = "keyword_only"
+    if node.args.vararg is not None:
+        kinds[node.args.vararg.arg] = "vararg"
+    if node.args.kwarg is not None:
+        kinds[node.args.kwarg.arg] = "kwarg"
+    for name in _exempt_parameters:
+        kinds.pop(name, None)
+    return kinds
+
+
+def parameter_mutation_occurrence_facts(
+    *,
+    path: Path,
+    nodes: tuple[ast.AST, ...],
+    node_index: Mapping[type[ast.AST], tuple[ast.AST, ...]],
+    parent_by_node: Mapping[ast.AST, ast.AST],
+) -> tuple[ParameterMutationOccurrenceFact, ...]:
+    """Return every direct parameter mutation with existing ownership semantics."""
+
+    function_nodes: tuple[ast.AST, ...] = (
+        *node_index.get(ast.FunctionDef, ()),
+        *node_index.get(ast.AsyncFunctionDef, ()),
+    )
+    parameters_by_function: dict[ast.AST, dict[str, str]] = {
+        node: _parameter_kinds(node)
+        for node in function_nodes
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+    }
+    if not parameters_by_function:
+        return ()
+    candidates: frozenset[ast.AST] = _parameter_mutation_candidates(node_index=node_index)
+    mutations_by_function: dict[ast.AST, list[tuple[str, ast.AST]]] = {}
+    for node in nodes:
+        if node not in candidates:
+            continue
+        root_names: tuple[str, ...] = _parameter_mutation_root_names(node)
+        if not root_names:
+            continue
+        current: ast.AST | None = parent_by_node.get(node)
+        while current is not None:
+            parameter_names: dict[str, str] | None = parameters_by_function.get(current)
+            if parameter_names is not None:
+                mutated_name: str | None = next(
+                    (name for name in root_names if name in parameter_names), None
+                )
+                if mutated_name is not None:
+                    mutations_by_function.setdefault(current, []).append((mutated_name, node))
+            current = parent_by_node.get(current)
+    returned_by_function: dict[ast.AST, set[str]] = {node: set() for node in mutations_by_function}
+    for node in node_index.get(ast.Return, ()):
+        if not isinstance(node, ast.Return) or node.value is None:
+            continue
+        returned_names: frozenset[str] = frozenset(
+            child.id for child in ast.walk(node.value) if isinstance(child, ast.Name)
+        )
+        current = parent_by_node.get(node)
+        while current is not None:
+            if current in returned_by_function:
+                returned_by_function[current].update(returned_names)
+            current = parent_by_node.get(current)
+    facts: list[ParameterMutationOccurrenceFact] = []
+    for node in function_nodes:
+        if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+            continue
+        function_returned_names: set[str] = returned_by_function.get(node, set())
+        for parameter_name, mutation in mutations_by_function.get(node, []):
+            facts.append(
+                ParameterMutationOccurrenceFact(
+                    function_name=node.name,
+                    parameter_name=parameter_name,
+                    parameter_kind=parameters_by_function[node][parameter_name],
                     location=source_location(path=path, node=mutation),
                     returned=parameter_name in function_returned_names,
                     dunder=node.name.startswith("__") and node.name.endswith("__"),

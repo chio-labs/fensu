@@ -11,6 +11,9 @@ from typing import Any, cast
 import pytest
 
 from strata import RuleCase, RuleFile, RuleResult, evaluate_rule
+from strata.analysis.main.select_fact_backend import select_fact_backend
+from strata.analysis.types import FactBackend
+from strata.instrumentation.constants import OPERATION_COUNTERS, PARSE_OPERATION
 from strata.rules.authoring.exceptions import RuleDefinitionError
 from strata.rules.testing.exceptions import RuleHarnessError
 from tests.integration.src.strata.rules.testing._test_types import (
@@ -22,11 +25,94 @@ from tests.integration.src.strata.rules.testing.helpers import (
     all_context_zones,
     always_fault,
     context_policy,
+    native_assignment_references,
+    native_class_declarations,
+    native_comparisons,
+    native_local_call_edges,
+    native_named_calls,
+    native_parameter_mutation_occurrences,
     ordinary_ordering,
     undecorated_rule,
 )
 
 _RULE_SPEC_ATTRIBUTE: str = "__strata_rule_spec__"
+
+_FACT_FAMILY_CASES: tuple[HarnessEvaluationTestCase, ...] = (
+    HarnessEvaluationTestCase(
+        description="class declarations support a fact-only custom rule",
+        rule=native_class_declarations,
+        rule_case=RuleCase(
+            description="adapter class",
+            source="class ConcreteAdapter(BaseAdapter):\n    pass\n",
+            expected_fault_count=1,
+        ),
+        expected_fault_count=1,
+        expected_lines=(1,),
+        expected_messages=("adapter class declaration",),
+    ),
+    HarnessEvaluationTestCase(
+        description="assignment references support a fact-only custom rule",
+        rule=native_assignment_references,
+        rule_case=RuleCase(
+            description="adapter member alias",
+            source=(
+                "class ConcreteAdapter:\n    render_identifier = BaseAdapter.render_identifier\n"
+            ),
+            expected_fault_count=1,
+        ),
+        expected_fault_count=1,
+        expected_lines=(2,),
+        expected_messages=("base adapter assignment reference",),
+    ),
+    HarnessEvaluationTestCase(
+        description="named calls support a fact-only custom rule",
+        rule=native_named_calls,
+        rule_case=RuleCase(
+            description="discarded metadata call",
+            source=("def run(rows):\n    for row in rows:\n        metadata.execute('+', row)\n"),
+            expected_fault_count=1,
+        ),
+        expected_fault_count=1,
+        expected_lines=(3,),
+        expected_messages=("discarded metadata call in loop",),
+    ),
+    HarnessEvaluationTestCase(
+        description="local call edges support a fact-only custom rule",
+        rule=native_local_call_edges,
+        rule_case=RuleCase(
+            description="metadata query edge",
+            source=("def run(rows):\n    while rows:\n        query_metadata()\n"),
+            expected_fault_count=1,
+        ),
+        expected_fault_count=1,
+        expected_lines=(3,),
+        expected_messages=("metadata query call edge in loop",),
+    ),
+    HarnessEvaluationTestCase(
+        description="comparisons support a fact-only custom rule",
+        rule=native_comparisons,
+        rule_case=RuleCase(
+            description="canonical comparison",
+            source="if SqlReferenceKind.DBT_REF == kind:\n    pass\n",
+            expected_fault_count=1,
+        ),
+        expected_fault_count=1,
+        expected_lines=(1,),
+        expected_messages=("canonical reference comparison",),
+    ),
+    HarnessEvaluationTestCase(
+        description="mutation occurrences support a fact-only custom rule",
+        rule=native_parameter_mutation_occurrences,
+        rule_case=RuleCase(
+            description="two parameter mutations",
+            source=("def update(values):\n    values.append(1)\n    values.append(2)\n"),
+            expected_fault_count=2,
+        ),
+        expected_fault_count=2,
+        expected_lines=(2, 3),
+        expected_messages=("parameter mutation occurrence", "parameter mutation occurrence"),
+    ),
+)
 
 EVALUATION_CASES: tuple[HarnessEvaluationTestCase, ...] = (
     HarnessEvaluationTestCase(
@@ -176,6 +262,7 @@ EVALUATION_CASES: tuple[HarnessEvaluationTestCase, ...] = (
         expected_lines=(),
         expected_messages=(),
     ),
+    *_FACT_FAMILY_CASES,
 )
 
 MISUSE_CASES: tuple[HarnessMisuseTestCase, ...] = (
@@ -381,6 +468,27 @@ def test_given_rule_case_when_evaluating_rule_then_uses_real_pipeline(
     assert all(not dependency.query_path.is_absolute() for dependency in result.dependencies)
     assert all(not dependency.dependency.is_absolute() for dependency in result.dependencies)
     assert all(path in dependency_paths for path in test_case.expected_dependency_paths)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [HarnessEvaluationTestCase(**vars(test_case)) for test_case in _FACT_FAMILY_CASES],
+    ids=lambda case: case.description,
+)
+@pytest.mark.skipif(
+    select_fact_backend().backend is FactBackend.PYTHON,
+    reason="The Python reference backend requires one CPython parse for fact extraction.",
+)
+def test_given_fact_only_rule_when_evaluating_then_avoids_python_ast_parse(
+    test_case: HarnessEvaluationTestCase,
+) -> None:
+    OPERATION_COUNTERS.enable()
+    result: RuleResult = evaluate_rule(rule=test_case.rule, test_case=test_case.rule_case)
+    counts: dict[str, int] = OPERATION_COUNTERS.snapshot()
+    OPERATION_COUNTERS.disable()
+
+    assert result.fault_count == test_case.expected_fault_count
+    assert counts.get(PARSE_OPERATION, 0) == test_case.expected_python_parse_count
 
 
 @pytest.mark.parametrize(

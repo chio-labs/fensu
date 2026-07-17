@@ -2,6 +2,8 @@
 
 from dataclasses import dataclass
 
+from strata.analysis.models import LiteralArgumentFact, QualifiedReferenceFact
+
 
 @dataclass(frozen=True)
 class ParseValidityTestCase:
@@ -20,6 +22,7 @@ class FactDelegationTestCase:
     description: str
     method_name: str
     expected_sentinel: str
+    extension_name: str | None = None
 
 
 @dataclass(frozen=True)
@@ -120,6 +123,98 @@ class ParameterMutationFactTestCase:
     expected_parameter_names: tuple[str, ...]
     expected_lines: tuple[int, ...]
     expected_returned: tuple[bool, ...]
+
+
+@dataclass(frozen=True)
+class ClassDeclarationFamilyTestCase:
+    """Source and expected class declaration and direct method metadata."""
+
+    description: str
+    source: str
+    expected_names: tuple[str, ...]
+    expected_base_names: tuple[tuple[str, ...], ...]
+    expected_decorator_names: tuple[tuple[str, ...], ...]
+    expected_lines: tuple[int, ...]
+    expected_top_level: tuple[bool, ...]
+    expected_method_names: tuple[tuple[str, ...], ...]
+    expected_method_decorators: tuple[tuple[tuple[str, ...], ...], ...]
+    expected_method_lines: tuple[tuple[int, ...], ...]
+    expected_method_owner_names: tuple[tuple[str, ...], ...]
+
+
+@dataclass(frozen=True)
+class AssignmentReferenceFamilyTestCase:
+    """Source and expected assignment owners, targets, and RHS references."""
+
+    description: str
+    source: str
+    expected_lines: tuple[int, ...]
+    expected_class_names: tuple[str | None, ...]
+    expected_class_lines: tuple[int | None, ...]
+    expected_function_names: tuple[str | None, ...]
+    expected_function_lines: tuple[int | None, ...]
+    expected_target_names: tuple[tuple[str, ...], ...]
+    expected_references: tuple[QualifiedReferenceFact | None, ...]
+
+
+@dataclass(frozen=True)
+class NamedCallFamilyTestCase:
+    """Source and expected call references, owners, containment, and literals."""
+
+    description: str
+    source: str
+    expected_lines: tuple[int, ...]
+    expected_names: tuple[str | None, ...]
+    expected_references: tuple[QualifiedReferenceFact, ...]
+    expected_class_chains: tuple[tuple[str, ...], ...]
+    expected_class_chain_lines: tuple[tuple[int, ...], ...]
+    expected_function_chains: tuple[tuple[str, ...], ...]
+    expected_function_chain_lines: tuple[tuple[int, ...], ...]
+    expected_inside_loop: tuple[bool, ...]
+    expected_literal_arguments: tuple[tuple[LiteralArgumentFact, ...], ...]
+    expected_bare_expression: tuple[bool, ...]
+    expected_super_call: tuple[bool, ...]
+
+
+@dataclass(frozen=True)
+class LocalCallEdgeFamilyTestCase:
+    """Source and expected nearest-first local call-edge ownership."""
+
+    description: str
+    source: str
+    expected_lines: tuple[int, ...]
+    expected_caller_names: tuple[str, ...]
+    expected_caller_lines: tuple[int, ...]
+    expected_class_names: tuple[str | None, ...]
+    expected_class_lines: tuple[int | None, ...]
+    expected_callees: tuple[QualifiedReferenceFact, ...]
+    expected_inside_loop: tuple[bool, ...]
+
+
+@dataclass(frozen=True)
+class ComparisonFamilyTestCase:
+    """Source and expected position-aligned comparison operand references."""
+
+    description: str
+    source: str
+    expected_lines: tuple[int, ...]
+    expected_operand_references: tuple[tuple[QualifiedReferenceFact | None, ...], ...]
+
+
+@dataclass(frozen=True)
+class ParameterMutationOccurrenceFamilyTestCase:
+    """Source and expected complete and first-only parameter mutation metadata."""
+
+    description: str
+    source: str
+    expected_function_names: tuple[str, ...]
+    expected_parameter_names: tuple[str, ...]
+    expected_parameter_kinds: tuple[str, ...]
+    expected_lines: tuple[int, ...]
+    expected_returned: tuple[bool, ...]
+    expected_dunder: tuple[bool, ...]
+    expected_setter: tuple[bool, ...]
+    expected_first_only_count: int
 
 
 @dataclass(frozen=True)

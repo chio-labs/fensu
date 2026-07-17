@@ -32,14 +32,20 @@ def read_during_concurrent_writes(
     """Observe one entry while competing writers atomically replace it."""
 
     finished: Event = Event()
+    reader_started: Event = Event()
     observed: list[CacheRecord | None] = []
 
     def read_until_finished() -> None:
+        try:
+            observed.append(store.read(relative_path=relative_path, expected_kind=kind))
+        finally:
+            reader_started.set()
         while not finished.is_set():
             observed.append(store.read(relative_path=relative_path, expected_kind=kind))
 
     with ThreadPoolExecutor(max_workers=len(values) + 1) as executor:
         reader: Future[None] = executor.submit(read_until_finished)
+        reader_started.wait()
         writers: list[Future[bool]] = [
             executor.submit(
                 store.write,
@@ -64,12 +70,17 @@ def read_batches_during_concurrent_writes(
     """Observe two records while complete transactions replace both."""
 
     finished: Event = Event()
+    reader_started: Event = Event()
     observed: list[tuple[CacheRecord | None, ...]] = []
     reads: tuple[CacheRead, ...] = tuple(
         CacheRead(relative_path=path, expected_kind=kind) for path in relative_paths
     )
 
     def read_until_finished() -> None:
+        try:
+            observed.append(store.read_batch(reads=reads))
+        finally:
+            reader_started.set()
         while not finished.is_set():
             observed.append(store.read_batch(reads=reads))
 
@@ -86,6 +97,7 @@ def read_batches_during_concurrent_writes(
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         reader: Future[None] = executor.submit(read_until_finished)
+        reader_started.wait()
         writer: Future[None] = executor.submit(write_batches)
         _ = writer.result()
         finished.set()

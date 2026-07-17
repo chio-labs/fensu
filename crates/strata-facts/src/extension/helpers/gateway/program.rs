@@ -9,21 +9,27 @@ use ruff_python_ast::{ModModule, PythonVersion};
 use ruff_python_parser::Parsed;
 
 use crate::facts::main::extract_annotations::extract_annotations;
+use crate::facts::main::extract_class_declarations::extract_class_declarations;
 use crate::facts::main::extract_control_flow::extract_control_flow;
 use crate::facts::main::extract_function_contracts::extract_function_contracts;
 use crate::facts::main::extract_functions::extract_functions;
 use crate::facts::main::extract_hygiene::extract_hygiene;
 use crate::facts::main::extract_module_declarations::extract_module_declarations;
 use crate::facts::main::extract_outer_state_mutations::extract_outer_state_mutations;
+use crate::facts::main::extract_parameter_mutation_occurrences::extract_parameter_mutation_occurrences;
 use crate::facts::main::extract_parameter_mutations::extract_parameter_mutations;
 use crate::facts::main::extract_references::extract_references;
+use crate::facts::main::extract_rule_calls::extract_rule_calls;
+use crate::facts::main::extract_rule_references::extract_rule_references;
 use crate::facts::main::extract_test_functions::extract_test_functions;
 use crate::facts::main::extract_test_module::extract_test_module;
 use crate::facts::models::{
-    AnnotationRows, ControlFlowRows, FactFamily, FunctionContractRow, FunctionMetricRow,
-    HygieneRows, ModuleDeclarationRows, ParameterMutationRow, ReferenceRows, SourceRangeRow,
-    TestFunctionRow, TestModuleRows,
+    AnnotationRows, AssignmentReferenceRow, ClassDeclarationRow, ComparisonRow, ControlFlowRows,
+    FunctionContractRow, FunctionMetricRow, HygieneRows, LocalCallEdgeRow, ModuleDeclarationRows,
+    ParameterMutationOccurrenceRow, ParameterMutationRow, ReferenceRows, RuleNamedCallRow,
+    SourceRangeRow, TestFunctionRow, TestModuleRows,
 };
+use crate::facts::types::FactFamily;
 use crate::parsing::main::parse_strict::parse_strict;
 use crate::parsing::models::ParseFailure;
 use crate::positions::main::index_lines::index_lines;
@@ -33,12 +39,16 @@ use crate::positions::models::LineIndex;
 #[derive(Default)]
 struct FactRowCache {
     annotations: OnceLock<AnnotationRows>,
+    class_declarations: OnceLock<Vec<ClassDeclarationRow>>,
     contracts: OnceLock<Vec<FunctionContractRow>>,
     control_flow: OnceLock<ControlFlowRows>,
     declarations: OnceLock<ModuleDeclarationRows>,
     functions: OnceLock<(Vec<FunctionMetricRow>, Vec<usize>)>,
     hygiene: OnceLock<HygieneRows>,
+    rule_calls: OnceLock<(Vec<RuleNamedCallRow>, Vec<LocalCallEdgeRow>)>,
+    rule_references: OnceLock<(Vec<AssignmentReferenceRow>, Vec<ComparisonRow>)>,
     outer_state_mutations: OnceLock<Vec<SourceRangeRow>>,
+    parameter_mutation_occurrences: OnceLock<Vec<ParameterMutationOccurrenceRow>>,
     parameter_mutations: OnceLock<Vec<ParameterMutationRow>>,
     references: OnceLock<ReferenceRows>,
     test_functions: OnceLock<Vec<TestFunctionRow>>,
@@ -100,6 +110,28 @@ impl ProgramHandle {
             .get_or_init(|| extract_annotations(self.module(), self.index(), self.source()))
     }
 
+    pub(crate) fn assignment_reference_rows(&self) -> &[AssignmentReferenceRow] {
+        &self
+            .rows
+            .rule_references
+            .get_or_init(|| extract_rule_references(self.module(), self.index(), self.source()))
+            .0
+    }
+
+    pub(crate) fn class_declaration_rows(&self) -> &[ClassDeclarationRow] {
+        self.rows
+            .class_declarations
+            .get_or_init(|| extract_class_declarations(self.module(), self.index(), self.source()))
+    }
+
+    pub(crate) fn comparison_rows(&self) -> &[ComparisonRow] {
+        &self
+            .rows
+            .rule_references
+            .get_or_init(|| extract_rule_references(self.module(), self.index(), self.source()))
+            .1
+    }
+
     pub(crate) fn contract_rows(&self) -> &[FunctionContractRow] {
         self.rows.contracts.get_or_init(|| {
             extract_function_contracts(self.module(), self.index(), self.source(), self.version())
@@ -130,6 +162,22 @@ impl ProgramHandle {
             .get_or_init(|| extract_hygiene(self.module(), self.index(), self.source()))
     }
 
+    pub(crate) fn local_call_edge_rows(&self) -> &[LocalCallEdgeRow] {
+        &self
+            .rows
+            .rule_calls
+            .get_or_init(|| extract_rule_calls(self.module(), self.index(), self.source()))
+            .1
+    }
+
+    pub(crate) fn named_call_rows(&self) -> &[RuleNamedCallRow] {
+        &self
+            .rows
+            .rule_calls
+            .get_or_init(|| extract_rule_calls(self.module(), self.index(), self.source()))
+            .0
+    }
+
     pub(crate) fn outer_state_mutation_rows(&self) -> &[SourceRangeRow] {
         self.rows
             .outer_state_mutations
@@ -140,6 +188,12 @@ impl ProgramHandle {
         self.rows
             .parameter_mutations
             .get_or_init(|| extract_parameter_mutations(self.module(), self.index(), self.source()))
+    }
+
+    pub(crate) fn parameter_mutation_occurrence_rows(&self) -> &[ParameterMutationOccurrenceRow] {
+        self.rows.parameter_mutation_occurrences.get_or_init(|| {
+            extract_parameter_mutation_occurrences(self.module(), self.index(), self.source())
+        })
     }
 
     pub(crate) fn reference_rows(&self) -> &ReferenceRows {
@@ -165,6 +219,15 @@ impl ProgramHandle {
             FactFamily::Annotations => {
                 let _ = self.annotation_rows();
             }
+            FactFamily::AssignmentReferences => {
+                let _ = self.assignment_reference_rows();
+            }
+            FactFamily::ClassDeclarations => {
+                let _ = self.class_declaration_rows();
+            }
+            FactFamily::Comparisons => {
+                let _ = self.comparison_rows();
+            }
             FactFamily::Contracts => {
                 let _ = self.contract_rows();
             }
@@ -180,11 +243,20 @@ impl ProgramHandle {
             FactFamily::Hygiene => {
                 let _ = self.hygiene_rows();
             }
+            FactFamily::LocalCallEdges => {
+                let _ = self.local_call_edge_rows();
+            }
+            FactFamily::NamedCalls => {
+                let _ = self.named_call_rows();
+            }
             FactFamily::OuterStateMutations => {
                 let _ = self.outer_state_mutation_rows();
             }
             FactFamily::ParameterMutations => {
                 let _ = self.parameter_mutation_rows();
+            }
+            FactFamily::ParameterMutationOccurrences => {
+                let _ = self.parameter_mutation_occurrence_rows();
             }
             FactFamily::References => {
                 let _ = self.reference_rows();

@@ -16,11 +16,14 @@ def rule_context_lines() -> tuple[str, ...]:
         "Approved custom rules receive `ctx: RuleContext`. Import authoring APIs only from the "
         "top-level `strata` package. The five public analysis zones are:",
         "",
-        "- `ctx.facts`: `annotations()`, `comments()`, `dataclasses()`, "
-        "`complex_comprehensions()`, `function_conditionals()`, `functions()`, "
+        "- `ctx.facts`: `annotations()`, `assignment_references()`, "
+        "`class_declarations()`, `comments()`, `comparisons()`, "
+        "`complex_comprehensions()`, `dataclasses()`, `function_conditionals()`, `functions()`, "
         "`function_contracts()`, `hygiene()`, `meaningful_returns(name_patterns=())`, "
-        "`module_declarations()`, `outer_state_mutations()`, `parameter_mutations()`, "
-        "`project_calls()`, `project_functions()`, `references()`, `test_functions()`, "
+        "`local_call_edges()`, `module_declarations()`, `named_calls()`, "
+        "`outer_state_mutations()`, `parameter_mutations()`, "
+        "`parameter_mutation_occurrences()`, `project_calls()`, `project_functions()`, "
+        "`references()`, `test_functions()`, "
         "`top_level_definition_conditionals()`, and `test_module()`.",
         "- `ctx.text`: `source`, `line(line_number)`, and `slice(source_range)`.",
         "- `ctx.syntax`: `handles(kind=None)`, `kind(handle)`, and `range(handle)`.",

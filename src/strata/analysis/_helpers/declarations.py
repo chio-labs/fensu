@@ -8,6 +8,9 @@ from pathlib import Path
 
 from strata.analysis._helpers.locations import source_location
 from strata.analysis.models import (
+    ClassDeclarationFact,
+    ClassMethodFact,
+    DefinitionIdentity,
     ModuleDeclarationFacts,
     ModuleStatementFact,
     NamedCallFact,
@@ -146,6 +149,49 @@ def module_declaration_facts(
     )
 
 
+def class_declaration_facts(
+    *,
+    path: Path,
+    node_index: Mapping[type[ast.AST], tuple[ast.AST, ...]],
+    parent_by_node: Mapping[ast.AST, ast.AST],
+) -> tuple[ClassDeclarationFact, ...]:
+    """Return class declarations and direct named methods in breadth-first order."""
+
+    facts: list[ClassDeclarationFact] = []
+    for node in node_index.get(ast.ClassDef, ()):
+        if not isinstance(node, ast.ClassDef):
+            continue
+        location: SourceLocation = source_location(path=path, node=node)
+        identity: DefinitionIdentity = DefinitionIdentity(name=node.name, location=location)
+        base_names: list[str] = []
+        for base in node.bases:
+            base_name: str | None = _base_name(base)
+            if base_name is not None:
+                base_names.append(base_name)
+        methods: list[ClassMethodFact] = []
+        for statement in node.body:
+            if isinstance(statement, ast.FunctionDef | ast.AsyncFunctionDef):
+                methods.append(
+                    ClassMethodFact(
+                        name=statement.name,
+                        decorator_names=_decorator_names(statement.decorator_list),
+                        location=source_location(path=path, node=statement),
+                        owning_class=identity,
+                    )
+                )
+        facts.append(
+            ClassDeclarationFact(
+                name=node.name,
+                base_names=tuple(base_names),
+                decorator_names=_decorator_names(node.decorator_list),
+                location=location,
+                top_level=isinstance(parent_by_node.get(node), ast.Module),
+                methods=tuple(methods),
+            )
+        )
+    return tuple(facts)
+
+
 def _is_model_class(node: ast.ClassDef) -> bool:
     if node.name.startswith("_"):
         return False
@@ -222,6 +268,15 @@ def _decorator_name(node: ast.expr) -> str:
     if isinstance(node, ast.Call):
         return _decorator_name(node.func)
     return ""
+
+
+def _decorator_names(nodes: list[ast.expr]) -> tuple[str, ...]:
+    names: list[str] = []
+    for node in nodes:
+        name: str = _decorator_name(node)
+        if name:
+            names.append(name)
+    return tuple(names)
 
 
 def _base_name(node: ast.expr) -> str | None:

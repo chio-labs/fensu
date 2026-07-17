@@ -2,9 +2,14 @@
 
 PUBLIC_ATTRIBUTES: dict[str, tuple[str, str]] = {
     "AnnotationFacts": ("strata.analysis.models", "AnnotationFacts"),
+    "AssignmentReferenceFact": ("strata.analysis.models", "AssignmentReferenceFact"),
     "AttributeReferenceFact": ("strata.analysis.models", "AttributeReferenceFact"),
+    "ClassDeclarationFact": ("strata.analysis.models", "ClassDeclarationFact"),
+    "ClassMethodFact": ("strata.analysis.models", "ClassMethodFact"),
     "CommentFact": ("strata.analysis.models", "CommentFact"),
+    "ComparisonFact": ("strata.analysis.models", "ComparisonFact"),
     "DataclassFact": ("strata.analysis.models", "DataclassFact"),
+    "DefinitionIdentity": ("strata.analysis.models", "DefinitionIdentity"),
     "DiscardedProjectCallFact": ("strata.analysis.models", "DiscardedProjectCallFact"),
     "EvaluateRuleCallFact": ("strata.analysis.models", "EvaluateRuleCallFact"),
     "ExecutionOwner": ("strata.rules.authoring.types", "ExecutionOwner"),
@@ -17,6 +22,8 @@ PUBLIC_ATTRIBUTES: dict[str, tuple[str, str]] = {
     "HygieneFacts": ("strata.analysis.models", "HygieneFacts"),
     "ImportAliasFact": ("strata.analysis.models", "ImportAliasFact"),
     "ImportFact": ("strata.analysis.models", "ImportFact"),
+    "LiteralArgumentFact": ("strata.analysis.models", "LiteralArgumentFact"),
+    "LocalCallEdgeFact": ("strata.analysis.models", "LocalCallEdgeFact"),
     "MeaningfulReturnFact": ("strata.analysis.models", "MeaningfulReturnFact"),
     "MissingLocalAnnotationFact": ("strata.analysis.models", "MissingLocalAnnotationFact"),
     "MissingParameterAnnotationFact": (
@@ -31,6 +38,10 @@ PUBLIC_ATTRIBUTES: dict[str, tuple[str, str]] = {
     "NodeId": ("strata.analysis.models", "NodeId"),
     "OuterStateMutationFact": ("strata.analysis.models", "OuterStateMutationFact"),
     "ParameterMutationFact": ("strata.analysis.models", "ParameterMutationFact"),
+    "ParameterMutationOccurrenceFact": (
+        "strata.analysis.models",
+        "ParameterMutationOccurrenceFact",
+    ),
     "ParametrizeCaseFact": ("strata.analysis.models", "ParametrizeCaseFact"),
     "ParametrizeDimensionFact": ("strata.analysis.models", "ParametrizeDimensionFact"),
     "ParametrizeFact": ("strata.analysis.models", "ParametrizeFact"),
@@ -40,6 +51,7 @@ PUBLIC_ATTRIBUTES: dict[str, tuple[str, str]] = {
     "ProjectFunctionFact": ("strata.analysis.models", "ProjectFunctionFact"),
     "PytestFunctionFact": ("strata.analysis.models", "PytestFunctionFact"),
     "PytestModuleFacts": ("strata.analysis.models", "PytestModuleFacts"),
+    "QualifiedReferenceFact": ("strata.analysis.models", "QualifiedReferenceFact"),
     "ReferenceFacts": ("strata.analysis.models", "ReferenceFacts"),
     "RelationAnalysis": ("strata.analysis.types", "RelationAnalysis"),
     "RuleCase": ("strata.rules.testing.models", "RuleCase"),

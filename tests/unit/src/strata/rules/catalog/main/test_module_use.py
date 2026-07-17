@@ -11,8 +11,8 @@ from strata.config.models import Config
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import RuleCheck
 from strata.rules.catalog.constants import CORE_RULES
+from strata.rules.catalog.main._check_module_use import check_uses_module
 from strata.rules.catalog.main.build_ruleset import build_ruleset
-from strata.rules.catalog.main.check_module_use import check_uses_module
 from tests.unit.src.strata.rules.catalog.main._test_types import (
     CoreModuleFreedomTestCase,
     LoadedModuleUseTestCase,

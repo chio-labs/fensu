@@ -13,8 +13,8 @@ from strata.cache.results.classes.result_cache import ResultCache
 from strata.cache.results.models import CacheStats
 from strata.cache.storage.constants import CACHE_DATABASE_RELATIVE_PATH
 from strata.cache.storage.exceptions import CacheRecordError
+from strata.cli.main._skills import run_skills
 from strata.cli.main.check import run_check
-from strata.cli.main.skills import run_skills
 from tests.integration.src.strata.cli.main._test_types import (
     CacheableNoticeTestCase,
     CheckCacheModeTestCase,

@@ -22,6 +22,7 @@ from tests.unit.src.strata.analysis._test_types import (
             description="observer parsing and cache fingerprints share one algorithm",
             source=b"value: int = 1\n",
             expected_available=True,
+            expected_text="value: int = 1\n",
         )
     ],
     ids=lambda case: case.description,
@@ -35,8 +36,12 @@ def test_given_source_bytes_when_fingerprinting_then_all_implementations_agree(
     observer: QueryObserver = QueryObserver()
 
     observed: str | None = observer.source_fingerprint(path=path)
+    observed_text: tuple[str, str] | None = observer.source_text(path=path)
 
     assert (observed is not None) is test_case.expected_available
+    assert observed_text is not None
+    assert observed_text[0] == test_case.expected_text
+    assert observed_text[1] == observed
     assert observed == read_source_snapshot(path=path).fingerprint
     assert observed == fingerprint_source(test_case.source).value
 

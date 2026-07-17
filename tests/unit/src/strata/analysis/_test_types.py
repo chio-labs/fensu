@@ -434,6 +434,7 @@ class ObserverFingerprintParityTestCase:
     description: str
     source: bytes
     expected_available: bool
+    expected_text: str
 
 
 @dataclass(frozen=True)

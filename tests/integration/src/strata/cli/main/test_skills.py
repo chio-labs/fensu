@@ -12,7 +12,7 @@ from strata.agentdocs._helpers import installation
 from strata.agentdocs._helpers.ownership import parse_skill_ownership
 from strata.agentdocs.constants import GENERATED_MARKER
 from strata.agentdocs.models import SkillOwnership
-from strata.cli.main.skills import run_skills
+from strata.cli.main._skills import run_skills
 from strata.config.main.load_config import load_config
 from strata.config.models import Config
 from strata.rules.authoring.models import RuleSpec

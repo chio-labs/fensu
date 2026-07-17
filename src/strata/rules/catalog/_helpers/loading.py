@@ -16,14 +16,14 @@ from strata.analysis.models import SourceLocation
 from strata.config.exceptions import ConfigError
 from strata.config.models import Config
 from strata.discovery.constants import INIT_MODULE_FILE_NAME
-from strata.rules.authoring.main.inspect import rule_specs_in_module
+from strata.rules.authoring.main._inspect import rule_specs_in_module
+from strata.rules.authoring.main._matches_rule_selector import matches_rule_selector
 from strata.rules.authoring.main.is_rule_code import is_rule_code
-from strata.rules.authoring.main.matches_rule_selector import matches_rule_selector
 from strata.rules.authoring.models import CustomRuleRegistration, RuleSpec
 from strata.rules.authoring.types import Family, RuleKind
 from strata.rules.catalog._helpers.hermeticity import validate_cacheable_rules
 from strata.rules.catalog.constants import CORE_RULES
-from strata.rules.catalog.main.check_module_use import check_uses_module
+from strata.rules.catalog.main._check_module_use import check_uses_module
 from strata.rules.catalog.models import RuleSelection
 
 

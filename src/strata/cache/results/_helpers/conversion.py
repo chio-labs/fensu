@@ -7,7 +7,7 @@ from pathlib import Path
 
 from strata.analysis.models import ProjectDependency
 from strata.analysis.types import ProjectDependencyKind
-from strata.cache.fingerprints.main.file_result import file_result_fingerprints
+from strata.cache.fingerprints.main._file_result import file_result_fingerprints
 from strata.cache.fingerprints.models import CacheFingerprint, FileResultFingerprints
 from strata.cache.fingerprints.types import CanonicalValue
 from strata.cache.results._helpers.paths import relative_repository_path
@@ -31,7 +31,7 @@ from strata.cache.results.types import (
     DependencyReferenceKey,
 )
 from strata.cache.storage.exceptions import CacheRecordError
-from strata.cache.storage.main.encode_record import encode_record
+from strata.cache.storage.main._encode_record import encode_record
 from strata.cache.storage.models import CacheRecord
 from strata.evaluation.models import FileEvaluation, RuleExceptionKey, ThresholdOverrideUse
 from strata.rules.authoring.main.is_rule_code import is_rule_code

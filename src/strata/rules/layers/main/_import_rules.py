@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 from strata.rules.authoring.models import RuleSpec
-from strata.rules.authoring.types import Family
+from strata.rules.authoring.types import ExecutionOwner, Family
 from strata.rules.layers._helpers.checks import (
     absolute_imports_only,
+    no_cross_domain_private_main_imports,
     no_cross_package_internals,
     no_internal_public_surface_imports,
     no_runtime_imports_from_tooling,
     no_sibling_package_internals,
     no_star_imports,
+    public_main_entry_external_use,
 )
 from strata.rules.layers.types import LayerCode
 
@@ -62,6 +64,29 @@ def import_rules() -> tuple[RuleSpec, ...]:
             message="internal code must import from the owning module, not the bare package",
             remediation="Import from the concrete owning module below the package surface.",
             check=no_internal_public_surface_imports,
+        ),
+        RuleSpec(
+            code=LayerCode.NO_CROSS_DOMAIN_PRIVATE_MAIN_IMPORTS,
+            family=Family.LAYERS,
+            slug="no-cross-domain-private-main-imports",
+            message="domain-private main entries may only be imported within their owning domain",
+            remediation=(
+                "Remove the leading underscore to publish the main entry, or route the caller "
+                "through a public main entry owned by the target domain."
+            ),
+            check=no_cross_domain_private_main_imports,
+        ),
+        RuleSpec(
+            code=LayerCode.PUBLIC_MAIN_ENTRY_EXTERNAL_USE,
+            family=Family.LAYERS,
+            slug="public-main-entry-external-use",
+            message="public main entries must have an importer outside their owning domain",
+            remediation=(
+                "Prefix the entry module filename with '_' until another domain or tooling "
+                "imports it."
+            ),
+            check=public_main_entry_external_use,
+            execution_owner=ExecutionOwner.PROJECT,
         ),
         RuleSpec(
             code=LayerCode.NO_RUNTIME_IMPORTS_FROM_TOOLING,

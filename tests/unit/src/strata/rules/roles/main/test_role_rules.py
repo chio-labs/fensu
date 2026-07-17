@@ -1601,7 +1601,7 @@ def test_given_deeper_role_bucket_when_evaluating_then_anchor_queries_remain_com
             support_files=(
                 SfrSupportFile(
                     description="meaningful leaf main entry",
-                    relative_path="domain/orders/main/run.py",
+                    relative_path="domain/orders/main/_run.py",
                     source="def run() -> None:\n    return None\n",
                 ),
             ),
@@ -1612,7 +1612,7 @@ def test_given_deeper_role_bucket_when_evaluating_then_anchor_queries_remain_com
             },
             threshold_overrides=(
                 ThresholdOverride(
-                    paths=("src/pkg/domain/orders/main/run.py",),
+                    paths=("src/pkg/domain/orders/main/_run.py",),
                     thresholds={
                         Threshold.MAX_STATEMENTS: 1,
                         Threshold.MAX_DISTINCT_CALLS: 1,

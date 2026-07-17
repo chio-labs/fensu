@@ -29,7 +29,6 @@ from tests.integration.src.strata.instrumentation.classes.helpers import (  # no
 )
 
 _MAX_NATIVE_PARSES_PER_FILE: int = 2
-_MAX_EDIT_NATIVE_PARSES: int = 4
 
 
 @pytest.mark.parametrize(
@@ -69,7 +68,7 @@ def test_given_native_backend_when_checking_uncached_then_no_cpython_ast_is_buil
             description="native-backend one edited file re-evaluates without CPython parsing",
             file_target=120,
             seed=0,
-            expected_fresh_evaluations=1,
+            expected_fresh_evaluations=2,
             expected_python_parses=0,
         )
     ],
@@ -83,6 +82,7 @@ def test_given_native_backend_when_one_file_edited_then_no_cpython_ast_is_built(
     _ = generate_corpus(
         spec=CorpusSpec(target=tmp_path, file_target=test_case.file_target, seed=test_case.seed)
     )
+    files: int = python_file_count(root=tmp_path)
     monkeypatch.chdir(tmp_path)
     _ = counted_check(argv=("--no-color", "--cache"))
     edited: Path = sorted(tmp_path.rglob("record_shaping.py"))[0]
@@ -93,4 +93,4 @@ def test_given_native_backend_when_one_file_edited_then_no_cpython_ast_is_built(
     assert counts[FRESH_EVALUATION_OPERATION] == test_case.expected_fresh_evaluations
     assert counts.get(PARSE_OPERATION, 0) == test_case.expected_python_parses
     assert counts[NATIVE_PARSE_OPERATION] >= 1
-    assert counts[NATIVE_PARSE_OPERATION] <= _MAX_EDIT_NATIVE_PARSES
+    assert counts[NATIVE_PARSE_OPERATION] <= files

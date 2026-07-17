@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import tomllib
 from pathlib import Path
 
 from strata.analysis.classes.query_observer import QueryObserver
@@ -33,6 +34,7 @@ from strata.instrumentation.constants import (
 )
 
 _test_types_file_name: str = "_test_types.py"
+_pyproject_file_name: str = "pyproject.toml"
 
 
 class _EvaluationProjectAnalysis:
@@ -79,6 +81,8 @@ class _EvaluationProjectAnalysis:
         self._directory_entries: dict[str, tuple[Path, ...]] = {}
         self._globs: dict[tuple[str, str, bool], tuple[Path, ...]] = {}
         self._python_anchors: dict[str, Path | None] = {}
+        self._entrypoint_modules: tuple[str, ...] | None = None
+        self._entrypoint_fingerprint: str | None = None
 
     def parsed_module(self, scoped_file: ScopedFile) -> ParsedModule:
         """Return one strict discovered-file parse, reusing project queries."""
@@ -202,6 +206,25 @@ class _EvaluationProjectAnalysis:
             (fact for fact in analysis.facts.project_functions() if fact.name == function_name),
             None,
         )
+
+    def entrypoint_modules(self, *, requester: Path) -> tuple[str, ...]:
+        """Return and record standardized modules referenced by project metadata."""
+
+        path: Path = self._repo_root / _pyproject_file_name
+        if self._entrypoint_modules is None:
+            observed: tuple[str, str] | None = self._observer.source_text(path=path)
+            if observed is None:
+                self._entrypoint_modules = ()
+            else:
+                text, self._entrypoint_fingerprint = observed
+                self._entrypoint_modules = _declared_entrypoint_modules(text=text)
+        self._record(
+            requester=requester,
+            dependency=path,
+            kind=ProjectDependencyKind.SOURCE,
+            answer=self._entrypoint_fingerprint,
+        )
+        return self._entrypoint_modules
 
     def exists(self, *, requester: Path, path: Path) -> bool:
         """Return whether a path exists and record the dependency."""
@@ -379,6 +402,36 @@ def _record_query_cache(*, hit: bool) -> None:
         PROJECT_QUERY_CACHE_HIT_OPERATION if hit else PROJECT_QUERY_CACHE_MISS_OPERATION
     )
     OPERATION_COUNTERS.record(operation=operation)
+
+
+def _declared_entrypoint_modules(*, text: str) -> tuple[str, ...]:
+    try:
+        document: dict[str, object] = tomllib.loads(text)
+    except tomllib.TOMLDecodeError:
+        return ()
+    project: object = document.get("project")
+    if not isinstance(project, dict):
+        return ()
+    values: list[str] = []
+    for section_name in ("scripts", "gui-scripts", "entry-points"):
+        values.extend(_string_values(project.get(section_name)))
+    modules: set[str] = set()
+    for value in values:
+        module_name: str = value.partition(":")[0].strip()
+        if module_name:
+            modules.add(module_name)
+    return tuple(sorted(modules))
+
+
+def _string_values(value: object) -> tuple[str, ...]:
+    if isinstance(value, str):
+        return (value,)
+    if not isinstance(value, dict):
+        return ()
+    values: list[str] = []
+    for nested in value.values():
+        values.extend(_string_values(nested))
+    return tuple(values)
 
 
 def build_external_analysis(*, path: Path) -> ExternalAnalysisBuild:

@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.18.0](https://github.com/chio-labs/strata/compare/v0.17.0...v0.18.0) (2026-07-17)
+
+
+### Features
+
+* **analysis:** add native rule-authoring facts ([6930e4c](https://github.com/chio-labs/strata/commit/6930e4cf289fb3e311699b0f3cff07d0d21e8b79))
+* **analysis:** add native rule-authoring facts ([116dfb2](https://github.com/chio-labs/strata/commit/116dfb2480522305daa84056dbb7a282840a55e0))
+
+
+### Performance Improvements
+
+* accelerate repository replay and startup ([2dfe3f9](https://github.com/chio-labs/strata/commit/2dfe3f9dd38a5395819f1b033d09b595f4a00d3c))
+* add public execution owners and shared SFT issue discovery ([038daf3](https://github.com/chio-labs/strata/commit/038daf3ac766939d8cc79c5a199b97f794e9338b))
+* **cache:** bound high-churn publication ([26692f2](https://github.com/chio-labs/strata/commit/26692f2529e1fca14ad59e37c5c454543afca571))
+* **cache:** replay one-edit runs from a sparse collection aggregate ([abca86e](https://github.com/chio-labs/strata/commit/abca86e725b0cb2af34d6db7b8b2d2e2c9d330e7))
+* **cache:** reuse implementation path scan ([9076cdd](https://github.com/chio-labs/strata/commit/9076cdd94c46faad48fe3c72d4f054615c580181))
+* **cache:** validate warm manifest once ([48f6b64](https://github.com/chio-labs/strata/commit/48f6b6420facdce5ee6756c6d6c5c2ae8dbd6742))
+* default full evaluations to automatic worker parallelism ([6037bad](https://github.com/chio-labs/strata/commit/6037bad761353a1530b7201fa80667f3048fd17a))
+* establish shared performance foundation ([6b29450](https://github.com/chio-labs/strata/commit/6b294506795cb8911dfd10a089bf65eb43810f1b))
+* evaluate no-cache checks across parallel worker partitions ([bbc7354](https://github.com/chio-labs/strata/commit/bbc73547509e5a366618023d746c21a6bc9061a8))
+* extract native fact rows in parallel prewarm batches ([6dd3db3](https://github.com/chio-labs/strata/commit/6dd3db3c95dcc52220fad3174fc1ad58af1b816e))
+* **instrumentation:** attribute repository query costs ([a1cfcd3](https://github.com/chio-labs/strata/commit/a1cfcd328fe26f31dc674f577f15969a03d7e1a2))
+
 ## [0.17.0](https://github.com/chio-labs/strata/compare/v0.16.0...v0.17.0) (2026-07-15)
 
 

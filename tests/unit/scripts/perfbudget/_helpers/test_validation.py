@@ -34,7 +34,6 @@ def test_given_repeated_scenario_outputs_when_validating_then_reports_identity_c
         exit_code=1,
         output_sha256=test_case.first_hash,
         cache_stats="",
-        fallback_warned=False,
         max_rss_kib=100,
     )
     second: ScenarioResult = ScenarioResult(
@@ -43,7 +42,6 @@ def test_given_repeated_scenario_outputs_when_validating_then_reports_identity_c
         exit_code=1,
         output_sha256=test_case.second_hash,
         cache_stats="",
-        fallback_warned=False,
         max_rss_kib=110,
     )
 

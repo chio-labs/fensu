@@ -7,8 +7,6 @@ from pathlib import Path
 from types import ModuleType
 
 from strata.analysis.constants import NATIVE_FACT_MODULE_NAME
-from strata.analysis.main.select_fact_backend import select_fact_backend
-from strata.analysis.types import FactBackend
 from strata.discovery._helpers.position import normalize_path_spelling, relative_parts
 from strata.discovery.models import ProjectLayout, ScopedFile
 from strata.discovery.types import ScopeName
@@ -88,8 +86,6 @@ def _native_walked(
     *,
     roots: tuple[Path, ...],
 ) -> tuple[tuple[tuple[Path, Path | None, tuple[str, ...] | None], ...], ...] | None:
-    if select_fact_backend().backend is not FactBackend.NATIVE:
-        return None
     try:
         strata_facts: ModuleType = import_module(NATIVE_FACT_MODULE_NAME)
     except ImportError:

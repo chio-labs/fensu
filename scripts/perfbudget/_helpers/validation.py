@@ -58,7 +58,6 @@ def budget_failures(
             )
     failures.extend(_identity_failures(results=results))
     failures.extend(_warm_purity_failures(results=results))
-    failures.extend(_fallback_failures(results=results))
     return tuple(failures)
 
 
@@ -115,19 +114,6 @@ def _identity_failures(*, results: dict[str, ScenarioResult]) -> tuple[ScenarioF
                 reason="rendered output diverged from the dense cold run",
             )
         )
-    return tuple(failures)
-
-
-def _fallback_failures(*, results: dict[str, ScenarioResult]) -> tuple[ScenarioFailure, ...]:
-    failures: list[ScenarioFailure] = []
-    for name, result in results.items():
-        if result.fallback_warned:
-            failures.append(
-                ScenarioFailure(
-                    scenario=name,
-                    reason="the requested fact backend was unavailable and fell back",
-                )
-            )
     return tuple(failures)
 
 

@@ -1,4 +1,4 @@
-"""Parse one decoded source through the active native fact backend."""
+"""Parse one decoded source through the required native analyzer."""
 
 from __future__ import annotations
 
@@ -7,16 +7,12 @@ from importlib import import_module
 from types import ModuleType
 
 from strata.analysis.constants import NATIVE_FACT_MODULE_NAME
-from strata.analysis.main.select_fact_backend import select_fact_backend
-from strata.analysis.types import FactBackend
 from strata.instrumentation.constants import NATIVE_PARSE_OPERATION, OPERATION_COUNTERS
 
 
 def parse_native_program(*, source: str) -> object | None:
-    """Return a native program handle, or None when native parsing is unavailable."""
+    """Return a native program handle, or None when the source cannot be parsed."""
 
-    if select_fact_backend().backend is not FactBackend.NATIVE:
-        return None
     native: ModuleType = import_module(NATIVE_FACT_MODULE_NAME)
     OPERATION_COUNTERS.record(operation=NATIVE_PARSE_OPERATION)
     try:

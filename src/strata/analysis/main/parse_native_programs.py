@@ -1,4 +1,4 @@
-"""Parse many decoded sources in parallel through the native fact backend."""
+"""Parse many decoded sources in parallel through the required native analyzer."""
 
 from __future__ import annotations
 
@@ -8,16 +8,12 @@ from importlib import import_module
 from types import ModuleType
 
 from strata.analysis.constants import NATIVE_FACT_MODULE_NAME
-from strata.analysis.main.select_fact_backend import select_fact_backend
-from strata.analysis.types import FactBackend
 from strata.instrumentation.constants import NATIVE_PARSE_OPERATION, OPERATION_COUNTERS
 
 
 def parse_native_programs(*, sources: Sequence[str]) -> tuple[object | None, ...]:
-    """Return one native program handle per source, or None where unavailable."""
+    """Return one native program handle per source, or None where parsing fails."""
 
-    if select_fact_backend().backend is not FactBackend.NATIVE:
-        return tuple(None for _ in sources)
     native: ModuleType = import_module(NATIVE_FACT_MODULE_NAME)
     for _ in sources:
         OPERATION_COUNTERS.record(operation=NATIVE_PARSE_OPERATION)

@@ -7,9 +7,7 @@ from pathlib import Path
 from types import ModuleType
 
 from strata.analysis.constants import NATIVE_FACT_MODULE_NAME, REPOSITORY_QUERY_ROW_LENGTH
-from strata.analysis.main.select_fact_backend import select_fact_backend
 from strata.analysis.models import RepositoryGlobAnswer
-from strata.analysis.types import FactBackend
 
 
 def observe_repository_python_globs(
@@ -20,7 +18,7 @@ def observe_repository_python_globs(
     """Return native ordered Python glob answers or misses for safe fallback."""
 
     unavailable: tuple[None, ...] = (None,) * len(queries)
-    if select_fact_backend().backend is not FactBackend.NATIVE or not queries:
+    if not queries:
         return unavailable
     try:
         strata_facts: ModuleType = import_module(NATIVE_FACT_MODULE_NAME)

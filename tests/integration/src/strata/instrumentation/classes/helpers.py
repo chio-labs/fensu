@@ -5,7 +5,7 @@ from __future__ import annotations
 from io import StringIO
 from pathlib import Path
 
-from strata.analysis.main.select_fact_backend import select_fact_backend
+from strata.analysis.main.resolve_native_backend_version import resolve_native_backend_version
 from strata.cache.results._helpers.paths import relative_repository_path
 from strata.cli.main.check import run_check
 from strata.instrumentation.main.measure_operations import measure_operations
@@ -18,12 +18,12 @@ def _no_cache_to_clear() -> None:
 def counted_check(*, argv: tuple[str, ...]) -> dict[str, int]:
     """Run one in-process check and return its operation counts."""
 
-    select_fact_backend.cache_clear()
+    resolve_native_backend_version.cache_clear()
     getattr(relative_repository_path, "cache_clear", _no_cache_to_clear)()
     counts: dict[str, int] = measure_operations(
         operation=lambda: run_check(argv=argv, stdout=StringIO())
     )
-    select_fact_backend.cache_clear()
+    resolve_native_backend_version.cache_clear()
     return counts
 
 

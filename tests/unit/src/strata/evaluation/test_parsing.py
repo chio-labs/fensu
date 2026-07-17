@@ -8,9 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from strata.analysis.constants import FACT_BACKEND_ENV_VARIABLE
-from strata.analysis.main.select_fact_backend import select_fact_backend
-from strata.analysis.types import FactBackend, PythonSourceArtifact
+from strata.analysis.types import PythonSourceArtifact
 from strata.discovery.main.discover_files import discover_files
 from strata.discovery.models import ScopedFile
 from strata.discovery.types import ScopeName
@@ -21,6 +19,7 @@ from strata.evaluation.models import ParsedModule
 from tests.unit.src.strata.discovery.helpers import make_config
 from tests.unit.src.strata.evaluation._test_types import (
     EncodedParseErrorTestCase,
+    NativeCompatibilityErrorTestCase,
     ParseDelegationTestCase,
     ParseErrorTestCase,
     SourceFingerprintTestCase,
@@ -109,9 +108,9 @@ def test_given_raw_source_bytes_when_parsing_then_preserves_exact_content_identi
     "test_case",
     [
         ParseDelegationTestCase(
-            description="evaluation delegates project source parsing to analysis",
+            description="evaluation bypasses CPython parsing for native source analysis",
             source=b"value: int = 1\n",
-            expected_factory_calls=1,
+            expected_factory_calls=0,
             expected_direct_parse_paths=(),
         )
     ],
@@ -141,11 +140,7 @@ def test_given_source_snapshot_when_evaluation_parses_then_delegates_to_analysis
         return original_factory(path=path, content=content, source_fingerprint=source_fingerprint)
 
     monkeypatch.setattr(parsing, "parse_python_source", observe_factory)
-    monkeypatch.setenv(FACT_BACKEND_ENV_VARIABLE, FactBackend.PYTHON.value)
-    select_fact_backend.cache_clear()
-
     _ = parsing.parse_scoped_file(scoped_file=scoped_file)
-    select_fact_backend.cache_clear()
     direct_parse_paths: tuple[str, ...] = direct_ast_parse_paths(root=Path("src/strata/evaluation"))
 
     expected_call: tuple[bytes, str] = (
@@ -181,6 +176,43 @@ def test_given_invalid_encoded_source_when_evaluation_parses_then_raises_parse_e
         scope=ScopeName.ROOT,
         relative_parts=("models.py",),
     )
+
+    with pytest.raises(ParseError) as error:
+        _ = parse_scoped_file(scoped_file=scoped_file)
+
+    assert test_case.expected_error_fragment in str(error.value)
+    assert error.value.line == test_case.expected_line
+    assert error.value.column == test_case.expected_column
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        NativeCompatibilityErrorTestCase(
+            description="CPython-valid source rejected by native parsing reports compatibility",
+            source=b"value: int = 1\n",
+            expected_error_fragment="unsupported by the required native analyzer",
+            expected_line=None,
+            expected_column=None,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_cpython_valid_source_when_native_parser_rejects_then_raises_compatibility_error(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: NativeCompatibilityErrorTestCase,
+) -> None:
+    path: Path = tmp_path / "src/pkg/models.py"
+    path.parent.mkdir(parents=True)
+    path.write_bytes(test_case.source)
+    scoped_file: ScopedFile = ScopedFile(
+        path=path,
+        root=tmp_path / "src/pkg",
+        scope=ScopeName.ROOT,
+        relative_parts=("models.py",),
+    )
+    monkeypatch.setattr(parsing, "parse_native_program", lambda **kwargs: None)
 
     with pytest.raises(ParseError) as error:
         _ = parse_scoped_file(scoped_file=scoped_file)

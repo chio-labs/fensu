@@ -1,4 +1,4 @@
-"""Synchronize and query the configured Strata Memory index."""
+"""Synchronize and query the configured Strata Memory index internally."""
 
 from __future__ import annotations
 

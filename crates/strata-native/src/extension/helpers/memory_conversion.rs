@@ -4,8 +4,8 @@ use pyo3::types::{PyAnyMethods, PyDict, PyDictMethods, PyList, PyTuple};
 use pyo3::{Bound, BoundObject, IntoPyObject, Py, PyAny, PyErr, PyResult, Python};
 
 use strata_memory::engine::models::{
-    IndexSummary, MemoryOverview, MemoryQueryResult, MemoryQueryValue, MemorySchemaOverview,
-    MemorySchemaRelation, MemorySummary, SyncSummary,
+    IndexSummary, MemoryCheckResult, MemoryDiagnostic, MemoryOverview, MemoryQueryResult,
+    MemoryQueryValue, MemorySchemaOverview, MemorySchemaRelation, MemorySummary, SyncSummary,
 };
 
 pub(crate) fn memory_summary_object(
@@ -144,6 +144,29 @@ pub(crate) fn memory_relation_schema_object(
     .map(Bound::unbind)
 }
 
+pub(crate) fn memory_check_result_object(
+    py: Python<'_>,
+    result: MemoryCheckResult,
+) -> PyResult<Py<PyTuple>> {
+    let diagnostics = result
+        .diagnostics
+        .into_iter()
+        .map(|diagnostic| memory_diagnostic_object(py, diagnostic))
+        .collect::<PyResult<Vec<Py<PyTuple>>>>()?;
+    let published = match result.published {
+        Some(summary) => index_summary_object(py, summary)?.into_any(),
+        None => py.None(),
+    };
+    PyTuple::new(
+        py,
+        [
+            PyTuple::new(py, diagnostics)?.into_any().unbind(),
+            published,
+        ],
+    )
+    .map(Bound::unbind)
+}
+
 pub(crate) fn memory_query_result_object(
     py: Python<'_>,
     result: MemoryQueryResult,
@@ -170,6 +193,21 @@ fn query_rows_object(
         objects.push(PyTuple::new(py, values)?.unbind());
     }
     Ok(PyTuple::new(py, objects)?.into_any().unbind())
+}
+
+fn memory_diagnostic_object(py: Python<'_>, diagnostic: MemoryDiagnostic) -> PyResult<Py<PyTuple>> {
+    PyTuple::new(
+        py,
+        [
+            to_object(py, diagnostic.code)?,
+            to_object(py, diagnostic.repository_relative_path)?,
+            to_object(py, diagnostic.line)?,
+            to_object(py, diagnostic.column)?,
+            to_object(py, diagnostic.message)?,
+            to_object(py, diagnostic.remediation)?,
+        ],
+    )
+    .map(Bound::unbind)
 }
 
 fn query_value_object(

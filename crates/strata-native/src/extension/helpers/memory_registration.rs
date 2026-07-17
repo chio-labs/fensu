@@ -13,6 +13,7 @@ pub(crate) fn register_memory_functions(module: &Bound<'_, PyModule>) -> PyResul
     )?)?;
     module.add_function(wrap_pyfunction!(memory_bindings::memory_summary, module)?)?;
     module.add_function(wrap_pyfunction!(memory_bindings::memory_rebuild, module)?)?;
+    module.add_function(wrap_pyfunction!(memory_bindings::memory_check, module)?)?;
     module.add_function(wrap_pyfunction!(memory_bindings::memory_sync, module)?)?;
     module.add_function(wrap_pyfunction!(memory_bindings::memory_overview, module)?)?;
     module.add_function(wrap_pyfunction!(

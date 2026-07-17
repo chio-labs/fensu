@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from strata.memory.models import (
+    MemoryCheckResult,
     MemoryOverviewResult,
     MemoryQueryResult,
     MemoryRebuildResult,
@@ -59,3 +60,13 @@ class MemoryRebuildRenderTestCase:
     description: str
     result: MemoryRebuildResult
     expected_output: str
+
+
+@dataclass(frozen=True)
+class MemoryCheckRenderTestCase:
+    """Direct-source findings and expected standard diagnostic output."""
+
+    description: str
+    result: MemoryCheckResult
+    expected_output: str
+    expected_fault_count: int

@@ -92,6 +92,17 @@ class CheckErrorTestCase:
 
 
 @dataclass(frozen=True)
+class MemoryCheckIntegrationTestCase:
+    """Enabled memory source and expected combined architecture check response."""
+
+    description: str
+    expected_exit_code: int
+    expected_memory_fault: str
+    expected_architecture_summary: str
+    expected_memory_summary: str
+
+
+@dataclass(frozen=True)
 class CustomRuleCoverageTestCase:
     """Configured custom rules and expected source-owned SFR707 diagnostics."""
 

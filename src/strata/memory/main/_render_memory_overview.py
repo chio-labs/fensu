@@ -1,4 +1,4 @@
-"""Render the compact Strata Memory plan overview."""
+"""Render the compact Strata Memory plan overview internally."""
 
 from __future__ import annotations
 

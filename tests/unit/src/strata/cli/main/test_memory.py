@@ -22,10 +22,11 @@ from tests.unit.src.strata.cli.main._test_types import (
             argv=("--help",),
             expected_stdout=(
                 "usage: strata memory [-h] [--color {auto,always,never}]\n"
-                "                     {sync,rebuild,schema,sql} ...\n\n"
+                "                     {check,sync,rebuild,schema,sql} ...\n\n"
                 "Synchronize, inspect, and query persistent repository memory.\n\n"
                 "positional arguments:\n"
-                "  {sync,rebuild,schema,sql}\n"
+                "  {check,sync,rebuild,schema,sql}\n"
+                "    check               validate canonical memory sources\n"
                 "    sync                synchronize changed sources\n"
                 "    rebuild             replace the complete memory index\n"
                 "    schema              show public relation metadata\n"
@@ -81,6 +82,13 @@ def test_given_memory_arguments_when_running_adapter_then_returns_expected_parse
         MemoryDisabledAdapterTestCase(
             description="bare memory requires explicit enablement",
             argv=(),
+            expected_error_fragment="Strata Memory is disabled",
+            expected_database_exists=False,
+            expected_exit_code=2,
+        ),
+        MemoryDisabledAdapterTestCase(
+            description="memory check requires explicit enablement",
+            argv=("check",),
             expected_error_fragment="Strata Memory is disabled",
             expected_database_exists=False,
             expected_exit_code=2,

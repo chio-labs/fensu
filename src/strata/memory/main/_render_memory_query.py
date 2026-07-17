@@ -1,4 +1,4 @@
-"""Render one Strata Memory query result."""
+"""Render one Strata Memory query result internally."""
 
 from __future__ import annotations
 

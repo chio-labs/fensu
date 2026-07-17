@@ -1,6 +1,8 @@
 //! Memory engine entry operations.
 
 #[cfg(feature = "duckdb-engine")]
+pub mod check_memory;
+#[cfg(feature = "duckdb-engine")]
 pub mod memory_overview;
 #[cfg(feature = "duckdb-engine")]
 pub mod memory_relation_schema;

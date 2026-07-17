@@ -6,12 +6,15 @@ from pathlib import Path
 
 import pytest
 
-from strata.memory.main.render_memory_overview import render_memory_overview
-from strata.memory.main.render_memory_query import render_memory_query
+from strata.memory.main._render_memory_overview import render_memory_overview
+from strata.memory.main._render_memory_query import render_memory_query
+from strata.memory.main.render_memory_check import render_memory_check
 from strata.memory.main.render_memory_rebuild import render_memory_rebuild
 from strata.memory.main.render_memory_schema import render_memory_schema
 from strata.memory.main.render_memory_sync import render_memory_sync
 from strata.memory.models import (
+    MemoryCheckResult,
+    MemoryDiagnostic,
     MemoryIndexSummary,
     MemoryOverview,
     MemoryOverviewResult,
@@ -27,7 +30,9 @@ from strata.memory.models import (
     MemorySyncSummary,
 )
 from strata.memory.types import MemoryQueryFormat
+from strata.reporting.models import RenderedReport
 from tests.unit.src.strata.memory._test_types import (
+    MemoryCheckRenderTestCase,
     MemoryOverviewRenderTestCase,
     MemoryQueryRenderTestCase,
     MemoryRebuildRenderTestCase,
@@ -270,3 +275,42 @@ def test_given_rebuild_result_when_rendering_then_reports_counts_and_path(
     rendered: str = render_memory_rebuild(result=test_case.result)
 
     assert rendered == test_case.expected_output
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        MemoryCheckRenderTestCase(
+            description="memory findings reuse standard locations and remediation output",
+            result=MemoryCheckResult(
+                project=_PROJECT,
+                diagnostics=(
+                    MemoryDiagnostic(
+                        code="MEM002",
+                        repository_relative_path=".ai/orphan.md",
+                        line=None,
+                        column=None,
+                        message="root-level Markdown is not canonical",
+                        remediation="Move the source into its canonical knowledge location.",
+                    ),
+                ),
+                published=None,
+            ),
+            expected_output=(
+                "MEM002  root-level Markdown is not canonical\n"
+                " --> .ai/orphan.md:-:-\n"
+                "  = help: Move the source into its canonical knowledge location.\n\n"
+                "Found 1 fault"
+            ),
+            expected_fault_count=1,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_memory_findings_when_rendering_then_uses_standard_fault_language(
+    test_case: MemoryCheckRenderTestCase,
+) -> None:
+    report: RenderedReport = render_memory_check(result=test_case.result)
+
+    assert report.text == test_case.expected_output
+    assert report.fault_count == test_case.expected_fault_count

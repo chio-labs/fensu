@@ -11,8 +11,6 @@ from typing import Any, cast
 import pytest
 
 from strata import RuleCase, RuleFile, RuleResult, evaluate_rule
-from strata.analysis.main.select_fact_backend import select_fact_backend
-from strata.analysis.types import FactBackend
 from strata.instrumentation.constants import OPERATION_COUNTERS, PARSE_OPERATION
 from strata.rules.authoring.exceptions import RuleDefinitionError
 from strata.rules.testing.exceptions import RuleHarnessError
@@ -475,11 +473,44 @@ def test_given_rule_case_when_evaluating_rule_then_uses_real_pipeline(
     [HarnessEvaluationTestCase(**vars(test_case)) for test_case in _FACT_FAMILY_CASES],
     ids=lambda case: case.description,
 )
-@pytest.mark.skipif(
-    select_fact_backend().backend is FactBackend.PYTHON,
-    reason="The Python reference backend requires one CPython parse for fact extraction.",
-)
 def test_given_fact_only_rule_when_evaluating_then_avoids_python_ast_parse(
+    test_case: HarnessEvaluationTestCase,
+) -> None:
+    OPERATION_COUNTERS.enable()
+    result: RuleResult = evaluate_rule(rule=test_case.rule, test_case=test_case.rule_case)
+    counts: dict[str, int] = OPERATION_COUNTERS.snapshot()
+    OPERATION_COUNTERS.disable()
+
+    assert result.fault_count == test_case.expected_fault_count
+    assert counts.get(PARSE_OPERATION, 0) == test_case.expected_python_parse_count
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        HarnessEvaluationTestCase(
+            description="mixed native facts and raw syntax share one lazy CPython parse",
+            rule=all_context_zones,
+            rule_case=RuleCase(
+                description="all context zones",
+                source="def primary() -> None:\n    pass\n",
+                expected_fault_count=1,
+                files=(
+                    RuleFile(
+                        path="src/example/support.py",
+                        source="def support_value() -> bool:\n    return True\n",
+                    ),
+                ),
+            ),
+            expected_fault_count=1,
+            expected_lines=(1,),
+            expected_messages=("all public context zones are available",),
+            expected_python_parse_count=1,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_mixed_fact_and_raw_syntax_rule_when_evaluating_then_parses_cpython_once(
     test_case: HarnessEvaluationTestCase,
 ) -> None:
     OPERATION_COUNTERS.enable()

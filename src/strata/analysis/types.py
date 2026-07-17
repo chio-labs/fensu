@@ -52,13 +52,6 @@ class ProjectDependencyKind(StrEnum):
     PYTHON_ANCHOR = "python_anchor"
 
 
-class FactBackend(StrEnum):
-    """The implementation extracting semantic facts from parsed source."""
-
-    NATIVE = "native"
-    PYTHON = "python"
-
-
 class ReturnAnnotationCategory(StrEnum):
     """Normalized return-annotation shapes used by contract policies."""
 

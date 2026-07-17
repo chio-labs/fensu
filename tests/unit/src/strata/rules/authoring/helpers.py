@@ -57,7 +57,7 @@ _BANNED_IMPORT_PREFIXES: tuple[str, ...] = (
     "strata_facts",
     "strata.strata_facts",
     "strata.cache",
-    "strata.analysis.classes.native_fact_analysis",
+    "strata.analysis.classes.semantic_fact_analysis",
     "strata.analysis.main.parse_native_program",
 )
 _BANNED_OPERATION_ATTRIBUTES: frozenset[str] = frozenset(

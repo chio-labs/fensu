@@ -8,8 +8,6 @@ import pytest
 
 from scripts.perfcorpus.main.generate_corpus import generate_corpus
 from scripts.perfcorpus.models import CorpusSpec
-from strata.analysis.constants import FACT_BACKEND_ENV_VARIABLE
-from strata.analysis.types import FactBackend
 from strata.instrumentation.constants import (
     CACHE_MANIFEST_VALIDATION_OPERATION,
     CACHE_RECORD_BYTES_READ_OPERATION,
@@ -60,7 +58,7 @@ _MAX_WARM_CANONICAL_ENCODES: int = 8
     "test_case",
     [
         UncachedCountsTestCase(
-            description="python-backend uncached checks parse boundedly and never touch cache paths",
+            description="native uncached checks stay linear and never touch cache paths",
             file_target=120,
             seed=0,
             expected_relative_path_computes=0,
@@ -82,15 +80,13 @@ def test_given_uncached_check_when_counting_then_operations_stay_linear(
     )
     files: int = python_file_count(root=tmp_path)
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv(FACT_BACKEND_ENV_VARIABLE, FactBackend.PYTHON.value)
-
     counts: dict[str, int] = counted_check(argv=("--no-color", "--no-cache"))
 
     assert counts.get(RELATIVE_PATH_COMPUTE_OPERATION, 0) == (
         test_case.expected_relative_path_computes
     )
     assert counts[FRESH_EVALUATION_OPERATION] == files
-    assert counts[PARSE_OPERATION] <= files * _MAX_PARSES_PER_FILE
+    assert counts.get(PARSE_OPERATION, 0) <= files * _MAX_PARSES_PER_FILE
     assert counts[DEPENDENCY_RECORD_OPERATION] <= files * _MAX_DEPENDENCY_RECORDS_PER_FILE
     assert counts[PHASE_DISCOVERY_NANOSECONDS] >= test_case.expected_min_discovery_nanoseconds
     assert counts[PHASE_FULL_EVALUATION_NANOSECONDS] >= (
@@ -117,7 +113,7 @@ def test_given_uncached_check_when_counting_then_operations_stay_linear(
     "test_case",
     [
         CachedCountsTestCase(
-            description="python-backend warm checks restore every file without parsing",
+            description="native warm checks restore every file without parsing",
             file_target=120,
             seed=0,
             expected_warm_fresh_evaluations=0,
@@ -141,8 +137,6 @@ def test_given_cold_then_warm_check_when_counting_then_warm_run_stays_pure(
     )
     files: int = python_file_count(root=tmp_path)
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv(FACT_BACKEND_ENV_VARIABLE, FactBackend.PYTHON.value)
-
     cold_counts: dict[str, int] = counted_check(argv=("--no-color", "--cache"))
     warm_counts: dict[str, int] = counted_check(argv=("--no-color", "--cache"))
 
@@ -168,7 +162,9 @@ def test_given_cold_then_warm_check_when_counting_then_warm_run_stays_pure(
     assert warm_counts.get(PHASE_CACHE_EVALUATION_NANOSECONDS, 0) >= (
         test_case.expected_min_warm_cache_evaluation_nanoseconds
     )
-    assert warm_counts[RELATIVE_PATH_COMPUTE_OPERATION] <= files * _MAX_RELATIVE_COMPUTES_PER_FILE
+    assert warm_counts.get(RELATIVE_PATH_COMPUTE_OPERATION, 0) <= (
+        files * _MAX_RELATIVE_COMPUTES_PER_FILE
+    )
     assert warm_counts.get(CANONICAL_ENCODE_OPERATION, 0) <= _MAX_WARM_CANONICAL_ENCODES
 
 
@@ -176,11 +172,11 @@ def test_given_cold_then_warm_check_when_counting_then_warm_run_stays_pure(
     "test_case",
     [
         EditCountsTestCase(
-            description="python-backend one edited file re-evaluates and parses exactly once",
+            description="native one edited file re-evaluates without CPython parsing",
             file_target=120,
             seed=0,
             expected_fresh_evaluations=1,
-            expected_parses=1,
+            expected_parses=0,
         )
     ],
     ids=lambda case: case.description,
@@ -194,7 +190,6 @@ def test_given_one_edited_file_when_counting_then_only_that_file_re_evaluates(
         spec=CorpusSpec(target=tmp_path, file_target=test_case.file_target, seed=test_case.seed)
     )
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv(FACT_BACKEND_ENV_VARIABLE, FactBackend.PYTHON.value)
     _ = counted_check(argv=("--no-color", "--cache"))
     edited: Path = sorted(tmp_path.rglob("record_shaping.py"))[0]
     _ = appended_module_constant(path=edited)
@@ -202,7 +197,7 @@ def test_given_one_edited_file_when_counting_then_only_that_file_re_evaluates(
     counts: dict[str, int] = counted_check(argv=("--no-color", "--cache"))
 
     assert counts[FRESH_EVALUATION_OPERATION] == test_case.expected_fresh_evaluations
-    assert counts[PARSE_OPERATION] == test_case.expected_parses
+    assert counts.get(PARSE_OPERATION, 0) == test_case.expected_parses
 
 
 @pytest.mark.parametrize(
@@ -227,7 +222,6 @@ def test_given_all_sources_changed_when_counting_then_cache_io_stays_generation_
         spec=CorpusSpec(target=tmp_path, file_target=test_case.file_target, seed=test_case.seed)
     )
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv(FACT_BACKEND_ENV_VARIABLE, FactBackend.PYTHON.value)
     _ = counted_check(argv=("--no-color", "--cache"))
     changed: tuple[Path, ...] = append_source_newlines(root=tmp_path)
 

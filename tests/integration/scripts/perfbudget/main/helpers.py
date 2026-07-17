@@ -7,7 +7,6 @@ from scripts.perfbudget.main.run_budget import run_budget
 
 def uniform_budget_run(
     *,
-    backend: str,
     file_target: int,
     seed: int,
     runs: int,
@@ -16,7 +15,6 @@ def uniform_budget_run(
     """Run every scenario with one shared ceiling and return the exit code."""
 
     return run_budget(
-        backend=backend,
         files=file_target,
         seed=seed,
         runs=runs,

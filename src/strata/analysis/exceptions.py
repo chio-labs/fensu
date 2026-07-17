@@ -32,3 +32,13 @@ class AnalysisLookupError(LookupError):
 
 class NativeBackendUnavailableError(RuntimeError):
     """Raised when the required native analysis module cannot be imported."""
+
+
+class NativeSourceCompatibilityError(RuntimeError):
+    """Raised when source cannot be represented by the required native analyzer."""
+
+    def __init__(self, *, path: Path, detail: str) -> None:
+        """Store the incompatible source identity and native parser detail."""
+
+        super().__init__(f"Could not analyze {path} with the native analyzer: {detail}")
+        self.path: Path = path

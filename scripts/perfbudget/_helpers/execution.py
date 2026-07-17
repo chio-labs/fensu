@@ -32,11 +32,9 @@ from scripts.perfbudget.constants import (
     WARM_SCENARIO,
 )
 from scripts.perfbudget.models import BudgetSpec, ScenarioResult
-from strata.analysis.constants import FACT_BACKEND_ENV_VARIABLE
 
 _CACHE_DIRECTORY_NAME: str = ".strata"
 _STATS_PREFIX: str = "Cache:"
-_FALLBACK_WARNING_FRAGMENT: str = "fact backend was requested but"
 _GNU_TIME_PATH: Path = Path("/usr/bin/time")
 
 
@@ -50,7 +48,6 @@ def standard_scenarios(*, spec: BudgetSpec, project: Path) -> dict[str, Scenario
         executable=spec.executable,
         project=project,
         cache=False,
-        backend=spec.backend,
     )
     _ = cleared_cache(project=project)
     results[COLD_SCENARIO] = measured_check(
@@ -58,14 +55,12 @@ def standard_scenarios(*, spec: BudgetSpec, project: Path) -> dict[str, Scenario
         executable=spec.executable,
         project=project,
         cache=True,
-        backend=spec.backend,
     )
     results[WARM_SCENARIO] = measured_check(
         name=WARM_SCENARIO,
         executable=spec.executable,
         project=project,
         cache=True,
-        backend=spec.backend,
     )
     edited: Path = sorted(project.rglob(EDITED_HELPER_FILE_NAME))[0]
     edited.write_text(edited.read_text(encoding="utf-8") + EDIT_APPENDIX, encoding="utf-8")
@@ -74,7 +69,6 @@ def standard_scenarios(*, spec: BudgetSpec, project: Path) -> dict[str, Scenario
         executable=spec.executable,
         project=project,
         cache=True,
-        backend=spec.backend,
     )
     _change_source_ratio(project=project, numerator=1, denominator=100)
     results[CHURN_1_PERCENT_SCENARIO] = measured_check(
@@ -82,7 +76,6 @@ def standard_scenarios(*, spec: BudgetSpec, project: Path) -> dict[str, Scenario
         executable=spec.executable,
         project=project,
         cache=True,
-        backend=spec.backend,
     )
     _change_source_ratio(project=project, numerator=25, denominator=100)
     results[CHURN_25_PERCENT_SCENARIO] = measured_check(
@@ -90,7 +83,6 @@ def standard_scenarios(*, spec: BudgetSpec, project: Path) -> dict[str, Scenario
         executable=spec.executable,
         project=project,
         cache=True,
-        backend=spec.backend,
     )
     _change_source_ratio(project=project, numerator=75, denominator=100)
     results[CHURN_75_PERCENT_SCENARIO] = measured_check(
@@ -98,7 +90,6 @@ def standard_scenarios(*, spec: BudgetSpec, project: Path) -> dict[str, Scenario
         executable=spec.executable,
         project=project,
         cache=True,
-        backend=spec.backend,
     )
     _change_source_ratio(project=project, numerator=100, denominator=100)
     results[CHURN_100_PERCENT_SCENARIO] = measured_check(
@@ -106,14 +97,12 @@ def standard_scenarios(*, spec: BudgetSpec, project: Path) -> dict[str, Scenario
         executable=spec.executable,
         project=project,
         cache=True,
-        backend=spec.backend,
     )
     results[CHURN_UNCACHED_SCENARIO] = measured_check(
         name=CHURN_UNCACHED_SCENARIO,
         executable=spec.executable,
         project=project,
         cache=False,
-        backend=spec.backend,
     )
     config_path: Path = project / "strata.toml"
     config_path.write_text(
@@ -125,14 +114,12 @@ def standard_scenarios(*, spec: BudgetSpec, project: Path) -> dict[str, Scenario
         executable=spec.executable,
         project=project,
         cache=True,
-        backend=spec.backend,
     )
     results[GLOBAL_MISMATCH_UNCACHED_SCENARIO] = measured_check(
         name=GLOBAL_MISMATCH_UNCACHED_SCENARIO,
         executable=spec.executable,
         project=project,
         cache=False,
-        backend=spec.backend,
     )
     return results
 
@@ -147,14 +134,12 @@ def dense_scenarios(*, spec: BudgetSpec, project: Path) -> dict[str, ScenarioRes
         executable=spec.executable,
         project=project,
         cache=True,
-        backend=spec.backend,
     )
     results[DENSE_WARM_SCENARIO] = measured_check(
         name=DENSE_WARM_SCENARIO,
         executable=spec.executable,
         project=project,
         cache=True,
-        backend=spec.backend,
     )
     return results
 
@@ -165,12 +150,10 @@ def measured_check(
     executable: Path,
     project: Path,
     cache: bool,
-    backend: str,
 ) -> ScenarioResult:
     """Run one timed strata check and capture its output identity and stats."""
 
     cache_flag: str = "--cache" if cache else "--no-cache"
-    environment: dict[str, str] = {**os.environ, FACT_BACKEND_ENV_VARIABLE: backend}
     command: list[str] = [
         str(executable),
         "check",
@@ -198,7 +181,6 @@ def measured_check(
             capture_output=True,
             text=True,
             check=False,
-            env=environment,
         )
         max_rss_kib: int | None = _read_max_rss(timing_path=timing_path)
     finally:
@@ -211,7 +193,6 @@ def measured_check(
         exit_code=completed.returncode,
         output_sha256=hashlib.sha256(completed.stdout.encode("utf-8")).hexdigest(),
         cache_stats=_stats_line(stderr=completed.stderr),
-        fallback_warned=_FALLBACK_WARNING_FRAGMENT in completed.stderr,
         max_rss_kib=max_rss_kib,
     )
 

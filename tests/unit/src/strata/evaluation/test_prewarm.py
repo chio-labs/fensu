@@ -11,9 +11,6 @@ from strata.analysis.constants import NATIVE_FACT_MODULE_NAME
 
 strata_facts: Any = pytest.importorskip(NATIVE_FACT_MODULE_NAME)
 
-from strata.analysis.constants import FACT_BACKEND_ENV_VARIABLE  # noqa: E402
-from strata.analysis.main.select_fact_backend import select_fact_backend  # noqa: E402
-from strata.analysis.types import FactBackend  # noqa: E402
 from strata.config.models import Config  # noqa: E402
 from strata.discovery.models import DiscoveredTree, ScopedFile  # noqa: E402
 from strata.evaluation._helpers import parsing as parsing_module  # noqa: E402
@@ -51,8 +48,6 @@ def test_given_prewarmed_file_when_reading_parsed_module_then_skips_reparse(
     tmp_path: Path,
     test_case: PrewarmSeedTestCase,
 ) -> None:
-    monkeypatch.setenv(FACT_BACKEND_ENV_VARIABLE, FactBackend.NATIVE.value)
-    select_fact_backend.cache_clear()
     scoped_file: ScopedFile = write_scoped_source(tmp_path=tmp_path, source=test_case.source)
     monkeypatch.chdir(tmp_path)
     config: Config = Config(roots=("src/pkg",))
@@ -69,8 +64,6 @@ def test_given_prewarmed_file_when_reading_parsed_module_then_skips_reparse(
     prewarm_scoped_files(project=project, scoped_files=(scoped_file,))
 
     parsed: ParsedModule = project.parsed_module(scoped_file)
-    select_fact_backend.cache_clear()
-
     assert len(reparse_calls) == test_case.expected_reparse_calls
     assert parsed.scoped_file.path == scoped_file.path
     assert parsed.source == test_case.source.decode()
@@ -114,8 +107,6 @@ def test_given_mixed_scopes_when_prewarming_then_plans_families_by_scope(
     tmp_path: Path,
     test_case: PrewarmFamilyPlanTestCase,
 ) -> None:
-    monkeypatch.setenv(FACT_BACKEND_ENV_VARIABLE, FactBackend.NATIVE.value)
-    select_fact_backend.cache_clear()
     write_sources(repo_root=tmp_path, files=test_case.files)
     monkeypatch.chdir(tmp_path)
     config: Config = Config(roots=("src/pkg",), tests=("tests",))
@@ -134,7 +125,6 @@ def test_given_mixed_scopes_when_prewarming_then_plans_families_by_scope(
 
     prewarm_scoped_files(project=project, scoped_files=ordered_files)
 
-    select_fact_backend.cache_clear()
     assert tuple(families for _, families in captured) == test_case.expected_family_plans
 
 
@@ -154,8 +144,6 @@ def test_given_unparseable_file_when_prewarming_then_strict_path_still_reports(
     tmp_path: Path,
     test_case: PrewarmFallbackTestCase,
 ) -> None:
-    monkeypatch.setenv(FACT_BACKEND_ENV_VARIABLE, FactBackend.NATIVE.value)
-    select_fact_backend.cache_clear()
     scoped_file: ScopedFile = write_scoped_source(tmp_path=tmp_path, source=test_case.source)
     monkeypatch.chdir(tmp_path)
     config: Config = Config(roots=("src/pkg",))
@@ -167,4 +155,3 @@ def test_given_unparseable_file_when_prewarming_then_strict_path_still_reports(
 
     with pytest.raises(test_case.expected_error_type):
         _ = project.parsed_module(scoped_file)
-    select_fact_backend.cache_clear()

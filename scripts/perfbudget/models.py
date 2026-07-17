@@ -11,7 +11,6 @@ class BudgetSpec:
     """One complete budget run request."""
 
     executable: Path
-    backend: str
     file_target: int
     seed: int
     uncached_ceiling: float
@@ -29,7 +28,6 @@ class ScenarioResult:
     exit_code: int
     output_sha256: str
     cache_stats: str
-    fallback_warned: bool
     max_rss_kib: int | None
 
 

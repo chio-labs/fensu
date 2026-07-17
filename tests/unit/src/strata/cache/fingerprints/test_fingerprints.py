@@ -50,12 +50,12 @@ from tests.unit.src.strata.cache.fingerprints._test_types import (
     ContractFingerprintTestCase,
     CustomRulesFingerprintTestCase,
     EvaluationFingerprintTestCase,
-    FactBackendFingerprintTestCase,
     FileResultFingerprintTestCase,
     GlobalFingerprintBuilderTestCase,
     GlobalFingerprintTestCase,
     GlobalRuntimeFingerprintTestCase,
     ImplementationFingerprintTestCase,
+    NativeBackendFingerprintTestCase,
     RulesetExecutionOwnerFingerprintTestCase,
     RulesetFingerprintTestCase,
     RulesetSourceReuseTestCase,
@@ -705,8 +705,7 @@ def test_given_global_inputs_when_fingerprinting_then_captures_version_contract(
         config=common,
         ruleset=common,
         custom_rules=common,
-        fact_backend="python",
-        fact_backend_version="",
+        native_backend_version="0.1.0",
         strata_version=test_case.first_version,
     )
     second: CacheFingerprint = global_fingerprint(
@@ -714,8 +713,7 @@ def test_given_global_inputs_when_fingerprinting_then_captures_version_contract(
         config=common,
         ruleset=common,
         custom_rules=common,
-        fact_backend="python",
-        fact_backend_version="",
+        native_backend_version="0.1.0",
         strata_version=test_case.second_version,
     )
 
@@ -725,43 +723,23 @@ def test_given_global_inputs_when_fingerprinting_then_captures_version_contract(
 @pytest.mark.parametrize(
     "test_case",
     [
-        FactBackendFingerprintTestCase(
-            description="native and python backends have distinct global identities",
-            first_backend="python",
-            first_backend_version="",
-            second_backend="native",
-            second_backend_version="0.1.0",
-            expected_equal=False,
-        ),
-        FactBackendFingerprintTestCase(
-            description="backend name alone distinguishes identities at equal versions",
-            first_backend="python",
-            first_backend_version="",
-            second_backend="native",
-            second_backend_version="",
-            expected_equal=False,
-        ),
-        FactBackendFingerprintTestCase(
-            description="native backend version change invalidates global identity",
-            first_backend="native",
+        NativeBackendFingerprintTestCase(
+            description="native extension version change invalidates global identity",
             first_backend_version="0.1.0",
-            second_backend="native",
             second_backend_version="0.2.0",
             expected_equal=False,
         ),
-        FactBackendFingerprintTestCase(
-            description="matching backend identities share the global identity",
-            first_backend="python",
-            first_backend_version="",
-            second_backend="python",
-            second_backend_version="",
+        NativeBackendFingerprintTestCase(
+            description="matching native extension versions share the global identity",
+            first_backend_version="0.1.0",
+            second_backend_version="0.1.0",
             expected_equal=True,
         ),
     ],
     ids=lambda case: case.description,
 )
-def test_given_fact_backend_identity_when_fingerprinting_then_captures_backend_contract(
-    test_case: FactBackendFingerprintTestCase,
+def test_given_native_extension_version_when_fingerprinting_then_captures_backend_contract(
+    test_case: NativeBackendFingerprintTestCase,
 ) -> None:
     common: CacheFingerprint = source_fingerprint(b"common")
 
@@ -770,8 +748,7 @@ def test_given_fact_backend_identity_when_fingerprinting_then_captures_backend_c
         config=common,
         ruleset=common,
         custom_rules=common,
-        fact_backend=test_case.first_backend,
-        fact_backend_version=test_case.first_backend_version,
+        native_backend_version=test_case.first_backend_version,
         strata_version="1.0.0",
     )
     second: CacheFingerprint = global_fingerprint(
@@ -779,8 +756,7 @@ def test_given_fact_backend_identity_when_fingerprinting_then_captures_backend_c
         config=common,
         ruleset=common,
         custom_rules=common,
-        fact_backend=test_case.second_backend,
-        fact_backend_version=test_case.second_backend_version,
+        native_backend_version=test_case.second_backend_version,
         strata_version="1.0.0",
     )
 
@@ -809,8 +785,7 @@ def test_given_warning_mode_state_when_fingerprinting_then_captures_invocation_i
         config=common,
         ruleset=common,
         custom_rules=common,
-        fact_backend="python",
-        fact_backend_version="",
+        native_backend_version="0.1.0",
         warnings_enabled=test_case.first_enabled,
         strata_version="1.0.0",
     )
@@ -819,8 +794,7 @@ def test_given_warning_mode_state_when_fingerprinting_then_captures_invocation_i
         config=common,
         ruleset=common,
         custom_rules=common,
-        fact_backend="python",
-        fact_backend_version="",
+        native_backend_version="0.1.0",
         warnings_enabled=test_case.second_enabled,
         strata_version="1.0.0",
     )
@@ -870,8 +844,7 @@ def test_given_runtime_semantics_when_fingerprinting_then_captures_contract_iden
         config=common,
         ruleset=common,
         custom_rules=common,
-        fact_backend="python",
-        fact_backend_version="",
+        native_backend_version="0.1.0",
         strata_version="1.0.0",
     )
     monkeypatch.setattr(
@@ -889,8 +862,7 @@ def test_given_runtime_semantics_when_fingerprinting_then_captures_contract_iden
         config=common,
         ruleset=common,
         custom_rules=common,
-        fact_backend="python",
-        fact_backend_version="",
+        native_backend_version="0.1.0",
         strata_version="1.0.0",
     )
 

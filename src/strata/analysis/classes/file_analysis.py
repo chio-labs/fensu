@@ -7,17 +7,14 @@ from pathlib import Path
 from typing import cast
 
 from strata.analysis._helpers.locations import line_offsets, source_range
-from strata.analysis.classes.fact_analysis import PythonFactAnalysis
 from strata.analysis.classes.lazy_syntax_artifacts import LazySyntaxArtifacts
-from strata.analysis.classes.native_fact_analysis import NativeFactAnalysis
 from strata.analysis.classes.relation_analysis import PythonRelationAnalysis
+from strata.analysis.classes.semantic_fact_analysis import SemanticFactAnalysis
 from strata.analysis.classes.syntax_analysis import PythonSyntaxAnalysis
 from strata.analysis.classes.text_analysis import PythonTextAnalysis
-from strata.analysis.main.select_fact_backend import select_fact_backend
 from strata.analysis.models import NodeId, SourceRange, SyntaxHandle
 from strata.analysis.types import (
     FactAnalysis,
-    FactBackend,
     RelationAnalysis,
     SyntaxAnalysis,
     TextAnalysis,
@@ -51,15 +48,10 @@ class PythonFileAnalysis:
         """Return semantic file facts."""
 
         if self._facts is None:
-            self._facts = (
-                NativeFactAnalysis(
-                    python_facts=self._python_facts,
-                    path=self._path,
-                    source=self._source,
-                    program=self._program,
-                )
-                if select_fact_backend().backend is FactBackend.NATIVE
-                else self._python_facts()
+            self._facts = SemanticFactAnalysis(
+                path=self._path,
+                source=self._source,
+                program=self._program,
             )
         return self._facts
 
@@ -84,16 +76,6 @@ class PythonFileAnalysis:
 
         self._ensure_queries()
         return cast(RelationAnalysis, self._relations)
-
-    def _python_facts(self) -> FactAnalysis:
-        return PythonFactAnalysis(
-            path=self._path,
-            source=self._source,
-            module=self._artifacts.module,
-            nodes=self._artifacts.nodes,
-            node_index=self._artifacts.node_index,
-            parent_by_node=self._artifacts.parent_by_node,
-        )
 
     def _ensure_queries(self) -> None:
         if self._syntax is not None:

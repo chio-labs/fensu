@@ -12,7 +12,7 @@ from typing import cast
 from scripts.benchmarking.classes.check_profiler import CheckProfiler
 from scripts.benchmarking.models import OperationReport, ProfileReport
 from scripts.benchmarking.types import OperationProfileMode
-from strata.analysis.main.select_fact_backend import select_fact_backend
+from strata.analysis.main.resolve_native_backend_version import resolve_native_backend_version
 from strata.cache.results._helpers.paths import relative_repository_path
 from strata.cli.main.check import run_check
 from strata.instrumentation.main.measure_operations import measure_operations
@@ -54,7 +54,7 @@ def _operation_argv(*, mode: OperationProfileMode) -> tuple[str, ...]:
 
 
 def _clear_process_caches() -> None:
-    select_fact_backend.cache_clear()
+    resolve_native_backend_version.cache_clear()
     cache_clear: Callable[[], None] | None = cast(
         Callable[[], None] | None,
         getattr(relative_repository_path, "cache_clear", None),

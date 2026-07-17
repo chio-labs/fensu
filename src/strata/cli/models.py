@@ -46,7 +46,6 @@ class EvaluationWorkerRequest:
     warn: bool
     paths: tuple[str, ...]
     cache_enabled: bool | None
-    backend: str | None
     native_threads: int
     partition: tuple[str, ...]
 

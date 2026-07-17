@@ -323,6 +323,291 @@ def test_given_internal_imports_when_checking_public_surface_then_flags_bare_pac
     "test_case",
     [
         LayerRuleTestCase(
+            description="private main entry is available across subdomains in its domain",
+            rule_code="SFL104",
+            files=(
+                (
+                    "src/pkg/orders/billing/main/_calculate.py",
+                    "def calculate() -> None:\n    pass\n",
+                ),
+                (
+                    "src/pkg/orders/shipping/_helpers/use.py",
+                    "from pkg.orders.billing.main._calculate import calculate\n",
+                ),
+            ),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        LayerRuleTestCase(
+            description="private main entry rejects an importer from another domain",
+            rule_code="SFL104",
+            files=(
+                (
+                    "src/pkg/orders/billing/main/_calculate.py",
+                    "def calculate() -> None:\n    pass\n",
+                ),
+                (
+                    "src/pkg/inventory/_helpers/use.py",
+                    "from pkg.orders.billing.main._calculate import calculate\n",
+                ),
+            ),
+            expected_codes=("SFL104",),
+            expected_lines=(1,),
+            expected_messages=(
+                "import 'pkg.orders.billing.main._calculate' reaches a domain-private main entry",
+            ),
+        ),
+        LayerRuleTestCase(
+            description="private main entry rejects a from-main submodule import across domains",
+            rule_code="SFL104",
+            files=(
+                (
+                    "src/pkg/orders/billing/main/_calculate.py",
+                    "def calculate() -> None:\n    pass\n",
+                ),
+                (
+                    "src/pkg/inventory/_helpers/use.py",
+                    "from pkg.orders.billing.main import _calculate\n",
+                ),
+            ),
+            expected_codes=("SFL104",),
+            expected_lines=(1,),
+            expected_messages=(
+                "import 'pkg.orders.billing.main._calculate' reaches a domain-private main entry",
+            ),
+        ),
+        LayerRuleTestCase(
+            description="private main entry rejects a tooling importer",
+            rule_code="SFL104",
+            files=(
+                (
+                    "src/pkg/orders/billing/main/_calculate.py",
+                    "def calculate() -> None:\n    pass\n",
+                ),
+                (
+                    "scripts/use_orders.py",
+                    "from pkg.orders.billing.main._calculate import calculate\n",
+                ),
+            ),
+            tooling=("scripts",),
+            expected_codes=("SFL104",),
+            expected_lines=(1,),
+            expected_messages=(
+                "import 'pkg.orders.billing.main._calculate' reaches a domain-private main entry",
+            ),
+        ),
+        LayerRuleTestCase(
+            description="private main entry remains available to mirrored tests",
+            rule_code="SFL104",
+            files=(
+                (
+                    "src/pkg/orders/billing/main/_calculate.py",
+                    "def calculate() -> None:\n    pass\n",
+                ),
+                (
+                    "tests/unit/src/pkg/orders/billing/main/test_calculate.py",
+                    "from pkg.orders.billing.main._calculate import calculate\n",
+                ),
+            ),
+            tests=("tests",),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_domain_private_main_entry_when_importing_then_enforces_domain_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: LayerRuleTestCase,
+) -> None:
+    result: EvaluationResult = evaluate_layer_test_case(
+        test_case=test_case, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
+    assert tuple(fault.line for fault in result.faults) == test_case.expected_lines
+    assert tuple(fault.message for fault in result.faults) == test_case.expected_messages
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        LayerRuleTestCase(
+            description="public main entry without importers must become domain-private",
+            rule_code="SFL105",
+            files=(
+                (
+                    "src/pkg/orders/billing/main/calculate.py",
+                    "def calculate() -> None:\n    pass\n",
+                ),
+            ),
+            expected_codes=("SFL105",),
+            expected_lines=(None,),
+            expected_messages=("public main entry has no importer outside its owning domain",),
+        ),
+        LayerRuleTestCase(
+            description="same-domain importer does not justify a public main entry",
+            rule_code="SFL105",
+            files=(
+                (
+                    "src/pkg/orders/billing/main/calculate.py",
+                    "def calculate() -> None:\n    pass\n",
+                ),
+                (
+                    "src/pkg/orders/shipping/_helpers/use.py",
+                    "from pkg.orders.billing.main.calculate import calculate\n",
+                ),
+            ),
+            expected_codes=("SFL105",),
+            expected_lines=(None,),
+            expected_messages=("public main entry has no importer outside its owning domain",),
+        ),
+        LayerRuleTestCase(
+            description="another domain importer justifies a public main entry",
+            rule_code="SFL105",
+            files=(
+                (
+                    "src/pkg/orders/billing/main/calculate.py",
+                    "def calculate() -> None:\n    pass\n",
+                ),
+                (
+                    "src/pkg/inventory/_helpers/use.py",
+                    "from pkg.orders.billing.main.calculate import calculate\n",
+                ),
+            ),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        LayerRuleTestCase(
+            description="from-main import by another domain justifies a public main entry",
+            rule_code="SFL105",
+            files=(
+                (
+                    "src/pkg/orders/billing/main/calculate.py",
+                    "def calculate() -> None:\n    pass\n",
+                ),
+                (
+                    "src/pkg/inventory/_helpers/use.py",
+                    "from pkg.orders.billing.main import calculate\n",
+                ),
+            ),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        LayerRuleTestCase(
+            description="tooling importer justifies a public main entry",
+            rule_code="SFL105",
+            files=(
+                (
+                    "src/pkg/orders/billing/main/calculate.py",
+                    "def calculate() -> None:\n    pass\n",
+                ),
+                (
+                    "scripts/use_orders.py",
+                    "from pkg.orders.billing.main.calculate import calculate\n",
+                ),
+            ),
+            tooling=("scripts",),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        LayerRuleTestCase(
+            description="root package stub importer justifies a public main entry",
+            rule_code="SFL105",
+            files=(
+                (
+                    "src/pkg/orders/billing/main/calculate.py",
+                    "def calculate() -> None:\n    pass\n",
+                ),
+                (
+                    "src/pkg/__init__.pyi",
+                    "from pkg.orders.billing.main.calculate import calculate as calculate\n",
+                ),
+            ),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        LayerRuleTestCase(
+            description="project script declaration justifies a public main entry",
+            rule_code="SFL105",
+            files=(
+                (
+                    "src/pkg/orders/billing/main/calculate.py",
+                    "def calculate() -> None:\n    pass\n",
+                ),
+                (
+                    "pyproject.toml",
+                    '[project]\nname = "pkg"\n[project.scripts]\ncalculate = '
+                    '"pkg.orders.billing.main.calculate:calculate"\n',
+                ),
+            ),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        LayerRuleTestCase(
+            description="test importer does not justify a public main entry",
+            rule_code="SFL105",
+            files=(
+                (
+                    "src/pkg/orders/billing/main/calculate.py",
+                    "def calculate() -> None:\n    pass\n",
+                ),
+                (
+                    "tests/unit/src/pkg/orders/billing/main/test_calculate.py",
+                    "from pkg.orders.billing.main.calculate import calculate\n",
+                ),
+            ),
+            tests=("tests",),
+            expected_codes=("SFL105",),
+            expected_lines=(None,),
+            expected_messages=("public main entry has no importer outside its owning domain",),
+        ),
+        LayerRuleTestCase(
+            description="domain-private main entry does not require external use",
+            rule_code="SFL105",
+            files=(
+                (
+                    "src/pkg/orders/billing/main/_calculate.py",
+                    "def calculate() -> None:\n    pass\n",
+                ),
+            ),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        LayerRuleTestCase(
+            description="main package initializer is not an entry module",
+            rule_code="SFL105",
+            files=(
+                (
+                    "src/pkg/orders/billing/main/commands/__init__.py",
+                    '"""Billing command entries."""\n',
+                ),
+            ),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_main_entry_visibility_when_checking_external_use_then_requires_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: LayerRuleTestCase,
+) -> None:
+    result: EvaluationResult = evaluate_layer_test_case(
+        test_case=test_case, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
+    assert tuple(fault.line for fault in result.faults) == test_case.expected_lines
+    assert tuple(fault.message for fault in result.faults) == test_case.expected_messages
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        LayerRuleTestCase(
             description="helper-private class stays local in own file",
             rule_code="SFL110",
             files=(("src/pkg/domain/alpha/_helpers/parse.py", "class _Cursor:\n    pass\n"),),

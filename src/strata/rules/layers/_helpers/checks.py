@@ -3,22 +3,41 @@
 from __future__ import annotations
 
 import ast
+from dataclasses import dataclass
+from pathlib import Path
 
 from strata.analysis.models import AttributeReferenceFact, ImportFact, ReferenceFacts
-from strata.discovery.constants import HELPERS_DIRECTORY_NAME, INIT_MODULE_FILE_NAME
+from strata.analysis.types import Analysis
+from strata.discovery.constants import (
+    HELPERS_DIRECTORY_NAME,
+    INIT_MODULE_FILE_NAME,
+    PYTHON_FILE_SUFFIX,
+)
 from strata.discovery.types import ScopeName
 from strata.rules.authoring.models import Fault
 from strata.rules.authoring.types import RuleContext
 from strata.rules.layers._helpers.imports import (
     classify_module_ownership,
+    import_module_targets,
     import_path_targets_tooling,
     is_cross_package_internal_import,
+    is_domain_private_main_entry,
+    is_public_main_entry,
     is_sibling_internal_import,
     normalized_import_targets,
 )
 from strata.rules.layers.models import ModuleOwnership
 
 _wildcard_import_name: str = "*"
+
+
+@dataclass(frozen=True, slots=True)
+class _ProjectModule:
+    path: Path
+    scope: ScopeName
+    module_parts: tuple[str, ...]
+    ownership: ModuleOwnership
+    references: ReferenceFacts
 
 
 def absolute_imports_only(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
@@ -143,6 +162,154 @@ def no_internal_public_surface_imports(*, module: ast.Module, ctx: RuleContext) 
         ):
             faults.append(ctx.fault_at(location=fact.location))
     return faults
+
+
+def no_cross_domain_private_main_imports(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Reject imports of domain-private main entries from outside their domain."""
+
+    del module
+    current_module_parts: tuple[str, ...] = ctx.module_parts()
+    current_initializer: bool = ctx.path.name == INIT_MODULE_FILE_NAME
+    current: ModuleOwnership = classify_module_ownership(
+        module_parts=current_module_parts,
+        initializer=current_initializer,
+    )
+    faults: list[Fault] = []
+    for fact in ctx.facts.references().imports:
+        for imported_parts in import_module_targets(
+            fact=fact,
+            current_module_parts=current_module_parts,
+            current_initializer=current_initializer,
+        ):
+            target: ModuleOwnership = classify_module_ownership(
+                module_parts=imported_parts,
+                initializer=False,
+            )
+            if (
+                is_domain_private_main_entry(target)
+                and _module_exists(ctx=ctx, module_parts=imported_parts)
+                and not _shares_domain(current=current, target=target)
+            ):
+                faults.append(
+                    ctx.fault_at(
+                        location=fact.location,
+                        message=(
+                            f"import '{'.'.join(imported_parts)}' reaches a domain-private main "
+                            "entry"
+                        ),
+                    )
+                )
+                break
+    return faults
+
+
+def public_main_entry_external_use(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Require every public main entry to have an importer outside its domain."""
+
+    del module
+    modules: tuple[_ProjectModule, ...] = _project_modules(ctx=ctx)
+    public_entries: dict[tuple[str, ...], _ProjectModule] = {
+        item.module_parts: item
+        for item in modules
+        if item.scope is ScopeName.ROOT
+        and item.path.suffix == PYTHON_FILE_SUFFIX
+        and item.path.name != INIT_MODULE_FILE_NAME
+        and item.ownership.domain is not None
+        and is_public_main_entry(item.ownership)
+    }
+    externally_used: set[tuple[str, ...]] = {
+        tuple(module_name.split("."))
+        for module_name in ctx.project.entrypoint_modules(requester=ctx.path)
+    }
+    for importer in modules:
+        initializer: bool = importer.path.name == INIT_MODULE_FILE_NAME
+        for fact in importer.references.imports:
+            for imported_parts in import_module_targets(
+                fact=fact,
+                current_module_parts=importer.module_parts,
+                current_initializer=initializer,
+            ):
+                target: _ProjectModule | None = public_entries.get(imported_parts)
+                if target is not None and _outside_domain(importer=importer, target=target):
+                    externally_used.add(imported_parts)
+    return [
+        ctx.path_fault(
+            path=entry.path,
+            message="public main entry has no importer outside its owning domain",
+        )
+        for module_parts, entry in sorted(
+            public_entries.items(), key=lambda item: str(item[1].path)
+        )
+        if module_parts not in externally_used
+    ]
+
+
+def _project_modules(*, ctx: RuleContext) -> tuple[_ProjectModule, ...]:
+    modules: list[_ProjectModule] = []
+    for scope in (ScopeName.ROOT, ScopeName.TOOLING):
+        for root in ctx.scope_roots(scope):
+            paths: set[Path] = set()
+            for pattern in ("*.py", "*.pyi"):
+                paths.update(
+                    ctx.project.glob(
+                        requester=ctx.path,
+                        path=root,
+                        pattern=pattern,
+                        recursive=True,
+                    )
+                )
+            for path in sorted(paths):
+                analysis: Analysis | None = ctx.project.analysis(requester=ctx.path, path=path)
+                if analysis is None:
+                    continue
+                module_parts: tuple[str, ...] = _module_parts(path=path, root=root)
+                modules.append(
+                    _ProjectModule(
+                        path=path,
+                        scope=scope,
+                        module_parts=module_parts,
+                        ownership=classify_module_ownership(
+                            module_parts=module_parts,
+                            initializer=path.name == INIT_MODULE_FILE_NAME,
+                        ),
+                        references=analysis.facts.references(),
+                    )
+                )
+    return tuple(modules)
+
+
+def _module_parts(*, path: Path, root: Path) -> tuple[str, ...]:
+    relative_parts: tuple[str, ...] = path.relative_to(root.parent).parts
+    parts: tuple[str, ...] = (*relative_parts[:-1], path.stem)
+    return parts[:-1] if parts[-1] == INIT_MODULE_FILE_NAME.removesuffix(".py") else parts
+
+
+def _module_exists(*, ctx: RuleContext, module_parts: tuple[str, ...]) -> bool:
+    if not module_parts:
+        return False
+    for root in ctx.scope_roots(ScopeName.ROOT):
+        if root.name != module_parts[0]:
+            continue
+        relative: Path = Path(*module_parts[1:])
+        if ctx.project.is_file(requester=ctx.path, path=root / relative.with_suffix(".py")):
+            return True
+    return False
+
+
+def _shares_domain(*, current: ModuleOwnership, target: ModuleOwnership) -> bool:
+    return (
+        current.package is not None
+        and current.package == target.package
+        and current.domain is not None
+        and current.domain == target.domain
+    )
+
+
+def _outside_domain(*, importer: _ProjectModule, target: _ProjectModule) -> bool:
+    return importer.scope is ScopeName.TOOLING or not _shares_domain(
+        current=importer.ownership,
+        target=target.ownership,
+    )
 
 
 def no_cross_file_helper_private_classes(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:

@@ -1,6 +1,6 @@
 """Build correctness and integrity identities for one cached file result."""
 
-from strata.cache.fingerprints.main.file_result_identity import file_result_identity
+from strata.cache.fingerprints.main._file_result_identity import file_result_identity
 from strata.cache.fingerprints.main.source import fingerprint_source
 from strata.cache.fingerprints.models import CacheFingerprint, FileResultFingerprints
 

@@ -37,9 +37,9 @@ def render_runtime_domain(
         f"{base}/classes/__init__.py": _INIT_CONTENT,
         f"{base}/classes/record_store.py": _store_module(domain=domain, prefix=prefix),
         f"{base}/main/__init__.py": _INIT_CONTENT,
-        f"{base}/main/read_{domain}.py": _read_entry_module(domain=domain, prefix=prefix),
-        f"{base}/main/export_{domain}.py": _export_entry_module(domain=domain, prefix=prefix),
-        f"{base}/main/audit_{domain}.py": _audit_entry_module(domain=domain, prefix=prefix),
+        f"{base}/main/_read_{domain}.py": _read_entry_module(domain=domain, prefix=prefix),
+        f"{base}/main/_export_{domain}.py": _export_entry_module(domain=domain, prefix=prefix),
+        f"{base}/main/_audit_{domain}.py": _audit_entry_module(domain=domain, prefix=prefix),
         f"{base}/_helpers/__init__.py": _INIT_CONTENT,
     }
     faults: int = 0

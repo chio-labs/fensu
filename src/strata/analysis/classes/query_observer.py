@@ -34,6 +34,19 @@ class QueryObserver:
         OPERATION_COUNTERS.record(operation=PROJECT_QUERY_ANSWER_ITEM_OPERATION)
         return hashlib.sha256(content).hexdigest()
 
+    def source_text(self, *, path: Path) -> tuple[str, str] | None:
+        """Return UTF-8 source text and its SHA-256 identity when readable."""
+
+        OPERATION_COUNTERS.record(operation=PROJECT_QUERY_OBSERVATION_OPERATION)
+        OPERATION_COUNTERS.record(operation=PROJECT_QUERY_SOURCE_OPERATION)
+        try:
+            content: bytes = path.read_bytes()
+            text: str = content.decode("utf-8")
+        except (OSError, UnicodeError):
+            return None
+        OPERATION_COUNTERS.record(operation=PROJECT_QUERY_ANSWER_ITEM_OPERATION)
+        return text, hashlib.sha256(content).hexdigest()
+
     def exists(self, *, resolved_path: Path) -> bool:
         """Return whether a resolved path exists."""
 

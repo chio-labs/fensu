@@ -11,10 +11,10 @@ from strata.discovery.main.discover_files import discover_files
 from strata.discovery.models import DiscoveredTree
 from strata.evaluation.main.evaluate import evaluate
 from strata.evaluation.models import EvaluationResult
-from strata.rules.authoring.main.resolve_rule_spec import resolve_rule_spec
+from strata.rules.authoring.main._resolve_rule_spec import resolve_rule_spec
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import RuleCheck
-from strata.rules.catalog.main.check_module_use import check_uses_module
+from strata.rules.catalog.main._check_module_use import check_uses_module
 from strata.rules.testing._helpers.remapping import remap_rule_result
 from strata.rules.testing._helpers.repository import (
     build_harness_config,

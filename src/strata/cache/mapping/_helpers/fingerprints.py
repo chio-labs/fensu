@@ -3,8 +3,8 @@
 import platform
 from pathlib import Path
 
-from strata.cache.fingerprints.main.canonical import fingerprint_canonical
-from strata.cache.fingerprints.main.implementation import fingerprint_implementation
+from strata.cache.fingerprints.main._canonical import fingerprint_canonical
+from strata.cache.fingerprints.main._implementation import fingerprint_implementation
 from strata.cache.fingerprints.types import CanonicalValue
 from strata.cache.mapping.constants import MAP_CACHE_CONTRACT_VERSION
 from strata.cache.mapping.models import MappingIdentity

@@ -16,6 +16,8 @@ class LayerRuleTestCase:
     expected_lines: tuple[int | None, ...]
     expected_messages: tuple[str, ...] = field(default_factory=tuple)
     roots: tuple[str, ...] = ("src/pkg",)
+    tests: tuple[str, ...] = ()
+    tooling: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

@@ -9,7 +9,7 @@ import pytest
 from strata.analysis._helpers import building
 from strata.cache.mapping.models import CachedCallMap
 from strata.cache.storage.constants import CACHE_DATABASE_RELATIVE_PATH
-from strata.cli.main.map import run_map
+from strata.cli.main._map import run_map
 from strata.mapping.exceptions import MapError
 from strata.mapping.main.ast import build_ast_call_map
 from strata.mapping.main.render import render_call_tree

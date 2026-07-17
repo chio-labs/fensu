@@ -15,6 +15,11 @@ from strata.config.constants import (
     CONTRACT_BEHAVIORS,
     DOUBLE_PATH_SEPARATOR,
     EVALUATION_CONFIG_KEYS,
+    MEMORY_CONFIG_KEYS,
+    MEMORY_ENABLED_CONFIG_KEY,
+    MEMORY_TASKS_ARCHIVE_AFTER_DAYS_CONFIG_KEY,
+    MEMORY_TASKS_CONFIG_KEY,
+    MEMORY_TASKS_CONFIG_KEYS,
     PATH_SEPARATOR,
     RECURSIVE_GLOB,
     RULE_EXCEPTION_SYMBOLS_CONFIG_KEY,
@@ -56,6 +61,7 @@ def validate_config(raw: Mapping[str, object]) -> None:
     _validate_contracts(value=raw.get("contracts"))
     _validate_rule_exceptions(value=raw.get("rule_exceptions"))
     _validate_cache(value=raw.get("cache"))
+    _validate_memory(value=raw.get("memory"))
     _validate_evaluation(value=raw.get("evaluation"))
     _validate_skills(value=raw.get("skills"))
 
@@ -88,6 +94,47 @@ def _validate_cache(*, value: object) -> None:
         typed_value[CACHE_REQUIRE_CACHEABLE_CONFIG_KEY], bool
     ):
         raise ConfigValidationError("Config key cache.require_cacheable must be a boolean.")
+
+
+def _validate_memory(*, value: object) -> None:
+    if value is None:
+        return
+    if not isinstance(value, dict):
+        raise ConfigValidationError("Config key memory must be a table.")
+    typed_value: dict[object, object] = cast(dict[object, object], value)
+    unknown_keys: set[object] = set(typed_value) - MEMORY_CONFIG_KEYS
+    if unknown_keys:
+        names: str = ", ".join(sorted(str(key) for key in unknown_keys))
+        raise ConfigValidationError(f"Unknown memory config key(s): {names}.")
+    if MEMORY_ENABLED_CONFIG_KEY in typed_value and not isinstance(
+        typed_value[MEMORY_ENABLED_CONFIG_KEY], bool
+    ):
+        raise ConfigValidationError("Config key memory.enabled must be a boolean.")
+    _validate_memory_tasks(value=typed_value.get(MEMORY_TASKS_CONFIG_KEY))
+
+
+def _validate_memory_tasks(*, value: object) -> None:
+    if value is None:
+        return
+    if not isinstance(value, dict):
+        raise ConfigValidationError("Config key memory.tasks must be a table.")
+    typed_value: dict[object, object] = cast(dict[object, object], value)
+    unknown_keys: set[object] = set(typed_value) - MEMORY_TASKS_CONFIG_KEYS
+    if unknown_keys:
+        names: str = ", ".join(sorted(str(key) for key in unknown_keys))
+        raise ConfigValidationError(f"Unknown memory.tasks config key(s): {names}.")
+    archive_after_days: object = typed_value.get(MEMORY_TASKS_ARCHIVE_AFTER_DAYS_CONFIG_KEY)
+    if (
+        MEMORY_TASKS_ARCHIVE_AFTER_DAYS_CONFIG_KEY in typed_value
+        and type(archive_after_days) is not int
+    ):
+        raise ConfigValidationError(
+            "Config key memory.tasks.archive_after_days must be an integer."
+        )
+    if isinstance(archive_after_days, int) and archive_after_days < 0:
+        raise ConfigValidationError(
+            "Config key memory.tasks.archive_after_days must be non-negative."
+        )
 
 
 def _validate_skills(*, value: object) -> None:

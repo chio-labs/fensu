@@ -59,3 +59,25 @@ class InitNoColorTestCase:
     no_color: str
     expected_use_color: bool
     expected_exit_code: int
+
+
+@dataclass(frozen=True)
+class MemoryAdapterTestCase:
+    """Memory CLI arguments and expected parser response."""
+
+    description: str
+    argv: tuple[str, ...]
+    expected_stdout: str
+    expected_stderr_fragment: str
+    expected_exit_code: int
+
+
+@dataclass(frozen=True)
+class MemoryDisabledAdapterTestCase:
+    """One memory command that must honor the project enablement gate."""
+
+    description: str
+    argv: tuple[str, ...]
+    expected_error_fragment: str
+    expected_database_exists: bool
+    expected_exit_code: int

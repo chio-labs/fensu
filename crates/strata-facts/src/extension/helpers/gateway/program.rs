@@ -56,7 +56,7 @@ struct FactRowCache {
 }
 
 /// One parsed Python module retained for repeated fact extraction.
-#[pyclass(frozen, module = "strata_facts")]
+#[pyclass(frozen, module = "strata._native")]
 pub(crate) struct ProgramHandle {
     source: String,
     parsed: Parsed<ModModule>,

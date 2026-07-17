@@ -20,6 +20,71 @@ from tests.unit.src.strata.config.helpers import write_strata_toml
     "test_case",
     [
         InvalidConfigTestCase(
+            description="memory preference must be a table",
+            config_text='roots = ["src/pkg"]\nmemory = true\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="memory must be a table",
+        ),
+        InvalidConfigTestCase(
+            description="memory table rejects unknown options",
+            config_text='roots = ["src/pkg"]\n[memory]\nbackend = "local"\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="Unknown memory config key(s): backend",
+        ),
+        InvalidConfigTestCase(
+            description="memory enabled preference must be boolean",
+            config_text='roots = ["src/pkg"]\n[memory]\nenabled = 1\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="memory.enabled must be a boolean",
+        ),
+        InvalidConfigTestCase(
+            description="memory tasks preference must be a table",
+            config_text='roots = ["src/pkg"]\n[memory]\ntasks = 7\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="memory.tasks must be a table",
+        ),
+        InvalidConfigTestCase(
+            description="memory tasks table rejects unknown options",
+            config_text='roots = ["src/pkg"]\n[memory.tasks]\narchive = 7\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="Unknown memory.tasks config key(s): archive",
+        ),
+        InvalidConfigTestCase(
+            description="memory task archive age must be an integer",
+            config_text=('roots = ["src/pkg"]\n[memory.tasks]\narchive_after_days = "7"\n'),
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="archive_after_days must be an integer",
+        ),
+        InvalidConfigTestCase(
+            description="memory task archive age rejects boolean integers",
+            config_text='roots = ["src/pkg"]\n[memory.tasks]\narchive_after_days = true\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="archive_after_days must be an integer",
+        ),
+        InvalidConfigTestCase(
+            description="memory task archive age must be non-negative",
+            config_text='roots = ["src/pkg"]\n[memory.tasks]\narchive_after_days = -1\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="archive_after_days must be non-negative",
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_invalid_memory_preference_when_loading_then_raises_validation_error(
+    tmp_path: Path, test_case: InvalidConfigTestCase
+) -> None:
+    write_strata_toml(root=tmp_path, contents=test_case.config_text)
+
+    with pytest.raises(test_case.expected_error_type) as error:
+        load_config(tmp_path)
+
+    assert test_case.expected_error_fragment in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        InvalidConfigTestCase(
             description="evaluation must be a table",
             config_text='roots = ["src/pkg"]\nevaluation = ["src/**"]\n',
             expected_error_type=ConfigValidationError,

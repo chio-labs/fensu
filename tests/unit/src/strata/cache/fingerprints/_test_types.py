@@ -90,6 +90,18 @@ class CachePreferenceFingerprintTestCase:
 
 
 @dataclass(frozen=True)
+class MemoryPreferenceFingerprintTestCase:
+    """Two operational memory preferences and expected semantic identity parity."""
+
+    description: str
+    first_enabled: bool
+    second_enabled: bool
+    first_archive_after_days: int
+    second_archive_after_days: int
+    expected_equal: bool
+
+
+@dataclass(frozen=True)
 class EvaluationFingerprintTestCase:
     """Two evaluation selections and their expected global config identity."""
 

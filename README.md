@@ -214,7 +214,10 @@ skills. Rules can use `ctx.facts`, `ctx.project`, `ctx.text`, `ctx.syntax`, and
 `ctx.relations`; these are the same backend-neutral analysis zones used by Strata's
 built-in rules. Project and filesystem reads made through `ctx.project` are tracked
 for cache invalidation. Raw `ast.Module` access remains available for checks that need
-unrestricted Python syntax traversal. Keep project-owned checks in the canonical
+unrestricted Python syntax traversal. Semantic fact contracts and author-facing models
+are public Python APIs, while their production extraction has one native Rust owner;
+raw AST, syntax, and relation artifacts remain lazy CPython capabilities. Keep
+project-owned checks in the canonical
 `scripts/strata/rules/` tooling role and load them explicitly:
 
 ```toml

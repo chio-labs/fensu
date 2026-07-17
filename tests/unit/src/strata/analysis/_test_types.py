@@ -26,24 +26,19 @@ class FactDelegationTestCase:
 
 
 @dataclass(frozen=True)
-class FactBackendSelectionTestCase:
-    """Environment and availability state with the expected selection result."""
+class BackendUnavailableTestCase:
+    """Native installation result expectation."""
 
     description: str
-    requested_value: str | None
-    native_available: bool
-    expected_backend: str
-    expected_native_version: str | None
-    expected_warning_present: bool
+    expected_message_fragment: str
 
 
 @dataclass(frozen=True)
-class BackendUnavailableTestCase:
-    """Environment state expected to reject a missing native module."""
+class FactAnalysisOwnerTestCase:
+    """Expected concrete owner of the complete semantic fact protocol."""
 
     description: str
-    requested_value: str
-    expected_message_fragment: str
+    expected_owners: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -466,15 +461,6 @@ class PytestModuleFactTestCase:
     expected_helper_lines: tuple[int, ...]
     expected_case_list_lines: tuple[int, ...]
     expected_private_lines: tuple[int, ...]
-
-
-@dataclass(frozen=True)
-class NativeFactParityTestCase:
-    """One source whose fact families must match across backends."""
-
-    description: str
-    source: str
-    expected_divergent: tuple[str, ...]
 
 
 @dataclass(frozen=True)

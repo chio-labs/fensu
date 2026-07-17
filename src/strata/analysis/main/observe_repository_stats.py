@@ -7,9 +7,8 @@ from pathlib import Path
 from types import ModuleType
 
 from strata.analysis.constants import NATIVE_FACT_MODULE_NAME, REPOSITORY_QUERY_ROW_LENGTH
-from strata.analysis.main.select_fact_backend import select_fact_backend
 from strata.analysis.models import RepositoryStatAnswer
-from strata.analysis.types import FactBackend, ProjectDependencyKind
+from strata.analysis.types import ProjectDependencyKind
 
 
 def observe_repository_stats(
@@ -20,7 +19,7 @@ def observe_repository_stats(
     """Return native stat answers in query order or misses for safe fallback."""
 
     unavailable: tuple[None, ...] = (None,) * len(queries)
-    if select_fact_backend().backend is not FactBackend.NATIVE or not queries:
+    if not queries:
         return unavailable
     try:
         strata_facts: ModuleType = import_module(NATIVE_FACT_MODULE_NAME)

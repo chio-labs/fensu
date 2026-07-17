@@ -6,9 +6,6 @@ from pathlib import Path
 
 import pytest
 
-from strata.analysis.constants import FACT_BACKEND_ENV_VARIABLE
-from strata.analysis.main.select_fact_backend import select_fact_backend
-from strata.analysis.types import FactBackend
 from strata.config.models import Config, ThresholdOverride
 from strata.discovery.main.position import position_facts
 from strata.discovery.main.route import families_for_scope
@@ -136,12 +133,12 @@ def test_given_analysis_context_when_reporting_handle_then_fault_uses_source_loc
     "test_case",
     [
         EvaluationOperationTestCase(
-            description="parse position and routing execute once per file",
+            description="prewarm avoids strict reparsing while position and routing run once",
             files=(
                 ("src/pkg/config/core/models.py", "value: int = 1\n"),
                 ("src/pkg/config/core/types.py", "from typing import TypeAlias\n"),
             ),
-            expected_parse_count=2,
+            expected_parse_count=0,
             expected_position_count=2,
             expected_routing_count=2,
         )
@@ -155,8 +152,6 @@ def test_given_multiple_rules_when_evaluating_then_file_facts_are_computed_once(
 ) -> None:
     write_sources(repo_root=tmp_path, files=test_case.files)
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv(FACT_BACKEND_ENV_VARIABLE, FactBackend.PYTHON.value)
-    select_fact_backend.cache_clear()
     config: Config = Config(roots=("src/pkg",))
     parse_counts: list[int] = [0]
     position_counts: list[int] = [0]
@@ -189,8 +184,6 @@ def test_given_multiple_rules_when_evaluating_then_file_facts_are_computed_once(
         ruleset=(make_runtime_fault_rule(), make_runtime_fault_rule()),
         config=config,
     )
-
-    select_fact_backend.cache_clear()
 
     assert parse_counts[0] == test_case.expected_parse_count
     assert position_counts[0] == test_case.expected_position_count

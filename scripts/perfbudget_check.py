@@ -7,7 +7,6 @@ from pathlib import Path
 
 from scripts.perfbudget.constants import DEFAULT_FILE_TARGET, DEFAULT_SEED
 from scripts.perfbudget.main.run_budget import run_budget
-from strata.analysis.types import FactBackend
 
 
 def _parse_args() -> argparse.Namespace:
@@ -15,11 +14,6 @@ def _parse_args() -> argparse.Namespace:
 
     parser: argparse.ArgumentParser = argparse.ArgumentParser(prog="perfbudget_check")
     parser.add_argument("--executable", type=Path, default=None)
-    parser.add_argument(
-        "--backend",
-        choices=[FactBackend.PYTHON.value, FactBackend.NATIVE.value],
-        default=FactBackend.PYTHON.value,
-    )
     parser.add_argument("--files", type=int, default=DEFAULT_FILE_TARGET)
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
     parser.add_argument("--runs", type=int, default=1)
@@ -35,7 +29,6 @@ def main() -> int:
 
     args: argparse.Namespace = _parse_args()
     return run_budget(
-        backend=args.backend,
         files=args.files,
         seed=args.seed,
         runs=args.runs,

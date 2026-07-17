@@ -7,15 +7,13 @@ from pathlib import Path
 from types import ModuleType
 
 from strata.analysis.constants import NATIVE_FACT_MODULE_NAME
-from strata.analysis.main.select_fact_backend import select_fact_backend
-from strata.analysis.types import FactBackend
 
 
 def hash_repository_files(*, paths: tuple[Path, ...]) -> tuple[str | None, ...]:
     """Return native content hashes in path order or misses for safe fallback."""
 
     unavailable: tuple[None, ...] = (None,) * len(paths)
-    if select_fact_backend().backend is not FactBackend.NATIVE or not paths:
+    if not paths:
         return unavailable
     try:
         strata_facts: ModuleType = import_module(NATIVE_FACT_MODULE_NAME)

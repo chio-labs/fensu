@@ -8,8 +8,6 @@ from concurrent.futures import ProcessPoolExecutor
 from dataclasses import replace
 from pathlib import Path
 
-from strata.analysis.constants import FACT_BACKEND_ENV_VARIABLE
-from strata.analysis.main.select_fact_backend import select_fact_backend
 from strata.analysis.models import ProjectDependency
 from strata.cli._helpers.check_paths import invocation_path
 from strata.cli.models import (
@@ -82,7 +80,6 @@ def parallel_full_evaluation(
             warn=warn,
             paths=argument_paths,
             cache_enabled=cache_enabled,
-            backend=os.environ.get(FACT_BACKEND_ENV_VARIABLE),
             native_threads=_native_threads_per_worker(worker_count=len(partitions)),
             partition=partition,
         )
@@ -104,9 +101,6 @@ def evaluate_worker_partition(request: EvaluationWorkerRequest) -> EvaluationWor
     """Evaluate one target partition after rebuilding configuration from disk."""
 
     os.environ[_NATIVE_THREAD_ENV_VARIABLE] = str(request.native_threads)
-    if request.backend is not None:
-        os.environ[FACT_BACKEND_ENV_VARIABLE] = request.backend
-    select_fact_backend.cache_clear()
     invocation_dir: Path = Path(request.invocation_dir)
     loaded: LoadedConfig = load_project_config(invocation_dir)
     project_dir: Path = loaded.source.path.parent.resolve()

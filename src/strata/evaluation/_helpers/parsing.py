@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+from typing import Never
 
 from strata.analysis.classes.file_analysis import PythonFileAnalysis
 from strata.analysis.classes.lazy_syntax_artifacts import LazySyntaxArtifacts
@@ -13,8 +14,6 @@ from strata.analysis.main.extract_native_fact_rows import extract_native_fact_ro
 from strata.analysis.main.parse_native_program import parse_native_program
 from strata.analysis.main.parse_native_programs import parse_native_programs
 from strata.analysis.main.parse_source import parse_python_source
-from strata.analysis.main.select_fact_backend import select_fact_backend
-from strata.analysis.types import FactBackend, PythonSourceArtifact
 from strata.discovery.main.position import position_facts
 from strata.discovery.models import ScopedFile
 from strata.discovery.types import ScopeName
@@ -62,8 +61,14 @@ def parse_scoped_file(
     )
     if native_parsed is not None:
         return native_parsed
+    return _raise_parse_error(scoped_file=scoped_file, snapshot=snapshot)
+
+
+def _raise_parse_error(*, scoped_file: ScopedFile, snapshot: SourceSnapshot) -> Never:
+    """Raise the CPython syntax error or a native-parser compatibility error."""
+
     try:
-        artifact: PythonSourceArtifact = parse_python_source(
+        _ = parse_python_source(
             path=scoped_file.path,
             content=snapshot.content,
             source_fingerprint=snapshot.fingerprint,
@@ -77,15 +82,16 @@ def parse_scoped_file(
         raise ParseError(
             path=scoped_file.path, message=message, line=error.line, column=error.column
         ) from error
-    artifacts: LazySyntaxArtifacts = LazySyntaxArtifacts(
-        path=artifact.path, source=artifact.source, module=artifact.module
+    message = (
+        f"Could not analyze {scoped_file.path}: syntax is valid for the running Python "
+        "interpreter but unsupported by the required native analyzer. Upgrade stratalint "
+        "or report the syntax compatibility gap."
     )
-    return _build_parsed_module(
-        scoped_file=scoped_file,
-        source=artifact.source,
-        source_fingerprint=artifact.source_fingerprint,
-        artifacts=artifacts,
-        program=None,
+    raise ParseError(
+        path=scoped_file.path,
+        message=message,
+        line=None,
+        column=None,
     )
 
 
@@ -96,8 +102,6 @@ def prewarm_scoped_files(
 ) -> None:
     """Batch-parse upcoming discovered files natively and seed the project."""
 
-    if select_fact_backend().backend is not FactBackend.NATIVE:
-        return
     readable: list[tuple[ScopedFile, SourceSnapshot, str]] = []
     for scoped_file in scoped_files:
         try:

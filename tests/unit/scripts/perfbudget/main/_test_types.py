@@ -7,10 +7,9 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class SpecResolutionTestCase:
-    """One expectation for resolving ceilings from backend and overrides."""
+    """One expectation for resolving native budget ceiling overrides."""
 
     description: str
-    backend: str
     uncached_ceiling: float | None
     cold_ceiling: float | None
     warm_ceiling: float | None

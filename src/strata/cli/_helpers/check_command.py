@@ -7,14 +7,13 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, TextIO
 
-from strata.analysis.main.select_fact_backend import select_fact_backend
+from strata.analysis.main.resolve_native_backend_version import resolve_native_backend_version
 from strata.cli._helpers.check_evaluation import evaluated_check
 from strata.cli._helpers.check_reporting import skill_freshness_footer, write_check_diagnostics
 from strata.cli._helpers.check_setup import prepare_check_inputs
 from strata.config.exceptions import ConfigError
 
 if TYPE_CHECKING:
-    from strata.analysis.models import FactBackendSelection
     from strata.cache.fingerprints.models import CacheFingerprint
     from strata.cli.models import CheckEvaluation, CheckInputs
     from strata.config.models import LoadedConfig
@@ -34,9 +33,7 @@ def execute_check(
     args: argparse.Namespace = _parser().parse_args(() if argv is None else argv)
     invocation_dir: Path = Path.cwd().resolve()
     use_color: bool = not args.no_color and stdout.isatty()
-    selection: FactBackendSelection = select_fact_backend()
-    if selection.warning is not None:
-        stderr.write(f"{selection.warning}\n")
+    _ = resolve_native_backend_version()
     try:
         inputs: CheckInputs = prepare_check_inputs(args=args, invocation_dir=invocation_dir)
         loaded: LoadedConfig = inputs.loaded

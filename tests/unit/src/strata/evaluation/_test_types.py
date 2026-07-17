@@ -150,6 +150,17 @@ class EncodedParseErrorTestCase:
 
 
 @dataclass(frozen=True)
+class NativeCompatibilityErrorTestCase:
+    """CPython-valid source and expected native compatibility diagnostic."""
+
+    description: str
+    source: bytes
+    expected_error_fragment: str
+    expected_line: int | None
+    expected_column: int | None
+
+
+@dataclass(frozen=True)
 class ContextPropertyTestCase:
     """Source file and expected context property report."""
 

@@ -8,10 +8,7 @@ from pathlib import Path
 from statistics import median
 
 from scripts.perfbudget._helpers.execution import dense_scenarios, standard_scenarios
-from scripts.perfbudget._helpers.specification import (
-    is_native_backend_available,
-    resolved_budget_spec,
-)
+from scripts.perfbudget._helpers.specification import resolved_budget_spec
 from scripts.perfbudget._helpers.validation import budget_failures, repeated_run_failures
 from scripts.perfbudget.constants import DENSE_FAULT_EVERY
 from scripts.perfbudget.models import (
@@ -22,12 +19,10 @@ from scripts.perfbudget.models import (
 )
 from scripts.perfcorpus.main.generate_corpus import generate_corpus
 from scripts.perfcorpus.models import CorpusSpec, CorpusSummary
-from strata.analysis.types import FactBackend
 
 
 def run_budget(
     *,
-    backend: str,
     files: int,
     seed: int,
     uncached_ceiling: float | None,
@@ -40,7 +35,6 @@ def run_budget(
     """Measure all scenarios, report them, and return a pass or fail exit code."""
 
     spec: BudgetSpec = resolved_budget_spec(
-        backend=backend,
         files=files,
         seed=seed,
         uncached_ceiling=uncached_ceiling,
@@ -49,13 +43,6 @@ def run_budget(
         edit_ceiling=edit_ceiling,
         executable=executable,
     )
-    if spec.backend == FactBackend.NATIVE and not is_native_backend_available():
-        print(
-            f"BUDGET FAILURE backend: the {FactBackend.NATIVE.value} fact backend "
-            "was requested but is not installed",
-            file=sys.stderr,
-        )
-        return 1
     if runs < 1:
         print("BUDGET FAILURE runs: runs must be at least one", file=sys.stderr)
         return 1
@@ -66,7 +53,7 @@ def run_budget(
             workspace=Path(workspace),
         )
     print(
-        f"backend={spec.backend} runs={runs} corpus_files={measurement.corpus_files} "
+        f"runs={runs} corpus_files={measurement.corpus_files} "
         f"corpus_faults={measurement.corpus_faults} dense_faults={measurement.dense_faults}"
     )
     _render_runs(runs=measurement.runs)

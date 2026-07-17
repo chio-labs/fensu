@@ -1,4 +1,4 @@
-"""Native and python discovery walks must classify identically."""
+"""Native discovery classification over representative filesystem shapes."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from tests.integration.src.strata.discovery._test_types import (  # noqa: E402
     DiscoveryParityTestCase,
 )
 from tests.integration.src.strata.discovery.helpers import (  # noqa: E402
-    discovered_with_backend,
+    discovered_tree,
     write_fixture_tree,
 )
 
@@ -71,10 +71,9 @@ from tests.integration.src.strata.discovery.helpers import (  # noqa: E402
     ],
     ids=lambda case: case.description,
 )
-def test_given_fixture_tree_when_discovering_with_both_backends_then_trees_match(
+def test_given_fixture_tree_when_discovering_natively_then_expected_files_are_found(
     test_case: DiscoveryParityTestCase,
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     write_fixture_tree(
         root=tmp_path,
@@ -84,12 +83,6 @@ def test_given_fixture_tree_when_discovering_with_both_backends_then_trees_match
     )
     config: Config = Config(roots=("src/pkg",), tests=("tests",), tooling=("scripts",))
 
-    python_tree: DiscoveredTree = discovered_with_backend(
-        backend="python", repo_root=tmp_path, config=config, monkeypatch=monkeypatch
-    )
-    native_tree: DiscoveredTree = discovered_with_backend(
-        backend="native", repo_root=tmp_path, config=config, monkeypatch=monkeypatch
-    )
+    native_tree: DiscoveredTree = discovered_tree(repo_root=tmp_path, config=config)
 
-    assert native_tree.files == python_tree.files
-    assert len(python_tree.files) >= test_case.expected_minimum_files
+    assert len(native_tree.files) >= test_case.expected_minimum_files

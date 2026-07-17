@@ -7,15 +7,13 @@ from pathlib import Path
 from types import ModuleType
 
 from strata.analysis.constants import NATIVE_FACT_MODULE_NAME
-from strata.analysis.main.select_fact_backend import select_fact_backend
-from strata.analysis.types import FactBackend
 from strata.discovery.constants import SNAPSHOT_TABLE
 
 
 def prime_snapshot_hashes(*, paths: tuple[Path, ...]) -> None:
     """Hash every path natively in one batch and seed the snapshot table."""
 
-    if select_fact_backend().backend is not FactBackend.NATIVE or not paths:
+    if not paths:
         return
     try:
         strata_facts: ModuleType = import_module(NATIVE_FACT_MODULE_NAME)

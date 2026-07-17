@@ -9,11 +9,3 @@ class RepoParseAgreementTestCase:
 
     description: str
     expected_divergent: tuple[str, ...]
-
-
-@dataclass(frozen=True)
-class RepoFactParityTestCase:
-    """A tree whose fact families must match across backends."""
-
-    description: str
-    expected_divergent: tuple[str, ...]

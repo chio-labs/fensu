@@ -5,8 +5,6 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from strata.analysis.main.select_fact_backend import select_fact_backend
-from strata.analysis.types import FactBackend
 from strata.config.models import Config
 from strata.discovery._helpers.layout import build_project_layout
 from strata.discovery._helpers.repo_root import resolve_repo_root
@@ -27,8 +25,6 @@ def discover_files(*, config: Config, repo_root: Path | None = None) -> Discover
 
 
 def _seed_snapshot(*, repo_root: RepoRoot, files: tuple[ScopedFile, ...]) -> None:
-    if select_fact_backend().backend is not FactBackend.NATIVE:
-        return
     SNAPSHOT_TABLE.install(
         repo_root=repo_root.path,
         relative_by_path=_snapshot_relative_paths(repo_root=repo_root, files=files),

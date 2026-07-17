@@ -6,8 +6,8 @@ from pathlib import Path
 
 from strata.agentdocs._helpers.installation import write_skill_files
 from strata.agentdocs._helpers.ownership import owned_skill_content
+from strata.agentdocs.main._generate import generate_skill
 from strata.agentdocs.main.build_install_plan import build_install_plan
-from strata.agentdocs.main.generate import generate_skill
 from strata.agentdocs.models import (
     SkillGenerationContext,
     SkillInstallPlan,

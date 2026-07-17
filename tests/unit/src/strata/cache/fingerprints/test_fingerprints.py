@@ -18,8 +18,8 @@ from strata.cache.fingerprints._helpers.fingerprints import (
     ruleset_fingerprint,
     source_fingerprint,
 )
+from strata.cache.fingerprints.main._file_result import file_result_fingerprints
 from strata.cache.fingerprints.main.build_global import build_global_fingerprint
-from strata.cache.fingerprints.main.file_result import file_result_fingerprints
 from strata.cache.fingerprints.models import (
     CacheFingerprint,
     FileResultFingerprints,
@@ -27,8 +27,8 @@ from strata.cache.fingerprints.models import (
 )
 from strata.cache.results._helpers.serialization import file_result_to_record
 from strata.cache.results.models import CachedFileResult
-from strata.cache.storage.main.encode_record import encode_record
-from strata.cache.storage.main.record_identity import record_content_fingerprint
+from strata.cache.storage.main._encode_record import encode_record
+from strata.cache.storage.main._record_identity import record_content_fingerprint
 from strata.cache.storage.models import CacheRecord
 from strata.config.models import (
     CacheConfig,

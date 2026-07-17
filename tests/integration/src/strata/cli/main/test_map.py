@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from strata.cli.main.map import run_map
+from strata.cli.main._map import run_map
 from tests.integration.src.strata.cli.main._test_types import (
     MapCommandTestCase,
     MapPresentationTestCase,

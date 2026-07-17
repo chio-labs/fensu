@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import cast
 
-from strata.cache.fingerprints.main.canonical import fingerprint_canonical
+from strata.cache.fingerprints.main._canonical import fingerprint_canonical
 from strata.cache.fingerprints.types import CanonicalValue
 from strata.cache.mapping.constants import (
     MAP_FILE_KEYS,

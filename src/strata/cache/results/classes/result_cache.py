@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from strata.cache.fingerprints.main.file_result_identity import file_result_identity
+from strata.cache.fingerprints.main._file_result_identity import file_result_identity
 from strata.cache.fingerprints.main.source import fingerprint_source
 from strata.cache.fingerprints.models import CacheFingerprint
 from strata.cache.results._helpers.conversion import build_publication_preparation
@@ -56,8 +56,8 @@ from strata.cache.results.models import (
 )
 from strata.cache.results.types import DependencyReferenceKey, DependencyStateCache
 from strata.cache.storage.exceptions import CacheRecordError
-from strata.cache.storage.main.build_store import build_cache_store
-from strata.cache.storage.main.encode_record import encode_record
+from strata.cache.storage.main._build_store import build_cache_store
+from strata.cache.storage.main._encode_record import encode_record
 from strata.cache.storage.models import (
     CacheMutation,
     CacheMutationOutcome,

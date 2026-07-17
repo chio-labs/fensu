@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
+from strata.rules.authoring.main._matches_rule_selector import matches_rule_selector
 from strata.rules.authoring.main.is_rule_code import is_rule_code
 from strata.rules.authoring.main.is_rule_selector import is_rule_selector
-from strata.rules.authoring.main.matches_rule_selector import matches_rule_selector
 from tests.unit.src.strata.rules.authoring._test_types import (
     RuleGrammarTestCase,
     RuleSelectorMatchTestCase,

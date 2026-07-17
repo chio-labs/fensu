@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.18.1](https://github.com/chio-labs/strata/compare/v0.18.0...v0.18.1) (2026-07-17)
+
+
+### Bug Fixes
+
+* **analysis:** remove duplicate Python fact backend ([c4acc84](https://github.com/chio-labs/strata/commit/c4acc84afeae75df9c922edc5b25ead0faa0adfe))
+* **analysis:** remove duplicate Python fact backend ([912c712](https://github.com/chio-labs/strata/commit/912c712784fa9ced16118fdd8bca586370a85490))
+
 ## [0.18.0](https://github.com/chio-labs/strata/compare/v0.17.0...v0.18.0) (2026-07-17)
 
 

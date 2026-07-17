@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.19.0](https://github.com/chio-labs/strata/compare/v0.18.1...v0.19.0) (2026-07-17)
+
+
+### Features
+
+* **layers:** enforce main entry visibility ([989dd6e](https://github.com/chio-labs/strata/commit/989dd6edef8c93a067ab25e31097b3e624c84519))
+* **layers:** enforce main entry visibility ([3438dce](https://github.com/chio-labs/strata/commit/3438dced68673d9836bf07a7e11cd6291f97b977))
+
 ## [0.18.1](https://github.com/chio-labs/strata/compare/v0.18.0...v0.18.1) (2026-07-17)
 
 

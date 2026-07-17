@@ -13,18 +13,19 @@ from strata.cli.types import ColorMode, MemoryCliCommand
 from strata.config.exceptions import ConfigError
 from strata.memory.constants import DEFAULT_QUERY_LIMIT, MAX_QUERY_LIMIT
 from strata.memory.exceptions import MemoryError
-from strata.memory.main.query_memory import query_memory
 from strata.memory.main.read_memory_schema import read_memory_schema
 from strata.memory.main.rebuild_memory import rebuild_memory
-from strata.memory.main.render_memory_overview import render_memory_overview
-from strata.memory.main.render_memory_query import render_memory_query
 from strata.memory.main.render_memory_rebuild import render_memory_rebuild
 from strata.memory.main.render_memory_schema import render_memory_schema
+from strata.memory.main.render_memory_summary import render_memory_summary
 from strata.memory.main.render_memory_sync import render_memory_sync
+from strata.memory.main.run_memory_check import run_memory_check
+from strata.memory.main.run_memory_query import run_memory_query
 from strata.memory.main.summarize_memory import summarize_memory
 from strata.memory.main.sync_memory import sync_memory
-from strata.memory.models import MemoryOverviewResult, MemoryQueryExecution, MemorySyncResult
+from strata.memory.models import MemoryOverviewResult
 from strata.memory.types import MemoryQueryFormat
+from strata.reporting.models import RenderedReport
 
 
 def run_memory(
@@ -47,15 +48,15 @@ def run_memory(
         )
         if args.command is None:
             result: MemoryOverviewResult = summarize_memory()
-            sync_result: MemorySyncResult = MemorySyncResult(
-                project=result.project, sync=result.sync
-            )
-            stdout.write(render_memory_sync(result=sync_result, compact=True, use_color=use_color))
-            stdout.write(render_memory_overview(result=result, use_color=use_color))
+            stdout.write(render_memory_summary(result=result, use_color=use_color))
             return 0
         if args.command == MemoryCliCommand.SYNC:
             stdout.write(render_memory_sync(result=sync_memory(), use_color=use_color))
             return 0
+        if args.command == MemoryCliCommand.CHECK:
+            report: RenderedReport = run_memory_check(use_color=use_color)
+            stdout.write(f"{report.text}\n")
+            return 1 if report.fault_count else 0
         if args.command == MemoryCliCommand.REBUILD:
             stdout.write(render_memory_rebuild(result=rebuild_memory(), use_color=use_color))
             return 0
@@ -65,23 +66,15 @@ def run_memory(
             )
             return 0
         limit: int = MAX_QUERY_LIMIT if args.no_limit else args.limit
-        execution: MemoryQueryExecution = query_memory(sql=args.query, limit=limit)
         output_format: MemoryQueryFormat = MemoryQueryFormat(args.output_format)
-        query_color: bool = use_color and output_format in {
-            MemoryQueryFormat.LONG,
-            MemoryQueryFormat.TABLE,
-        }
-        query_sync: MemorySyncResult = MemorySyncResult(
-            project=execution.project, sync=execution.sync
+        sync_text, query_text = run_memory_query(
+            sql=args.query,
+            limit=limit,
+            output_format=output_format,
+            use_color=use_color,
         )
-        stderr.write(render_memory_sync(result=query_sync, compact=True, use_color=query_color))
-        stdout.write(
-            render_memory_query(
-                result=execution.query,
-                output_format=output_format,
-                use_color=query_color,
-            )
-        )
+        stderr.write(sync_text)
+        stdout.write(query_text)
         return 0
     except (ConfigError, MemoryError) as error:
         stderr.write(f"{error}\n")
@@ -97,8 +90,12 @@ def _parser() -> argparse.ArgumentParser:
         "--color", choices=tuple(ColorMode), default=ColorMode.AUTO, help="ANSI color behavior"
     )
     subparsers: argparse._SubParsersAction[argparse.ArgumentParser] = parser.add_subparsers(
-        dest="command", metavar="{sync,rebuild,schema,sql}"
+        dest="command", metavar="{check,sync,rebuild,schema,sql}"
     )
+    check_parser: argparse.ArgumentParser = subparsers.add_parser(
+        MemoryCliCommand.CHECK, help="validate canonical memory sources"
+    )
+    check_parser.add_argument("--color", choices=tuple(ColorMode), default=argparse.SUPPRESS)
     sync_parser: argparse.ArgumentParser = subparsers.add_parser(
         MemoryCliCommand.SYNC, help="synchronize changed sources"
     )

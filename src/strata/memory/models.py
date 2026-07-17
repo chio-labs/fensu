@@ -48,6 +48,18 @@ class MemoryIndexSummary:
 
 
 @dataclass(frozen=True, slots=True)
+class MemoryDiagnostic:
+    """One stable direct-source memory validation finding."""
+
+    code: str
+    repository_relative_path: str
+    line: int | None
+    column: int | None
+    message: str
+    remediation: str
+
+
+@dataclass(frozen=True, slots=True)
 class MemoryOverview:
     """Task, knowledge, archive, and index counts."""
 
@@ -136,6 +148,15 @@ class MemoryRebuildResult:
 
     project: MemoryProject
     summary: MemoryIndexSummary
+
+
+@dataclass(frozen=True, slots=True)
+class MemoryCheckResult:
+    """Project paths, direct-source findings, and optional publication counts."""
+
+    project: MemoryProject
+    diagnostics: tuple[MemoryDiagnostic, ...]
+    published: MemoryIndexSummary | None
 
 
 @dataclass(frozen=True, slots=True)

@@ -6,6 +6,8 @@ use strata_memory::engine::main::probe_dependencies::probe_dependencies;
 
 use crate::test_types;
 
+#[path = "check.rs"]
+mod check;
 #[path = "helpers.rs"]
 mod helpers;
 #[path = "overview.rs"]

@@ -9,11 +9,12 @@ import pytest
 
 from strata.cli.main.memory import run_memory
 from strata.memory.exceptions import MemoryOperationError
-from strata.memory.main.query_memory import query_memory
+from strata.memory.main._query_memory import query_memory
 from strata.memory.main.read_memory_schema import read_memory_schema
 from strata.memory.main.sync_memory import sync_memory
 from strata.memory.models import MemoryQueryExecution, MemorySchemaResult, MemorySyncResult
 from tests.integration.src.strata.memory.main._test_types import (
+    NativeMemoryCheckTestCase,
     NativeMemoryColorTestCase,
     NativeMemoryErrorTestCase,
     NativeMemoryQueryTestCase,
@@ -180,3 +181,38 @@ def test_given_no_color_environment_when_running_human_memory_command_then_omits
     assert exit_code == test_case.expected_exit_code
     assert test_case.expected_stdout_fragment in stdout.getvalue()
     assert test_case.expected_absent_fragment not in stdout.getvalue()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        NativeMemoryCheckTestCase(
+            description="invalid root Markdown reports MEM002 and prevents publication",
+            relative_path=".ai/orphan.md",
+            contents="# Orphan\n",
+            expected_fault_fragment="MEM002",
+            expected_database_exists=False,
+            expected_exit_code=1,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_invalid_memory_source_when_checking_then_reports_fault_without_publication(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    test_case: NativeMemoryCheckTestCase,
+) -> None:
+    write_enabled_memory_project(root=tmp_path)
+    source: Path = tmp_path / test_case.relative_path
+    source.parent.mkdir(parents=True)
+    source.write_text(test_case.contents, encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    stdout: io.StringIO = io.StringIO()
+
+    exit_code: int = run_memory(argv=("check",), stdout=stdout, stderr=io.StringIO())
+
+    assert exit_code == test_case.expected_exit_code
+    assert test_case.expected_fault_fragment in stdout.getvalue()
+    assert (tmp_path / ".strata/memory/memory.duckdb").exists() is (
+        test_case.expected_database_exists
+    )

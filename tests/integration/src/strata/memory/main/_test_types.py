@@ -46,3 +46,15 @@ class NativeMemoryColorTestCase:
     expected_stdout_fragment: str
     expected_absent_fragment: str
     expected_exit_code: int
+
+
+@dataclass(frozen=True)
+class NativeMemoryCheckTestCase:
+    """One invalid canonical source and its direct native check response."""
+
+    description: str
+    relative_path: str
+    contents: str
+    expected_fault_fragment: str
+    expected_database_exists: bool
+    expected_exit_code: int

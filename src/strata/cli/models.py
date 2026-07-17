@@ -23,6 +23,7 @@ class CheckInputs:
     rule_selection: RuleSelection
     config: Config
     tree: DiscoveredTree
+    memory_result: object | None
 
 
 @dataclass(frozen=True, slots=True)

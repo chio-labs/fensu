@@ -1,6 +1,8 @@
 //! Summary, synchronization, and schema-reporting phases.
 
 #[cfg(feature = "duckdb-engine")]
+pub(crate) mod diagnostics;
+#[cfg(feature = "duckdb-engine")]
 pub(crate) mod schema_core;
 #[cfg(feature = "duckdb-engine")]
 pub(crate) mod schema_markdown;

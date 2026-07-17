@@ -100,3 +100,10 @@ pub(crate) struct MemorySchemaTestCase {
     pub(crate) expected_focused: (&'static str, &'static str, usize),
     pub(crate) expected_first_column: (&'static str, &'static str, bool, &'static str),
 }
+
+pub(crate) struct MemoryCheckTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) files: &'static [FixtureFile],
+    pub(crate) expected_diagnostics: &'static [(&'static str, &'static str, Option<usize>)],
+    pub(crate) expected_published: bool,
+}

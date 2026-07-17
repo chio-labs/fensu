@@ -86,6 +86,24 @@ pub struct MemorySchemaOverview {
     pub relations: Vec<MemorySchemaRelation>,
 }
 
+/// One stable source-truth validation finding.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MemoryDiagnostic {
+    pub code: &'static str,
+    pub repository_relative_path: String,
+    pub line: Option<usize>,
+    pub column: Option<usize>,
+    pub message: String,
+    pub remediation: &'static str,
+}
+
+/// Direct-source validation findings and optional successful publication summary.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MemoryCheckResult {
+    pub diagnostics: Vec<MemoryDiagnostic>,
+    pub published: Option<IndexSummary>,
+}
+
 /// One JSON- and Python-convertible value returned by a memory query.
 #[derive(Clone, Debug, PartialEq)]
 pub enum MemoryQueryValue {

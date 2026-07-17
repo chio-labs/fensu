@@ -35,6 +35,7 @@ class ColorMode(StrEnum):
 class MemoryCliCommand(StrEnum):
     """Supported Strata Memory subcommands."""
 
+    CHECK = "check"
     SYNC = "sync"
     REBUILD = "rebuild"
     SCHEMA = "schema"

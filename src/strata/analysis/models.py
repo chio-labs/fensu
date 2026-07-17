@@ -263,6 +263,19 @@ class ParameterMutationFact:
 
 
 @dataclass(frozen=True, slots=True)
+class ParameterMutationOccurrenceFact:
+    """One direct mutation occurrence of a function parameter."""
+
+    function_name: str
+    parameter_name: str
+    parameter_kind: str
+    location: SourceLocation
+    returned: bool
+    dunder: bool
+    setter: bool
+
+
+@dataclass(frozen=True, slots=True)
 class MeaningfulReturnFact:
     """The first meaningful return owned by a function."""
 
@@ -336,11 +349,100 @@ class TypeDeclarationFact:
 
 
 @dataclass(frozen=True, slots=True)
+class DefinitionIdentity:
+    """The name and declaration location identifying a class or function."""
+
+    name: str
+    location: SourceLocation
+
+
+@dataclass(frozen=True, slots=True)
+class QualifiedReferenceFact:
+    """Lenient and strict static identity for one reference expression."""
+
+    kind: str
+    name: str | None
+    base_name: str | None
+    receiver_base_name: str | None
+    parts: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ClassMethodFact:
+    """One direct named method declared by a class."""
+
+    name: str
+    decorator_names: tuple[str, ...]
+    location: SourceLocation
+    owning_class: DefinitionIdentity
+
+
+@dataclass(frozen=True, slots=True)
+class ClassDeclarationFact:
+    """One class declaration with direct method metadata."""
+
+    name: str
+    base_names: tuple[str, ...]
+    decorator_names: tuple[str, ...]
+    location: SourceLocation
+    top_level: bool
+    methods: tuple[ClassMethodFact, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class AssignmentReferenceFact:
+    """One assignment and any strict qualified reference on its right side."""
+
+    location: SourceLocation
+    owning_class: DefinitionIdentity | None
+    owning_function: DefinitionIdentity | None
+    target_names: tuple[str, ...]
+    value_reference: QualifiedReferenceFact | None
+
+
+@dataclass(frozen=True, slots=True)
+class LiteralArgumentFact:
+    """One literal positional call argument with its source position."""
+
+    position: int
+    kind: str
+    value: str | bytes | int | float | complex | bool | None
+
+
+@dataclass(frozen=True, slots=True)
 class NamedCallFact:
-    """One call with a statically knowable bare name when available."""
+    """One call with nearest-first lexical owner chains."""
 
     location: SourceLocation
     name: str | None
+    reference: QualifiedReferenceFact | None = None
+    owning_class: DefinitionIdentity | None = None
+    owning_function: DefinitionIdentity | None = None
+    enclosing_classes: tuple[DefinitionIdentity, ...] = ()
+    enclosing_functions: tuple[DefinitionIdentity, ...] = ()
+    inside_loop: bool = False
+    literal_arguments: tuple[LiteralArgumentFact, ...] = ()
+    bare_expression: bool = False
+    super_call: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class LocalCallEdgeFact:
+    """One call attributed to an enclosing named caller, nearest caller first."""
+
+    location: SourceLocation
+    caller: DefinitionIdentity
+    caller_class: DefinitionIdentity | None
+    callee: QualifiedReferenceFact
+    inside_loop: bool
+
+
+@dataclass(frozen=True, slots=True)
+class ComparisonFact:
+    """One comparison with references aligned to direct operand positions."""
+
+    location: SourceLocation
+    operand_references: tuple[QualifiedReferenceFact | None, ...]
 
 
 @dataclass(frozen=True, slots=True)

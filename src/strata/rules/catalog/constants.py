@@ -22,6 +22,7 @@ CORE_RULES: tuple[RuleSpec, ...] = (
 )
 STRATA_PACKAGE_NAME: str = "strata"
 TRACKED_FACADE_ATTRIBUTE: str = "project"
+MODULE_PARAMETER_NAME: str = "module"
 CACHEABLE_ALLOWED_IMPORT_ROOTS: frozenset[str] = frozenset(
     {
         "__future__",
@@ -91,4 +92,3 @@ CACHEABLE_UNTRACKED_OPERATION_ATTRIBUTES: frozenset[str] = frozenset(
         "write_text",
     }
 )
-MODULE_PARAMETER_NAME: str = "module"

@@ -1,4 +1,4 @@
-"""Detect whether a rule check function reads the raw module parameter."""
+"""Classify whether a rule check reads the raw module parameter."""
 
 from __future__ import annotations
 

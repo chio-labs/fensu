@@ -1,29 +1,11 @@
 //! Fact models shared across extraction entries.
 
-/// One cacheable fact family that can be extracted ahead of conversion.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum FactFamily {
-    Annotations,
-    Contracts,
-    ControlFlow,
-    Declarations,
-    Functions,
-    Hygiene,
-    OuterStateMutations,
-    ParameterMutations,
-    References,
-    TestFunctions,
-    TestModule,
-}
-
-/// One traversed node: its CPython kind name and optional CPython span.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct LocatedNode {
     pub kind: &'static str,
     pub span: Option<(u32, u32, u32, u32)>,
 }
 
-/// One source comment with tokenize-convention line and character column.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CommentRow {
     pub line: u32,
@@ -31,7 +13,6 @@ pub struct CommentRow {
     pub text: String,
 }
 
-/// One named fact location using CPython line and byte-column conventions.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NamedLocationRow {
     pub name: String,
@@ -39,7 +20,6 @@ pub struct NamedLocationRow {
     pub column: u32,
 }
 
-/// One first local binding missing an annotation.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LocalAnnotationRow {
     pub name: String,
@@ -48,7 +28,6 @@ pub struct LocalAnnotationRow {
     pub scalar_literal: bool,
 }
 
-/// Missing-annotation rows collected by one shared traversal.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct AnnotationRows {
     pub parameters: Vec<NamedLocationRow>,
@@ -58,7 +37,6 @@ pub struct AnnotationRows {
     pub class_attributes: Vec<NamedLocationRow>,
 }
 
-/// One top-level module statement classified for module-role policy.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ModuleStatementRow {
     pub line: u32,
@@ -80,7 +58,6 @@ pub struct ModuleStatementRow {
     pub nonexecuting_import_guard: bool,
 }
 
-/// One type-layer declaration with its policy-relevant visibility.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct TypeDeclarationRow {
     pub line: u32,
@@ -88,7 +65,6 @@ pub struct TypeDeclarationRow {
     pub private: bool,
 }
 
-/// One call with a statically knowable bare name when available.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NamedCallRow {
     pub line: u32,
@@ -96,7 +72,6 @@ pub struct NamedCallRow {
     pub name: Option<String>,
 }
 
-/// Classified module statements and declarations for one module.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ModuleDeclarationRows {
     pub statements: Vec<ModuleStatementRow>,
@@ -112,7 +87,6 @@ pub struct ModuleDeclarationRows {
     pub exception_locations: Vec<(u32, u32)>,
 }
 
-/// Descriptive return and generator facts for one function.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FunctionContractRow {
     pub function_name: String,
@@ -124,7 +98,6 @@ pub struct FunctionContractRow {
     pub meaningful_return: Option<(u32, u32)>,
 }
 
-/// Reusable structural metrics for one function.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FunctionMetricRow {
     pub line: u32,
@@ -138,7 +111,6 @@ pub struct FunctionMetricRow {
     pub dunder: bool,
 }
 
-/// The first direct mutation of one function parameter.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ParameterMutationRow {
     pub function_name: String,
@@ -150,7 +122,18 @@ pub struct ParameterMutationRow {
     pub setter: bool,
 }
 
-/// One end-exclusive source range with byte offsets.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ParameterMutationOccurrenceRow {
+    pub function_name: String,
+    pub parameter_name: String,
+    pub parameter_kind: String,
+    pub line: u32,
+    pub column: u32,
+    pub returned: bool,
+    pub dunder: bool,
+    pub setter: bool,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct SourceRangeRow {
     pub start_line: u32,
@@ -161,14 +144,12 @@ pub struct SourceRangeRow {
     pub end_offset: u32,
 }
 
-/// One imported name and its local binding.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ImportAliasRow {
     pub imported_name: String,
     pub bound_name: String,
 }
 
-/// One import statement and its imported names.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ImportRow {
     pub line: u32,
@@ -180,7 +161,6 @@ pub struct ImportRow {
     pub top_level: bool,
 }
 
-/// One reference event: an import row index or an attribute reference.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ReferenceEventRow {
     Import(usize),
@@ -192,14 +172,12 @@ pub enum ReferenceEventRow {
     },
 }
 
-/// Grouped imports and ordered reference events.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ReferenceRows {
     pub imports: Vec<ImportRow>,
     pub events: Vec<ReferenceEventRow>,
 }
 
-/// Reusable module-shape metadata for test convention policy.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct TestModuleRows {
     pub empty_or_docstring_only: bool,
@@ -332,4 +310,90 @@ pub struct TestFunctionRow {
     pub references_expected_field: bool,
     pub conditional_locations: Vec<(u32, u32)>,
     pub dimensions: Vec<DimensionRow>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DefinitionIdentityRow {
+    pub name: String,
+    pub line: u32,
+    pub column: u32,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct QualifiedReferenceRow {
+    pub kind: String,
+    pub name: Option<String>,
+    pub base_name: Option<String>,
+    pub receiver_base_name: Option<String>,
+    pub parts: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ClassMethodRow {
+    pub name: String,
+    pub decorator_names: Vec<String>,
+    pub line: u32,
+    pub column: u32,
+    pub owning_class: DefinitionIdentityRow,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ClassDeclarationRow {
+    pub name: String,
+    pub base_names: Vec<String>,
+    pub decorator_names: Vec<String>,
+    pub line: u32,
+    pub column: u32,
+    pub top_level: bool,
+    pub methods: Vec<ClassMethodRow>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AssignmentReferenceRow {
+    pub line: u32,
+    pub column: u32,
+    pub owning_class: Option<DefinitionIdentityRow>,
+    pub owning_function: Option<DefinitionIdentityRow>,
+    pub target_names: Vec<String>,
+    pub value_reference: Option<QualifiedReferenceRow>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct LiteralArgumentRow {
+    pub position: usize,
+    pub kind: String,
+    pub value: crate::facts::types::LiteralValueRow,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct RuleNamedCallRow {
+    pub line: u32,
+    pub column: u32,
+    pub name: Option<String>,
+    pub reference: QualifiedReferenceRow,
+    pub owning_class: Option<DefinitionIdentityRow>,
+    pub owning_function: Option<DefinitionIdentityRow>,
+    pub enclosing_classes: Vec<DefinitionIdentityRow>,
+    pub enclosing_functions: Vec<DefinitionIdentityRow>,
+    pub inside_loop: bool,
+    pub literal_arguments: Vec<LiteralArgumentRow>,
+    pub bare_expression: bool,
+    pub super_call: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LocalCallEdgeRow {
+    pub line: u32,
+    pub column: u32,
+    pub caller: DefinitionIdentityRow,
+    pub caller_class: Option<DefinitionIdentityRow>,
+    pub callee: QualifiedReferenceRow,
+    pub inside_loop: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ComparisonRow {
+    pub line: u32,
+    pub column: u32,
+    pub operand_references: Vec<Option<QualifiedReferenceRow>>,
 }

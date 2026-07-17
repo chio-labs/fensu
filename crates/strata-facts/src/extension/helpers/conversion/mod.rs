@@ -7,4 +7,5 @@ pub mod functions;
 pub mod harness;
 pub mod hygiene;
 pub mod references;
+pub mod rule_authoring;
 pub mod state;

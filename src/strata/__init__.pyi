@@ -2,13 +2,28 @@ from strata.analysis.models import (
     AnnotationFacts as AnnotationFacts,
 )
 from strata.analysis.models import (
+    AssignmentReferenceFact as AssignmentReferenceFact,
+)
+from strata.analysis.models import (
     AttributeReferenceFact as AttributeReferenceFact,
+)
+from strata.analysis.models import (
+    ClassDeclarationFact as ClassDeclarationFact,
+)
+from strata.analysis.models import (
+    ClassMethodFact as ClassMethodFact,
 )
 from strata.analysis.models import (
     CommentFact as CommentFact,
 )
 from strata.analysis.models import (
+    ComparisonFact as ComparisonFact,
+)
+from strata.analysis.models import (
     DataclassFact as DataclassFact,
+)
+from strata.analysis.models import (
+    DefinitionIdentity as DefinitionIdentity,
 )
 from strata.analysis.models import (
     DiscardedProjectCallFact as DiscardedProjectCallFact,
@@ -33,6 +48,12 @@ from strata.analysis.models import (
 )
 from strata.analysis.models import (
     ImportFact as ImportFact,
+)
+from strata.analysis.models import (
+    LiteralArgumentFact as LiteralArgumentFact,
+)
+from strata.analysis.models import (
+    LocalCallEdgeFact as LocalCallEdgeFact,
 )
 from strata.analysis.models import (
     MeaningfulReturnFact as MeaningfulReturnFact,
@@ -68,6 +89,9 @@ from strata.analysis.models import (
     ParameterMutationFact as ParameterMutationFact,
 )
 from strata.analysis.models import (
+    ParameterMutationOccurrenceFact as ParameterMutationOccurrenceFact,
+)
+from strata.analysis.models import (
     ParametrizeCaseFact as ParametrizeCaseFact,
 )
 from strata.analysis.models import (
@@ -90,6 +114,9 @@ from strata.analysis.models import (
 )
 from strata.analysis.models import (
     PytestModuleFacts as PytestModuleFacts,
+)
+from strata.analysis.models import (
+    QualifiedReferenceFact as QualifiedReferenceFact,
 )
 from strata.analysis.models import (
     ReferenceFacts as ReferenceFacts,

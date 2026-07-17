@@ -19,6 +19,7 @@ class HarnessEvaluationTestCase:
     expected_lines: tuple[int | None, ...]
     expected_messages: tuple[str, ...]
     expected_dependency_paths: tuple[str, ...] = ()
+    expected_python_parse_count: int = 0
 
 
 @dataclass(frozen=True)

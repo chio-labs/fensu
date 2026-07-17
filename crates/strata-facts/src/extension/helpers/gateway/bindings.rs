@@ -28,7 +28,7 @@ use crate::extension::helpers::gateway::model_types::model_type;
 use crate::extension::helpers::gateway::program::ProgramHandle;
 use crate::facts::main::enumerate_nodes::enumerate_nodes;
 use crate::facts::main::extract_comments::extract_comments;
-use crate::facts::models::FactFamily;
+use crate::facts::types::FactFamily;
 use crate::parsing::main::parse_strict::parse_strict;
 use crate::positions::main::locate_offset::locate_offset;
 
@@ -107,13 +107,19 @@ pub(crate) fn extract_fact_rows(
 fn fact_family(name: &str) -> Option<FactFamily> {
     match name {
         "annotations" => Some(FactFamily::Annotations),
+        "assignment_references" => Some(FactFamily::AssignmentReferences),
+        "class_declarations" => Some(FactFamily::ClassDeclarations),
+        "comparisons" => Some(FactFamily::Comparisons),
         "contracts" => Some(FactFamily::Contracts),
         "control_flow" => Some(FactFamily::ControlFlow),
         "declarations" => Some(FactFamily::Declarations),
         "functions" => Some(FactFamily::Functions),
         "hygiene" => Some(FactFamily::Hygiene),
+        "local_call_edges" => Some(FactFamily::LocalCallEdges),
+        "named_calls" => Some(FactFamily::NamedCalls),
         "outer_state_mutations" => Some(FactFamily::OuterStateMutations),
         "parameter_mutations" => Some(FactFamily::ParameterMutations),
+        "parameter_mutation_occurrences" => Some(FactFamily::ParameterMutationOccurrences),
         "references" => Some(FactFamily::References),
         "test_functions" => Some(FactFamily::TestFunctions),
         "test_module" => Some(FactFamily::TestModule),

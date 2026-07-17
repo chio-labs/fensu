@@ -11,17 +11,23 @@ from typing import TYPE_CHECKING, NamedTuple, Protocol
 if TYPE_CHECKING:
     from strata.analysis.models import (
         AnnotationFacts,
+        AssignmentReferenceFact,
+        ClassDeclarationFact,
         CommentFact,
+        ComparisonFact,
         DataclassFact,
         EvaluateRuleCallFact,
         FunctionConditionalFact,
         FunctionContractFact,
         FunctionFacts,
         HygieneFacts,
+        LocalCallEdgeFact,
         MeaningfulReturnFact,
         ModuleDeclarationFacts,
+        NamedCallFact,
         OuterStateMutationFact,
         ParameterMutationFact,
+        ParameterMutationOccurrenceFact,
         ProjectCallFacts,
         ProjectDependency,
         ProjectFunctionFact,
@@ -134,6 +140,14 @@ class FactAnalysis(Protocol):
         """Return missing function and local annotation facts."""
         ...
 
+    def assignment_references(self) -> tuple[AssignmentReferenceFact, ...]:
+        """Return assignments with lexical owners and strict RHS references."""
+        ...
+
+    def class_declarations(self) -> tuple[ClassDeclarationFact, ...]:
+        """Return class declarations and direct methods in traversal order."""
+        ...
+
     def comments(self) -> tuple[CommentFact, ...]:
         """Return source comments in token order."""
         ...
@@ -148,6 +162,10 @@ class FactAnalysis(Protocol):
 
     def complex_comprehensions(self) -> tuple[SourceLocation, ...]:
         """Return complex comprehension locations."""
+        ...
+
+    def comparisons(self) -> tuple[ComparisonFact, ...]:
+        """Return comparisons with position-aligned operand references."""
         ...
 
     def function_conditionals(self) -> tuple[FunctionConditionalFact, ...]:
@@ -172,8 +190,16 @@ class FactAnalysis(Protocol):
         """Return the first meaningful return owned by each function."""
         ...
 
+    def local_call_edges(self) -> tuple[LocalCallEdgeFact, ...]:
+        """Return calls attributed to every enclosing named function."""
+        ...
+
     def module_declarations(self) -> ModuleDeclarationFacts:
         """Return module statements and classified declarations."""
+        ...
+
+    def named_calls(self) -> tuple[NamedCallFact, ...]:
+        """Return all calls with nearest-first lexical owner chains."""
         ...
 
     def outer_state_mutations(self) -> tuple[OuterStateMutationFact, ...]:
@@ -182,6 +208,10 @@ class FactAnalysis(Protocol):
 
     def parameter_mutations(self) -> tuple[ParameterMutationFact, ...]:
         """Return first direct mutations of function parameters."""
+        ...
+
+    def parameter_mutation_occurrences(self) -> tuple[ParameterMutationOccurrenceFact, ...]:
+        """Return every direct mutation occurrence of function parameters."""
         ...
 
     def project_calls(self) -> ProjectCallFacts:

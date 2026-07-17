@@ -14,6 +14,7 @@ from strata.evaluation.models import EvaluationResult
 from strata.rules.authoring.main.resolve_rule_spec import resolve_rule_spec
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import RuleCheck
+from strata.rules.catalog.main.check_module_use import check_uses_module
 from strata.rules.testing._helpers.remapping import remap_rule_result
 from strata.rules.testing._helpers.repository import (
     build_harness_config,
@@ -26,7 +27,11 @@ from strata.rules.testing.models import RuleCase, RuleResult
 def evaluate_rule(*, rule: RuleCheck | RuleSpec, test_case: RuleCase) -> RuleResult:
     """Evaluate a decorated rule against one isolated real-pipeline case."""
 
-    resolved_rule: RuleSpec = replace(resolve_rule_spec(value=rule), uses_module=True)
+    unresolved_rule: RuleSpec = resolve_rule_spec(value=rule)
+    resolved_rule: RuleSpec = replace(
+        unresolved_rule,
+        uses_module=check_uses_module(check=unresolved_rule.check),
+    )
     validate_rule_case(test_case=test_case)
     config: Config = build_harness_config(test_case=test_case)
     with TemporaryDirectory(prefix="strata-rule-") as directory:

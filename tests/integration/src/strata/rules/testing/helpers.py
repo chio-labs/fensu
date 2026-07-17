@@ -89,6 +89,86 @@ def ordinary_ordering(module: ast.Module, ctx: RuleContext) -> list[Fault]:
     return [ctx.fault(node=module.body[1]), ctx.fault(node=module.body[0])]
 
 
+@rule(
+    code="XNF001",
+    family=Family.CUSTOM,
+    slug="native-class-declarations",
+    message="adapter class declaration",
+)
+def native_class_declarations(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Exercise class declaration facts without reading the raw module."""
+
+    del module
+    return [ctx.fault_at(location=fact.location) for fact in ctx.facts.class_declarations()]
+
+
+@rule(
+    code="XNF002",
+    family=Family.CUSTOM,
+    slug="native-assignment-references",
+    message="base adapter assignment reference",
+)
+def native_assignment_references(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Exercise assignment reference facts without reading the raw module."""
+
+    del module
+    return [ctx.fault_at(location=fact.location) for fact in ctx.facts.assignment_references()]
+
+
+@rule(
+    code="XNF003",
+    family=Family.CUSTOM,
+    slug="native-named-calls",
+    message="discarded metadata call in loop",
+)
+def native_named_calls(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Exercise named call facts without reading the raw module."""
+
+    del module
+    return [ctx.fault_at(location=fact.location) for fact in ctx.facts.named_calls()]
+
+
+@rule(
+    code="XNF004",
+    family=Family.CUSTOM,
+    slug="native-local-call-edges",
+    message="metadata query call edge in loop",
+)
+def native_local_call_edges(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Exercise local call edges without reading the raw module."""
+
+    del module
+    return [ctx.fault_at(location=fact.location) for fact in ctx.facts.local_call_edges()]
+
+
+@rule(
+    code="XNF005",
+    family=Family.CUSTOM,
+    slug="native-comparisons",
+    message="canonical reference comparison",
+)
+def native_comparisons(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Exercise comparison facts without reading the raw module."""
+
+    del module
+    return [ctx.fault_at(location=fact.location) for fact in ctx.facts.comparisons()]
+
+
+@rule(
+    code="XNF006",
+    family=Family.CUSTOM,
+    slug="native-parameter-mutation-occurrences",
+    message="parameter mutation occurrence",
+)
+def native_parameter_mutation_occurrences(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Exercise complete parameter mutation facts without reading the raw module."""
+
+    del module
+    return [
+        ctx.fault_at(location=fact.location) for fact in ctx.facts.parameter_mutation_occurrences()
+    ]
+
+
 def undecorated_rule(module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Provide an invalid undecorated harness input."""
 

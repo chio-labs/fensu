@@ -8,6 +8,7 @@ use pyo3::{Bound, PyResult};
 use crate::extension::helpers::gateway::bindings;
 use crate::extension::helpers::gateway::program::ProgramHandle;
 use crate::extension::helpers::gateway::repository_bindings;
+use crate::extension::helpers::gateway::rule_authoring_bindings;
 
 /// Expose the native fact-extraction functions to Python.
 #[pymodule]
@@ -46,6 +47,30 @@ pub fn strata_facts(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(bindings::test_module_facts, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::hygiene_facts, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::control_flow_facts, module)?)?;
+    module.add_function(wrap_pyfunction!(
+        rule_authoring_bindings::class_declaration_facts,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(
+        rule_authoring_bindings::assignment_reference_facts,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(
+        rule_authoring_bindings::named_call_facts,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(
+        rule_authoring_bindings::local_call_edge_facts,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(
+        rule_authoring_bindings::comparison_facts,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(
+        rule_authoring_bindings::parameter_mutation_occurrence_facts,
+        module
+    )?)?;
     module.add_function(wrap_pyfunction!(
         repository_bindings::walk_python_files,
         module

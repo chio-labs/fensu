@@ -210,6 +210,38 @@ from tests.unit.src.strata.analysis.helpers import fact_family_divergences  # no
             expected_divergent=(),
         ),
         NativeFactParityTestCase(
+            description="rule authoring owners references and exact literal values",
+            source=(
+                "@registry.wrap()\n"
+                "class Caf\u00e9(pkg.Base[T]):\n"
+                "    def outer(self, items):\n"
+                "        left, *rest = source.value\n"
+                "        while ready:\n"
+                "            def inner():\n"
+                "                service.call(\n"
+                "                    'a' 'b', b'\\x00' b'\\xff',\n"
+                "                    0x100000000000000000000000000000001,\n"
+                "                    1.25, 3.5j, False, None, ...\n"
+                "                )\n"
+                "        items.append(1)\n"
+                "        items.append(2)\n"
+                "        return items\n"
+                "if pkg.value == compute() < rows[index] != factory().attr:\n"
+                "    pass\n"
+            ),
+            expected_divergent=(),
+        ),
+        NativeFactParityTestCase(
+            description="escaped lone surrogate literal retains exact CPython value",
+            source="f('\\ud800')\n",
+            expected_divergent=(),
+        ),
+        NativeFactParityTestCase(
+            description="variadic parameter mutations retain filterable parameter kinds",
+            source=("def update(*args, **kwargs):\n    args.append(1)\n    kwargs.update({})\n"),
+            expected_divergent=(),
+        ),
+        NativeFactParityTestCase(
             description="fstring interpolations with format specs and nesting",
             source=(
                 "w = 10\n"

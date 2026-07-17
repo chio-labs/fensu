@@ -18,16 +18,22 @@ if TYPE_CHECKING:
 
     from strata.analysis.models import (
         AnnotationFacts,
+        AssignmentReferenceFact,
+        ClassDeclarationFact,
         CommentFact,
+        ComparisonFact,
         DataclassFact,
         EvaluateRuleCallFact,
         FunctionConditionalFact,
         FunctionContractFact,
         FunctionFacts,
         HygieneFacts,
+        LocalCallEdgeFact,
         ModuleDeclarationFacts,
+        NamedCallFact,
         OuterStateMutationFact,
         ParameterMutationFact,
+        ParameterMutationOccurrenceFact,
         ProjectCallFacts,
         ProjectFunctionFact,
         PytestFunctionFact,
@@ -66,12 +72,20 @@ class NativeFactAnalysis:
         self._program: object | None = program
         self._program_failed: bool = False
         self._annotations: AnnotationFacts | None = None
+        self._assignment_references: tuple[AssignmentReferenceFact, ...] | None = None
+        self._class_declarations: tuple[ClassDeclarationFact, ...] | None = None
         self._comments: tuple[CommentFact, ...] | None = None
+        self._comparisons: tuple[ComparisonFact, ...] | None = None
         self._function_contracts: tuple[FunctionContractFact, ...] | None = None
         self._functions: FunctionFacts | None = None
         self._parameter_mutations: tuple[ParameterMutationFact, ...] | None = None
+        self._parameter_mutation_occurrences: tuple[ParameterMutationOccurrenceFact, ...] | None = (
+            None
+        )
         self._meaningful_returns: dict[tuple[str, ...], tuple[MeaningfulReturnFact, ...]] = {}
+        self._local_call_edges: tuple[LocalCallEdgeFact, ...] | None = None
         self._module_declarations: ModuleDeclarationFacts | None = None
+        self._named_calls: tuple[NamedCallFact, ...] | None = None
         self._outer_state_mutations: tuple[OuterStateMutationFact, ...] | None = None
         self._dataclasses: tuple[DataclassFact, ...] | None = None
         self._project_facts: tuple[tuple[ProjectFunctionFact, ...], ProjectCallFacts] | None = None
@@ -100,6 +114,30 @@ class NativeFactAnalysis:
                 else self._native.annotation_facts(program, self._path)
             )
         return self._annotations
+
+    def assignment_references(self) -> tuple[AssignmentReferenceFact, ...]:
+        """Return assignments with lexical owners and strict RHS references."""
+
+        if self._assignment_references is None:
+            program: object | None = self._parsed_program()
+            self._assignment_references = (
+                self._fallback_facts().assignment_references()
+                if program is None
+                else self._native.assignment_reference_facts(program, self._path)
+            )
+        return self._assignment_references
+
+    def class_declarations(self) -> tuple[ClassDeclarationFact, ...]:
+        """Return class declarations and direct methods in traversal order."""
+
+        if self._class_declarations is None:
+            program: object | None = self._parsed_program()
+            self._class_declarations = (
+                self._fallback_facts().class_declarations()
+                if program is None
+                else self._native.class_declaration_facts(program, self._path)
+            )
+        return self._class_declarations
 
     def comments(self) -> tuple[CommentFact, ...]:
         """Return source comments in token order."""
@@ -178,6 +216,18 @@ class NativeFactAnalysis:
         if control_flow is None:
             return self._fallback_facts().complex_comprehensions()
         return control_flow[1]
+
+    def comparisons(self) -> tuple[ComparisonFact, ...]:
+        """Return comparisons with position-aligned operand references."""
+
+        if self._comparisons is None:
+            program: object | None = self._parsed_program()
+            self._comparisons = (
+                self._fallback_facts().comparisons()
+                if program is None
+                else self._native.comparison_facts(program, self._path)
+            )
+        return self._comparisons
 
     def function_conditionals(self) -> tuple[FunctionConditionalFact, ...]:
         """Return conditional control flow grouped by owning function."""
@@ -264,6 +314,30 @@ class NativeFactAnalysis:
             )
         return self._module_declarations
 
+    def local_call_edges(self) -> tuple[LocalCallEdgeFact, ...]:
+        """Return calls attributed to every enclosing named function."""
+
+        if self._local_call_edges is None:
+            program: object | None = self._parsed_program()
+            self._local_call_edges = (
+                self._fallback_facts().local_call_edges()
+                if program is None
+                else self._native.local_call_edge_facts(program, self._path)
+            )
+        return self._local_call_edges
+
+    def named_calls(self) -> tuple[NamedCallFact, ...]:
+        """Return all calls with nearest-first lexical owner chains."""
+
+        if self._named_calls is None:
+            program: object | None = self._parsed_program()
+            self._named_calls = (
+                self._fallback_facts().named_calls()
+                if program is None
+                else self._native.named_call_facts(program, self._path)
+            )
+        return self._named_calls
+
     def outer_state_mutations(self) -> tuple[OuterStateMutationFact, ...]:
         """Return direct mutations resolving to state owned by an outer scope."""
 
@@ -287,6 +361,18 @@ class NativeFactAnalysis:
                 else self._native.parameter_mutation_facts(program, self._path)
             )
         return self._parameter_mutations
+
+    def parameter_mutation_occurrences(self) -> tuple[ParameterMutationOccurrenceFact, ...]:
+        """Return every direct mutation occurrence of function parameters."""
+
+        if self._parameter_mutation_occurrences is None:
+            program: object | None = self._parsed_program()
+            self._parameter_mutation_occurrences = (
+                self._fallback_facts().parameter_mutation_occurrences()
+                if program is None
+                else self._native.parameter_mutation_occurrence_facts(program, self._path)
+            )
+        return self._parameter_mutation_occurrences
 
     def project_calls(self) -> ProjectCallFacts:
         """Return project-resolvable discarded calls."""

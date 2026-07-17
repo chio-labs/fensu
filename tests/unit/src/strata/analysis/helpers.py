@@ -10,12 +10,20 @@ from typing import cast
 from strata.analysis.classes.fact_analysis import PythonFactAnalysis
 from strata.analysis.classes.native_fact_analysis import NativeFactAnalysis
 from strata.analysis.main.build import build_analysis
-from strata.analysis.models import EvaluateRuleCallFact, FunctionContractFact, SourceLocation
+from strata.analysis.models import (
+    DefinitionIdentity,
+    EvaluateRuleCallFact,
+    FunctionContractFact,
+    SourceLocation,
+)
 from strata.analysis.types import Analysis, FactAnalysis
 
 FACT_FAMILY_NAMES: tuple[str, ...] = (
     "annotations",
+    "assignment_references",
+    "class_declarations",
     "comments",
+    "comparisons",
     "complex_comprehensions",
     "dataclasses",
     "evaluate_rule_calls",
@@ -23,10 +31,13 @@ FACT_FAMILY_NAMES: tuple[str, ...] = (
     "function_contracts",
     "functions",
     "hygiene",
+    "local_call_edges",
     "meaningful_returns",
     "module_declarations",
+    "named_calls",
     "outer_state_mutations",
     "parameter_mutations",
+    "parameter_mutation_occurrences",
     "project_calls",
     "project_functions",
     "references",
@@ -82,6 +93,13 @@ def meaningful_return_lines(facts: tuple[FunctionContractFact, ...]) -> tuple[in
         location: SourceLocation | None = fact.meaningful_return_location
         lines.append(getattr(location, "line", None))
     return tuple(lines)
+
+
+def definition_line(identity: DefinitionIdentity | None) -> int | None:
+    """Return an optional definition identity line."""
+
+    location: SourceLocation | None = getattr(identity, "location", None)
+    return getattr(location, "line", None)
 
 
 def build_test_analysis(*, path: Path, source: str) -> Analysis:

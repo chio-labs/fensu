@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from strata.cli.main.init import run_init
+from strata.cli.main._init import run_init
 from strata.config.main.load_config import load_config
 from strata.config.models import Config
 from strata.discovery.main.build_project_layout import build_project_layout

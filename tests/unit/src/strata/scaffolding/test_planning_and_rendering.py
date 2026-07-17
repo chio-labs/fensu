@@ -20,7 +20,7 @@ from strata.scaffolding._helpers.planning import (
     validate_option_applicability,
 )
 from strata.scaffolding.exceptions import InitError
-from strata.scaffolding.main.detect_repository_layout import detect_repository_layout
+from strata.scaffolding.main._detect_repository_layout import detect_repository_layout
 from strata.scaffolding.main.find_local_config import find_local_config
 from strata.scaffolding.models import InitOptions, InitPlan
 from strata.scaffolding.types import InteractionDecision

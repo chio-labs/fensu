@@ -9,7 +9,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from strata.cli.main import init as init_module
+from strata.cli.main import _init as init_module
 from strata.scaffolding.models import InitOptions
 from tests.unit.src.strata.cli.main._test_types import InitAdapterTestCase, InitNoColorTestCase
 

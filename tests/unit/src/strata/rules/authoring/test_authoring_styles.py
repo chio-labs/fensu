@@ -9,8 +9,8 @@ from typing import cast
 import pytest
 
 from strata.rules.authoring.constants import _RULE_SPEC_ATTRIBUTE
+from strata.rules.authoring.main._inspect import rule_specs_in_module
 from strata.rules.authoring.main.define import rule
-from strata.rules.authoring.main.inspect import rule_specs_in_module
 from strata.rules.authoring.models import Fault, RuleSpec
 from strata.rules.authoring.types import Family, RuleCheck, RuleContext
 from tests.unit.src.strata.rules.authoring._test_types import (

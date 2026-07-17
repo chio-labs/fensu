@@ -32,6 +32,7 @@ def rule_context_lines() -> tuple[str, ...]:
         "`analysis(requester=ctx.path, path=path)`, "
         "`dataclasses(requester=ctx.path, path=path)`, "
         "`directory_entries(requester=ctx.path, path=path)`, "
+        "`entrypoint_modules(requester=ctx.path)`, "
         "`module_function(requester=ctx.path, module_name=name, function_name=name)`, "
         "`python_anchor(requester=ctx.path, path=path)`, "
         "`exists(requester=ctx.path, path=path)`, "

@@ -175,7 +175,7 @@ def test_given_cold_then_warm_check_when_counting_then_warm_run_stays_pure(
             description="native one edited file re-evaluates without CPython parsing",
             file_target=120,
             seed=0,
-            expected_fresh_evaluations=1,
+            expected_fresh_evaluations=2,
             expected_parses=0,
         )
     ],

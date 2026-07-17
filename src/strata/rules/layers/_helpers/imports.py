@@ -75,6 +75,48 @@ def normalized_import_targets(
     return ((*base, *fact.module_parts),)
 
 
+def import_module_targets(
+    *,
+    fact: ImportFact,
+    current_module_parts: tuple[str, ...],
+    current_initializer: bool,
+) -> tuple[tuple[str, ...], ...]:
+    """Return module targets including resolvable from-import submodules."""
+
+    bases: tuple[tuple[str, ...], ...] = normalized_import_targets(
+        fact=fact,
+        current_module_parts=current_module_parts,
+        current_initializer=current_initializer,
+    )
+    targets: list[tuple[str, ...]] = list(bases)
+    if fact.from_import:
+        for base in bases:
+            targets.extend((*base, *alias.imported_parts) for alias in fact.aliases)
+    return tuple(dict.fromkeys(targets))
+
+
+def is_domain_private_main_entry(ownership: ModuleOwnership) -> bool:
+    """Return whether ownership identifies a single-underscore main entry module."""
+
+    module_name: str = ownership.tail[-1] if ownership.tail else ""
+    return (
+        ownership.first_role is RoleName.MAIN
+        and module_name.startswith("_")
+        and not module_name.startswith("__")
+    )
+
+
+def is_public_main_entry(ownership: ModuleOwnership) -> bool:
+    """Return whether ownership identifies an ordinary public main entry module."""
+
+    module_name: str = ownership.tail[-1] if ownership.tail else ""
+    return (
+        ownership.first_role is RoleName.MAIN
+        and bool(module_name)
+        and not module_name.startswith("_")
+    )
+
+
 def is_sibling_internal_import(*, current: ModuleOwnership, target: ModuleOwnership) -> bool:
     """Return whether an import reaches into a sibling package's internals."""
 

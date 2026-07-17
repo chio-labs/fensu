@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from strata.agentdocs._helpers.freshness import inspect_skill_content
 from strata.agentdocs._helpers.ownership import owned_skill_content
-from strata.agentdocs.main.generate import generate_skill
+from strata.agentdocs.main._generate import generate_skill
 from strata.agentdocs.models import (
     SkillFreshnessIssue,
     SkillFreshnessResult,

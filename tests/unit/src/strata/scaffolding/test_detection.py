@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from strata.scaffolding.exceptions import PyprojectParseError, RepositoryDetectionError
-from strata.scaffolding.main.detect_repository_layout import detect_repository_layout
+from strata.scaffolding.main._detect_repository_layout import detect_repository_layout
 from strata.scaffolding.models import DetectedRepositoryLayout
 from tests.unit.src.strata.scaffolding._test_types import (
     DetectionErrorTestCase,

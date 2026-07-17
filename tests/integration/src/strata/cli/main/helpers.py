@@ -21,7 +21,7 @@ from strata.cache.results._helpers.conversion import restore_file_evaluation
 from strata.cache.results.classes.result_cache import ResultCache
 from strata.cache.results.models import CachedFileResult, CacheIndexEntry
 from strata.cache.storage.constants import CACHE_DATABASE_RELATIVE_PATH
-from strata.cli.main.skills import run_skills
+from strata.cli.main._skills import run_skills
 from strata.config.main.load_config import load_config
 from strata.config.models import Config
 from strata.evaluation.models import FileEvaluation
@@ -684,7 +684,7 @@ def write_cli_no_fault_project(root: Path) -> None:
     source_dir: Path = root / "src" / "pkg" / "domain" / "core"
     source_dir.mkdir(parents=True)
     (source_dir / "constants.py").write_text("VALUE: int = 1\n", encoding="utf-8")
-    main: Path = source_dir / "main/run.py"
+    main: Path = source_dir / "main/_run.py"
     main.parent.mkdir()
     main.write_text("def run() -> None:\n    return None\n", encoding="utf-8")
     (root / "strata.toml").write_text('roots = ["src/pkg"]\n', encoding="utf-8")

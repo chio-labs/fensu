@@ -285,6 +285,10 @@ class ProjectAnalysis(Protocol):
         """Return a function contract from a resolvable project module."""
         ...
 
+    def entrypoint_modules(self, *, requester: Path) -> tuple[str, ...]:
+        """Return modules referenced by standardized project entrypoint declarations."""
+        ...
+
     def python_anchor(self, *, requester: Path, path: Path) -> Path | None:
         """Return the deterministic Python ownership anchor for a package directory."""
         ...

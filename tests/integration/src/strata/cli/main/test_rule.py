@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from strata.cli.main.rule import run_rule
+from strata.cli.main._rule import run_rule
 from tests.integration.src.strata.cli.main._test_types import (
     MetadataCommandTestCase,
     RulePresentationTestCase,

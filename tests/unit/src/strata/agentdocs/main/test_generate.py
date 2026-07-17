@@ -7,7 +7,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from strata.agentdocs.main.generate import generate_skill
+from strata.agentdocs.main._generate import generate_skill
 from strata.config.models import Config, RuleExceptionEntry, ThresholdOverride
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Threshold

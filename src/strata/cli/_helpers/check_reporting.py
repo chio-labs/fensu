@@ -7,7 +7,7 @@ from typing import TextIO
 
 from strata.cache.results.models import CacheStats
 from strata.cli._helpers.skill_freshness import installed_skill_is_stale
-from strata.cli.main.cache_status import write_cache_status
+from strata.cli.main._cache_status import write_cache_status
 from strata.config.models import LoadedConfig
 from strata.discovery.models import DiscoveredTree
 from strata.evaluation.models import EvaluationResult, EvaluationSelection

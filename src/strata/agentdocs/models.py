@@ -36,6 +36,32 @@ class SkillInstallTarget:
 
 
 @dataclass(frozen=True, slots=True)
+class ProjectSkillFile:
+    """One regular file captured from a canonical project skill bundle."""
+
+    relative_path: Path
+    content: bytes
+    mode: int
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectSkillBundle:
+    """One canonical active project skill bundle and all of its files."""
+
+    identity: str
+    files: tuple[ProjectSkillFile, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectSkillInstallTarget:
+    """One project bundle destination for one selected agent target."""
+
+    name: SkillTarget
+    path: Path
+    bundle: ProjectSkillBundle
+
+
+@dataclass(frozen=True, slots=True)
 class SkillUpdateResult:
     """Files written by one skills invocation."""
 
@@ -59,9 +85,11 @@ class SkillInstallPlan:
 
     context: SkillGenerationContext
     targets: tuple[SkillInstallTarget, ...]
+    project_targets: tuple[ProjectSkillInstallTarget, ...]
     legacy_paths: tuple[Path, ...]
     owner: str
     input_fingerprint: str
+    synchronize_project_skills: bool
 
 
 @dataclass(frozen=True, slots=True)

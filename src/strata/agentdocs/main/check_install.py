@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
-from strata.agentdocs._helpers.freshness import inspect_skill_content
+from pathlib import Path
+
+from strata.agentdocs._helpers.freshness import (
+    inspect_project_skill_install,
+    inspect_skill_content,
+)
 from strata.agentdocs._helpers.ownership import owned_skill_content
 from strata.agentdocs.main._generate import generate_skill
 from strata.agentdocs.models import (
@@ -35,7 +40,14 @@ def check_skill_install(*, plan: SkillInstallPlan, authoritative: bool) -> Skill
         )
         if reason is not None:
             issues.append(SkillFreshnessIssue(path=target.path, reason=reason))
+    if authoritative:
+        issues.extend(inspect_project_skill_install(plan))
+    inspected: list[Path] = [target.path for target in targets]
+    for target in plan.project_targets:
+        for file in target.bundle.files:
+            inspected.append(target.path / file.relative_path)
+    inspected_paths: tuple[Path, ...] = tuple(inspected)
     return SkillFreshnessResult(
-        inspected_paths=tuple(target.path for target in targets),
-        issues=tuple(issues),
+        inspected_paths=tuple(sorted(inspected_paths, key=lambda path: path.as_posix())),
+        issues=tuple(sorted(issues, key=lambda issue: issue.path.as_posix())),
     )

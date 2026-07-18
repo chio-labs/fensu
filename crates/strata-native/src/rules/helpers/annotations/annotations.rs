@@ -24,6 +24,7 @@ pub(crate) fn return_annotation_faults(rows: &AnnotationRows) -> Vec<NativeFault
                 row.name
             )),
             remediation: None,
+            path: None,
         })
         .collect()
 }
@@ -57,6 +58,7 @@ pub(crate) fn local_variable_annotation_faults(rows: &AnnotationRows) -> Vec<Nat
                 row.name
             )),
             remediation: None,
+            path: None,
         })
         .collect()
 }
@@ -71,6 +73,7 @@ fn parameter_fault(row: &NamedLocationRow) -> NativeFaultRow {
             row.name
         )),
         remediation: None,
+        path: None,
     }
 }
 
@@ -89,6 +92,7 @@ fn variable_faults(
                 row.name
             )),
             remediation: None,
+            path: None,
         })
         .collect()
 }

@@ -105,25 +105,27 @@ def prewarm_scoped_files(
 ) -> tuple[object | None, ...]:
     """Batch-parse upcoming files, seed the project, and return aligned native handles."""
 
-    readable: list[tuple[ScopedFile, SourceSnapshot, str]] = []
-    for scoped_file in scoped_files:
+    readable: list[tuple[int, ScopedFile, SourceSnapshot, str]] = []
+    for index, scoped_file in enumerate(scoped_files):
         try:
             snapshot: SourceSnapshot = read_source_snapshot(path=scoped_file.path)
             source: str = decode_python_source(path=scoped_file.path, content=snapshot.content)
         except (OSError, PythonSourceParseError):
             continue
-        readable.append((scoped_file, snapshot, source))
+        readable.append((index, scoped_file, snapshot, source))
     programs: tuple[object | None, ...] = parse_native_programs(
-        sources=tuple(source for _, _, source in readable)
+        sources=tuple(source for _, _, _, source in readable)
     )
     _ = extract_native_fact_rows(
         requests=tuple(
             (program, _prewarm_fact_families(scoped_file))
-            for (scoped_file, _, _), program in zip(readable, programs, strict=True)
+            for (_, scoped_file, _, _), program in zip(readable, programs, strict=True)
             if program is not None
         )
     )
-    for (scoped_file, snapshot, source), program in zip(readable, programs, strict=True):
+    aligned: list[object | None] = [None] * len(scoped_files)
+    for (index, scoped_file, snapshot, source), program in zip(readable, programs, strict=True):
+        aligned[index] = program
         if program is None:
             continue
         artifacts: LazySyntaxArtifacts = LazySyntaxArtifacts(path=scoped_file.path, source=source)
@@ -136,7 +138,7 @@ def prewarm_scoped_files(
                 program=program,
             )
         )
-    return programs
+    return tuple(aligned)
 
 
 def _prewarm_fact_families(scoped_file: ScopedFile) -> tuple[str, ...]:

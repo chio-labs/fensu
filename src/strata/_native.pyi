@@ -45,10 +45,18 @@ def evaluate_native_core_rules(
             list[str],
             bool,
             str,
-            list[str],
+            tuple[
+                list[str],
+                list[tuple[str, str]],
+                dict[str, list[str]],
+                list[tuple[str, str, str, str, int, int]],
+            ],
         ]
     ],
-) -> list[list[tuple[str, int | None, int | None, str | None, str | None]]]: ...
+) -> list[list[tuple[str, str | None, int | None, int | None, str | None, str | None]]]: ...
+def plan_native_core_rule_queries(
+    requests: list[tuple[Any, ...]],
+) -> list[list[tuple[str, str, str, str]]]: ...
 def native_rule_fact_families() -> list[tuple[str, list[str]]]: ...
 def assignment_reference_facts(handle: ProgramHandle, path: Path) -> tuple[Any, ...]: ...
 def backend_version() -> str: ...

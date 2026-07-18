@@ -77,10 +77,10 @@ def test_given_configured_layout_when_checking_all_layout_rules_then_accepts_exa
     "test_case",
     [
         SftOperationTestCase(
-            description="complete tests family uses native prewarmed parses",
+            description="complete native tests family uses prewarmed project observations",
             expected_parse_count=0,
-            expected_layout_count=2,
-            expected_function_issue_count=1,
+            expected_layout_count=0,
+            expected_function_issue_count=0,
         )
     ],
     ids=lambda case: case.description,
@@ -896,8 +896,9 @@ def test_given_test_comprehensions_when_checking_then_flags_only_complex_forms(
         SftRuleTestCase(
             description="all newly native local SFT rules bypass Python core callbacks",
             rule_code=(
-                "SFT101,SFT103,SFT104,SFT105,SFT201,SFT202,SFT203,SFT301,SFT302,"
-                "SFT401,SFT402,SFT404,SFT405,SFT406,SFT407,SFT408,SFT411,SFT412,SFT414"
+                "SFT001,SFT002,SFT003,SFT004,SFT005,SFT006,SFT007,SFT008,SFT101,SFT103,"
+                "SFT104,SFT105,SFT201,SFT202,SFT203,SFT204,SFT301,SFT302,SFT401,SFT402,"
+                "SFT403,SFT404,SFT405,SFT406,SFT407,SFT408,SFT411,SFT412,SFT413,SFT414"
             ),
             files=good_test_files(),
             expected_codes=(),

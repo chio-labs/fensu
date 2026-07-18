@@ -1047,6 +1047,13 @@ def test_given_models_when_checking_mutability_then_flags_only_mutable_dataclass
     "test_case",
     [
         ShapeRuleTestCase(
+            description="native SFS101 bypasses its Python core callback",
+            rule_code="SFS101",
+            source="def load() -> int:\n    return 1\n\ndef run() -> None:\n    load()\n",
+            expected_codes=("SFS101",),
+            expected_lines=(5,),
+        ),
+        ShapeRuleTestCase(
             description="native SFS102 bypasses its Python core callback",
             rule_code="SFS102",
             source="def update(values: list[int]) -> None:\n    values.append(1)\n",

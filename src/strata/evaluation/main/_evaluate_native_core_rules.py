@@ -9,14 +9,23 @@ from types import ModuleType
 from strata.analysis.constants import NATIVE_FACT_MODULE_NAME
 from strata.config.exceptions import ConfigError
 from strata.config.models import Config
-from strata.evaluation._helpers.native_rules import prepare_native_rule_request
+from strata.evaluation._helpers.native_rules import (
+    observe_native_rule_projects,
+    prepare_native_rule_request,
+)
 from strata.evaluation.models import (
     EvaluationTarget,
     NativeCoreRuleEvaluation,
     ThresholdOverrideUse,
 )
-from strata.evaluation.types import NativeCoreRuleRequest, NativeFaultRow, NativeFaultsByCode
+from strata.evaluation.types import (
+    EvaluationProjectAnalysis,
+    NativeCoreRuleRequest,
+    NativeFaultRow,
+    NativeFaultsByCode,
+)
 from strata.rules.authoring.models import Fault, RuleSpec
+from strata.rules.roles.types import RoleCode
 
 
 def evaluate_native_core_rules(
@@ -28,6 +37,8 @@ def evaluate_native_core_rules(
     config: Config,
     repo_root: Path,
     tooling_packages: tuple[str, ...],
+    project: EvaluationProjectAnalysis,
+    scope_roots: tuple[tuple[str, str], ...],
 ) -> tuple[NativeCoreRuleEvaluation, ...]:
     """Return native faults grouped by rule code for each target."""
 
@@ -51,13 +62,22 @@ def evaluate_native_core_rules(
                 config=config,
                 repo_root=repo_root,
                 tooling_packages=tooling_packages,
+                scope_roots=scope_roots,
             )
             for target, program, codes in zip(targets, programs, codes_by_target, strict=True)
         )
     )
+    observed_requests: tuple[NativeCoreRuleRequest | None, ...] = observe_native_rule_projects(
+        native=native,
+        requests=tuple(request for request, _ in prepared),
+        targets=targets,
+        project=project,
+        repo_root=repo_root,
+        scope_roots=scope_roots,
+    )
     try:
         batches: list[list[NativeFaultRow]] = native.evaluate_native_core_rules(
-            [request for request, _ in prepared if request is not None]
+            [request for request in observed_requests if request is not None]
         )
     except ValueError as error:
         raise ConfigError(str(error)) from error
@@ -73,6 +93,7 @@ def evaluate_native_core_rules(
         NativeCoreRuleEvaluation(
             faults_by_code=_faults_by_code(
                 path=target.scoped_file.path,
+                repo_root=repo_root,
                 codes=codes,
                 rows=tuple(rows),
                 rules_by_code=rules_by_code,
@@ -92,7 +113,12 @@ def _target_native_codes(
     native_codes: frozenset[str],
 ) -> tuple[str, ...]:
     if not target.direct:
-        return ()
+        return (
+            (RoleCode.CUSTOM_RULE_TEST_COVERAGE,)
+            if target.custom_rule_registrations
+            and RoleCode.CUSTOM_RULE_TEST_COVERAGE in native_codes
+            else ()
+        )
     return tuple(
         rule.code
         for rule in rules
@@ -104,17 +130,18 @@ def _target_native_codes(
 def _faults_by_code(
     *,
     path: Path,
+    repo_root: Path,
     codes: tuple[str, ...],
     rows: tuple[NativeFaultRow, ...],
     rules_by_code: dict[str, RuleSpec],
 ) -> NativeFaultsByCode:
     grouped: dict[str, list[Fault]] = {code: [] for code in codes}
-    for code, line, column, message, remediation in rows:
+    for code, reported_path, line, column, message, remediation in rows:
         rule: RuleSpec = rules_by_code[code]
         grouped[code].append(
             Fault(
                 code=code,
-                path=path,
+                path=path if reported_path is None else repo_root / reported_path,
                 message=rule.message if message is None else message,
                 line=line,
                 column=column,

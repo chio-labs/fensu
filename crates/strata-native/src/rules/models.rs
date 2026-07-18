@@ -9,6 +9,20 @@ pub struct NativeFaultRow {
     pub column: u32,
     pub message: Option<String>,
     pub remediation: Option<String>,
+    pub path: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct NativeProjectQuery {
+    pub kind: String,
+    pub path: String,
+    pub argument: String,
+}
+
+impl NativeProjectQuery {
+    pub fn key(&self) -> String {
+        format!("{}\0{}\0{}", self.kind, self.path, self.argument)
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -23,4 +37,16 @@ pub struct NativeRuleContext {
     pub is_entry_module: bool,
     pub package_name: String,
     pub tooling_packages: Vec<String>,
+    pub scope_roots: Vec<(String, String)>,
+    pub observations: HashMap<String, Vec<String>>,
+    pub custom_registrations: Vec<(String, String, String, String, u32, u32)>,
+}
+
+impl NativeRuleContext {
+    pub fn observation(&self, query: &NativeProjectQuery) -> &[String] {
+        self.observations
+            .get(&query.key())
+            .map(Vec::as_slice)
+            .unwrap_or_default()
+    }
 }

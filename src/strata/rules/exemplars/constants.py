@@ -77,14 +77,23 @@ from strata.rules.exemplars.main.hygiene._single_line_docstrings import (
 from strata.rules.exemplars.main.layers._absolute_imports_only import (
     absolute_imports_only_equivalent,
 )
+from strata.rules.exemplars.main.layers._no_cross_domain_private_main_imports import (
+    no_cross_domain_private_main_imports_equivalent,
+)
 from strata.rules.exemplars.main.layers._no_cross_file_helper_private_classes import (
     no_cross_file_helper_private_classes_equivalent,
+)
+from strata.rules.exemplars.main.layers._no_cross_package_internals import (
+    no_cross_package_internals_equivalent,
 )
 from strata.rules.exemplars.main.layers._no_internal_public_surface_imports import (
     no_internal_public_surface_imports_equivalent,
 )
 from strata.rules.exemplars.main.layers._no_runtime_imports_from_tooling import (
     no_runtime_imports_from_tooling_equivalent,
+)
+from strata.rules.exemplars.main.layers._no_sibling_package_internals import (
+    no_sibling_package_internals_equivalent,
 )
 from strata.rules.exemplars.main.layers._no_star_imports import no_star_imports_equivalent
 from strata.rules.exemplars.main.naming._iterator_name_must_produce_iterator import (
@@ -99,8 +108,20 @@ from strata.rules.exemplars.main.naming._validator_must_not_return import (
 from strata.rules.exemplars.main.naming._value_name_must_return_value import (
     value_name_must_return_value_equivalent,
 )
+from strata.rules.exemplars.main.roles._banned_generic_package_name import (
+    banned_generic_package_name_equivalent,
+)
+from strata.rules.exemplars.main.roles._custom_rule_test_coverage import (
+    custom_rule_test_coverage_equivalent,
+)
+from strata.rules.exemplars.main.roles._main_entry_name_collision import (
+    main_entry_name_collision_equivalent,
+)
 from strata.rules.exemplars.main.roles._private_definition_ordering import (
     private_definition_ordering_equivalent,
+)
+from strata.rules.exemplars.main.roles._tooling_package_layout import (
+    tooling_package_layout_equivalent,
 )
 from strata.rules.exemplars.main.shape._default_mutation_return import (
     default_mutation_return_equivalent,
@@ -111,6 +132,9 @@ from strata.rules.exemplars.main.shape._keyword_only_arguments import (
 from strata.rules.exemplars.main.shape._max_arguments import max_arguments_equivalent
 from strata.rules.exemplars.main.shape._max_statements_global import (
     max_statements_global_equivalent,
+)
+from strata.rules.exemplars.main.shape._meaningful_project_result_discarded import (
+    meaningful_project_result_discarded_equivalent,
 )
 from strata.rules.exemplars.main.shape._mutable_result_model import mutable_result_model_equivalent
 from strata.rules.exemplars.main.shape._no_complex_comprehensions import (
@@ -142,6 +166,25 @@ from strata.rules.exemplars.main.tests._function_expectations import (
     _parametrize_test_case_equivalent,
     expected_field_assertion_equivalent,
 )
+from strata.rules.exemplars.main.tests._layout_roots import (
+    _test_scope_equivalent,
+    test_layout_equivalent,
+)
+from strata.rules.exemplars.main.tests._layout_runtime import (
+    _src_package_exists_equivalent,
+    src_mirror_depth_equivalent,
+)
+from strata.rules.exemplars.main.tests._layout_tooling import (
+    _scripts_area_exists_equivalent,
+    scripts_mirror_depth_equivalent,
+)
+from strata.rules.exemplars.main.tests._local_test_case_types import (
+    _local_test_case_constructors_equivalent,
+    test_case_annotation_equivalent,
+)
+from strata.rules.exemplars.main.tests._local_test_types_file import (
+    local_test_types_file_equivalent,
+)
 from strata.rules.exemplars.main.tests._module_style import (
     _test_no_top_level_helpers_equivalent,
     _test_private_constant_order_equivalent,
@@ -159,6 +202,8 @@ from strata.rules.exemplars.main.tests._parametrize_shape import (
     _nonempty_parametrize_values_equivalent,
     parametrize_ids_equivalent,
 )
+from strata.rules.exemplars.main.tests._src_area_exists import src_area_exists_equivalent
+from strata.rules.exemplars.main.tests._test_mirrored_root import test_mirrored_root_equivalent
 from strata.rules.exemplars.main.tests._test_types import (
     _local_test_types_import_equivalent,
     _test_types_expected_field_equivalent,
@@ -189,6 +234,7 @@ NATIVE_CUSTOM_RULE_EQUIVALENTS: dict[str, RuleCheck] = {
     "SFS003": too_many_locals_equivalent,
     "SFS010": max_arguments_equivalent,
     "SFS011": max_statements_global_equivalent,
+    "SFS101": meaningful_project_result_discarded_equivalent,
     "SFS102": parameter_mutation_in_phase_helpers_equivalent,
     "SFS110": default_mutation_return_equivalent,
     "SFS120": keyword_only_arguments_equivalent,
@@ -197,7 +243,10 @@ NATIVE_CUSTOM_RULE_EQUIVALENTS: dict[str, RuleCheck] = {
     "SFS201": mutable_result_model_equivalent,
     "SFL001": absolute_imports_only_equivalent,
     "SFL002": no_star_imports_equivalent,
+    "SFL101": no_sibling_package_internals_equivalent,
+    "SFL102": no_cross_package_internals_equivalent,
     "SFL103": no_internal_public_surface_imports_equivalent,
+    "SFL104": no_cross_domain_private_main_imports_equivalent,
     "SFL110": no_cross_file_helper_private_classes_equivalent,
     "SFL301": no_runtime_imports_from_tooling_equivalent,
     "SFR001": models_only_models_equivalent,
@@ -211,6 +260,7 @@ NATIVE_CUSTOM_RULE_EQUIVALENTS: dict[str, RuleCheck] = {
     "SFR201": banned_generic_filename_equivalent,
     "SFR202": helpers_module_name_equivalent,
     "SFR203": classes_module_name_equivalent,
+    "SFR204": banned_generic_package_name_equivalent,
     "SFR205": helpers_classes_file_private_equivalent,
     "SFR303": helpers_reserved_role_filenames_equivalent,
     "SFR304": nested_direct_modules_equivalent,
@@ -220,6 +270,7 @@ NATIVE_CUSTOM_RULE_EQUIVALENTS: dict[str, RuleCheck] = {
     "SFR402": init_module_empty_equivalent,
     "SFR403": no_reexport_shim_equivalent,
     "SFR404": no_internal_helper_exports_equivalent,
+    "SFR405": main_entry_name_collision_equivalent,
     "SFR406": public_surface_shape_equivalent,
     "SFR501": classes_one_class_per_module_equivalent,
     "SFR502": helpers_package_shape_equivalent,
@@ -229,7 +280,17 @@ NATIVE_CUSTOM_RULE_EQUIVALENTS: dict[str, RuleCheck] = {
     "SFR702": tooling_entrypoint_delegation_equivalent,
     "SFR703": tooling_entrypoint_line_count_equivalent,
     "SFR704": rules_role_content_equivalent,
+    "SFR705": tooling_package_layout_equivalent,
     "SFR706": descriptive_rule_module_names_equivalent,
+    "SFR707": custom_rule_test_coverage_equivalent,
+    "SFT001": test_layout_equivalent,
+    "SFT002": _test_scope_equivalent,
+    "SFT003": test_mirrored_root_equivalent,
+    "SFT004": src_mirror_depth_equivalent,
+    "SFT005": _src_package_exists_equivalent,
+    "SFT006": src_area_exists_equivalent,
+    "SFT007": scripts_mirror_depth_equivalent,
+    "SFT008": _scripts_area_exists_equivalent,
     "SFT101": test_init_module_empty_equivalent,
     "SFT102": test_absolute_imports_equivalent,
     "SFT103": _test_no_top_level_helpers_equivalent,
@@ -239,10 +300,12 @@ NATIVE_CUSTOM_RULE_EQUIVALENTS: dict[str, RuleCheck] = {
     "SFT201": test_types_description_equivalent,
     "SFT202": _test_types_expected_field_equivalent,
     "SFT203": _local_test_types_import_equivalent,
+    "SFT204": local_test_types_file_equivalent,
     "SFT301": _test_file_name_equivalent,
     "SFT302": test_function_name_equivalent,
     "SFT401": _dataclass_parametrize_equivalent,
     "SFT402": _accepts_test_case_equivalent,
+    "SFT403": test_case_annotation_equivalent,
     "SFT404": expected_field_assertion_equivalent,
     "SFT405": _parametrize_arguments_equivalent,
     "SFT406": _parametrize_test_case_equivalent,
@@ -250,5 +313,6 @@ NATIVE_CUSTOM_RULE_EQUIVALENTS: dict[str, RuleCheck] = {
     "SFT408": _inline_parametrize_values_equivalent,
     "SFT411": _nonempty_parametrize_values_equivalent,
     "SFT412": no_dict_test_cases_equivalent,
+    "SFT413": _local_test_case_constructors_equivalent,
     "SFT414": _description_lambda_ids_equivalent,
 }

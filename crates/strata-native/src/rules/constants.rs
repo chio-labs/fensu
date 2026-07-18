@@ -17,6 +17,7 @@ pub const NO_IMPORT_TIME_SIDE_EFFECTS_CODE: &str = "SFH009";
 pub const TOO_MANY_STATEMENTS_CODE: &str = "SFS001";
 pub const TOO_MANY_DISTINCT_CALLS_CODE: &str = "SFS002";
 pub const TOO_MANY_LOCALS_CODE: &str = "SFS003";
+pub const MEANINGFUL_PROJECT_RESULT_DISCARDED_CODE: &str = "SFS101";
 pub const MAX_ARGUMENTS_CODE: &str = "SFS010";
 pub const MAX_STATEMENTS_GLOBAL_CODE: &str = "SFS011";
 pub const PARAMETER_MUTATION_IN_PHASE_HELPERS_CODE: &str = "SFS102";
@@ -31,7 +32,10 @@ pub const VALUE_NAME_MUST_RETURN_VALUE_CODE: &str = "SFN003";
 pub const ITERATOR_NAME_MUST_PRODUCE_ITERATOR_CODE: &str = "SFN004";
 pub const ABSOLUTE_IMPORTS_ONLY_CODE: &str = "SFL001";
 pub const NO_STAR_IMPORTS_CODE: &str = "SFL002";
+pub const NO_SIBLING_PACKAGE_INTERNALS_CODE: &str = "SFL101";
+pub const NO_CROSS_PACKAGE_INTERNALS_CODE: &str = "SFL102";
 pub const NO_INTERNAL_PUBLIC_SURFACE_IMPORTS_CODE: &str = "SFL103";
+pub const NO_CROSS_DOMAIN_PRIVATE_MAIN_IMPORTS_CODE: &str = "SFL104";
 pub const NO_CROSS_FILE_HELPER_PRIVATE_CLASS_CODE: &str = "SFL110";
 pub const NO_RUNTIME_IMPORTS_FROM_TOOLING_CODE: &str = "SFL301";
 pub const MODELS_ONLY_MODELS_CODE: &str = "SFR001";
@@ -45,6 +49,7 @@ pub const EXCEPTION_DECLARATION_OUTSIDE_EXCEPTIONS_CODE: &str = "SFR104";
 pub const BANNED_GENERIC_FILENAME_CODE: &str = "SFR201";
 pub const HELPERS_MODULE_NAME_CODE: &str = "SFR202";
 pub const CLASSES_MODULE_NAME_CODE: &str = "SFR203";
+pub const BANNED_GENERIC_PACKAGE_NAME_CODE: &str = "SFR204";
 pub const HELPERS_CLASSES_FILE_PRIVATE_CODE: &str = "SFR205";
 pub const HELPERS_RESERVED_ROLE_FILENAMES_CODE: &str = "SFR303";
 pub const NESTED_DIRECT_MODULES_CODE: &str = "SFR304";
@@ -54,6 +59,7 @@ pub const ENTRY_MODULE_SHAPE_CODE: &str = "SFR401";
 pub const INIT_MODULE_EMPTY_CODE: &str = "SFR402";
 pub const NO_REEXPORT_SHIM_CODE: &str = "SFR403";
 pub const NO_INTERNAL_HELPER_EXPORTS_CODE: &str = "SFR404";
+pub const MAIN_ENTRY_NAME_COLLISION_CODE: &str = "SFR405";
 pub const PUBLIC_SURFACE_SHAPE_CODE: &str = "SFR406";
 pub const CLASSES_ONE_CLASS_PER_MODULE_CODE: &str = "SFR501";
 pub const HELPERS_PACKAGE_SHAPE_CODE: &str = "SFR502";
@@ -63,7 +69,17 @@ pub const TOOLING_ENTRYPOINT_SHAPE_CODE: &str = "SFR701";
 pub const TOOLING_ENTRYPOINT_DELEGATION_CODE: &str = "SFR702";
 pub const TOOLING_ENTRYPOINT_LINE_COUNT_CODE: &str = "SFR703";
 pub const RULES_ROLE_CONTENT_CODE: &str = "SFR704";
+pub const TOOLING_PACKAGE_LAYOUT_CODE: &str = "SFR705";
 pub const DESCRIPTIVE_RULE_MODULE_NAMES_CODE: &str = "SFR706";
+pub const CUSTOM_RULE_TEST_COVERAGE_CODE: &str = "SFR707";
+pub const TEST_LAYOUT_CODE: &str = "SFT001";
+pub const TEST_SCOPE_CODE: &str = "SFT002";
+pub const TEST_MIRRORED_ROOT_CODE: &str = "SFT003";
+pub const TEST_SRC_MIRROR_DEPTH_CODE: &str = "SFT004";
+pub const TEST_SRC_PACKAGE_EXISTS_CODE: &str = "SFT005";
+pub const TEST_SRC_AREA_EXISTS_CODE: &str = "SFT006";
+pub const TEST_SCRIPTS_MIRROR_DEPTH_CODE: &str = "SFT007";
+pub const TEST_SCRIPTS_AREA_EXISTS_CODE: &str = "SFT008";
 pub const TEST_INIT_MODULE_EMPTY_CODE: &str = "SFT101";
 pub const TEST_ABSOLUTE_IMPORTS_CODE: &str = "SFT102";
 pub const TEST_NO_TOP_LEVEL_HELPERS_CODE: &str = "SFT103";
@@ -73,10 +89,12 @@ pub const TEST_NO_COMPLEX_COMPREHENSIONS_CODE: &str = "SFT106";
 pub const TEST_TYPES_DESCRIPTION_CODE: &str = "SFT201";
 pub const TEST_TYPES_EXPECTED_FIELD_CODE: &str = "SFT202";
 pub const TEST_LOCAL_TEST_TYPES_IMPORT_CODE: &str = "SFT203";
+pub const TEST_LOCAL_TEST_TYPES_FILE_CODE: &str = "SFT204";
 pub const TEST_FILE_NAME_CODE: &str = "SFT301";
 pub const TEST_FUNCTION_NAME_CODE: &str = "SFT302";
 pub const TEST_DATACLASS_PARAMETRIZE_CODE: &str = "SFT401";
 pub const TEST_ACCEPTS_TEST_CASE_CODE: &str = "SFT402";
+pub const TEST_CASE_ANNOTATION_CODE: &str = "SFT403";
 pub const TEST_EXPECTED_FIELD_ASSERTION_CODE: &str = "SFT404";
 pub const TEST_PARAMETRIZE_ARGUMENTS_CODE: &str = "SFT405";
 pub const TEST_PARAMETRIZE_TEST_CASE_CODE: &str = "SFT406";
@@ -84,6 +102,7 @@ pub const TEST_PARAMETRIZE_IDS_CODE: &str = "SFT407";
 pub const TEST_INLINE_PARAMETRIZE_VALUES_CODE: &str = "SFT408";
 pub const TEST_NONEMPTY_PARAMETRIZE_VALUES_CODE: &str = "SFT411";
 pub const TEST_NO_DICT_TEST_CASES_CODE: &str = "SFT412";
+pub const TEST_LOCAL_TEST_CASE_CONSTRUCTORS_CODE: &str = "SFT413";
 pub const TEST_DESCRIPTION_LAMBDA_IDS_CODE: &str = "SFT414";
 pub const TEST_DESCRIPTION_FIELD_NAME: &str = "description";
 pub const TEST_EXPECTED_FIELD_PREFIX: &str = "expected_";
@@ -118,6 +137,10 @@ pub const NATIVE_RULE_FACT_FAMILIES: &[(&str, &[&str])] = &[
     (TOO_MANY_STATEMENTS_CODE, &["functions"]),
     (TOO_MANY_DISTINCT_CALLS_CODE, &["functions"]),
     (TOO_MANY_LOCALS_CODE, &["functions"]),
+    (
+        MEANINGFUL_PROJECT_RESULT_DISCARDED_CODE,
+        &["project_calls", "project_functions"],
+    ),
     (MAX_ARGUMENTS_CODE, &["functions"]),
     (MAX_STATEMENTS_GLOBAL_CODE, &["functions"]),
     (
@@ -131,7 +154,10 @@ pub const NATIVE_RULE_FACT_FAMILIES: &[(&str, &[&str])] = &[
     (MUTABLE_RESULT_MODEL_CODE, &["dataclasses"]),
     (ABSOLUTE_IMPORTS_ONLY_CODE, &["references"]),
     (NO_STAR_IMPORTS_CODE, &["references"]),
+    (NO_SIBLING_PACKAGE_INTERNALS_CODE, &["references"]),
+    (NO_CROSS_PACKAGE_INTERNALS_CODE, &["references"]),
     (NO_INTERNAL_PUBLIC_SURFACE_IMPORTS_CODE, &["references"]),
+    (NO_CROSS_DOMAIN_PRIVATE_MAIN_IMPORTS_CODE, &["references"]),
     (NO_CROSS_FILE_HELPER_PRIVATE_CLASS_CODE, &["references"]),
     (NO_RUNTIME_IMPORTS_FROM_TOOLING_CODE, &["references"]),
     (MODELS_ONLY_MODELS_CODE, &["module_declarations"]),
@@ -154,6 +180,7 @@ pub const NATIVE_RULE_FACT_FAMILIES: &[(&str, &[&str])] = &[
     (BANNED_GENERIC_FILENAME_CODE, &[]),
     (HELPERS_MODULE_NAME_CODE, &[]),
     (CLASSES_MODULE_NAME_CODE, &[]),
+    (BANNED_GENERIC_PACKAGE_NAME_CODE, &[]),
     (HELPERS_CLASSES_FILE_PRIVATE_CODE, &["module_declarations"]),
     (HELPERS_RESERVED_ROLE_FILENAMES_CODE, &[]),
     (NESTED_DIRECT_MODULES_CODE, &[]),
@@ -163,6 +190,7 @@ pub const NATIVE_RULE_FACT_FAMILIES: &[(&str, &[&str])] = &[
     (INIT_MODULE_EMPTY_CODE, &["module_declarations"]),
     (NO_REEXPORT_SHIM_CODE, &["module_declarations"]),
     (NO_INTERNAL_HELPER_EXPORTS_CODE, &["module_declarations"]),
+    (MAIN_ENTRY_NAME_COLLISION_CODE, &[]),
     (PUBLIC_SURFACE_SHAPE_CODE, &["module_declarations"]),
     (CLASSES_ONE_CLASS_PER_MODULE_CODE, &["module_declarations"]),
     (HELPERS_PACKAGE_SHAPE_CODE, &[]),
@@ -172,7 +200,17 @@ pub const NATIVE_RULE_FACT_FAMILIES: &[(&str, &[&str])] = &[
     (TOOLING_ENTRYPOINT_DELEGATION_CODE, &["module_declarations"]),
     (TOOLING_ENTRYPOINT_LINE_COUNT_CODE, &[]),
     (RULES_ROLE_CONTENT_CODE, &["module_declarations"]),
+    (TOOLING_PACKAGE_LAYOUT_CODE, &[]),
     (DESCRIPTIVE_RULE_MODULE_NAMES_CODE, &[]),
+    (CUSTOM_RULE_TEST_COVERAGE_CODE, &[]),
+    (TEST_LAYOUT_CODE, &[]),
+    (TEST_SCOPE_CODE, &[]),
+    (TEST_MIRRORED_ROOT_CODE, &[]),
+    (TEST_SRC_MIRROR_DEPTH_CODE, &[]),
+    (TEST_SRC_PACKAGE_EXISTS_CODE, &[]),
+    (TEST_SRC_AREA_EXISTS_CODE, &[]),
+    (TEST_SCRIPTS_MIRROR_DEPTH_CODE, &[]),
+    (TEST_SCRIPTS_AREA_EXISTS_CODE, &[]),
     (TEST_INIT_MODULE_EMPTY_CODE, &["test_module"]),
     (TEST_ABSOLUTE_IMPORTS_CODE, &["references"]),
     (TEST_NO_TOP_LEVEL_HELPERS_CODE, &["test_module"]),
@@ -188,10 +226,12 @@ pub const NATIVE_RULE_FACT_FAMILIES: &[(&str, &[&str])] = &[
     (TEST_TYPES_DESCRIPTION_CODE, &["dataclasses"]),
     (TEST_TYPES_EXPECTED_FIELD_CODE, &["dataclasses"]),
     (TEST_LOCAL_TEST_TYPES_IMPORT_CODE, &["references"]),
+    (TEST_LOCAL_TEST_TYPES_FILE_CODE, &[]),
     (TEST_FILE_NAME_CODE, &[]),
     (TEST_FUNCTION_NAME_CODE, &["test_functions"]),
     (TEST_DATACLASS_PARAMETRIZE_CODE, &["test_functions"]),
     (TEST_ACCEPTS_TEST_CASE_CODE, &["test_functions"]),
+    (TEST_CASE_ANNOTATION_CODE, &["test_functions", "references"]),
     (TEST_EXPECTED_FIELD_ASSERTION_CODE, &["test_functions"]),
     (TEST_PARAMETRIZE_ARGUMENTS_CODE, &["test_functions"]),
     (TEST_PARAMETRIZE_TEST_CASE_CODE, &["test_functions"]),
@@ -199,5 +239,9 @@ pub const NATIVE_RULE_FACT_FAMILIES: &[(&str, &[&str])] = &[
     (TEST_INLINE_PARAMETRIZE_VALUES_CODE, &["test_functions"]),
     (TEST_NONEMPTY_PARAMETRIZE_VALUES_CODE, &["test_functions"]),
     (TEST_NO_DICT_TEST_CASES_CODE, &["test_functions"]),
+    (
+        TEST_LOCAL_TEST_CASE_CONSTRUCTORS_CODE,
+        &["test_functions", "references"],
+    ),
     (TEST_DESCRIPTION_LAMBDA_IDS_CODE, &["test_functions"]),
 ];

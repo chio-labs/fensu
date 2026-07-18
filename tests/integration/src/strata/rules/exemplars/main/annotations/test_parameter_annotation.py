@@ -37,7 +37,10 @@ _PARITY_NATIVE_CODES: frozenset[str] = frozenset(
         "SFH009",
         "SFL001",
         "SFL002",
+        "SFL101",
+        "SFL102",
         "SFL103",
+        "SFL104",
         "SFL110",
         "SFL301",
         "SFN001",
@@ -49,6 +52,7 @@ _PARITY_NATIVE_CODES: frozenset[str] = frozenset(
         "SFS003",
         "SFS010",
         "SFS011",
+        "SFS101",
         "SFS102",
         "SFS110",
         "SFS120",
@@ -66,6 +70,7 @@ _PARITY_NATIVE_CODES: frozenset[str] = frozenset(
         "SFR201",
         "SFR202",
         "SFR203",
+        "SFR204",
         "SFR205",
         "SFR303",
         "SFR304",
@@ -75,6 +80,7 @@ _PARITY_NATIVE_CODES: frozenset[str] = frozenset(
         "SFR402",
         "SFR403",
         "SFR404",
+        "SFR405",
         "SFR406",
         "SFR501",
         "SFR502",
@@ -84,7 +90,17 @@ _PARITY_NATIVE_CODES: frozenset[str] = frozenset(
         "SFR702",
         "SFR703",
         "SFR704",
+        "SFR705",
         "SFR706",
+        "SFR707",
+        "SFT001",
+        "SFT002",
+        "SFT003",
+        "SFT004",
+        "SFT005",
+        "SFT006",
+        "SFT007",
+        "SFT008",
         "SFT101",
         "SFT102",
         "SFT103",
@@ -94,10 +110,12 @@ _PARITY_NATIVE_CODES: frozenset[str] = frozenset(
         "SFT201",
         "SFT202",
         "SFT203",
+        "SFT204",
         "SFT301",
         "SFT302",
         "SFT401",
         "SFT402",
+        "SFT403",
         "SFT404",
         "SFT405",
         "SFT406",
@@ -105,20 +123,17 @@ _PARITY_NATIVE_CODES: frozenset[str] = frozenset(
         "SFT408",
         "SFT411",
         "SFT412",
+        "SFT413",
         "SFT414",
     }
 )
 _PYTHON_OWNED_SFR_CODES: frozenset[str] = frozenset(
     {
-        "SFR204",
         "SFR301",
         "SFR302",
         "SFR306",
         "SFR308",
         "SFR309",
-        "SFR405",
-        "SFR705",
-        "SFR707",
     }
 )
 
@@ -1020,6 +1035,198 @@ _PYTHON_OWNED_SFR_CODES: frozenset[str] = frozenset(
             expected_fault_count=0,
         ),
         NativeCustomRuleParityTestCase(
+            description="SFS101 matches public project function resolution",
+            native_code="SFS101",
+            source="from example._helpers.phase import load\n\ndef run() -> None:\n    load()\n",
+            expected_fault_count=1,
+            files=(
+                RuleFile(
+                    path="src/example/_helpers/phase.py",
+                    source="def load() -> int:\n    return 1\n",
+                ),
+            ),
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFL101 matches public sibling package observations",
+            native_code="SFL101",
+            source="from example.domain.beta._helpers import load\n",
+            expected_fault_count=1,
+            path="src/example/domain/alpha/main/run.py",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFL102 matches public cross-domain package observations",
+            native_code="SFL102",
+            source="from example.other._helpers import load\n",
+            expected_fault_count=1,
+            path="src/example/domain/main/run.py",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFL104 matches public module existence observations",
+            native_code="SFL104",
+            source="from example.other.main._load import load\n",
+            expected_fault_count=1,
+            path="src/example/domain/main/run.py",
+            files=(
+                RuleFile(
+                    path="src/example/other/main/_load.py", source="def load() -> None:\n    pass\n"
+                ),
+            ),
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFR204 matches public namespace package anchors",
+            native_code="SFR204",
+            source="",
+            expected_fault_count=1,
+            path="src/example/shared/__init__.py",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFR405 matches public sibling directory observations",
+            native_code="SFR405",
+            source="def run() -> None:\n    pass\n",
+            expected_fault_count=1,
+            path="src/example/main/run.py",
+            files=(RuleFile(path="src/example/main/run/__init__.py", source=""),),
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFR705 matches public tooling package anchors",
+            native_code="SFR705",
+            source="",
+            expected_fault_count=1,
+            path="scripts/tool/misc/__init__.py",
+            scope="tooling",
+            scope_root="scripts",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFR707 native and public routing agree without registrations",
+            native_code="SFR707",
+            source="",
+            expected_fault_count=0,
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFT001 matches public shallow test layout decisions",
+            native_code="SFT001",
+            source="",
+            expected_fault_count=1,
+            path="tests/test_example.py",
+            scope="test",
+            scope_root="tests",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFT002 matches public test scope decisions",
+            native_code="SFT002",
+            source="",
+            expected_fault_count=1,
+            path="tests/slow/src/example/test_example.py",
+            scope="test",
+            scope_root="tests",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFT003 matches public mirror root decisions",
+            native_code="SFT003",
+            source="",
+            expected_fault_count=1,
+            path="tests/unit/docs/example/test_example.py",
+            scope="test",
+            scope_root="tests",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFT004 matches public runtime mirror depth decisions",
+            native_code="SFT004",
+            source="",
+            expected_fault_count=1,
+            path="tests/unit/src/example/test_example.py",
+            scope="test",
+            scope_root="tests",
+            files=(RuleFile(path="src/example/__init__.py", source=""),),
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFT005 matches public source package decisions",
+            native_code="SFT005",
+            source="",
+            expected_fault_count=1,
+            path="tests/unit/src/other/core/test_example.py",
+            scope="test",
+            scope_root="tests",
+            files=(RuleFile(path="src/example/__init__.py", source=""),),
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFT006 matches public runtime area observations",
+            native_code="SFT006",
+            source="",
+            expected_fault_count=1,
+            path="tests/unit/src/example/missing/test_example.py",
+            scope="test",
+            scope_root="tests",
+            files=(RuleFile(path="src/example/__init__.py", source=""),),
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFT007 matches public tooling mirror depth decisions",
+            native_code="SFT007",
+            source="",
+            expected_fault_count=1,
+            path="tests/unit/scripts/test_example.py",
+            scope="test",
+            scope_root="tests",
+            files=(RuleFile(path="scripts/tool.py", source=""),),
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFT008 matches public tooling area observations",
+            native_code="SFT008",
+            source="",
+            expected_fault_count=1,
+            path="tests/unit/scripts/missing/test_example.py",
+            scope="test",
+            scope_root="tests",
+            files=(RuleFile(path="scripts/tool.py", source=""),),
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFT204 matches public sibling file observations",
+            native_code="SFT204",
+            source="",
+            expected_fault_count=1,
+            path="tests/unit/src/example/test_example.py",
+            scope="test",
+            scope_root="tests",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFT403 matches public sibling dataclass facts",
+            native_code="SFT403",
+            source=(
+                "import pytest\nfrom tests.unit.src.example._test_types import Case\n"
+                "@pytest.mark.parametrize('test_case', [Case()])\n"
+                "def test_given_value_when_checking_then_matches(test_case: object) -> None:\n    pass\n"
+            ),
+            expected_fault_count=1,
+            path="tests/unit/src/example/test_example.py",
+            scope="test",
+            scope_root="tests",
+            files=(
+                RuleFile(
+                    path="tests/unit/src/example/_test_types.py",
+                    source="from dataclasses import dataclass\n@dataclass\nclass Case:\n    value: int\n",
+                ),
+            ),
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFT413 matches public local constructor facts",
+            native_code="SFT413",
+            source=(
+                "import pytest\nfrom tests.unit.src.example._test_types import Case\n"
+                "@pytest.mark.parametrize('test_case', [object()])\n"
+                "def test_given_value_when_checking_then_matches(test_case: Case) -> None:\n    pass\n"
+            ),
+            expected_fault_count=1,
+            path="tests/unit/src/example/test_example.py",
+            scope="test",
+            scope_root="tests",
+            files=(
+                RuleFile(
+                    path="tests/unit/src/example/_test_types.py",
+                    source="from dataclasses import dataclass\n@dataclass\nclass Case:\n    value: int\n",
+                ),
+            ),
+        ),
+        NativeCustomRuleParityTestCase(
             description="SFT106 native and custom routing both exclude runtime scope",
             native_code="SFT106",
             source="pairs = [(left, right) for left in (1, 2) for right in (3, 4)]\n",
@@ -1050,6 +1257,7 @@ def test_given_shared_fixture_when_evaluating_native_and_custom_rules_then_fault
 
     assert native_result.fault_count == test_case.expected_fault_count
     assert normalized_faults(native_result.faults) == normalized_faults(custom_result.faults)
+    assert native_result.dependencies == custom_result.dependencies
 
 
 @pytest.mark.parametrize(

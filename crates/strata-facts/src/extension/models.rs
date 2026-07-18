@@ -20,6 +20,7 @@ use crate::facts::main::extract_module_declarations::extract_module_declarations
 use crate::facts::main::extract_outer_state_mutations::extract_outer_state_mutations;
 use crate::facts::main::extract_parameter_mutation_occurrences::extract_parameter_mutation_occurrences;
 use crate::facts::main::extract_parameter_mutations::extract_parameter_mutations;
+use crate::facts::main::extract_project_facts::extract_project_facts;
 use crate::facts::main::extract_references::extract_references;
 use crate::facts::main::extract_rule_calls::extract_rule_calls;
 use crate::facts::main::extract_rule_references::extract_rule_references;
@@ -27,9 +28,10 @@ use crate::facts::main::extract_test_functions::extract_test_functions;
 use crate::facts::main::extract_test_module::extract_test_module;
 use crate::facts::models::{
     AnnotationRows, AssignmentReferenceRow, ClassDeclarationRow, CommentRow, ComparisonRow,
-    ControlFlowRows, DataclassRow, FunctionContractRow, FunctionMetricRow, HygieneRows,
-    LocalCallEdgeRow, ModuleDeclarationRows, ParameterMutationOccurrenceRow, ParameterMutationRow,
-    ReferenceRows, RuleNamedCallRow, SourceRangeRow, TestFunctionRow, TestModuleRows,
+    ControlFlowRows, DataclassRow, DiscardedCallRow, FunctionContractRow, FunctionMetricRow,
+    HygieneRows, LocalCallEdgeRow, ModuleDeclarationRows, ParameterMutationOccurrenceRow,
+    ParameterMutationRow, ProjectFunctionRow, ReferenceRows, RuleNamedCallRow, SourceRangeRow,
+    TestFunctionRow, TestModuleRows,
 };
 use crate::facts::types::FactFamily;
 use crate::parsing::main::parse_strict::parse_strict;
@@ -54,6 +56,7 @@ struct FactRowCache {
     outer_state_mutations: OnceLock<Vec<SourceRangeRow>>,
     parameter_mutation_occurrences: OnceLock<Vec<ParameterMutationOccurrenceRow>>,
     parameter_mutations: OnceLock<Vec<ParameterMutationRow>>,
+    project: OnceLock<(Vec<ProjectFunctionRow>, Vec<DiscardedCallRow>)>,
     references: OnceLock<ReferenceRows>,
     test_functions: OnceLock<Vec<TestFunctionRow>>,
     test_module: OnceLock<TestModuleRows>,
@@ -223,6 +226,12 @@ impl ProgramHandle {
         self.rows
             .parameter_mutations
             .get_or_init(|| extract_parameter_mutations(self.module(), self.index(), self.source()))
+    }
+
+    pub fn project_rows(&self) -> &(Vec<ProjectFunctionRow>, Vec<DiscardedCallRow>) {
+        self.rows
+            .project
+            .get_or_init(|| extract_project_facts(self.module(), self.index(), self.source()))
     }
 
     pub(crate) fn parameter_mutation_occurrence_rows(&self) -> &[ParameterMutationOccurrenceRow] {

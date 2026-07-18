@@ -31,6 +31,7 @@ from strata.cache.mapping.constants import (
 )
 from strata.cache.mapping.models import (
     CachedCallMap,
+    ClassDeclaration,
     FileDeclarations,
     FunctionDeclaration,
     MapCacheStats,
@@ -249,7 +250,16 @@ def _fresh_after_internal_failure(
         indexed: ProjectIndex = index_mapping_file(snapshot=snapshot)
         functions.update(indexed.functions)
         classes.update(indexed.classes)
-    index: ProjectIndex = ProjectIndex(functions=functions, classes=classes)
+    index: ProjectIndex = ProjectIndex(
+        functions=functions,
+        classes=classes,
+        protocol_implementations=ProjectIndex.build_protocol_implementation_keys(
+            class_bases={key: definition.base_keys for key, definition in classes.items()},
+            protocol_keys=frozenset(
+                key for key, definition in classes.items() if definition.protocol
+            ),
+        ),
+    )
     root: FunctionDefinition = select_mapping_function(definitions=functions, symbol=symbol)
     return CachedCallMap(
         root=build_mapping_tree(root=root, resolver=index, depth=depth),
@@ -269,25 +279,38 @@ def _declarations(
         )
         for item in index.functions.values()
     )
+    classes: tuple[ClassDeclaration, ...] = tuple(
+        ClassDeclaration(
+            key=item.key,
+            base_keys=item.base_keys,
+            protocol=item.protocol,
+        )
+        for item in index.classes.values()
+    )
     return FileDeclarations(
         identity=identity,
         path=snapshot.relative_path,
         module_name=snapshot.module_name,
         functions=functions,
-        class_keys=tuple(index.classes),
+        classes=classes,
     )
 
 
 def _manifest(*, declarations: tuple[FileDeclarations, ...], input_fingerprint: str) -> MapManifest:
     functions: dict[str, str] = {}
     classes: dict[str, str] = {}
+    class_bases: dict[str, tuple[str, ...]] = {}
+    protocol_keys: set[str] = set()
     metadata: dict[str, FunctionDeclaration] = {}
     for declaration in declarations:
         for function in declaration.functions:
             functions[function.key] = declaration.identity
             metadata[function.key] = function
-        for class_key in declaration.class_keys:
-            classes[class_key] = declaration.identity
+        for class_definition in declaration.classes:
+            classes[class_definition.key] = declaration.identity
+            class_bases[class_definition.key] = class_definition.base_keys
+            if class_definition.protocol:
+                protocol_keys.add(class_definition.key)
     bare: dict[str, list[str]] = {}
     for key in functions:
         function: FunctionDeclaration = metadata[key]
@@ -298,6 +321,10 @@ def _manifest(*, declarations: tuple[FileDeclarations, ...], input_fingerprint: 
         functions=functions,
         classes=classes,
         bare_functions={key: tuple(value) for key, value in bare.items()},
+        protocol_implementations=ProjectIndex.build_protocol_implementation_keys(
+            class_bases=class_bases,
+            protocol_keys=frozenset(protocol_keys),
+        ),
     )
 
 

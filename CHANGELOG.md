@@ -1,6 +1,249 @@
 # Changelog
 
-## Unreleased
+## [0.19.0](https://github.com/chio-labs/strata/compare/v0.18.1...v0.19.0) (2026-07-17)
+
+
+### Features
+
+* **layers:** enforce main entry visibility ([989dd6e](https://github.com/chio-labs/strata/commit/989dd6edef8c93a067ab25e31097b3e624c84519))
+* **layers:** enforce main entry visibility ([3438dce](https://github.com/chio-labs/strata/commit/3438dced68673d9836bf07a7e11cd6291f97b977))
+
+## [0.18.1](https://github.com/chio-labs/strata/compare/v0.18.0...v0.18.1) (2026-07-17)
+
+
+### Bug Fixes
+
+* **analysis:** remove duplicate Python fact backend ([c4acc84](https://github.com/chio-labs/strata/commit/c4acc84afeae75df9c922edc5b25ead0faa0adfe))
+* **analysis:** remove duplicate Python fact backend ([912c712](https://github.com/chio-labs/strata/commit/912c712784fa9ced16118fdd8bca586370a85490))
+
+## [0.18.0](https://github.com/chio-labs/strata/compare/v0.17.0...v0.18.0) (2026-07-17)
+
+
+### Features
+
+* **analysis:** add native rule-authoring facts ([6930e4c](https://github.com/chio-labs/strata/commit/6930e4cf289fb3e311699b0f3cff07d0d21e8b79))
+* **analysis:** add native rule-authoring facts ([116dfb2](https://github.com/chio-labs/strata/commit/116dfb2480522305daa84056dbb7a282840a55e0))
+
+
+### Performance Improvements
+
+* accelerate repository replay and startup ([2dfe3f9](https://github.com/chio-labs/strata/commit/2dfe3f9dd38a5395819f1b033d09b595f4a00d3c))
+* add public execution owners and shared SFT issue discovery ([038daf3](https://github.com/chio-labs/strata/commit/038daf3ac766939d8cc79c5a199b97f794e9338b))
+* **cache:** bound high-churn publication ([26692f2](https://github.com/chio-labs/strata/commit/26692f2529e1fca14ad59e37c5c454543afca571))
+* **cache:** replay one-edit runs from a sparse collection aggregate ([abca86e](https://github.com/chio-labs/strata/commit/abca86e725b0cb2af34d6db7b8b2d2e2c9d330e7))
+* **cache:** reuse implementation path scan ([9076cdd](https://github.com/chio-labs/strata/commit/9076cdd94c46faad48fe3c72d4f054615c580181))
+* **cache:** validate warm manifest once ([48f6b64](https://github.com/chio-labs/strata/commit/48f6b6420facdce5ee6756c6d6c5c2ae8dbd6742))
+* default full evaluations to automatic worker parallelism ([6037bad](https://github.com/chio-labs/strata/commit/6037bad761353a1530b7201fa80667f3048fd17a))
+* establish shared performance foundation ([6b29450](https://github.com/chio-labs/strata/commit/6b294506795cb8911dfd10a089bf65eb43810f1b))
+* evaluate no-cache checks across parallel worker partitions ([bbc7354](https://github.com/chio-labs/strata/commit/bbc73547509e5a366618023d746c21a6bc9061a8))
+* extract native fact rows in parallel prewarm batches ([6dd3db3](https://github.com/chio-labs/strata/commit/6dd3db3c95dcc52220fad3174fc1ad58af1b816e))
+* **instrumentation:** attribute repository query costs ([a1cfcd3](https://github.com/chio-labs/strata/commit/a1cfcd328fe26f31dc674f577f15969a03d7e1a2))
+
+## [0.17.0](https://github.com/chio-labs/strata/compare/v0.16.0...v0.17.0) (2026-07-15)
+
+
+### Features
+
+* **cli:** prioritize actionable check output ([d85924f](https://github.com/chio-labs/strata/commit/d85924f6b095dee8a9e7fe8e98ddf9b96f685bf2))
+* **cli:** prioritize actionable check output ([79167f5](https://github.com/chio-labs/strata/commit/79167f5bb3bcafd752ecead5d2060fae5377e11d))
+
+## [0.16.0](https://github.com/chio-labs/strata/compare/v0.15.3...v0.16.0) (2026-07-15)
+
+
+### Features
+
+* **roles:** enforce leaf and helper ownership ([42775b5](https://github.com/chio-labs/strata/commit/42775b51d4aa916cb671511acda903c17033e0c2))
+
+
+### Bug Fixes
+
+* **reporting:** render repository paths with posix separators on every platform ([31ca3b7](https://github.com/chio-labs/strata/commit/31ca3b78ca181dcbae816335da39496c79bc6c93))
+* **scaffolding:** make descriptor io, rollback, and map selectors windows-safe ([ca4cae8](https://github.com/chio-labs/strata/commit/ca4cae82ad68485e82465a6c8ccb3e1b81d9b929))
+* **scaffolding:** refuse symlinks and directories portably when capturing files ([1aa051e](https://github.com/chio-labs/strata/commit/1aa051e808ffccf55ecfd8dbf5f990d98a338603))
+* **windows:** make output and config publication portable ([240b261](https://github.com/chio-labs/strata/commit/240b261164a57f8dad8df9015c28e2a492538e0f))
+* **windows:** normalize paths and portable test contracts ([bafad7a](https://github.com/chio-labs/strata/commit/bafad7a6858e69da047d595ef4e1a734c07585b9))
+
+
+### Performance Improvements
+
+* **config:** compile path patterns once instead of per match ([c11d227](https://github.com/chio-labs/strata/commit/c11d2276817957713ec95524edb9c1632e76c81b))
+
+
+### Documentation
+
+* **rules:** standardize the custom rule package path ([6b9edf3](https://github.com/chio-labs/strata/commit/6b9edf3bc7ae189e7bdd2342cd75e8389a35d457))
+
+## [0.15.3](https://github.com/chio-labs/strata/compare/v0.15.2...v0.15.3) (2026-07-14)
+
+
+### Performance Improvements
+
+* **evaluation:** match rule exceptions once per file instead of per rule ([ad000e3](https://github.com/chio-labs/strata/commit/ad000e3d71a8970ede6370385550e9ef1c8bed25))
+
+## [0.15.2](https://github.com/chio-labs/strata/compare/v0.15.1...v0.15.2) (2026-07-14)
+
+
+### Bug Fixes
+
+* **scaffolding:** guard O_NONBLOCK for platforms without it ([ff41bcd](https://github.com/chio-labs/strata/commit/ff41bcdfae035b5ea51842c45b2c166153d35124))
+* **scaffolding:** guard O_NONBLOCK for platforms without it ([894696c](https://github.com/chio-labs/strata/commit/894696c4e6ceb542608f6f5caaa2be6f7787a003))
+
+## [0.15.1](https://github.com/chio-labs/strata/compare/v0.15.0...v0.15.1) (2026-07-14)
+
+
+### Bug Fixes
+
+* **docs:** document wheel platforms and the rust toolchain requirement ([7257bf4](https://github.com/chio-labs/strata/commit/7257bf4a6d9094b2dfc416ffc08f4115ceb8b652))
+* **docs:** document wheel platforms and the rust toolchain requirement ([c6edc0a](https://github.com/chio-labs/strata/commit/c6edc0a21c78e0ada5983c8b87fdd3b2209f1c34))
+
+## [0.15.0](https://github.com/chio-labs/strata/compare/v0.14.0...v0.15.0) (2026-07-14)
+
+
+### Features
+
+* **analysis:** add native fact backend scaffolding with pass-through delegation ([5b4a9f4](https://github.com/chio-labs/strata/commit/5b4a9f4fd2a8dd12e3ce56a1ffcc1c291c57c4b5))
+* **discovery:** add native repository snapshot with canonical path and hash table ([4e0377b](https://github.com/chio-labs/strata/commit/4e0377babbb39857aa538c83475d53f508b76f74))
+* **evaluation:** make CPython AST lazy and prewarm native parses in parallel ([db72898](https://github.com/chio-labs/strata/commit/db728981959f0b3b1c82d80cdabe6716d8a85234))
+* **facts:** add strict native parser with CPython validity agreement ([06c0361](https://github.com/chio-labs/strata/commit/06c03612c2338999f6a1e9a2045cfdf63d840474))
+* **facts:** port harness fact families and close native parity ([8eaf1e0](https://github.com/chio-labs/strata/commit/8eaf1e0e93bccb017cc99e51ead588c862448aaa))
+* **facts:** port seventeen fact families to the native backend ([3be79ff](https://github.com/chio-labs/strata/commit/3be79ff1c7c5a64d4fd56f6d3055c1c2841ee4f6))
+* **tooling:** add Rust workspace structure checker ([b3b4f45](https://github.com/chio-labs/strata/commit/b3b4f459eb2073961432658dfc26a6df175659a5))
+* **tooling:** enforce native-backend performance budgets ([a5c4f58](https://github.com/chio-labs/strata/commit/a5c4f587e268a1ce9fd72e9dbc8deefce29aaf68))
+* **tooling:** harden Rust structure checks ([23edb8a](https://github.com/chio-labs/strata/commit/23edb8ac7dbe5cac2111c75296bd15e9ab1eeebe))
+* **tooling:** tighten native budget ceilings to measured CI reality ([0e5464a](https://github.com/chio-labs/strata/commit/0e5464a3809256d5b09a55fd707b97149fa3b98f))
+
+
+### Bug Fixes
+
+* **cache:** accept one concurrent publisher ([76db4da](https://github.com/chio-labs/strata/commit/76db4da06e966493dc72d315934db24104d78124))
+* **tests:** import the native extension lazily in parity helpers ([f3fa12f](https://github.com/chio-labs/strata/commit/f3fa12f1dda84443ef4b9c0aae3ad9f79045adb6))
+* **tests:** skip native delegation coverage without the extension ([7def24f](https://github.com/chio-labs/strata/commit/7def24fd6b311984e03545ea9156f65163b6c8a9))
+
+
+### Performance Improvements
+
+* **cache:** encode and validate each publication record once ([ad6420a](https://github.com/chio-labs/strata/commit/ad6420a7ce8a11bb7feabb2e19f976995fe19789))
+* **evaluation:** cut path churn and duplicate probe work on the uncached floor ([cf98316](https://github.com/chio-labs/strata/commit/cf983169e8ac26514967f9c1c282a600e66aabe0))
+* **evaluation:** remove repeated path, threshold, render, and encode work on hot check paths ([9fa37ae](https://github.com/chio-labs/strata/commit/9fa37aea719c00f38aeb8bdbf5022b8adf700713))
+
+## [0.14.0](https://github.com/chio-labs/strata/compare/v0.13.0...v0.14.0) (2026-07-14)
+
+
+### Features
+
+* **mapping:** resolve unique nominal protocol dispatch ([c519a28](https://github.com/chio-labs/strata/commit/c519a289b7af457011deb145661f671900fb97e6))
+* **mapping:** resolve unique nominal protocol dispatch ([2f1c5c2](https://github.com/chio-labs/strata/commit/2f1c5c2909e450330c2b14627efaa720b5dd0808))
+
+## [0.13.0](https://github.com/chio-labs/strata/compare/v0.12.0...v0.13.0) (2026-07-14)
+
+
+### Features
+
+* **cli:** flatten skills command and method selectors ([7de134c](https://github.com/chio-labs/strata/commit/7de134c913eed73315e45de5347e98995a3036af))
+* **cli:** flatten skills command and method selectors ([9bd6942](https://github.com/chio-labs/strata/commit/9bd6942553984fda1dcdd4f59662e29155802fb5))
+
+## [0.12.0](https://github.com/chio-labs/strata/compare/v0.11.0...v0.12.0) (2026-07-14)
+
+
+### Features
+
+* **cache:** scope caching per rule with declared cacheability ([800d57c](https://github.com/chio-labs/strata/commit/800d57c2ff1bac56523a622d67a78b37eb213334))
+* **cache:** scope caching per rule with declared cacheability ([5e3dde5](https://github.com/chio-labs/strata/commit/5e3dde5a0aadcb9fde7a87c00981b026cdc7bdec))
+
+## [0.11.0](https://github.com/chio-labs/strata/compare/v0.10.1...v0.11.0) (2026-07-14)
+
+
+### Features
+
+* **instrumentation:** add operation counters with corpus-backed invariants ([a10b1b8](https://github.com/chio-labs/strata/commit/a10b1b85a3cfda473a74921b81fb81597ad790ef))
+* **tooling:** add deterministic performance corpus generator ([b3e2a79](https://github.com/chio-labs/strata/commit/b3e2a7916c6bd044e4426bad8a032f204a780fdd))
+* **tooling:** add fault-dense budget scenarios ([296edd9](https://github.com/chio-labs/strata/commit/296edd95dcea6a824eb02ce39639c1f1d2eb0438))
+* **tooling:** enforce wall-clock performance budgets in CI ([c431cf2](https://github.com/chio-labs/strata/commit/c431cf2c898738fea652a1d2ce91e26c1a0524b2))
+
+
+### Performance Improvements
+
+* **cache:** replay aggregated observations to skip record decode on warm runs ([816f35f](https://github.com/chio-labs/strata/commit/816f35f134068d77c57574e016ca002d9268f55b))
+* **cache:** short-circuit unchanged warm checks with stored output ([ef51060](https://github.com/chio-labs/strata/commit/ef510601e9a4c4cbdc733309a46900b4dd027392))
+* **cache:** verify records by stored-bytes identity instead of re-encoding ([f5ee5a1](https://github.com/chio-labs/strata/commit/f5ee5a146f3e1706d2a15ac4381c85ffcabd6555))
+* **reporting:** read excerpted sources once per file, not per fault ([7ae1614](https://github.com/chio-labs/strata/commit/7ae16148dd854419ae954ff1039f0874d7a762c6))
+
+## [0.10.1](https://github.com/chio-labs/strata/compare/v0.10.0...v0.10.1) (2026-07-14)
+
+
+### Performance Improvements
+
+* **cache:** remove quadratic dependency scans and pathlib churn ([1e34299](https://github.com/chio-labs/strata/commit/1e34299f4fcf527da8a63ec3dee98798948ee13e))
+* **cache:** remove quadratic dependency scans and pathlib churn ([aa6ac50](https://github.com/chio-labs/strata/commit/aa6ac50e6819a8a5d2a9f489e6dbee81c7e8f408))
+
+## [0.10.0](https://github.com/chio-labs/strata/compare/v0.9.0...v0.10.0) (2026-07-13)
+
+
+### Features
+
+* **roles:** detect shared domain prefixes ([00bf747](https://github.com/chio-labs/strata/commit/00bf747e0bc1a499e93307e7d4bca391696c3522))
+* **rules:** enforce custom rule test coverage ([4cd72b3](https://github.com/chio-labs/strata/commit/4cd72b3960a8b6621857699426eb855e12cbe818))
+* **workflow:** add agent-guided policy foundations ([94303bc](https://github.com/chio-labs/strata/commit/94303bc7550996d30061ad2b2886c58970b56275))
+* **workflow:** add project-aware skills and rule harness ([21cc7c4](https://github.com/chio-labs/strata/commit/21cc7c4ec4e2e473dc721b1cd5192ddb19685a9d))
+
+## [0.9.0](https://github.com/chio-labs/strata/compare/v0.8.0...v0.9.0) (2026-07-13)
+
+
+### Features
+
+* **exceptions:** support file-level rule exceptions ([2419d00](https://github.com/chio-labs/strata/commit/2419d002a76974f80720cbb1859725a2281f665b))
+* **exceptions:** support file-level rule exceptions ([73df930](https://github.com/chio-labs/strata/commit/73df93059c278ea48038183fbf25bc4861b831da))
+* **init:** enforce the default posture ([108a9d5](https://github.com/chio-labs/strata/commit/108a9d506d75f4bd9c76f708d6ef00253e63ddca))
+* **init:** enforce the default posture ([775bd22](https://github.com/chio-labs/strata/commit/775bd2246aecd2d39d848c4aa648e6076bd40b96))
+
+## [0.8.0](https://github.com/chio-labs/strata/compare/v0.7.0...v0.8.0) (2026-07-12)
+
+
+### Features
+
+* **evaluation:** add include and exclude paths ([465fee7](https://github.com/chio-labs/strata/commit/465fee7f5fe4961b9b24bed4cfde9703de8d7317))
+* **evaluation:** add include and exclude paths ([ae95857](https://github.com/chio-labs/strata/commit/ae95857e9708fe5585fb31f471d88d388d0bae52))
+
+## [0.7.0](https://github.com/chio-labs/strata/compare/v0.6.0...v0.7.0) (2026-07-12)
+
+
+### Features
+
+* **rules:** expand naming and local annotation contracts ([9088012](https://github.com/chio-labs/strata/commit/90880124ee679304a03402bbfc0234f381cdaaec))
+* **rules:** expand naming and local annotation contracts ([9d9184f](https://github.com/chio-labs/strata/commit/9d9184feaaa95f5c8d515414c6c8fb939a6b72fd))
+* **rules:** expose public analysis zones ([7a8d15a](https://github.com/chio-labs/strata/commit/7a8d15a9deeea772236783d2724add08fe6c4171))
+* **rules:** expose public analysis zones ([57c12d0](https://github.com/chio-labs/strata/commit/57c12d040b158bef3fa1182bbfaf09717fe51697))
+
+## [0.6.0](https://github.com/chio-labs/strata/compare/v0.5.0...v0.6.0) (2026-07-12)
+
+
+### Features
+
+* **taxonomy:** settle pre-release rule contracts ([bbb24f7](https://github.com/chio-labs/strata/commit/bbb24f79e28ba2536f9a608ad3e9de8ff74e20dc))
+* **taxonomy:** settle pre-release rule contracts ([5f39ad8](https://github.com/chio-labs/strata/commit/5f39ad8eb167c9579dd441889dbdd57e91feeca9))
+
+
+### Bug Fixes
+
+* **layers:** infer structural import ownership ([733c4cb](https://github.com/chio-labs/strata/commit/733c4cb1dad85c2c425b7320700f4fd366ccbd0f))
+* **layers:** infer structural import ownership ([0fde46a](https://github.com/chio-labs/strata/commit/0fde46a81dfd2d78bc4c1a890c8b03c4a4dbf998))
+* **taxonomy:** close container and override gaps ([0fb18d8](https://github.com/chio-labs/strata/commit/0fb18d87d0112da1c67bbae5fdc64bcbbbd61de2))
+* **taxonomy:** close container and override gaps ([7da5d4e](https://github.com/chio-labs/strata/commit/7da5d4e38cfe32be29c02cbc5a7ccdbceac1c212))
+
+
+### Performance Improvements
+
+* **map:** cache project declaration indexes ([4d58c75](https://github.com/chio-labs/strata/commit/4d58c75ba376992260291485c53ba3827d5d8b26))
+* **map:** cache project declaration indexes ([cb72ac1](https://github.com/chio-labs/strata/commit/cb72ac143754798ed6fba3207882529893d50d71))
+
+## [0.5.0](https://github.com/chio-labs/strata/compare/v0.4.0...v0.5.0) (2026-07-12)
+
+
+### Features
+
+* **init:** add guided project setup ([77d1d72](https://github.com/chio-labs/strata/commit/77d1d7252f1a62318f28458e6889027e436a439c))
+* **init:** make setup idempotent and cache-clean ([2c1fa25](https://github.com/chio-labs/strata/commit/2c1fa25a5c7303b127b49bc5fbd5b029b8e0b299))
+* **roles:** enforce leaf-or-branch domains ([539169e](https://github.com/chio-labs/strata/commit/539169e129684971d557666057a1d362ba0f1eeb))
 
 ## [0.4.0](https://github.com/chio-labs/strata/compare/v0.3.0...v0.4.0) (2026-07-12)
 

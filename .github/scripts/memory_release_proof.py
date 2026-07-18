@@ -44,7 +44,9 @@ def _prove_atomic_publication(*, root: Path, expected_platform: str) -> None:
     database = root / ".strata" / "memory" / "memory.sqlite3"
     prior = database.read_bytes()
     reader = sqlite3.connect(f"{database.as_uri()}?mode=ro", uri=True)
-    prior_count: int = reader.execute("SELECT count(*) FROM documents").fetchone()[0]
+    cursor = reader.execute("SELECT count(*) FROM documents")
+    prior_count: int = cursor.fetchone()[0]
+    cursor.close()
     _write_note(
         root,
         "20260718T170002_000000Z__NOTE-gamma.md",
@@ -58,11 +60,16 @@ def _prove_atomic_publication(*, root: Path, expected_platform: str) -> None:
         _run(root, "memory", "sync")
     else:
         _require(result.returncode == 0, f"atomic sync failed: {result.stderr}")
-        retained_count: int = reader.execute("SELECT count(*) FROM documents").fetchone()[0]
+        cursor = reader.execute("SELECT count(*) FROM documents")
+        retained_count: int = cursor.fetchone()[0]
+        cursor.close()
         _require(retained_count == prior_count, "open reader did not retain its generation")
         reader.close()
-    with sqlite3.connect(f"{database.as_uri()}?mode=ro", uri=True) as published:
-        published_count: int = published.execute("SELECT count(*) FROM documents").fetchone()[0]
+    published = sqlite3.connect(f"{database.as_uri()}?mode=ro", uri=True)
+    cursor = published.execute("SELECT count(*) FROM documents")
+    published_count: int = cursor.fetchone()[0]
+    cursor.close()
+    published.close()
     _require(published_count == 3, "published generation is incomplete")
 
 

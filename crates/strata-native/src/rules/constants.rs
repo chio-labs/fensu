@@ -19,10 +19,12 @@ pub const TOO_MANY_DISTINCT_CALLS_CODE: &str = "SFS002";
 pub const TOO_MANY_LOCALS_CODE: &str = "SFS003";
 pub const MAX_ARGUMENTS_CODE: &str = "SFS010";
 pub const MAX_STATEMENTS_GLOBAL_CODE: &str = "SFS011";
+pub const PARAMETER_MUTATION_IN_PHASE_HELPERS_CODE: &str = "SFS102";
 pub const DEFAULT_MUTATION_RETURN_CODE: &str = "SFS110";
 pub const KEYWORD_ONLY_ARGUMENTS_CODE: &str = "SFS120";
 pub const NO_OUTER_STATE_MUTATION_CODE: &str = "SFS130";
 pub const NO_COMPLEX_COMPREHENSIONS_CODE: &str = "SFS131";
+pub const MUTABLE_RESULT_MODEL_CODE: &str = "SFS201";
 pub const NATIVE_RULE_FACT_FAMILIES: &[(&str, &[&str])] = &[
     (PARAMETER_ANNOTATION_CODE, &["annotations"]),
     (RETURN_ANNOTATION_CODE, &["annotations"]),
@@ -46,8 +48,13 @@ pub const NATIVE_RULE_FACT_FAMILIES: &[(&str, &[&str])] = &[
     (TOO_MANY_LOCALS_CODE, &["functions"]),
     (MAX_ARGUMENTS_CODE, &["functions"]),
     (MAX_STATEMENTS_GLOBAL_CODE, &["functions"]),
+    (
+        PARAMETER_MUTATION_IN_PHASE_HELPERS_CODE,
+        &["parameter_mutations"],
+    ),
     (DEFAULT_MUTATION_RETURN_CODE, &["parameter_mutations"]),
     (KEYWORD_ONLY_ARGUMENTS_CODE, &["functions"]),
     (NO_OUTER_STATE_MUTATION_CODE, &["outer_state_mutations"]),
     (NO_COMPLEX_COMPREHENSIONS_CODE, &["complex_comprehensions"]),
+    (MUTABLE_RESULT_MODEL_CODE, &["dataclasses"]),
 ];

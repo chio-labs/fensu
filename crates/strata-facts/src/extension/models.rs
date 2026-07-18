@@ -12,6 +12,7 @@ use crate::facts::main::extract_annotations::extract_annotations;
 use crate::facts::main::extract_class_declarations::extract_class_declarations;
 use crate::facts::main::extract_comments::extract_comments;
 use crate::facts::main::extract_control_flow::extract_control_flow;
+use crate::facts::main::extract_dataclasses::extract_dataclasses;
 use crate::facts::main::extract_function_contracts::extract_function_contracts;
 use crate::facts::main::extract_functions::extract_functions;
 use crate::facts::main::extract_hygiene::extract_hygiene;
@@ -26,9 +27,9 @@ use crate::facts::main::extract_test_functions::extract_test_functions;
 use crate::facts::main::extract_test_module::extract_test_module;
 use crate::facts::models::{
     AnnotationRows, AssignmentReferenceRow, ClassDeclarationRow, CommentRow, ComparisonRow,
-    ControlFlowRows, FunctionContractRow, FunctionMetricRow, HygieneRows, LocalCallEdgeRow,
-    ModuleDeclarationRows, ParameterMutationOccurrenceRow, ParameterMutationRow, ReferenceRows,
-    RuleNamedCallRow, SourceRangeRow, TestFunctionRow, TestModuleRows,
+    ControlFlowRows, DataclassRow, FunctionContractRow, FunctionMetricRow, HygieneRows,
+    LocalCallEdgeRow, ModuleDeclarationRows, ParameterMutationOccurrenceRow, ParameterMutationRow,
+    ReferenceRows, RuleNamedCallRow, SourceRangeRow, TestFunctionRow, TestModuleRows,
 };
 use crate::facts::types::FactFamily;
 use crate::parsing::main::parse_strict::parse_strict;
@@ -44,6 +45,7 @@ struct FactRowCache {
     comments: OnceLock<Vec<CommentRow>>,
     contracts: OnceLock<Vec<FunctionContractRow>>,
     control_flow: OnceLock<ControlFlowRows>,
+    dataclasses: OnceLock<Vec<DataclassRow>>,
     declarations: OnceLock<ModuleDeclarationRows>,
     functions: OnceLock<(Vec<FunctionMetricRow>, Vec<usize>)>,
     hygiene: OnceLock<HygieneRows>,
@@ -159,6 +161,12 @@ impl ProgramHandle {
             .get_or_init(|| extract_module_declarations(self.module(), self.index(), self.source()))
     }
 
+    pub fn dataclass_rows(&self) -> &[DataclassRow] {
+        self.rows
+            .dataclasses
+            .get_or_init(|| extract_dataclasses(self.module(), self.index(), self.source()))
+    }
+
     pub fn function_rows(&self) -> &(Vec<FunctionMetricRow>, Vec<usize>) {
         self.rows
             .functions
@@ -245,6 +253,9 @@ impl ProgramHandle {
             }
             FactFamily::ControlFlow => {
                 let _ = self.control_flow_rows();
+            }
+            FactFamily::Dataclasses => {
+                let _ = self.dataclass_rows();
             }
             FactFamily::Declarations => {
                 let _ = self.declaration_rows();

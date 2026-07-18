@@ -40,10 +40,12 @@ _PARITY_NATIVE_CODES: frozenset[str] = frozenset(
         "SFS003",
         "SFS010",
         "SFS011",
+        "SFS102",
         "SFS110",
         "SFS120",
         "SFS130",
         "SFS131",
+        "SFS201",
     }
 )
 
@@ -240,6 +242,19 @@ _PARITY_NATIVE_CODES: frozenset[str] = frozenset(
             config={"thresholds": {"max_statements_global": 1}},
         ),
         NativeCustomRuleParityTestCase(
+            description="SFS102 matches a public custom rule for helper parameter mutation",
+            native_code="SFS102",
+            source="def update(values: list[int]) -> None:\n    values.append(1)\n",
+            expected_fault_count=1,
+            path="src/example/_helpers/example.py",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFS102 native and custom guards both exclude non-helper modules",
+            native_code="SFS102",
+            source="def update(values: list[int]) -> None:\n    values.append(1)\n",
+            expected_fault_count=0,
+        ),
+        NativeCustomRuleParityTestCase(
             description="SFS110 matches a public custom rule for unreturned mutations",
             native_code="SFS110",
             source=(
@@ -269,6 +284,24 @@ _PARITY_NATIVE_CODES: frozenset[str] = frozenset(
             native_code="SFS131",
             source="pairs = [(left, right) for left in (1, 2) for right in (3, 4)]\n",
             expected_fault_count=1,
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFS201 matches a public custom rule for mutable dataclass models",
+            native_code="SFS201",
+            source=(
+                "from dataclasses import dataclass\n\n@dataclass\nclass Result:\n    value: int\n"
+            ),
+            expected_fault_count=1,
+            path="src/example/models.py",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFS201 native and custom guards both exclude non-model modules",
+            native_code="SFS201",
+            source=(
+                "from dataclasses import dataclass\n\n@dataclass\nclass Result:\n    value: int\n"
+            ),
+            expected_fault_count=0,
+            path="src/example/_helpers/example.py",
         ),
     ],
     ids=lambda case: case.description,

@@ -84,6 +84,7 @@ def test_given_prewarmed_file_when_reading_parsed_module_then_skips_reparse(
                     "comments",
                     "contracts",
                     "control_flow",
+                    "dataclasses",
                     "declarations",
                     "functions",
                     "hygiene",

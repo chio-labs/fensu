@@ -53,11 +53,15 @@ from strata.rules.exemplars.main.shape._max_arguments import max_arguments_equiv
 from strata.rules.exemplars.main.shape._max_statements_global import (
     max_statements_global_equivalent,
 )
+from strata.rules.exemplars.main.shape._mutable_result_model import mutable_result_model_equivalent
 from strata.rules.exemplars.main.shape._no_complex_comprehensions import (
     no_complex_comprehensions_shape_equivalent,
 )
 from strata.rules.exemplars.main.shape._no_outer_state_mutation import (
     no_outer_state_mutation_equivalent,
+)
+from strata.rules.exemplars.main.shape._parameter_mutation_in_phase_helpers import (
+    parameter_mutation_in_phase_helpers_equivalent,
 )
 from strata.rules.exemplars.main.shape._too_many_distinct_calls import (
     too_many_distinct_calls_equivalent,
@@ -85,8 +89,10 @@ NATIVE_CUSTOM_RULE_EQUIVALENTS: dict[str, RuleCheck] = {
     "SFS003": too_many_locals_equivalent,
     "SFS010": max_arguments_equivalent,
     "SFS011": max_statements_global_equivalent,
+    "SFS102": parameter_mutation_in_phase_helpers_equivalent,
     "SFS110": default_mutation_return_equivalent,
     "SFS120": keyword_only_arguments_equivalent,
     "SFS130": no_outer_state_mutation_equivalent,
     "SFS131": no_complex_comprehensions_shape_equivalent,
+    "SFS201": mutable_result_model_equivalent,
 }

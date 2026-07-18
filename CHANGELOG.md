@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+* **memory:** add repository-native Markdown memory with DuckDB SQL and graph retrieval
+* **memory:** add safe archival, validation, Git visibility, and project skill synchronization
+* **init:** add explicit repository memory setup with no automatic legacy migration
+
 ## [0.4.0](https://github.com/chio-labs/strata/compare/v0.3.0...v0.4.0) (2026-07-12)
 
 

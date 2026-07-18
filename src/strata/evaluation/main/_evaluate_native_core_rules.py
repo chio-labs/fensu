@@ -27,6 +27,7 @@ def evaluate_native_core_rules(
     warning_rules: tuple[RuleSpec, ...],
     config: Config,
     repo_root: Path,
+    tooling_packages: tuple[str, ...],
 ) -> tuple[NativeCoreRuleEvaluation, ...]:
     """Return native faults grouped by rule code for each target."""
 
@@ -49,6 +50,7 @@ def evaluate_native_core_rules(
                 codes=codes,
                 config=config,
                 repo_root=repo_root,
+                tooling_packages=tooling_packages,
             )
             for target, program, codes in zip(targets, programs, codes_by_target, strict=True)
         )

@@ -1,7 +1,9 @@
 """Test case types for native-to-custom annotation parity."""
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+from strata import RuleFile
 
 
 @dataclass(frozen=True)
@@ -16,6 +18,7 @@ class NativeCustomRuleParityTestCase:
     scope: str = "root"
     scope_root: str | None = None
     config: Mapping[str, object] | None = None
+    files: tuple[RuleFile, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True)

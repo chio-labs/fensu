@@ -31,7 +31,9 @@ pub const VALUE_NAME_MUST_RETURN_VALUE_CODE: &str = "SFN003";
 pub const ITERATOR_NAME_MUST_PRODUCE_ITERATOR_CODE: &str = "SFN004";
 pub const ABSOLUTE_IMPORTS_ONLY_CODE: &str = "SFL001";
 pub const NO_STAR_IMPORTS_CODE: &str = "SFL002";
+pub const NO_INTERNAL_PUBLIC_SURFACE_IMPORTS_CODE: &str = "SFL103";
 pub const NO_CROSS_FILE_HELPER_PRIVATE_CLASS_CODE: &str = "SFL110";
+pub const NO_RUNTIME_IMPORTS_FROM_TOOLING_CODE: &str = "SFL301";
 pub const MODELS_ONLY_MODELS_CODE: &str = "SFR001";
 pub const TYPES_ONLY_TYPES_CODE: &str = "SFR002";
 pub const CONSTANTS_ONLY_CONSTANTS_CODE: &str = "SFR003";
@@ -129,7 +131,9 @@ pub const NATIVE_RULE_FACT_FAMILIES: &[(&str, &[&str])] = &[
     (MUTABLE_RESULT_MODEL_CODE, &["dataclasses"]),
     (ABSOLUTE_IMPORTS_ONLY_CODE, &["references"]),
     (NO_STAR_IMPORTS_CODE, &["references"]),
+    (NO_INTERNAL_PUBLIC_SURFACE_IMPORTS_CODE, &["references"]),
     (NO_CROSS_FILE_HELPER_PRIVATE_CLASS_CODE, &["references"]),
+    (NO_RUNTIME_IMPORTS_FROM_TOOLING_CODE, &["references"]),
     (MODELS_ONLY_MODELS_CODE, &["module_declarations"]),
     (TYPES_ONLY_TYPES_CODE, &["module_declarations"]),
     (CONSTANTS_ONLY_CONSTANTS_CODE, &["module_declarations"]),

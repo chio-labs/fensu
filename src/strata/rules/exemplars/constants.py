@@ -80,6 +80,12 @@ from strata.rules.exemplars.main.layers._absolute_imports_only import (
 from strata.rules.exemplars.main.layers._no_cross_file_helper_private_classes import (
     no_cross_file_helper_private_classes_equivalent,
 )
+from strata.rules.exemplars.main.layers._no_internal_public_surface_imports import (
+    no_internal_public_surface_imports_equivalent,
+)
+from strata.rules.exemplars.main.layers._no_runtime_imports_from_tooling import (
+    no_runtime_imports_from_tooling_equivalent,
+)
 from strata.rules.exemplars.main.layers._no_star_imports import no_star_imports_equivalent
 from strata.rules.exemplars.main.naming._iterator_name_must_produce_iterator import (
     iterator_name_must_produce_iterator_equivalent,
@@ -191,7 +197,9 @@ NATIVE_CUSTOM_RULE_EQUIVALENTS: dict[str, RuleCheck] = {
     "SFS201": mutable_result_model_equivalent,
     "SFL001": absolute_imports_only_equivalent,
     "SFL002": no_star_imports_equivalent,
+    "SFL103": no_internal_public_surface_imports_equivalent,
     "SFL110": no_cross_file_helper_private_classes_equivalent,
+    "SFL301": no_runtime_imports_from_tooling_equivalent,
     "SFR001": models_only_models_equivalent,
     "SFR002": types_only_types_equivalent,
     "SFR003": constants_only_constants_equivalent,

@@ -34,6 +34,7 @@ def prepare_native_rule_request(
     codes: tuple[str, ...],
     config: Config,
     repo_root: Path,
+    tooling_packages: tuple[str, ...],
 ) -> tuple[NativeCoreRuleRequest | None, tuple[ThresholdOverrideUse, ...]]:
     """Build one raw native request and retain threshold override provenance."""
 
@@ -82,5 +83,7 @@ def prepare_native_rule_request(
         list(config.contracts.items()) if _native_naming_codes.intersection(codes) else [],
         list(position.relative_parts),
         position.is_entry_module,
+        target.scoped_file.root.name,
+        list(tooling_packages),
     )
     return request, tuple(uses)

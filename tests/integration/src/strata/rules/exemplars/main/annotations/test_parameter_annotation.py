@@ -7,7 +7,7 @@ from types import ModuleType
 
 import pytest
 
-from strata import RuleCase, RuleResult, evaluate_rule
+from strata import RuleCase, RuleFile, RuleResult, evaluate_rule
 from strata.analysis.constants import NATIVE_FACT_MODULE_NAME
 from strata.rules.exemplars.constants import NATIVE_CUSTOM_RULE_EQUIVALENTS
 from tests.integration.src.strata.rules.exemplars.main.annotations._test_types import (
@@ -37,7 +37,9 @@ _PARITY_NATIVE_CODES: frozenset[str] = frozenset(
         "SFH009",
         "SFL001",
         "SFL002",
+        "SFL103",
         "SFL110",
+        "SFL301",
         "SFN001",
         "SFN002",
         "SFN003",
@@ -997,6 +999,21 @@ _PYTHON_OWNED_SFR_CODES: frozenset[str] = frozenset(
             scope_root="tests",
         ),
         NativeCustomRuleParityTestCase(
+            description="SFL103 matches a public custom rule for bare package imports",
+            native_code="SFL103",
+            source="from example import PublicModel\nimport example as public_api\n",
+            expected_fault_count=2,
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFL301 matches a public custom rule for configured tooling imports",
+            native_code="SFL301",
+            source="from scripts.release import publish\nimport scripts.formatting as formatting\n",
+            expected_fault_count=2,
+            files=(
+                RuleFile(path="scripts/release.py", source="def publish() -> None:\n    pass\n"),
+            ),
+        ),
+        NativeCustomRuleParityTestCase(
             description="SFT102 native and custom routing both exclude runtime scope",
             native_code="SFT102",
             source="from .helpers import build_case\n",
@@ -1022,6 +1039,7 @@ def test_given_shared_fixture_when_evaluating_native_and_custom_rules_then_fault
         scope=test_case.scope,
         scope_root=test_case.scope_root,
         config=test_case.config,
+        files=test_case.files,
     )
     native_result: RuleResult = evaluate_rule(
         rule=native_rule(test_case.native_code), test_case=rule_case

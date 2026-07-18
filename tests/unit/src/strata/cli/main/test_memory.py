@@ -211,6 +211,6 @@ def test_given_disabled_memory_when_running_command_then_fails_before_database_o
 
     assert exit_code == test_case.expected_exit_code
     assert test_case.expected_error_fragment in stderr.getvalue()
-    assert (tmp_path / ".strata/memory/memory.duckdb").exists() is (
+    assert (tmp_path / ".strata/memory/memory.sqlite3").exists() is (
         test_case.expected_database_exists
     )

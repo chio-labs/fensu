@@ -1,4 +1,4 @@
-//! Atomic DuckDB publication phases.
+//! Atomic SQLite publication phases.
 
 pub(crate) mod database;
 pub(crate) mod documents;

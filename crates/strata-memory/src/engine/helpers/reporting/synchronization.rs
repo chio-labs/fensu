@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use duckdb::{AccessMode, Config, Connection};
+use rusqlite::{Connection, OpenFlags};
 
 use crate::corpus::main::load_discovered_memory_corpus::load_discovered_memory_corpus;
 use crate::engine::constants;
@@ -86,13 +86,9 @@ fn inspect(database_path: &Path) -> DatabaseInspection {
             current: false,
         };
     }
-    let Ok(config) = Config::default().access_mode(AccessMode::ReadOnly) else {
-        return DatabaseInspection {
-            snapshot: None,
-            current: false,
-        };
-    };
-    let Ok(connection) = Connection::open_with_flags(database_path, config) else {
+    let Ok(connection) =
+        Connection::open_with_flags(database_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+    else {
         return DatabaseInspection {
             snapshot: None,
             current: false,
@@ -113,13 +109,18 @@ fn inspect(database_path: &Path) -> DatabaseInspection {
                 && snapshot.is_some()
                 && relations_valid
     );
-    let _close_result = connection.close();
     DatabaseInspection { snapshot, current }
 }
 
 fn relations_are_valid(connection: &Connection) -> bool {
     for relation in schema_metadata::relations() {
-        let sql = format!("SELECT * FROM {} LIMIT 0", relation.name);
+        let sql = format!(
+            "SELECT * FROM {} LIMIT 0",
+            relation
+                .name
+                .strip_prefix("memory.")
+                .unwrap_or(relation.name)
+        );
         if connection.prepare(&sql).is_err() {
             return false;
         }
@@ -127,7 +128,7 @@ fn relations_are_valid(connection: &Connection) -> bool {
     true
 }
 
-fn read_snapshot(connection: &Connection) -> Result<StoredIndex, duckdb::Error> {
+fn read_snapshot(connection: &Connection) -> Result<StoredIndex, rusqlite::Error> {
     Ok(StoredIndex {
         documents: read_documents(connection)?,
         skill_files: read_skill_files(connection)?,
@@ -137,11 +138,11 @@ fn read_snapshot(connection: &Connection) -> Result<StoredIndex, duckdb::Error> 
     })
 }
 
-fn read_documents(connection: &Connection) -> Result<Vec<SourceFact>, duckdb::Error> {
+fn read_documents(connection: &Connection) -> Result<Vec<SourceFact>, rusqlite::Error> {
     let mut statement = connection.prepare(
         "SELECT identity, repository_relative_path, content_sha256 FROM documents ORDER BY identity, repository_relative_path",
     )?;
-    statement
+    let rows = statement
         .query_map([], |row| {
             let identity = row.get::<_, String>(0)?;
             Ok(SourceFact {
@@ -151,14 +152,15 @@ fn read_documents(connection: &Connection) -> Result<Vec<SourceFact>, duckdb::Er
                 content_sha256: row.get(2)?,
             })
         })?
-        .collect()
+        .collect();
+    rows
 }
 
-fn read_skill_files(connection: &Connection) -> Result<Vec<SourceFact>, duckdb::Error> {
+fn read_skill_files(connection: &Connection) -> Result<Vec<SourceFact>, rusqlite::Error> {
     let mut statement = connection.prepare(
         "SELECT skill_identity, bundle_relative_path, repository_relative_path, content_sha256 FROM skill_files ORDER BY skill_identity, bundle_relative_path, repository_relative_path",
     )?;
-    statement
+    let rows = statement
         .query_map([], |row| {
             let owner = row.get::<_, String>(0)?;
             let bundle_relative_path = row.get::<_, String>(1)?;
@@ -169,10 +171,11 @@ fn read_skill_files(connection: &Connection) -> Result<Vec<SourceFact>, duckdb::
                 content_sha256: row.get(3)?,
             })
         })?
-        .collect()
+        .collect();
+    rows
 }
 
-fn count(connection: &Connection, relation: &str) -> Result<usize, duckdb::Error> {
+fn count(connection: &Connection, relation: &str) -> Result<usize, rusqlite::Error> {
     let sql = format!("SELECT count(*) FROM {relation}");
     connection
         .query_row(&sql, [], |row| row.get::<_, i64>(0))

@@ -28,11 +28,6 @@ pub enum MemoryIndexError {
         approximate_bytes: usize,
         maximum_bytes: usize,
     },
-    QueryValueTooDeep {
-        depth: usize,
-        maximum_depth: usize,
-    },
-    QueryMetadataUnavailable,
     GraphQuery(String),
     MissingResolvedLink {
         document_identity: String,
@@ -44,13 +39,9 @@ pub enum MemoryIndexError {
         path: PathBuf,
         source: io::Error,
     },
-    DuckDb {
+    Sqlite {
         operation: &'static str,
-        source: duckdb::Error,
-    },
-    Arrow {
-        operation: &'static str,
-        source: duckdb::arrow::error::ArrowError,
+        source: rusqlite::Error,
     },
     Cleanup {
         path: PathBuf,
@@ -68,12 +59,8 @@ impl MemoryIndexError {
         }
     }
 
-    pub(crate) fn duckdb(operation: &'static str, source: duckdb::Error) -> Self {
-        Self::DuckDb { operation, source }
-    }
-
-    pub(crate) fn arrow(operation: &'static str, source: duckdb::arrow::error::ArrowError) -> Self {
-        Self::Arrow { operation, source }
+    pub(crate) fn sqlite(operation: &'static str, source: rusqlite::Error) -> Self {
+        Self::Sqlite { operation, source }
     }
 }
 
@@ -119,16 +106,6 @@ impl fmt::Display for MemoryIndexError {
                 formatter,
                 "memory query result is approximately {approximate_bytes} bytes; maximum is {maximum_bytes} bytes"
             ),
-            Self::QueryValueTooDeep {
-                depth,
-                maximum_depth,
-            } => write!(
-                formatter,
-                "memory query value depth {depth} exceeds maximum depth {maximum_depth}"
-            ),
-            Self::QueryMetadataUnavailable => {
-                write!(formatter, "DuckDB did not expose memory query result metadata")
-            }
             Self::GraphQuery(message) => write!(formatter, "memory graph query failed: {message}"),
             Self::MissingResolvedLink {
                 document_identity,
@@ -143,8 +120,7 @@ impl fmt::Display for MemoryIndexError {
                 path,
                 source,
             } => write!(formatter, "{operation} {}: {source}", path.display()),
-            Self::DuckDb { operation, source } => write!(formatter, "{operation}: {source}"),
-            Self::Arrow { operation, source } => write!(formatter, "{operation}: {source}"),
+            Self::Sqlite { operation, source } => write!(formatter, "{operation}: {source}"),
             Self::Cleanup {
                 path,
                 source,
@@ -168,14 +144,11 @@ impl Error for MemoryIndexError {
             | Self::InvalidQueryLimit { .. }
             | Self::TooManyQueryColumns { .. }
             | Self::QueryResultTooLarge { .. }
-            | Self::QueryValueTooDeep { .. }
-            | Self::QueryMetadataUnavailable
             | Self::GraphQuery(_)
             | Self::MissingResolvedLink { .. }
             | Self::Archive(_) => None,
             Self::Filesystem { source, .. } | Self::Cleanup { source, .. } => Some(source),
-            Self::DuckDb { source, .. } => Some(source),
-            Self::Arrow { source, .. } => Some(source),
+            Self::Sqlite { source, .. } => Some(source),
         }
     }
 }

@@ -3,7 +3,7 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::Path;
 
-use duckdb::{AccessMode, Config, Connection};
+use rusqlite::{Connection, OpenFlags};
 
 use crate::engine::constants::{
     ARCHIVE_STATE_ACTIVE, ARCHIVE_STATE_ARCHIVED, RESOLUTION_STATUS_RESOLVED,
@@ -33,28 +33,10 @@ pub(crate) fn run(
             database_path.to_path_buf(),
         ));
     }
-    let config = Config::default()
-        .access_mode(AccessMode::ReadOnly)
-        .and_then(|value| value.enable_external_access(false))
-        .and_then(|value| value.enable_autoload_extension(false))
-        .and_then(|value| value.threads(1))
-        .map_err(|error| MemoryIndexError::duckdb("configure read-only memory graph", error))?;
-    let connection = Connection::open_with_flags(database_path, config)
-        .map_err(|error| MemoryIndexError::duckdb("open read-only memory index", error))?;
-    let result = traverse(&connection, query);
-    let close_result = connection
-        .close()
-        .map_err(|(_, error)| MemoryIndexError::duckdb("close read-only memory index", error));
-    match result {
-        Ok(value) => {
-            close_result?;
-            Ok(value)
-        }
-        Err(error) => {
-            let _close_result = close_result;
-            Err(error)
-        }
-    }
+    let connection =
+        Connection::open_with_flags(database_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .map_err(|error| MemoryIndexError::sqlite("open read-only memory index", error))?;
+    traverse(&connection, query)
 }
 
 fn validate(query: &MemoryGraphQuery) -> Result<(), MemoryIndexError> {

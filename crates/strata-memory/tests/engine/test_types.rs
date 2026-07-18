@@ -109,6 +109,21 @@ pub(crate) struct MemoryRecoveryTestCase {
     pub(crate) expected_document_count: i64,
 }
 
+pub(crate) struct MemoryConcurrentPublicationTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) files: &'static [FixtureFile],
+    pub(crate) added_file: FixtureFile,
+    pub(crate) expected_reader_document_count: i64,
+    pub(crate) expected_published_document_count: i64,
+}
+
+pub(crate) struct MemoryPermissionFailureTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) files: &'static [FixtureFile],
+    pub(crate) changed_contents: &'static [u8],
+    pub(crate) expected_error_fragment: &'static str,
+}
+
 pub(crate) struct MemoryOverviewTestCase {
     pub(crate) description: &'static str,
     pub(crate) files: &'static [FixtureFile],
@@ -190,4 +205,12 @@ pub(crate) struct MemoryArchiveAutomaticTestCase {
     pub(crate) expected_move_count: usize,
     pub(crate) expected_sync: bool,
     pub(crate) expected_database_exists: bool,
+}
+
+pub(crate) struct MemoryArchiveCtimeTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) file: FixtureFile,
+    pub(crate) archive_after_days: u64,
+    pub(crate) old_mtime_days: u64,
+    pub(crate) expected_move_count: usize,
 }

@@ -65,3 +65,10 @@ pub(crate) struct GitTrackingTestCase {
     pub(crate) basename: &'static str,
     pub(crate) expected_tracking: GitTracking,
 }
+
+pub(crate) struct GitWorktreeTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) basename: &'static str,
+    pub(crate) expected_document_count: usize,
+    pub(crate) expected_tracking: GitTracking,
+}

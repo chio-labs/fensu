@@ -4,7 +4,7 @@
 
 ### Features
 
-* **memory:** add repository-native Markdown memory with DuckDB SQL and graph retrieval
+* **memory:** add repository-native Markdown memory with SQLite SQL and graph retrieval
 * **memory:** add safe archival, validation, Git visibility, and project skill synchronization
 * **init:** add explicit repository memory setup with no automatic legacy migration
 

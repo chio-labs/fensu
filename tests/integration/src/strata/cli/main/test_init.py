@@ -91,7 +91,7 @@ def test_given_explicit_memory_option_when_initializing_then_creates_only_canoni
     assert (
         all((tmp_path / path).is_dir() for path in MEMORY_DIRECTORIES) is test_case.expected_enabled
     )
-    assert (tmp_path / ".strata/memory/memory.duckdb").exists() is False
+    assert (tmp_path / ".strata/memory/memory.sqlite3").exists() is False
     config: Config = load_config(tmp_path)
     assert config.memory.enabled is test_case.expected_enabled
     assert config.memory.tasks.archive_after_days == 7

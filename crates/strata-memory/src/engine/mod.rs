@@ -1,8 +1,8 @@
 //! Memory indexing and retrieval engine.
 
-#[cfg(feature = "duckdb-engine")]
+#[cfg(feature = "sqlite-engine")]
 pub(crate) mod constants;
-#[cfg(feature = "duckdb-engine")]
+#[cfg(feature = "sqlite-engine")]
 pub mod errors;
 mod helpers;
 pub mod main;

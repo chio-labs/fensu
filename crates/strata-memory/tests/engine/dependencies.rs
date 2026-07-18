@@ -1,4 +1,4 @@
-//! Bundled DuckDB and pure-Rust Git dependency behavior.
+//! Bundled SQLite and pure-Rust Git dependency behavior.
 
 use std::path::Path;
 
@@ -28,10 +28,10 @@ mod summary;
 mod sync;
 
 #[test]
-fn given_workspace_when_probing_dependencies_then_duckdb_and_git_are_available() {
+fn given_workspace_when_probing_dependencies_then_sqlite_and_git_are_available() {
     let test_cases = [test_types::DependencyProbeTestCase {
-        description: "DuckDB executes queries and Git parses repository excludes",
-        expected_version_prefix: "v",
+        description: "SQLite executes queries and Git parses repository excludes",
+        expected_version_prefix: "3.",
     }];
 
     for test_case in &test_cases {
@@ -40,10 +40,10 @@ fn given_workspace_when_probing_dependencies_then_duckdb_and_git_are_available()
             .parent()
             .and_then(Path::parent)
             .expect("workspace root");
-        let duckdb_version = probe_dependencies(workspace_root).expect("dependency probe");
+        let sqlite_version = probe_dependencies(workspace_root).expect("dependency probe");
 
         assert!(
-            duckdb_version.starts_with(test_case.expected_version_prefix),
+            sqlite_version.starts_with(test_case.expected_version_prefix),
             "{}",
             test_case.description
         );
@@ -68,8 +68,8 @@ fn given_canonical_memory_when_rebuilding_index_then_publishes_complete_replacea
                 contents: b"Document without a title.\n",
             },
             test_types::FixtureFile {
-                path: ".ai/knowledge/repo/decisions/20260717T120003_000000Z__ADR-use-duckdb.md",
-                contents: b"# Use DuckDB\n\n## Context\n\nOffline publication.\n",
+                path: ".ai/knowledge/repo/decisions/20260717T120003_000000Z__ADR-use-sqlite.md",
+                contents: b"# Use SQLite\n\n## Context\n\nOffline publication.\n",
             },
             test_types::FixtureFile {
                 path: ".ai/knowledge/repo/skills/indexer/SKILL.md",
@@ -114,7 +114,7 @@ fn given_canonical_memory_when_rebuilding_index_then_publishes_complete_replacea
         ],
         expected_view_counts: &[0, 1, 1, 1, 5, 1, 1, 2, 2, 1, 1, 1, 1, 1, 1],
         expected_summary_counts: [5, 5, 2, 2, 2, 1, 1, 1, 1],
-        expected_schema_versions: (2, 1),
+        expected_schema_versions: (3, 1),
         expected_invalid_row: ("invalid", 1, true, true, true),
         expected_preamble_row: (0, true, 2),
         expected_checkbox_row: (
@@ -130,7 +130,7 @@ fn given_canonical_memory_when_rebuilding_index_then_publishes_complete_replacea
         expected_tag_rows: &[("database", 1), ("overview", 0)],
         expected_phase_row: ("phase", "1", "Build"),
         expected_skill_file_row: (false, true),
-        expected_database_files: &["memory.duckdb"],
+        expected_database_files: &["memory.sqlite3"],
     }];
 
     for test_case in &test_cases {

@@ -1,4 +1,4 @@
-//! Expose the versioned DuckDB memory schema and convenience views.
+//! Expose the versioned SQLite memory schema and convenience views.
 
 use crate::engine::constants;
 

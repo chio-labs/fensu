@@ -59,7 +59,7 @@ fn given_synchronized_lifecycle_and_archive_sources_when_reading_overview_then_r
     }];
     for test_case in &test_cases {
         let root = helpers::write_repository(test_case.files);
-        let database_path = root.join("memory.duckdb");
+        let database_path = root.join("memory.sqlite3");
         sync_memory_index(&root, &database_path).expect("overview sync succeeds");
         let overview = memory_overview(&database_path).expect("overview succeeds");
         assert_eq!(

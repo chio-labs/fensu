@@ -1,4 +1,4 @@
-//! Stable scalar encodings shared by DuckDB publication phases.
+//! Stable scalar encodings shared by SQLite publication phases.
 
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -127,10 +127,10 @@ pub(crate) fn semantic_kind(value: SemanticHeadingKind) -> &'static str {
     }
 }
 
-pub(crate) fn unix_nanoseconds(value: SystemTime) -> i128 {
+pub(crate) fn unix_nanoseconds(value: SystemTime) -> i64 {
     match value.duration_since(UNIX_EPOCH) {
-        Ok(duration) => duration.as_nanos() as i128,
-        Err(error) => -(error.duration().as_nanos() as i128),
+        Ok(duration) => i64::try_from(duration.as_nanos()).unwrap_or(i64::MAX),
+        Err(error) => -i64::try_from(error.duration().as_nanos()).unwrap_or(i64::MAX),
     }
 }
 

@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use duckdb::{AccessMode, Config, Connection};
+use rusqlite::{Connection, OpenFlags, Row};
 
 use crate::engine::errors::MemoryIndexError;
 use crate::engine::models::MemoryOverview;
@@ -30,12 +30,10 @@ pub(crate) fn read(database_path: &Path) -> Result<MemoryOverview, MemoryIndexEr
             database_path.to_path_buf(),
         ));
     }
-    let config = Config::default()
-        .access_mode(AccessMode::ReadOnly)
-        .map_err(|error| MemoryIndexError::duckdb("configure read-only memory overview", error))?;
-    let connection = Connection::open_with_flags(database_path, config)
-        .map_err(|error| MemoryIndexError::duckdb("open read-only memory overview", error))?;
-    let result = connection
+    let connection =
+        Connection::open_with_flags(database_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .map_err(|error| MemoryIndexError::sqlite("open read-only memory overview", error))?;
+    connection
         .query_row(OVERVIEW_SQL, [], |row| {
             Ok(MemoryOverview {
                 not_started_task_count: count(row, 0)?,
@@ -52,19 +50,9 @@ pub(crate) fn read(database_path: &Path) -> Result<MemoryOverview, MemoryIndexEr
                 section_count: count(row, 11)?,
             })
         })
-        .map_err(|error| MemoryIndexError::duckdb("read memory overview", error));
-    let close_result = connection
-        .close()
-        .map_err(|(_, error)| MemoryIndexError::duckdb("close read-only memory overview", error));
-    match result {
-        Ok(overview) => {
-            close_result?;
-            Ok(overview)
-        }
-        Err(error) => Err(error),
-    }
+        .map_err(|error| MemoryIndexError::sqlite("read memory overview", error))
 }
 
-fn count(row: &duckdb::Row<'_>, index: usize) -> Result<usize, duckdb::Error> {
+fn count(row: &Row<'_>, index: usize) -> Result<usize, rusqlite::Error> {
     row.get::<_, i64>(index).map(|value| value as usize)
 }

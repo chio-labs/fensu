@@ -1,15 +1,18 @@
 //! Explicit archive moves, confirmation, bundle ownership, and disabled automation.
 
-use std::fs;
+use std::fs::{self, File, FileTimes};
 use std::path::PathBuf;
+#[cfg(unix)]
+use std::time::{Duration, SystemTime};
 
-use duckdb::Connection;
+use rusqlite::Connection;
 use strata_memory::engine::main::archive_memory::archive_memory;
 use strata_memory::engine::main::sync_memory_index::sync_memory_index;
 
 use crate::dependencies::helpers;
 use crate::test_types::{
-    FixtureFile, MemoryArchiveAutomaticTestCase, MemoryArchiveTaskTestCase, MemoryArchiveTestCase,
+    FixtureFile, MemoryArchiveAutomaticTestCase, MemoryArchiveCtimeTestCase,
+    MemoryArchiveTaskTestCase, MemoryArchiveTestCase,
 };
 
 #[test]
@@ -49,7 +52,7 @@ fn given_explicit_knowledge_when_archiving_then_moves_complete_source_and_synchr
     ];
     for test_case in &test_cases {
         let root = helpers::write_repository(test_case.files);
-        let database_path = root.join("memory.duckdb");
+        let database_path = root.join("memory.sqlite3");
         sync_memory_index(&root, &database_path).expect("initial sync succeeds");
         let result = archive_memory(
             &root,
@@ -76,7 +79,7 @@ fn given_explicit_knowledge_when_archiving_then_moves_complete_source_and_synchr
         let connection = Connection::open(&database_path).expect("archive database opens");
         let archived: i64 = connection
             .query_row(
-                "SELECT count(*) FROM memory.documents WHERE archive_state = 'archived'",
+                "SELECT count(*) FROM documents WHERE archive_state = 'archived'",
                 [],
                 |row| row.get(0),
             )
@@ -109,7 +112,7 @@ fn given_explicit_task_when_archiving_then_requires_terminal_lifecycle_and_confi
     }];
     for test_case in &test_cases {
         let root = helpers::write_repository(test_case.files);
-        let database_path = root.join("memory.duckdb");
+        let database_path = root.join("memory.sqlite3");
         let completed = PathBuf::from(test_case.completed_path);
         let active = PathBuf::from(test_case.active_path);
         let confirmation = archive_memory(
@@ -178,7 +181,7 @@ fn given_zero_automatic_age_when_archiving_then_moves_nothing_and_does_not_sync(
     }];
     for test_case in &test_cases {
         let root = helpers::write_repository(test_case.files);
-        let database_path = root.join("memory.duckdb");
+        let database_path = root.join("memory.sqlite3");
         let result = archive_memory(
             &root,
             &database_path,
@@ -212,5 +215,53 @@ fn given_zero_automatic_age_when_archiving_then_moves_nothing_and_does_not_sync(
             test_case.description
         );
         fs::remove_dir_all(root).expect("zero-age repository is removable");
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn given_old_mtime_and_recent_ctime_when_archiving_then_terminal_task_receives_grace_period() {
+    let test_cases = [MemoryArchiveCtimeTestCase {
+        description: "uses the newer Unix ctime after a lifecycle move",
+        file: FixtureFile {
+            path: ".ai/tasks/completed/20260717T120004_000000Z__FIX-recently-moved.md",
+            contents: b"# Recently moved\n",
+        },
+        archive_after_days: 7,
+        old_mtime_days: 30,
+        expected_move_count: 0,
+    }];
+    for test_case in &test_cases {
+        let root = helpers::write_repository(std::slice::from_ref(&test_case.file));
+        let database_path = root.join("memory.sqlite3");
+        let source_path = root.join(test_case.file.path);
+        let old_mtime = SystemTime::now()
+            .checked_sub(Duration::from_secs(test_case.old_mtime_days * 86_400))
+            .expect("fixture mtime is representable");
+        File::options()
+            .write(true)
+            .open(&source_path)
+            .expect("terminal task opens")
+            .set_times(FileTimes::new().set_modified(old_mtime))
+            .expect("terminal task mtime changes");
+
+        let result = archive_memory(
+            &root,
+            &database_path,
+            &[],
+            test_case.archive_after_days,
+            false,
+        )
+        .expect("automatic archive succeeds");
+
+        assert_eq!(
+            result.moves.len(),
+            test_case.expected_move_count,
+            "{}",
+            test_case.description
+        );
+        assert!(source_path.exists(), "{}", test_case.description);
+        assert!(result.sync.is_none(), "{}", test_case.description);
+        fs::remove_dir_all(root).expect("ctime repository is removable");
     }
 }

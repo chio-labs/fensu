@@ -20,5 +20,4 @@ strata-memory = { workspace = true, optional = true }
 
 [features]
 extension-module = ["pyo3/extension-module"]
-memory = ["dep:strata-memory", "strata-memory/duckdb-engine"]
-bundled-memory = ["memory", "strata-memory/bundled-duckdb"]
+memory = ["dep:strata-memory", "strata-memory/sqlite-engine"]

@@ -2,7 +2,9 @@
 
 use std::fs::{self, DirEntry, FileType};
 use std::path::{Component, Path};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::SystemTime;
+#[cfg(unix)]
+use std::time::{Duration, UNIX_EPOCH};
 
 use sha2::{Digest, Sha256};
 

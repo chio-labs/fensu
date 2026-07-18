@@ -81,12 +81,12 @@ def _prove_macos_collisions(root: Path) -> None:
     probe = root / "CaseProbe"
     probe.write_text("probe", encoding="utf-8")
     _require((root / "caseprobe").exists(), "macOS runner volume is not case-insensitive")
-    _write_note(root, "20260718T170003_000000Z__NOTE-case-one.md", "# Case Target\n")
-    _write_note(root, "20260718T170004_000000Z__NOTE-case-two.md", "# Case Target\n")
+    _write_note(root, "20260718T170003_000000Z__NOTE-case-target.md", "# Case Target One\n")
+    _write_note(root, "20260718T170004_000000Z__NOTE-case-target.md", "# Case Target Two\n")
     _write_note(
         root,
         "20260718T170005_000000Z__NOTE-case-link.md",
-        "# Case Link\n\n[[Case Target]]\n",
+        "# Case Link\n\n[[case-target]]\n",
     )
     result = _run(root, "memory", "check", expected=1)
     _require("MEM005" in result.stdout, "ambiguous macOS wikilink did not report MEM005")

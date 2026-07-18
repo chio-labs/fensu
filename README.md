@@ -148,7 +148,7 @@ strata memory check
 strata memory sync
 ```
 
-Canonical Markdown lives under `.ai/`; a disposable read-only DuckDB index lives
+Canonical Markdown lives under `.ai/`; a disposable read-only SQLite index lives
 under `.strata/memory/`. Memory supports bounded SQL and graph retrieval,
 non-destructive archival, Git-tracked shared or ignored local corpora, and project
 skill synchronization through `strata skills`.

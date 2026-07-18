@@ -56,7 +56,7 @@ MEMORY_DIRECTORIES: tuple[str, ...] = (
     ".ai/_archive/knowledge/repo/decisions",
     ".ai/_archive/knowledge/repo/skills",
 )
-MEMORY_DATABASE_RELATIVE_PATH: str = ".strata/memory/memory.duckdb"
+MEMORY_DATABASE_RELATIVE_PATH: str = ".strata/memory/memory.sqlite3"
 PYTHON_GITIGNORE_SOURCE: str = (
     "https://github.com/github/gitignore/blob/"
     "576334520435382d6522f349b9d270eda1e79a25/Python.gitignore"

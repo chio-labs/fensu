@@ -2,6 +2,8 @@
 mod collisions;
 #[path = "source/discovery.rs"]
 mod discovery;
+#[path = "source/git_worktrees.rs"]
+mod git_worktrees;
 #[path = "source/helpers.rs"]
 mod helpers;
 #[path = "source/symlinks.rs"]

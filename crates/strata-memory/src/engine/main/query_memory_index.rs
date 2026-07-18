@@ -6,7 +6,7 @@ use crate::engine::errors::MemoryIndexError;
 use crate::engine::helpers::querying::queries;
 use crate::engine::models::MemoryQueryResult;
 
-/// Return bounded rows from one caller-supplied read-only DuckDB query.
+/// Return bounded rows from one caller-supplied read-only SQLite query.
 pub fn query_memory_index(
     database_path: &Path,
     sql: &str,

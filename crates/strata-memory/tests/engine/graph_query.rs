@@ -149,7 +149,7 @@ fn given_graph_queries_when_traversing_then_applies_direction_filters_archives_a
         },
     ];
     let root = helpers::write_repository(FILES);
-    let database_path = root.join("memory.duckdb");
+    let database_path = root.join("memory.sqlite3");
     rebuild_memory_index(&root, &database_path).expect("graph fixture publishes");
     for test_case in &test_cases {
         let result = query_memory_graph(
@@ -286,7 +286,7 @@ fn given_invalid_or_ambiguous_graph_selectors_when_querying_then_fails_clearly()
         },
     ];
     let root = helpers::write_repository(FILES);
-    let database_path = root.join("memory.duckdb");
+    let database_path = root.join("memory.sqlite3");
     rebuild_memory_index(&root, &database_path).expect("graph fixture publishes");
     for test_case in &test_cases {
         let error = query_memory_graph(

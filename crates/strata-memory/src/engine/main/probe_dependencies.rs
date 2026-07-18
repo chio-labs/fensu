@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use duckdb::Connection;
+use rusqlite::Connection;
 
 /// Exercise the embedded database and pure-Rust Git foundations.
 pub fn probe_dependencies(repository_root: &Path) -> Result<String, String> {
@@ -11,12 +11,14 @@ pub fn probe_dependencies(repository_root: &Path) -> Result<String, String> {
         .query_row("SELECT 1", [], |row| row.get(0))
         .map_err(|error| error.to_string())?;
     if value != 1 {
-        return Err("DuckDB dependency probe returned an unexpected value".to_owned());
+        return Err("SQLite dependency probe returned an unexpected value".to_owned());
     }
 
     let repository = gix::discover(repository_root).map_err(|error| error.to_string())?;
     let _ignore_parser = repository
         .ignore_pattern_parser()
         .map_err(|error| error.to_string())?;
-    connection.version().map_err(|error| error.to_string())
+    connection
+        .query_row("SELECT sqlite_version()", [], |row| row.get(0))
+        .map_err(|error| error.to_string())
 }

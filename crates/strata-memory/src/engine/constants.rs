@@ -1,17 +1,15 @@
-//! Version numbers, insert statements, and the DuckDB memory SQL contract.
+//! Version numbers, insert statements, and the SQLite memory SQL contract.
 
 pub(crate) const MAX_QUERY_SQL_BYTES: usize = 64 * 1024;
 pub(crate) const MIN_QUERY_LIMIT: usize = 1;
 pub(crate) const MAX_QUERY_LIMIT: usize = 1000;
 pub(crate) const MAX_QUERY_COLUMNS: usize = 256;
 pub(crate) const MAX_QUERY_RESULT_BYTES: usize = 8 * 1024 * 1024;
-pub(crate) const MAX_QUERY_VALUE_DEPTH: usize = 64;
+pub(crate) const QUERY_NULL_TYPE: &str = "Null";
 pub(crate) const MEMORY_PUBLICATION_BATCH_ROWS: usize = 16_384;
 pub(crate) const LIST_KIND_UNORDERED_CODE: u8 = 0;
 pub(crate) const LIST_KIND_ORDERED_CODE: u8 = 1;
-pub(crate) const QUERY_MAX_MEMORY: &str = "256MB";
-pub(crate) const QUERY_MAX_TEMP_DIRECTORY_SIZE: &str = "0B";
-pub(crate) const SCHEMA_VERSION: u32 = 2;
+pub(crate) const SCHEMA_VERSION: u32 = 3;
 pub(crate) const PARSER_CONTRACT_VERSION: u32 = 1;
 pub(crate) const ARCHIVE_STATE_ACTIVE: &str = "active";
 pub(crate) const ARCHIVE_STATE_ARCHIVED: &str = "archived";
@@ -184,7 +182,7 @@ LEFT JOIN sections AS section
     ON section.document_identity = document.identity
     AND section.ordinal = item.section_ordinal;
 
-INSERT INTO meta VALUES (2, 1);
+INSERT INTO meta VALUES (3, 1);
 
 CREATE VIEW current_documents AS
 SELECT * FROM documents WHERE archive_state = 'active';
@@ -292,18 +290,4 @@ WHERE document.artifact_kind = 'skill';
 CREATE VIEW broken_links AS
 SELECT * FROM links WHERE resolution_status IN ('unresolved', 'ambiguous');
 
-COMMENT ON VIEW current_documents IS 'Active canonical documents, including invalid documents with nullable parsed content.';
-COMMENT ON VIEW tasks IS 'Complete active and archived task history.';
-COMMENT ON VIEW current_tasks IS 'Active task documents in every lifecycle.';
-COMMENT ON VIEW archived_tasks IS 'Physically archived task documents.';
-COMMENT ON VIEW task_phases IS 'Semantically recognized phase-like sections on active tasks.';
-COMMENT ON VIEW checkboxes IS 'Normalized checkbox list items on active documents.';
-COMMENT ON VIEW task_checkboxes IS 'Normalized checkbox list items belonging to active tasks.';
-COMMENT ON VIEW relationships IS 'Explicit authored relationship links on active documents.';
-COMMENT ON VIEW task_dependencies IS 'Explicit depends-on relationships authored by active tasks.';
-COMMENT ON VIEW blocked_tasks IS 'Active tasks with at least one unresolved authored dependency.';
-COMMENT ON VIEW notes IS 'Active note documents.';
-COMMENT ON VIEW decisions IS 'Active decision documents.';
-COMMENT ON VIEW skills IS 'Active skill documents with derived support-file and installation facts.';
-COMMENT ON VIEW broken_links IS 'Internal links awaiting successful resolution.';
 "#;

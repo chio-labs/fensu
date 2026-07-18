@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use duckdb::Connection;
+use rusqlite::Connection;
 
 use crate::engine::errors::MemoryIndexError;
 use crate::engine::models::MemoryGraphRelationship;
@@ -35,7 +35,7 @@ pub(super) fn load_documents(
         .prepare(
             "SELECT identity, artifact_kind, archive_state, repository_relative_path, basename, slug, title FROM documents ORDER BY identity",
         )
-        .map_err(|error| MemoryIndexError::duckdb("prepare memory graph documents", error))?;
+        .map_err(|error| MemoryIndexError::sqlite("prepare memory graph documents", error))?;
     let rows = statement
         .query_map([], |row| {
             Ok(DocumentRow {
@@ -48,9 +48,9 @@ pub(super) fn load_documents(
                 title: row.get(6)?,
             })
         })
-        .map_err(|error| MemoryIndexError::duckdb("query memory graph documents", error))?;
+        .map_err(|error| MemoryIndexError::sqlite("query memory graph documents", error))?;
     rows.collect::<Result<Vec<DocumentRow>, _>>()
-        .map_err(|error| MemoryIndexError::duckdb("decode memory graph document", error))
+        .map_err(|error| MemoryIndexError::sqlite("decode memory graph document", error))
 }
 
 pub(super) fn load_links(
@@ -65,22 +65,22 @@ pub(super) fn load_links(
         .prepare(
             "SELECT document_identity, ordinal, target, resolution_status, resolved_document_identity, coalesce(relationship_kind, 'link') FROM links ORDER BY document_identity, ordinal",
         )
-        .map_err(|error| MemoryIndexError::duckdb("prepare memory graph links", error))?;
+        .map_err(|error| MemoryIndexError::sqlite("prepare memory graph links", error))?;
     let rows = statement
         .query_map([], |row| {
             Ok(LinkRow {
                 source: row.get(0)?,
-                ordinal: row.get(1)?,
+                ordinal: row.get::<_, i64>(1)? as usize,
                 target: row.get(2)?,
                 status: row.get(3)?,
                 target_identity: row.get(4)?,
                 relationship: row.get(5)?,
             })
         })
-        .map_err(|error| MemoryIndexError::duckdb("query memory graph links", error))?;
+        .map_err(|error| MemoryIndexError::sqlite("query memory graph links", error))?;
     let decoded = rows
         .collect::<Result<Vec<LinkRow>, _>>()
-        .map_err(|error| MemoryIndexError::duckdb("decode memory graph link", error))?;
+        .map_err(|error| MemoryIndexError::sqlite("decode memory graph link", error))?;
     if selected.is_empty() {
         return Ok(decoded);
     }

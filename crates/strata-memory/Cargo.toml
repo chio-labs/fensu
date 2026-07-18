@@ -9,18 +9,17 @@ publish = false
 workspace = true
 
 [dependencies]
-duckdb = { workspace = true, optional = true }
 gix.workspace = true
 hex.workspace = true
 pulldown-cmark.workspace = true
 rayon.workspace = true
+rusqlite = { workspace = true, optional = true }
 sha2.workspace = true
 
 [features]
-duckdb-engine = ["dep:duckdb", "duckdb/appender-arrow"]
-bundled-duckdb = ["duckdb-engine", "duckdb/bundled"]
+sqlite-engine = ["dep:rusqlite"]
 
 [[test]]
 name = "engine"
 path = "tests/engine.rs"
-required-features = ["duckdb-engine"]
+required-features = ["sqlite-engine"]

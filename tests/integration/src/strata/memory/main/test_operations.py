@@ -32,10 +32,10 @@ from tests.integration.src.strata.memory.main.helpers import write_enabled_memor
     [
         NativeMemoryQueryTestCase(
             description="enabled empty repository synchronizes and serves read-only SQL",
-            sql="SELECT 7 AS answer, NULL::VARCHAR AS missing",
+            sql="SELECT 7 AS answer, CAST(NULL AS TEXT) AS missing",
             expected_columns=("answer", "missing"),
             expected_rows=((7, None),),
-            expected_database_relative_path=".strata/memory/memory.duckdb",
+            expected_database_relative_path=".strata/memory/memory.sqlite3",
         )
     ],
     ids=lambda case: case.description,
@@ -120,7 +120,7 @@ def test_given_enabled_project_when_reading_schema_then_does_not_synchronize(
 
     assert result.relation is not None
     assert result.relation.name == test_case.expected_relation
-    assert (tmp_path / ".strata/memory/memory.duckdb").exists() is (
+    assert (tmp_path / ".strata/memory/memory.sqlite3").exists() is (
         test_case.expected_database_exists
     )
 
@@ -217,7 +217,7 @@ def test_given_invalid_memory_source_when_checking_then_reports_fault_without_pu
 
     assert exit_code == test_case.expected_exit_code
     assert test_case.expected_fault_fragment in stdout.getvalue()
-    assert (tmp_path / ".strata/memory/memory.duckdb").exists() is (
+    assert (tmp_path / ".strata/memory/memory.sqlite3").exists() is (
         test_case.expected_database_exists
     )
 
@@ -260,7 +260,7 @@ def test_given_explicit_note_when_archiving_then_moves_source_and_refreshes_inde
     assert test_case.expected_output_fragment in stdout.getvalue()
     assert not source.exists()
     assert (tmp_path / test_case.expected_destination).is_file()
-    assert (tmp_path / ".strata/memory/memory.duckdb").is_file()
+    assert (tmp_path / ".strata/memory/memory.sqlite3").is_file()
 
 
 @pytest.mark.parametrize(

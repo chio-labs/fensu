@@ -9,6 +9,6 @@ from strata.memory.models import MemoryIndexSummary
 
 
 def inspect_memory_sources(repository_root: Path) -> MemoryIndexSummary:
-    """Return source, corpus, and graph diagnostics without writing DuckDB."""
+    """Return source, corpus, and graph diagnostics without writing SQLite."""
 
     return inspect_sources(repository_root)

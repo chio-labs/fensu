@@ -1,4 +1,4 @@
-//! Read-only DuckDB query phases.
+//! Read-only SQLite query phases.
 
 pub(crate) mod graph_loading;
 pub(crate) mod graphs;

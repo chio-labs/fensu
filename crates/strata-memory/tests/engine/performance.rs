@@ -1,4 +1,4 @@
-//! Bulk DuckDB publication performance behavior.
+//! Bulk SQLite publication performance behavior.
 
 use std::fs;
 use std::time::{Duration, Instant};
@@ -18,7 +18,7 @@ fn given_large_list_corpus_when_rebuilding_then_bulk_publication_stays_bounded()
             list_items_per_document: 100,
             list_marker: "",
             expected_list_item_count: 10_000,
-            expected_list_item_batch_count: 1,
+            expected_list_item_batch_count: 10,
             expected_max_duration: Duration::from_secs(4),
         },
         MemoryPublicationPerformanceTestCase {
@@ -28,7 +28,7 @@ fn given_large_list_corpus_when_rebuilding_then_bulk_publication_stays_bounded()
             list_items_per_document: 10_000,
             list_marker: "",
             expected_list_item_count: 10_000,
-            expected_list_item_batch_count: 1,
+            expected_list_item_batch_count: 10,
             expected_max_duration: Duration::from_secs(4),
         },
         MemoryPublicationPerformanceTestCase {
@@ -38,7 +38,7 @@ fn given_large_list_corpus_when_rebuilding_then_bulk_publication_stays_bounded()
             list_items_per_document: 10_000,
             list_marker: "[ ] ",
             expected_list_item_count: 10_000,
-            expected_list_item_batch_count: 1,
+            expected_list_item_batch_count: 10,
             expected_max_duration: Duration::from_secs(4),
         },
     ];
@@ -55,7 +55,7 @@ fn given_large_list_corpus_when_rebuilding_then_bulk_publication_stays_bounded()
                 format!("20260718T120000_{index:06}Z__NOTE-bulk-publication-{index}.md");
             fs::write(source_parent.join(source_name), &contents).expect("source is writable");
         }
-        let database_path = root.join("memory.duckdb");
+        let database_path = root.join("memory.sqlite3");
         let started = Instant::now();
         let summary = rebuild_memory_index(&root, &database_path).expect("rebuild succeeds");
         let elapsed = started.elapsed();
@@ -89,7 +89,7 @@ fn given_ten_million_list_items_when_rebuilding_then_reports_stress_evidence() {
         list_items_per_document: 1_000,
         expected_document_count: 10_000,
         expected_list_item_count: 10_000_000,
-        expected_list_item_batch_count: 611,
+        expected_list_item_batch_count: 10_000,
     }];
     for test_case in &test_cases {
         let root = helpers::write_repository(&[]);
@@ -104,7 +104,7 @@ fn given_ten_million_list_items_when_rebuilding_then_reports_stress_evidence() {
             fs::write(source_parent.join(source_name), &contents)
                 .expect("stress source is writable");
         }
-        let database_path = root.join("memory.duckdb");
+        let database_path = root.join("memory.sqlite3");
         let started = Instant::now();
         let summary = rebuild_memory_index(&root, &database_path).expect("stress rebuild succeeds");
         let elapsed = started.elapsed();

@@ -6,7 +6,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use duckdb::Connection;
+use rusqlite::Connection;
 
 use crate::corpus::models::MemoryCorpus;
 use crate::engine::constants;
@@ -27,14 +27,28 @@ pub(crate) fn publish(
         MemoryIndexError::filesystem("create database directory", parent.clone(), error)
     })?;
     let temporary_path = temporary_path(database_path, &parent)?;
-    let wal_path = wal_path(&temporary_path);
+    let journal_path = sidecar_path(&temporary_path, "-journal");
+    let wal_path = sidecar_path(&temporary_path, "-wal");
+    let shm_path = sidecar_path(&temporary_path, "-shm");
+    let temporary_files: [&Path; 4] = [
+        temporary_path.as_path(),
+        journal_path.as_path(),
+        wal_path.as_path(),
+        shm_path.as_path(),
+    ];
     let summary = match build_database(corpus, graph, &temporary_path) {
         Ok(summary) => summary,
-        Err(error) => return Err(cleanup_files(error, &[&temporary_path, &wal_path])),
+        Err(error) => return Err(cleanup_files(error, &temporary_files)),
     };
-    if let Err(error) = remove_if_exists(&wal_path) {
-        let failure = MemoryIndexError::filesystem("remove temporary WAL", wal_path.clone(), error);
-        return Err(cleanup_files(failure, &[&temporary_path, &wal_path]));
+    for sidecar in [&journal_path, &wal_path, &shm_path] {
+        if let Err(error) = remove_if_exists(sidecar) {
+            let failure = MemoryIndexError::filesystem(
+                "remove temporary SQLite sidecar",
+                sidecar.clone(),
+                error,
+            );
+            return Err(cleanup_files(failure, &temporary_files));
+        }
     }
     if let Err(error) = fs::rename(&temporary_path, database_path) {
         let failure = MemoryIndexError::filesystem(
@@ -42,7 +56,7 @@ pub(crate) fn publish(
             database_path.to_path_buf(),
             error,
         );
-        return Err(cleanup_files(failure, &[&temporary_path, &wal_path]));
+        return Err(cleanup_files(failure, &temporary_files));
     }
     Ok(summary)
 }
@@ -53,13 +67,18 @@ fn build_database(
     temporary_path: &Path,
 ) -> Result<IndexSummary, MemoryIndexError> {
     let mut connection = Connection::open(temporary_path)
-        .map_err(|error| MemoryIndexError::duckdb("open temporary memory index", error))?;
+        .map_err(|error| MemoryIndexError::sqlite("open temporary memory index", error))?;
+    connection
+        .execute_batch(
+            "PRAGMA foreign_keys = ON; PRAGMA journal_mode = OFF; PRAGMA synchronous = OFF; PRAGMA temp_store = MEMORY;",
+        )
+        .map_err(|error| MemoryIndexError::sqlite("configure temporary memory index", error))?;
     let transaction = connection
         .transaction()
-        .map_err(|error| MemoryIndexError::duckdb("begin memory index transaction", error))?;
+        .map_err(|error| MemoryIndexError::sqlite("begin memory index transaction", error))?;
     transaction
         .execute_batch(constants::MEMORY_SCHEMA_SQL)
-        .map_err(|error| MemoryIndexError::duckdb("create memory schema", error))?;
+        .map_err(|error| MemoryIndexError::sqlite("create memory schema", error))?;
     let document_count = documents::insert(&transaction, corpus)?;
     let section_count = sections::insert(&transaction, corpus)?;
     let (list_item_count, list_item_batch_count) = lists::insert(&transaction, corpus)?;
@@ -68,10 +87,10 @@ fn build_database(
     let skill_file_count = skills::insert(&transaction, corpus)?;
     transaction
         .commit()
-        .map_err(|error| MemoryIndexError::duckdb("commit memory index transaction", error))?;
+        .map_err(|error| MemoryIndexError::sqlite("commit memory index transaction", error))?;
     connection
         .close()
-        .map_err(|(_, error)| MemoryIndexError::duckdb("close temporary memory index", error))?;
+        .map_err(|(_, error)| MemoryIndexError::sqlite("close temporary memory index", error))?;
     Ok(IndexSummary {
         document_count,
         section_count,
@@ -114,9 +133,9 @@ fn temporary_path(database_path: &Path, parent: &Path) -> Result<PathBuf, Memory
     Ok(parent.join(temporary_name))
 }
 
-fn wal_path(database_path: &Path) -> PathBuf {
+fn sidecar_path(database_path: &Path, suffix: &str) -> PathBuf {
     let mut value = database_path.as_os_str().to_os_string();
-    value.push(".wal");
+    value.push(suffix);
     PathBuf::from(value)
 }
 

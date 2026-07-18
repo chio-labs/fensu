@@ -1,10 +1,10 @@
-//! Canonical repository setup and DuckDB publication assertions.
+//! Canonical repository setup and SQLite publication assertions.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use duckdb::Connection;
+use rusqlite::{params, Connection};
 use strata_memory::engine::main::rebuild_memory_index::rebuild_memory_index;
 
 use crate::test_types::{FixtureFile, MemoryPublicationTestCase};
@@ -13,7 +13,7 @@ static REPOSITORY_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 pub(crate) fn run_case(test_case: &MemoryPublicationTestCase) {
     let root = write_repository(test_case.files);
-    let database_path = root.join("generated/index/memory.duckdb");
+    let database_path = root.join("generated/index/memory.sqlite3");
     let first_summary = rebuild_memory_index(&root, &database_path).expect("first index rebuild");
     let existing = Connection::open(&database_path).expect("published database opens");
     existing
@@ -22,11 +22,19 @@ pub(crate) fn run_case(test_case: &MemoryPublicationTestCase) {
     existing.close().expect("sentinel database closes");
     let summary = rebuild_memory_index(&root, &database_path).expect("replacement index rebuild");
     let connection = Connection::open(&database_path).expect("replacement database opens");
-    let schema_qualified_document_count: i64 = connection
+    let public = Connection::open_in_memory().expect("public query connection opens");
+    public
+        .execute(
+            "ATTACH DATABASE ?1 AS memory",
+            params![database_path.to_string_lossy()],
+        )
+        .expect("published database attaches as memory");
+    let schema_qualified_document_count: i64 = public
         .query_row("SELECT count(*) FROM memory.documents", [], |row| {
             row.get(0)
         })
         .expect("memory schema is directly queryable");
+    public.close().expect("public query connection closes");
     assert_eq!(
         schema_qualified_document_count, test_case.expected_summary_counts[0] as i64,
         "{}: schema-qualified table access",
@@ -149,7 +157,7 @@ pub(crate) fn run_case(test_case: &MemoryPublicationTestCase) {
     );
     let sentinel_count: i64 = connection
         .query_row(
-            "SELECT count(*) FROM information_schema.tables WHERE table_name = 'replacement_sentinel'",
+            "SELECT count(*) FROM sqlite_schema WHERE type = 'table' AND name = 'replacement_sentinel'",
             [],
             |row| row.get(0),
         )
@@ -188,7 +196,7 @@ pub(crate) fn write_repository(files: &[FixtureFile]) -> PathBuf {
 
 pub(crate) fn write_query_database() -> (PathBuf, PathBuf) {
     let root = write_repository(&[]);
-    let database_path = root.join("memory.duckdb");
+    let database_path = root.join("memory.sqlite3");
     let connection = Connection::open(&database_path).expect("query database opens");
     connection
         .execute_batch("CREATE TABLE sentinel(value INTEGER); INSERT INTO sentinel VALUES (7);")
@@ -204,20 +212,6 @@ pub(crate) fn sentinel_count(database_path: &Path) -> i64 {
         .expect("sentinel count is queryable");
     connection.close().expect("query database closes");
     count
-}
-
-pub(crate) fn tagged_query_value(
-    kind: &str,
-    mut fields: Vec<(String, strata_memory::engine::models::MemoryQueryValue)>,
-) -> strata_memory::engine::models::MemoryQueryValue {
-    fields.insert(
-        0,
-        (
-            "$type".to_owned(),
-            strata_memory::engine::models::MemoryQueryValue::String(kind.to_owned()),
-        ),
-    );
-    strata_memory::engine::models::MemoryQueryValue::Object(fields)
 }
 
 fn summary_counts(summary: &strata_memory::engine::models::IndexSummary) -> [usize; 9] {
@@ -247,14 +241,14 @@ fn schema_versions(connection: &Connection) -> (i32, i32) {
 fn table_names(connection: &Connection) -> Vec<String> {
     query_names(
         connection,
-        "SELECT table_name FROM information_schema.tables WHERE table_schema = 'main' AND table_type = 'BASE TABLE' ORDER BY table_name",
+        "SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
     )
 }
 
 fn view_names(connection: &Connection) -> Vec<String> {
     query_names(
         connection,
-        "SELECT table_name FROM information_schema.tables WHERE table_schema = 'main' AND table_type = 'VIEW' ORDER BY table_name",
+        "SELECT name FROM sqlite_schema WHERE type = 'view' ORDER BY name",
     )
 }
 

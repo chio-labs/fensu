@@ -39,7 +39,7 @@ fn given_repository_memory_when_summarizing_then_counts_live_corpus_without_data
             summary.corpus_diagnostic_count,
             summary.graph_diagnostic_count,
         ];
-        let database_path = root.join("generated/index/memory.duckdb");
+        let database_path = root.join("generated/index/memory.sqlite3");
 
         assert_eq!(
             counts, test_case.expected_summary_counts,

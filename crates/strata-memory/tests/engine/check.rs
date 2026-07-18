@@ -53,7 +53,7 @@ fn given_memory_sources_when_checking_then_returns_stable_findings_or_publishes_
     ];
     for test_case in &test_cases {
         let root = helpers::write_repository(test_case.files);
-        let database_path = root.join("memory.duckdb");
+        let database_path = root.join("memory.sqlite3");
         let result = check_memory(&root, &database_path).expect("memory check succeeds");
         let diagnostics: Vec<(&str, &str, Option<usize>)> = result
             .diagnostics

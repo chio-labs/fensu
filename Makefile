@@ -51,7 +51,7 @@ test-integration:
 	uv run pytest tests/integration -q -n auto
 
 test-memory:
-	cargo test -p strata-memory --features duckdb-engine
+	cargo test -p strata-memory --features sqlite-engine
 
 test-e2e:
 	uv run pytest tests/e2e -q -n auto

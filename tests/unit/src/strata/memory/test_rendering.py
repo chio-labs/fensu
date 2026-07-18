@@ -55,6 +55,8 @@ _PROJECT: MemoryProject = MemoryProject(
     repository_root=Path("/repo"),
     database_path=Path("/repo/.strata/memory/memory.sqlite3"),
 )
+_REPOSITORY_TEXT: str = str(_PROJECT.repository_root)
+_DATABASE_TEXT: str = str(_PROJECT.database_path)
 _QUERY_RESULT: MemoryQueryResult = MemoryQueryResult(
     columns=("value", "value"),
     types=("INTEGER", "VARCHAR"),
@@ -360,8 +362,8 @@ def test_given_memory_overview_when_rendering_then_matches_compact_plan_contract
             expected_output=(
                 "Memory sync: added=1 changed=2 moved=3 removed=4 unchanged=5 rebuilt=yes\n"
                 "Index: documents=6 sections=7 links=8\n"
-                "Repository: /repo\n"
-                "Database: /repo/.strata/memory/memory.sqlite3\n"
+                f"Repository: {_REPOSITORY_TEXT}\n"
+                f"Database: {_DATABASE_TEXT}\n"
             ),
         ),
     ],
@@ -388,8 +390,8 @@ def test_given_implicit_sync_when_rendering_then_obeys_concise_output_contract(
                 "Memory rebuilt: documents=1 sections=2 list_items=3 links=4 "
                 "tags=5 skill_files=6\n"
                 "Diagnostics: source=7 corpus=8 graph=9\n"
-                "Repository: /repo\n"
-                "Database: /repo/.strata/memory/memory.sqlite3\n"
+                f"Repository: {_REPOSITORY_TEXT}\n"
+                f"Database: {_DATABASE_TEXT}\n"
             ),
         )
     ],

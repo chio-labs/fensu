@@ -737,7 +737,7 @@ def _publish_existing_skill(*, staged_path: Path, snapshot: _SkillFileSnapshot) 
     with os.fdopen(descriptor, "r+b") as target_file:
         _validate_open_skill_file(target_file=target_file, snapshot=snapshot)
         _write_skill_descriptor(target_file=target_file, content=installed_content)
-        os.fchmod(target_file.fileno(), installed_mode)
+        _set_open_file_mode(target_file=target_file, path=snapshot.path, mode=installed_mode)
     current: _SkillFileSnapshot = _capture_skill_file(
         path=snapshot.path,
         force=True,
@@ -805,7 +805,18 @@ def _restore_existing_skill(*, published_file: _PublishedSkillFile) -> None:
         if original_content is not None:
             _write_skill_descriptor(target_file=target_file, content=original_content)
         if published_file.original.mode is not None:
-            os.fchmod(target_file.fileno(), published_file.original.mode)
+            _set_open_file_mode(
+                target_file=target_file,
+                path=published_file.installed.path,
+                mode=published_file.original.mode,
+            )
+
+
+def _set_open_file_mode(*, target_file: BinaryIO, path: Path, mode: int) -> None:
+    if hasattr(os, "fchmod"):
+        os.fchmod(target_file.fileno(), mode)
+    else:
+        path.chmod(mode)
 
 
 def _capture_legacy_file(*, path: Path, owner: str | None) -> _SkillFileSnapshot | None:

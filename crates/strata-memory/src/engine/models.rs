@@ -138,3 +138,87 @@ pub struct MemoryQueryResult {
     pub rows: Vec<Vec<MemoryQueryValue>>,
     pub truncated: bool,
 }
+
+/// Traversal orientation for one bounded memory graph query.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MemoryGraphDirection {
+    Outbound,
+    Inbound,
+    Both,
+}
+
+/// Relationship vocabulary accepted by memory graph filtering.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum MemoryGraphRelationship {
+    Link,
+    Related,
+    DependsOn,
+    Supersedes,
+    DiscoveredFrom,
+    Implements,
+    Documents,
+}
+
+impl MemoryGraphRelationship {
+    /// Return the stable CLI and storage representation.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Link => "link",
+            Self::Related => "related",
+            Self::DependsOn => "depends-on",
+            Self::Supersedes => "supersedes",
+            Self::DiscoveredFrom => "discovered-from",
+            Self::Implements => "implements",
+            Self::Documents => "documents",
+        }
+    }
+}
+
+/// Validated bounded graph retrieval request.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MemoryGraphQuery {
+    pub pattern: String,
+    pub direction: MemoryGraphDirection,
+    pub relationships: Vec<MemoryGraphRelationship>,
+    pub depth: usize,
+    pub max_nodes: usize,
+    pub max_edges: usize,
+    pub include_archived: bool,
+}
+
+/// One unique document selected by bounded graph traversal.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MemoryGraphNode {
+    pub identity: String,
+    pub artifact_kind: String,
+    pub archive_state: String,
+    pub repository_relative_path: String,
+    pub basename: String,
+    pub slug: String,
+    pub title: Option<String>,
+    pub depth: usize,
+    pub root: bool,
+}
+
+/// One authored relationship or unresolved/external graph leaf.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MemoryGraphEdge {
+    pub source_document_identity: String,
+    pub source_link_ordinal: usize,
+    pub relationship: String,
+    pub authored_target: String,
+    pub resolution_status: String,
+    pub target_document_identity: Option<String>,
+    pub cycle: bool,
+}
+
+/// Deterministic roots, nodes, edges, and explicit budget exhaustion state.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MemoryGraphResult {
+    pub selection: String,
+    pub roots: Vec<String>,
+    pub nodes: Vec<MemoryGraphNode>,
+    pub edges: Vec<MemoryGraphEdge>,
+    pub node_budget_exhausted: bool,
+    pub edge_budget_exhausted: bool,
+}

@@ -16,3 +16,30 @@ class MemoryQueryFormat(StrEnum):
     TABLE = "table"
     JSON = "json"
     CSV = "csv"
+
+
+class MemoryGraphDirection(StrEnum):
+    """Supported memory graph traversal directions."""
+
+    OUTBOUND = "outbound"
+    INBOUND = "inbound"
+    BOTH = "both"
+
+
+class MemoryGraphRelationship(StrEnum):
+    """Supported memory graph relationship filters."""
+
+    LINK = "link"
+    RELATED = "related"
+    DEPENDS_ON = "depends-on"
+    SUPERSEDES = "supersedes"
+    DISCOVERED_FROM = "discovered-from"
+    IMPLEMENTS = "implements"
+    DOCUMENTS = "documents"
+
+
+class MemoryGraphFormat(StrEnum):
+    """Supported memory graph output formats."""
+
+    LONG = "long"
+    JSON = "json"

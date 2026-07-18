@@ -15,10 +15,14 @@ use strata_memory::engine::main::memory_relation_schema::memory_relation_schema 
 use strata_memory::engine::main::memory_schema as schema_metadata;
 use strata_memory::engine::main::memory_schema_sql as schema;
 use strata_memory::engine::main::probe_dependencies::probe_dependencies;
+use strata_memory::engine::main::query_memory_graph::query_memory_graph;
 use strata_memory::engine::main::query_memory_index::query_memory_index;
 use strata_memory::engine::main::rebuild_memory_index::rebuild_memory_index;
 use strata_memory::engine::main::summarize_memory::summarize_memory;
 use strata_memory::engine::main::sync_memory_index::sync_memory_index;
+use strata_memory::engine::models::{
+    MemoryGraphDirection, MemoryGraphQuery, MemoryGraphRelationship,
+};
 
 #[pyfunction]
 pub(crate) fn memory_dependency_probe(
@@ -133,6 +137,59 @@ pub(crate) fn memory_query(
         .detach(move || query_memory_index(&database_path, &sql, limit))
         .map_err(memory_index_error)?;
     memory_conversion::memory_query_result_object(py, result)
+}
+
+#[pyfunction]
+pub(crate) fn memory_graph(
+    py: Python<'_>,
+    database_path: PathBuf,
+    request: (String, String, Vec<String>, usize, usize, usize, bool),
+) -> PyResult<Py<PyTuple>> {
+    let (pattern, direction, relationships, depth, max_nodes, max_edges, include_archived) =
+        request;
+    let query = MemoryGraphQuery {
+        pattern,
+        direction: graph_direction(&direction).map_err(memory_index_error)?,
+        relationships: relationships
+            .iter()
+            .map(|value| graph_relationship(value))
+            .collect::<Result<Vec<MemoryGraphRelationship>, MemoryIndexError>>()
+            .map_err(memory_index_error)?,
+        depth,
+        max_nodes,
+        max_edges,
+        include_archived,
+    };
+    let result = py
+        .detach(move || query_memory_graph(&database_path, &query))
+        .map_err(memory_index_error)?;
+    memory_conversion::memory_graph_result_object(py, result)
+}
+
+fn graph_direction(value: &str) -> Result<MemoryGraphDirection, MemoryIndexError> {
+    match value {
+        "outbound" => Ok(MemoryGraphDirection::Outbound),
+        "inbound" => Ok(MemoryGraphDirection::Inbound),
+        "both" => Ok(MemoryGraphDirection::Both),
+        _ => Err(MemoryIndexError::GraphQuery(format!(
+            "unsupported direction: {value}"
+        ))),
+    }
+}
+
+fn graph_relationship(value: &str) -> Result<MemoryGraphRelationship, MemoryIndexError> {
+    match value {
+        "link" => Ok(MemoryGraphRelationship::Link),
+        "related" => Ok(MemoryGraphRelationship::Related),
+        "depends-on" => Ok(MemoryGraphRelationship::DependsOn),
+        "supersedes" => Ok(MemoryGraphRelationship::Supersedes),
+        "discovered-from" => Ok(MemoryGraphRelationship::DiscoveredFrom),
+        "implements" => Ok(MemoryGraphRelationship::Implements),
+        "documents" => Ok(MemoryGraphRelationship::Documents),
+        _ => Err(MemoryIndexError::GraphQuery(format!(
+            "unsupported relationship: {value}"
+        ))),
+    }
 }
 
 fn memory_index_error(error: MemoryIndexError) -> PyErr {

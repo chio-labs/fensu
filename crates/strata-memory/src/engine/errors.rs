@@ -33,6 +33,7 @@ pub enum MemoryIndexError {
         maximum_depth: usize,
     },
     QueryMetadataUnavailable,
+    GraphQuery(String),
     MissingResolvedLink {
         document_identity: String,
         link_ordinal: usize,
@@ -120,6 +121,7 @@ impl fmt::Display for MemoryIndexError {
             Self::QueryMetadataUnavailable => {
                 write!(formatter, "DuckDB did not expose memory query result metadata")
             }
+            Self::GraphQuery(message) => write!(formatter, "memory graph query failed: {message}"),
             Self::MissingResolvedLink {
                 document_identity,
                 link_ordinal,
@@ -159,6 +161,7 @@ impl Error for MemoryIndexError {
             | Self::QueryResultTooLarge { .. }
             | Self::QueryValueTooDeep { .. }
             | Self::QueryMetadataUnavailable
+            | Self::GraphQuery(_)
             | Self::MissingResolvedLink { .. }
             | Self::Archive(_) => None,
             Self::Filesystem { source, .. } | Self::Cleanup { source, .. } => Some(source),

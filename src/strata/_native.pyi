@@ -13,6 +13,17 @@ type MemoryRelationSchema = tuple[str, str, str, tuple[MemorySchemaColumn, ...]]
 type MemoryDiagnostic = tuple[str, str, int | None, int | None, str, str]
 type MemoryCheckResult = tuple[tuple[MemoryDiagnostic, ...], MemorySummary | None]
 type MemoryArchiveResult = tuple[tuple[tuple[str, str], ...], SyncSummary | None]
+type MemoryGraphNode = tuple[str, str, str, str, str, str, str | None, int, bool]
+type MemoryGraphEdge = tuple[str, int, str, str, str, str | None, bool]
+type MemoryGraphResult = tuple[
+    str,
+    tuple[str, ...],
+    tuple[MemoryGraphNode, ...],
+    tuple[MemoryGraphEdge, ...],
+    bool,
+    bool,
+]
+type MemoryGraphQuery = tuple[str, str, list[str], int, int, int, bool]
 type MemoryQueryValue = (
     None | bool | int | float | str | list[MemoryQueryValue] | dict[str, MemoryQueryValue]
 )
@@ -75,4 +86,8 @@ def memory_query(
     tuple[tuple[MemoryQueryValue, ...], ...],
     bool,
 ]: ...
+def memory_graph(
+    database_path: Path,
+    request: MemoryGraphQuery,
+) -> MemoryGraphResult: ...
 def memory_dependency_probe(repository_root: Path) -> str: ...

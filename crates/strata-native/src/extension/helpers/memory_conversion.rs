@@ -4,9 +4,9 @@ use pyo3::types::{PyAnyMethods, PyDict, PyDictMethods, PyList, PyTuple};
 use pyo3::{Bound, BoundObject, IntoPyObject, Py, PyAny, PyErr, PyResult, Python};
 
 use strata_memory::engine::models::{
-    IndexSummary, MemoryArchiveResult, MemoryCheckResult, MemoryDiagnostic, MemoryOverview,
-    MemoryQueryResult, MemoryQueryValue, MemorySchemaOverview, MemorySchemaRelation, MemorySummary,
-    SyncSummary,
+    IndexSummary, MemoryArchiveResult, MemoryCheckResult, MemoryDiagnostic, MemoryGraphEdge,
+    MemoryGraphNode, MemoryGraphResult, MemoryOverview, MemoryQueryResult, MemoryQueryValue,
+    MemorySchemaOverview, MemorySchemaRelation, MemorySummary, SyncSummary,
 };
 
 pub(crate) fn memory_summary_object(
@@ -194,6 +194,69 @@ pub(crate) fn memory_query_result_object(
     let rows = query_rows_object(py, result.rows, &integer_constructor)?;
     let truncated = to_object(py, result.truncated)?;
     PyTuple::new(py, [columns, types, rows, truncated]).map(Bound::unbind)
+}
+
+pub(crate) fn memory_graph_result_object(
+    py: Python<'_>,
+    result: MemoryGraphResult,
+) -> PyResult<Py<PyTuple>> {
+    let roots = PyTuple::new(py, result.roots)?.into_any().unbind();
+    let nodes = result
+        .nodes
+        .into_iter()
+        .map(|node| memory_graph_node_object(py, node))
+        .collect::<PyResult<Vec<Py<PyTuple>>>>()?;
+    let edges = result
+        .edges
+        .into_iter()
+        .map(|edge| memory_graph_edge_object(py, edge))
+        .collect::<PyResult<Vec<Py<PyTuple>>>>()?;
+    PyTuple::new(
+        py,
+        [
+            to_object(py, result.selection)?,
+            roots,
+            PyTuple::new(py, nodes)?.into_any().unbind(),
+            PyTuple::new(py, edges)?.into_any().unbind(),
+            to_object(py, result.node_budget_exhausted)?,
+            to_object(py, result.edge_budget_exhausted)?,
+        ],
+    )
+    .map(Bound::unbind)
+}
+
+fn memory_graph_node_object(py: Python<'_>, node: MemoryGraphNode) -> PyResult<Py<PyTuple>> {
+    PyTuple::new(
+        py,
+        [
+            to_object(py, node.identity)?,
+            to_object(py, node.artifact_kind)?,
+            to_object(py, node.archive_state)?,
+            to_object(py, node.repository_relative_path)?,
+            to_object(py, node.basename)?,
+            to_object(py, node.slug)?,
+            to_object(py, node.title)?,
+            to_object(py, node.depth)?,
+            to_object(py, node.root)?,
+        ],
+    )
+    .map(Bound::unbind)
+}
+
+fn memory_graph_edge_object(py: Python<'_>, edge: MemoryGraphEdge) -> PyResult<Py<PyTuple>> {
+    PyTuple::new(
+        py,
+        [
+            to_object(py, edge.source_document_identity)?,
+            to_object(py, edge.source_link_ordinal)?,
+            to_object(py, edge.relationship)?,
+            to_object(py, edge.authored_target)?,
+            to_object(py, edge.resolution_status)?,
+            to_object(py, edge.target_document_identity)?,
+            to_object(py, edge.cycle)?,
+        ],
+    )
+    .map(Bound::unbind)
 }
 
 fn query_rows_object(

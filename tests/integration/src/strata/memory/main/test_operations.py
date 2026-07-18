@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import io
+import json
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -18,6 +20,7 @@ from tests.integration.src.strata.memory.main._test_types import (
     NativeMemoryCheckTestCase,
     NativeMemoryColorTestCase,
     NativeMemoryErrorTestCase,
+    NativeMemoryGraphTestCase,
     NativeMemoryQueryTestCase,
     NativeMemorySchemaTestCase,
 )
@@ -258,3 +261,88 @@ def test_given_explicit_note_when_archiving_then_moves_source_and_refreshes_inde
     assert not source.exists()
     assert (tmp_path / test_case.expected_destination).is_file()
     assert (tmp_path / ".strata/memory/memory.duckdb").is_file()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        NativeMemoryGraphTestCase(
+            description="graph CLI synchronizes separately and returns deterministic bounded JSON",
+            files=(
+                (
+                    ".ai/knowledge/repo/notes/20260718T120001_000000Z__NOTE-alpha.md",
+                    "# Alpha\n\n[[beta]]\n\n[[archived]]\n\n"
+                    "[external](https://example.com)\n\n[[missing]]\n",
+                ),
+                (
+                    ".ai/knowledge/repo/notes/20260718T120002_000000Z__NOTE-beta.md",
+                    "# Beta\n\n[[alpha]]\n",
+                ),
+                (
+                    ".ai/_archive/knowledge/repo/notes/20260718T120003_000000Z__NOTE-archived.md",
+                    "# Archived\n\n[[delta]]\n",
+                ),
+                (
+                    ".ai/knowledge/repo/notes/20260718T120004_000000Z__NOTE-delta.md",
+                    "# Delta\n",
+                ),
+            ),
+            argv=("graph", "Alpha", "--depth", "2", "--format", "json"),
+            expected_selection="exact",
+            expected_root="note:20260718T120001_000000Z",
+            expected_node_count=3,
+            expected_edge_statuses=("external", "resolved", "unresolved"),
+            expected_archived_identity="note:20260718T120003_000000Z",
+            expected_absent_identity="note:20260718T120004_000000Z",
+            expected_sync_fragment="Memory synced:",
+            expected_sources_unchanged=True,
+            expected_exit_code=0,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_enabled_graph_sources_when_running_cli_then_separates_sync_and_machine_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    test_case: NativeMemoryGraphTestCase,
+) -> None:
+    write_enabled_memory_project(root=tmp_path)
+    for relative_path, contents in test_case.files:
+        source: Path = tmp_path / relative_path
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_text(contents, encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    first_stdout: io.StringIO = io.StringIO()
+    first_stderr: io.StringIO = io.StringIO()
+
+    first_exit_code: int = run_memory(argv=test_case.argv, stdout=first_stdout, stderr=first_stderr)
+    second_stdout: io.StringIO = io.StringIO()
+    second_stderr: io.StringIO = io.StringIO()
+    second_exit_code: int = run_memory(
+        argv=test_case.argv, stdout=second_stdout, stderr=second_stderr
+    )
+    payload: dict[str, object] = json.loads(first_stdout.getvalue())
+    nodes: list[dict[str, object]] = cast(list[dict[str, object]], payload["nodes"])
+    edges: list[dict[str, object]] = cast(list[dict[str, object]], payload["edges"])
+
+    assert first_exit_code == test_case.expected_exit_code
+    assert second_exit_code == test_case.expected_exit_code
+    assert test_case.expected_sync_fragment in first_stderr.getvalue()
+    assert second_stderr.getvalue() == ""
+    assert first_stdout.getvalue() == second_stdout.getvalue()
+    assert payload["selection"] == test_case.expected_selection
+    assert payload["roots"] == [test_case.expected_root]
+    assert len(nodes) == test_case.expected_node_count
+    assert test_case.expected_archived_identity in {node["identity"] for node in nodes}
+    assert test_case.expected_absent_identity not in {node["identity"] for node in nodes}
+    assert test_case.expected_edge_statuses == tuple(
+        sorted({str(edge["resolution_status"]) for edge in edges})
+    )
+    assert any(edge["cycle"] is True for edge in edges)
+    assert (
+        all(
+            (tmp_path / relative_path).read_text(encoding="utf-8") == contents
+            for relative_path, contents in test_case.files
+        )
+        is test_case.expected_sources_unchanged
+    )

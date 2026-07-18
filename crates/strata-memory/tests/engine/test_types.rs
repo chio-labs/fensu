@@ -47,6 +47,33 @@ pub(crate) struct InvalidMemoryQueryTestCase {
     pub(crate) expected_error_fragment: &'static str,
 }
 
+pub(crate) struct MemoryGraphTraversalTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) pattern: &'static str,
+    pub(crate) direction: strata_memory::engine::models::MemoryGraphDirection,
+    pub(crate) relationships: &'static [strata_memory::engine::models::MemoryGraphRelationship],
+    pub(crate) depth: usize,
+    pub(crate) max_nodes: usize,
+    pub(crate) max_edges: usize,
+    pub(crate) include_archived: bool,
+    pub(crate) expected_selection: &'static str,
+    pub(crate) expected_roots: &'static [&'static str],
+    pub(crate) expected_nodes: &'static [&'static str],
+    pub(crate) expected_edge_count: usize,
+    pub(crate) expected_node_exhausted: bool,
+    pub(crate) expected_edge_exhausted: bool,
+}
+
+pub(crate) struct InvalidMemoryGraphTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) pattern: &'static str,
+    pub(crate) depth: usize,
+    pub(crate) max_nodes: usize,
+    pub(crate) max_edges: usize,
+    pub(crate) include_archived: bool,
+    pub(crate) expected_error_fragment: &'static str,
+}
+
 pub(crate) struct MemorySummaryTestCase {
     pub(crate) description: &'static str,
     pub(crate) files: &'static [FixtureFile],

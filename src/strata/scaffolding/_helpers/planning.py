@@ -222,7 +222,12 @@ def build_init_plan(
         stdout=stdout,
         style=style,
     )
-    return InitPlan(roots=roots, tests=tests, tooling=tooling)
+    return InitPlan(
+        roots=roots,
+        tests=tests,
+        tooling=tooling,
+        memory_enabled=options.memory,
+    )
 
 
 def count_runtime_python_files(*, repository: Path, roots: tuple[str, ...]) -> int:
@@ -275,6 +280,7 @@ def _empty_plan(
         roots=(f"src/{project_name}",),
         tests=(DEFAULT_TEST_PATH,),
         tooling=(),
+        memory_enabled=options.memory,
         project_name=project_name,
     )
 

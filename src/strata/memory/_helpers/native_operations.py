@@ -52,6 +52,18 @@ def rebuild(project: MemoryProject) -> MemoryIndexSummary:
     return MemoryIndexSummary(*values)
 
 
+def inspect_sources(repository_root: Path) -> MemoryIndexSummary:
+    """Inspect canonical source diagnostics without publishing derived state."""
+
+    try:
+        values: tuple[int, int, int, int, int, int, int, int, int] = _native.memory_summary(
+            repository_root
+        )
+    except RuntimeError as error:
+        raise MemoryOperationError(f"Memory source inspection failed: {error}") from error
+    return MemoryIndexSummary(*values)
+
+
 def check(project: MemoryProject) -> MemoryCheckResult:
     """Validate canonical sources and publish the valid loaded corpus."""
 

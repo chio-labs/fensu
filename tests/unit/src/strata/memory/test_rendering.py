@@ -7,11 +7,11 @@ from pathlib import Path
 import pytest
 
 from strata.memory._helpers.graph_rendering import render_graph
-from strata.memory.main._render_memory_overview import render_memory_overview
 from strata.memory.main._render_memory_query import render_memory_query
 from strata.memory.main.render_memory_check import render_memory_check
 from strata.memory.main.render_memory_rebuild import render_memory_rebuild
 from strata.memory.main.render_memory_schema import render_memory_schema
+from strata.memory.main.render_memory_summary import _render_memory_overview
 from strata.memory.main.render_memory_sync import render_memory_sync
 from strata.memory.models import (
     MemoryCheckResult,
@@ -324,7 +324,7 @@ def test_given_schema_metadata_when_rendering_then_matches_public_relation_contr
 def test_given_memory_overview_when_rendering_then_matches_compact_plan_contract(
     test_case: MemoryOverviewRenderTestCase,
 ) -> None:
-    rendered: str = render_memory_overview(result=test_case.result)
+    rendered: str = _render_memory_overview(result=test_case.result)
 
     assert rendered == test_case.expected_output
 

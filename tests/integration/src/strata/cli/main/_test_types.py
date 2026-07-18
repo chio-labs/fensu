@@ -488,6 +488,17 @@ class InitPromptFailureTestCase:
 
 
 @dataclass(frozen=True)
+class InitMemoryTestCase:
+    """Explicit memory init source state and expected safe setup result."""
+
+    description: str
+    existing_memory_path: str | None
+    expected_exit_code: int
+    expected_enabled: bool
+    expected_error_fragment: str
+
+
+@dataclass(frozen=True)
 class ShortCircuitCheckTestCase:
     """One warm-run output short-circuit expectation."""
 

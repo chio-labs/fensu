@@ -85,15 +85,16 @@ fn given_canonical_memory_when_rebuilding_index_then_publishes_complete_replacea
             },
         ],
         expected_table_names: &[
+            "_document_keys",
+            "_list_items",
             "documents",
             "links",
-            "list_items",
             "meta",
             "sections",
             "skill_files",
             "tags",
         ],
-        expected_table_counts: &[5, 2, 2, 1, 5, 1, 2],
+        expected_table_counts: &[5, 2, 5, 2, 1, 5, 1, 2],
         expected_view_names: &[
             "archived_tasks",
             "blocked_tasks",
@@ -102,6 +103,7 @@ fn given_canonical_memory_when_rebuilding_index_then_publishes_complete_replacea
             "current_documents",
             "current_tasks",
             "decisions",
+            "list_items",
             "notes",
             "relationships",
             "skills",
@@ -110,12 +112,19 @@ fn given_canonical_memory_when_rebuilding_index_then_publishes_complete_replacea
             "task_phases",
             "tasks",
         ],
-        expected_view_counts: &[0, 1, 1, 1, 5, 1, 1, 2, 1, 1, 1, 1, 1, 1],
+        expected_view_counts: &[0, 1, 1, 1, 5, 1, 1, 2, 2, 1, 1, 1, 1, 1, 1],
         expected_summary_counts: [5, 5, 2, 2, 2, 1, 1, 1, 1],
-        expected_schema_versions: (1, 1),
+        expected_schema_versions: (2, 1),
         expected_invalid_row: ("invalid", 1, true, true, true),
         expected_preamble_row: (0, true, 2),
-        expected_checkbox_row: (" ", "open", 1),
+        expected_checkbox_row: (
+            " ",
+            "open",
+            1,
+            "unordered",
+            "Publish Index > Phase 1: Build",
+            "- [ ] Write schema #database",
+        ),
         expected_relationship_row: ("depends-on", "unresolved", true, 1),
         expected_external_status: "external",
         expected_tag_rows: &[("database", 1), ("overview", 0)],
@@ -128,7 +137,7 @@ fn given_canonical_memory_when_rebuilding_index_then_publishes_complete_replacea
         helpers::run_case(test_case);
         assert_eq!(
             test_case.expected_table_names.len(),
-            7,
+            8,
             "{}",
             test_case.description
         );

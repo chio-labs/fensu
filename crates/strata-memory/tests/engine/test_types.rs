@@ -23,7 +23,14 @@ pub(crate) struct MemoryPublicationTestCase {
     pub(crate) expected_schema_versions: (i32, i32),
     pub(crate) expected_invalid_row: (&'static str, i64, bool, bool, bool),
     pub(crate) expected_preamble_row: (i64, bool, i64),
-    pub(crate) expected_checkbox_row: (&'static str, &'static str, i64),
+    pub(crate) expected_checkbox_row: (
+        &'static str,
+        &'static str,
+        i64,
+        &'static str,
+        &'static str,
+        &'static str,
+    ),
     pub(crate) expected_relationship_row: (&'static str, &'static str, bool, i64),
     pub(crate) expected_external_status: &'static str,
     pub(crate) expected_tag_rows: &'static [(&'static str, i64)],
@@ -125,8 +132,19 @@ pub(crate) struct MemoryPublicationPerformanceTestCase {
     pub(crate) description: &'static str,
     pub(crate) document_count: usize,
     pub(crate) list_items_per_document: usize,
+    pub(crate) list_marker: &'static str,
     pub(crate) expected_list_item_count: usize,
+    pub(crate) expected_list_item_batch_count: usize,
     pub(crate) expected_max_duration: Duration,
+}
+
+pub(crate) struct MemoryPublicationStressTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) document_count: usize,
+    pub(crate) list_items_per_document: usize,
+    pub(crate) expected_document_count: usize,
+    pub(crate) expected_list_item_count: usize,
+    pub(crate) expected_list_item_batch_count: usize,
 }
 
 pub(crate) struct MemorySchemaTestCase {

@@ -59,7 +59,6 @@ pub struct MarkdownListItem {
     pub source_line: usize,
     pub source_range: SourceRange,
     pub section_ordinal: Option<usize>,
-    pub heading_path: Vec<String>,
     pub checkbox: Option<MarkdownCheckbox>,
     pub leading_key: Option<String>,
     pub relationship_kind: Option<RelationshipKind>,

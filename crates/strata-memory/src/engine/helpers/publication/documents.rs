@@ -46,5 +46,16 @@ pub(crate) fn insert(
     appender
         .flush()
         .map_err(|error| MemoryIndexError::duckdb("flush document appender", error))?;
+    let mut key_appender = transaction
+        .appender("_document_keys")
+        .map_err(|error| MemoryIndexError::duckdb("create document key appender", error))?;
+    for (index, document) in corpus.documents.iter().enumerate() {
+        key_appender
+            .append_row(params![index as u64, &document.source.identity.0])
+            .map_err(|error| MemoryIndexError::duckdb("append document key", error))?;
+    }
+    key_appender
+        .flush()
+        .map_err(|error| MemoryIndexError::duckdb("flush document key appender", error))?;
     Ok(corpus.documents.len())
 }

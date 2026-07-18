@@ -8,41 +8,57 @@ use crate::test_types::ListTestCase;
 const LIST_DOCUMENT: &str = "# Work\n\n## Checklist\n\n- [ ] root open\n    1. [X] nested done\n    2. [/] nested skipped\n- [?] custom state\n- [ab] malformed marker\n- ordinary item\n";
 
 #[test]
-fn given_nested_lists_when_parsing_then_tracks_ownership_order_and_checkbox_states() {
-    let test_cases = [ListTestCase {
-        description: "normalizes standard markers and preserves a custom single-character marker",
-        source: LIST_DOCUMENT,
-        expected_kinds: &[
-            ListKind::Unordered,
-            ListKind::Ordered,
-            ListKind::Ordered,
-            ListKind::Unordered,
-            ListKind::Unordered,
-            ListKind::Unordered,
-        ],
-        expected_numbers: &[None, Some(1), Some(2), None, None, None],
-        expected_depths: &[0, 1, 1, 0, 0, 0],
-        expected_parents: &[None, Some(1), Some(1), None, None, None],
-        expected_markers: &[Some(" "), Some("X"), Some("/"), Some("?"), None, None],
-        expected_states: &[
-            Some(CheckboxState::Open),
-            Some(CheckboxState::Done),
-            Some(CheckboxState::Skipped),
-            Some(CheckboxState::Custom),
-            None,
-            None,
-        ],
-        expected_plain_texts: &[
-            "root open",
-            "nested done",
-            "nested skipped",
-            "custom state",
-            "[ab] malformed marker",
-            "ordinary item",
-        ],
-        expected_source_lines: &[5, 6, 7, 8, 9, 10],
-        expected_heading_path: &["Work", "Checklist"],
-    }];
+fn given_lists_when_parsing_then_tracks_ownership_order_and_checkbox_states() {
+    let test_cases = [
+        ListTestCase {
+            description:
+                "normalizes standard markers and preserves a custom single-character marker",
+            source: LIST_DOCUMENT,
+            expected_kinds: &[
+                ListKind::Unordered,
+                ListKind::Ordered,
+                ListKind::Ordered,
+                ListKind::Unordered,
+                ListKind::Unordered,
+                ListKind::Unordered,
+            ],
+            expected_numbers: &[None, Some(1), Some(2), None, None, None],
+            expected_depths: &[0, 1, 1, 0, 0, 0],
+            expected_parents: &[None, Some(1), Some(1), None, None, None],
+            expected_markers: &[Some(" "), Some("X"), Some("/"), Some("?"), None, None],
+            expected_states: &[
+                Some(CheckboxState::Open),
+                Some(CheckboxState::Done),
+                Some(CheckboxState::Skipped),
+                Some(CheckboxState::Custom),
+                None,
+                None,
+            ],
+            expected_plain_texts: &[
+                "root open",
+                "nested done",
+                "nested skipped",
+                "custom state",
+                "[ab] malformed marker",
+                "ordinary item",
+            ],
+            expected_source_lines: &[5, 6, 7, 8, 9, 10],
+            expected_section_ordinals: &[Some(1), Some(1), Some(1), Some(1), Some(1), Some(1)],
+        },
+        ListTestCase {
+            description: "assigns title preamble items to synthetic section zero",
+            source: "# Work\n\n- preamble item\n",
+            expected_kinds: &[ListKind::Unordered],
+            expected_numbers: &[None],
+            expected_depths: &[0],
+            expected_parents: &[None],
+            expected_markers: &[None],
+            expected_states: &[None],
+            expected_plain_texts: &["preamble item"],
+            expected_source_lines: &[3],
+            expected_section_ordinals: &[Some(0)],
+        },
+    ];
 
     for test_case in &test_cases {
         let result = parse_markdown(test_case.source);
@@ -86,12 +102,11 @@ fn given_nested_lists_when_parsing_then_tracks_ownership_order_and_checkbox_stat
             .iter()
             .map(|item| item.source_line)
             .collect();
-        let heading_paths_valid = result.list_items.iter().all(|item| {
-            item.heading_path
-                .iter()
-                .map(String::as_str)
-                .eq(test_case.expected_heading_path.iter().copied())
-        });
+        let section_ordinals: Vec<Option<usize>> = result
+            .list_items
+            .iter()
+            .map(|item| item.section_ordinal)
+            .collect();
 
         assert_eq!(kinds, test_case.expected_kinds, "{}", test_case.description);
         assert_eq!(
@@ -129,6 +144,10 @@ fn given_nested_lists_when_parsing_then_tracks_ownership_order_and_checkbox_stat
             "{}",
             test_case.description
         );
-        assert!(heading_paths_valid, "{}", test_case.description);
+        assert_eq!(
+            section_ordinals, test_case.expected_section_ordinals,
+            "{}",
+            test_case.description
+        );
     }
 }

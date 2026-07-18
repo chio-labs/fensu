@@ -13,10 +13,11 @@ duckdb = { workspace = true, optional = true }
 gix.workspace = true
 hex.workspace = true
 pulldown-cmark.workspace = true
+rayon.workspace = true
 sha2.workspace = true
 
 [features]
-duckdb-engine = ["dep:duckdb"]
+duckdb-engine = ["dep:duckdb", "duckdb/appender-arrow"]
 bundled-duckdb = ["duckdb-engine", "duckdb/bundled"]
 
 [[test]]

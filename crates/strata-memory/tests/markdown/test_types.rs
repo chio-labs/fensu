@@ -32,7 +32,7 @@ pub(crate) struct ListTestCase {
     pub(crate) expected_states: &'static [Option<CheckboxState>],
     pub(crate) expected_plain_texts: &'static [&'static str],
     pub(crate) expected_source_lines: &'static [usize],
-    pub(crate) expected_heading_path: &'static [&'static str],
+    pub(crate) expected_section_ordinals: &'static [Option<usize>],
 }
 
 pub(crate) struct LinkTestCase {

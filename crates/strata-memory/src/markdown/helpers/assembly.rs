@@ -1,9 +1,7 @@
 //! Assembly of independent Markdown and Obsidian extraction phases.
 
 use crate::markdown::helpers::{blocks, headings, line_index::LineIndex, links, lists, obsidian};
-use crate::markdown::models::{
-    MarkdownHeading, MarkdownLink, MarkdownListItem, MarkdownSection, ParsedMarkdown,
-};
+use crate::markdown::models::{MarkdownLink, MarkdownListItem, MarkdownSection, ParsedMarkdown};
 
 pub(crate) fn parse(source: &str) -> ParsedMarkdown {
     let index = LineIndex::new(source);
@@ -12,7 +10,8 @@ pub(crate) fn parse(source: &str) -> ParsedMarkdown {
     let (preamble_raw_markdown, preamble_plain_text) = headings::preamble(source, &headings);
     let sections = headings::sections(source, &headings, &index);
     let mut list_items = lists::extract(source, &index);
-    attach_list_context(&mut list_items, &headings, &sections);
+    let preamble_bounds = headings::preamble_bounds(source.len(), &headings);
+    attach_list_context(&mut list_items, &sections, preamble_bounds);
     let code_blocks = blocks::extract(source, &index);
     let mut extracted_links = links::extract(source, &index);
     let (obsidian_links, tags) = obsidian::extract(source, &index);
@@ -35,8 +34,8 @@ pub(crate) fn parse(source: &str) -> ParsedMarkdown {
 
 fn attach_list_context(
     items: &mut [MarkdownListItem],
-    headings: &[MarkdownHeading],
     sections: &[MarkdownSection],
+    preamble_bounds: (usize, usize),
 ) {
     for item in items {
         let offset = item.source_range.start_byte;
@@ -45,12 +44,8 @@ fn attach_list_context(
             .find(|section| {
                 section.source_range.start_byte <= offset && offset < section.source_range.end_byte
             })
-            .map(|section| section.ordinal);
-        item.heading_path = headings
-            .iter()
-            .rev()
-            .find(|heading| heading.source_range.start_byte <= offset)
-            .map_or_else(Vec::new, |heading| heading.heading_path.clone());
+            .map(|section| section.ordinal)
+            .or_else(|| (preamble_bounds.0 <= offset && offset < preamble_bounds.1).then_some(0));
     }
 }
 

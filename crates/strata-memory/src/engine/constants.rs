@@ -6,9 +6,12 @@ pub(crate) const MAX_QUERY_LIMIT: usize = 1000;
 pub(crate) const MAX_QUERY_COLUMNS: usize = 256;
 pub(crate) const MAX_QUERY_RESULT_BYTES: usize = 8 * 1024 * 1024;
 pub(crate) const MAX_QUERY_VALUE_DEPTH: usize = 64;
+pub(crate) const MEMORY_PUBLICATION_BATCH_ROWS: usize = 16_384;
+pub(crate) const LIST_KIND_UNORDERED_CODE: u8 = 0;
+pub(crate) const LIST_KIND_ORDERED_CODE: u8 = 1;
 pub(crate) const QUERY_MAX_MEMORY: &str = "256MB";
 pub(crate) const QUERY_MAX_TEMP_DIRECTORY_SIZE: &str = "0B";
-pub(crate) const SCHEMA_VERSION: u32 = 1;
+pub(crate) const SCHEMA_VERSION: u32 = 2;
 pub(crate) const PARSER_CONTRACT_VERSION: u32 = 1;
 pub(crate) const ARCHIVE_STATE_ACTIVE: &str = "active";
 pub(crate) const ARCHIVE_STATE_ARCHIVED: &str = "archived";
@@ -18,6 +21,11 @@ pub(crate) const MEMORY_SCHEMA_SQL: &str = r#"
 CREATE TABLE meta (
     schema_version INTEGER PRIMARY KEY,
     parser_contract_version INTEGER NOT NULL
+);
+
+CREATE TABLE _document_keys (
+    document_key UBIGINT NOT NULL,
+    identity VARCHAR NOT NULL
 );
 
 CREATE TABLE documents (
@@ -65,16 +73,15 @@ CREATE TABLE sections (
     FOREIGN KEY (document_identity) REFERENCES documents(identity)
 );
 
-CREATE TABLE list_items (
-    document_identity VARCHAR NOT NULL,
+CREATE TABLE _list_items (
+    document_key UBIGINT NOT NULL,
     ordinal UBIGINT NOT NULL,
     section_ordinal UBIGINT,
     parent_ordinal UBIGINT,
     kind VARCHAR NOT NULL,
     nesting_depth UBIGINT NOT NULL,
     ordered_number UBIGINT,
-    heading_path VARCHAR NOT NULL,
-    raw_markdown VARCHAR NOT NULL,
+    raw_end_byte UBIGINT NOT NULL,
     plain_text VARCHAR NOT NULL,
     source_line UBIGINT NOT NULL,
     start_byte UBIGINT NOT NULL,
@@ -84,9 +91,7 @@ CREATE TABLE list_items (
     checkbox_raw VARCHAR,
     checkbox_state VARCHAR,
     leading_key VARCHAR,
-    relationship_kind VARCHAR,
-    PRIMARY KEY (document_identity, ordinal),
-    FOREIGN KEY (document_identity) REFERENCES documents(identity)
+    relationship_kind VARCHAR
 );
 
 CREATE TABLE links (
@@ -145,7 +150,41 @@ CREATE TABLE skill_files (
     FOREIGN KEY (skill_identity) REFERENCES documents(identity)
 );
 
-INSERT INTO meta VALUES (1, 1);
+CREATE VIEW list_items AS
+SELECT
+    document.identity AS document_identity,
+    item.ordinal,
+    item.section_ordinal,
+    item.parent_ordinal,
+    CASE item.kind WHEN 1 THEN 'ordered' ELSE 'unordered' END AS kind,
+    item.nesting_depth,
+    item.ordered_number,
+    COALESCE(section.heading_path, '') AS heading_path,
+    substring(
+        source.raw_markdown,
+        CAST(item.start_byte + 1 AS BIGINT),
+        CAST(item.raw_end_byte - item.start_byte AS BIGINT)
+    ) AS raw_markdown,
+    item.plain_text,
+    item.source_line,
+    item.start_byte,
+    item.end_byte,
+    item.start_line,
+    item.end_line,
+    item.checkbox_raw,
+    item.checkbox_state,
+    item.leading_key,
+    item.relationship_kind
+FROM _list_items AS item
+JOIN _document_keys AS document
+    ON document.document_key = item.document_key
+JOIN documents AS source
+    ON source.identity = document.identity
+LEFT JOIN sections AS section
+    ON section.document_identity = document.identity
+    AND section.ordinal = item.section_ordinal;
+
+INSERT INTO meta VALUES (2, 1);
 
 CREATE VIEW current_documents AS
 SELECT * FROM documents WHERE archive_state = 'active';

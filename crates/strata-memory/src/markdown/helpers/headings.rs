@@ -73,15 +73,20 @@ pub(crate) fn title(headings: &[MarkdownHeading]) -> Option<String> {
 }
 
 pub(crate) fn preamble(source: &str, headings: &[MarkdownHeading]) -> (String, String) {
+    let (start, end) = preamble_bounds(source.len(), headings);
+    let raw = source.get(start..end).unwrap_or_default().to_owned();
+    let plain = text::plain_text(&raw);
+    (raw, plain)
+}
+
+pub(crate) fn preamble_bounds(source_len: usize, headings: &[MarkdownHeading]) -> (usize, usize) {
     let title = headings.iter().find(|heading| heading.level == 1);
     let start = title.map_or(0, |heading| heading.source_range.end_byte);
     let end = headings
         .iter()
         .find(|heading| heading.source_range.start_byte >= start && heading.level > 1)
-        .map_or(source.len(), |heading| heading.source_range.start_byte);
-    let raw = source.get(start..end).unwrap_or_default().to_owned();
-    let plain = text::plain_text(&raw);
-    (raw, plain)
+        .map_or(source_len, |heading| heading.source_range.start_byte);
+    (start, end)
 }
 
 pub(crate) fn sections(

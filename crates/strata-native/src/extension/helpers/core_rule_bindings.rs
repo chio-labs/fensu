@@ -8,11 +8,12 @@ use strata_facts::extension::models::ProgramHandle;
 
 use crate::rules::constants::NATIVE_RULE_FACT_FAMILIES;
 use crate::rules::main::evaluate_core_rules::evaluate_core_rules;
-use crate::rules::models::NativeFaultRow;
-use crate::rules::models::NativeRuleContext;
+use crate::rules::main::plan_core_rule_queries::plan_core_rule_queries;
+use crate::rules::models::{NativeFaultRow, NativeRuleContext};
 
 type NativeFaultTuple = (
     String,
+    Option<String>,
     Option<u32>,
     Option<u32>,
     Option<String>,
@@ -30,8 +31,16 @@ type NativeRuleRequestTuple = (
     Vec<String>,
     bool,
     String,
-    Vec<String>,
+    NativeProjectContextTuple,
 );
+type NativeProjectContextTuple = (
+    Vec<String>,
+    Vec<(String, String)>,
+    HashMap<String, Vec<String>>,
+    Vec<(String, String, String, String, u32, u32)>,
+);
+
+type NativeProjectQueryTuple = (String, String, String, String);
 
 #[pyfunction]
 pub(crate) fn evaluate_native_core_rules(
@@ -54,7 +63,7 @@ pub(crate) fn evaluate_native_core_rules(
                     relative_parts,
                     is_entry_module,
                     package_name,
-                    tooling_packages,
+                    project_context,
                 )| {
                     let context = NativeRuleContext {
                         scope: scope.clone(),
@@ -66,7 +75,10 @@ pub(crate) fn evaluate_native_core_rules(
                         relative_parts: relative_parts.clone(),
                         is_entry_module: *is_entry_module,
                         package_name: package_name.clone(),
-                        tooling_packages: tooling_packages.clone(),
+                        tooling_packages: project_context.0.clone(),
+                        scope_roots: project_context.1.clone(),
+                        observations: project_context.2.clone(),
+                        custom_registrations: project_context.3.clone(),
                     };
                     evaluate_core_rules(handle.get(), codes, &context)
                         .map(|rows| rows.into_iter().map(as_tuple).collect())
@@ -75,6 +87,43 @@ pub(crate) fn evaluate_native_core_rules(
             .collect();
         batches.map_err(PyValueError::new_err)
     })
+}
+
+#[pyfunction]
+pub(crate) fn plan_native_core_rule_queries(
+    py: Python<'_>,
+    requests: Vec<NativeRuleRequestTuple>,
+) -> Vec<Vec<NativeProjectQueryTuple>> {
+    py.detach(move || {
+        requests
+            .par_iter()
+            .map(|request| {
+                let context = context_from_request(request);
+                plan_core_rule_queries(request.0.get(), &request.1, &context)
+                    .into_iter()
+                    .map(|query| (query.key(), query.kind, query.path, query.argument))
+                    .collect()
+            })
+            .collect()
+    })
+}
+
+fn context_from_request(request: &NativeRuleRequestTuple) -> NativeRuleContext {
+    NativeRuleContext {
+        scope: request.2.clone(),
+        role: request.3.clone(),
+        is_main_module: request.4,
+        thresholds: request.5.clone(),
+        repository_path: request.6.clone(),
+        contracts: request.7.clone(),
+        relative_parts: request.8.clone(),
+        is_entry_module: request.9,
+        package_name: request.10.clone(),
+        tooling_packages: request.11 .0.clone(),
+        scope_roots: request.11 .1.clone(),
+        observations: request.11 .2.clone(),
+        custom_registrations: request.11 .3.clone(),
+    }
 }
 
 #[pyfunction]
@@ -94,6 +143,7 @@ fn as_tuple(row: NativeFaultRow) -> NativeFaultTuple {
     let location = (row.line != 0).then_some((row.line, row.column));
     (
         row.code,
+        row.path,
         location.map(|(line, _)| line),
         location.map(|(_, column)| column),
         row.message,

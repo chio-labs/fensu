@@ -104,6 +104,9 @@ class _EvaluationProjectAnalysis:
 
         path: Path = self._resolve(parsed.scoped_file.path)
         _ = self._parsed_modules.setdefault(str(path), parsed)
+        if parsed.scoped_file.path.name == _test_types_file_name:
+            self._source_answers[str(path)] = parsed.source_fingerprint
+            self._dataclasses[str(path)] = parsed.analysis.facts.dataclasses()
 
     def analysis(self, *, requester: Path, path: Path) -> Analysis | None:
         """Return tolerant analysis for a queried path and record its dependency."""

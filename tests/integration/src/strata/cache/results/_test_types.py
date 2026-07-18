@@ -111,6 +111,21 @@ class CachedNamingParityTestCase:
 
 
 @dataclass(frozen=True)
+class CachedNativeProjectRuleTestCase:
+    """Native project observation and expected persistent cache behavior."""
+
+    description: str
+    target_path: str
+    source_path: str
+    expected_code: str
+    expected_dependency_kind: str
+    expected_dependency_answer: bool
+    expected_cold_misses: int
+    expected_warm_hits: int
+    expected_non_cacheable: int
+
+
+@dataclass(frozen=True)
 class CachedEvaluationInvalidationTestCase:
     """One input mutation and expected recomputed diagnostic state."""
 

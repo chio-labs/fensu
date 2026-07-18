@@ -4,11 +4,12 @@ use strata_facts::extension::models::ProgramHandle;
 
 use crate::rules::constants::{
     DEFAULT_MUTATION_RETURN_CODE, KEYWORD_ONLY_ARGUMENTS_CODE, MAX_ARGUMENTS_CODE,
-    MAX_STATEMENTS_GLOBAL_CODE, MUTABLE_RESULT_MODEL_CODE, NO_COMPLEX_COMPREHENSIONS_CODE,
-    NO_OUTER_STATE_MUTATION_CODE, PARAMETER_MUTATION_IN_PHASE_HELPERS_CODE,
-    TOO_MANY_DISTINCT_CALLS_CODE, TOO_MANY_LOCALS_CODE, TOO_MANY_STATEMENTS_CODE,
+    MAX_STATEMENTS_GLOBAL_CODE, MEANINGFUL_PROJECT_RESULT_DISCARDED_CODE,
+    MUTABLE_RESULT_MODEL_CODE, NO_COMPLEX_COMPREHENSIONS_CODE, NO_OUTER_STATE_MUTATION_CODE,
+    PARAMETER_MUTATION_IN_PHASE_HELPERS_CODE, TOO_MANY_DISTINCT_CALLS_CODE, TOO_MANY_LOCALS_CODE,
+    TOO_MANY_STATEMENTS_CODE,
 };
-use crate::rules::models::{NativeFaultRow, NativeRuleContext};
+use crate::rules::models::{NativeFaultRow, NativeProjectQuery, NativeRuleContext};
 
 const MAX_ARGUMENTS_THRESHOLD: &str = "max_arguments";
 const MAX_DISTINCT_CALLS_THRESHOLD: &str = "max_distinct_calls";
@@ -57,6 +58,9 @@ pub(crate) fn shape_faults(
             |count, _| format!("function has {count} parameters"),
         ),
         MAX_STATEMENTS_GLOBAL_CODE => global_statement_faults(program, code, context),
+        MEANINGFUL_PROJECT_RESULT_DISCARDED_CODE => {
+            meaningful_project_result_faults(program, code, context)
+        }
         PARAMETER_MUTATION_IN_PHASE_HELPERS_CODE => {
             if context.role.as_deref() != Some("helpers") {
                 Vec::new()
@@ -117,6 +121,35 @@ pub(crate) fn shape_faults(
         _ => return None,
     };
     Some(faults)
+}
+
+fn meaningful_project_result_faults(
+    program: &ProgramHandle,
+    code: &str,
+    context: &NativeRuleContext,
+) -> Vec<NativeFaultRow> {
+    if !context.is_main_module {
+        return Vec::new();
+    }
+    let (functions, calls) = program.project_rows();
+    calls
+        .iter()
+        .filter(|call| {
+            if let Some(module_name) = &call.module_name {
+                let observation = NativeProjectQuery {
+                    kind: "module_function".to_owned(),
+                    path: module_name.clone(),
+                    argument: call.function_name.clone(),
+                };
+                context.observation(&observation) == ["meaningful"]
+            } else {
+                functions.iter().any(|function| {
+                    function.name == call.function_name && function.meaningful_result
+                })
+            }
+        })
+        .map(|call| location_fault(code, call.line, call.column))
+        .collect()
 }
 
 fn main_metric_faults<Metric, Message>(
@@ -214,6 +247,7 @@ fn metric_fault(
         column: row.column,
         message: Some(message),
         remediation: None,
+        path: None,
     }
 }
 
@@ -224,5 +258,6 @@ fn location_fault(code: &str, line: u32, column: u32) -> NativeFaultRow {
         column,
         message: None,
         remediation: None,
+        path: None,
     }
 }

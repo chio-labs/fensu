@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -36,7 +37,7 @@ from strata.rules.authoring.types import RuleKind
 if TYPE_CHECKING:
     from strata.analysis.models import ProjectDependency
     from strata.config.models import Config
-    from strata.discovery.models import DiscoveredTree, ScopedFile
+    from strata.discovery.models import DiscoveredTree
     from strata.evaluation.models import (
         EvaluationResult,
         EvaluationSelection,
@@ -161,8 +162,7 @@ def run_cached_evaluation(
     if early is not None:
         return early
     from strata.evaluation.main.build_project import build_evaluation_project
-    from strata.evaluation.main.evaluate_target import evaluate_target
-    from strata.evaluation.main.prewarm_files import prewarm_evaluation_files
+    from strata.evaluation.main.evaluate_target_chunk import evaluate_target_chunk
 
     loaded_entries: tuple[CacheIndexEntry, ...] = tuple(
         entry
@@ -192,12 +192,24 @@ def run_cached_evaluation(
         loaded_results=loaded_results,
         dependency_states=replay_inputs.states,
     )
-    miss_files: tuple[ScopedFile, ...] = tuple(
-        decision.target.scoped_file
+    miss_targets: tuple[EvaluationTarget, ...] = tuple(
+        decision.target
         for decision in decisions
         if decision.lookup is None or decision.lookup.result is None
     )
-    evaluated_misses: int = 0
+    evaluated_misses: list[FileEvaluation] = []
+    for start in range(0, len(miss_targets), PREWARM_CHUNK_SIZE):
+        evaluated_misses.extend(
+            evaluate_target_chunk(
+                targets=miss_targets[start : start + PREWARM_CHUNK_SIZE],
+                ruleset=scopes.cacheable_ruleset,
+                warning_rules=scopes.cacheable_warning_rules,
+                config=config,
+                tree=tree,
+                project=project,
+            )
+        )
+    fresh_iterator: Iterator[FileEvaluation] = iter(evaluated_misses)
     for decision in decisions:
         lookup: CacheLookup | None = decision.lookup
         if lookup is not None and lookup.result is not None:
@@ -210,20 +222,7 @@ def run_cached_evaluation(
             misses += 1
         else:
             invalidations += 1
-        if evaluated_misses % PREWARM_CHUNK_SIZE == 0:
-            prewarm_evaluation_files(
-                project=project,
-                scoped_files=miss_files[evaluated_misses : evaluated_misses + PREWARM_CHUNK_SIZE],
-            )
-        evaluated_misses += 1
-        fresh: FileEvaluation = evaluate_target(
-            target=decision.target,
-            ruleset=scopes.cacheable_ruleset,
-            warning_rules=scopes.cacheable_warning_rules,
-            config=config,
-            tree=tree,
-            project=project,
-        )
+        fresh: FileEvaluation = next(fresh_iterator)
         ordered_results.append(fresh)
         fresh_evaluations.append(fresh)
     if (
@@ -553,8 +552,7 @@ def _fresh_edit_evaluations(
     changed: frozenset[str],
 ) -> tuple[FileEvaluation, ...]:
     from strata.evaluation.main.build_project import build_evaluation_project
-    from strata.evaluation.main.evaluate_target import evaluate_target
-    from strata.evaluation.main.prewarm_files import prewarm_evaluation_files
+    from strata.evaluation.main.evaluate_target_chunk import evaluate_target_chunk
 
     changed_targets: tuple[EvaluationTarget, ...] = tuple(
         target
@@ -569,21 +567,16 @@ def _fresh_edit_evaluations(
     fresh_evaluations: list[FileEvaluation] = []
     for start in range(0, len(changed_targets), PREWARM_CHUNK_SIZE):
         chunk: tuple[EvaluationTarget, ...] = changed_targets[start : start + PREWARM_CHUNK_SIZE]
-        prewarm_evaluation_files(
-            project=project,
-            scoped_files=tuple(target.scoped_file for target in chunk),
-        )
-        for target in chunk:
-            fresh_evaluations.append(
-                evaluate_target(
-                    target=target,
-                    ruleset=inputs.scopes.cacheable_ruleset,
-                    warning_rules=inputs.scopes.cacheable_warning_rules,
-                    config=inputs.config,
-                    tree=inputs.tree,
-                    project=project,
-                )
+        fresh_evaluations.extend(
+            evaluate_target_chunk(
+                targets=chunk,
+                ruleset=inputs.scopes.cacheable_ruleset,
+                warning_rules=inputs.scopes.cacheable_warning_rules,
+                config=inputs.config,
+                tree=inputs.tree,
+                project=project,
             )
+        )
     return tuple(fresh_evaluations)
 
 

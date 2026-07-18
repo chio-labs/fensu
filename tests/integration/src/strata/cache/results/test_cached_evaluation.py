@@ -2,20 +2,25 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
+from strata.analysis.models import ProjectDependency
 from strata.cache.fingerprints.models import CacheFingerprint
 from strata.cache.results.main.evaluate import evaluate_with_cache
 from strata.cache.results.models import CacheEvaluation
 from strata.config.models import Config, EvaluationConfig
+from strata.discovery.main.discover_files import discover_files
 from strata.discovery.models import DiscoveredTree
 from strata.evaluation.main.evaluate import evaluate
 from strata.evaluation.models import EvaluationResult, EvaluationSelection
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import RuleKind
 from strata.rules.naming.constants import SFN_RULES
+from strata.rules.tests.constants import SFT_RULES
 from tests.integration.src.strata.cache.results._test_types import (
     CachedDomainShapeInvalidationTestCase,
     CachedEvaluationDegradationTestCase,
@@ -28,6 +33,7 @@ from tests.integration.src.strata.cache.results._test_types import (
     CachedEvaluationSweepTestCase,
     CachedLeafMainInvalidationTestCase,
     CachedNamingParityTestCase,
+    CachedNativeProjectRuleTestCase,
     CachedResultReadFilteringTestCase,
     CachedSharedDomainPrefixInvalidationTestCase,
     EditReplayDependencyTestCase,
@@ -169,6 +175,73 @@ def test_given_cached_naming_facts_when_evaluating_warm_then_preserves_exact_fau
     assert tuple(fault.code for fault in evaluated_result(cold).faults) == test_case.expected_codes
     assert warm.stats.hits == test_case.expected_warm_hits
     assert evaluated_result(warm).faults == evaluated_result(cold).faults
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CachedNativeProjectRuleTestCase(
+            description="native project dependency is cacheable and reused",
+            target_path="tests/unit/src/pkg/domain/test_models.py",
+            source_path="src/pkg/domain/models.py",
+            expected_code="SFT204",
+            expected_dependency_kind="is_file",
+            expected_dependency_answer=False,
+            expected_cold_misses=1,
+            expected_warm_hits=1,
+            expected_non_cacheable=0,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_native_project_dependency_when_evaluating_warm_then_reuses_exact_result(
+    tmp_path: Path,
+    test_case: CachedNativeProjectRuleTestCase,
+) -> None:
+    write_project_sources(
+        repo_root=tmp_path,
+        files=(
+            (test_case.source_path, "value: int = 1\n"),
+            (test_case.target_path, ""),
+        ),
+    )
+    config: Config = Config(
+        roots=("src/pkg",),
+        tests=("tests",),
+        evaluation=EvaluationConfig(include=(test_case.target_path,)),
+    )
+    tree: DiscoveredTree = discover_files(config=config, repo_root=tmp_path)
+    rules_by_code: dict[str, RuleSpec] = {rule.code: rule for rule in SFT_RULES}
+    python_callback: Mock = Mock(side_effect=AssertionError("Python callback executed"))
+    ruleset: tuple[RuleSpec, ...] = (
+        replace(rules_by_code[test_case.expected_code], check=python_callback),
+    )
+
+    cold: CacheEvaluation = evaluate_with_cache(
+        tree=tree,
+        ruleset=ruleset,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+    warm: CacheEvaluation = evaluate_with_cache(
+        tree=tree,
+        ruleset=ruleset,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+
+    cold_result: EvaluationResult = evaluated_result(cold)
+    dependency: ProjectDependency = cold_result.dependencies[0]
+    assert tuple(fault.code for fault in cold_result.faults) == (test_case.expected_code,)
+    assert dependency.requester.relative_to(tmp_path).as_posix() == test_case.target_path
+    assert dependency.kind == test_case.expected_dependency_kind
+    assert dependency.answer is test_case.expected_dependency_answer
+    assert cold.stats.misses == test_case.expected_cold_misses
+    assert cold.stats.non_cacheable == test_case.expected_non_cacheable
+    assert warm.stats.hits == test_case.expected_warm_hits
+    assert warm.stats.non_cacheable == test_case.expected_non_cacheable
+    assert evaluated_result(warm) == cold_result
+    assert python_callback.call_count == 0
 
 
 @pytest.mark.parametrize(

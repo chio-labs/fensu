@@ -4,22 +4,28 @@ use strata_facts::extension::models::ProgramHandle;
 use strata_facts::facts::models::{ParametrizeRow, TestFunctionRow};
 
 use crate::rules::constants::{
-    TEST_ABSOLUTE_IMPORTS_CODE, TEST_ACCEPTS_TEST_CASE_CODE, TEST_DATACLASS_PARAMETRIZE_CODE,
-    TEST_DESCRIPTION_FIELD_NAME, TEST_DESCRIPTION_LAMBDA_IDS_CODE,
+    TEST_ABSOLUTE_IMPORTS_CODE, TEST_ACCEPTS_TEST_CASE_CODE, TEST_CASE_ANNOTATION_CODE,
+    TEST_DATACLASS_PARAMETRIZE_CODE, TEST_DESCRIPTION_FIELD_NAME, TEST_DESCRIPTION_LAMBDA_IDS_CODE,
     TEST_EXPECTED_FIELD_ASSERTION_CODE, TEST_EXPECTED_FIELD_PREFIX, TEST_FILE_NAME_CODE,
     TEST_FUNCTION_NAME_CODE, TEST_INIT_MODULE_EMPTY_CODE, TEST_INIT_MODULE_NAME,
-    TEST_INLINE_PARAMETRIZE_VALUES_CODE, TEST_LOCAL_TEST_TYPES_IMPORT_CODE,
-    TEST_MINIMUM_PARAMETRIZE_ARGUMENTS, TEST_NONEMPTY_PARAMETRIZE_VALUES_CODE,
-    TEST_NO_COMPLEX_COMPREHENSIONS_CODE, TEST_NO_DICT_TEST_CASES_CODE, TEST_NO_IF_IN_TESTS_CODE,
-    TEST_NO_TOP_LEVEL_HELPERS_CODE, TEST_PARAMETRIZE_ARGUMENTS_CODE, TEST_PARAMETRIZE_IDS_CODE,
-    TEST_PARAMETRIZE_TEST_CASE_CODE, TEST_PRIVATE_CONSTANT_ORDER_CODE, TEST_TYPES_DESCRIPTION_CODE,
-    TEST_TYPES_EXPECTED_FIELD_CODE,
+    TEST_INLINE_PARAMETRIZE_VALUES_CODE, TEST_LAYOUT_CODE, TEST_LOCAL_TEST_CASE_CONSTRUCTORS_CODE,
+    TEST_LOCAL_TEST_TYPES_FILE_CODE, TEST_LOCAL_TEST_TYPES_IMPORT_CODE,
+    TEST_MINIMUM_PARAMETRIZE_ARGUMENTS, TEST_MIRRORED_ROOT_CODE,
+    TEST_NONEMPTY_PARAMETRIZE_VALUES_CODE, TEST_NO_COMPLEX_COMPREHENSIONS_CODE,
+    TEST_NO_DICT_TEST_CASES_CODE, TEST_NO_IF_IN_TESTS_CODE, TEST_NO_TOP_LEVEL_HELPERS_CODE,
+    TEST_PARAMETRIZE_ARGUMENTS_CODE, TEST_PARAMETRIZE_IDS_CODE, TEST_PARAMETRIZE_TEST_CASE_CODE,
+    TEST_PRIVATE_CONSTANT_ORDER_CODE, TEST_SCOPE_CODE, TEST_SCRIPTS_AREA_EXISTS_CODE,
+    TEST_SCRIPTS_MIRROR_DEPTH_CODE, TEST_SRC_AREA_EXISTS_CODE, TEST_SRC_MIRROR_DEPTH_CODE,
+    TEST_SRC_PACKAGE_EXISTS_CODE, TEST_TYPES_DESCRIPTION_CODE, TEST_TYPES_EXPECTED_FIELD_CODE,
 };
-use crate::rules::models::{NativeFaultRow, NativeRuleContext};
+use crate::rules::helpers::test_layout::{is_layout_code, layout_faults};
+use crate::rules::helpers::test_names::{description_ids_fault, valid_test_name};
+use crate::rules::models::{NativeFaultRow, NativeProjectQuery, NativeRuleContext};
 
 const TEST_SCOPE: &str = "test";
 const TEST_CASE_NAME: &str = "test_case";
 const TEST_TYPES_FILE: &str = "_test_types.py";
+const SCENARIO_MODELS_FILE: &str = "scenario_models.py";
 const HELPER_MODULES: &[&str] = &["_test_helpers.py", "helpers.py"];
 const NON_TEST_MODULES: &[&str] = &[
     "_test_helpers.py",
@@ -46,6 +52,15 @@ pub(crate) fn test_faults(
         .next()
         .unwrap_or_default();
     let test_module = !NON_TEST_MODULES.contains(&file_name);
+    if file_name == SCENARIO_MODELS_FILE && code == TEST_LAYOUT_CODE {
+        return Some(location_faults(
+            code,
+            &program.test_module_rows().scenario_invalid,
+        ));
+    }
+    if is_layout_code(code) {
+        return Some(layout_faults(code, context, file_name));
+    }
     let faults = match code {
         TEST_INIT_MODULE_EMPTY_CODE => init_module_faults(program, code, file_name),
         TEST_ABSOLUTE_IMPORTS_CODE => program
@@ -96,14 +111,25 @@ pub(crate) fn test_faults(
         TEST_LOCAL_TEST_TYPES_IMPORT_CODE if test_module => {
             local_test_types_import_faults(program, code, &context.repository_path)
         }
+        TEST_LOCAL_TEST_TYPES_FILE_CODE if test_module => {
+            let path = sibling_path(&context.repository_path, TEST_TYPES_FILE);
+            if observed_bool(context, "is_file", &path) {
+                Vec::new()
+            } else {
+                vec![path_fault(code, None)]
+            }
+        }
         TEST_FILE_NAME_CODE if test_module && !file_name.starts_with("test_") => {
             vec![path_fault(code, None)]
         }
-        code if is_test_function_code(code) && test_module => program
-            .test_function_rows()
-            .iter()
-            .flat_map(|row| test_function_faults(code, row))
-            .collect(),
+        code if is_test_function_code(code) && test_module => {
+            let local_types = local_test_case_types(program, context);
+            program
+                .test_function_rows()
+                .iter()
+                .flat_map(|row| test_function_faults(code, row, &local_types))
+                .collect()
+        }
         _ => Vec::new(),
     };
     Some(faults)
@@ -112,7 +138,15 @@ pub(crate) fn test_faults(
 fn is_test_code(code: &str) -> bool {
     matches!(
         code,
-        TEST_INIT_MODULE_EMPTY_CODE
+        TEST_LAYOUT_CODE
+            | TEST_SCOPE_CODE
+            | TEST_MIRRORED_ROOT_CODE
+            | TEST_SRC_MIRROR_DEPTH_CODE
+            | TEST_SRC_PACKAGE_EXISTS_CODE
+            | TEST_SRC_AREA_EXISTS_CODE
+            | TEST_SCRIPTS_MIRROR_DEPTH_CODE
+            | TEST_SCRIPTS_AREA_EXISTS_CODE
+            | TEST_INIT_MODULE_EMPTY_CODE
             | TEST_ABSOLUTE_IMPORTS_CODE
             | TEST_NO_TOP_LEVEL_HELPERS_CODE
             | TEST_NO_IF_IN_TESTS_CODE
@@ -121,10 +155,12 @@ fn is_test_code(code: &str) -> bool {
             | TEST_TYPES_DESCRIPTION_CODE
             | TEST_TYPES_EXPECTED_FIELD_CODE
             | TEST_LOCAL_TEST_TYPES_IMPORT_CODE
+            | TEST_LOCAL_TEST_TYPES_FILE_CODE
             | TEST_FILE_NAME_CODE
             | TEST_FUNCTION_NAME_CODE
             | TEST_DATACLASS_PARAMETRIZE_CODE
             | TEST_ACCEPTS_TEST_CASE_CODE
+            | TEST_CASE_ANNOTATION_CODE
             | TEST_EXPECTED_FIELD_ASSERTION_CODE
             | TEST_PARAMETRIZE_ARGUMENTS_CODE
             | TEST_PARAMETRIZE_TEST_CASE_CODE
@@ -132,6 +168,7 @@ fn is_test_code(code: &str) -> bool {
             | TEST_INLINE_PARAMETRIZE_VALUES_CODE
             | TEST_NONEMPTY_PARAMETRIZE_VALUES_CODE
             | TEST_NO_DICT_TEST_CASES_CODE
+            | TEST_LOCAL_TEST_CASE_CONSTRUCTORS_CODE
             | TEST_DESCRIPTION_LAMBDA_IDS_CODE
     )
 }
@@ -142,6 +179,7 @@ fn is_test_function_code(code: &str) -> bool {
         TEST_FUNCTION_NAME_CODE
             | TEST_DATACLASS_PARAMETRIZE_CODE
             | TEST_ACCEPTS_TEST_CASE_CODE
+            | TEST_CASE_ANNOTATION_CODE
             | TEST_EXPECTED_FIELD_ASSERTION_CODE
             | TEST_PARAMETRIZE_ARGUMENTS_CODE
             | TEST_PARAMETRIZE_TEST_CASE_CODE
@@ -149,6 +187,7 @@ fn is_test_function_code(code: &str) -> bool {
             | TEST_INLINE_PARAMETRIZE_VALUES_CODE
             | TEST_NONEMPTY_PARAMETRIZE_VALUES_CODE
             | TEST_NO_DICT_TEST_CASES_CODE
+            | TEST_LOCAL_TEST_CASE_CONSTRUCTORS_CODE
             | TEST_DESCRIPTION_LAMBDA_IDS_CODE
     )
 }
@@ -187,7 +226,11 @@ fn local_test_types_import_faults(
         .collect()
 }
 
-fn test_function_faults(code: &str, row: &TestFunctionRow) -> Vec<NativeFaultRow> {
+fn test_function_faults(
+    code: &str,
+    row: &TestFunctionRow,
+    local_types: &std::collections::HashSet<String>,
+) -> Vec<NativeFaultRow> {
     if code == TEST_FUNCTION_NAME_CODE {
         return (!valid_test_name(&row.name))
             .then(|| location_fault(code, row.line, row.column))
@@ -205,6 +248,15 @@ fn test_function_faults(code: &str, row: &TestFunctionRow) -> Vec<NativeFaultRow
             .parameter_names
             .iter()
             .any(|name| name == TEST_CASE_NAME),
+        TEST_CASE_ANNOTATION_CODE => {
+            !row.parameter_names
+                .iter()
+                .any(|name| name == TEST_CASE_NAME)
+                || !row
+                    .test_case_annotation_name
+                    .as_ref()
+                    .is_some_and(|name| local_types.contains(name))
+        }
         TEST_EXPECTED_FIELD_ASSERTION_CODE => !row.references_expected_field,
         TEST_PARAMETRIZE_ARGUMENTS_CODE => {
             parametrize.argument_count < TEST_MINIMUM_PARAMETRIZE_ARGUMENTS
@@ -233,29 +285,78 @@ fn test_function_faults(code: &str, row: &TestFunctionRow) -> Vec<NativeFaultRow
     if code == TEST_NO_DICT_TEST_CASES_CODE {
         return dictionary_case_faults(code, parametrize);
     }
+    if code == TEST_LOCAL_TEST_CASE_CONSTRUCTORS_CODE {
+        return local_constructor_faults(code, parametrize, local_types);
+    }
     fault
         .then(|| location_fault(code, row.line, row.column))
         .into_iter()
         .collect()
 }
 
-fn valid_test_name(name: &str) -> bool {
-    let Some(after_given) = name.strip_prefix("test_given_") else {
-        return false;
-    };
-    let Some((state, after_when)) = after_given.split_once("_when_") else {
-        return false;
-    };
-    let Some((action, outcome)) = after_when.split_once("_then_") else {
-        return false;
-    };
-    !state.is_empty() && !action.is_empty() && !outcome.is_empty()
+fn local_constructor_faults(
+    code: &str,
+    row: &ParametrizeRow,
+    local_types: &std::collections::HashSet<String>,
+) -> Vec<NativeFaultRow> {
+    if row.argument_count < TEST_MINIMUM_PARAMETRIZE_ARGUMENTS
+        || (!row.values_is_sequence && !row.values_is_comprehension)
+    {
+        return Vec::new();
+    }
+    row.cases
+        .iter()
+        .filter(|case| {
+            !case.dictionary
+                && !case
+                    .constructor_name
+                    .as_ref()
+                    .is_some_and(|name| local_types.contains(name))
+        })
+        .map(|case| location_fault(code, case.line, case.column))
+        .collect()
 }
 
-fn description_ids_fault(row: &ParametrizeRow) -> bool {
-    row.argument_count >= TEST_MINIMUM_PARAMETRIZE_ARGUMENTS
-        && (row.values_is_sequence || row.values_is_comprehension)
-        && !row.description_lambda_ids
+fn local_test_case_types(
+    program: &ProgramHandle,
+    context: &NativeRuleContext,
+) -> std::collections::HashSet<String> {
+    let path = sibling_path(&context.repository_path, TEST_TYPES_FILE);
+    let query = NativeProjectQuery {
+        kind: "dataclasses".to_owned(),
+        path,
+        argument: String::new(),
+    };
+    let declared: std::collections::HashSet<&str> = context
+        .observation(&query)
+        .iter()
+        .map(String::as_str)
+        .collect();
+    let expected_module = sibling_path(&context.repository_path, "_test_types").replace('/', ".");
+    let mut imported = std::collections::HashSet::new();
+    for row in &program.reference_rows().imports {
+        if row.top_level && row.from_import && row.module_parts.join(".") == expected_module {
+            for alias in &row.aliases {
+                if declared.contains(alias.imported_name.as_str()) {
+                    imported.insert(alias.bound_name.clone());
+                }
+            }
+        }
+    }
+    imported
+}
+
+fn sibling_path(repository_path: &str, name: &str) -> String {
+    let parent = repository_path.rsplit_once('/').map_or("", |item| item.0);
+    format!("{parent}/{name}")
+}
+
+fn observed_bool(context: &NativeRuleContext, kind: &str, path: &str) -> bool {
+    context.observation(&NativeProjectQuery {
+        kind: kind.to_owned(),
+        path: path.to_owned(),
+        argument: String::new(),
+    }) == ["true"]
 }
 
 fn dictionary_case_faults(code: &str, row: &ParametrizeRow) -> Vec<NativeFaultRow> {
@@ -283,6 +384,7 @@ fn location_fault(code: &str, line: u32, column: u32) -> NativeFaultRow {
         column,
         message: None,
         remediation: None,
+        path: None,
     }
 }
 
@@ -293,5 +395,6 @@ fn path_fault(code: &str, message: Option<&str>) -> NativeFaultRow {
         column: 0,
         message: message.map(str::to_owned),
         remediation: None,
+        path: None,
     }
 }

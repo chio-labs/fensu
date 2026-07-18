@@ -42,6 +42,7 @@ _LOCAL_NATIVE_SFR_CODES: frozenset[str] = frozenset(
         "SFR201",
         "SFR202",
         "SFR203",
+        "SFR204",
         "SFR205",
         "SFR303",
         "SFR304",
@@ -51,6 +52,7 @@ _LOCAL_NATIVE_SFR_CODES: frozenset[str] = frozenset(
         "SFR402",
         "SFR403",
         "SFR404",
+        "SFR405",
         "SFR406",
         "SFR501",
         "SFR502",
@@ -60,7 +62,9 @@ _LOCAL_NATIVE_SFR_CODES: frozenset[str] = frozenset(
         "SFR702",
         "SFR703",
         "SFR704",
+        "SFR705",
         "SFR706",
+        "SFR707",
     }
 )
 

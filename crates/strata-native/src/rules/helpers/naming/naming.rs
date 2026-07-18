@@ -138,6 +138,7 @@ fn validator_fault(row: &FunctionContractRow) -> Option<NativeFaultRow> {
 value-producing function as a query such as is_valid or get_validation_result."
                 .to_owned(),
         ),
+        path: None,
     })
 }
 
@@ -155,6 +156,7 @@ fn predicate_fault(row: &FunctionContractRow) -> Option<NativeFaultRow> {
             annotation(row)
         )),
         remediation: Some(predicate_remediation(&row.function_name)),
+        path: None,
     })
 }
 
@@ -172,6 +174,7 @@ fn value_fault(row: &FunctionContractRow) -> Option<NativeFaultRow> {
             annotation(row)
         )),
         remediation: Some(value_remediation(&row.function_name)),
+        path: None,
     })
 }
 
@@ -199,6 +202,7 @@ fn iterator_fault(row: &FunctionContractRow) -> Option<NativeFaultRow> {
             "Return an iterator or generator, or rename an eager collection function with a \
 name such as collect_{suffix}."
         )),
+        path: None,
     })
 }
 

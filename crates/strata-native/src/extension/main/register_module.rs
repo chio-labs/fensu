@@ -16,6 +16,10 @@ pub fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
         module
     )?)?;
     module.add_function(wrap_pyfunction!(
+        core_rule_bindings::plan_native_core_rule_queries,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(
         core_rule_bindings::native_rule_fact_families,
         module
     )?)?;

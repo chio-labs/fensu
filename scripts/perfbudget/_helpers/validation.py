@@ -15,7 +15,9 @@ from scripts.perfbudget.constants import (
     FAULT_EXIT_CODE,
     GLOBAL_MISMATCH_SCENARIO,
     GLOBAL_MISMATCH_UNCACHED_SCENARIO,
+    INIT_SCENARIO,
     UNCACHED_SCENARIO,
+    VERSION_SCENARIO,
     WARM_MISS_FREE_FRAGMENT,
     WARM_SCENARIO,
     WARM_WRITE_FREE_FRAGMENT,
@@ -37,14 +39,21 @@ def budget_failures(
         EDIT_SCENARIO: spec.edit_ceiling,
         DENSE_COLD_SCENARIO: spec.cold_ceiling,
         DENSE_WARM_SCENARIO: spec.warm_ceiling,
+        VERSION_SCENARIO: spec.version_ceiling,
+        INIT_SCENARIO: spec.init_ceiling,
+    }
+    expected_exit_codes: dict[str, int] = {
+        VERSION_SCENARIO: 0,
+        INIT_SCENARIO: 0,
     }
     failures: list[ScenarioFailure] = []
     for name, result in results.items():
-        if result.exit_code != FAULT_EXIT_CODE:
+        expected_exit_code: int = expected_exit_codes.get(name, FAULT_EXIT_CODE)
+        if result.exit_code != expected_exit_code:
             failures.append(
                 ScenarioFailure(
                     scenario=name,
-                    reason=f"exit code {result.exit_code} != {FAULT_EXIT_CODE}",
+                    reason=f"exit code {result.exit_code} != {expected_exit_code}",
                 )
             )
     for name, ceiling in ceilings.items():

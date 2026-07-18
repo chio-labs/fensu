@@ -17,11 +17,13 @@ class BudgetSpec:
     cold_ceiling: float
     warm_ceiling: float
     edit_ceiling: float
+    version_ceiling: float
+    init_ceiling: float
 
 
 @dataclass(frozen=True, slots=True)
 class ScenarioResult:
-    """One measured check scenario."""
+    """One measured command scenario."""
 
     name: str
     seconds: float

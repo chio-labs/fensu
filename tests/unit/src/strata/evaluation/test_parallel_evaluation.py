@@ -1,4 +1,4 @@
-"""Tests for deterministic parallel evaluation partition planning."""
+"""Tests for deterministic parallel evaluation planning."""
 
 from __future__ import annotations
 
@@ -6,9 +6,12 @@ from itertools import chain
 
 import pytest
 
-from strata.cli._helpers import parallel_evaluation
-from strata.cli._helpers.parallel_evaluation import _contiguous_partitions, default_worker_count
-from tests.unit.src.strata.cli._test_types import (
+from strata.evaluation._helpers import parallel_evaluation
+from strata.evaluation._helpers.parallel_evaluation import (
+    _contiguous_partitions,
+    default_worker_count,
+)
+from tests.unit.src.strata.evaluation._test_types import (
     DefaultWorkerCountTestCase,
     PartitionPlanTestCase,
 )

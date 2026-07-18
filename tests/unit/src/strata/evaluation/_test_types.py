@@ -8,6 +8,26 @@ from strata.rules.authoring.types import ExecutionOwner, Threshold
 
 
 @dataclass(frozen=True)
+class PartitionPlanTestCase:
+    """Ordered paths, a worker count, and the expected contiguous split."""
+
+    description: str
+    paths: tuple[str, ...]
+    jobs: int
+    expected_partitions: tuple[tuple[str, ...], ...]
+
+
+@dataclass(frozen=True)
+class DefaultWorkerCountTestCase:
+    """One repository size, host CPU count, and expected automatic workers."""
+
+    description: str
+    target_count: int
+    cpu_count: int | None
+    expected_workers: int
+
+
+@dataclass(frozen=True)
 class EvaluationSelectionTestCase:
     """Discovered paths, selection policy, and expected direct targets."""
 

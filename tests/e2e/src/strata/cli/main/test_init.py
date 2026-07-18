@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from strata.cache.storage.constants import CACHE_DATABASE_RELATIVE_PATH
 from strata.scaffolding.constants import PYTHON_GITIGNORE_TEMPLATE, STRATA_GITIGNORE_BLOCK
 from tests.e2e.src.strata.cli.main._test_types import (
     CliProjectFile,
@@ -78,6 +79,7 @@ from tests.e2e.src.strata.cli.main.helpers import (
             expected_stderr_fragments=(),
             expected_absent_output_fragments=("\x1b[",),
             expected_stdout_is_empty=False,
+            expected_cache_exists=True,
         ),
         InstalledInitCliTestCase(
             description="empty repository scaffolds named full project",
@@ -112,6 +114,7 @@ from tests.e2e.src.strata.cli.main.helpers import (
             expected_stderr_fragments=(),
             expected_absent_output_fragments=("\x1b[",),
             expected_stdout_is_empty=False,
+            expected_cache_exists=True,
         ),
         InstalledInitCliTestCase(
             description="captured non-TTY invocation refuses unresolved interaction",
@@ -248,3 +251,4 @@ def test_given_repository_state_when_running_installed_init_then_matches_contrac
         fragment not in combined_output for fragment in test_case.expected_absent_output_fragments
     )
     assert (completed.stdout == "") is test_case.expected_stdout_is_empty
+    assert (tmp_path / CACHE_DATABASE_RELATIVE_PATH).is_file() is test_case.expected_cache_exists

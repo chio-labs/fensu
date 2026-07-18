@@ -54,8 +54,27 @@ _PARITY_NATIVE_CODES: frozenset[str] = frozenset(
         "SFS131",
         "SFS201",
         "SFR503",
+        "SFT101",
         "SFT102",
+        "SFT103",
+        "SFT104",
+        "SFT105",
         "SFT106",
+        "SFT201",
+        "SFT202",
+        "SFT203",
+        "SFT301",
+        "SFT302",
+        "SFT401",
+        "SFT402",
+        "SFT404",
+        "SFT405",
+        "SFT406",
+        "SFT407",
+        "SFT408",
+        "SFT411",
+        "SFT412",
+        "SFT414",
     }
 )
 
@@ -470,6 +489,15 @@ _PARITY_NATIVE_CODES: frozenset[str] = frozenset(
             scope_root="tests",
         ),
         NativeCustomRuleParityTestCase(
+            description="SFT101 matches a public custom rule for nonempty test package modules",
+            native_code="SFT101",
+            source="value: int = 1\n",
+            expected_fault_count=1,
+            path="tests/unit/src/example/__init__.py",
+            scope="test",
+            scope_root="tests",
+        ),
+        NativeCustomRuleParityTestCase(
             description="SFT102 matches a public custom rule for relative test imports",
             native_code="SFT102",
             source="from .helpers import build_case\n",
@@ -479,9 +507,222 @@ _PARITY_NATIVE_CODES: frozenset[str] = frozenset(
             scope_root="tests",
         ),
         NativeCustomRuleParityTestCase(
+            description="SFT103 matches a public custom rule for top-level test helpers",
+            native_code="SFT103",
+            source="def helper() -> None:\n    return None\n",
+            expected_fault_count=1,
+            path="tests/unit/src/example/test_example.py",
+            scope="test",
+            scope_root="tests",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFT104 matches a public custom rule for test function conditionals",
+            native_code="SFT104",
+            source=(
+                "def test_given_value_when_checking_then_matches() -> None:\n"
+                "    if True:\n"
+                "        pass\n"
+            ),
+            expected_fault_count=1,
+            path="tests/unit/src/example/test_example.py",
+            scope="test",
+            scope_root="tests",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFT105 matches a public custom rule for private constants after tests",
+            native_code="SFT105",
+            source=(
+                "def test_given_value_when_checking_then_matches() -> None:\n"
+                "    return None\n\n_PRIVATE: int = 1\n"
+            ),
+            expected_fault_count=1,
+            path="tests/unit/src/example/test_example.py",
+            scope="test",
+            scope_root="tests",
+        ),
+        NativeCustomRuleParityTestCase(
             description="SFT106 matches a public custom rule for complex test comprehensions",
             native_code="SFT106",
             source="pairs = [(left, right) for left in (1, 2) for right in (3, 4)]\n",
+            expected_fault_count=1,
+            path="tests/unit/src/example/test_example.py",
+            scope="test",
+            scope_root="tests",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFT201 matches a public custom rule for missing test-case descriptions",
+            native_code="SFT201",
+            source=(
+                "from dataclasses import dataclass\n\n"
+                "@dataclass(frozen=True)\nclass Case:\n    expected_value: int\n"
+            ),
+            expected_fault_count=1,
+            path="tests/unit/src/example/_test_types.py",
+            scope="test",
+            scope_root="tests",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFT202 matches a public custom rule for missing expected fields",
+            native_code="SFT202",
+            source=(
+                "from dataclasses import dataclass\n\n"
+                "@dataclass(frozen=True)\nclass Case:\n    description: str\n"
+            ),
+            expected_fault_count=1,
+            path="tests/unit/src/example/_test_types.py",
+            scope="test",
+            scope_root="tests",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFT203 matches a public custom rule for foreign local test-type imports",
+            native_code="SFT203",
+            source="from tests.unit.src.other._test_types import Case\n",
+            expected_fault_count=1,
+            path="tests/unit/src/example/test_example.py",
+            scope="test",
+            scope_root="tests",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFT301 matches a public custom rule for test module filenames",
+            native_code="SFT301",
+            source="",
+            expected_fault_count=1,
+            path="tests/unit/src/example/example.py",
+            scope="test",
+            scope_root="tests",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFT302 matches a public custom rule for test function names",
+            native_code="SFT302",
+            source="def test_bad_name() -> None:\n    return None\n",
+            expected_fault_count=1,
+            path="tests/unit/src/example/test_example.py",
+            scope="test",
+            scope_root="tests",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFT401 matches a public custom rule for missing parameterization",
+            native_code="SFT401",
+            source=(
+                "def test_given_value_when_checking_then_matches() -> None:\n    return None\n"
+            ),
+            expected_fault_count=1,
+            path="tests/unit/src/example/test_example.py",
+            scope="test",
+            scope_root="tests",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFT402 matches a public custom rule for missing test_case parameters",
+            native_code="SFT402",
+            source=(
+                "@pytest.mark.parametrize('test_case', [Case()], ids=lambda case: case.description)\n"
+                "def test_given_value_when_checking_then_matches(case: Case) -> None:\n"
+                "    return None\n"
+            ),
+            expected_fault_count=1,
+            path="tests/unit/src/example/test_example.py",
+            scope="test",
+            scope_root="tests",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFT404 matches a public custom rule for missing expected-field references",
+            native_code="SFT404",
+            source=(
+                "@pytest.mark.parametrize('test_case', [Case()], ids=lambda case: case.description)\n"
+                "def test_given_value_when_checking_then_matches(test_case: Case) -> None:\n"
+                "    assert True\n"
+            ),
+            expected_fault_count=1,
+            path="tests/unit/src/example/test_example.py",
+            scope="test",
+            scope_root="tests",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFT405 matches a public custom rule for missing parametrize values",
+            native_code="SFT405",
+            source=(
+                "@pytest.mark.parametrize('test_case')\n"
+                "def test_given_value_when_checking_then_matches(test_case: Case) -> None:\n"
+                "    return None\n"
+            ),
+            expected_fault_count=1,
+            path="tests/unit/src/example/test_example.py",
+            scope="test",
+            scope_root="tests",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFT406 matches a public custom rule for wrong parametrize parameter names",
+            native_code="SFT406",
+            source=(
+                "@pytest.mark.parametrize('case', [Case()], ids=lambda case: case.description)\n"
+                "def test_given_value_when_checking_then_matches(case: Case) -> None:\n"
+                "    return None\n"
+            ),
+            expected_fault_count=1,
+            path="tests/unit/src/example/test_example.py",
+            scope="test",
+            scope_root="tests",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFT407 matches a public custom rule for missing parametrize ids",
+            native_code="SFT407",
+            source=(
+                "@pytest.mark.parametrize('test_case', [Case()])\n"
+                "def test_given_value_when_checking_then_matches(test_case: Case) -> None:\n"
+                "    return None\n"
+            ),
+            expected_fault_count=1,
+            path="tests/unit/src/example/test_example.py",
+            scope="test",
+            scope_root="tests",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFT408 matches a public custom rule for indirect parametrize values",
+            native_code="SFT408",
+            source=(
+                "@pytest.mark.parametrize('test_case', CASES, ids=lambda case: case.description)\n"
+                "def test_given_value_when_checking_then_matches(test_case: Case) -> None:\n"
+                "    return None\n"
+            ),
+            expected_fault_count=1,
+            path="tests/unit/src/example/test_example.py",
+            scope="test",
+            scope_root="tests",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFT411 matches a public custom rule for empty parametrize values",
+            native_code="SFT411",
+            source=(
+                "@pytest.mark.parametrize('test_case', [], ids=lambda case: case.description)\n"
+                "def test_given_value_when_checking_then_matches(test_case: Case) -> None:\n"
+                "    return None\n"
+            ),
+            expected_fault_count=1,
+            path="tests/unit/src/example/test_example.py",
+            scope="test",
+            scope_root="tests",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFT412 matches a public custom rule for dictionary test cases",
+            native_code="SFT412",
+            source=(
+                "@pytest.mark.parametrize('test_case', [{}], ids=lambda case: case.description)\n"
+                "def test_given_value_when_checking_then_matches(test_case: Case) -> None:\n"
+                "    return None\n"
+            ),
+            expected_fault_count=1,
+            path="tests/unit/src/example/test_example.py",
+            scope="test",
+            scope_root="tests",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFT414 matches a public custom rule for non-description ids",
+            native_code="SFT414",
+            source=(
+                "@pytest.mark.parametrize('test_case', [Case()], ids=['case'])\n"
+                "def test_given_value_when_checking_then_matches(test_case: Case) -> None:\n"
+                "    return None\n"
+            ),
             expected_fault_count=1,
             path="tests/unit/src/example/test_example.py",
             scope="test",

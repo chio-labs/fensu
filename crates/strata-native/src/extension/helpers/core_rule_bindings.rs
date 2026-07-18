@@ -11,7 +11,13 @@ use crate::rules::main::evaluate_core_rules::evaluate_core_rules;
 use crate::rules::models::NativeFaultRow;
 use crate::rules::models::NativeRuleContext;
 
-type NativeFaultTuple = (String, u32, u32, Option<String>, Option<String>);
+type NativeFaultTuple = (
+    String,
+    Option<u32>,
+    Option<u32>,
+    Option<String>,
+    Option<String>,
+);
 type NativeRuleRequestTuple = (
     Py<ProgramHandle>,
     Vec<String>,
@@ -73,5 +79,12 @@ pub(crate) fn native_rule_fact_families() -> Vec<(String, Vec<String>)> {
 }
 
 fn as_tuple(row: NativeFaultRow) -> NativeFaultTuple {
-    (row.code, row.line, row.column, row.message, row.remediation)
+    let location = (row.line != 0).then_some((row.line, row.column));
+    (
+        row.code,
+        location.map(|(line, _)| line),
+        location.map(|(_, column)| column),
+        row.message,
+        row.remediation,
+    )
 }

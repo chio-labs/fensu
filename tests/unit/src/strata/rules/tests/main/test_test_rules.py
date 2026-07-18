@@ -894,6 +894,17 @@ def test_given_test_comprehensions_when_checking_then_flags_only_complex_forms(
     "test_case",
     [
         SftRuleTestCase(
+            description="all newly native local SFT rules bypass Python core callbacks",
+            rule_code=(
+                "SFT101,SFT103,SFT104,SFT105,SFT201,SFT202,SFT203,SFT301,SFT302,"
+                "SFT401,SFT402,SFT404,SFT405,SFT406,SFT407,SFT408,SFT411,SFT412,SFT414"
+            ),
+            files=good_test_files(),
+            expected_codes=(),
+            expected_lines=(),
+            runtime_paths=("src/strata/rules/__init__.py",),
+        ),
+        SftRuleTestCase(
             description="native SFT102 bypasses its Python core callback",
             rule_code="SFT102",
             files=good_test_files(test_source="from .helpers import build_case\n"),

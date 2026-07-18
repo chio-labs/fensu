@@ -22,6 +22,7 @@ _threshold_by_code: dict[str, Threshold] = {
 }
 _main_only_threshold_codes: frozenset[str] = frozenset({"SFS001", "SFS002", "SFS003"})
 _maximum_native_metric: int = 2**32 - 1
+_native_naming_codes: frozenset[str] = frozenset({"SFN001", "SFN002", "SFN003", "SFN004"})
 
 
 def prepare_native_rule_request(
@@ -75,5 +76,7 @@ def prepare_native_rule_request(
         position.role,
         position.is_main_module,
         thresholds,
+        repository_path,
+        list(config.contracts.items()) if _native_naming_codes.intersection(codes) else [],
     )
     return request, tuple(uses)

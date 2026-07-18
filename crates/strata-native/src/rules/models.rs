@@ -8,6 +8,7 @@ pub struct NativeFaultRow {
     pub line: u32,
     pub column: u32,
     pub message: Option<String>,
+    pub remediation: Option<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -16,4 +17,6 @@ pub struct NativeRuleContext {
     pub role: Option<String>,
     pub is_main_module: bool,
     pub thresholds: HashMap<String, u32>,
+    pub repository_path: String,
+    pub contracts: Vec<(String, String)>,
 }

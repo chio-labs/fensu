@@ -72,5 +72,6 @@ fn location_fault(code: &str, line: u32, column: u32) -> NativeFaultRow {
         line,
         column,
         message: None,
+        remediation: None,
     }
 }

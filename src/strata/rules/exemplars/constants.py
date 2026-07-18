@@ -43,6 +43,18 @@ from strata.rules.exemplars.main.hygiene._no_unnamed_string_decisions import (
 from strata.rules.exemplars.main.hygiene._single_line_docstrings import (
     single_line_docstrings_equivalent,
 )
+from strata.rules.exemplars.main.naming._iterator_name_must_produce_iterator import (
+    iterator_name_must_produce_iterator_equivalent,
+)
+from strata.rules.exemplars.main.naming._predicate_must_return_bool import (
+    predicate_must_return_bool_equivalent,
+)
+from strata.rules.exemplars.main.naming._validator_must_not_return import (
+    validator_must_not_return_equivalent,
+)
+from strata.rules.exemplars.main.naming._value_name_must_return_value import (
+    value_name_must_return_value_equivalent,
+)
 from strata.rules.exemplars.main.shape._default_mutation_return import (
     default_mutation_return_equivalent,
 )
@@ -84,6 +96,10 @@ NATIVE_CUSTOM_RULE_EQUIVALENTS: dict[str, RuleCheck] = {
     "SFH007": no_unnamed_string_decisions_equivalent,
     "SFH008": no_magic_numeric_comparisons_equivalent,
     "SFH009": no_import_time_side_effects_equivalent,
+    "SFN001": validator_must_not_return_equivalent,
+    "SFN002": predicate_must_return_bool_equivalent,
+    "SFN003": value_name_must_return_value_equivalent,
+    "SFN004": iterator_name_must_produce_iterator_equivalent,
     "SFS001": too_many_statements_equivalent,
     "SFS002": too_many_distinct_calls_equivalent,
     "SFS003": too_many_locals_equivalent,

@@ -35,6 +35,10 @@ _PARITY_NATIVE_CODES: frozenset[str] = frozenset(
         "SFH007",
         "SFH008",
         "SFH009",
+        "SFN001",
+        "SFN002",
+        "SFN003",
+        "SFN004",
         "SFS001",
         "SFS002",
         "SFS003",
@@ -170,6 +174,93 @@ _PARITY_NATIVE_CODES: frozenset[str] = frozenset(
             native_code="SFH009",
             source="configure()\n",
             expected_fault_count=1,
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFN001 matches default and custom no-return contracts",
+            native_code="SFN001",
+            source=(
+                "def validate_config() -> bool:\n    return True\n\n"
+                "def ensure_ready() -> int:\n    return 1\n\n"
+                "def validate_clean() -> None:\n    return None\n"
+            ),
+            expected_fault_count=2,
+            config={"contracts": {"ensure_*": "no-return"}},
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFN002 matches accepted categories and dynamic predicate remediations",
+            native_code="SFN002",
+            source=(
+                "from typing import TypeGuard\n\n"
+                "def is_ready() -> Status:\n    return Status()\n\n"
+                "def has_items() -> int:\n    return 1\n\n"
+                "def can_retry() -> str:\n    return 'no'\n\n"
+                "def supports_mode() -> Mode:\n    return Mode()\n\n"
+                "def is_narrow(value: object) -> TypeGuard[int]:\n    return True\n\n"
+                "def has_missing():\n    return True\n"
+            ),
+            expected_fault_count=4,
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFN002 preserves fnmatchcase classes case and same-behavior overlap",
+            native_code="SFN002",
+            source=(
+                "def Ready() -> Status:\n    return Status()\n\n"
+                "def ready() -> Status:\n    return Status()\n"
+            ),
+            expected_fault_count=1,
+            config={
+                "contracts": {
+                    "[R]eady": "returns-bool",
+                    "R*": "returns-bool",
+                }
+            },
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFN002 preserves fnmatchcase ranges negation invalid ranges and Unicode",
+            native_code="SFN002",
+            source=(
+                "def Check_alpha() -> Status:\n    return Status()\n\n"
+                "def check_x() -> Status:\n    return Status()\n\n"
+                "def check_beta() -> Status:\n    return Status()\n\n"
+                "def check_zeta() -> Status:\n    return Status()\n\n"
+                "def État() -> Status:\n    return Status()\n"
+            ),
+            expected_fault_count=4,
+            config={
+                "contracts": {
+                    "Check_*": "returns-bool",
+                    "check_?": "returns-bool",
+                    "check_[ab]eta": "returns-bool",
+                    "check_[!z]eta": "returns-bool",
+                    "check_[z-a]eta": "returns-bool",
+                    "[É]tat": "returns-bool",
+                }
+            },
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFN003 matches query conversion and custom value contracts",
+            native_code="SFN003",
+            source=(
+                "def get_user() -> None:\n    return None\n\n"
+                "def to_user() -> NoReturn:\n    raise RuntimeError\n\n"
+                "def fetch_user() -> None:\n    return None\n\n"
+                "def as_record() -> Record:\n    return Record()\n"
+            ),
+            expected_fault_count=3,
+            config={"contracts": {"fetch_*": "returns-value"}},
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFN004 matches yields accepted iterators and eager custom streams",
+            native_code="SFN004",
+            source=(
+                "from collections.abc import Iterator\n\n"
+                "def iter_rows() -> list[int]:\n    return []\n\n"
+                "def iter_owned() -> list[int]:\n    yield 1\n\n"
+                "def iter_declared() -> Iterator[int]:\n    return iter(())\n\n"
+                "def stream_rows() -> tuple[int, ...]:\n    return ()\n"
+            ),
+            expected_fault_count=2,
+            config={"contracts": {"stream_*": "returns-iterator"}},
         ),
         NativeCustomRuleParityTestCase(
             description="SFS001 matches a public custom rule with a compact statement threshold",

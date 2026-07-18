@@ -25,6 +25,10 @@ pub const KEYWORD_ONLY_ARGUMENTS_CODE: &str = "SFS120";
 pub const NO_OUTER_STATE_MUTATION_CODE: &str = "SFS130";
 pub const NO_COMPLEX_COMPREHENSIONS_CODE: &str = "SFS131";
 pub const MUTABLE_RESULT_MODEL_CODE: &str = "SFS201";
+pub const VALIDATOR_MUST_NOT_RETURN_CODE: &str = "SFN001";
+pub const PREDICATE_MUST_RETURN_BOOL_CODE: &str = "SFN002";
+pub const VALUE_NAME_MUST_RETURN_VALUE_CODE: &str = "SFN003";
+pub const ITERATOR_NAME_MUST_PRODUCE_ITERATOR_CODE: &str = "SFN004";
 pub const NATIVE_RULE_FACT_FAMILIES: &[(&str, &[&str])] = &[
     (PARAMETER_ANNOTATION_CODE, &["annotations"]),
     (RETURN_ANNOTATION_CODE, &["annotations"]),
@@ -43,6 +47,13 @@ pub const NATIVE_RULE_FACT_FAMILIES: &[(&str, &[&str])] = &[
     (NO_UNNAMED_STRING_DECISIONS_CODE, &["hygiene"]),
     (NO_MAGIC_NUMERIC_COMPARISONS_CODE, &["hygiene"]),
     (NO_IMPORT_TIME_SIDE_EFFECTS_CODE, &["module_declarations"]),
+    (VALIDATOR_MUST_NOT_RETURN_CODE, &["function_contracts"]),
+    (PREDICATE_MUST_RETURN_BOOL_CODE, &["function_contracts"]),
+    (VALUE_NAME_MUST_RETURN_VALUE_CODE, &["function_contracts"]),
+    (
+        ITERATOR_NAME_MUST_PRODUCE_ITERATOR_CODE,
+        &["function_contracts"],
+    ),
     (TOO_MANY_STATEMENTS_CODE, &["functions"]),
     (TOO_MANY_DISTINCT_CALLS_CODE, &["functions"]),
     (TOO_MANY_LOCALS_CODE, &["functions"]),

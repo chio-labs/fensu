@@ -19,7 +19,7 @@ from tests.integration.src.strata.rules.exemplars.main.annotations.helpers impor
     normalized_faults,
 )
 
-_PARITY_NATIVE_CODES: frozenset[str] = frozenset({"SFA001"})
+_PARITY_NATIVE_CODES: frozenset[str] = frozenset({"SFA001", "SFA002", "SFA101", "SFA102", "SFA103"})
 
 
 @pytest.mark.parametrize(
@@ -38,7 +38,48 @@ _PARITY_NATIVE_CODES: frozenset[str] = frozenset({"SFA001"})
                 "    return None\n"
             ),
             expected_fault_count=4,
-        )
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFA002 matches a public custom rule for sync and async functions",
+            native_code="SFA002",
+            source=(
+                "def run(value: int):\n"
+                "    return value\n\n"
+                "async def fetch(value: int):\n"
+                "    return value\n"
+            ),
+            expected_fault_count=2,
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFA101 matches a public custom rule for module assignments",
+            native_code="SFA101",
+            source="value = 1\n__version__ = '1.0'\ntyped: int = 2\n",
+            expected_fault_count=1,
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFA102 matches a public custom rule for class assignments",
+            native_code="SFA102",
+            source=(
+                "from enum import Enum\n\n"
+                "class Config:\n"
+                "    value = 1\n\n"
+                "class Color(Enum):\n"
+                "    RED = 'red'\n"
+            ),
+            expected_fault_count=1,
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFA103 matches a public custom rule for inferred and ambiguous locals",
+            native_code="SFA103",
+            source=(
+                "def run() -> None:\n"
+                "    built = build_value()\n"
+                "    scalar = 1\n"
+                "    missing = None\n"
+                "    first = second = 1\n"
+            ),
+            expected_fault_count=4,
+        ),
     ],
     ids=lambda case: case.description,
 )

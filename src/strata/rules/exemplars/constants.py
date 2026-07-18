@@ -43,6 +43,13 @@ from strata.rules.exemplars.main.hygiene._no_unnamed_string_decisions import (
 from strata.rules.exemplars.main.hygiene._single_line_docstrings import (
     single_line_docstrings_equivalent,
 )
+from strata.rules.exemplars.main.layers._absolute_imports_only import (
+    absolute_imports_only_equivalent,
+)
+from strata.rules.exemplars.main.layers._no_cross_file_helper_private_classes import (
+    no_cross_file_helper_private_classes_equivalent,
+)
+from strata.rules.exemplars.main.layers._no_star_imports import no_star_imports_equivalent
 from strata.rules.exemplars.main.naming._iterator_name_must_produce_iterator import (
     iterator_name_must_produce_iterator_equivalent,
 )
@@ -54,6 +61,9 @@ from strata.rules.exemplars.main.naming._validator_must_not_return import (
 )
 from strata.rules.exemplars.main.naming._value_name_must_return_value import (
     value_name_must_return_value_equivalent,
+)
+from strata.rules.exemplars.main.roles._private_definition_ordering import (
+    private_definition_ordering_equivalent,
 )
 from strata.rules.exemplars.main.shape._default_mutation_return import (
     default_mutation_return_equivalent,
@@ -80,6 +90,10 @@ from strata.rules.exemplars.main.shape._too_many_distinct_calls import (
 )
 from strata.rules.exemplars.main.shape._too_many_locals import too_many_locals_equivalent
 from strata.rules.exemplars.main.shape._too_many_statements import too_many_statements_equivalent
+from strata.rules.exemplars.main.tests._absolute_imports import test_absolute_imports_equivalent
+from strata.rules.exemplars.main.tests._no_complex_comprehensions import (
+    test_no_complex_comprehensions_equivalent,
+)
 
 NATIVE_CUSTOM_RULE_EQUIVALENTS: dict[str, RuleCheck] = {
     "SFA001": parameter_annotation_equivalent,
@@ -111,4 +125,10 @@ NATIVE_CUSTOM_RULE_EQUIVALENTS: dict[str, RuleCheck] = {
     "SFS130": no_outer_state_mutation_equivalent,
     "SFS131": no_complex_comprehensions_shape_equivalent,
     "SFS201": mutable_result_model_equivalent,
+    "SFL001": absolute_imports_only_equivalent,
+    "SFL002": no_star_imports_equivalent,
+    "SFL110": no_cross_file_helper_private_classes_equivalent,
+    "SFR503": private_definition_ordering_equivalent,
+    "SFT102": test_absolute_imports_equivalent,
+    "SFT106": test_no_complex_comprehensions_equivalent,
 }

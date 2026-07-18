@@ -4,11 +4,15 @@ from strata import Fault
 from strata.rules.annotations.constants import SFA_RULES
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.hygiene.constants import SFH_RULES
+from strata.rules.layers.constants import SFL_RULES
 from strata.rules.naming.constants import SFN_RULES
+from strata.rules.roles.constants import SFR_RULES
 from strata.rules.shape.constants import SFS_RULES
+from strata.rules.tests.constants import SFT_RULES
 
 _NATIVE_RULES_BY_CODE: dict[str, RuleSpec] = {
-    rule.code: rule for rule in (*SFA_RULES, *SFH_RULES, *SFN_RULES, *SFS_RULES)
+    rule.code: rule
+    for rule in (*SFA_RULES, *SFH_RULES, *SFL_RULES, *SFN_RULES, *SFR_RULES, *SFS_RULES, *SFT_RULES)
 }
 
 

@@ -1,0 +1,120 @@
+//! Layer-family policy over shared reference rows.
+
+use std::collections::HashSet;
+
+use strata_facts::extension::models::ProgramHandle;
+use strata_facts::facts::models::{ImportRow, ReferenceEventRow};
+
+use crate::rules::constants::{
+    ABSOLUTE_IMPORTS_ONLY_CODE, NO_CROSS_FILE_HELPER_PRIVATE_CLASS_CODE, NO_STAR_IMPORTS_CODE,
+    STAR_IMPORT_NAME,
+};
+use crate::rules::models::NativeFaultRow;
+
+const HELPERS_PART: &str = "_helpers";
+
+pub(crate) fn layer_faults(program: &ProgramHandle, code: &str) -> Option<Vec<NativeFaultRow>> {
+    let rows = program.reference_rows();
+    let faults = match code {
+        ABSOLUTE_IMPORTS_ONLY_CODE => rows
+            .imports
+            .iter()
+            .filter(|row| row.from_import && row.relative_level > 0)
+            .map(|row| location_fault(code, row.line, row.column))
+            .collect(),
+        NO_STAR_IMPORTS_CODE => rows
+            .imports
+            .iter()
+            .filter(|row| {
+                row.from_import
+                    && row
+                        .aliases
+                        .iter()
+                        .any(|alias| alias.imported_name == STAR_IMPORT_NAME)
+            })
+            .map(|row| location_fault(code, row.line, row.column))
+            .collect(),
+        NO_CROSS_FILE_HELPER_PRIVATE_CLASS_CODE => private_helper_reference_faults(program, code),
+        _ => return None,
+    };
+    Some(faults)
+}
+
+fn private_helper_reference_faults(program: &ProgramHandle, code: &str) -> Vec<NativeFaultRow> {
+    let rows = program.reference_rows();
+    let mut faults = Vec::new();
+    let mut helper_module_aliases: HashSet<String> = HashSet::new();
+    for event in &rows.events {
+        match event {
+            ReferenceEventRow::Import(slot) => {
+                if let Some(row) = rows.imports.get(*slot) {
+                    collect_import_faults(row, code, &mut helper_module_aliases, &mut faults);
+                }
+            }
+            ReferenceEventRow::Attribute {
+                line,
+                column,
+                base_name,
+                attribute_name,
+            } if is_private_class_name(attribute_name)
+                && base_name
+                    .as_ref()
+                    .is_some_and(|name| helper_module_aliases.contains(name)) =>
+            {
+                faults.push(location_fault(code, *line, *column));
+            }
+            ReferenceEventRow::Attribute { .. } => {}
+        }
+    }
+    faults
+}
+
+fn collect_import_faults(
+    row: &ImportRow,
+    code: &str,
+    helper_module_aliases: &mut HashSet<String>,
+    faults: &mut Vec<NativeFaultRow>,
+) {
+    if row.from_import {
+        if !row.module_parts.iter().any(|part| part == HELPERS_PART) {
+            return;
+        }
+        for alias in &row.aliases {
+            if is_private_class_name(&alias.imported_name) {
+                faults.push(location_fault(code, row.line, row.column));
+            } else {
+                helper_module_aliases.insert(alias.bound_name.clone());
+            }
+        }
+        return;
+    }
+    for alias in &row.aliases {
+        let parts: Vec<&str> = alias.imported_name.split('.').collect();
+        if !parts.contains(&HELPERS_PART) {
+            continue;
+        }
+        if parts.last().is_some_and(|name| is_private_class_name(name)) {
+            faults.push(location_fault(code, row.line, row.column));
+        } else {
+            helper_module_aliases.insert(alias.bound_name.clone());
+        }
+    }
+}
+
+fn is_private_class_name(name: &str) -> bool {
+    let mut characters = name.chars();
+    matches!(
+        (characters.next(), characters.next()),
+        (Some('_'), Some(second)) if second.is_uppercase()
+    )
+}
+
+fn location_fault(code: &str, line: u32, column: u32) -> NativeFaultRow {
+    NativeFaultRow {
+        code: code.to_owned(),
+        line,
+        column,
+        message: None,
+        remediation: None,
+    }
+}

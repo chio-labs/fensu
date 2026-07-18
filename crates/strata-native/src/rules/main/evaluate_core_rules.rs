@@ -11,8 +11,11 @@ use crate::rules::helpers::annotations::{
     module_variable_annotation_faults, parameter_annotation_faults, return_annotation_faults,
 };
 use crate::rules::helpers::hygiene::hygiene_faults;
+use crate::rules::helpers::layers::layer_faults;
 use crate::rules::helpers::naming::naming_faults;
+use crate::rules::helpers::roles::role_faults;
 use crate::rules::helpers::shape::shape_faults;
+use crate::rules::helpers::tests::test_faults;
 use crate::rules::models::{NativeFaultRow, NativeRuleContext};
 
 pub fn evaluate_core_rules(
@@ -44,6 +47,12 @@ pub fn evaluate_core_rules(
                 } else if let Some(rule_faults) = hygiene_faults(program, code, &context.scope) {
                     faults.extend(rule_faults);
                 } else if let Some(rule_faults) = shape_faults(program, code, context) {
+                    faults.extend(rule_faults);
+                } else if let Some(rule_faults) = layer_faults(program, code) {
+                    faults.extend(rule_faults);
+                } else if let Some(rule_faults) = role_faults(program, code) {
+                    faults.extend(rule_faults);
+                } else if let Some(rule_faults) = test_faults(program, code) {
                     faults.extend(rule_faults);
                 }
             }

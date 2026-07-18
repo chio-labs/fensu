@@ -11,6 +11,15 @@ from strata.rules.authoring.models import Fault
 
 type NativeFaultRow = tuple[str, int, int, str | None]
 type NativeFaultsByCode = dict[str, tuple[Fault, ...]]
+type NativeThresholdValues = dict[str, int]
+type NativeCoreRuleRequest = tuple[
+    object,
+    list[str],
+    str,
+    str | None,
+    bool,
+    NativeThresholdValues,
+]
 
 
 class EvaluationProjectAnalysis(ProjectAnalysis, Protocol):

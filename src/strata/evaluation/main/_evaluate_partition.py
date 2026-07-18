@@ -15,9 +15,10 @@ from strata.evaluation.models import (
     EvaluationSelection,
     EvaluationTarget,
     FileEvaluation,
+    NativeCoreRuleEvaluation,
     PartitionEvaluation,
 )
-from strata.evaluation.types import EvaluationProjectAnalysis, NativeFaultsByCode
+from strata.evaluation.types import EvaluationProjectAnalysis
 from strata.rules.authoring.models import CustomRuleRegistration, RuleSpec
 
 
@@ -50,13 +51,15 @@ def evaluate_partition(
             project=project,
             scoped_files=tuple(target.scoped_file for target in chunk),
         )
-        native_faults: tuple[NativeFaultsByCode, ...] = evaluate_native_core_rules(
+        native_evaluations: tuple[NativeCoreRuleEvaluation, ...] = evaluate_native_core_rules(
             targets=chunk,
             programs=native_programs,
             ruleset=ruleset,
             warning_rules=warning_rules,
+            config=config,
+            repo_root=tree.repo_root.path,
         )
-        for target, target_native_faults in zip(chunk, native_faults, strict=True):
+        for target, native_evaluation in zip(chunk, native_evaluations, strict=True):
             file_result: FileEvaluation = evaluate_target(
                 target=target,
                 ruleset=ruleset,
@@ -64,7 +67,7 @@ def evaluate_partition(
                 config=config,
                 tree=tree,
                 project=project,
-                native_faults_by_code=target_native_faults,
+                native_evaluation=native_evaluation,
             )
             file_evaluations.append(file_result)
     return PartitionEvaluation(

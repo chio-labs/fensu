@@ -12,12 +12,12 @@ use crate::rules::helpers::annotations::{
 };
 use crate::rules::helpers::hygiene::hygiene_faults;
 use crate::rules::helpers::shape::shape_faults;
-use crate::rules::models::NativeFaultRow;
+use crate::rules::models::{NativeFaultRow, NativeRuleContext};
 
 pub fn evaluate_core_rules(
     program: &ProgramHandle,
     codes: &[String],
-    scope: &str,
+    context: &NativeRuleContext,
 ) -> Vec<NativeFaultRow> {
     let mut faults: Vec<NativeFaultRow> = Vec::new();
     for code in codes {
@@ -38,7 +38,7 @@ pub fn evaluate_core_rules(
                 faults.extend(local_variable_annotation_faults(program.annotation_rows()));
             }
             _ => {
-                if let Some(rule_faults) = hygiene_faults(program, code, scope) {
+                if let Some(rule_faults) = hygiene_faults(program, code, &context.scope) {
                     faults.extend(rule_faults);
                 } else if let Some(rule_faults) = shape_faults(program, code) {
                     faults.extend(rule_faults);

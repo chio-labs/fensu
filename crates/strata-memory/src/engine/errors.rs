@@ -37,6 +37,7 @@ pub enum MemoryIndexError {
         document_identity: String,
         link_ordinal: usize,
     },
+    Archive(String),
     Filesystem {
         operation: &'static str,
         path: PathBuf,
@@ -126,6 +127,7 @@ impl fmt::Display for MemoryIndexError {
                 formatter,
                 "resolved graph has no link {link_ordinal} for document {document_identity}"
             ),
+            Self::Archive(message) => write!(formatter, "memory archive failed: {message}"),
             Self::Filesystem {
                 operation,
                 path,
@@ -157,7 +159,8 @@ impl Error for MemoryIndexError {
             | Self::QueryResultTooLarge { .. }
             | Self::QueryValueTooDeep { .. }
             | Self::QueryMetadataUnavailable
-            | Self::MissingResolvedLink { .. } => None,
+            | Self::MissingResolvedLink { .. }
+            | Self::Archive(_) => None,
             Self::Filesystem { source, .. } | Self::Cleanup { source, .. } => Some(source),
             Self::DuckDb { source, .. } => Some(source),
         }

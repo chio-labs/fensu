@@ -14,6 +14,7 @@ from strata.memory.main.read_memory_schema import read_memory_schema
 from strata.memory.main.sync_memory import sync_memory
 from strata.memory.models import MemoryQueryExecution, MemorySchemaResult, MemorySyncResult
 from tests.integration.src.strata.memory.main._test_types import (
+    NativeMemoryArchiveTestCase,
     NativeMemoryCheckTestCase,
     NativeMemoryColorTestCase,
     NativeMemoryErrorTestCase,
@@ -216,3 +217,44 @@ def test_given_invalid_memory_source_when_checking_then_reports_fault_without_pu
     assert (tmp_path / ".strata/memory/memory.duckdb").exists() is (
         test_case.expected_database_exists
     )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        NativeMemoryArchiveTestCase(
+            description="explicit note archive moves source and refreshes generated index",
+            relative_path=(".ai/knowledge/repo/notes/20260717T120000_000000Z__NOTE-archive.md"),
+            contents="# Archive\n",
+            expected_destination=(
+                ".ai/_archive/knowledge/repo/notes/20260717T120000_000000Z__NOTE-archive.md"
+            ),
+            expected_output_fragment="Memory archived",
+            expected_exit_code=0,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_explicit_note_when_archiving_then_moves_source_and_refreshes_index(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    test_case: NativeMemoryArchiveTestCase,
+) -> None:
+    write_enabled_memory_project(root=tmp_path)
+    source: Path = tmp_path / test_case.relative_path
+    source.parent.mkdir(parents=True)
+    source.write_text(test_case.contents, encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    stdout: io.StringIO = io.StringIO()
+
+    exit_code: int = run_memory(
+        argv=("archive", test_case.relative_path),
+        stdout=stdout,
+        stderr=io.StringIO(),
+    )
+
+    assert exit_code == test_case.expected_exit_code
+    assert test_case.expected_output_fragment in stdout.getvalue()
+    assert not source.exists()
+    assert (tmp_path / test_case.expected_destination).is_file()
+    assert (tmp_path / ".strata/memory/memory.duckdb").is_file()

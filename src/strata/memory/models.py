@@ -160,6 +160,23 @@ class MemoryCheckResult:
 
 
 @dataclass(frozen=True, slots=True)
+class MemoryArchiveMove:
+    """One source and destination published by memory archival."""
+
+    source: str
+    destination: str
+
+
+@dataclass(frozen=True, slots=True)
+class MemoryArchiveResult:
+    """Project paths, published archive moves, and optional synchronization."""
+
+    project: MemoryProject
+    moves: tuple[MemoryArchiveMove, ...]
+    sync: MemorySyncSummary | None
+
+
+@dataclass(frozen=True, slots=True)
 class MemorySchemaResult:
     """Schema overview or one focused public relation."""
 

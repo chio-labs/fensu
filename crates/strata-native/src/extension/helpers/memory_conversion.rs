@@ -4,8 +4,9 @@ use pyo3::types::{PyAnyMethods, PyDict, PyDictMethods, PyList, PyTuple};
 use pyo3::{Bound, BoundObject, IntoPyObject, Py, PyAny, PyErr, PyResult, Python};
 
 use strata_memory::engine::models::{
-    IndexSummary, MemoryCheckResult, MemoryDiagnostic, MemoryOverview, MemoryQueryResult,
-    MemoryQueryValue, MemorySchemaOverview, MemorySchemaRelation, MemorySummary, SyncSummary,
+    IndexSummary, MemoryArchiveResult, MemoryCheckResult, MemoryDiagnostic, MemoryOverview,
+    MemoryQueryResult, MemoryQueryValue, MemorySchemaOverview, MemorySchemaRelation, MemorySummary,
+    SyncSummary,
 };
 
 pub(crate) fn memory_summary_object(
@@ -165,6 +166,22 @@ pub(crate) fn memory_check_result_object(
         ],
     )
     .map(Bound::unbind)
+}
+
+pub(crate) fn memory_archive_result_object(
+    py: Python<'_>,
+    result: MemoryArchiveResult,
+) -> PyResult<Py<PyTuple>> {
+    let moves = result
+        .moves
+        .into_iter()
+        .map(|entry| PyTuple::new(py, [entry.source, entry.destination]).map(Bound::unbind))
+        .collect::<PyResult<Vec<Py<PyTuple>>>>()?;
+    let sync = match result.sync {
+        Some(summary) => sync_summary_object(py, summary)?.into_any(),
+        None => py.None(),
+    };
+    PyTuple::new(py, [PyTuple::new(py, moves)?.into_any().unbind(), sync]).map(Bound::unbind)
 }
 
 pub(crate) fn memory_query_result_object(

@@ -8,6 +8,7 @@ use pyo3::{pyfunction, Py, PyErr, PyResult, Python};
 
 use crate::extension::helpers::memory_conversion;
 use strata_memory::engine::errors::MemoryIndexError;
+use strata_memory::engine::main::archive_memory::archive_memory;
 use strata_memory::engine::main::check_memory::check_memory;
 use strata_memory::engine::main::memory_overview::memory_overview as overview;
 use strata_memory::engine::main::memory_relation_schema::memory_relation_schema as relation_schema;
@@ -56,6 +57,29 @@ pub(crate) fn memory_check(
         .detach(move || check_memory(&repository_root, &database_path))
         .map_err(memory_index_error)?;
     memory_conversion::memory_check_result_object(py, result)
+}
+
+#[pyfunction]
+pub(crate) fn memory_archive(
+    py: Python<'_>,
+    repository_root: PathBuf,
+    database_path: PathBuf,
+    requested_paths: Vec<PathBuf>,
+    archive_after_days: u64,
+    confirmed: bool,
+) -> PyResult<Py<PyTuple>> {
+    let result = py
+        .detach(move || {
+            archive_memory(
+                &repository_root,
+                &database_path,
+                &requested_paths,
+                archive_after_days,
+                confirmed,
+            )
+        })
+        .map_err(memory_index_error)?;
+    memory_conversion::memory_archive_result_object(py, result)
 }
 
 #[pyfunction]

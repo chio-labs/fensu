@@ -58,3 +58,15 @@ class NativeMemoryCheckTestCase:
     expected_fault_fragment: str
     expected_database_exists: bool
     expected_exit_code: int
+
+
+@dataclass(frozen=True)
+class NativeMemoryArchiveTestCase:
+    """One explicit source and expected archive CLI publication."""
+
+    description: str
+    relative_path: str
+    contents: str
+    expected_destination: str
+    expected_output_fragment: str
+    expected_exit_code: int

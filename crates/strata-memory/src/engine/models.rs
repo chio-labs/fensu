@@ -104,6 +104,20 @@ pub struct MemoryCheckResult {
     pub published: Option<IndexSummary>,
 }
 
+/// One canonical source move published by an archive operation.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MemoryArchiveMove {
+    pub source: String,
+    pub destination: String,
+}
+
+/// Published archive moves and resulting synchronized index state.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MemoryArchiveResult {
+    pub moves: Vec<MemoryArchiveMove>,
+    pub sync: Option<SyncSummary>,
+}
+
 /// One JSON- and Python-convertible value returned by a memory query.
 #[derive(Clone, Debug, PartialEq)]
 pub enum MemoryQueryValue {

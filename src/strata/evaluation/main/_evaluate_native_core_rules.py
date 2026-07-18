@@ -34,8 +34,8 @@ def evaluate_native_core_rules(
     )
     batches: list[list[NativeFaultRow]] = native.evaluate_native_core_rules(
         [
-            (program, list(codes))
-            for program, codes in zip(programs, codes_by_target, strict=True)
+            (program, list(codes), target.scoped_file.scope.value)
+            for target, program, codes in zip(targets, programs, codes_by_target, strict=True)
             if program is not None
         ]
     )
@@ -88,7 +88,7 @@ def _faults_by_code(
             Fault(
                 code=code,
                 path=path,
-                message=message,
+                message=rule.message if message is None else message,
                 line=line,
                 column=column,
                 remediation=rule.remediation,

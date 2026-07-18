@@ -3,8 +3,9 @@
 from strata import Fault
 from strata.rules.annotations.constants import SFA_RULES
 from strata.rules.authoring.models import RuleSpec
+from strata.rules.hygiene.constants import SFH_RULES
 
-_NATIVE_RULES_BY_CODE: dict[str, RuleSpec] = {rule.code: rule for rule in SFA_RULES}
+_NATIVE_RULES_BY_CODE: dict[str, RuleSpec] = {rule.code: rule for rule in (*SFA_RULES, *SFH_RULES)}
 
 
 def native_rule(code: str) -> RuleSpec:

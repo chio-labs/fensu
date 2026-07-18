@@ -81,6 +81,7 @@ def test_given_prewarmed_file_when_reading_parsed_module_then_skips_reparse(
             expected_family_plans=(
                 (
                     "annotations",
+                    "comments",
                     "contracts",
                     "control_flow",
                     "declarations",
@@ -92,6 +93,7 @@ def test_given_prewarmed_file_when_reading_parsed_module_then_skips_reparse(
                 ),
                 (
                     "annotations",
+                    "comments",
                     "control_flow",
                     "references",
                     "test_functions",

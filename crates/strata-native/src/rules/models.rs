@@ -2,8 +2,8 @@
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NativeFaultRow {
-    pub code: &'static str,
+    pub code: String,
     pub line: u32,
     pub column: u32,
-    pub message: String,
+    pub message: Option<String>,
 }

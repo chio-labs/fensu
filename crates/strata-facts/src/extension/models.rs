@@ -10,6 +10,7 @@ use ruff_python_parser::Parsed;
 
 use crate::facts::main::extract_annotations::extract_annotations;
 use crate::facts::main::extract_class_declarations::extract_class_declarations;
+use crate::facts::main::extract_comments::extract_comments;
 use crate::facts::main::extract_control_flow::extract_control_flow;
 use crate::facts::main::extract_function_contracts::extract_function_contracts;
 use crate::facts::main::extract_functions::extract_functions;
@@ -24,10 +25,10 @@ use crate::facts::main::extract_rule_references::extract_rule_references;
 use crate::facts::main::extract_test_functions::extract_test_functions;
 use crate::facts::main::extract_test_module::extract_test_module;
 use crate::facts::models::{
-    AnnotationRows, AssignmentReferenceRow, ClassDeclarationRow, ComparisonRow, ControlFlowRows,
-    FunctionContractRow, FunctionMetricRow, HygieneRows, LocalCallEdgeRow, ModuleDeclarationRows,
-    ParameterMutationOccurrenceRow, ParameterMutationRow, ReferenceRows, RuleNamedCallRow,
-    SourceRangeRow, TestFunctionRow, TestModuleRows,
+    AnnotationRows, AssignmentReferenceRow, ClassDeclarationRow, CommentRow, ComparisonRow,
+    ControlFlowRows, FunctionContractRow, FunctionMetricRow, HygieneRows, LocalCallEdgeRow,
+    ModuleDeclarationRows, ParameterMutationOccurrenceRow, ParameterMutationRow, ReferenceRows,
+    RuleNamedCallRow, SourceRangeRow, TestFunctionRow, TestModuleRows,
 };
 use crate::facts::types::FactFamily;
 use crate::parsing::main::parse_strict::parse_strict;
@@ -40,6 +41,7 @@ use crate::positions::models::LineIndex;
 struct FactRowCache {
     annotations: OnceLock<AnnotationRows>,
     class_declarations: OnceLock<Vec<ClassDeclarationRow>>,
+    comments: OnceLock<Vec<CommentRow>>,
     contracts: OnceLock<Vec<FunctionContractRow>>,
     control_flow: OnceLock<ControlFlowRows>,
     declarations: OnceLock<ModuleDeclarationRows>,
@@ -119,6 +121,12 @@ impl ProgramHandle {
             .0
     }
 
+    pub fn comment_rows(&self) -> &[CommentRow] {
+        self.rows
+            .comments
+            .get_or_init(|| extract_comments(self.tokens(), self.source(), self.index()))
+    }
+
     pub(crate) fn class_declaration_rows(&self) -> &[ClassDeclarationRow] {
         self.rows
             .class_declarations
@@ -139,13 +147,13 @@ impl ProgramHandle {
         })
     }
 
-    pub(crate) fn control_flow_rows(&self) -> &ControlFlowRows {
+    pub fn control_flow_rows(&self) -> &ControlFlowRows {
         self.rows
             .control_flow
             .get_or_init(|| extract_control_flow(self.module(), self.index(), self.source()))
     }
 
-    pub(crate) fn declaration_rows(&self) -> &ModuleDeclarationRows {
+    pub fn declaration_rows(&self) -> &ModuleDeclarationRows {
         self.rows
             .declarations
             .get_or_init(|| extract_module_declarations(self.module(), self.index(), self.source()))
@@ -157,7 +165,7 @@ impl ProgramHandle {
             .get_or_init(|| extract_functions(self.module(), self.index(), self.source()))
     }
 
-    pub(crate) fn hygiene_rows(&self) -> &HygieneRows {
+    pub fn hygiene_rows(&self) -> &HygieneRows {
         self.rows
             .hygiene
             .get_or_init(|| extract_hygiene(self.module(), self.index(), self.source()))
@@ -225,6 +233,9 @@ impl ProgramHandle {
             }
             FactFamily::ClassDeclarations => {
                 let _ = self.class_declaration_rows();
+            }
+            FactFamily::Comments => {
+                let _ = self.comment_rows();
             }
             FactFamily::Comparisons => {
                 let _ = self.comparison_rows();

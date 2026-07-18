@@ -59,6 +59,7 @@ PUBLIC_ATTRIBUTES: dict[str, tuple[str, str]] = {
     "RuleContext": ("strata.rules.authoring.types", "RuleContext"),
     "RuleFile": ("strata.rules.testing.models", "RuleFile"),
     "RuleResult": ("strata.rules.testing.models", "RuleResult"),
+    "ScopeName": ("strata.discovery.types", "ScopeName"),
     "RuleTestAssociationFact": ("strata.analysis.models", "RuleTestAssociationFact"),
     "Severity": ("strata.rules.authoring.types", "Severity"),
     "SourceLocation": ("strata.analysis.models", "SourceLocation"),

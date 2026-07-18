@@ -16,13 +16,13 @@ pub(crate) fn return_annotation_faults(rows: &AnnotationRows) -> Vec<NativeFault
     rows.returns
         .iter()
         .map(|row| NativeFaultRow {
-            code: RETURN_ANNOTATION_CODE,
+            code: RETURN_ANNOTATION_CODE.to_owned(),
             line: row.line,
             column: row.column,
-            message: format!(
+            message: Some(format!(
                 "function '{}' must define a return type annotation",
                 row.name
-            ),
+            )),
         })
         .collect()
 }
@@ -48,26 +48,26 @@ pub(crate) fn local_variable_annotation_faults(rows: &AnnotationRows) -> Vec<Nat
         .iter()
         .filter(|row| !row.scalar_literal)
         .map(|row| NativeFaultRow {
-            code: LOCAL_VARIABLE_ANNOTATION_CODE,
+            code: LOCAL_VARIABLE_ANNOTATION_CODE.to_owned(),
             line: row.line,
             column: row.column,
-            message: format!(
+            message: Some(format!(
                 "local variable '{}' must define a type annotation on first binding",
                 row.name
-            ),
+            )),
         })
         .collect()
 }
 
 fn parameter_fault(row: &NamedLocationRow) -> NativeFaultRow {
     NativeFaultRow {
-        code: PARAMETER_ANNOTATION_CODE,
+        code: PARAMETER_ANNOTATION_CODE.to_owned(),
         line: row.line,
         column: row.column,
-        message: format!(
+        message: Some(format!(
             "function parameter '{}' must define a type annotation",
             row.name
-        ),
+        )),
     }
 }
 
@@ -78,10 +78,13 @@ fn variable_faults(
 ) -> Vec<NativeFaultRow> {
     rows.iter()
         .map(|row| NativeFaultRow {
-            code,
+            code: code.to_owned(),
             line: row.line,
             column: row.column,
-            message: format!("{subject} '{}' must define a type annotation", row.name),
+            message: Some(format!(
+                "{subject} '{}' must define a type annotation",
+                row.name
+            )),
         })
         .collect()
 }

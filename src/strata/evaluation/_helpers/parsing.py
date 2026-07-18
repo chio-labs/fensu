@@ -23,6 +23,7 @@ from strata.evaluation.types import EvaluationProjectAnalysis
 
 _RUNTIME_FACT_FAMILIES: tuple[str, ...] = (
     "annotations",
+    "comments",
     "contracts",
     "control_flow",
     "declarations",
@@ -34,6 +35,7 @@ _RUNTIME_FACT_FAMILIES: tuple[str, ...] = (
 )
 _TEST_FACT_FAMILIES: tuple[str, ...] = (
     "annotations",
+    "comments",
     "control_flow",
     "references",
     "test_functions",

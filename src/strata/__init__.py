@@ -56,6 +56,7 @@ __all__ = [
     "RuleFile",
     "RuleResult",
     "RuleTestAssociationFact",
+    "ScopeName",
     "Severity",
     "SourceLocation",
     "SourcePosition",

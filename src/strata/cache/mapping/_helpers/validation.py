@@ -2,7 +2,7 @@
 
 from strata.cache.mapping.models import FileDeclarations, FunctionDeclaration, MapManifest
 from strata.mapping.constants import QUALIFIED_NAME_SEPARATOR
-from strata.mapping.models import SourceSnapshot
+from strata.mapping.models import ProjectIndex, SourceSnapshot
 
 
 def manifest_is_current(
@@ -19,6 +19,8 @@ def manifest_is_current(
     seen_paths: set[str] = set()
     functions: dict[str, str] = {}
     classes: dict[str, str] = {}
+    class_bases: dict[str, tuple[str, ...]] = {}
+    protocol_keys: set[str] = set()
     metadata: dict[str, FunctionDeclaration] = {}
     for declaration, snapshot, identity in zip(manifest.files, snapshots, identities, strict=True):
         if not file_declarations_are_current(
@@ -32,16 +34,26 @@ def manifest_is_current(
         for function in declaration.functions:
             functions[function.key] = identity
             metadata[function.key] = function
-        for class_key in declaration.class_keys:
-            classes[class_key] = identity
+        for class_declaration in declaration.classes:
+            classes[class_declaration.key] = identity
+            class_bases[class_declaration.key] = class_declaration.base_keys
+            if class_declaration.protocol:
+                protocol_keys.add(class_declaration.key)
     bare: dict[str, list[str]] = {}
     for key in functions:
         bare.setdefault(metadata[key].name, []).append(key)
     expected_bare: dict[str, tuple[str, ...]] = {name: tuple(keys) for name, keys in bare.items()}
+    expected_implementations: dict[str, tuple[str, ...]] = (
+        ProjectIndex.build_protocol_implementation_keys(
+            class_bases=class_bases,
+            protocol_keys=frozenset(protocol_keys),
+        )
+    )
     return (
         manifest.functions == functions
         and manifest.classes == classes
         and manifest.bare_functions == expected_bare
+        and manifest.protocol_implementations == expected_implementations
     )
 
 
@@ -52,19 +64,18 @@ def file_declarations_are_current(
         declaration.identity != identity
         or declaration.path != snapshot.relative_path
         or declaration.module_name != snapshot.module_name
-        or len(set(declaration.class_keys)) != len(declaration.class_keys)
+        or len({item.key for item in declaration.classes}) != len(declaration.classes)
     ):
         return False
     class_prefix: str = f"{declaration.module_name}."
-    if any(
-        not key.startswith(class_prefix)
-        or QUALIFIED_NAME_SEPARATOR in key.removeprefix(class_prefix)
-        for key in declaration.class_keys
-    ):
-        return False
+    for item in declaration.classes:
+        if not item.key.startswith(
+            class_prefix
+        ) or QUALIFIED_NAME_SEPARATOR in item.key.removeprefix(class_prefix):
+            return False
     if len({item.key for item in declaration.functions}) != len(declaration.functions):
         return False
-    class_keys: frozenset[str] = frozenset(declaration.class_keys)
+    class_keys: frozenset[str] = frozenset(item.key for item in declaration.classes)
     for function in declaration.functions:
         qualified_name: str = (
             function.name

@@ -13,6 +13,7 @@ from strata.cache.mapping._helpers.serialization import (
     file_declarations_record,
 )
 from strata.cache.mapping.models import (
+    ClassDeclaration,
     FileDeclarations,
     FunctionDeclaration,
     MappingIdentity,
@@ -93,7 +94,7 @@ def test_given_mapping_identity_component_change_when_keying_file_then_identity_
         ),
         RecordIntegrityTestCase(
             description="omitted canonical class metadata fails integrity",
-            field_name="class_keys",
+            field_name="classes",
             changed_value=[],
             expected_valid=False,
         ),
@@ -115,7 +116,13 @@ def test_given_integrity_bound_record_when_semantics_mutate_then_decode_misses(
                 owning_class="Owner",
             ),
         ),
-        class_keys=("pkg.mod.Owner",),
+        classes=(
+            ClassDeclaration(
+                key="pkg.mod.Owner",
+                base_keys=("pkg.contracts.OwnerProtocol",),
+                protocol=False,
+            ),
+        ),
     )
     record: CacheRecord = file_declarations_record(declarations)
     payload: dict[str, CanonicalValue] = dict(cast(dict[str, CanonicalValue], record.payload))

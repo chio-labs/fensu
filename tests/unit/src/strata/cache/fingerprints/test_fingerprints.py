@@ -34,6 +34,7 @@ from strata.config.models import (
     CacheConfig,
     Config,
     EvaluationConfig,
+    ExperimentalConfig,
     MemoryConfig,
     MemoryTasksConfig,
     SkillsConfig,
@@ -386,18 +387,18 @@ def test_given_memory_preferences_when_fingerprinting_then_excludes_operational_
     first: CacheFingerprint = config_fingerprint(
         Config(
             roots=("src/pkg",),
+            experimental=ExperimentalConfig(memory=test_case.first_enabled),
             memory=MemoryConfig(
-                enabled=test_case.first_enabled,
-                tasks=MemoryTasksConfig(archive_after_days=test_case.first_archive_after_days),
+                tasks=MemoryTasksConfig(archive_after_days=test_case.first_archive_after_days)
             ),
         )
     )
     second: CacheFingerprint = config_fingerprint(
         Config(
             roots=("src/pkg",),
+            experimental=ExperimentalConfig(memory=test_case.second_enabled),
             memory=MemoryConfig(
-                enabled=test_case.second_enabled,
-                tasks=MemoryTasksConfig(archive_after_days=test_case.second_archive_after_days),
+                tasks=MemoryTasksConfig(archive_after_days=test_case.second_archive_after_days)
             ),
         )
     )

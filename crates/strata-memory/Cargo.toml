@@ -15,9 +15,10 @@ pulldown-cmark.workspace = true
 rayon.workspace = true
 rusqlite = { workspace = true, optional = true }
 sha2.workspace = true
+tempfile = { workspace = true, optional = true }
 
 [features]
-sqlite-engine = ["dep:rusqlite"]
+sqlite-engine = ["dep:rusqlite", "dep:tempfile"]
 
 [[test]]
 name = "engine"

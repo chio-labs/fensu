@@ -83,7 +83,7 @@ def test_given_subcommand_when_running_entry_then_delegates_remaining_arguments(
             argv=("unknown",),
             expected_stdout="",
             expected_stderr=(
-                "Unknown command: unknown\nUsage: strata {check,init,rule,skills,map,memory} ...\n"
+                "Unknown command: unknown\nUsage: strata {check,init,rule,skills,map} ...\n"
             ),
             expected_exit_code=2,
         ),
@@ -91,21 +91,20 @@ def test_given_subcommand_when_running_entry_then_delegates_remaining_arguments(
             description="empty invocation prints short usage",
             argv=(),
             expected_stdout="",
-            expected_stderr="Usage: strata {check,init,rule,skills,map,memory} ...\n",
+            expected_stderr="Usage: strata {check,init,rule,skills,map} ...\n",
             expected_exit_code=2,
         ),
         EntryUsageTestCase(
             description="long help prints command summaries",
             argv=("--help",),
             expected_stdout=(
-                "Usage: strata {init,check,rule,map,skills,memory} ...\n\n"
+                "Usage: strata {init,check,rule,map,skills} ...\n\n"
                 "Commands:\n"
                 "  init    Initialize Strata configuration for a repository.\n"
                 "  check   Evaluate repository architecture rules.\n"
                 "  rule    Show details for one rule.\n"
                 "  map     Render a downstream project call map.\n"
-                "  skills  Generate and install agent guidance.\n"
-                "  memory  Inspect and query persistent repository memory.\n\n"
+                "  skills  Generate and install agent guidance.\n\n"
                 "Run `strata <command> --help` for command-specific options.\n"
             ),
             expected_stderr="",
@@ -115,14 +114,13 @@ def test_given_subcommand_when_running_entry_then_delegates_remaining_arguments(
             description="short help matches long help",
             argv=("-h",),
             expected_stdout=(
-                "Usage: strata {init,check,rule,map,skills,memory} ...\n\n"
+                "Usage: strata {init,check,rule,map,skills} ...\n\n"
                 "Commands:\n"
                 "  init    Initialize Strata configuration for a repository.\n"
                 "  check   Evaluate repository architecture rules.\n"
                 "  rule    Show details for one rule.\n"
                 "  map     Render a downstream project call map.\n"
-                "  skills  Generate and install agent guidance.\n"
-                "  memory  Inspect and query persistent repository memory.\n\n"
+                "  skills  Generate and install agent guidance.\n\n"
                 "Run `strata <command> --help` for command-specific options.\n"
             ),
             expected_stderr="",

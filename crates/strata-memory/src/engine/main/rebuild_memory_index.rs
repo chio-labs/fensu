@@ -2,18 +2,16 @@
 
 use std::path::Path;
 
-use crate::corpus::main::load_memory_corpus::load_memory_corpus;
 use crate::engine::errors::MemoryIndexError;
 use crate::engine::helpers::publication::database;
 use crate::engine::models::IndexSummary;
-use crate::graph::main::resolve_memory_graph::resolve_memory_graph;
+use crate::source::main::discover_memory::discover_memory;
 
 /// Load the complete corpus and atomically replace its SQLite index.
 pub fn rebuild_memory_index(
     repository_root: &Path,
     database_path: &Path,
 ) -> Result<IndexSummary, MemoryIndexError> {
-    let corpus = load_memory_corpus(repository_root);
-    let graph = resolve_memory_graph(&corpus);
-    database::publish(&corpus, &graph, database_path)
+    let discovery = discover_memory(repository_root);
+    database::publish_discovery(discovery, database_path, false).map(|result| result.summary)
 }

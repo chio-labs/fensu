@@ -80,7 +80,7 @@ def _configured(
 
 
 def _memory_result(*, loaded: LoadedConfig, project_dir: Path) -> object | None:
-    if not loaded.config.memory.enabled:
+    if not loaded.config.experimental.memory:
         return None
     from strata.memory.constants import MEMORY_DATABASE_DIRECTORY, MEMORY_DATABASE_FILENAME
     from strata.memory.exceptions import MemoryError

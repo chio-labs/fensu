@@ -9,6 +9,7 @@ use crate::engine::helpers::publication::values;
 pub(crate) fn insert(
     transaction: &Transaction<'_>,
     corpus: &MemoryCorpus,
+    document_offset: usize,
 ) -> Result<usize, MemoryIndexError> {
     let mut statement = transaction
         .prepare_cached(
@@ -51,7 +52,10 @@ pub(crate) fn insert(
         .map_err(|error| MemoryIndexError::sqlite("prepare document key insertion", error))?;
     for (index, document) in corpus.documents.iter().enumerate() {
         key_statement
-            .execute(params![index as i64, &document.source.identity.0])
+            .execute(params![
+                (document_offset + index) as i64,
+                &document.source.identity.0
+            ])
             .map_err(|error| MemoryIndexError::sqlite("insert document key", error))?;
     }
     Ok(corpus.documents.len())

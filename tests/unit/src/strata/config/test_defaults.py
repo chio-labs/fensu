@@ -35,15 +35,15 @@ from tests.unit.src.strata.config.helpers import write_strata_toml
     "test_case",
     [
         MemoryConfigTestCase(
-            description="omitted memory table applies disabled retention defaults",
+            description="omitted experimental table disables memory with retention defaults",
             config_text='roots = ["src/pkg"]\n',
             expected_enabled=False,
             expected_archive_after_days=7,
         ),
         MemoryConfigTestCase(
-            description="memory table enables persistence and overrides task retention",
+            description="experimental gate enables memory and settings override task retention",
             config_text=(
-                'roots = ["src/pkg"]\n[memory]\nenabled = true\n'
+                'roots = ["src/pkg"]\n[experimental]\nmemory = true\n'
                 "[memory.tasks]\narchive_after_days = 30\n"
             ),
             expected_enabled=True,
@@ -73,7 +73,7 @@ def test_given_memory_preferences_when_loading_then_applies_nested_defaults_and_
 
     config: Config = load_config(tmp_path)
 
-    assert config.memory.enabled is test_case.expected_enabled
+    assert config.experimental.memory is test_case.expected_enabled
     assert config.memory.tasks.archive_after_days == test_case.expected_archive_after_days
 
 

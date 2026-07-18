@@ -14,11 +14,9 @@ from strata.scaffolding._helpers import capabilities as capabilities_module
 from strata.scaffolding.constants import (
     GITIGNORE_FILE_NAME,
     GLOBSTAR_PATTERN,
-    MEMORY_DATABASE_RELATIVE_PATH,
     POSIX_PATH_SEPARATOR,
     PYTHON_GITIGNORE_TEMPLATE,
     STRATA_GITIGNORE_BLOCK,
-    STRATA_MEMORY_GITIGNORE_BLOCK,
 )
 from strata.scaffolding.exceptions import InitError
 from strata.scaffolding.models import GitIgnorePlan
@@ -63,19 +61,16 @@ def build_gitignore_predicate(*, repository: Path) -> GitIgnorePredicate:
     return is_ignored
 
 
-def plan_gitignore_update(
-    *, repository: Path, greenfield: bool, memory_enabled: bool = False
-) -> GitIgnorePlan | None:
+def plan_gitignore_update(*, repository: Path, greenfield: bool) -> GitIgnorePlan | None:
     """Capture a safe root gitignore update for enabled Strata derived state."""
 
     path: Path = repository / GITIGNORE_FILE_NAME
     captured: tuple[bytes, os.stat_result] | None = _capture_regular_file(path=path)
     if captured is None:
         prefix: bytes = PYTHON_GITIGNORE_TEMPLATE if greenfield else b""
-        memory_block: bytes = STRATA_MEMORY_GITIGNORE_BLOCK if memory_enabled else b""
         return GitIgnorePlan(
             original=None,
-            desired=prefix + STRATA_GITIGNORE_BLOCK + memory_block,
+            desired=prefix + STRATA_GITIGNORE_BLOCK,
             device=None,
             inode=None,
         )
@@ -87,19 +82,11 @@ def plan_gitignore_update(
         is_directory=False,
         rules=rules,
     )
-    memory_ignored: bool = not memory_enabled or _is_ignored_by_rules(
-        repository=repository,
-        path=repository / MEMORY_DATABASE_RELATIVE_PATH,
-        is_directory=False,
-        rules=rules,
-    )
-    if cache_ignored and memory_ignored:
+    if cache_ignored:
         return None
     blocks: bytes = b""
     if not cache_ignored:
         blocks += STRATA_GITIGNORE_BLOCK
-    if not memory_ignored:
-        blocks += STRATA_MEMORY_GITIGNORE_BLOCK
     separator: bytes = b"" if not original or original.endswith(b"\n") else b"\n"
     return GitIgnorePlan(
         original=original,

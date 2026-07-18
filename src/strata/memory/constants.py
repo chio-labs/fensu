@@ -15,6 +15,24 @@ MIN_GRAPH_EDGES: int = 1
 MAX_GRAPH_EDGES: int = 500
 MEMORY_DATABASE_DIRECTORY: str = ".strata/memory"
 MEMORY_DATABASE_FILENAME: str = "memory.sqlite3"
+MEMORY_BOOTSTRAP_FILENAME: str = ".bootstrapped"
+MEMORY_GITIGNORE_ENTRY: str = ".strata/memory/"
+MEMORY_DIRECTORIES: tuple[str, ...] = (
+    ".ai/tasks/not-started",
+    ".ai/tasks/in-progress",
+    ".ai/tasks/completed",
+    ".ai/tasks/cancelled",
+    ".ai/tasks/superseded",
+    ".ai/knowledge/repo/notes",
+    ".ai/knowledge/repo/decisions",
+    ".ai/knowledge/repo/skills",
+    ".ai/_archive/tasks/completed",
+    ".ai/_archive/tasks/cancelled",
+    ".ai/_archive/tasks/superseded",
+    ".ai/_archive/knowledge/repo/notes",
+    ".ai/_archive/knowledge/repo/decisions",
+    ".ai/_archive/knowledge/repo/skills",
+)
 MEMORY_SCHEMA_PREFIX: str = "memory."
 NULL_TEXT: str = "NULL"
 RELATION_KIND_TABLE: str = "table"

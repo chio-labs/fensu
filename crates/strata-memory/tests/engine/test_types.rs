@@ -150,6 +150,7 @@ pub(crate) struct MemoryPublicationPerformanceTestCase {
     pub(crate) list_marker: &'static str,
     pub(crate) expected_list_item_count: usize,
     pub(crate) expected_list_item_batch_count: usize,
+    pub(crate) expected_max_loaded_documents: usize,
     pub(crate) expected_max_duration: Duration,
 }
 
@@ -160,6 +161,25 @@ pub(crate) struct MemoryPublicationStressTestCase {
     pub(crate) expected_document_count: usize,
     pub(crate) expected_list_item_count: usize,
     pub(crate) expected_list_item_batch_count: usize,
+    pub(crate) expected_max_loaded_documents: usize,
+}
+
+pub(crate) struct MemoryStreamingTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) document_count: usize,
+    pub(crate) expected_document_count: usize,
+    pub(crate) expected_list_item_count: usize,
+    pub(crate) expected_max_loaded_documents: usize,
+    pub(crate) expected_link_count: usize,
+    pub(crate) expected_graph_diagnostic_count: usize,
+    pub(crate) expected_late_diagnostic_count: usize,
+}
+
+pub(crate) struct MemoryStreamingFailureTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) document_count: usize,
+    pub(crate) expected_error_fragment: &'static str,
+    pub(crate) expected_temporary_count: usize,
 }
 
 pub(crate) struct MemorySchemaTestCase {

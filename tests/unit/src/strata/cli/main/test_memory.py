@@ -201,7 +201,7 @@ def test_given_disabled_memory_when_running_command_then_fails_before_database_o
     test_case: MemoryDisabledAdapterTestCase,
 ) -> None:
     (tmp_path / "strata.toml").write_text(
-        'roots = ["src"]\n[memory]\nenabled = false\n', encoding="utf-8"
+        'roots = ["src"]\n[experimental]\nmemory = false\n', encoding="utf-8"
     )
     monkeypatch.chdir(tmp_path)
     stdout: io.StringIO = io.StringIO()

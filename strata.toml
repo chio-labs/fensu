@@ -3,8 +3,8 @@ tests = ["tests"]
 tooling = ["scripts"]
 select = ["SF"]
 
-[memory]
-enabled = true
+[experimental]
+memory = true
 
 [memory.tasks]
 archive_after_days = 7

@@ -8,7 +8,7 @@ from dataclasses import FrozenInstanceError
 import pytest
 
 from strata.agentdocs.main._generate import generate_skill
-from strata.config.models import Config, MemoryConfig, RuleExceptionEntry, ThresholdOverride
+from strata.config.models import Config, ExperimentalConfig, RuleExceptionEntry, ThresholdOverride
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Threshold
 from strata.rules.catalog.constants import CORE_RULES
@@ -42,7 +42,7 @@ _ESCAPED_OVERRIDE_REASON: str = 'Generated "API" path.\nKeep \\ escapes.'
                 roots=("src/acme",),
                 tests=(),
                 tooling=(),
-                memory=MemoryConfig(enabled=False),
+                experimental=ExperimentalConfig(memory=False),
             ),
             rule_codes=("SFH001",),
             expected_fragments=("## Commands", "## Navigation And Work Handoffs"),
@@ -54,7 +54,7 @@ _ESCAPED_OVERRIDE_REASON: str = 'Generated "API" path.\nKeep \\ escapes.'
                 roots=("src/acme",),
                 tests=(),
                 tooling=(),
-                memory=MemoryConfig(enabled=True),
+                experimental=ExperimentalConfig(memory=True),
             ),
             rule_codes=("SFH001",),
             expected_fragments=(
@@ -666,7 +666,7 @@ def test_given_complete_generation_context_when_rendering_then_includes_mandator
                     roots=("src/acme",),
                     tests=(),
                     tooling=(),
-                    memory=MemoryConfig(enabled=False),
+                    experimental=ExperimentalConfig(memory=False),
                 ),
                 blocking_rules=core_rules_for_codes(("SFH001",)),
             ),

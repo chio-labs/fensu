@@ -6,22 +6,26 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use rusqlite::Connection;
+use tempfile::TempPath;
 
-use crate::corpus::models::MemoryCorpus;
-use crate::engine::constants;
 use crate::engine::errors::MemoryIndexError;
-use crate::engine::helpers::publication::{documents, lists, references, sections, skills};
-use crate::engine::models::IndexSummary;
-use crate::graph::models::MemoryGraph;
+use crate::engine::helpers::publication::streaming;
+use crate::engine::models::{IndexSummary, MemoryDiagnostic};
+use crate::source::models::DiscoveryResult;
 
 static TEMPORARY_COUNTER: AtomicU64 = AtomicU64::new(0);
 
-pub(crate) fn publish(
-    corpus: &MemoryCorpus,
-    graph: &MemoryGraph,
+pub(crate) struct PublicationResult {
+    pub(crate) summary: IndexSummary,
+    pub(crate) diagnostics: Vec<MemoryDiagnostic>,
+    pub(crate) published: bool,
+}
+
+pub(crate) fn publish_discovery(
+    discovery: DiscoveryResult,
     database_path: &Path,
-) -> Result<IndexSummary, MemoryIndexError> {
+    require_valid: bool,
+) -> Result<PublicationResult, MemoryIndexError> {
     let parent = database_parent(database_path)?;
     fs::create_dir_all(&parent).map_err(|error| {
         MemoryIndexError::filesystem("create database directory", parent.clone(), error)
@@ -36,10 +40,16 @@ pub(crate) fn publish(
         wal_path.as_path(),
         shm_path.as_path(),
     ];
-    let summary = match build_database(corpus, graph, &temporary_path) {
-        Ok(summary) => summary,
+    let result = match streaming::build(discovery, &temporary_path, require_valid) {
+        Ok(result) => result,
         Err(error) => return Err(cleanup_files(error, &temporary_files)),
     };
+    if !result.published {
+        remove_if_exists(&temporary_path).map_err(|error| {
+            MemoryIndexError::filesystem("remove invalid memory index", temporary_path, error)
+        })?;
+        return Ok(result);
+    }
     for sidecar in [&journal_path, &wal_path, &shm_path] {
         if let Err(error) = remove_if_exists(sidecar) {
             let failure = MemoryIndexError::filesystem(
@@ -50,59 +60,22 @@ pub(crate) fn publish(
             return Err(cleanup_files(failure, &temporary_files));
         }
     }
-    if let Err(error) = fs::rename(&temporary_path, database_path) {
+    let temporary = TempPath::try_from_path(&temporary_path).map_err(|error| {
+        MemoryIndexError::filesystem(
+            "prepare atomic memory index publication",
+            temporary_path.clone(),
+            error,
+        )
+    })?;
+    if let Err(error) = temporary.persist(database_path) {
         let failure = MemoryIndexError::filesystem(
             "publish memory index",
             database_path.to_path_buf(),
-            error,
+            error.error,
         );
         return Err(cleanup_files(failure, &temporary_files));
     }
-    Ok(summary)
-}
-
-fn build_database(
-    corpus: &MemoryCorpus,
-    graph: &MemoryGraph,
-    temporary_path: &Path,
-) -> Result<IndexSummary, MemoryIndexError> {
-    let mut connection = Connection::open(temporary_path)
-        .map_err(|error| MemoryIndexError::sqlite("open temporary memory index", error))?;
-    connection
-        .execute_batch(
-            "PRAGMA foreign_keys = ON; PRAGMA journal_mode = OFF; PRAGMA synchronous = OFF; PRAGMA temp_store = MEMORY;",
-        )
-        .map_err(|error| MemoryIndexError::sqlite("configure temporary memory index", error))?;
-    let transaction = connection
-        .transaction()
-        .map_err(|error| MemoryIndexError::sqlite("begin memory index transaction", error))?;
-    transaction
-        .execute_batch(constants::MEMORY_SCHEMA_SQL)
-        .map_err(|error| MemoryIndexError::sqlite("create memory schema", error))?;
-    let document_count = documents::insert(&transaction, corpus)?;
-    let section_count = sections::insert(&transaction, corpus)?;
-    let (list_item_count, list_item_batch_count) = lists::insert(&transaction, corpus)?;
-    let link_count = references::insert_links(&transaction, corpus, graph)?;
-    let tag_count = references::insert_tags(&transaction, corpus)?;
-    let skill_file_count = skills::insert(&transaction, corpus)?;
-    transaction
-        .commit()
-        .map_err(|error| MemoryIndexError::sqlite("commit memory index transaction", error))?;
-    connection
-        .close()
-        .map_err(|(_, error)| MemoryIndexError::sqlite("close temporary memory index", error))?;
-    Ok(IndexSummary {
-        document_count,
-        section_count,
-        list_item_count,
-        list_item_batch_count,
-        link_count,
-        tag_count,
-        skill_file_count,
-        source_diagnostic_count: corpus.source_diagnostics.len(),
-        corpus_diagnostic_count: corpus.diagnostics.len(),
-        graph_diagnostic_count: graph.diagnostics.len(),
-    })
+    Ok(result)
 }
 
 fn database_parent(database_path: &Path) -> Result<PathBuf, MemoryIndexError> {

@@ -10,7 +10,7 @@ from types import MappingProxyType
 from strata.config.constants import (
     DEFAULT_CACHE_ENABLED,
     DEFAULT_CONTRACTS,
-    DEFAULT_MEMORY_ENABLED,
+    DEFAULT_EXPERIMENTAL_MEMORY,
     DEFAULT_MEMORY_TASKS_ARCHIVE_AFTER_DAYS,
     DEFAULT_THRESHOLDS,
 )
@@ -63,8 +63,14 @@ class MemoryTasksConfig:
 class MemoryConfig:
     """Operational Strata Memory preferences."""
 
-    enabled: bool = DEFAULT_MEMORY_ENABLED
     tasks: MemoryTasksConfig = field(default_factory=MemoryTasksConfig)
+
+
+@dataclass(frozen=True, slots=True)
+class ExperimentalConfig:
+    """Explicit repository-scoped experimental feature activation."""
+
+    memory: bool = DEFAULT_EXPERIMENTAL_MEMORY
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,6 +129,7 @@ class Config:
     rule_exceptions: tuple[RuleExceptionEntry, ...] = ()
     cache: CacheConfig = field(default_factory=lambda: CacheConfig(enabled=DEFAULT_CACHE_ENABLED))
     evaluation: EvaluationConfig = field(default_factory=EvaluationConfig)
+    experimental: ExperimentalConfig = field(default_factory=ExperimentalConfig)
     skills: SkillsConfig = field(default_factory=SkillsConfig)
     thresholds: Mapping[Threshold, int] = field(
         default_factory=lambda: MappingProxyType(dict(DEFAULT_THRESHOLDS))

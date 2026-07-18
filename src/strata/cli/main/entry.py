@@ -45,13 +45,13 @@ def main(argv: tuple[str, ...] | None = None) -> int:
         return 2
     if args:
         sys.stderr.write(f"Unknown command: {args[0]}\n")
-    sys.stderr.write("Usage: strata {check,init,rule,skills,map,memory} ...\n")
+    sys.stderr.write("Usage: strata {check,init,rule,skills,map} ...\n")
     return 2
 
 
 def _write_help() -> None:
     sys.stdout.write(
-        "Usage: strata {init,check,rule,map,skills,memory} ...\n"
+        "Usage: strata {init,check,rule,map,skills} ...\n"
         "\n"
         "Commands:\n"
         "  init    Initialize Strata configuration for a repository.\n"
@@ -59,7 +59,6 @@ def _write_help() -> None:
         "  rule    Show details for one rule.\n"
         "  map     Render a downstream project call map.\n"
         "  skills  Generate and install agent guidance.\n"
-        "  memory  Inspect and query persistent repository memory.\n"
         "\n"
         "Run `strata <command> --help` for command-specific options.\n"
     )

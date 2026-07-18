@@ -10,6 +10,9 @@ pub(crate) const QUERY_MAX_MEMORY: &str = "256MB";
 pub(crate) const QUERY_MAX_TEMP_DIRECTORY_SIZE: &str = "0B";
 pub(crate) const SCHEMA_VERSION: u32 = 1;
 pub(crate) const PARSER_CONTRACT_VERSION: u32 = 1;
+pub(crate) const ARCHIVE_STATE_ACTIVE: &str = "active";
+pub(crate) const ARCHIVE_STATE_ARCHIVED: &str = "archived";
+pub(crate) const RESOLUTION_STATUS_RESOLVED: &str = "resolved";
 
 pub(crate) const DOCUMENT_INSERT_SQL: &str =
     "INSERT INTO documents VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";

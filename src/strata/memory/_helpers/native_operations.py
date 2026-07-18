@@ -12,6 +12,10 @@ from strata.memory.models import (
     MemoryArchiveResult,
     MemoryCheckResult,
     MemoryDiagnostic,
+    MemoryGraphEdge,
+    MemoryGraphNode,
+    MemoryGraphRequest,
+    MemoryGraphResult,
     MemoryIndexSummary,
     MemoryOverview,
     MemoryProject,
@@ -161,3 +165,35 @@ def query(*, project: MemoryProject, sql: str, limit: int) -> MemoryQueryResult:
     except RuntimeError as error:
         raise MemoryOperationError(f"Memory query failed: {error}") from error
     return MemoryQueryResult(columns=columns, types=types, rows=rows, truncated=truncated)
+
+
+def graph(*, project: MemoryProject, request: MemoryGraphRequest) -> MemoryGraphResult:
+    """Run one bounded graph query through the native engine."""
+
+    try:
+        selection, roots, raw_nodes, raw_edges, node_exhausted, edge_exhausted = (
+            _native.memory_graph(
+                project.database_path,
+                (
+                    request.pattern,
+                    request.direction,
+                    [str(value) for value in request.relationships],
+                    request.depth,
+                    request.max_nodes,
+                    request.max_edges,
+                    request.include_archived,
+                ),
+            )
+        )
+    except RuntimeError as error:
+        raise MemoryOperationError(f"Memory graph failed: {error}") from error
+    nodes: tuple[MemoryGraphNode, ...] = tuple(MemoryGraphNode(*values) for values in raw_nodes)
+    edges: tuple[MemoryGraphEdge, ...] = tuple(MemoryGraphEdge(*values) for values in raw_edges)
+    return MemoryGraphResult(
+        selection=selection,
+        roots=roots,
+        nodes=nodes,
+        edges=edges,
+        node_budget_exhausted=node_exhausted,
+        edge_budget_exhausted=edge_exhausted,
+    )

@@ -10,6 +10,8 @@ use crate::test_types;
 mod archive;
 #[path = "check.rs"]
 mod check;
+#[path = "graph_query.rs"]
+mod graph_query;
 #[path = "helpers.rs"]
 mod helpers;
 #[path = "overview.rs"]

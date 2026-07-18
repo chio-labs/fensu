@@ -8,10 +8,23 @@ import os
 import sys
 from typing import TextIO
 
+from strata.cli.classes.memory_graph_writer import MemoryGraphWriter
 from strata.cli.constants import NO_COLOR_ENVIRONMENT_VARIABLE
 from strata.cli.types import ColorMode, MemoryCliCommand
 from strata.config.exceptions import ConfigError
-from strata.memory.constants import DEFAULT_QUERY_LIMIT, MAX_QUERY_LIMIT
+from strata.memory.constants import (
+    DEFAULT_GRAPH_DEPTH,
+    DEFAULT_GRAPH_MAX_EDGES,
+    DEFAULT_GRAPH_MAX_NODES,
+    DEFAULT_QUERY_LIMIT,
+    MAX_GRAPH_DEPTH,
+    MAX_GRAPH_EDGES,
+    MAX_GRAPH_NODES,
+    MAX_QUERY_LIMIT,
+    MIN_GRAPH_DEPTH,
+    MIN_GRAPH_EDGES,
+    MIN_GRAPH_NODES,
+)
 from strata.memory.exceptions import MemoryError
 from strata.memory.main.read_memory_schema import read_memory_schema
 from strata.memory.main.rebuild_memory import rebuild_memory
@@ -25,7 +38,12 @@ from strata.memory.main.run_memory_query import run_memory_query
 from strata.memory.main.summarize_memory import summarize_memory
 from strata.memory.main.sync_memory import sync_memory
 from strata.memory.models import MemoryOverviewResult
-from strata.memory.types import MemoryQueryFormat
+from strata.memory.types import (
+    MemoryGraphDirection,
+    MemoryGraphFormat,
+    MemoryGraphRelationship,
+    MemoryQueryFormat,
+)
 from strata.reporting.models import RenderedReport
 
 
@@ -41,8 +59,7 @@ def run_memory(
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
             args: argparse.Namespace = _parser().parse_args(() if argv is None else argv)
     except SystemExit as error:
-        exit_code: object = error.code
-        return exit_code if isinstance(exit_code, int) else 2
+        return 0 if error.code == 0 else 2
     try:
         use_color: bool = NO_COLOR_ENVIRONMENT_VARIABLE not in os.environ and (
             args.color == ColorMode.ALWAYS or (args.color == ColorMode.AUTO and stdout.isatty())
@@ -75,6 +92,14 @@ def run_memory(
                 render_memory_schema(result=read_memory_schema(args.relation), use_color=use_color)
             )
             return 0
+        if args.command == MemoryCliCommand.GRAPH:
+            MemoryGraphWriter.write(
+                args=args,
+                stdout=stdout,
+                stderr=stderr,
+                use_color=use_color,
+            )
+            return 0
         limit: int = MAX_QUERY_LIMIT if args.no_limit else args.limit
         sync_text, query_text = run_memory_query(
             sql=args.query,
@@ -99,7 +124,7 @@ def _parser() -> argparse.ArgumentParser:
         "--color", choices=tuple(ColorMode), default=ColorMode.AUTO, help="ANSI color behavior"
     )
     subparsers: argparse._SubParsersAction[argparse.ArgumentParser] = parser.add_subparsers(
-        dest="command", metavar="{archive,check,sync,rebuild,schema,sql}"
+        dest="command", metavar="{archive,check,sync,rebuild,schema,graph,sql}"
     )
     archive_parser: argparse.ArgumentParser = subparsers.add_parser(
         MemoryCliCommand.ARCHIVE, help="archive eligible or explicit memory sources"
@@ -124,6 +149,55 @@ def _parser() -> argparse.ArgumentParser:
     )
     schema_parser.add_argument("relation", nargs="?", help="public relation name")
     schema_parser.add_argument("--color", choices=tuple(ColorMode), default=argparse.SUPPRESS)
+    graph_parser: argparse.ArgumentParser = subparsers.add_parser(
+        MemoryCliCommand.GRAPH, help="retrieve a bounded document relationship graph"
+    )
+    graph_parser.add_argument("pattern", metavar="DOCUMENT_OR_PATTERN")
+    graph_parser.add_argument(
+        "--direction", choices=tuple(MemoryGraphDirection), default=MemoryGraphDirection.OUTBOUND
+    )
+    graph_parser.add_argument(
+        "--relationship",
+        dest="relationships",
+        choices=tuple(MemoryGraphRelationship),
+        action="append",
+        default=[],
+    )
+    graph_parser.add_argument(
+        "--depth",
+        type=lambda value: _bounded_integer(
+            value=value, name="depth", minimum=MIN_GRAPH_DEPTH, maximum=MAX_GRAPH_DEPTH
+        ),
+        default=DEFAULT_GRAPH_DEPTH,
+    )
+    graph_parser.add_argument(
+        "--max-nodes",
+        type=lambda value: _bounded_integer(
+            value=value,
+            name="max-nodes",
+            minimum=MIN_GRAPH_NODES,
+            maximum=MAX_GRAPH_NODES,
+        ),
+        default=DEFAULT_GRAPH_MAX_NODES,
+    )
+    graph_parser.add_argument(
+        "--max-edges",
+        type=lambda value: _bounded_integer(
+            value=value,
+            name="max-edges",
+            minimum=MIN_GRAPH_EDGES,
+            maximum=MAX_GRAPH_EDGES,
+        ),
+        default=DEFAULT_GRAPH_MAX_EDGES,
+    )
+    graph_parser.add_argument("--include-archived", action="store_true")
+    graph_parser.add_argument(
+        "--format",
+        dest="output_format",
+        choices=tuple(MemoryGraphFormat),
+        default=MemoryGraphFormat.LONG,
+    )
+    graph_parser.add_argument("--color", choices=tuple(ColorMode), default=argparse.SUPPRESS)
     sql_parser: argparse.ArgumentParser = subparsers.add_parser(
         MemoryCliCommand.SQL, help="run read-only SQL"
     )
@@ -135,14 +209,20 @@ def _parser() -> argparse.ArgumentParser:
         default=MemoryQueryFormat.LONG,
     )
     limits: argparse._MutuallyExclusiveGroup = sql_parser.add_mutually_exclusive_group()
-    limits.add_argument("--limit", type=_query_limit, default=DEFAULT_QUERY_LIMIT)
+    limits.add_argument(
+        "--limit",
+        type=lambda value: _bounded_integer(
+            value=value, name="limit", minimum=1, maximum=MAX_QUERY_LIMIT
+        ),
+        default=DEFAULT_QUERY_LIMIT,
+    )
     limits.add_argument("--no-limit", action="store_true")
     sql_parser.add_argument("--color", choices=tuple(ColorMode), default=argparse.SUPPRESS)
     return parser
 
 
-def _query_limit(value: str) -> int:
+def _bounded_integer(*, value: str, name: str, minimum: int, maximum: int) -> int:
     parsed: int = int(value)
-    if not 1 <= parsed <= MAX_QUERY_LIMIT:
-        raise argparse.ArgumentTypeError(f"limit must be between 1 and {MAX_QUERY_LIMIT}")
+    if not minimum <= parsed <= maximum:
+        raise argparse.ArgumentTypeError(f"{name} must be between {minimum} and {maximum}")
     return parsed

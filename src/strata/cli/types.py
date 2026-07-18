@@ -37,6 +37,7 @@ class MemoryCliCommand(StrEnum):
 
     ARCHIVE = "archive"
     CHECK = "check"
+    GRAPH = "graph"
     SYNC = "sync"
     REBUILD = "rebuild"
     SCHEMA = "schema"

@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from strata.memory._helpers.graph_rendering import render_graph
 from strata.memory.main._render_memory_overview import render_memory_overview
 from strata.memory.main._render_memory_query import render_memory_query
 from strata.memory.main.render_memory_check import render_memory_check
@@ -15,6 +16,10 @@ from strata.memory.main.render_memory_sync import render_memory_sync
 from strata.memory.models import (
     MemoryCheckResult,
     MemoryDiagnostic,
+    MemoryGraphEdge,
+    MemoryGraphNode,
+    MemoryGraphRequest,
+    MemoryGraphResult,
     MemoryIndexSummary,
     MemoryOverview,
     MemoryOverviewResult,
@@ -29,10 +34,16 @@ from strata.memory.models import (
     MemorySyncResult,
     MemorySyncSummary,
 )
-from strata.memory.types import MemoryQueryFormat
+from strata.memory.types import (
+    MemoryGraphDirection,
+    MemoryGraphFormat,
+    MemoryGraphRelationship,
+    MemoryQueryFormat,
+)
 from strata.reporting.models import RenderedReport
 from tests.unit.src.strata.memory._test_types import (
     MemoryCheckRenderTestCase,
+    MemoryGraphRenderTestCase,
     MemoryOverviewRenderTestCase,
     MemoryQueryRenderTestCase,
     MemoryRebuildRenderTestCase,
@@ -49,6 +60,51 @@ _QUERY_RESULT: MemoryQueryResult = MemoryQueryResult(
     types=("INTEGER", "VARCHAR"),
     rows=((1, None),),
     truncated=True,
+)
+_GRAPH_REQUEST: MemoryGraphRequest = MemoryGraphRequest(
+    pattern="alpha",
+    direction=MemoryGraphDirection.OUTBOUND,
+    relationships=(MemoryGraphRelationship.LINK,),
+    depth=2,
+    max_nodes=2,
+    max_edges=4,
+    include_archived=False,
+)
+_GRAPH_RESULT: MemoryGraphResult = MemoryGraphResult(
+    selection="exact",
+    roots=("note:alpha",),
+    nodes=(
+        MemoryGraphNode(
+            identity="note:alpha",
+            artifact_kind="note",
+            archive_state="active",
+            repository_relative_path=".ai/knowledge/repo/notes/alpha.md",
+            basename="alpha.md",
+            slug="alpha",
+            title="Alpha",
+            depth=0,
+            root=True,
+        ),
+        MemoryGraphNode(
+            identity="note:beta",
+            artifact_kind="note",
+            archive_state="archived",
+            repository_relative_path=".ai/_archive/knowledge/repo/notes/beta.md",
+            basename="beta.md",
+            slug="beta",
+            title="Beta",
+            depth=1,
+            root=False,
+        ),
+    ),
+    edges=(
+        MemoryGraphEdge("note:alpha", 1, "link", "beta", "resolved", "note:beta", True),
+        MemoryGraphEdge("note:alpha", 2, "link", "missing", "unresolved", None, False),
+        MemoryGraphEdge("note:alpha", 3, "link", "duplicate", "ambiguous", None, False),
+        MemoryGraphEdge("note:alpha", 4, "link", "https://example.com", "external", None, False),
+    ),
+    node_budget_exhausted=True,
+    edge_budget_exhausted=True,
 )
 
 
@@ -116,6 +172,76 @@ def test_given_query_result_when_rendering_format_then_matches_output_contract(
     rendered: str = render_memory_query(
         result=test_case.result,
         output_format=test_case.output_format,
+    )
+
+    assert rendered == test_case.expected_output
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        MemoryGraphRenderTestCase(
+            description="long graph distinguishes archived unresolved ambiguous external and cycle edges",
+            result=_GRAPH_RESULT,
+            request=_GRAPH_REQUEST,
+            output_format=MemoryGraphFormat.LONG,
+            expected_output=(
+                "Memory graph\n"
+                "Selection: exact (1 root(s)), outbound, depth 2\n\n"
+                "Nodes (2):\n"
+                "  [root] Alpha (note) <note:alpha> .ai/knowledge/repo/notes/alpha.md\n"
+                "  [depth 1, archived] Beta (note) <note:beta> "
+                ".ai/_archive/knowledge/repo/notes/beta.md\n\n"
+                "Edges (4):\n"
+                "  Alpha <note:alpha> --link--> Beta <note:beta> [resolved, archived, cycle]\n"
+                "  Alpha <note:alpha> --link--> missing [unresolved]\n"
+                "  Alpha <note:alpha> --link--> duplicate [ambiguous]\n"
+                "  Alpha <note:alpha> --link--> https://example.com [external]\n\n"
+                "Budgets: nodes 2/2 (exhausted); edges 4/4 (exhausted)\n"
+            ),
+        ),
+        MemoryGraphRenderTestCase(
+            description="JSON graph is compact deterministic and reports both exhausted budgets",
+            result=_GRAPH_RESULT,
+            request=_GRAPH_REQUEST,
+            output_format=MemoryGraphFormat.JSON,
+            expected_output=(
+                '{"depth":2,"direction":"outbound","edges":['
+                '{"authored_target":"beta","cycle":true,"relationship":"link",'
+                '"resolution_status":"resolved","source_document_identity":"note:alpha",'
+                '"source_link_ordinal":1,"target_document_identity":"note:beta"},'
+                '{"authored_target":"missing","cycle":false,"relationship":"link",'
+                '"resolution_status":"unresolved","source_document_identity":"note:alpha",'
+                '"source_link_ordinal":2,"target_document_identity":null},'
+                '{"authored_target":"duplicate","cycle":false,"relationship":"link",'
+                '"resolution_status":"ambiguous","source_document_identity":"note:alpha",'
+                '"source_link_ordinal":3,"target_document_identity":null},'
+                '{"authored_target":"https://example.com","cycle":false,"relationship":"link",'
+                '"resolution_status":"external","source_document_identity":"note:alpha",'
+                '"source_link_ordinal":4,"target_document_identity":null}],'
+                '"include_archived":false,"limits":{"max_edges":4,"max_nodes":2},"nodes":['
+                '{"archive_state":"active","artifact_kind":"note","basename":"alpha.md",'
+                '"depth":0,"identity":"note:alpha","repository_relative_path":'
+                '".ai/knowledge/repo/notes/alpha.md","root":true,"slug":"alpha","title":"Alpha"},'
+                '{"archive_state":"archived","artifact_kind":"note","basename":"beta.md",'
+                '"depth":1,"identity":"note:beta","repository_relative_path":'
+                '".ai/_archive/knowledge/repo/notes/beta.md","root":false,"slug":"beta",'
+                '"title":"Beta"}],"pattern":"alpha","relationships":["link"],'
+                '"roots":["note:alpha"],"selection":"exact",'
+                '"truncated":{"edges":true,"nodes":true}}\n'
+            ),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_graph_result_when_rendering_then_matches_deterministic_contract(
+    test_case: MemoryGraphRenderTestCase,
+) -> None:
+    rendered: str = render_graph(
+        result=test_case.result,
+        request=test_case.request,
+        output_format=test_case.output_format,
+        use_color=False,
     )
 
     assert rendered == test_case.expected_output

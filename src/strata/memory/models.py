@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from strata.memory.types import MemoryQueryValue
+from strata.memory.types import MemoryGraphDirection, MemoryGraphRelationship, MemoryQueryValue
 
 
 @dataclass(frozen=True, slots=True)
@@ -192,3 +192,66 @@ class MemoryQueryExecution:
     project: MemoryProject
     sync: MemorySyncSummary
     query: MemoryQueryResult
+
+
+@dataclass(frozen=True, slots=True)
+class MemoryGraphRequest:
+    """Validated graph selector, traversal policy, and hard budgets."""
+
+    pattern: str
+    direction: MemoryGraphDirection
+    relationships: tuple[MemoryGraphRelationship, ...]
+    depth: int
+    max_nodes: int
+    max_edges: int
+    include_archived: bool
+
+
+@dataclass(frozen=True, slots=True)
+class MemoryGraphNode:
+    """One unique document selected by graph traversal."""
+
+    identity: str
+    artifact_kind: str
+    archive_state: str
+    repository_relative_path: str
+    basename: str
+    slug: str
+    title: str | None
+    depth: int
+    root: bool
+
+
+@dataclass(frozen=True, slots=True)
+class MemoryGraphEdge:
+    """One resolved edge or unresolved/external graph leaf."""
+
+    source_document_identity: str
+    source_link_ordinal: int
+    relationship: str
+    authored_target: str
+    resolution_status: str
+    target_document_identity: str | None
+    cycle: bool
+
+
+@dataclass(frozen=True, slots=True)
+class MemoryGraphResult:
+    """Deterministic graph and explicit budget exhaustion state."""
+
+    selection: str
+    roots: tuple[str, ...]
+    nodes: tuple[MemoryGraphNode, ...]
+    edges: tuple[MemoryGraphEdge, ...]
+    node_budget_exhausted: bool
+    edge_budget_exhausted: bool
+
+
+@dataclass(frozen=True, slots=True)
+class MemoryGraphExecution:
+    """Implicit synchronization and one bounded graph result."""
+
+    project: MemoryProject
+    sync: MemorySyncSummary
+    request: MemoryGraphRequest
+    graph: MemoryGraphResult

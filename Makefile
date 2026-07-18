@@ -33,7 +33,7 @@ develop-native:
 	uv sync --reinstall-package stratalint
 
 develop-memory:
-	uvx --from 'maturin>=1.14,<2' maturin develop --uv --features extension-module,memory
+	uvx --from 'maturin[patchelf]>=1.14,<2' maturin develop --uv --features extension-module,memory
 
 self-check:
 	uv run strata check

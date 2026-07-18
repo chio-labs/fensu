@@ -70,3 +70,21 @@ class NativeMemoryArchiveTestCase:
     expected_destination: str
     expected_output_fragment: str
     expected_exit_code: int
+
+
+@dataclass(frozen=True)
+class NativeMemoryGraphTestCase:
+    """Canonical graph sources and expected machine-safe CLI retrieval."""
+
+    description: str
+    files: tuple[tuple[str, str], ...]
+    argv: tuple[str, ...]
+    expected_selection: str
+    expected_root: str
+    expected_node_count: int
+    expected_edge_statuses: tuple[str, ...]
+    expected_archived_identity: str
+    expected_absent_identity: str
+    expected_sync_fragment: str
+    expected_sources_unchanged: bool
+    expected_exit_code: int

@@ -27,5 +27,6 @@ pub(crate) fn register_memory_functions(module: &Bound<'_, PyModule>) -> PyResul
         module
     )?)?;
     module.add_function(wrap_pyfunction!(memory_bindings::memory_query, module)?)?;
+    module.add_function(wrap_pyfunction!(memory_bindings::memory_graph, module)?)?;
     Ok(())
 }

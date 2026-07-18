@@ -15,6 +15,8 @@ pub mod memory_schema_sql;
 #[cfg(feature = "duckdb-engine")]
 pub mod probe_dependencies;
 #[cfg(feature = "duckdb-engine")]
+pub mod query_memory_graph;
+#[cfg(feature = "duckdb-engine")]
 pub mod query_memory_index;
 #[cfg(feature = "duckdb-engine")]
 pub mod rebuild_memory_index;

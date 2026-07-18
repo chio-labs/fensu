@@ -6,13 +6,15 @@ from dataclasses import dataclass
 
 from strata.memory.models import (
     MemoryCheckResult,
+    MemoryGraphRequest,
+    MemoryGraphResult,
     MemoryOverviewResult,
     MemoryQueryResult,
     MemoryRebuildResult,
     MemorySchemaResult,
     MemorySyncResult,
 )
-from strata.memory.types import MemoryQueryFormat
+from strata.memory.types import MemoryGraphFormat, MemoryQueryFormat
 
 
 @dataclass(frozen=True)
@@ -70,3 +72,14 @@ class MemoryCheckRenderTestCase:
     result: MemoryCheckResult
     expected_output: str
     expected_fault_count: int
+
+
+@dataclass(frozen=True)
+class MemoryGraphRenderTestCase:
+    """One bounded graph format and its complete rendered contract."""
+
+    description: str
+    result: MemoryGraphResult
+    request: MemoryGraphRequest
+    output_format: MemoryGraphFormat
+    expected_output: str

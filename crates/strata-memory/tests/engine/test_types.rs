@@ -1,5 +1,7 @@
 //! Test-case types for memory engine behavior.
 
+use std::time::Duration;
+
 pub(crate) struct FixtureFile {
     pub(crate) path: &'static str,
     pub(crate) contents: &'static [u8],
@@ -117,6 +119,14 @@ pub(crate) struct MemoryOverviewTestCase {
         usize,
         usize,
     ),
+}
+
+pub(crate) struct MemoryPublicationPerformanceTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) document_count: usize,
+    pub(crate) list_items_per_document: usize,
+    pub(crate) expected_list_item_count: usize,
+    pub(crate) expected_max_duration: Duration,
 }
 
 pub(crate) struct MemorySchemaTestCase {

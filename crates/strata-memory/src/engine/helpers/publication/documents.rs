@@ -3,7 +3,6 @@
 use duckdb::{params, Transaction};
 
 use crate::corpus::models::MemoryCorpus;
-use crate::engine::constants;
 use crate::engine::errors::MemoryIndexError;
 use crate::engine::helpers::publication::values;
 
@@ -11,16 +10,16 @@ pub(crate) fn insert(
     transaction: &Transaction<'_>,
     corpus: &MemoryCorpus,
 ) -> Result<usize, MemoryIndexError> {
-    let mut statement = transaction
-        .prepare(constants::DOCUMENT_INSERT_SQL)
-        .map_err(|error| MemoryIndexError::duckdb("prepare document insertion", error))?;
+    let mut appender = transaction
+        .appender("documents")
+        .map_err(|error| MemoryIndexError::duckdb("create document appender", error))?;
     for document in &corpus.documents {
         let source = &document.source;
         let parsed = document.parsed_markdown.as_ref();
         let diagnostic_count =
             values::document_diagnostic_count(corpus, &source.canonical_path.repository_relative);
-        statement
-            .execute(params![
+        appender
+            .append_row(params![
                 &source.identity.0,
                 values::artifact_kind(source.artifact_kind),
                 source.task_category.map(values::task_category),
@@ -42,7 +41,10 @@ pub(crate) fn insert(
                 parsed.map(|value| value.plain_text.as_str()),
                 parsed.and_then(|value| value.title.as_deref()),
             ])
-            .map_err(|error| MemoryIndexError::duckdb("insert document", error))?;
+            .map_err(|error| MemoryIndexError::duckdb("append document", error))?;
     }
+    appender
+        .flush()
+        .map_err(|error| MemoryIndexError::duckdb("flush document appender", error))?;
     Ok(corpus.documents.len())
 }

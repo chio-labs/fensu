@@ -26,6 +26,7 @@ from strata.scaffolding._helpers.planning import (
 )
 from strata.scaffolding.exceptions import InitError, ScaffoldingError
 from strata.scaffolding.main._detect_repository_layout import detect_repository_layout
+from strata.scaffolding.main._inspect_existing_memory import inspect_existing_memory
 from strata.scaffolding.models import (
     DetectedRepositoryLayout,
     DriftSummary,
@@ -69,6 +70,8 @@ def run_init(
             stdout=stdout,
             style=style,
         )
+        if plan.memory_enabled:
+            inspect_existing_memory(resolved)
         runtime_count: int = count_runtime_python_files(repository=resolved, roots=plan.roots)
         config, execution = execute_init_plan(repository=resolved, plan=plan)
     except (
@@ -132,5 +135,10 @@ def _write_success(
             style=style,
             created_paths=execution.created_paths,
         )
-        return
-    write_classification(stdout=stdout, style=style, plan=plan, python_file_count=runtime_count)
+    else:
+        write_classification(stdout=stdout, style=style, plan=plan, python_file_count=runtime_count)
+    if plan.memory_enabled:
+        stdout.write(
+            f"    Enabled repository memory in {style.path('.ai/')}\n"
+            f"    Ignoring generated state in {style.path('.strata/memory/')}\n"
+        )

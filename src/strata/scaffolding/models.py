@@ -44,6 +44,7 @@ class InitOptions:
     tests: tuple[str, ...] | None = None
     tooling: tuple[str, ...] | None = None
     skills: bool | None = None
+    memory: bool = False
     name: str | None = None
 
 
@@ -54,6 +55,7 @@ class InitPlan:
     roots: tuple[str, ...]
     tests: tuple[str, ...]
     tooling: tuple[str, ...]
+    memory_enabled: bool = False
     project_name: str | None = None
 
 

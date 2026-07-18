@@ -511,6 +511,7 @@ class ReplayFastPathTestCase:
     expected_exit_code: int
     expected_warm_loads: int
     expected_edited_loads: int
+    expected_warm_context_loads: int
 
 
 @dataclass(frozen=True)

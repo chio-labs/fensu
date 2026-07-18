@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from importlib import import_module
 from pathlib import Path
+from types import ModuleType
 
 from strata.cache.fingerprints.main._file_result_identity import file_result_identity
 from strata.cache.fingerprints.main.source import fingerprint_source
@@ -332,6 +334,40 @@ class ResultCache:
             output=None,
             observations=None,
             index_fingerprint=index_fingerprint,
+        )
+
+    def load_native_replay(
+        self,
+        *,
+        global_fingerprint: CacheFingerprint,
+        targets: tuple[str, ...],
+        source_fingerprints: dict[str, CacheFingerprint | None],
+    ) -> CachedCheckOutput | None:
+        """Return a fully native-validated rendered generation when current."""
+
+        from strata.cache.storage.classes.cache_store import _record_metrics
+        from strata.cache.storage.constants import CACHE_RECORD_MAX_DECODED_BYTES
+
+        try:
+            native: ModuleType = import_module("strata._native")
+            row, metrics = native.cache_replay_generation(
+                self._repo_root,
+                global_fingerprint.value,
+                [(path, _fingerprint_value(source_fingerprints.get(path))) for path in targets],
+                CACHE_RECORD_MAX_DECODED_BYTES,
+            )
+        except (AttributeError, ImportError, OSError, RuntimeError, TypeError, ValueError):
+            return None
+        _record_metrics(metrics)
+        if row is None:
+            return None
+        return CachedCheckOutput(
+            global_fingerprint=global_fingerprint,
+            index_fingerprint=CacheFingerprint(value=row[4]),
+            targets=tuple(row[0]),
+            plain_output=row[1],
+            color_output=row[2],
+            exit_code=row[3],
         )
 
     def load_check_surface(
@@ -784,3 +820,7 @@ def _result_path(fingerprint: CacheFingerprint) -> Path:
     value: str = fingerprint.value
     prefix: str = value[:FINGERPRINT_DIRECTORY_PREFIX_LENGTH]
     return CACHE_RESULTS_DIRECTORY / prefix / f"{value}{CACHE_JSON_SUFFIX}"
+
+
+def _fingerprint_value(fingerprint: CacheFingerprint | None) -> str | None:
+    return fingerprint.value if fingerprint is not None else None

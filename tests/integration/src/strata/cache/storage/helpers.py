@@ -2,12 +2,46 @@
 
 from __future__ import annotations
 
+import sqlite3
 from concurrent.futures import Future, ThreadPoolExecutor
+from multiprocessing import get_context
+from multiprocessing.context import BaseContext
+from multiprocessing.process import BaseProcess
+from multiprocessing.synchronize import Event as ProcessEvent
 from pathlib import Path
 from threading import Event
 
 from strata.cache.storage.classes.cache_store import CacheStore
 from strata.cache.storage.models import CacheRead, CacheRecord, CacheWrite
+
+
+def write_while_database_blocked(
+    *, store: CacheStore, relative_path: Path, record: CacheRecord
+) -> bool:
+    """Attempt native publication while an independent process owns the write lock."""
+
+    context: BaseContext = get_context("spawn")
+    ready: ProcessEvent = context.Event()
+    release: ProcessEvent = context.Event()
+    blocker: BaseProcess = context.Process(
+        target=_hold_database_write_lock,
+        args=(store.root, ready, release),
+    )
+    blocker.start()
+    ready.wait()
+    try:
+        return store.write(relative_path=relative_path, record=record)
+    finally:
+        release.set()
+        blocker.join()
+
+
+def _hold_database_write_lock(database: Path, ready: ProcessEvent, release: ProcessEvent) -> None:
+    with sqlite3.connect(database, isolation_level=None) as blocker:
+        blocker.execute("BEGIN IMMEDIATE")
+        ready.set()
+        release.wait()
+        blocker.rollback()
 
 
 def write_records_concurrently(

@@ -2,6 +2,9 @@ name: Memory Release Proof
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feat/strata-memory-foundation
 
 permissions:
   contents: read

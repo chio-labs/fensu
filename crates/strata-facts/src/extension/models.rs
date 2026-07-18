@@ -1,4 +1,4 @@
-//! A parsed-program handle shared by native fact-family bindings.
+//! Parsed-program state shared by native fact-family bindings and rule kernels.
 
 use std::sync::OnceLock;
 
@@ -36,7 +36,7 @@ use crate::positions::main::index_lines::index_lines;
 use crate::positions::models::LineIndex;
 
 /// Extracted fact rows cached once per parsed program.
-#[derive(Default)]
+#[derive(Debug, Default)]
 struct FactRowCache {
     annotations: OnceLock<AnnotationRows>,
     class_declarations: OnceLock<Vec<ClassDeclarationRow>>,
@@ -57,7 +57,8 @@ struct FactRowCache {
 
 /// One parsed Python module retained for repeated fact extraction.
 #[pyclass(frozen, module = "strata._native")]
-pub(crate) struct ProgramHandle {
+#[derive(Debug)]
+pub struct ProgramHandle {
     source: String,
     parsed: Parsed<ModModule>,
     index: LineIndex,
@@ -104,7 +105,7 @@ impl ProgramHandle {
         self.version
     }
 
-    pub(crate) fn annotation_rows(&self) -> &AnnotationRows {
+    pub fn annotation_rows(&self) -> &AnnotationRows {
         self.rows
             .annotations
             .get_or_init(|| extract_annotations(self.module(), self.index(), self.source()))

@@ -7,7 +7,7 @@ use crate::constants;
 use crate::extension::helpers::conversion::declarations::{location_tuple, to_object};
 use crate::extension::helpers::conversion::state::source_range_object;
 use crate::extension::helpers::gateway::model_types::model_type;
-use crate::extension::helpers::gateway::program::ProgramHandle;
+use crate::extension::models::ProgramHandle;
 use crate::facts::models::ControlFlowRows;
 
 pub(crate) fn hygiene_facts_object(

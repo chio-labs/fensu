@@ -7,7 +7,7 @@ use crate::extension::helpers::conversion::rule_authoring::{
     local_call_edge_facts_object, named_call_facts_object,
     parameter_mutation_occurrence_facts_object,
 };
-use crate::extension::helpers::gateway::program::ProgramHandle;
+use crate::extension::models::ProgramHandle;
 
 #[pyfunction]
 pub(crate) fn class_declaration_facts(

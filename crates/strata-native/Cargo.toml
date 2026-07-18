@@ -15,6 +15,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 pyo3.workspace = true
+rayon.workspace = true
 strata-facts.workspace = true
 strata-memory = { workspace = true, optional = true }
 

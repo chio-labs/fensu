@@ -2,3 +2,4 @@
 #![forbid(unsafe_code)]
 
 pub mod extension;
+pub mod rules;

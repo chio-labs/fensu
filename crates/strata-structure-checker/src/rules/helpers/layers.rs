@@ -256,6 +256,10 @@ struct UseVisitor<'files> {
 impl<'ast, 'files> Visit<'ast> for UseVisitor<'files> {
     fn visit_item_use(&mut self, node: &'ast syn::ItemUse) {
         let line = node.use_token.span.start().line;
+        if self.library_source && self.file.has_directory(constants::RULES_DIRECTORY) {
+            self.violations
+                .extend(raw_parser_access_violations(self.file, &node.tree, line));
+        }
         if let syn::UseTree::Path(use_path) = &node.tree {
             let root = use_path.ident.to_string();
             if root == constants::SELF_MODULE || root == constants::SUPER_MODULE {
@@ -283,6 +287,29 @@ impl<'ast, 'files> Visit<'ast> for UseVisitor<'files> {
         }
         syn::visit::visit_item_use(self, node);
     }
+}
+
+fn raw_parser_access_violations(
+    file: &models::SourceFile,
+    tree: &syn::UseTree,
+    line: usize,
+) -> Vec<models::Violation> {
+    let mut paths: Vec<Vec<String>> = Vec::new();
+    flatten_use_tree(tree, &mut Vec::new(), &mut paths);
+    paths
+        .into_iter()
+        .filter_map(|path| path.first().cloned())
+        .filter(|root| constants::RAW_PARSER_CRATES.contains(&root.as_str()))
+        .map(|root| {
+            models::Violation::new(
+                "RSL102",
+                file.relative_path(),
+                Some(line),
+                format!("native rule module imports raw parser crate {root}"),
+                "consume shared strata-facts row models instead of parser or AST types",
+            )
+        })
+        .collect()
 }
 
 fn helper_boundary_violations(

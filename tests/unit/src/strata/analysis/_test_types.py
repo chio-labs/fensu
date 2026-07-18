@@ -42,6 +42,14 @@ class FactAnalysisOwnerTestCase:
 
 
 @dataclass(frozen=True)
+class NativeFactFamilyParityTestCase:
+    """Expected public exposure gaps for registered native core rules."""
+
+    description: str
+    expected_missing_families: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class PythonSourceFactoryTestCase:
     """Exact source bytes and expected normalized analysis artifact."""
 

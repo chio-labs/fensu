@@ -11,6 +11,7 @@ use crate::rules::helpers::annotations::{
     module_variable_annotation_faults, parameter_annotation_faults, return_annotation_faults,
 };
 use crate::rules::helpers::hygiene::hygiene_faults;
+use crate::rules::helpers::shape::shape_faults;
 use crate::rules::models::NativeFaultRow;
 
 pub fn evaluate_core_rules(
@@ -20,21 +21,26 @@ pub fn evaluate_core_rules(
 ) -> Vec<NativeFaultRow> {
     let mut faults: Vec<NativeFaultRow> = Vec::new();
     for code in codes {
-        let rows = program.annotation_rows();
         match code.as_str() {
-            PARAMETER_ANNOTATION_CODE => faults.extend(parameter_annotation_faults(rows)),
-            RETURN_ANNOTATION_CODE => faults.extend(return_annotation_faults(rows)),
+            PARAMETER_ANNOTATION_CODE => {
+                faults.extend(parameter_annotation_faults(program.annotation_rows()));
+            }
+            RETURN_ANNOTATION_CODE => {
+                faults.extend(return_annotation_faults(program.annotation_rows()));
+            }
             MODULE_VARIABLE_ANNOTATION_CODE => {
-                faults.extend(module_variable_annotation_faults(rows));
+                faults.extend(module_variable_annotation_faults(program.annotation_rows()));
             }
             CLASS_ATTRIBUTE_ANNOTATION_CODE => {
-                faults.extend(class_attribute_annotation_faults(rows));
+                faults.extend(class_attribute_annotation_faults(program.annotation_rows()));
             }
             LOCAL_VARIABLE_ANNOTATION_CODE => {
-                faults.extend(local_variable_annotation_faults(rows));
+                faults.extend(local_variable_annotation_faults(program.annotation_rows()));
             }
             _ => {
                 if let Some(rule_faults) = hygiene_faults(program, code, scope) {
+                    faults.extend(rule_faults);
+                } else if let Some(rule_faults) = shape_faults(program, code) {
                     faults.extend(rule_faults);
                 }
             }

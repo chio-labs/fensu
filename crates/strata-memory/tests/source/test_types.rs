@@ -1,6 +1,6 @@
 //! Test-case and fixture types for canonical source discovery.
 
-use strata_memory::source::types::DiagnosticKind;
+use strata_memory::source::types::{DiagnosticKind, GitTracking};
 
 pub(crate) struct FixtureFile {
     pub(crate) path: &'static str,
@@ -58,4 +58,10 @@ pub(crate) struct SymlinkDiscoveryTestCase {
     pub(crate) symlinks: &'static [FixtureSymlink],
     pub(crate) expected_document_count: usize,
     pub(crate) expected_diagnostics: &'static [ExpectedDiagnostic],
+}
+
+pub(crate) struct GitTrackingTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) basename: &'static str,
+    pub(crate) expected_tracking: GitTracking,
 }

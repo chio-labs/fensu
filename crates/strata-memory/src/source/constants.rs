@@ -14,6 +14,7 @@ pub(crate) const COMPLETED_DIRECTORY: &str = "completed";
 pub(crate) const CANCELLED_DIRECTORY: &str = "cancelled";
 pub(crate) const SUPERSEDED_DIRECTORY: &str = "superseded";
 pub(crate) const SKILL_DOCUMENT: &str = "SKILL.md";
+pub(crate) const GIT_IGNORE_FILE_NAME: &str = ".gitignore";
 pub(crate) const MARKDOWN_SUFFIX: &str = ".md";
 pub(crate) const IDENTITY_SEPARATOR: &str = ":";
 pub(crate) const NAME_SEPARATOR: &str = "__";

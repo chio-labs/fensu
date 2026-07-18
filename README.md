@@ -138,6 +138,21 @@ overrides a disabled project preference for one invocation.
 Deleting `.strata/cache/` is always safe; ignore that directory rather than the
 complete `.strata/` namespace, which is reserved for other Strata-owned state.
 
+## Repository Memory
+
+Opt into durable task, note, decision, and project-skill memory with:
+
+```bash
+strata init --memory
+strata memory check
+strata memory sync
+```
+
+Canonical Markdown lives under `.ai/`; a disposable read-only DuckDB index lives
+under `.strata/memory/`. Memory supports bounded SQL and graph retrieval,
+non-destructive archival, Git-tracked shared or ignored local corpora, and project
+skill synchronization through `strata skills`.
+
 ## Enforce It, Then See It
 
 Because Strata enforces the structure, it can also render it. `strata map`

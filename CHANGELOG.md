@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.20.0](https://github.com/chio-labs/strata/compare/v0.19.0...v0.20.0) (2026-07-18)
+
+
+### Features
+
+* **init:** add memory opt-in ([83ed460](https://github.com/chio-labs/strata/commit/83ed4600ec06196d5db034a51c174cb1e09de248))
+* **memory:** add bounded graph retrieval ([4176687](https://github.com/chio-labs/strata/commit/4176687a62e5afe066f4aba98585ce396bb96e4a))
+* **memory:** add repository memory foundation ([49616a7](https://github.com/chio-labs/strata/commit/49616a789c6e3a1994742dac02bc3948344692b1))
+* **memory:** add safe archival workflow ([2448fe4](https://github.com/chio-labs/strata/commit/2448fe4e244753c7ade340a6fb7b5bf7732f3c31))
+* **memory:** classify Git visibility ([91f05b3](https://github.com/chio-labs/strata/commit/91f05b3eb2e89d20ec9d04a9b347879adb99f2d7))
+* **memory:** harden private preview ([bd9874d](https://github.com/chio-labs/strata/commit/bd9874d9a7efdfa2c039138535f77859e7f9c397))
+* **memory:** integrate source validation ([a41a90d](https://github.com/chio-labs/strata/commit/a41a90d52b15cfed3e949c212c7fb5758301ec75))
+* **memory:** replace DuckDB with SQLite ([fd07e72](https://github.com/chio-labs/strata/commit/fd07e728acdf63f5777585a929685cf7567e0cfc))
+* **skills:** synchronize project bundles ([e399914](https://github.com/chio-labs/strata/commit/e3999145a8b26df8b56433d19b9ad89b7e17776a))
+
+
+### Bug Fixes
+
+* **memory:** close proof database readers ([1a0a5bc](https://github.com/chio-labs/strata/commit/1a0a5bcfb640ad7f04ace2584f74884abd6baa97))
+* **memory:** correct platform proof cases ([3f492de](https://github.com/chio-labs/strata/commit/3f492de3ac7db5652ce1511d683f35ca9da98ad7))
+* **skills:** support Windows file replacement ([94a82dd](https://github.com/chio-labs/strata/commit/94a82dda1d40b0bc0fb7a137927b90efceaff61c))
+
+
+### Performance Improvements
+
+* **memory:** bulk publish DuckDB rows ([8de5c3e](https://github.com/chio-labs/strata/commit/8de5c3ef3766f55475558c97aa04b10908040eb7))
+* **memory:** vectorize large corpus publication ([b30c7a7](https://github.com/chio-labs/strata/commit/b30c7a7eac6090a8e6753775d9fb78d2b3929358))
+
+
+### Documentation
+
+* **memory:** announce repository workflows ([4614502](https://github.com/chio-labs/strata/commit/4614502e97405f3f13f896cf16254608def7d548))
+
 ## [0.19.0](https://github.com/chio-labs/strata/compare/v0.18.1...v0.19.0) (2026-07-17)
 
 

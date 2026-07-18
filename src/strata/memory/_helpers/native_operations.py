@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import strata._native as _native
 from strata.memory.constants import MEMORY_SCHEMA_PREFIX
 from strata.memory.exceptions import MemoryOperationError, MemoryRelationNotFoundError
 from strata.memory.models import (
+    MemoryArchiveMove,
+    MemoryArchiveResult,
     MemoryCheckResult,
     MemoryDiagnostic,
     MemoryIndexSummary,
@@ -60,6 +64,33 @@ def check(project: MemoryProject) -> MemoryCheckResult:
         None if raw_published is None else MemoryIndexSummary(*raw_published)
     )
     return MemoryCheckResult(project=project, diagnostics=diagnostics, published=published)
+
+
+def archive(
+    *,
+    project: MemoryProject,
+    requested_paths: tuple[str, ...],
+    archive_after_days: int,
+    confirmed: bool,
+) -> MemoryArchiveResult:
+    """Archive canonical sources and synchronize through the native engine."""
+
+    try:
+        raw_moves, raw_sync = _native.memory_archive(
+            project.repository_root,
+            project.database_path,
+            [Path(path) for path in requested_paths],
+            archive_after_days,
+            confirmed,
+        )
+    except RuntimeError as error:
+        raise MemoryOperationError(f"Memory archive failed: {error}") from error
+    moves: tuple[MemoryArchiveMove, ...] = tuple(
+        MemoryArchiveMove(source=source, destination=destination)
+        for source, destination in raw_moves
+    )
+    sync: MemorySyncSummary | None = None if raw_sync is None else MemorySyncSummary(*raw_sync)
+    return MemoryArchiveResult(project=project, moves=moves, sync=sync)
 
 
 def overview(project: MemoryProject) -> MemoryOverview:

@@ -107,3 +107,32 @@ pub(crate) struct MemoryCheckTestCase {
     pub(crate) expected_diagnostics: &'static [(&'static str, &'static str, Option<usize>)],
     pub(crate) expected_published: bool,
 }
+
+pub(crate) struct MemoryArchiveTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) files: &'static [FixtureFile],
+    pub(crate) requested_path: &'static str,
+    pub(crate) confirmed: bool,
+    pub(crate) expected_source_exists: bool,
+    pub(crate) expected_destination: &'static str,
+    pub(crate) expected_move_count: usize,
+}
+
+pub(crate) struct MemoryArchiveTaskTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) files: &'static [FixtureFile],
+    pub(crate) completed_path: &'static str,
+    pub(crate) active_path: &'static str,
+    pub(crate) expected_confirmation_error: &'static str,
+    pub(crate) expected_lifecycle_error: &'static str,
+    pub(crate) expected_move_count: usize,
+}
+
+pub(crate) struct MemoryArchiveAutomaticTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) files: &'static [FixtureFile],
+    pub(crate) archive_after_days: u64,
+    pub(crate) expected_move_count: usize,
+    pub(crate) expected_sync: bool,
+    pub(crate) expected_database_exists: bool,
+}

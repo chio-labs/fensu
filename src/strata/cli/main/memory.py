@@ -19,6 +19,7 @@ from strata.memory.main.render_memory_rebuild import render_memory_rebuild
 from strata.memory.main.render_memory_schema import render_memory_schema
 from strata.memory.main.render_memory_summary import render_memory_summary
 from strata.memory.main.render_memory_sync import render_memory_sync
+from strata.memory.main.run_memory_archive import run_memory_archive
 from strata.memory.main.run_memory_check import run_memory_check
 from strata.memory.main.run_memory_query import run_memory_query
 from strata.memory.main.summarize_memory import summarize_memory
@@ -57,6 +58,15 @@ def run_memory(
             report: RenderedReport = run_memory_check(use_color=use_color)
             stdout.write(f"{report.text}\n")
             return 1 if report.fault_count else 0
+        if args.command == MemoryCliCommand.ARCHIVE:
+            stdout.write(
+                run_memory_archive(
+                    paths=tuple(args.paths),
+                    confirmed=args.yes,
+                    use_color=use_color,
+                )
+            )
+            return 0
         if args.command == MemoryCliCommand.REBUILD:
             stdout.write(render_memory_rebuild(result=rebuild_memory(), use_color=use_color))
             return 0
@@ -66,11 +76,10 @@ def run_memory(
             )
             return 0
         limit: int = MAX_QUERY_LIMIT if args.no_limit else args.limit
-        output_format: MemoryQueryFormat = MemoryQueryFormat(args.output_format)
         sync_text, query_text = run_memory_query(
             sql=args.query,
             limit=limit,
-            output_format=output_format,
+            output_format=args.output_format,
             use_color=use_color,
         )
         stderr.write(sync_text)
@@ -90,8 +99,14 @@ def _parser() -> argparse.ArgumentParser:
         "--color", choices=tuple(ColorMode), default=ColorMode.AUTO, help="ANSI color behavior"
     )
     subparsers: argparse._SubParsersAction[argparse.ArgumentParser] = parser.add_subparsers(
-        dest="command", metavar="{check,sync,rebuild,schema,sql}"
+        dest="command", metavar="{archive,check,sync,rebuild,schema,sql}"
     )
+    archive_parser: argparse.ArgumentParser = subparsers.add_parser(
+        MemoryCliCommand.ARCHIVE, help="archive eligible or explicit memory sources"
+    )
+    archive_parser.add_argument("paths", nargs="*", help="repository-relative canonical paths")
+    archive_parser.add_argument("--yes", action="store_true", help="confirm explicit task archive")
+    archive_parser.add_argument("--color", choices=tuple(ColorMode), default=argparse.SUPPRESS)
     check_parser: argparse.ArgumentParser = subparsers.add_parser(
         MemoryCliCommand.CHECK, help="validate canonical memory sources"
     )

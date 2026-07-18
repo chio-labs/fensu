@@ -19,4 +19,6 @@ pub struct NativeRuleContext {
     pub thresholds: HashMap<String, u32>,
     pub repository_path: String,
     pub contracts: Vec<(String, String)>,
+    pub relative_parts: Vec<String>,
+    pub is_entry_module: bool,
 }

@@ -32,7 +32,36 @@ pub const ITERATOR_NAME_MUST_PRODUCE_ITERATOR_CODE: &str = "SFN004";
 pub const ABSOLUTE_IMPORTS_ONLY_CODE: &str = "SFL001";
 pub const NO_STAR_IMPORTS_CODE: &str = "SFL002";
 pub const NO_CROSS_FILE_HELPER_PRIVATE_CLASS_CODE: &str = "SFL110";
+pub const MODELS_ONLY_MODELS_CODE: &str = "SFR001";
+pub const TYPES_ONLY_TYPES_CODE: &str = "SFR002";
+pub const CONSTANTS_ONLY_CONSTANTS_CODE: &str = "SFR003";
+pub const EXCEPTIONS_ONLY_EXCEPTIONS_CODE: &str = "SFR004";
+pub const MODEL_DECLARATION_OUTSIDE_MODELS_CODE: &str = "SFR101";
+pub const TYPE_DECLARATION_OUTSIDE_TYPES_CODE: &str = "SFR102";
+pub const CONSTANT_OUTSIDE_CONSTANTS_CODE: &str = "SFR103";
+pub const EXCEPTION_DECLARATION_OUTSIDE_EXCEPTIONS_CODE: &str = "SFR104";
+pub const BANNED_GENERIC_FILENAME_CODE: &str = "SFR201";
+pub const HELPERS_MODULE_NAME_CODE: &str = "SFR202";
+pub const CLASSES_MODULE_NAME_CODE: &str = "SFR203";
+pub const HELPERS_CLASSES_FILE_PRIVATE_CODE: &str = "SFR205";
+pub const HELPERS_RESERVED_ROLE_FILENAMES_CODE: &str = "SFR303";
+pub const NESTED_DIRECT_MODULES_CODE: &str = "SFR304";
+pub const NESTED_DIRECT_SUBPACKAGES_CODE: &str = "SFR305";
+pub const TOP_LEVEL_DIRECT_MODULES_CODE: &str = "SFR307";
+pub const ENTRY_MODULE_SHAPE_CODE: &str = "SFR401";
+pub const INIT_MODULE_EMPTY_CODE: &str = "SFR402";
+pub const NO_REEXPORT_SHIM_CODE: &str = "SFR403";
+pub const NO_INTERNAL_HELPER_EXPORTS_CODE: &str = "SFR404";
+pub const PUBLIC_SURFACE_SHAPE_CODE: &str = "SFR406";
+pub const CLASSES_ONE_CLASS_PER_MODULE_CODE: &str = "SFR501";
+pub const HELPERS_PACKAGE_SHAPE_CODE: &str = "SFR502";
 pub const PRIVATE_DEFINITION_ORDERING_CODE: &str = "SFR503";
+pub const SOURCE_FILE_LINE_COUNT_CODE: &str = "SFR601";
+pub const TOOLING_ENTRYPOINT_SHAPE_CODE: &str = "SFR701";
+pub const TOOLING_ENTRYPOINT_DELEGATION_CODE: &str = "SFR702";
+pub const TOOLING_ENTRYPOINT_LINE_COUNT_CODE: &str = "SFR703";
+pub const RULES_ROLE_CONTENT_CODE: &str = "SFR704";
+pub const DESCRIPTIVE_RULE_MODULE_NAMES_CODE: &str = "SFR706";
 pub const TEST_INIT_MODULE_EMPTY_CODE: &str = "SFT101";
 pub const TEST_ABSOLUTE_IMPORTS_CODE: &str = "SFT102";
 pub const TEST_NO_TOP_LEVEL_HELPERS_CODE: &str = "SFT103";
@@ -101,7 +130,45 @@ pub const NATIVE_RULE_FACT_FAMILIES: &[(&str, &[&str])] = &[
     (ABSOLUTE_IMPORTS_ONLY_CODE, &["references"]),
     (NO_STAR_IMPORTS_CODE, &["references"]),
     (NO_CROSS_FILE_HELPER_PRIVATE_CLASS_CODE, &["references"]),
+    (MODELS_ONLY_MODELS_CODE, &["module_declarations"]),
+    (TYPES_ONLY_TYPES_CODE, &["module_declarations"]),
+    (CONSTANTS_ONLY_CONSTANTS_CODE, &["module_declarations"]),
+    (EXCEPTIONS_ONLY_EXCEPTIONS_CODE, &["module_declarations"]),
+    (
+        MODEL_DECLARATION_OUTSIDE_MODELS_CODE,
+        &["module_declarations"],
+    ),
+    (
+        TYPE_DECLARATION_OUTSIDE_TYPES_CODE,
+        &["module_declarations"],
+    ),
+    (CONSTANT_OUTSIDE_CONSTANTS_CODE, &["module_declarations"]),
+    (
+        EXCEPTION_DECLARATION_OUTSIDE_EXCEPTIONS_CODE,
+        &["module_declarations"],
+    ),
+    (BANNED_GENERIC_FILENAME_CODE, &[]),
+    (HELPERS_MODULE_NAME_CODE, &[]),
+    (CLASSES_MODULE_NAME_CODE, &[]),
+    (HELPERS_CLASSES_FILE_PRIVATE_CODE, &["module_declarations"]),
+    (HELPERS_RESERVED_ROLE_FILENAMES_CODE, &[]),
+    (NESTED_DIRECT_MODULES_CODE, &[]),
+    (NESTED_DIRECT_SUBPACKAGES_CODE, &[]),
+    (TOP_LEVEL_DIRECT_MODULES_CODE, &[]),
+    (ENTRY_MODULE_SHAPE_CODE, &["module_declarations"]),
+    (INIT_MODULE_EMPTY_CODE, &["module_declarations"]),
+    (NO_REEXPORT_SHIM_CODE, &["module_declarations"]),
+    (NO_INTERNAL_HELPER_EXPORTS_CODE, &["module_declarations"]),
+    (PUBLIC_SURFACE_SHAPE_CODE, &["module_declarations"]),
+    (CLASSES_ONE_CLASS_PER_MODULE_CODE, &["module_declarations"]),
+    (HELPERS_PACKAGE_SHAPE_CODE, &[]),
     (PRIVATE_DEFINITION_ORDERING_CODE, &["module_declarations"]),
+    (SOURCE_FILE_LINE_COUNT_CODE, &[]),
+    (TOOLING_ENTRYPOINT_SHAPE_CODE, &["module_declarations"]),
+    (TOOLING_ENTRYPOINT_DELEGATION_CODE, &["module_declarations"]),
+    (TOOLING_ENTRYPOINT_LINE_COUNT_CODE, &[]),
+    (RULES_ROLE_CONTENT_CODE, &["module_declarations"]),
+    (DESCRIPTIVE_RULE_MODULE_NAMES_CODE, &[]),
     (TEST_INIT_MODULE_EMPTY_CODE, &["test_module"]),
     (TEST_ABSOLUTE_IMPORTS_CODE, &["references"]),
     (TEST_NO_TOP_LEVEL_HELPERS_CODE, &["test_module"]),

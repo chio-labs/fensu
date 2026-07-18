@@ -161,6 +161,24 @@ impl ProgramHandle {
             .get_or_init(|| extract_module_declarations(self.module(), self.index(), self.source()))
     }
 
+    pub fn source_line_count(&self) -> usize {
+        let mut characters = self.source.chars().peekable();
+        let mut count = 0;
+        let mut trailing_text = false;
+        while let Some(character) = characters.next() {
+            if Self::is_python_line_boundary(character) {
+                count += 1;
+                trailing_text = false;
+                if character == '\r' && characters.peek() == Some(&'\n') {
+                    let _ = characters.next();
+                }
+            } else {
+                trailing_text = true;
+            }
+        }
+        count + usize::from(trailing_text)
+    }
+
     pub fn dataclass_rows(&self) -> &[DataclassRow] {
         self.rows
             .dataclasses
@@ -291,5 +309,20 @@ impl ProgramHandle {
                 let _ = self.test_module_rows();
             }
         }
+    }
+
+    fn is_python_line_boundary(character: char) -> bool {
+        matches!(
+            character,
+            '\n' | '\r'
+                | '\u{000b}'
+                | '\u{000c}'
+                | '\u{001c}'
+                | '\u{001d}'
+                | '\u{001e}'
+                | '\u{0085}'
+                | '\u{2028}'
+                | '\u{2029}'
+        )
     }
 }

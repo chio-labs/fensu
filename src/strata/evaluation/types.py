@@ -21,6 +21,8 @@ type NativeCoreRuleRequest = tuple[
     NativeThresholdValues,
     str,
     list[tuple[str, str]],
+    list[str],
+    bool,
 ]
 
 

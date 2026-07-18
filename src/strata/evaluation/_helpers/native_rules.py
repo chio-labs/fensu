@@ -13,6 +13,8 @@ from strata.evaluation.types import NativeCoreRuleRequest, NativeThresholdValues
 from strata.rules.authoring.types import Threshold
 
 _threshold_by_code: dict[str, Threshold] = {
+    "SFR601": Threshold.MAX_FILE_LINES,
+    "SFR703": Threshold.MAX_SCRIPT_ENTRYPOINT_LINES,
     "SFS001": Threshold.MAX_STATEMENTS,
     "SFS002": Threshold.MAX_DISTINCT_CALLS,
     "SFS003": Threshold.MAX_LOCALS,
@@ -78,5 +80,7 @@ def prepare_native_rule_request(
         thresholds,
         repository_path,
         list(config.contracts.items()) if _native_naming_codes.intersection(codes) else [],
+        list(position.relative_parts),
+        position.is_entry_module,
     )
     return request, tuple(uses)

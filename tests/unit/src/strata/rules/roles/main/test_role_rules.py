@@ -29,6 +29,41 @@ from tests.unit.src.strata.rules.roles.main.helpers import (
     evaluate_role_test_case,
 )
 
+_LOCAL_NATIVE_SFR_CODES: frozenset[str] = frozenset(
+    {
+        "SFR001",
+        "SFR002",
+        "SFR003",
+        "SFR004",
+        "SFR101",
+        "SFR102",
+        "SFR103",
+        "SFR104",
+        "SFR201",
+        "SFR202",
+        "SFR203",
+        "SFR205",
+        "SFR303",
+        "SFR304",
+        "SFR305",
+        "SFR307",
+        "SFR401",
+        "SFR402",
+        "SFR403",
+        "SFR404",
+        "SFR406",
+        "SFR501",
+        "SFR502",
+        "SFR503",
+        "SFR601",
+        "SFR701",
+        "SFR702",
+        "SFR703",
+        "SFR704",
+        "SFR706",
+    }
+)
+
 
 @pytest.mark.parametrize(
     "test_case",
@@ -2015,12 +2050,12 @@ def test_given_role_module_shapes_when_checking_then_flags_only_shape_violations
     "test_case",
     [
         SfrRuleTestCase(
-            description="native SFR503 bypasses its Python core callback",
-            rule_code="SFR503",
+            description="all native file-local SFR rules bypass their Python core callbacks",
+            rule_code="SFR",
             relative_path="domain/core/_helpers/values.py",
-            source="def run() -> None:\n    return None\n\n_VALUE: int = 1\n",
-            expected_codes=("SFR503",),
-            expected_lines=(4,),
+            source="",
+            expected_codes=(),
+            expected_lines=(),
         )
     ],
     ids=lambda case: case.description,
@@ -2035,7 +2070,10 @@ def test_given_registered_native_role_rule_when_evaluating_then_skips_python_cal
     monkeypatch.setattr(
         role_test_helpers,
         "SFR_RULES",
-        (replace(rules_by_code[test_case.rule_code], check=python_callback),),
+        tuple(
+            replace(rules_by_code[code], check=python_callback)
+            for code in sorted(_LOCAL_NATIVE_SFR_CODES)
+        ),
     )
 
     result: EvaluationResult = evaluate_role_test_case(

@@ -17,6 +17,7 @@ from strata.agentdocs._helpers.effective_config import (
 )
 from strata.agentdocs._helpers.guidance import (
     configured_threshold_override_lines,
+    memory_retrieval_guidance_lines,
     repository_guidance_lines,
 )
 from strata.agentdocs._helpers.work_practices import (
@@ -65,6 +66,7 @@ def generate_skill(*, context: SkillGenerationContext) -> str:
         "- Run `strata skills` after changing rule selection or custom rules.",
         "",
     ]
+    lines.extend(memory_retrieval_guidance_lines(config))
     lines.extend(navigation_workflow_lines())
     lines.extend(work_practice_lines())
     active_codes: frozenset[str] = frozenset(rule.code for rule in active_rules)

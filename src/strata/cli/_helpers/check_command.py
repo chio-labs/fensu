@@ -9,8 +9,10 @@ from typing import TYPE_CHECKING, TextIO
 
 from strata.analysis.main.resolve_native_backend_version import resolve_native_backend_version
 from strata.cli._helpers.check_evaluation import evaluated_check
+from strata.cli._helpers.check_output import write_memory_check_result
 from strata.cli._helpers.check_reporting import skill_freshness_footer, write_check_diagnostics
 from strata.cli._helpers.check_setup import prepare_check_inputs
+from strata.cli.exceptions import CliCommandError
 from strata.config.exceptions import ConfigError
 
 if TYPE_CHECKING:
@@ -51,7 +53,7 @@ def execute_check(
             argument_paths=tuple(args.paths),
             cache_enabled=args.cache_enabled,
         )
-    except ConfigError as error:
+    except (CliCommandError, ConfigError) as error:
         stderr.write(f"{error}\n")
         return 2
     write_check_diagnostics(
@@ -75,8 +77,13 @@ def execute_check(
             if use_color
             else evaluation.short_circuit.plain_output
         )
+        memory_fault_count: int = write_memory_check_result(
+            stdout=stdout,
+            result=inputs.memory_result,
+            use_color=use_color,
+        )
         stderr.write(freshness_footer)
-        return evaluation.short_circuit.exit_code
+        return 1 if evaluation.short_circuit.exit_code or memory_fault_count else 0
     result: EvaluationResult | None = evaluation.result
     if result is None:
         stderr.write("Cached evaluation returned no result.\n")
@@ -110,8 +117,13 @@ def execute_check(
             expected_index_fingerprint=surface_index_fingerprint,
         )
     stdout.write(text)
+    memory_fault_count = write_memory_check_result(
+        stdout=stdout,
+        result=inputs.memory_result,
+        use_color=use_color,
+    )
     stderr.write(freshness_footer)
-    return 1 if fault_count else 0
+    return 1 if fault_count or memory_fault_count else 0
 
 
 def _parser() -> argparse.ArgumentParser:

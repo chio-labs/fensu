@@ -62,7 +62,7 @@ def build_gitignore_predicate(*, repository: Path) -> GitIgnorePredicate:
 
 
 def plan_gitignore_update(*, repository: Path, greenfield: bool) -> GitIgnorePlan | None:
-    """Capture a safe root gitignore update unless the cache path is already covered."""
+    """Capture a safe root gitignore update for enabled Strata derived state."""
 
     path: Path = repository / GITIGNORE_FILE_NAME
     captured: tuple[bytes, os.stat_result] | None = _capture_regular_file(path=path)
@@ -76,18 +76,21 @@ def plan_gitignore_update(*, repository: Path, greenfield: bool) -> GitIgnorePla
         )
     original, metadata = captured
     rules: tuple[_IgnoreRule, ...] = _rules_from_content(content=original)
-    ignored: bool = _is_ignored_by_rules(
+    cache_ignored: bool = _is_ignored_by_rules(
         repository=repository,
         path=repository / CACHE_DATABASE_RELATIVE_PATH,
         is_directory=False,
         rules=rules,
     )
-    if ignored:
+    if cache_ignored:
         return None
+    blocks: bytes = b""
+    if not cache_ignored:
+        blocks += STRATA_GITIGNORE_BLOCK
     separator: bytes = b"" if not original or original.endswith(b"\n") else b"\n"
     return GitIgnorePlan(
         original=original,
-        desired=original + separator + STRATA_GITIGNORE_BLOCK,
+        desired=original + separator + blocks,
         device=metadata.st_dev,
         inode=metadata.st_ino,
     )

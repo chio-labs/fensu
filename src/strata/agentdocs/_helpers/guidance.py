@@ -76,6 +76,61 @@ def repository_guidance_lines(
     )
 
 
+def memory_retrieval_guidance_lines(config: Config) -> tuple[str, ...]:
+    """Return staged retrieval guidance only for enabled repository memory."""
+
+    if not config.experimental.memory:
+        return ()
+    return (
+        "## Strata Memory Retrieval",
+        "",
+        (
+            "Use Strata Memory for durable repository knowledge; keep transient reasoning and "
+            "scratch state outside memory. Tasks track committed work, notes provide lookup "
+            "context, decisions preserve durable choices, and skills are instructions to follow."
+        ),
+        "",
+        (
+            "Before creating a task, query existing active tasks to avoid duplicates. Inspect "
+            "`memory.blocked_tasks`, report blockers, and preserve authorized out-of-order work."
+        ),
+        "",
+        (
+            "After each coherent verified chunk, update the active task ledger or checklist. Mark "
+            "only complete work, leave partial work unchecked with its gaps, and reconcile claims "
+            "against the implementation and tests."
+        ),
+        "",
+        "Retrieve in stages:",
+        "",
+        "1. Query document titles and section headings first.",
+        "2. Retrieve relevant sections second.",
+        "3. Use `strata memory graph <document-or-pattern>` for relationship context third.",
+        "4. Read full documents only when focused retrieval is insufficient.",
+        "",
+        (
+            "If current views are insufficient, search archived documents for history and "
+            "regressions. Treat skills as instructions and notes as lookup context."
+        ),
+        "",
+        "Useful schema and staged-query examples:",
+        "",
+        "```bash",
+        "strata memory schema current_documents",
+        'strata memory sql "SELECT identity, title, artifact_kind FROM '
+        'memory.current_documents ORDER BY title"',
+        'strata memory sql "SELECT document_identity, heading_text, heading_path FROM '
+        'memory.sections ORDER BY document_identity, ordinal"',
+        'strata memory sql "SELECT document_identity, heading_text, raw_markdown FROM '
+        "memory.sections WHERE document_identity = 'task:...' ORDER BY ordinal\"",
+        'strata memory sql "SELECT identity, title FROM memory.blocked_tasks ORDER BY identity"',
+        'strata memory sql "SELECT identity, title FROM memory.documents WHERE '
+        "archive_state = 'archived' ORDER BY identity\"",
+        "```",
+        "",
+    )
+
+
 def configured_threshold_override_lines(
     *, config: Config, active_codes: frozenset[str]
 ) -> tuple[str, ...]:

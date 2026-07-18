@@ -11,18 +11,26 @@ from strata.config.constants import (
     DEFAULT_CACHE_ENABLED,
     DEFAULT_CACHE_REQUIRE_CACHEABLE,
     DEFAULT_CONTRACTS,
+    DEFAULT_EXPERIMENTAL_MEMORY,
     DEFAULT_IGNORE,
+    DEFAULT_MEMORY_TASKS_ARCHIVE_AFTER_DAYS,
     DEFAULT_SELECT,
     DEFAULT_TEST_PATHS,
     DEFAULT_THRESHOLDS,
     DEFAULT_TOOLING_PATHS,
     DEFAULT_WARN,
+    EXPERIMENTAL_MEMORY_CONFIG_KEY,
+    MEMORY_TASKS_ARCHIVE_AFTER_DAYS_CONFIG_KEY,
+    MEMORY_TASKS_CONFIG_KEY,
     SKILLS_NAME_CONFIG_KEY,
 )
 from strata.config.models import (
     CacheConfig,
     Config,
     EvaluationConfig,
+    ExperimentalConfig,
+    MemoryConfig,
+    MemoryTasksConfig,
     RuleExceptionEntry,
     SkillsConfig,
     ThresholdOverride,
@@ -62,6 +70,8 @@ def build_config(raw: Mapping[str, object]) -> Config:
         rule_modules=_string_tuple(value=raw.get("rule_modules")),
         rule_exceptions=_rule_exceptions(raw.get("rule_exceptions")),
         cache=_cache_config(raw.get("cache")),
+        experimental=_experimental_config(raw.get("experimental")),
+        memory=_memory_config(raw.get("memory")),
         evaluation=_evaluation_config(raw.get("evaluation")),
         skills=_skills_config(raw.get("skills")),
         thresholds=MappingProxyType(thresholds),
@@ -84,6 +94,36 @@ def _evaluation_config(value: object) -> EvaluationConfig:
     return EvaluationConfig(
         include=_string_tuple(value=value.get("include")),
         exclude=_string_tuple(value=value.get("exclude")),
+    )
+
+
+def _memory_config(value: object) -> MemoryConfig:
+    if not isinstance(value, dict):
+        return MemoryConfig()
+    return MemoryConfig(
+        tasks=_memory_tasks_config(value.get(MEMORY_TASKS_CONFIG_KEY)),
+    )
+
+
+def _experimental_config(value: object) -> ExperimentalConfig:
+    if not isinstance(value, dict):
+        return ExperimentalConfig()
+    memory: object = value.get(EXPERIMENTAL_MEMORY_CONFIG_KEY)
+    return ExperimentalConfig(
+        memory=memory if isinstance(memory, bool) else DEFAULT_EXPERIMENTAL_MEMORY
+    )
+
+
+def _memory_tasks_config(value: object) -> MemoryTasksConfig:
+    if not isinstance(value, dict):
+        return MemoryTasksConfig()
+    archive_after_days: object = value.get(MEMORY_TASKS_ARCHIVE_AFTER_DAYS_CONFIG_KEY)
+    return MemoryTasksConfig(
+        archive_after_days=(
+            archive_after_days
+            if type(archive_after_days) is int
+            else DEFAULT_MEMORY_TASKS_ARCHIVE_AFTER_DAYS
+        )
     )
 
 

@@ -132,5 +132,5 @@ def _write_success(
             style=style,
             created_paths=execution.created_paths,
         )
-        return
-    write_classification(stdout=stdout, style=style, plan=plan, python_file_count=runtime_count)
+    else:
+        write_classification(stdout=stdout, style=style, plan=plan, python_file_count=runtime_count)

@@ -2,3 +2,9 @@ roots = ["src/strata"]
 tests = ["tests"]
 tooling = ["scripts"]
 select = ["SF"]
+
+[experimental]
+memory = true
+
+[memory.tasks]
+archive_after_days = 7

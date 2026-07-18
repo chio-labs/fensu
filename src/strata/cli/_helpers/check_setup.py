@@ -7,6 +7,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from strata.cli._helpers.check_paths import invocation_path
+from strata.cli.exceptions import CliCommandError
 from strata.cli.models import CheckInputs
 from strata.config.main.load_project_config import load_project_config
 from strata.config.models import Config, LoadedConfig
@@ -31,6 +32,7 @@ def prepare_check_inputs(*, args: argparse.Namespace, invocation_dir: Path) -> C
         callback=lambda: load_project_config(invocation_dir),
     )
     project_dir: Path = loaded.source.path.parent.resolve()
+    memory_result: object | None = _memory_result(loaded=loaded, project_dir=project_dir)
     rule_selection: RuleSelection = OPERATION_COUNTERS.measure(
         operation=PHASE_CATALOGUE_NANOSECONDS,
         callback=lambda: build_check_rule_selection(
@@ -51,6 +53,7 @@ def prepare_check_inputs(*, args: argparse.Namespace, invocation_dir: Path) -> C
         rule_selection=rule_selection,
         config=config,
         tree=tree,
+        memory_result=memory_result,
     )
 
 
@@ -74,3 +77,21 @@ def _configured(
             cache=replace(config.cache, enabled=args.cache_enabled),
         )
     return config
+
+
+def _memory_result(*, loaded: LoadedConfig, project_dir: Path) -> object | None:
+    if not loaded.config.experimental.memory:
+        return None
+    from strata.memory.constants import MEMORY_DATABASE_DIRECTORY, MEMORY_DATABASE_FILENAME
+    from strata.memory.exceptions import MemoryError
+    from strata.memory.main.check_memory import check_memory
+    from strata.memory.models import MemoryProject
+
+    project: MemoryProject = MemoryProject(
+        repository_root=project_dir,
+        database_path=project_dir / MEMORY_DATABASE_DIRECTORY / MEMORY_DATABASE_FILENAME,
+    )
+    try:
+        return check_memory(project)
+    except MemoryError as error:
+        raise CliCommandError(str(error)) from error

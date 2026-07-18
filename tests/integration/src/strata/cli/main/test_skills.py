@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import shutil
+import stat
 from collections.abc import Callable
 from pathlib import Path
 
@@ -34,6 +36,7 @@ from tests.integration.src.strata.cli.main.helpers import (
     mutate_skill_freshness_state,
     write_cli_fixture_project,
     write_cli_warning_skill_project,
+    write_project_skill_bundle,
 )
 
 
@@ -1013,3 +1016,355 @@ def test_given_multiple_missing_targets_when_checking_then_reports_deterministic
     assert exit_code == test_case.expected_exit_code
     assert all(fragment in output for fragment in test_case.expected_output_fragments)
     assert output.index(".agents/") < output.index(".claude/") < output.index(".opencode/")
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SkillCommandTestCase(
+            description="multiple canonical bundles copy nested text and binary files to defaults",
+            argv=(),
+            expected_exit_code=0,
+            expected_output_fragments=("Updated Strata skill files:",),
+            expected_written_paths=(
+                ".opencode/skills",
+                ".claude/skills",
+                ".agents/skills",
+            ),
+            expected_file_fragments=("synchronized-project-skill-by: strata skills",),
+            expected_absent_fragments=("generated-by: strata skills update",),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_canonical_project_bundles_when_updating_then_synchronizes_complete_default_targets(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: SkillCommandTestCase,
+) -> None:
+    write_cli_fixture_project(root=tmp_path, rule_code="XPB001")
+    alpha_document: str = "---\nname: alpha\n---\n\n# Alpha\n"
+    beta_document: str = "# Beta\n"
+    binary_content: bytes = b"\x00\xff\x10binary\n"
+    alpha_source: Path = write_project_skill_bundle(
+        root=tmp_path,
+        identity="alpha",
+        document=alpha_document,
+        support_files={
+            "assets/logo.bin": binary_content,
+            "references/nested/guide.txt": b"nested guidance\n",
+        },
+    )
+    (alpha_source / "assets/logo.bin").chmod(0o750)
+    _ = write_project_skill_bundle(
+        root=tmp_path,
+        identity="beta",
+        document=beta_document,
+        support_files={},
+    )
+    monkeypatch.chdir(tmp_path)
+    stdout: CaptureOutput = CaptureOutput()
+
+    exit_code: int = run_skills(argv=test_case.argv, stdout=stdout)
+
+    assert exit_code == test_case.expected_exit_code
+    assert all(fragment in stdout.getvalue() for fragment in test_case.expected_output_fragments)
+    for skills_root in test_case.expected_written_paths:
+        alpha: Path = tmp_path / skills_root / "alpha"
+        beta: Path = tmp_path / skills_root / "beta"
+        copied_document: str = (alpha / "SKILL.md").read_text(encoding="utf-8")
+        ownership: SkillOwnership | None = parse_skill_ownership(copied_document.encode("utf-8"))
+        assert copied_document.startswith(alpha_document)
+        assert all(fragment in copied_document for fragment in test_case.expected_file_fragments)
+        assert all(
+            fragment not in copied_document for fragment in test_case.expected_absent_fragments
+        )
+        assert ownership is not None
+        assert ownership.identity == "alpha"
+        assert (alpha / "assets/logo.bin").read_bytes() == binary_content
+        assert stat.S_IMODE((alpha / "assets/logo.bin").stat().st_mode) == stat.S_IMODE(
+            (alpha_source / "assets/logo.bin").stat().st_mode
+        )
+        assert (alpha / "references/nested/guide.txt").read_bytes() == b"nested guidance\n"
+        assert (beta / "SKILL.md").read_text(encoding="utf-8").startswith(beta_document)
+    assert (tmp_path / ".ai/knowledge/repo/skills/alpha/SKILL.md").read_text(
+        encoding="utf-8"
+    ) == alpha_document
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SkillCommandTestCase(
+            description="selected project-root target does not publish other agents",
+            argv=("--target", "agents", "--install-root", "project"),
+            expected_exit_code=0,
+            expected_output_fragments=("Updated Strata skill files:",),
+            expected_written_paths=("backend/.agents/skills/alpha/SKILL.md",),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_project_bundle_and_target_filter_when_updating_then_uses_selected_root_semantics(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: SkillCommandTestCase,
+) -> None:
+    (tmp_path / ".git").mkdir()
+    project: Path = tmp_path / "backend"
+    project.mkdir()
+    write_cli_fixture_project(root=project, rule_code="XPB002")
+    _ = write_project_skill_bundle(
+        root=project,
+        identity="alpha",
+        document="# Alpha\n",
+        support_files={},
+    )
+    monkeypatch.chdir(project)
+
+    exit_code: int = run_skills(argv=test_case.argv)
+
+    assert exit_code == test_case.expected_exit_code
+    assert all((tmp_path / path).is_file() for path in test_case.expected_written_paths)
+    assert not (project / ".opencode").exists()
+    assert not (project / ".claude").exists()
+    assert not (tmp_path / ".agents").exists()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SkillCommandTestCase(
+            description="unmanaged project destination blocks generated publication",
+            argv=("--target", "agents"),
+            expected_exit_code=2,
+            expected_output_fragments=("refusing to overwrite unmanaged skill file",),
+            expected_file_fragment="user-authored project skill\n",
+        ),
+        SkillCommandTestCase(
+            description="force replaces unmanaged project destination as a whole bundle",
+            argv=("--target", "agents", "--force"),
+            expected_exit_code=0,
+            expected_output_fragments=("Updated Strata skill files:",),
+            expected_file_fragment="# Canonical Alpha\n",
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_unmanaged_project_destination_when_updating_then_requires_force_before_any_write(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: SkillCommandTestCase,
+) -> None:
+    write_cli_fixture_project(root=tmp_path, rule_code="XPB003")
+    _ = write_project_skill_bundle(
+        root=tmp_path,
+        identity="alpha",
+        document="# Canonical Alpha\n",
+        support_files={},
+    )
+    destination: Path = tmp_path / ".agents/skills/alpha/SKILL.md"
+    destination.parent.mkdir(parents=True)
+    destination.write_text("user-authored project skill\n", encoding="utf-8")
+    (destination.parent / "user-note.txt").write_text("remove only with force\n", encoding="utf-8")
+    generated: Path = tmp_path / ".agents/skills/strata-fixture/SKILL.md"
+    monkeypatch.chdir(tmp_path)
+    stdout: CaptureOutput = CaptureOutput()
+    stderr: CaptureOutput = CaptureOutput()
+
+    exit_code: int = run_skills(
+        argv=test_case.argv,
+        stdout=stdout,
+        stderr=stderr,
+    )
+
+    assert exit_code == test_case.expected_exit_code
+    assert all(
+        fragment in stdout.getvalue() + stderr.getvalue()
+        for fragment in test_case.expected_output_fragments
+    )
+    assert test_case.expected_file_fragment in destination.read_text(encoding="utf-8")
+    assert generated.exists() == (test_case.expected_exit_code == 0)
+    assert (destination.parent / "user-note.txt").exists() == (test_case.expected_exit_code != 0)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SkillCommandTestCase(
+            description="removed canonical bundle deletes only its same-owner installed copy",
+            argv=("--target", "agents"),
+            expected_exit_code=0,
+            expected_output_fragments=("Updated Strata skill files:",),
+            expected_written_paths=(".agents/skills/alpha",),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_removed_canonical_bundle_when_updating_then_removes_stale_owned_bundle(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: SkillCommandTestCase,
+) -> None:
+    write_cli_fixture_project(root=tmp_path, rule_code="XPB004")
+    canonical: Path = write_project_skill_bundle(
+        root=tmp_path,
+        identity="alpha",
+        document="# Alpha\n",
+        support_files={"nested/data.bin": b"stale\x00"},
+    )
+    foreign: Path = tmp_path / ".agents/skills/unmanaged/SKILL.md"
+    foreign.parent.mkdir(parents=True)
+    foreign.write_text("user skill\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    installed: int = run_skills(argv=test_case.argv)
+    shutil.rmtree(canonical)
+
+    exit_code: int = run_skills(argv=test_case.argv)
+
+    assert installed == test_case.expected_exit_code
+    assert exit_code == test_case.expected_exit_code
+    assert not (tmp_path / test_case.expected_written_paths[0]).exists()
+    assert foreign.read_text(encoding="utf-8") == "user skill\n"
+    assert (tmp_path / ".agents/skills/strata-fixture/SKILL.md").is_file()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SkillFreshnessTestCase(
+            description="binary project bundle drift is reported without writes",
+            state="project-binary-divergent",
+            expected_exit_code=1,
+            expected_reason="divergent",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_project_bundle_drift_when_checking_then_reports_file_without_writes(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: SkillFreshnessTestCase,
+) -> None:
+    write_cli_fixture_project(root=tmp_path, rule_code="XPB005")
+    _ = write_project_skill_bundle(
+        root=tmp_path,
+        identity="alpha",
+        document="# Alpha\n",
+        support_files={"assets/data.bin": b"canonical\x00"},
+    )
+    monkeypatch.chdir(tmp_path)
+    installed: int = run_skills(argv=("--target", "agents"))
+    target: Path = tmp_path / ".agents/skills/alpha/assets/data.bin"
+    target.write_bytes(b"modified\xff")
+    before: tuple[tuple[str, str, int, int, bytes], ...] = complete_filesystem_snapshot(tmp_path)
+    stdout: CaptureOutput = CaptureOutput()
+
+    exit_code: int = run_skills(
+        argv=("--target", "agents", "--check"),
+        stdout=stdout,
+    )
+
+    assert installed == 0
+    assert exit_code == test_case.expected_exit_code
+    assert f"{target.as_posix()}: {test_case.expected_reason}" in stdout.getvalue()
+    assert complete_filesystem_snapshot(tmp_path) == before
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SkillCommandTestCase(
+            description="canonical support symlink rejects every selected destination",
+            argv=(),
+            expected_exit_code=2,
+            expected_output_fragments=("project skill content cannot be a symlink",),
+        ),
+        SkillCommandTestCase(
+            description="project identity colliding with generated guidance is rejected",
+            argv=(),
+            expected_exit_code=2,
+            expected_output_fragments=("duplicate normalized skill identity",),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_unsafe_or_duplicate_canonical_bundle_when_updating_then_writes_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: SkillCommandTestCase,
+) -> None:
+    write_cli_fixture_project(root=tmp_path, rule_code="XPB006")
+    bundle: Path = write_project_skill_bundle(
+        root=tmp_path,
+        identity={
+            "canonical support symlink rejects every selected destination": "alpha",
+            "project identity colliding with generated guidance is rejected": "strata-fixture",
+        }[test_case.description],
+        document="# Skill\n",
+        support_files={},
+    )
+    actions: dict[str, Callable[[], object]] = {
+        "canonical support symlink rejects every selected destination": lambda: (
+            bundle / "escape"
+        ).symlink_to(tmp_path / "strata.toml"),
+        "project identity colliding with generated guidance is rejected": lambda: None,
+    }
+    _ = actions[test_case.description]()
+    monkeypatch.chdir(tmp_path)
+    stderr: CaptureOutput = CaptureOutput()
+
+    exit_code: int = run_skills(argv=test_case.argv, stderr=stderr)
+
+    assert exit_code == test_case.expected_exit_code
+    assert all(fragment in stderr.getvalue() for fragment in test_case.expected_output_fragments)
+    assert not (tmp_path / ".opencode").exists()
+    assert not (tmp_path / ".claude").exists()
+    assert not (tmp_path / ".agents").exists()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SkillTransactionFailureTestCase(
+            description="project binary publication failure restores generated and bundle targets",
+            failure_at=3,
+            expected_exit_code=2,
+            expected_error_fragment="simulated skill replacement failure",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_project_bundle_publication_failure_when_updating_then_rolls_back_all_files_and_roots(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: SkillTransactionFailureTestCase,
+) -> None:
+    write_cli_fixture_project(root=tmp_path, rule_code="XPB007")
+    _ = write_project_skill_bundle(
+        root=tmp_path,
+        identity="alpha",
+        document="# Alpha\n",
+        support_files={"nested/data.bin": b"binary\x00"},
+    )
+    generated: Path = tmp_path / ".agents/skills/strata-fixture/SKILL.md"
+    generated.parent.mkdir(parents=True)
+    original: str = generated_skill_text(root=tmp_path, body="old generated guidance\n")
+    generated.write_text(original, encoding="utf-8")
+    publisher: FailingSkillPublisher = FailingSkillPublisher(
+        failure_at=test_case.failure_at,
+        publish=installation._publish_staged_file,
+    )
+    monkeypatch.setattr(installation, "_publish_staged_file", publisher)
+    monkeypatch.chdir(tmp_path)
+    stderr: CaptureOutput = CaptureOutput()
+
+    exit_code: int = run_skills(
+        argv=("--target", "agents"),
+        stderr=stderr,
+    )
+
+    assert exit_code == test_case.expected_exit_code
+    assert test_case.expected_error_fragment in stderr.getvalue()
+    assert generated.read_text(encoding="utf-8") == original
+    assert not (tmp_path / ".agents/skills/alpha").exists()

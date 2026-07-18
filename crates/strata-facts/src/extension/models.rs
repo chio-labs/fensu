@@ -143,7 +143,7 @@ impl ProgramHandle {
             .1
     }
 
-    pub(crate) fn contract_rows(&self) -> &[FunctionContractRow] {
+    pub fn contract_rows(&self) -> &[FunctionContractRow] {
         self.rows.contracts.get_or_init(|| {
             extract_function_contracts(self.module(), self.index(), self.source(), self.version())
         })

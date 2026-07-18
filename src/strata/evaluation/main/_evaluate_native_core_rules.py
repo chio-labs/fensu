@@ -7,6 +7,7 @@ from pathlib import Path
 from types import ModuleType
 
 from strata.analysis.constants import NATIVE_FACT_MODULE_NAME
+from strata.config.exceptions import ConfigError
 from strata.config.models import Config
 from strata.evaluation._helpers.native_rules import prepare_native_rule_request
 from strata.evaluation.models import (
@@ -52,9 +53,12 @@ def evaluate_native_core_rules(
             for target, program, codes in zip(targets, programs, codes_by_target, strict=True)
         )
     )
-    batches: list[list[NativeFaultRow]] = native.evaluate_native_core_rules(
-        [request for request, _ in prepared if request is not None]
-    )
+    try:
+        batches: list[list[NativeFaultRow]] = native.evaluate_native_core_rules(
+            [request for request, _ in prepared if request is not None]
+        )
+    except ValueError as error:
+        raise ConfigError(str(error)) from error
     rows_by_target: list[list[NativeFaultRow]] = []
     batch_index: int = 0
     for request, _ in prepared:
@@ -103,7 +107,7 @@ def _faults_by_code(
     rules_by_code: dict[str, RuleSpec],
 ) -> NativeFaultsByCode:
     grouped: dict[str, list[Fault]] = {code: [] for code in codes}
-    for code, line, column, message in rows:
+    for code, line, column, message, remediation in rows:
         rule: RuleSpec = rules_by_code[code]
         grouped[code].append(
             Fault(
@@ -112,7 +116,7 @@ def _faults_by_code(
                 message=rule.message if message is None else message,
                 line=line,
                 column=column,
-                remediation=rule.remediation,
+                remediation=rule.remediation if remediation is None else remediation,
             )
         )
     return {code: tuple(faults) for code, faults in grouped.items()}

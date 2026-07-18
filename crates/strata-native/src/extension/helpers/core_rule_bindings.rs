@@ -1,6 +1,7 @@
 //! Python bindings for batched native core-rule evaluation.
 
-use pyo3::{pyfunction, Py, Python};
+use pyo3::exceptions::PyValueError;
+use pyo3::{pyfunction, Py, PyResult, Python};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::collections::HashMap;
 use strata_facts::extension::models::ProgramHandle;
@@ -10,7 +11,7 @@ use crate::rules::main::evaluate_core_rules::evaluate_core_rules;
 use crate::rules::models::NativeFaultRow;
 use crate::rules::models::NativeRuleContext;
 
-type NativeFaultTuple = (String, u32, u32, Option<String>);
+type NativeFaultTuple = (String, u32, u32, Option<String>, Option<String>);
 type NativeRuleRequestTuple = (
     Py<ProgramHandle>,
     Vec<String>,
@@ -18,29 +19,43 @@ type NativeRuleRequestTuple = (
     Option<String>,
     bool,
     HashMap<String, u32>,
+    String,
+    Vec<(String, String)>,
 );
 
 #[pyfunction]
 pub(crate) fn evaluate_native_core_rules(
     py: Python<'_>,
     requests: Vec<NativeRuleRequestTuple>,
-) -> Vec<Vec<NativeFaultTuple>> {
+) -> PyResult<Vec<Vec<NativeFaultTuple>>> {
     py.detach(move || {
-        requests
+        let batches: Result<Vec<Vec<NativeFaultTuple>>, String> = requests
             .par_iter()
-            .map(|(handle, codes, scope, role, is_main_module, thresholds)| {
-                let context = NativeRuleContext {
-                    scope: scope.clone(),
-                    role: role.clone(),
-                    is_main_module: *is_main_module,
-                    thresholds: thresholds.clone(),
-                };
-                evaluate_core_rules(handle.get(), codes, &context)
-                    .into_iter()
-                    .map(as_tuple)
-                    .collect()
-            })
-            .collect()
+            .map(
+                |(
+                    handle,
+                    codes,
+                    scope,
+                    role,
+                    is_main_module,
+                    thresholds,
+                    repository_path,
+                    contracts,
+                )| {
+                    let context = NativeRuleContext {
+                        scope: scope.clone(),
+                        role: role.clone(),
+                        is_main_module: *is_main_module,
+                        thresholds: thresholds.clone(),
+                        repository_path: repository_path.clone(),
+                        contracts: contracts.clone(),
+                    };
+                    evaluate_core_rules(handle.get(), codes, &context)
+                        .map(|rows| rows.into_iter().map(as_tuple).collect())
+                },
+            )
+            .collect();
+        batches.map_err(PyValueError::new_err)
     })
 }
 
@@ -58,5 +73,5 @@ pub(crate) fn native_rule_fact_families() -> Vec<(String, Vec<String>)> {
 }
 
 fn as_tuple(row: NativeFaultRow) -> NativeFaultTuple {
-    (row.code, row.line, row.column, row.message)
+    (row.code, row.line, row.column, row.message, row.remediation)
 }

@@ -23,6 +23,7 @@ pub(crate) fn return_annotation_faults(rows: &AnnotationRows) -> Vec<NativeFault
                 "function '{}' must define a return type annotation",
                 row.name
             )),
+            remediation: None,
         })
         .collect()
 }
@@ -55,6 +56,7 @@ pub(crate) fn local_variable_annotation_faults(rows: &AnnotationRows) -> Vec<Nat
                 "local variable '{}' must define a type annotation on first binding",
                 row.name
             )),
+            remediation: None,
         })
         .collect()
 }
@@ -68,6 +70,7 @@ fn parameter_fault(row: &NamedLocationRow) -> NativeFaultRow {
             "function parameter '{}' must define a type annotation",
             row.name
         )),
+        remediation: None,
     }
 }
 
@@ -85,6 +88,7 @@ fn variable_faults(
                 "{subject} '{}' must define a type annotation",
                 row.name
             )),
+            remediation: None,
         })
         .collect()
 }

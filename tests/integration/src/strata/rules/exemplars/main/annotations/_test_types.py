@@ -1,5 +1,6 @@
 """Test case types for native-to-custom annotation parity."""
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 
@@ -14,6 +15,7 @@ class NativeCustomRuleParityTestCase:
     path: str = "src/example/main/example.py"
     scope: str = "root"
     scope_root: str | None = None
+    config: Mapping[str, object] | None = None
 
 
 @dataclass(frozen=True)

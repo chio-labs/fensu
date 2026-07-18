@@ -9,7 +9,10 @@ import pytest
 from strata.config.models import ThresholdOverride
 from strata.evaluation.models import EvaluationResult
 from strata.rules.authoring.types import Threshold
-from tests.unit.src.strata.rules.shape.main._test_types import ShapeRuleTestCase
+from tests.unit.src.strata.rules.shape.main._test_types import (
+    NativeThresholdOverrideUseTestCase,
+    ShapeRuleTestCase,
+)
 from tests.unit.src.strata.rules.shape.main.helpers import (
     calls_source,
     evaluate_shape_test_case,
@@ -650,6 +653,91 @@ def test_given_function_parameters_when_checking_keyword_only_then_flags_excess_
 
     assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
     assert tuple(fault.line for fault in result.faults) == test_case.expected_lines
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        NativeThresholdOverrideUseTestCase(
+            description="main modules record all six native threshold overrides",
+            relative_path="domain/core/main/run.py",
+            expected_thresholds=(
+                Threshold.MAX_ARGUMENTS,
+                Threshold.MAX_DISTINCT_CALLS,
+                Threshold.MAX_LOCALS,
+                Threshold.MAX_POSITIONAL_ARGS,
+                Threshold.MAX_STATEMENTS,
+                Threshold.MAX_STATEMENTS_GLOBAL,
+            ),
+            expected_repository_path="src/pkg/domain/core/main/run.py",
+            expected_effective_value=1,
+            expected_reason="Native threshold provenance fixture.",
+        ),
+        NativeThresholdOverrideUseTestCase(
+            description="non-main modules record only FILE-wide native threshold overrides",
+            relative_path="domain/core/_helpers/tools.py",
+            expected_thresholds=(
+                Threshold.MAX_ARGUMENTS,
+                Threshold.MAX_POSITIONAL_ARGS,
+                Threshold.MAX_STATEMENTS_GLOBAL,
+            ),
+            expected_repository_path="src/pkg/domain/core/_helpers/tools.py",
+            expected_effective_value=1,
+            expected_reason="Native threshold provenance fixture.",
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_native_shape_rules_when_resolving_path_overrides_then_records_actual_uses(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: NativeThresholdOverrideUseTestCase,
+) -> None:
+    native_thresholds: dict[Threshold, int] = {
+        Threshold.MAX_STATEMENTS: test_case.expected_effective_value,
+        Threshold.MAX_DISTINCT_CALLS: test_case.expected_effective_value,
+        Threshold.MAX_LOCALS: test_case.expected_effective_value,
+        Threshold.MAX_ARGUMENTS: test_case.expected_effective_value,
+        Threshold.MAX_STATEMENTS_GLOBAL: test_case.expected_effective_value,
+        Threshold.MAX_POSITIONAL_ARGS: test_case.expected_effective_value,
+    }
+    shape_case: ShapeRuleTestCase = ShapeRuleTestCase(
+        description=test_case.description,
+        rule_code="SFS",
+        source="def run() -> None:\n    return None\n",
+        expected_codes=(),
+        expected_lines=(),
+        relative_path=test_case.relative_path,
+        threshold_overrides=(
+            ThresholdOverride(
+                paths=(test_case.expected_repository_path,),
+                thresholds=native_thresholds,
+                reason=test_case.expected_reason,
+            ),
+        ),
+    )
+
+    result: EvaluationResult = evaluate_shape_test_case(
+        test_case=shape_case, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+
+    assert tuple(use.threshold for use in result.threshold_override_uses) == (
+        test_case.expected_thresholds
+    )
+    assert all(
+        use.effective_value == test_case.expected_effective_value
+        for use in result.threshold_override_uses
+    )
+    assert all(use.reason == test_case.expected_reason for use in result.threshold_override_uses)
+    assert all(
+        use.matched_pattern == test_case.expected_repository_path
+        for use in result.threshold_override_uses
+    )
+    assert all(use.override_order == 0 for use in result.threshold_override_uses)
+    assert all(
+        use.repository_path == test_case.expected_repository_path
+        for use in result.threshold_override_uses
+    )
 
 
 @pytest.mark.parametrize(

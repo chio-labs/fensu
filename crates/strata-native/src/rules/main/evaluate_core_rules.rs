@@ -40,7 +40,7 @@ pub fn evaluate_core_rules(
             _ => {
                 if let Some(rule_faults) = hygiene_faults(program, code, &context.scope) {
                     faults.extend(rule_faults);
-                } else if let Some(rule_faults) = shape_faults(program, code) {
+                } else if let Some(rule_faults) = shape_faults(program, code, context) {
                     faults.extend(rule_faults);
                 }
             }

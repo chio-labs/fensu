@@ -223,3 +223,4 @@ checkers.zip
 
 # Disposable repository-local Strata cache
 .strata/cache/
+.strata/memory/

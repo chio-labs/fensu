@@ -42,6 +42,8 @@ def evaluate_native_core_rules(
             dict[str, int],
             str,
             list[tuple[str, str]],
+            list[str],
+            bool,
         ]
     ],
 ) -> list[list[tuple[str, int | None, int | None, str | None, str | None]]]: ...

@@ -27,6 +27,8 @@ type NativeRuleRequestTuple = (
     HashMap<String, u32>,
     String,
     Vec<(String, String)>,
+    Vec<String>,
+    bool,
 );
 
 #[pyfunction]
@@ -47,6 +49,8 @@ pub(crate) fn evaluate_native_core_rules(
                     thresholds,
                     repository_path,
                     contracts,
+                    relative_parts,
+                    is_entry_module,
                 )| {
                     let context = NativeRuleContext {
                         scope: scope.clone(),
@@ -55,6 +59,8 @@ pub(crate) fn evaluate_native_core_rules(
                         thresholds: thresholds.clone(),
                         repository_path: repository_path.clone(),
                         contracts: contracts.clone(),
+                        relative_parts: relative_parts.clone(),
+                        is_entry_module: *is_entry_module,
                     };
                     evaluate_core_rules(handle.get(), codes, &context)
                         .map(|rows| rows.into_iter().map(as_tuple).collect())

@@ -7,8 +7,14 @@ from pathlib import Path
 from types import ModuleType
 
 from strata.analysis.constants import NATIVE_FACT_MODULE_NAME
-from strata.evaluation.models import EvaluationTarget
-from strata.evaluation.types import NativeFaultRow, NativeFaultsByCode
+from strata.config.models import Config
+from strata.evaluation._helpers.native_rules import prepare_native_rule_request
+from strata.evaluation.models import (
+    EvaluationTarget,
+    NativeCoreRuleEvaluation,
+    ThresholdOverrideUse,
+)
+from strata.evaluation.types import NativeCoreRuleRequest, NativeFaultRow, NativeFaultsByCode
 from strata.rules.authoring.models import Fault, RuleSpec
 
 
@@ -18,7 +24,9 @@ def evaluate_native_core_rules(
     programs: tuple[object | None, ...],
     ruleset: tuple[RuleSpec, ...],
     warning_rules: tuple[RuleSpec, ...],
-) -> tuple[NativeFaultsByCode, ...]:
+    config: Config,
+    repo_root: Path,
+) -> tuple[NativeCoreRuleEvaluation, ...]:
     """Return native faults grouped by rule code for each target."""
 
     native: ModuleType = import_module(NATIVE_FACT_MODULE_NAME)
@@ -32,29 +40,42 @@ def evaluate_native_core_rules(
         )
         for target in targets
     )
-    batches: list[list[NativeFaultRow]] = native.evaluate_native_core_rules(
-        [
-            (program, list(codes), target.scoped_file.scope.value)
+    prepared: tuple[tuple[NativeCoreRuleRequest | None, tuple[ThresholdOverrideUse, ...]], ...] = (
+        tuple(
+            prepare_native_rule_request(
+                target=target,
+                program=program,
+                codes=codes,
+                config=config,
+                repo_root=repo_root,
+            )
             for target, program, codes in zip(targets, programs, codes_by_target, strict=True)
-            if program is not None
-        ]
+        )
+    )
+    batches: list[list[NativeFaultRow]] = native.evaluate_native_core_rules(
+        [request for request, _ in prepared if request is not None]
     )
     rows_by_target: list[list[NativeFaultRow]] = []
     batch_index: int = 0
-    for program in programs:
-        if program is None:
+    for request, _ in prepared:
+        if request is None:
             rows_by_target.append([])
         else:
             rows_by_target.append(batches[batch_index])
             batch_index += 1
     return tuple(
-        _faults_by_code(
-            path=target.scoped_file.path,
-            codes=codes,
-            rows=tuple(rows),
-            rules_by_code=rules_by_code,
+        NativeCoreRuleEvaluation(
+            faults_by_code=_faults_by_code(
+                path=target.scoped_file.path,
+                codes=codes,
+                rows=tuple(rows),
+                rules_by_code=rules_by_code,
+            ),
+            threshold_override_uses=uses,
         )
-        for target, codes, rows in zip(targets, codes_by_target, rows_by_target, strict=True)
+        for target, codes, rows, (_, uses) in zip(
+            targets, codes_by_target, rows_by_target, prepared, strict=True
+        )
     )
 
 

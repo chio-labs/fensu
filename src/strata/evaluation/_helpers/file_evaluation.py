@@ -32,6 +32,7 @@ def evaluate_file(
     file_cache_seed: Mapping[str, object] | None = None,
     applicable_rule_codes: frozenset[str] | None = None,
     native_faults_by_code: Mapping[str, tuple[Fault, ...]] | None = None,
+    native_threshold_override_uses: tuple[ThresholdOverrideUse, ...] = (),
 ) -> FileEvaluation:
     """Return unrendered output and observed inputs for one source file."""
 
@@ -40,7 +41,7 @@ def evaluate_file(
     warnings: list[Fault] = []
     applied_exceptions: set[RuleExceptionKey] = set()
     file_cache: dict[str, object] = dict(file_cache_seed or {})
-    threshold_override_uses: list[ThresholdOverrideUse] = []
+    threshold_override_uses: list[ThresholdOverrideUse] = list(native_threshold_override_uses)
     applicable_families: frozenset[Family] = families_for_scope(scoped_file=scoped_file)
     exception_scope: FileExceptionScope | None = file_exception_scope(
         path=scoped_file.path,

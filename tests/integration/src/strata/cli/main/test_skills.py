@@ -1082,7 +1082,9 @@ def test_given_canonical_project_bundles_when_updating_then_synchronizes_complet
         assert ownership is not None
         assert ownership.identity == "alpha"
         assert (alpha / "assets/logo.bin").read_bytes() == binary_content
-        assert stat.S_IMODE((alpha / "assets/logo.bin").stat().st_mode) == 0o750
+        assert stat.S_IMODE((alpha / "assets/logo.bin").stat().st_mode) == stat.S_IMODE(
+            (alpha_source / "assets/logo.bin").stat().st_mode
+        )
         assert (alpha / "references/nested/guide.txt").read_bytes() == b"nested guidance\n"
         assert (beta / "SKILL.md").read_text(encoding="utf-8").startswith(beta_document)
     assert (tmp_path / ".ai/knowledge/repo/skills/alpha/SKILL.md").read_text(

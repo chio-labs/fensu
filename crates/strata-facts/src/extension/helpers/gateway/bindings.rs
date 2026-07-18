@@ -25,7 +25,7 @@ use crate::extension::helpers::conversion::references::{
 };
 use crate::extension::helpers::conversion::state::outer_state_mutation_facts_object;
 use crate::extension::helpers::gateway::model_types::model_type;
-use crate::extension::helpers::gateway::program::ProgramHandle;
+use crate::extension::models::ProgramHandle;
 use crate::facts::main::enumerate_nodes::enumerate_nodes;
 use crate::facts::main::extract_comments::extract_comments;
 use crate::facts::types::FactFamily;

@@ -31,6 +31,7 @@ def evaluate_file(
     project: EvaluationProjectAnalysis,
     file_cache_seed: Mapping[str, object] | None = None,
     applicable_rule_codes: frozenset[str] | None = None,
+    native_faults_by_code: Mapping[str, tuple[Fault, ...]] | None = None,
 ) -> FileEvaluation:
     """Return unrendered output and observed inputs for one source file."""
 
@@ -52,16 +53,19 @@ def evaluate_file(
                 continue
             if rule.family != Family.CUSTOM and rule.family not in applicable_families:
                 continue
-            rule_faults: list[Fault] = execute_rule(
-                rule=rule,
-                parsed_module=parsed_module,
-                config=config,
-                repo_root=tree.repo_root,
-                layout=tree.layout,
-                project=project,
-                file_cache=file_cache,
-                threshold_override_uses=threshold_override_uses,
-            )
+            if native_faults_by_code is not None and rule.code in native_faults_by_code:
+                rule_faults: list[Fault] = list(native_faults_by_code[rule.code])
+            else:
+                rule_faults = execute_rule(
+                    rule=rule,
+                    parsed_module=parsed_module,
+                    config=config,
+                    repo_root=tree.repo_root,
+                    layout=tree.layout,
+                    project=project,
+                    file_cache=file_cache,
+                    threshold_override_uses=threshold_override_uses,
+                )
             if exception_scope is not None:
                 retained, applied = suppress_faults(
                     faults=rule_faults,

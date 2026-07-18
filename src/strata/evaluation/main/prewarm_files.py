@@ -14,4 +14,4 @@ def prewarm_evaluation_files(
 ) -> None:
     """Seed the shared project analysis with natively pre-parsed files."""
 
-    prewarm_scoped_files(project=project, scoped_files=scoped_files)
+    _ = prewarm_scoped_files(project=project, scoped_files=scoped_files)

@@ -99,8 +99,8 @@ def prewarm_scoped_files(
     *,
     project: EvaluationProjectAnalysis,
     scoped_files: tuple[ScopedFile, ...],
-) -> None:
-    """Batch-parse upcoming discovered files natively and seed the project."""
+) -> tuple[object | None, ...]:
+    """Batch-parse upcoming files, seed the project, and return aligned native handles."""
 
     readable: list[tuple[ScopedFile, SourceSnapshot, str]] = []
     for scoped_file in scoped_files:
@@ -133,6 +133,7 @@ def prewarm_scoped_files(
                 program=program,
             )
         )
+    return programs
 
 
 def _prewarm_fact_families(scoped_file: ScopedFile) -> tuple[str, ...]:
@@ -167,7 +168,7 @@ def _build_parsed_module(
     source: str,
     source_fingerprint: str,
     artifacts: LazySyntaxArtifacts,
-    program: object | None,
+    program: object,
 ) -> ParsedModule:
     analysis: PythonFileAnalysis = PythonFileAnalysis(
         path=scoped_file.path,

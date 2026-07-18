@@ -7,7 +7,7 @@ from strata.discovery.models import DiscoveredTree
 from strata.evaluation._helpers.file_evaluation import evaluate_file
 from strata.evaluation.main.merge_evaluations import merge_file_evaluations
 from strata.evaluation.models import EvaluationTarget, FileEvaluation
-from strata.evaluation.types import EvaluationProjectAnalysis
+from strata.evaluation.types import EvaluationProjectAnalysis, NativeFaultsByCode
 from strata.instrumentation.constants import FRESH_EVALUATION_OPERATION, OPERATION_COUNTERS
 from strata.rules.authoring.constants import CUSTOM_RULE_REGISTRATIONS_CACHE_KEY
 from strata.rules.authoring.models import RuleSpec
@@ -22,6 +22,7 @@ def evaluate_target(
     config: Config,
     tree: DiscoveredTree,
     project: EvaluationProjectAnalysis,
+    native_faults_by_code: NativeFaultsByCode | None = None,
 ) -> FileEvaluation:
     """Evaluate normal rules and merge source-owned SFR707 supplemental output."""
 
@@ -37,6 +38,7 @@ def evaluate_target(
                 tree=tree,
                 project=project,
                 applicable_rule_codes=target.applicable_rule_codes,
+                native_faults_by_code=native_faults_by_code,
             )
         )
     if target.custom_rule_registrations:

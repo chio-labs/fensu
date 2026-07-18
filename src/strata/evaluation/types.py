@@ -7,6 +7,10 @@ from typing import Protocol
 from strata.analysis.types import ProjectAnalysis
 from strata.discovery.models import ScopedFile
 from strata.evaluation.models import ParsedModule
+from strata.rules.authoring.models import Fault
+
+type NativeFaultRow = tuple[str, int, int, str]
+type NativeFaultsByCode = dict[str, tuple[Fault, ...]]
 
 
 class EvaluationProjectAnalysis(ProjectAnalysis, Protocol):

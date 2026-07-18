@@ -7,6 +7,7 @@ from strata.discovery.models import DiscoveredTree
 from strata.evaluation._helpers.parsing import prewarm_scoped_files
 from strata.evaluation._helpers.project_analysis import build_project_analysis
 from strata.evaluation.constants import PREWARM_CHUNK_SIZE
+from strata.evaluation.main._evaluate_native_core_rules import evaluate_native_core_rules
 from strata.evaluation.main.build_targets import build_evaluation_targets
 from strata.evaluation.main.evaluate_target import evaluate_target
 from strata.evaluation.main.select_files import select_evaluation_files
@@ -16,7 +17,7 @@ from strata.evaluation.models import (
     FileEvaluation,
     PartitionEvaluation,
 )
-from strata.evaluation.types import EvaluationProjectAnalysis
+from strata.evaluation.types import EvaluationProjectAnalysis, NativeFaultsByCode
 from strata.rules.authoring.models import CustomRuleRegistration, RuleSpec
 
 
@@ -45,11 +46,17 @@ def evaluate_partition(
         targets = tuple(target for target in targets if str(target.scoped_file.path) in partition)
     for start in range(0, len(targets), PREWARM_CHUNK_SIZE):
         chunk: tuple[EvaluationTarget, ...] = targets[start : start + PREWARM_CHUNK_SIZE]
-        prewarm_scoped_files(
+        native_programs: tuple[object | None, ...] = prewarm_scoped_files(
             project=project,
             scoped_files=tuple(target.scoped_file for target in chunk),
         )
-        for target in chunk:
+        native_faults: tuple[NativeFaultsByCode, ...] = evaluate_native_core_rules(
+            targets=chunk,
+            programs=native_programs,
+            ruleset=ruleset,
+            warning_rules=warning_rules,
+        )
+        for target, target_native_faults in zip(chunk, native_faults, strict=True):
             file_result: FileEvaluation = evaluate_target(
                 target=target,
                 ruleset=ruleset,
@@ -57,6 +64,7 @@ def evaluate_partition(
                 config=config,
                 tree=tree,
                 project=project,
+                native_faults_by_code=target_native_faults,
             )
             file_evaluations.append(file_result)
     return PartitionEvaluation(

@@ -303,6 +303,18 @@ def test_given_cross_package_imports_when_checking_layers_then_flags_only_intern
             expected_codes=(),
             expected_lines=(),
         ),
+        LayerRuleTestCase(
+            description="shipped custom-rule exemplar may consume the public package API",
+            rule_code="SFL103",
+            files=(
+                (
+                    "src/pkg/rules/exemplars/main/annotations/_parameter_annotation.py",
+                    "from pkg import Family, RuleContext, rule\n",
+                ),
+            ),
+            expected_codes=(),
+            expected_lines=(),
+        ),
     ],
     ids=lambda case: case.description,
 )

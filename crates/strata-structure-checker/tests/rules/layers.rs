@@ -132,6 +132,30 @@ fn given_layer_fixtures_when_checking_then_reports_expected_codes() {
             }],
             expected_violation_codes: vec![],
         },
+        test_types::CheckRepoTestCase {
+            description: "native rule importing raw AST types is reported",
+            repo_files: vec![test_types::RepoFile {
+                path: "crates/example/src/rules/helpers/annotations.rs".to_owned(),
+                contents: "use ruff_python_ast::ModModule;\n".to_owned(),
+            }],
+            expected_violation_codes: vec!["RSL102"],
+        },
+        test_types::CheckRepoTestCase {
+            description: "native rule importing the raw parser is reported",
+            repo_files: vec![test_types::RepoFile {
+                path: "crates/example/src/rules/helpers/annotations.rs".to_owned(),
+                contents: "use {ruff_python_parser, strata_facts};\n".to_owned(),
+            }],
+            expected_violation_codes: vec!["RSL102"],
+        },
+        test_types::CheckRepoTestCase {
+            description: "native rule consuming shared fact rows is allowed",
+            repo_files: vec![test_types::RepoFile {
+                path: "crates/example/src/rules/helpers/annotations.rs".to_owned(),
+                contents: "use strata_facts::facts::models::AnnotationRows;\n".to_owned(),
+            }],
+            expected_violation_codes: vec![],
+        },
     ];
 
     for test_case in &test_cases {

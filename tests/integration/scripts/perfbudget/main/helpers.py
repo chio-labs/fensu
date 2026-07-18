@@ -22,4 +22,6 @@ def uniform_budget_run(
         cold_ceiling=ceiling_seconds,
         warm_ceiling=ceiling_seconds,
         edit_ceiling=ceiling_seconds,
+        version_ceiling=ceiling_seconds,
+        init_ceiling=ceiling_seconds,
     )

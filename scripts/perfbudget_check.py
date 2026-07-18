@@ -21,6 +21,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--cold-ceiling", type=float, default=None)
     parser.add_argument("--warm-ceiling", type=float, default=None)
     parser.add_argument("--edit-ceiling", type=float, default=None)
+    parser.add_argument("--version-ceiling", type=float, default=None)
+    parser.add_argument("--init-ceiling", type=float, default=None)
     return parser.parse_args()
 
 
@@ -36,6 +38,8 @@ def main() -> int:
         cold_ceiling=args.cold_ceiling,
         warm_ceiling=args.warm_ceiling,
         edit_ceiling=args.edit_ceiling,
+        version_ceiling=args.version_ceiling,
+        init_ceiling=args.init_ceiling,
         executable=args.executable,
     )
 

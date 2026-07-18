@@ -46,12 +46,24 @@ from strata.rules.exemplars.main.hygiene._single_line_docstrings import (
 from strata.rules.exemplars.main.shape._default_mutation_return import (
     default_mutation_return_equivalent,
 )
+from strata.rules.exemplars.main.shape._keyword_only_arguments import (
+    keyword_only_arguments_equivalent,
+)
+from strata.rules.exemplars.main.shape._max_arguments import max_arguments_equivalent
+from strata.rules.exemplars.main.shape._max_statements_global import (
+    max_statements_global_equivalent,
+)
 from strata.rules.exemplars.main.shape._no_complex_comprehensions import (
     no_complex_comprehensions_shape_equivalent,
 )
 from strata.rules.exemplars.main.shape._no_outer_state_mutation import (
     no_outer_state_mutation_equivalent,
 )
+from strata.rules.exemplars.main.shape._too_many_distinct_calls import (
+    too_many_distinct_calls_equivalent,
+)
+from strata.rules.exemplars.main.shape._too_many_locals import too_many_locals_equivalent
+from strata.rules.exemplars.main.shape._too_many_statements import too_many_statements_equivalent
 
 NATIVE_CUSTOM_RULE_EQUIVALENTS: dict[str, RuleCheck] = {
     "SFA001": parameter_annotation_equivalent,
@@ -68,7 +80,13 @@ NATIVE_CUSTOM_RULE_EQUIVALENTS: dict[str, RuleCheck] = {
     "SFH007": no_unnamed_string_decisions_equivalent,
     "SFH008": no_magic_numeric_comparisons_equivalent,
     "SFH009": no_import_time_side_effects_equivalent,
+    "SFS001": too_many_statements_equivalent,
+    "SFS002": too_many_distinct_calls_equivalent,
+    "SFS003": too_many_locals_equivalent,
+    "SFS010": max_arguments_equivalent,
+    "SFS011": max_statements_global_equivalent,
     "SFS110": default_mutation_return_equivalent,
+    "SFS120": keyword_only_arguments_equivalent,
     "SFS130": no_outer_state_mutation_equivalent,
     "SFS131": no_complex_comprehensions_shape_equivalent,
 }

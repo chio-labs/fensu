@@ -159,7 +159,7 @@ impl ProgramHandle {
             .get_or_init(|| extract_module_declarations(self.module(), self.index(), self.source()))
     }
 
-    pub(crate) fn function_rows(&self) -> &(Vec<FunctionMetricRow>, Vec<usize>) {
+    pub fn function_rows(&self) -> &(Vec<FunctionMetricRow>, Vec<usize>) {
         self.rows
             .functions
             .get_or_init(|| extract_functions(self.module(), self.index(), self.source()))

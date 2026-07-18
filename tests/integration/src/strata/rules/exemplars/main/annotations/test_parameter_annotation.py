@@ -35,7 +35,13 @@ _PARITY_NATIVE_CODES: frozenset[str] = frozenset(
         "SFH007",
         "SFH008",
         "SFH009",
+        "SFS001",
+        "SFS002",
+        "SFS003",
+        "SFS010",
+        "SFS011",
         "SFS110",
+        "SFS120",
         "SFS130",
         "SFS131",
     }
@@ -164,6 +170,76 @@ _PARITY_NATIVE_CODES: frozenset[str] = frozenset(
             expected_fault_count=1,
         ),
         NativeCustomRuleParityTestCase(
+            description="SFS001 matches a public custom rule with a compact statement threshold",
+            native_code="SFS001",
+            source="def run() -> None:\n    value: int = 1\n    return None\n",
+            expected_fault_count=1,
+            config={"thresholds": {"max_statements": 1}},
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFS001 native and custom guards both exclude non-main modules",
+            native_code="SFS001",
+            source="def run() -> None:\n    value: int = 1\n    return None\n",
+            expected_fault_count=0,
+            path="src/example/_helpers/example.py",
+            config={"thresholds": {"max_statements": 1}},
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFS002 matches a public custom rule with a compact call threshold",
+            native_code="SFS002",
+            source=(
+                "def first() -> None:\n    return None\n\n"
+                "def second() -> None:\n    return None\n\n"
+                "def run() -> None:\n    first()\n    second()\n"
+            ),
+            expected_fault_count=1,
+            config={"thresholds": {"max_distinct_calls": 1}},
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFS002 native and custom guards both exclude non-main modules",
+            native_code="SFS002",
+            source="def run() -> None:\n    first()\n    second()\n",
+            expected_fault_count=0,
+            path="src/example/_helpers/example.py",
+            config={"thresholds": {"max_distinct_calls": 1}},
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFS003 matches a public custom rule with a compact local threshold",
+            native_code="SFS003",
+            source="def run() -> None:\n    first: int = 1\n    second: int = 2\n",
+            expected_fault_count=1,
+            config={"thresholds": {"max_locals": 1}},
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFS003 native and custom guards both exclude non-main modules",
+            native_code="SFS003",
+            source="def run() -> None:\n    first: int = 1\n    second: int = 2\n",
+            expected_fault_count=0,
+            path="src/example/_helpers/example.py",
+            config={"thresholds": {"max_locals": 1}},
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFS010 matches a public custom rule with a compact argument threshold",
+            native_code="SFS010",
+            source="def run(first: int, second: int) -> None:\n    return None\n",
+            expected_fault_count=1,
+            path="src/example/_helpers/example.py",
+            config={"thresholds": {"max_arguments": 1}},
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFS011 leaves top-level main ownership to SFS001 but checks methods",
+            native_code="SFS011",
+            source=(
+                "def run() -> None:\n    value: int = 1\n    return None\n\n"
+                "class Service:\n"
+                "    def run(self) -> None:\n"
+                "        value: int = 1\n"
+                "        return None\n"
+            ),
+            expected_fault_count=1,
+            config={"thresholds": {"max_statements_global": 1}},
+        ),
+        NativeCustomRuleParityTestCase(
             description="SFS110 matches a public custom rule for unreturned mutations",
             native_code="SFS110",
             source=(
@@ -173,6 +249,14 @@ _PARITY_NATIVE_CODES: frozenset[str] = frozenset(
                 "    return left\n"
             ),
             expected_fault_count=1,
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFS120 matches a public custom rule with a compact positional threshold",
+            native_code="SFS120",
+            source="def run(first: int, second: int) -> None:\n    return None\n",
+            expected_fault_count=1,
+            path="src/example/_helpers/example.py",
+            config={"thresholds": {"max_positional_args": 1}},
         ),
         NativeCustomRuleParityTestCase(
             description="SFS130 matches a public custom rule for outer-state mutations",
@@ -199,6 +283,7 @@ def test_given_shared_fixture_when_evaluating_native_and_custom_rules_then_fault
         path=test_case.path,
         scope=test_case.scope,
         scope_root=test_case.scope_root,
+        config=test_case.config,
     )
     native_result: RuleResult = evaluate_rule(
         rule=native_rule(test_case.native_code), test_case=rule_case

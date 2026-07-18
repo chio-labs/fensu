@@ -14,7 +14,13 @@ pub const NO_COMPLEX_COMPREHENSIONS_IN_TOOLING_CODE: &str = "SFH006";
 pub const NO_UNNAMED_STRING_DECISIONS_CODE: &str = "SFH007";
 pub const NO_MAGIC_NUMERIC_COMPARISONS_CODE: &str = "SFH008";
 pub const NO_IMPORT_TIME_SIDE_EFFECTS_CODE: &str = "SFH009";
+pub const TOO_MANY_STATEMENTS_CODE: &str = "SFS001";
+pub const TOO_MANY_DISTINCT_CALLS_CODE: &str = "SFS002";
+pub const TOO_MANY_LOCALS_CODE: &str = "SFS003";
+pub const MAX_ARGUMENTS_CODE: &str = "SFS010";
+pub const MAX_STATEMENTS_GLOBAL_CODE: &str = "SFS011";
 pub const DEFAULT_MUTATION_RETURN_CODE: &str = "SFS110";
+pub const KEYWORD_ONLY_ARGUMENTS_CODE: &str = "SFS120";
 pub const NO_OUTER_STATE_MUTATION_CODE: &str = "SFS130";
 pub const NO_COMPLEX_COMPREHENSIONS_CODE: &str = "SFS131";
 pub const NATIVE_RULE_FACT_FAMILIES: &[(&str, &[&str])] = &[
@@ -35,7 +41,13 @@ pub const NATIVE_RULE_FACT_FAMILIES: &[(&str, &[&str])] = &[
     (NO_UNNAMED_STRING_DECISIONS_CODE, &["hygiene"]),
     (NO_MAGIC_NUMERIC_COMPARISONS_CODE, &["hygiene"]),
     (NO_IMPORT_TIME_SIDE_EFFECTS_CODE, &["module_declarations"]),
+    (TOO_MANY_STATEMENTS_CODE, &["functions"]),
+    (TOO_MANY_DISTINCT_CALLS_CODE, &["functions"]),
+    (TOO_MANY_LOCALS_CODE, &["functions"]),
+    (MAX_ARGUMENTS_CODE, &["functions"]),
+    (MAX_STATEMENTS_GLOBAL_CODE, &["functions"]),
     (DEFAULT_MUTATION_RETURN_CODE, &["parameter_mutations"]),
+    (KEYWORD_ONLY_ARGUMENTS_CODE, &["functions"]),
     (NO_OUTER_STATE_MUTATION_CODE, &["outer_state_mutations"]),
     (NO_COMPLEX_COMPREHENSIONS_CODE, &["complex_comprehensions"]),
 ];

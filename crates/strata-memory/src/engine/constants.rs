@@ -14,18 +14,6 @@ pub(crate) const ARCHIVE_STATE_ACTIVE: &str = "active";
 pub(crate) const ARCHIVE_STATE_ARCHIVED: &str = "archived";
 pub(crate) const RESOLUTION_STATUS_RESOLVED: &str = "resolved";
 
-pub(crate) const DOCUMENT_INSERT_SQL: &str =
-    "INSERT INTO documents VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-pub(crate) const SECTION_INSERT_SQL: &str =
-    "INSERT INTO sections VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-pub(crate) const LIST_ITEM_INSERT_SQL: &str =
-    "INSERT INTO list_items VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-pub(crate) const LINK_INSERT_SQL: &str =
-    "INSERT INTO links VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-pub(crate) const TAG_INSERT_SQL: &str = "INSERT INTO tags VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-pub(crate) const SKILL_FILE_INSERT_SQL: &str =
-    "INSERT INTO skill_files VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-
 pub(crate) const MEMORY_SCHEMA_SQL: &str = r#"
 CREATE TABLE meta (
     schema_version INTEGER PRIMARY KEY,

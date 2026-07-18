@@ -3,7 +3,6 @@
 use duckdb::{params, Transaction};
 
 use crate::corpus::models::MemoryCorpus;
-use crate::engine::constants;
 use crate::engine::errors::MemoryIndexError;
 use crate::engine::helpers::publication::values;
 use crate::graph::models::MemoryGraph;
@@ -13,9 +12,9 @@ pub(crate) fn insert_links(
     corpus: &MemoryCorpus,
     graph: &MemoryGraph,
 ) -> Result<usize, MemoryIndexError> {
-    let mut statement = transaction
-        .prepare(constants::LINK_INSERT_SQL)
-        .map_err(|error| MemoryIndexError::duckdb("prepare link insertion", error))?;
+    let mut appender = transaction
+        .appender("links")
+        .map_err(|error| MemoryIndexError::duckdb("create link appender", error))?;
     let mut count = 0;
     for document in &corpus.documents {
         let Some(parsed) = &document.parsed_markdown else {
@@ -33,8 +32,8 @@ pub(crate) fn insert_links(
                     document_identity: document.source.identity.0.clone(),
                     link_ordinal: link.ordinal,
                 })?;
-            statement
-                .execute(params![
+            appender
+                .append_row(params![
                     &document.source.identity.0,
                     link.ordinal as u64,
                     values::section_ordinal(parsed, link.source_range.start_byte)
@@ -60,10 +59,13 @@ pub(crate) fn insert_links(
                     link.source_range.start_line as u64,
                     link.source_range.end_line as u64,
                 ])
-                .map_err(|error| MemoryIndexError::duckdb("insert link", error))?;
+                .map_err(|error| MemoryIndexError::duckdb("append link", error))?;
             count += 1;
         }
     }
+    appender
+        .flush()
+        .map_err(|error| MemoryIndexError::duckdb("flush link appender", error))?;
     Ok(count)
 }
 
@@ -71,17 +73,17 @@ pub(crate) fn insert_tags(
     transaction: &Transaction<'_>,
     corpus: &MemoryCorpus,
 ) -> Result<usize, MemoryIndexError> {
-    let mut statement = transaction
-        .prepare(constants::TAG_INSERT_SQL)
-        .map_err(|error| MemoryIndexError::duckdb("prepare tag insertion", error))?;
+    let mut appender = transaction
+        .appender("tags")
+        .map_err(|error| MemoryIndexError::duckdb("create tag appender", error))?;
     let mut count = 0;
     for document in &corpus.documents {
         let Some(parsed) = &document.parsed_markdown else {
             continue;
         };
         for tag in &parsed.tags {
-            statement
-                .execute(params![
+            appender
+                .append_row(params![
                     &document.source.identity.0,
                     tag.ordinal as u64,
                     values::section_ordinal(parsed, tag.source_range.start_byte)
@@ -94,9 +96,12 @@ pub(crate) fn insert_tags(
                     tag.source_range.start_line as u64,
                     tag.source_range.end_line as u64,
                 ])
-                .map_err(|error| MemoryIndexError::duckdb("insert tag", error))?;
+                .map_err(|error| MemoryIndexError::duckdb("append tag", error))?;
             count += 1;
         }
     }
+    appender
+        .flush()
+        .map_err(|error| MemoryIndexError::duckdb("flush tag appender", error))?;
     Ok(count)
 }

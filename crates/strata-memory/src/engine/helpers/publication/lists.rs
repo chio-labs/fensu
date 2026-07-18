@@ -3,7 +3,6 @@
 use duckdb::{params, Transaction};
 
 use crate::corpus::models::MemoryCorpus;
-use crate::engine::constants;
 use crate::engine::errors::MemoryIndexError;
 use crate::engine::helpers::publication::values;
 
@@ -11,9 +10,9 @@ pub(crate) fn insert(
     transaction: &Transaction<'_>,
     corpus: &MemoryCorpus,
 ) -> Result<usize, MemoryIndexError> {
-    let mut statement = transaction
-        .prepare(constants::LIST_ITEM_INSERT_SQL)
-        .map_err(|error| MemoryIndexError::duckdb("prepare list item insertion", error))?;
+    let mut appender = transaction
+        .appender("list_items")
+        .map_err(|error| MemoryIndexError::duckdb("create list item appender", error))?;
     let mut count = 0;
     for document in &corpus.documents {
         let Some(parsed) = &document.parsed_markdown else {
@@ -21,8 +20,8 @@ pub(crate) fn insert(
         };
         for item in &parsed.list_items {
             let heading_path = values::heading_path(&item.heading_path);
-            statement
-                .execute(params![
+            appender
+                .append_row(params![
                     &document.source.identity.0,
                     item.ordinal as u64,
                     values::section_ordinal(parsed, item.source_range.start_byte)
@@ -48,9 +47,12 @@ pub(crate) fn insert(
                     item.leading_key.as_deref(),
                     item.relationship_kind.map(values::relationship_kind),
                 ])
-                .map_err(|error| MemoryIndexError::duckdb("insert list item", error))?;
+                .map_err(|error| MemoryIndexError::duckdb("append list item", error))?;
             count += 1;
         }
     }
+    appender
+        .flush()
+        .map_err(|error| MemoryIndexError::duckdb("flush list item appender", error))?;
     Ok(count)
 }

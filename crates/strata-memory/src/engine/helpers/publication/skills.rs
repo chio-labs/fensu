@@ -3,7 +3,6 @@
 use duckdb::{params, Transaction};
 
 use crate::corpus::models::MemoryCorpus;
-use crate::engine::constants;
 use crate::engine::errors::MemoryIndexError;
 use crate::engine::helpers::publication::values;
 use crate::source::types::ArchiveState;
@@ -12,13 +11,13 @@ pub(crate) fn insert(
     transaction: &Transaction<'_>,
     corpus: &MemoryCorpus,
 ) -> Result<usize, MemoryIndexError> {
-    let mut statement = transaction
-        .prepare(constants::SKILL_FILE_INSERT_SQL)
-        .map_err(|error| MemoryIndexError::duckdb("prepare skill file insertion", error))?;
+    let mut appender = transaction
+        .appender("skill_files")
+        .map_err(|error| MemoryIndexError::duckdb("create skill file appender", error))?;
     for file in &corpus.skill_files {
         let archived = matches!(file.canonical_path.archive_state, ArchiveState::Archived);
-        statement
-            .execute(params![
+        appender
+            .append_row(params![
                 &file.skill_identity.0,
                 &file.canonical_path.repository_relative,
                 values::filesystem_path(&file.canonical_path.filesystem_path),
@@ -31,7 +30,10 @@ pub(crate) fn insert(
                 archived,
                 !archived,
             ])
-            .map_err(|error| MemoryIndexError::duckdb("insert skill file", error))?;
+            .map_err(|error| MemoryIndexError::duckdb("append skill file", error))?;
     }
+    appender
+        .flush()
+        .map_err(|error| MemoryIndexError::duckdb("flush skill file appender", error))?;
     Ok(corpus.skill_files.len())
 }

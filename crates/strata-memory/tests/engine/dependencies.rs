@@ -16,6 +16,8 @@ mod graph_query;
 mod helpers;
 #[path = "overview.rs"]
 mod overview;
+#[path = "performance.rs"]
+mod performance;
 #[path = "query.rs"]
 mod query;
 #[path = "schema.rs"]

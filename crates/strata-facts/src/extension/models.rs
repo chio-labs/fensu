@@ -219,13 +219,13 @@ impl ProgramHandle {
             .get_or_init(|| extract_references(self.module(), self.index(), self.source()))
     }
 
-    pub(crate) fn test_function_rows(&self) -> &[TestFunctionRow] {
+    pub fn test_function_rows(&self) -> &[TestFunctionRow] {
         self.rows
             .test_functions
             .get_or_init(|| extract_test_functions(self.module(), self.index(), self.source()))
     }
 
-    pub(crate) fn test_module_rows(&self) -> &TestModuleRows {
+    pub fn test_module_rows(&self) -> &TestModuleRows {
         self.rows
             .test_module
             .get_or_init(|| extract_test_module(self.module(), self.index(), self.source()))

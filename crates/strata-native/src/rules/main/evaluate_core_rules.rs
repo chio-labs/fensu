@@ -52,7 +52,7 @@ pub fn evaluate_core_rules(
                     faults.extend(rule_faults);
                 } else if let Some(rule_faults) = role_faults(program, code) {
                     faults.extend(rule_faults);
-                } else if let Some(rule_faults) = test_faults(program, code) {
+                } else if let Some(rule_faults) = test_faults(program, code, context) {
                     faults.extend(rule_faults);
                 }
             }

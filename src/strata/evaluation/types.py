@@ -9,7 +9,7 @@ from strata.discovery.models import ScopedFile
 from strata.evaluation.models import ParsedModule
 from strata.rules.authoring.models import Fault
 
-type NativeFaultRow = tuple[str, int, int, str | None, str | None]
+type NativeFaultRow = tuple[str, int | None, int | None, str | None, str | None]
 type NativeFaultsByCode = dict[str, tuple[Fault, ...]]
 type NativeThresholdValues = dict[str, int]
 type NativeCoreRuleRequest = tuple[

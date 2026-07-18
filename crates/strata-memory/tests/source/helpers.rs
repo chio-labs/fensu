@@ -2,6 +2,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use strata_memory::source::models::DiscoveryResult;
@@ -73,4 +74,18 @@ pub(crate) fn diagnostic_rows(result: &DiscoveryResult) -> Vec<(&str, Diagnostic
 
 pub(crate) fn remove_temp_tree(root: &Path) {
     fs::remove_dir_all(root).expect("temporary repository is removable");
+}
+
+pub(crate) fn run_git(root: &Path, arguments: &[&str]) {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(arguments)
+        .output()
+        .expect("Git fixture command starts");
+    assert!(
+        output.status.success(),
+        "Git fixture command failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }

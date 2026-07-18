@@ -1,5 +1,6 @@
 //! Canonical source discovery and diagnostic behavior.
 
+use std::fs;
 use std::time::UNIX_EPOCH;
 
 use strata_memory::source::main::discover_memory::discover_memory;
@@ -8,7 +9,7 @@ use strata_memory::source::types::{ArchiveState, DiagnosticKind, GitTracking};
 use crate::helpers;
 use crate::test_types::{
     CanonicalDiscoveryTestCase, DiagnosticDiscoveryTestCase, ExpectedDiagnostic, FixtureDirectory,
-    FixtureFile,
+    FixtureFile, GitTrackingTestCase,
 };
 
 #[test]
@@ -172,6 +173,93 @@ fn given_every_canonical_location_when_discovering_then_returns_portable_sorted_
         );
         helpers::remove_temp_tree(&root);
     }
+}
+
+#[test]
+fn given_git_visibility_sources_when_discovering_then_classifies_without_production_subprocesses() {
+    let test_cases = [
+        GitTrackingTestCase {
+            description: "tracked paths win over matching repository ignores",
+            basename: "20260718T120000_000001Z__NOTE-tracked.md",
+            expected_tracking: GitTracking::Tracked,
+        },
+        GitTrackingTestCase {
+            description: "worktree gitignore patterns are repository ignored",
+            basename: "20260718T120000_000002Z__NOTE-repository-ignored.md",
+            expected_tracking: GitTracking::IgnoredRepository,
+        },
+        GitTrackingTestCase {
+            description: "git info excludes are local ignored",
+            basename: "20260718T120000_000003Z__NOTE-local-ignored.md",
+            expected_tracking: GitTracking::IgnoredLocal,
+        },
+        GitTrackingTestCase {
+            description: "configured excludes files are global ignored",
+            basename: "20260718T120000_000004Z__NOTE-global-ignored.md",
+            expected_tracking: GitTracking::IgnoredGlobal,
+        },
+        GitTrackingTestCase {
+            description: "visible paths absent from the index are untracked",
+            basename: "20260718T120000_000005Z__NOTE-untracked.md",
+            expected_tracking: GitTracking::Untracked,
+        },
+    ];
+    let files = test_cases
+        .iter()
+        .map(|test_case| FixtureFile {
+            path: Box::leak(
+                format!(".ai/knowledge/repo/notes/{}", test_case.basename).into_boxed_str(),
+            ),
+            contents: "# Fixture\n",
+        })
+        .collect::<Vec<FixtureFile>>();
+    let root = helpers::write_temp_tree(&[], &files);
+    helpers::run_git(&root, &["init", "--quiet"]);
+    fs::write(
+        root.join(".gitignore"),
+        "20260718T120000_000001Z__NOTE-tracked.md\n*repository-ignored.md\n",
+    )
+    .expect("repository excludes are writable");
+    fs::write(root.join(".git/info/exclude"), "*local-ignored.md\n")
+        .expect("local excludes are writable");
+    let global_excludes = root.with_extension("global-ignore");
+    fs::write(&global_excludes, "*global-ignored.md\n").expect("global excludes are writable");
+    helpers::run_git(
+        &root,
+        &[
+            "config",
+            "core.excludesFile",
+            global_excludes
+                .to_str()
+                .expect("global excludes path is UTF-8"),
+        ],
+    );
+    helpers::run_git(
+        &root,
+        &[
+            "add",
+            "-f",
+            ".ai/knowledge/repo/notes/20260718T120000_000001Z__NOTE-tracked.md",
+        ],
+    );
+
+    let result = discover_memory(&root);
+
+    for test_case in &test_cases {
+        let actual = result
+            .documents
+            .iter()
+            .find(|document| document.basename == test_case.basename)
+            .map(|document| document.git_tracking);
+        assert_eq!(
+            actual,
+            Some(test_case.expected_tracking),
+            "{}",
+            test_case.description
+        );
+    }
+    fs::remove_file(global_excludes).expect("global excludes fixture is removable");
+    helpers::remove_temp_tree(&root);
 }
 
 #[test]

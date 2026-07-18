@@ -11,6 +11,9 @@ class NativeCustomRuleParityTestCase:
     native_code: str
     source: str
     expected_fault_count: int
+    path: str = "src/example/main/example.py"
+    scope: str = "root"
+    scope_root: str | None = None
 
 
 @dataclass(frozen=True)

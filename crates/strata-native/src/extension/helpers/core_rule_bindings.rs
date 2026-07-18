@@ -8,18 +8,18 @@ use crate::rules::constants::NATIVE_RULE_FACT_FAMILIES;
 use crate::rules::main::evaluate_core_rules::evaluate_core_rules;
 use crate::rules::models::NativeFaultRow;
 
-type NativeFaultTuple = (String, u32, u32, String);
+type NativeFaultTuple = (String, u32, u32, Option<String>);
 
 #[pyfunction]
 pub(crate) fn evaluate_native_core_rules(
     py: Python<'_>,
-    requests: Vec<(Py<ProgramHandle>, Vec<String>)>,
+    requests: Vec<(Py<ProgramHandle>, Vec<String>, String)>,
 ) -> Vec<Vec<NativeFaultTuple>> {
     py.detach(move || {
         requests
             .par_iter()
-            .map(|(handle, codes)| {
-                evaluate_core_rules(handle.get(), codes)
+            .map(|(handle, codes, scope)| {
+                evaluate_core_rules(handle.get(), codes, scope)
                     .into_iter()
                     .map(as_tuple)
                     .collect()
@@ -42,5 +42,5 @@ pub(crate) fn native_rule_fact_families() -> Vec<(String, Vec<String>)> {
 }
 
 fn as_tuple(row: NativeFaultRow) -> NativeFaultTuple {
-    (row.code.to_owned(), row.line, row.column, row.message)
+    (row.code, row.line, row.column, row.message)
 }

@@ -19,7 +19,24 @@ from tests.integration.src.strata.rules.exemplars.main.annotations.helpers impor
     normalized_faults,
 )
 
-_PARITY_NATIVE_CODES: frozenset[str] = frozenset({"SFA001", "SFA002", "SFA101", "SFA102", "SFA103"})
+_PARITY_NATIVE_CODES: frozenset[str] = frozenset(
+    {
+        "SFA001",
+        "SFA002",
+        "SFA101",
+        "SFA102",
+        "SFA103",
+        "SFH001",
+        "SFH002",
+        "SFH003",
+        "SFH004",
+        "SFH005",
+        "SFH006",
+        "SFH007",
+        "SFH008",
+        "SFH009",
+    }
+)
 
 
 @pytest.mark.parametrize(
@@ -80,6 +97,69 @@ _PARITY_NATIVE_CODES: frozenset[str] = frozenset({"SFA001", "SFA002", "SFA101", 
             ),
             expected_fault_count=4,
         ),
+        NativeCustomRuleParityTestCase(
+            description="SFH001 matches a public custom rule for multiline docstrings",
+            native_code="SFH001",
+            source='"""Summary.\n\nDetails.\n"""\n',
+            expected_fault_count=1,
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFH002 matches a public custom rule for standalone comments",
+            native_code="SFH002",
+            source="# explain the branch\n# noqa: E501\nvalue: int = 1\n",
+            expected_fault_count=1,
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFH003 matches a public custom rule for raw built-in raises",
+            native_code="SFH003",
+            source="def run() -> None:\n    raise ValueError('bad')\n",
+            expected_fault_count=1,
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFH004 matches a public custom rule for runtime assertions",
+            native_code="SFH004",
+            source="def run(value: int) -> None:\n    assert value > 0\n",
+            expected_fault_count=1,
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFH005 matches a public custom rule for swallowed probes",
+            native_code="SFH005",
+            source=(
+                "def exists() -> bool | None:\n"
+                "    try:\n"
+                "        return bool(object())\n"
+                "    except Exception:\n"
+                "        return None\n"
+            ),
+            expected_fault_count=1,
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFH006 matches a public custom rule in tooling scope",
+            native_code="SFH006",
+            source="pairs = [(left, right) for left in (1, 2) for right in (3, 4)]\n",
+            expected_fault_count=1,
+            path="scripts/check.py",
+            scope="tooling",
+            scope_root="scripts",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFH007 matches a public custom rule for string decisions",
+            native_code="SFH007",
+            source="def ready(status: str) -> bool:\n    return status in {'ready', 'done'}\n",
+            expected_fault_count=2,
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFH008 matches a public custom rule for magic numeric comparisons",
+            native_code="SFH008",
+            source="def ready(value: int) -> bool:\n    return value == 42\n",
+            expected_fault_count=1,
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFH009 matches a public custom rule for import-time calls",
+            native_code="SFH009",
+            source="configure()\n",
+            expected_fault_count=1,
+        ),
     ],
     ids=lambda case: case.description,
 )
@@ -90,6 +170,9 @@ def test_given_shared_fixture_when_evaluating_native_and_custom_rules_then_fault
         description=test_case.description,
         source=test_case.source,
         expected_fault_count=test_case.expected_fault_count,
+        path=test_case.path,
+        scope=test_case.scope,
+        scope_root=test_case.scope_root,
     )
     native_result: RuleResult = evaluate_rule(
         rule=native_rule(test_case.native_code), test_case=rule_case

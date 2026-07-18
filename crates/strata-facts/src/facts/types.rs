@@ -3,6 +3,7 @@
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FactFamily {
     Annotations,
+    Comments,
     AssignmentReferences,
     ClassDeclarations,
     Comparisons,

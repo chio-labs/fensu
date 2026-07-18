@@ -27,7 +27,6 @@ use crate::extension::helpers::conversion::state::outer_state_mutation_facts_obj
 use crate::extension::helpers::gateway::model_types::model_type;
 use crate::extension::models::ProgramHandle;
 use crate::facts::main::enumerate_nodes::enumerate_nodes;
-use crate::facts::main::extract_comments::extract_comments;
 use crate::facts::types::FactFamily;
 use crate::parsing::main::parse_strict::parse_strict;
 use crate::positions::main::locate_offset::locate_offset;
@@ -109,6 +108,7 @@ fn fact_family(name: &str) -> Option<FactFamily> {
         "annotations" => Some(FactFamily::Annotations),
         "assignment_references" => Some(FactFamily::AssignmentReferences),
         "class_declarations" => Some(FactFamily::ClassDeclarations),
+        "comments" => Some(FactFamily::Comments),
         "comparisons" => Some(FactFamily::Comparisons),
         "contracts" => Some(FactFamily::Contracts),
         "control_flow" => Some(FactFamily::ControlFlow),
@@ -260,11 +260,11 @@ pub(crate) fn comment_facts(
     path: &Bound<'_, PyAny>,
 ) -> PyResult<Py<PyTuple>> {
     let program = handle.get();
-    let rows = extract_comments(program.tokens(), program.source(), program.index());
+    let rows = program.comment_rows();
     let constructor = model_type(py, constants::COMMENT_FACT_NAME)?;
     let mut facts: Vec<Py<PyAny>> = Vec::with_capacity(rows.len());
     for row in rows {
-        let fact = constructor.call1((path, row.line, row.column, row.text))?;
+        let fact = constructor.call1((path, row.line, row.column, &row.text))?;
         facts.push(fact.unbind());
     }
     Ok(PyTuple::new(py, facts)?.unbind())

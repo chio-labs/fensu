@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from strata.cache.storage.constants import CACHE_DATABASE_RELATIVE_PATH
 from strata.cli.main._init import run_init
 from strata.config.main.load_config import load_config
 from strata.config.models import Config
@@ -150,6 +151,7 @@ def test_given_detected_hatch_layout_when_answering_prompts_then_writes_selected
                 "SFA101  module-level variables",
                 " --> src/acme/constants.py",
             ),
+            expected_cache_exists=True,
         ),
         InitExecutionTestCase(
             description="named empty repository scaffolds exact files and full zero-drift config",
@@ -171,6 +173,7 @@ def test_given_detected_hatch_layout_when_answering_prompts_then_writes_selected
                 "strata.toml",
                 "tests/.gitkeep",
             ),
+            expected_cache_exists=True,
         ),
         InitExecutionTestCase(
             description="unanswered non-TTY initialization fails before prompts or writes",
@@ -194,6 +197,7 @@ def test_given_detected_hatch_layout_when_answering_prompts_then_writes_selected
             expected_config=('roots = ["src/acme"]\ntests = ["tests"]\nselect = ["SF"]\n'),
             expected_output_fragments=("Wrote strata.toml",),
             expected_absent_fragments=("Accept?", "Project name"),
+            expected_cache_exists=True,
         ),
     ],
     ids=lambda case: case.description,
@@ -229,6 +233,7 @@ def test_given_repository_and_terminal_state_when_initializing_then_execution_is
         expected_config=test_case.expected_config,
         expected_created_paths=test_case.expected_created_paths,
     )
+    assert (tmp_path / CACHE_DATABASE_RELATIVE_PATH).is_file() is test_case.expected_cache_exists
 
 
 @pytest.mark.parametrize(

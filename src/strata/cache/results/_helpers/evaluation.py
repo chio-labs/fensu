@@ -95,6 +95,8 @@ def run_cached_evaluation(
     config: Config,
     global_fingerprint: CacheFingerprint,
     custom_rule_registrations: tuple[CustomRuleRegistration, ...] = (),
+    allow_short_circuit: bool = True,
+    jobs: int = 1,
 ) -> CacheEvaluation:
     """Return a complete evaluation using only fully validated file-result hits."""
 
@@ -133,28 +135,31 @@ def run_cached_evaluation(
         repo_root=tree.repo_root.path,
     )
     sorted_targets: tuple[str, ...] = tuple(sorted(target_paths))
-    dependency_states: DependencyStateCache = {}
-    if (
-        replayed := _attempted_replays(
-            cache=cache,
-            inputs=_EditReplayInputs(
-                scopes=scopes,
-                context=context,
-                entries=entries,
-                targets=targets,
-                sorted_targets=sorted_targets,
-                source_fingerprints=source_fingerprints,
-                selection=selection,
-                config=config,
-                tree=tree,
-                states=dependency_states,
-                global_fingerprint=global_fingerprint,
-                evaluated_rules=evaluated_rules,
-                custom_rule_registrations=custom_rule_registrations,
-            ),
-        )
-    ) is not None:
-        return replayed
+    replay_inputs: _EditReplayInputs = _EditReplayInputs(
+        scopes=scopes,
+        context=context,
+        entries=entries,
+        targets=targets,
+        sorted_targets=sorted_targets,
+        source_fingerprints=source_fingerprints,
+        selection=selection,
+        config=config,
+        tree=tree,
+        states={},
+        global_fingerprint=global_fingerprint,
+        evaluated_rules=evaluated_rules,
+        custom_rule_registrations=custom_rule_registrations,
+    )
+    early: CacheEvaluation | None = _early_cached_evaluation(
+        cache=cache,
+        inputs=replay_inputs,
+        allow_short_circuit=allow_short_circuit,
+        jobs=jobs,
+        ruleset=ruleset,
+        warning_rules=warning_rules,
+    )
+    if early is not None:
+        return early
     from strata.evaluation.main.build_project import build_evaluation_project
     from strata.evaluation.main.evaluate_target import evaluate_target
     from strata.evaluation.main.prewarm_files import prewarm_evaluation_files
@@ -185,7 +190,7 @@ def run_cached_evaluation(
         entries=entries,
         source_fingerprints=source_fingerprints,
         loaded_results=loaded_results,
-        dependency_states=dependency_states,
+        dependency_states=replay_inputs.states,
     )
     miss_files: tuple[ScopedFile, ...] = tuple(
         decision.target.scoped_file
@@ -222,7 +227,8 @@ def run_cached_evaluation(
         ordered_results.append(fresh)
         fresh_evaluations.append(fresh)
     if (
-        not scopes.scoped
+        allow_short_circuit
+        and not scopes.scoped
         and context.output is not None
         and misses == 0
         and invalidations == 0
@@ -318,6 +324,97 @@ def _slow_path_collection(
     from strata.cache.results._helpers.conversion import build_collection_contributions
 
     return build_collection_contributions(evaluations=evaluations, repo_root=repo_root)
+
+
+def _early_cached_evaluation(
+    *,
+    cache: ResultCache,
+    inputs: _EditReplayInputs,
+    allow_short_circuit: bool,
+    jobs: int,
+    ruleset: tuple[RuleSpec, ...],
+    warning_rules: tuple[RuleSpec, ...],
+) -> CacheEvaluation | None:
+    replayed: CacheEvaluation | None = (
+        _attempted_replays(cache=cache, inputs=inputs)
+        if allow_short_circuit
+        else _edit_replayed_evaluation(cache=cache, inputs=inputs)
+    )
+    if replayed is not None:
+        return replayed
+    if inputs.entries or jobs <= 1 or inputs.scopes.scoped:
+        return None
+    return _parallel_cold_cache_evaluation(
+        cache=cache,
+        tree=inputs.tree,
+        config=inputs.config,
+        ruleset=ruleset,
+        warning_rules=warning_rules,
+        custom_rule_registrations=inputs.custom_rule_registrations,
+        global_fingerprint=inputs.global_fingerprint,
+        targets=inputs.targets,
+        sorted_targets=inputs.sorted_targets,
+        jobs=jobs,
+    )
+
+
+def _parallel_cold_cache_evaluation(
+    *,
+    cache: ResultCache,
+    tree: DiscoveredTree,
+    config: Config,
+    ruleset: tuple[RuleSpec, ...],
+    warning_rules: tuple[RuleSpec, ...],
+    custom_rule_registrations: tuple[CustomRuleRegistration, ...],
+    global_fingerprint: CacheFingerprint,
+    targets: tuple[EvaluationTarget, ...],
+    sorted_targets: tuple[str, ...],
+    jobs: int,
+) -> CacheEvaluation:
+    from strata.evaluation.main.evaluate_parallel import evaluate_parallel
+
+    result: EvaluationResult = evaluate_parallel(
+        tree=tree,
+        config=config,
+        ruleset=ruleset,
+        warning_rules=warning_rules,
+        custom_rule_registrations=custom_rule_registrations,
+        jobs=jobs,
+    )
+    evaluations: tuple[FileEvaluation, ...] = result.file_evaluations
+    collection: tuple[CachedCollectionContribution, ...] | None = _slow_path_collection(
+        scopes=_rule_scopes(ruleset=ruleset, warning_rules=warning_rules),
+        custom_rule_registrations=custom_rule_registrations,
+        evaluations=evaluations,
+        repo_root=tree.repo_root.path,
+    )
+    publication: CacheStats = _publish_results(
+        cache=cache,
+        global_fingerprint=global_fingerprint,
+        fresh_evaluations=evaluations,
+        retained_entries=(),
+        retained_results=(),
+        existing_index_fingerprint=None,
+        collection=collection,
+    )
+    surface_ready: bool = (
+        publication.non_cacheable == 0
+        and not publication.storage_failed
+        and not publication.internal_error
+        and publication.index_fingerprint is not None
+    )
+    return CacheEvaluation(
+        result=result,
+        stats=CacheStats(
+            misses=len(targets),
+            writes=publication.writes,
+            non_cacheable=publication.non_cacheable,
+            storage_failed=publication.storage_failed,
+            internal_error=publication.internal_error,
+        ),
+        surface_targets=sorted_targets if surface_ready else None,
+        surface_index_fingerprint=publication.index_fingerprint if surface_ready else None,
+    )
 
 
 def _attempted_replays(

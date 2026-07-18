@@ -7,6 +7,7 @@ import sqlite3
 import subprocess
 import sys
 import tomllib
+from functools import partial
 from pathlib import Path
 from typing import cast
 
@@ -85,12 +86,17 @@ def write_project_files(*, root: Path, files: tuple[CliProjectFile, ...]) -> Non
 
 
 def repository_text_snapshot(root: Path) -> tuple[tuple[str, str], ...]:
-    """Return every repository file and its text in deterministic order."""
+    """Return every user-authored repository text file in deterministic order."""
 
-    paths: filter[Path] = filter(Path.is_file, sorted(root.rglob("*")))
+    files: filter[Path] = filter(Path.is_file, sorted(root.rglob("*")))
+    paths: filter[Path] = filter(partial(_is_user_authored_file, root=root), files)
     return tuple(
         (path.relative_to(root).as_posix(), path.read_text(encoding="utf-8")) for path in paths
     )
+
+
+def _is_user_authored_file(path: Path, *, root: Path) -> bool:
+    return not path.relative_to(root).as_posix().startswith(".strata/cache/")
 
 
 def config_values(root: Path) -> tuple[tuple[str, tuple[str, ...]], ...]:

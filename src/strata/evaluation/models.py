@@ -115,6 +115,37 @@ class PartitionEvaluation:
 
 
 @dataclass(frozen=True, slots=True)
+class EvaluationWorkerRequest:
+    """Picklable inputs needed to rebuild and evaluate one target partition."""
+
+    repo_root: str
+    roots: tuple[str, ...]
+    cache_enabled: bool
+    warn: bool
+    native_threads: int
+    partition: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class EvaluationWorkerParseFailure:
+    """One picklable parse failure carried back from a worker process."""
+
+    path: str
+    message: str
+    line: int | None
+    column: int | None
+
+
+@dataclass(frozen=True, slots=True)
+class EvaluationWorkerOutcome:
+    """Raw partition output shipped from one worker process."""
+
+    file_evaluations: tuple[FileEvaluation, ...]
+    dependencies: tuple[ProjectDependency, ...]
+    parse_failure: EvaluationWorkerParseFailure | None
+
+
+@dataclass(frozen=True, slots=True)
 class EvaluationResult:
     """Evaluation output for a discovered tree."""
 

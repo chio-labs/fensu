@@ -12,6 +12,8 @@ from strata.cache.results.models import CacheEvaluation
 from strata.cli.models import CheckEvaluation
 from strata.config.models import Config
 from strata.discovery.models import DiscoveredTree
+from strata.evaluation.main.evaluate_parallel import evaluate_parallel
+from strata.evaluation.main.resolve_worker_count import resolve_worker_count
 from strata.instrumentation.constants import (
     OPERATION_COUNTERS,
     PHASE_CACHE_EVALUATION_NANOSECONDS,
@@ -33,14 +35,14 @@ def evaluated_check(
     project_dir: Path,
     warn: bool,
     jobs: int | None = None,
-    invocation_dir: Path | None = None,
-    argument_paths: tuple[str, ...] = (),
-    cache_enabled: bool | None = None,
 ) -> CheckEvaluation:
     """Evaluate the tree with caching when available and return observability."""
 
     ruleset: tuple[RuleSpec, ...] = rule_selection.blocking
     warning_rules: tuple[RuleSpec, ...] = rule_selection.warnings if warn else ()
+    resolved_jobs: int = (
+        jobs if jobs is not None else resolve_worker_count(target_count=len(tree.files))
+    )
     fingerprint_build: GlobalFingerprintBuild | None = (
         OPERATION_COUNTERS.measure(
             operation=PHASE_GLOBAL_FINGERPRINT_NANOSECONDS,
@@ -65,10 +67,7 @@ def evaluated_check(
                 config=config,
                 rule_selection=rule_selection,
                 warn=warn,
-                jobs=jobs,
-                invocation_dir=invocation_dir,
-                argument_paths=argument_paths,
-                cache_enabled=cache_enabled,
+                jobs=resolved_jobs,
             ),
         )
         return CheckEvaluation(
@@ -91,6 +90,7 @@ def evaluated_check(
             config=config,
             global_fingerprint=global_fingerprint,
             custom_rule_registrations=rule_selection.custom_registrations,
+            jobs=resolved_jobs,
         ),
     )
     return CheckEvaluation(
@@ -110,29 +110,16 @@ def _full_evaluation(
     config: Config,
     rule_selection: RuleSelection,
     warn: bool,
-    jobs: int | None,
-    invocation_dir: Path | None,
-    argument_paths: tuple[str, ...],
-    cache_enabled: bool | None,
+    jobs: int,
 ) -> EvaluationResult:
-    from strata.cli._helpers.parallel_evaluation import (
-        default_worker_count,
-        parallel_full_evaluation,
-    )
-
-    resolved_jobs: int = (
-        jobs if jobs is not None else default_worker_count(target_count=len(tree.files))
-    )
-    if resolved_jobs > 1 and invocation_dir is not None:
-        return parallel_full_evaluation(
+    if jobs > 1:
+        return evaluate_parallel(
             tree=tree,
             config=config,
-            rule_selection=rule_selection,
-            invocation_dir=invocation_dir,
-            argument_paths=argument_paths,
-            cache_enabled=cache_enabled,
-            warn=warn,
-            jobs=resolved_jobs,
+            ruleset=rule_selection.blocking,
+            warning_rules=rule_selection.warnings if warn else (),
+            custom_rule_registrations=rule_selection.custom_registrations,
+            jobs=jobs,
         )
     from strata.evaluation.main.evaluate import evaluate
 

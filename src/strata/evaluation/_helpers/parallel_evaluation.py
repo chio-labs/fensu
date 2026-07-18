@@ -1,4 +1,4 @@
-"""Run one full no-cache evaluation across deterministic worker partitions."""
+"""Run one full evaluation across deterministic worker partitions."""
 
 from __future__ import annotations
 
@@ -9,29 +9,30 @@ from dataclasses import replace
 from pathlib import Path
 
 from strata.analysis.models import ProjectDependency
-from strata.cli._helpers.check_paths import invocation_path
-from strata.cli.models import (
-    EvaluationWorkerOutcome,
-    EvaluationWorkerParseFailure,
-    EvaluationWorkerRequest,
-)
 from strata.config.main.load_project_config import load_project_config
-from strata.config.models import Config, LoadedConfig
+from strata.config.models import Config
 from strata.discovery.main.discover_files import discover_files
 from strata.discovery.models import DiscoveredTree
 from strata.evaluation.exceptions import ParseError
+from strata.evaluation.main._evaluate_partition import evaluate_partition
 from strata.evaluation.main.build_targets import build_evaluation_targets
 from strata.evaluation.main.collect_result import collect_file_evaluations
-from strata.evaluation.main.evaluate_partition import evaluate_partition
 from strata.evaluation.main.select_files import select_evaluation_files
 from strata.evaluation.models import (
     EvaluationResult,
     EvaluationSelection,
     EvaluationTarget,
+    EvaluationWorkerOutcome,
+    EvaluationWorkerParseFailure,
+    EvaluationWorkerRequest,
     FileEvaluation,
     PartitionEvaluation,
 )
-from strata.rules.authoring.models import RuleSpec
+from strata.instrumentation.constants import (
+    EVALUATION_WORKER_PARTITION_OPERATION,
+    OPERATION_COUNTERS,
+)
+from strata.rules.authoring.models import CustomRuleRegistration, RuleSpec
 from strata.rules.catalog.main.build_check_rule_selection import build_check_rule_selection
 from strata.rules.catalog.models import RuleSelection
 
@@ -53,37 +54,37 @@ def parallel_full_evaluation(
     *,
     tree: DiscoveredTree,
     config: Config,
-    rule_selection: RuleSelection,
-    invocation_dir: Path,
-    argument_paths: tuple[str, ...],
-    cache_enabled: bool | None,
-    warn: bool,
+    ruleset: tuple[RuleSpec, ...],
+    warning_rules: tuple[RuleSpec, ...] = (),
+    custom_rule_registrations: tuple[CustomRuleRegistration, ...] = (),
     jobs: int,
 ) -> EvaluationResult:
     """Evaluate every target across worker processes and collect deterministically."""
 
-    ruleset: tuple[RuleSpec, ...] = rule_selection.blocking
-    warning_rules: tuple[RuleSpec, ...] = rule_selection.warnings if warn else ()
     selection: EvaluationSelection = select_evaluation_files(tree=tree, config=config.evaluation)
     targets: tuple[EvaluationTarget, ...] = build_evaluation_targets(
         tree=tree,
         selection=selection,
         ruleset=ruleset,
         warning_rules=warning_rules,
-        custom_rule_registrations=rule_selection.custom_registrations,
+        custom_rule_registrations=custom_rule_registrations,
     )
     ordered_paths: tuple[str, ...] = tuple(str(target.scoped_file.path) for target in targets)
     partitions: tuple[tuple[str, ...], ...] = _contiguous_partitions(paths=ordered_paths, jobs=jobs)
     requests: tuple[EvaluationWorkerRequest, ...] = tuple(
         EvaluationWorkerRequest(
-            invocation_dir=str(invocation_dir),
-            warn=warn,
-            paths=argument_paths,
-            cache_enabled=cache_enabled,
+            repo_root=str(tree.repo_root.path),
+            roots=config.roots,
+            cache_enabled=config.cache.enabled,
+            warn=bool(warning_rules),
             native_threads=_native_threads_per_worker(worker_count=len(partitions)),
             partition=partition,
         )
         for partition in partitions
+    )
+    OPERATION_COUNTERS.record(
+        operation=EVALUATION_WORKER_PARTITION_OPERATION,
+        amount=len(requests),
     )
     outcomes: tuple[EvaluationWorkerOutcome, ...] = _run_workers(requests=requests)
     _raise_worker_parse_failure(outcomes=outcomes)
@@ -98,21 +99,20 @@ def parallel_full_evaluation(
 
 
 def evaluate_worker_partition(request: EvaluationWorkerRequest) -> EvaluationWorkerOutcome:
-    """Evaluate one target partition after rebuilding configuration from disk."""
+    """Evaluate one target partition after rebuilding its discovered rule context."""
 
     os.environ[_NATIVE_THREAD_ENV_VARIABLE] = str(request.native_threads)
-    invocation_dir: Path = Path(request.invocation_dir)
-    loaded: LoadedConfig = load_project_config(invocation_dir)
-    project_dir: Path = loaded.source.path.parent.resolve()
+    project_dir: Path = Path(request.repo_root)
+    loaded_config: Config = load_project_config(project_dir).config
+    config: Config = replace(
+        loaded_config,
+        roots=request.roots,
+        cache=replace(loaded_config.cache, enabled=request.cache_enabled),
+    )
     rule_selection: RuleSelection = build_check_rule_selection(
-        config=loaded.config,
+        config=config,
         repo_root=project_dir,
         include_warnings=request.warn,
-    )
-    config: Config = _configured_for_worker(
-        request=request,
-        loaded=loaded,
-        invocation_dir=invocation_dir,
     )
     tree: DiscoveredTree = discover_files(config=config, repo_root=project_dir)
     try:
@@ -140,29 +140,6 @@ def evaluate_worker_partition(request: EvaluationWorkerRequest) -> EvaluationWor
         dependencies=partition_evaluation.dependencies,
         parse_failure=None,
     )
-
-
-def _configured_for_worker(
-    *,
-    request: EvaluationWorkerRequest,
-    loaded: LoadedConfig,
-    invocation_dir: Path,
-) -> Config:
-    config: Config = loaded.config
-    if request.paths:
-        config = replace(
-            config,
-            roots=tuple(
-                invocation_path(value=value, invocation_dir=invocation_dir)
-                for value in request.paths
-            ),
-        )
-    if request.cache_enabled is not None:
-        config = replace(
-            config,
-            cache=replace(config.cache, enabled=request.cache_enabled),
-        )
-    return config
 
 
 def _run_workers(

@@ -110,3 +110,4 @@ class InstalledInitCliTestCase:
     expected_stderr_fragments: tuple[str, ...]
     expected_absent_output_fragments: tuple[str, ...]
     expected_stdout_is_empty: bool
+    expected_cache_exists: bool = False

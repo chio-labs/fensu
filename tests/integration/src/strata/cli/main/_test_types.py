@@ -154,12 +154,16 @@ class EvaluationCheckTestCase:
 
 @dataclass(frozen=True)
 class ParallelCheckTestCase:
-    """One multi-file faulty project and the worker count expected to match serial."""
+    """One parallel mode and its expected serial-equivalent result."""
 
     description: str
     jobs: str
+    cache_flag: str
     expected_exit_code: int
     expected_fault_fragments: tuple[str, ...]
+    expected_cache_exists: bool
+    expected_cache_stats_fragment: str
+    expected_worker_partitions: int
 
 
 @dataclass(frozen=True)
@@ -347,6 +351,7 @@ class InitExecutionTestCase:
     expected_error_fragment: str = ""
     expected_created_paths: tuple[str, ...] = ()
     expected_absent_fragments: tuple[str, ...] = ()
+    expected_cache_exists: bool = False
 
 
 @dataclass(frozen=True)

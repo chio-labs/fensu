@@ -8,6 +8,7 @@ import os
 import re
 import sqlite3
 from collections.abc import Callable
+from functools import partial
 from io import StringIO
 from pathlib import Path
 from typing import BinaryIO
@@ -283,10 +284,15 @@ def write_init_existing_config(*, root: Path, source: str) -> Path:
 
 
 def project_file_snapshot(root: Path) -> tuple[str, ...]:
-    """Return all repository-relative files in stable order."""
+    """Return user-authored repository files in stable order."""
 
-    paths: filter[Path] = filter(Path.is_file, sorted(root.rglob("*")))
+    files: filter[Path] = filter(Path.is_file, sorted(root.rglob("*")))
+    paths: filter[Path] = filter(partial(_is_user_authored_file, root=root), files)
     return tuple(path.relative_to(root).as_posix() for path in paths)
+
+
+def _is_user_authored_file(path: Path, *, root: Path) -> bool:
+    return not path.relative_to(root).as_posix().startswith(".strata/cache/")
 
 
 def prepare_init_execution_project(*, root: Path, existing_project: bool) -> tuple[str, ...]:

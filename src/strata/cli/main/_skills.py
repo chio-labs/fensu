@@ -11,8 +11,10 @@ from strata.agentdocs.exceptions import SkillInstallError
 from strata.agentdocs.main.build_generation_context import build_generation_context
 from strata.agentdocs.main.build_install_plan import build_install_plan
 from strata.agentdocs.main.check_install import check_skill_install
+from strata.agentdocs.main.discover_project_skills import discover_project_skills
 from strata.agentdocs.main.update import update_skills
 from strata.agentdocs.models import (
+    ProjectSkillBundle,
     SkillFreshnessResult,
     SkillGenerationContext,
     SkillInstallPlan,
@@ -100,12 +102,17 @@ def _execute_skills(
         install_root=args.install_root,
         invocation_root=Path.cwd(),
     )
+    project_bundles: tuple[ProjectSkillBundle, ...] = discover_project_skills(
+        project_root=project_dir,
+        generated_identity=context.identity,
+    )
     if args.check:
         plan: SkillInstallPlan = build_install_plan(
             context=context,
             global_install=args.global_install,
             requested_targets=requested_targets,
             home_dir=home_dir,
+            project_bundles=project_bundles,
         )
         return check_skill_install(plan=plan, authoritative=True)
     return update_skills(
@@ -114,6 +121,7 @@ def _execute_skills(
         requested_targets=requested_targets,
         force=args.force,
         home_dir=home_dir,
+        project_bundles=project_bundles,
     )
 
 

@@ -1,5 +1,8 @@
 [build-system]
-requires = ["maturin>=1.14,<2"]
+requires = [
+  "maturin>=1.14,<2",
+  "patchelf>=0.17.2; sys_platform == 'linux'",
+]
 build-backend = "maturin"
 
 [project]
@@ -30,10 +33,10 @@ Repository = "https://github.com/chio-labs/strata"
 strata = "strata.cli.main.entry:main"
 
 [tool.maturin]
-manifest-path = "crates/strata-facts/Cargo.toml"
-module-name = "strata.strata_facts"
+manifest-path = "crates/strata-native/Cargo.toml"
+module-name = "strata._native"
 python-source = "src"
-features = ["pyo3/extension-module"]
+features = ["extension-module", "memory"]
 
 [dependency-groups]
 dev = [
@@ -51,7 +54,11 @@ cache-keys = [
   { file = "Cargo.toml" },
   { file = "crates/strata-facts/Cargo.toml" },
   { file = "crates/strata-facts/src/**/*.rs" },
-  { file = "src/strata/strata_facts.pyi" },
+  { file = "crates/strata-memory/Cargo.toml" },
+  { file = "crates/strata-memory/src/**/*.rs" },
+  { file = "crates/strata-native/Cargo.toml" },
+  { file = "crates/strata-native/src/**/*.rs" },
+  { file = "src/strata/_native.pyi" },
 ]
 
 [tool.ruff]

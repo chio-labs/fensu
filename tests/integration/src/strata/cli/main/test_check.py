@@ -26,6 +26,7 @@ from tests.integration.src.strata.cli.main._test_types import (
     CheckNoFaultTestCase,
     CheckSkillFreshnessTestCase,
     EvaluationCheckTestCase,
+    MemoryCheckIntegrationTestCase,
     MixedRulesetCacheTestCase,
     NestedContainerCacheTestCase,
     ParallelCheckTestCase,
@@ -1467,3 +1468,47 @@ def test_given_custom_rule_declaration_when_checking_then_reports_cacheable_noti
         "Custom rules appear cacheable; declare cacheable=True" in stderr.getvalue()
     )
     assert notice_present is test_case.expected_notice
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        MemoryCheckIntegrationTestCase(
+            description="enabled memory findings append after clean architecture diagnostics",
+            expected_exit_code=1,
+            expected_memory_fault="MEM002",
+            expected_architecture_summary="Found 0 faults",
+            expected_memory_summary="Found 1 fault",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_enabled_invalid_memory_when_running_check_then_reports_memory_after_architecture(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: MemoryCheckIntegrationTestCase,
+) -> None:
+    (tmp_path / "strata.toml").write_text(
+        'roots = ["src/pkg"]\ntests = []\nselect = ["SFA101"]\n[experimental]\nmemory = true\n',
+        encoding="utf-8",
+    )
+    source: Path = tmp_path / "src/pkg/module.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("VALUE: int = 1\n", encoding="utf-8")
+    memory_source: Path = tmp_path / ".ai/orphan.md"
+    memory_source.parent.mkdir()
+    memory_source.write_text("# Orphan\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    stdout: CaptureOutput = CaptureOutput()
+
+    exit_code: int = run_check(
+        argv=("--no-color", "--cache"),
+        stdout=stdout,
+        stderr=CaptureOutput(),
+    )
+
+    output: str = stdout.getvalue()
+    assert exit_code == test_case.expected_exit_code
+    assert test_case.expected_memory_fault in output
+    assert test_case.expected_architecture_summary in output
+    assert test_case.expected_memory_summary in output

@@ -74,7 +74,8 @@ def execute_init_plan(*, repository: Path, plan: InitPlan) -> tuple[Config, Init
     config: Config = build_rendered_config(text=text)
     _ensure_config_absent(repository=repository)
     gitignore_plan: GitIgnorePlan | None = plan_gitignore_update(
-        repository=repository, greenfield=plan.project_name is not None
+        repository=repository,
+        greenfield=plan.project_name is not None,
     )
     created: tuple[_PublishedPath, ...] = ()
     logical_paths: tuple[str, ...] = (
@@ -184,6 +185,78 @@ def _create_empty_file(
     finally:
         for opened_descriptor in reversed(descriptors):
             os.close(opened_descriptor)
+    return created
+
+
+def _create_empty_directory(
+    *, repository: Path, relative: str, created: tuple[_PublishedPath, ...]
+) -> tuple[_PublishedPath, ...]:
+    """Create one canonical empty directory and missing parents without following links."""
+
+    if not capabilities_module.supports_dir_fd_operations():
+        return _create_empty_directory_by_path(
+            repository=repository,
+            relative=relative,
+            created=created,
+        )
+    path: Path = repository / relative
+    _validate_scaffold_path(repository=repository, path=path)
+    repository_descriptor: int = _open_repository(repository=repository)
+    descriptors: list[int] = [repository_descriptor]
+    current_path: Path = repository
+    try:
+        for part in Path(relative).parts:
+            parent_descriptor: int = descriptors[-1]
+            current_path = current_path / part
+            made_directory: bool = False
+            try:
+                os.mkdir(part, dir_fd=parent_descriptor)
+                made_directory = True
+            except FileExistsError:
+                pass
+            directory_descriptor: int = _open_child_directory(
+                parent_descriptor=parent_descriptor,
+                name=part,
+                path=current_path,
+            )
+            descriptors.append(directory_descriptor)
+            if made_directory:
+                metadata: os.stat_result = os.fstat(directory_descriptor)
+                created = (
+                    *created,
+                    _publication(path=current_path, metadata=metadata, content=None),
+                )
+        _verify_directory_walk(
+            repository=repository,
+            relative=Path(relative),
+            descriptors=descriptors,
+        )
+    finally:
+        for opened_descriptor in reversed(descriptors):
+            os.close(opened_descriptor)
+    return created
+
+
+def _create_empty_directory_by_path(
+    *, repository: Path, relative: str, created: tuple[_PublishedPath, ...]
+) -> tuple[_PublishedPath, ...]:
+    path: Path = repository / relative
+    _validate_scaffold_path(repository=repository, path=path)
+    current: Path = repository
+    for part in Path(relative).parts:
+        current = current / part
+        made_directory: bool = False
+        try:
+            current.mkdir()
+            made_directory = True
+        except FileExistsError:
+            pass
+        metadata: os.stat_result = current.lstat()
+        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+            raise InitError(f"Scaffold directory path is not a directory: {current}")
+        _validate_scaffold_path(repository=repository, path=current)
+        if made_directory:
+            created = (*created, _publication(path=current, metadata=metadata, content=None))
     return created
 
 

@@ -92,6 +92,17 @@ class CheckErrorTestCase:
 
 
 @dataclass(frozen=True)
+class MemoryCheckIntegrationTestCase:
+    """Enabled memory source and expected combined architecture check response."""
+
+    description: str
+    expected_exit_code: int
+    expected_memory_fault: str
+    expected_architecture_summary: str
+    expected_memory_summary: str
+
+
+@dataclass(frozen=True)
 class CustomRuleCoverageTestCase:
     """Configured custom rules and expected source-owned SFR707 diagnostics."""
 
@@ -218,7 +229,7 @@ class RulePresentationTestCase:
 
 @dataclass(frozen=True)
 class SkillCommandTestCase:
-    """Skills update inputs and expected installed guidance."""
+    """Skills command inputs and expected installed guidance."""
 
     description: str
     argv: tuple[str, ...]

@@ -6,7 +6,14 @@ import sys
 from importlib import metadata
 
 from strata.analysis.exceptions import NativeBackendUnavailableError
-from strata.cli._helpers.lazy_commands import run_check, run_init, run_map, run_rule, run_skills
+from strata.cli._helpers.lazy_commands import (
+    run_check,
+    run_init,
+    run_map,
+    run_memory,
+    run_rule,
+    run_skills,
+)
 from strata.cli.types import CliCommand, CliOption
 
 
@@ -31,6 +38,8 @@ def main(argv: tuple[str, ...] | None = None) -> int:
             return run_skills(argv=args[1:])
         if args and args[0] == CliCommand.MAP:
             return run_map(argv=args[1:])
+        if args and args[0] == CliCommand.MEMORY:
+            return run_memory(argv=args[1:])
     except NativeBackendUnavailableError as error:
         sys.stderr.write(f"{error}\n")
         return 2

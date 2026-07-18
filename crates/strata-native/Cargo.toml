@@ -1,0 +1,23 @@
+[package]
+name = "strata-native"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[lib]
+name = "strata_native"
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+pyo3.workspace = true
+strata-facts.workspace = true
+strata-memory = { workspace = true, optional = true }
+
+[features]
+extension-module = ["pyo3/extension-module"]
+memory = ["dep:strata-memory", "strata-memory/sqlite-engine"]

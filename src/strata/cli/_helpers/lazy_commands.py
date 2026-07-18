@@ -41,3 +41,11 @@ def run_map(*, argv: tuple[str, ...] | None = None) -> int:
     from strata.cli.main._map import run_map as command
 
     return command(argv=argv)
+
+
+def run_memory(*, argv: tuple[str, ...] | None = None) -> int:
+    """Load and run the memory command."""
+
+    from strata.memory.main.run_memory_cli import run_memory_cli as command
+
+    return command(argv=argv)

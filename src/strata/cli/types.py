@@ -13,6 +13,7 @@ class CliCommand(StrEnum):
     RULE = "rule"
     SKILLS = "skills"
     MAP = "map"
+    MEMORY = "memory"
 
 
 class CliOption(StrEnum):
@@ -29,3 +30,15 @@ class ColorMode(StrEnum):
     AUTO = "auto"
     ALWAYS = "always"
     NEVER = "never"
+
+
+class MemoryCliCommand(StrEnum):
+    """Supported Strata Memory subcommands."""
+
+    ARCHIVE = "archive"
+    CHECK = "check"
+    GRAPH = "graph"
+    SYNC = "sync"
+    REBUILD = "rebuild"
+    SCHEMA = "schema"
+    SQL = "sql"

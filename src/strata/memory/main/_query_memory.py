@@ -1,0 +1,21 @@
+"""Synchronize and query the configured Strata Memory index internally."""
+
+from __future__ import annotations
+
+from strata.memory._helpers.native_operations import query, synchronize
+from strata.memory._helpers.project import resolve_memory_project
+from strata.memory.models import (
+    MemoryProject,
+    MemoryQueryExecution,
+    MemoryQueryResult,
+    MemorySyncSummary,
+)
+
+
+def query_memory(*, sql: str, limit: int) -> MemoryQueryExecution:
+    """Synchronize memory and run one bounded read-only SQL query."""
+
+    project: MemoryProject = resolve_memory_project()
+    sync: MemorySyncSummary = synchronize(project)
+    result: MemoryQueryResult = query(project=project, sql=sql, limit=limit)
+    return MemoryQueryExecution(project=project, sync=sync, query=result)

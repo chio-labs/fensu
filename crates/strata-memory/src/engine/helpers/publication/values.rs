@@ -7,7 +7,7 @@ use crate::corpus::models::MemoryCorpus;
 use crate::graph::types::ResolutionStatus;
 use crate::markdown::models::{ParsedMarkdown, SourceRange};
 use crate::markdown::types::{
-    CheckboxState, LinkSyntaxKind, ListKind, RelationshipKind, SemanticHeadingKind,
+    CheckboxState, LinkSyntaxKind, RelationshipKind, SemanticHeadingKind,
 };
 use crate::source::types::{ArchiveState, ArtifactKind, GitTracking, TaskCategory, TaskLifecycle};
 
@@ -56,13 +56,6 @@ pub(crate) fn git_tracking(value: GitTracking) -> &'static str {
         GitTracking::IgnoredGlobal => "ignored-global",
         GitTracking::Untracked => "untracked",
         GitTracking::Unavailable => "unavailable",
-    }
-}
-
-pub(crate) fn list_kind(value: ListKind) -> &'static str {
-    match value {
-        ListKind::Ordered => "ordered",
-        ListKind::Unordered => "unordered",
     }
 }
 
@@ -161,18 +154,7 @@ pub(crate) fn preamble_range(parsed: &ParsedMarkdown) -> Option<SourceRange> {
     if parsed.preamble_plain_text.trim().is_empty() {
         return None;
     }
-    let start_byte = parsed
-        .headings
-        .iter()
-        .find(|heading| heading.level == 1)
-        .map_or(0, |heading| heading.source_range.end_byte);
-    let end_byte = parsed
-        .headings
-        .iter()
-        .find(|heading| heading.source_range.start_byte >= start_byte && heading.level > 1)
-        .map_or(parsed.raw_markdown.len(), |heading| {
-            heading.source_range.start_byte
-        });
+    let (start_byte, end_byte) = preamble_byte_range(parsed);
     Some(source_range(&parsed.raw_markdown, start_byte, end_byte))
 }
 
@@ -185,10 +167,25 @@ pub(crate) fn section_ordinal(parsed: &ParsedMarkdown, offset: usize) -> Option<
         })
         .map(|section| section.ordinal)
         .or_else(|| {
-            preamble_range(parsed)
-                .filter(|range| range.start_byte <= offset && offset < range.end_byte)
-                .map(|_| 0)
+            let (start_byte, end_byte) = preamble_byte_range(parsed);
+            (start_byte <= offset && offset < end_byte).then_some(0)
         })
+}
+
+fn preamble_byte_range(parsed: &ParsedMarkdown) -> (usize, usize) {
+    let start_byte = parsed
+        .headings
+        .iter()
+        .find(|heading| heading.level == 1)
+        .map_or(0, |heading| heading.source_range.end_byte);
+    let end_byte = parsed
+        .headings
+        .iter()
+        .find(|heading| heading.source_range.start_byte >= start_byte && heading.level > 1)
+        .map_or(parsed.raw_markdown.len(), |heading| {
+            heading.source_range.start_byte
+        });
+    (start_byte, end_byte)
 }
 
 fn source_range(source: &str, start_byte: usize, end_byte: usize) -> SourceRange {

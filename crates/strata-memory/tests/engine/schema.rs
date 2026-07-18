@@ -9,7 +9,7 @@ use crate::test_types::MemorySchemaTestCase;
 fn given_compiled_schema_when_introspecting_then_returns_qualified_relations_and_columns() {
     let test_cases = [MemorySchemaTestCase {
         description: "compiled metadata names the public catalog and focused columns",
-        expected_versions: (1, 1),
+        expected_versions: (2, 1),
         expected_relation_count: 20,
         expected_relation_name: "memory.archived_tasks",
         expected_focused: ("memory.current_tasks", "view", 20),

@@ -62,7 +62,7 @@ fn build_database(
         .map_err(|error| MemoryIndexError::duckdb("create memory schema", error))?;
     let document_count = documents::insert(&transaction, corpus)?;
     let section_count = sections::insert(&transaction, corpus)?;
-    let list_item_count = lists::insert(&transaction, corpus)?;
+    let (list_item_count, list_item_batch_count) = lists::insert(&transaction, corpus)?;
     let link_count = references::insert_links(&transaction, corpus, graph)?;
     let tag_count = references::insert_tags(&transaction, corpus)?;
     let skill_file_count = skills::insert(&transaction, corpus)?;
@@ -76,6 +76,7 @@ fn build_database(
         document_count,
         section_count,
         list_item_count,
+        list_item_batch_count,
         link_count,
         tag_count,
         skill_file_count,

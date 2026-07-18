@@ -48,6 +48,10 @@ pub enum MemoryIndexError {
         operation: &'static str,
         source: duckdb::Error,
     },
+    Arrow {
+        operation: &'static str,
+        source: duckdb::arrow::error::ArrowError,
+    },
     Cleanup {
         path: PathBuf,
         source: io::Error,
@@ -66,6 +70,10 @@ impl MemoryIndexError {
 
     pub(crate) fn duckdb(operation: &'static str, source: duckdb::Error) -> Self {
         Self::DuckDb { operation, source }
+    }
+
+    pub(crate) fn arrow(operation: &'static str, source: duckdb::arrow::error::ArrowError) -> Self {
+        Self::Arrow { operation, source }
     }
 }
 
@@ -136,6 +144,7 @@ impl fmt::Display for MemoryIndexError {
                 source,
             } => write!(formatter, "{operation} {}: {source}", path.display()),
             Self::DuckDb { operation, source } => write!(formatter, "{operation}: {source}"),
+            Self::Arrow { operation, source } => write!(formatter, "{operation}: {source}"),
             Self::Cleanup {
                 path,
                 source,
@@ -166,6 +175,7 @@ impl Error for MemoryIndexError {
             | Self::Archive(_) => None,
             Self::Filesystem { source, .. } | Self::Cleanup { source, .. } => Some(source),
             Self::DuckDb { source, .. } => Some(source),
+            Self::Arrow { source, .. } => Some(source),
         }
     }
 }

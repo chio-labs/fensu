@@ -19,6 +19,13 @@ pub(crate) fn insert(
             continue;
         };
         if let Some(range) = values::preamble_range(parsed) {
+            let heading_path = parsed
+                .headings
+                .iter()
+                .find(|heading| heading.level == 1)
+                .map_or_else(String::new, |heading| {
+                    values::heading_path(&heading.heading_path)
+                });
             appender
                 .append_row(params![
                     &document.source.identity.0,
@@ -27,7 +34,7 @@ pub(crate) fn insert(
                     None::<u8>,
                     None::<&str>,
                     None::<&str>,
-                    None::<&str>,
+                    heading_path,
                     None::<&str>,
                     None::<&str>,
                     None::<&str>,

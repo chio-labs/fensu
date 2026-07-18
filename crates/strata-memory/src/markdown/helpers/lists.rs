@@ -109,7 +109,6 @@ fn build_item(source: &str, index: &LineIndex, item: ActiveItem) -> MarkdownList
         source_line: index.line_number(item.range.start),
         source_range: index.source_range(item.range),
         section_ordinal: None,
-        heading_path: Vec::new(),
         checkbox,
         leading_key,
         relationship_kind,

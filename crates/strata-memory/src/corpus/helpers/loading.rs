@@ -2,6 +2,7 @@
 
 use std::fs;
 
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use sha2::{Digest, Sha256};
 
 use crate::corpus::models::{CorpusDiagnostic, CorpusDocument, MemoryCorpus};
@@ -23,10 +24,14 @@ pub(crate) fn load(mut discovery: DiscoveryResult) -> MemoryCorpus {
         (&left.repository_relative_path, left.kind)
             .cmp(&(&right.repository_relative_path, right.kind))
     });
-    let mut documents = Vec::with_capacity(discovery.documents.len());
+    let loaded_documents: Vec<(CorpusDocument, Vec<CorpusDiagnostic>)> = discovery
+        .documents
+        .into_par_iter()
+        .map(load_document)
+        .collect();
+    let mut documents = Vec::with_capacity(loaded_documents.len());
     let mut diagnostics = Vec::new();
-    for source in discovery.documents {
-        let (document, mut document_diagnostics) = load_document(source);
+    for (document, mut document_diagnostics) in loaded_documents {
         documents.push(document);
         diagnostics.append(&mut document_diagnostics);
     }

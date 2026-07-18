@@ -28,7 +28,7 @@ pub(crate) fn run_case(test_case: &MemoryPublicationTestCase) {
         })
         .expect("memory schema is directly queryable");
     assert_eq!(
-        schema_qualified_document_count, test_case.expected_table_counts[0],
+        schema_qualified_document_count, test_case.expected_summary_counts[0] as i64,
         "{}: schema-qualified table access",
         test_case.description
     );
@@ -97,6 +97,9 @@ pub(crate) fn run_case(test_case: &MemoryPublicationTestCase) {
             test_case.expected_checkbox_row.0.to_owned(),
             test_case.expected_checkbox_row.1.to_owned(),
             test_case.expected_checkbox_row.2,
+            test_case.expected_checkbox_row.3.to_owned(),
+            test_case.expected_checkbox_row.4.to_owned(),
+            test_case.expected_checkbox_row.5.to_owned(),
         ),
         "{}: checkbox normalization",
         test_case.description
@@ -305,12 +308,21 @@ fn preamble_section(connection: &Connection) -> (i64, bool, i64) {
         .expect("preamble section exists")
 }
 
-fn checkbox(connection: &Connection) -> (String, String, i64) {
+fn checkbox(connection: &Connection) -> (String, String, i64, String, String, String) {
     connection
         .query_row(
-            "SELECT checkbox_raw, checkbox_state, section_ordinal FROM task_checkboxes",
+            "SELECT checkbox_raw, checkbox_state, section_ordinal, kind, heading_path, raw_markdown FROM task_checkboxes",
             [],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get(5)?,
+                ))
+            },
         )
         .expect("task checkbox exists")
 }

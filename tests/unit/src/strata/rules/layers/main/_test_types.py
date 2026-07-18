@@ -32,6 +32,15 @@ class ToolingImportRuleTestCase:
 
 
 @dataclass(frozen=True)
+class NativeLayerRegistryTestCase:
+    """Expected native and dependency-sensitive Python layer registrations."""
+
+    description: str
+    expected_native_codes: tuple[str, ...]
+    expected_python_codes: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class OwnershipClassificationTestCase:
     """Module path and expected structural ownership classification."""
 

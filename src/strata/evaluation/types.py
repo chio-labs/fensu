@@ -23,6 +23,8 @@ type NativeCoreRuleRequest = tuple[
     list[tuple[str, str]],
     list[str],
     bool,
+    str,
+    list[str],
 ]
 
 

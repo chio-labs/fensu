@@ -6,14 +6,23 @@ use strata_facts::extension::models::ProgramHandle;
 use strata_facts::facts::models::{ImportRow, ReferenceEventRow};
 
 use crate::rules::constants::{
-    ABSOLUTE_IMPORTS_ONLY_CODE, NO_CROSS_FILE_HELPER_PRIVATE_CLASS_CODE, NO_STAR_IMPORTS_CODE,
-    STAR_IMPORT_NAME,
+    ABSOLUTE_IMPORTS_ONLY_CODE, NO_CROSS_FILE_HELPER_PRIVATE_CLASS_CODE,
+    NO_INTERNAL_PUBLIC_SURFACE_IMPORTS_CODE, NO_RUNTIME_IMPORTS_FROM_TOOLING_CODE,
+    NO_STAR_IMPORTS_CODE, STAR_IMPORT_NAME,
 };
-use crate::rules::models::NativeFaultRow;
+use crate::rules::models::{NativeFaultRow, NativeRuleContext};
 
 const HELPERS_PART: &str = "_helpers";
+const INIT_FILE_NAME: &str = "__init__.py";
+const ROOT_SCOPE: &str = "root";
+const RULES_DOMAIN: &str = "rules";
+const EXEMPLARS_SUBDOMAIN: &str = "exemplars";
 
-pub(crate) fn layer_faults(program: &ProgramHandle, code: &str) -> Option<Vec<NativeFaultRow>> {
+pub(crate) fn layer_faults(
+    program: &ProgramHandle,
+    code: &str,
+    context: &NativeRuleContext,
+) -> Option<Vec<NativeFaultRow>> {
     let rows = program.reference_rows();
     let faults = match code {
         ABSOLUTE_IMPORTS_ONLY_CODE => rows
@@ -34,10 +43,82 @@ pub(crate) fn layer_faults(program: &ProgramHandle, code: &str) -> Option<Vec<Na
             })
             .map(|row| location_fault(code, row.line, row.column))
             .collect(),
+        NO_INTERNAL_PUBLIC_SURFACE_IMPORTS_CODE => {
+            internal_public_surface_faults(code, context, &rows.imports)
+        }
         NO_CROSS_FILE_HELPER_PRIVATE_CLASS_CODE => private_helper_reference_faults(program, code),
+        NO_RUNTIME_IMPORTS_FROM_TOOLING_CODE => {
+            runtime_tooling_import_faults(code, context, &rows.imports)
+        }
         _ => return None,
     };
     Some(faults)
+}
+
+fn internal_public_surface_faults(
+    code: &str,
+    context: &NativeRuleContext,
+    imports: &[ImportRow],
+) -> Vec<NativeFaultRow> {
+    if context.scope != ROOT_SCOPE
+        || matches!(
+            context.relative_parts.as_slice(),
+            [domain, subdomain, ..]
+                if domain == RULES_DOMAIN && subdomain == EXEMPLARS_SUBDOMAIN
+        )
+        || matches!(
+            context.relative_parts.as_slice(),
+            [name] if name == INIT_FILE_NAME
+        )
+    {
+        return Vec::new();
+    }
+    imports
+        .iter()
+        .filter(|row| {
+            if row.from_import {
+                row.relative_level == 0
+                    && row.module_parts.as_slice() == [context.package_name.as_str()]
+            } else {
+                row.aliases
+                    .iter()
+                    .any(|alias| alias.imported_name == context.package_name)
+            }
+        })
+        .map(|row| location_fault(code, row.line, row.column))
+        .collect()
+}
+
+fn runtime_tooling_import_faults(
+    code: &str,
+    context: &NativeRuleContext,
+    imports: &[ImportRow],
+) -> Vec<NativeFaultRow> {
+    if context.scope != ROOT_SCOPE {
+        return Vec::new();
+    }
+    imports
+        .iter()
+        .filter(|row| {
+            if row.from_import {
+                row.relative_level == 0
+                    && targets_tooling(&row.module_parts, &context.tooling_packages)
+            } else {
+                row.aliases.iter().any(|alias| {
+                    alias.imported_name.split('.').next().is_some_and(|part| {
+                        context.tooling_packages.iter().any(|item| item == part)
+                    })
+                })
+            }
+        })
+        .map(|row| location_fault(code, row.line, row.column))
+        .collect()
+}
+
+fn targets_tooling(imported_parts: &[String], tooling_packages: &[String]) -> bool {
+    imported_parts
+        .first()
+        .is_some_and(|part| tooling_packages.contains(part))
 }
 
 fn private_helper_reference_faults(program: &ProgramHandle, code: &str) -> Vec<NativeFaultRow> {

@@ -3,6 +3,14 @@
 from enum import StrEnum
 
 
+class ExemplarLayerPathName(StrEnum):
+    """Path names used for local layer-policy routing."""
+
+    INIT = "__init__.py"
+    RULES = "rules"
+    EXEMPLARS = "exemplars"
+
+
 class ExemplarTestPathName(StrEnum):
     """Test support filenames used for local-only scope routing."""
 

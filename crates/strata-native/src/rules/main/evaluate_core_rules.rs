@@ -48,7 +48,7 @@ pub fn evaluate_core_rules(
                     faults.extend(rule_faults);
                 } else if let Some(rule_faults) = shape_faults(program, code, context) {
                     faults.extend(rule_faults);
-                } else if let Some(rule_faults) = layer_faults(program, code) {
+                } else if let Some(rule_faults) = layer_faults(program, code, context) {
                     faults.extend(rule_faults);
                 } else if let Some(rule_faults) = role_faults(program, code, context) {
                     faults.extend(rule_faults);

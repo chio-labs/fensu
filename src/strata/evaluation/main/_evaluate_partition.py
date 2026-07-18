@@ -58,6 +58,7 @@ def evaluate_partition(
             warning_rules=warning_rules,
             config=config,
             repo_root=tree.repo_root.path,
+            tooling_packages=tuple(source.package_name for source in tree.layout.tooling_sources),
         )
         for target, native_evaluation in zip(chunk, native_evaluations, strict=True):
             file_result: FileEvaluation = evaluate_target(

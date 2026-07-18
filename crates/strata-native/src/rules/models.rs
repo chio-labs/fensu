@@ -21,4 +21,6 @@ pub struct NativeRuleContext {
     pub contracts: Vec<(String, String)>,
     pub relative_parts: Vec<String>,
     pub is_entry_module: bool,
+    pub package_name: String,
+    pub tooling_packages: Vec<String>,
 }

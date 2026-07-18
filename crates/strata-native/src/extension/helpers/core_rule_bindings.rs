@@ -29,6 +29,8 @@ type NativeRuleRequestTuple = (
     Vec<(String, String)>,
     Vec<String>,
     bool,
+    String,
+    Vec<String>,
 );
 
 #[pyfunction]
@@ -51,6 +53,8 @@ pub(crate) fn evaluate_native_core_rules(
                     contracts,
                     relative_parts,
                     is_entry_module,
+                    package_name,
+                    tooling_packages,
                 )| {
                     let context = NativeRuleContext {
                         scope: scope.clone(),
@@ -61,6 +65,8 @@ pub(crate) fn evaluate_native_core_rules(
                         contracts: contracts.clone(),
                         relative_parts: relative_parts.clone(),
                         is_entry_module: *is_entry_module,
+                        package_name: package_name.clone(),
+                        tooling_packages: tooling_packages.clone(),
                     };
                     evaluate_core_rules(handle.get(), codes, &context)
                         .map(|rows| rows.into_iter().map(as_tuple).collect())

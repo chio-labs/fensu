@@ -5,22 +5,31 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Mapping
-from typing import cast
+from pathlib import Path
+from typing import Any, cast
 
 from strata.agentdocs.constants import (
     GENERATED_MARKER,
+    LEGACY_GENERATED_MARKER,
     OWNERSHIP_MARKER_PREFIX,
     OWNERSHIP_MARKER_SCHEMA,
+    PROJECT_SKILL_MARKER,
     SKILL_INPUT_FINGERPRINT_SCHEMA,
 )
-from strata.agentdocs.models import SkillGenerationContext, SkillOwnership
+from strata.agentdocs.exceptions import SkillInstallError
+from strata.agentdocs.models import (
+    ProjectSkillBundle,
+    ProjectSkillFile,
+    SkillGenerationContext,
+    SkillOwnership,
+)
 from strata.config.models import Config, RuleExceptionEntry, ThresholdOverride
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Threshold
 
 
 def owned_skill_content(*, context: SkillGenerationContext, content: str) -> str:
-    """Embed ownership and deterministic input/content identities after the legacy marker."""
+    """Embed ownership and deterministic input/content identities after the generated marker."""
 
     owner: str = skill_owner_key(context)
     input_fingerprint: str = skill_input_fingerprint(context)
@@ -38,6 +47,61 @@ def owned_skill_content(*, context: SkillGenerationContext, content: str) -> str
     content_fingerprint: str = hashlib.sha256(provisional_content.encode("utf-8")).hexdigest()
     ownership: dict[str, object] = {**provisional, "content_fingerprint": content_fingerprint}
     return provisional_content.replace(provisional_marker, _ownership_marker(ownership), 1)
+
+
+def owned_project_skill_content(
+    *, context: SkillGenerationContext, bundle: ProjectSkillBundle
+) -> bytes:
+    """Append inert ownership metadata to a copied project SKILL.md document."""
+
+    document: ProjectSkillFile | None = next(
+        (file for file in bundle.files if file.relative_path == Path("SKILL.md")), None
+    )
+    if document is None:
+        raise SkillInstallError(f"project skill {bundle.identity!r} has no SKILL.md")
+    input_fingerprint: str = project_skill_input_fingerprint(context=context, bundle=bundle)
+    content: bytes = document.content
+    separator: bytes = b"" if content.endswith(b"\n") else b"\n"
+    provisional: dict[str, object] = {
+        "schema": OWNERSHIP_MARKER_SCHEMA,
+        "identity": bundle.identity,
+        "owner": skill_owner_key(context),
+        "input_fingerprint": input_fingerprint,
+        "content_fingerprint": "",
+    }
+    provisional_marker: bytes = _ownership_marker(provisional).encode("ascii")
+    provisional_content: bytes = (
+        content
+        + separator
+        + PROJECT_SKILL_MARKER.encode("ascii")
+        + b"\n"
+        + provisional_marker
+        + b"\n"
+    )
+    fingerprint: str = hashlib.sha256(provisional_content).hexdigest()
+    ownership: dict[str, object] = {**provisional, "content_fingerprint": fingerprint}
+    return provisional_content.replace(
+        provisional_marker, _ownership_marker(ownership).encode("ascii"), 1
+    )
+
+
+def project_skill_input_fingerprint(
+    *, context: SkillGenerationContext, bundle: ProjectSkillBundle
+) -> str:
+    """Return the deterministic source and invocation identity for one project bundle."""
+
+    digest: Any = hashlib.sha256()
+    digest.update(skill_input_fingerprint(context).encode("ascii"))
+    digest.update(b"\0")
+    digest.update(bundle.identity.encode("ascii"))
+    for file in bundle.files:
+        digest.update(b"\0")
+        digest.update(file.relative_path.as_posix().encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(str(file.mode).encode("ascii"))
+        digest.update(b"\0")
+        digest.update(file.content)
+    return digest.hexdigest()
 
 
 def skill_input_fingerprint(context: SkillGenerationContext) -> str:
@@ -140,9 +204,19 @@ def parse_skill_ownership(content: bytes) -> SkillOwnership | None:
 
 
 def generated_marker_present(content: bytes) -> bool:
-    """Return whether content contains the exact legacy generated-marker line."""
+    """Return whether content contains a current or compatibility generated marker."""
 
-    return GENERATED_MARKER.encode("ascii") in content.splitlines()
+    markers: tuple[bytes, ...] = (
+        GENERATED_MARKER.encode("ascii"),
+        LEGACY_GENERATED_MARKER.encode("ascii"),
+    )
+    return any(marker in content.splitlines() for marker in markers)
+
+
+def project_skill_marker_present(content: bytes) -> bool:
+    """Return whether content identifies a synchronized project bundle copy."""
+
+    return PROJECT_SKILL_MARKER.encode("ascii") in content.splitlines()
 
 
 def _ownership_marker(value: dict[str, object]) -> str:

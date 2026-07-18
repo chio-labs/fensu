@@ -7,12 +7,16 @@ from strata.rules.roles.types import RoleCode
 from strata.rules.shape.types import ShapeCode
 from strata.rules.tests.types import SftCode
 
-GENERATED_MARKER: str = "<!-- generated-by: strata skills update -->"
+GENERATED_MARKER: str = "<!-- generated-by: strata skills -->"
+LEGACY_GENERATED_MARKER: str = "<!-- generated-by: strata skills update -->"
 GENERIC_SKILL_NAME: str = "strata"
 OWNERSHIP_MARKER_PREFIX: str = "<!-- strata-skill-owner: "
 OWNERSHIP_MARKER_SCHEMA: int = 1
+PROJECT_SKILL_MARKER: str = "<!-- synchronized-project-skill-by: strata skills -->"
+PROJECT_SKILLS_RELATIVE_PATH: str = ".ai/knowledge/repo/skills"
 SKILL_INPUT_FINGERPRINT_SCHEMA: int = 1
 SKILL_NAME_PREFIX: str = "strata-"
+WINDOWS_RESERVED_SKILL_NAMES: frozenset[str] = frozenset({"con", "prn", "aux", "nul"})
 
 RUNTIME_BASIC_CODES: frozenset[str] = frozenset(
     {RoleCode.TOP_LEVEL_DOMAIN_SHAPE, RoleCode.TOP_LEVEL_DIRECT_MODULES}

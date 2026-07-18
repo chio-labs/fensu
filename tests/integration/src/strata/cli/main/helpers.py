@@ -474,6 +474,21 @@ def write_cli_warning_skill_project(*, root: Path, rule_code: str) -> None:
     )
 
 
+def write_project_skill_bundle(
+    *, root: Path, identity: str, document: str, support_files: dict[str, bytes]
+) -> Path:
+    """Write one canonical active project skill bundle with arbitrary support bytes."""
+
+    bundle: Path = root / ".ai/knowledge/repo/skills" / identity
+    bundle.mkdir(parents=True)
+    (bundle / "SKILL.md").write_text(document, encoding="utf-8")
+    for relative_path, content in support_files.items():
+        path: Path = bundle / relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+    return bundle
+
+
 def write_custom_rule_coverage_project(
     *,
     root: Path,

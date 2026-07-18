@@ -229,7 +229,7 @@ class RulePresentationTestCase:
 
 @dataclass(frozen=True)
 class SkillCommandTestCase:
-    """Skills update inputs and expected installed guidance."""
+    """Skills command inputs and expected installed guidance."""
 
     description: str
     argv: tuple[str, ...]

@@ -1,5 +1,6 @@
 //! Register Strata's private native extension.
 
+use crate::cache::main::register_cache;
 use crate::extension::helpers::core_rule_bindings;
 #[cfg(feature = "memory")]
 use crate::extension::helpers::memory_registration;
@@ -23,6 +24,7 @@ pub fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
         core_rule_bindings::native_rule_fact_families,
         module
     )?)?;
+    register_cache::register_cache_functions(module)?;
     #[cfg(feature = "memory")]
     memory_registration::register_memory_functions(module)?;
     Ok(())

@@ -30,6 +30,37 @@ type MemoryQueryValue = (
 
 class ProgramHandle: ...
 
+type NativeCacheRecord = tuple[str, object, str]
+type NativeCacheMetrics = tuple[int, int, int, int, int, int]
+type NativeCacheWrite = tuple[str, str, bytes, bool]
+
+def cache_encode_record(
+    kind: str, payload: object, payload_is_validated: bool, maximum_decoded_bytes: int
+) -> bytes: ...
+def cache_decode_record(
+    data: bytes, expected_kind: str, maximum_decoded_bytes: int
+) -> NativeCacheRecord | None: ...
+def cache_read_batch(
+    repo_root: Path, reads: list[tuple[str, str]], maximum_decoded_bytes: int
+) -> tuple[bool, list[NativeCacheRecord | None], NativeCacheMetrics]: ...
+def cache_write_batch(
+    repo_root: Path, writes: list[NativeCacheWrite]
+) -> tuple[bool, NativeCacheMetrics]: ...
+def cache_mutate_batch(
+    repo_root: Path,
+    reads: list[tuple[str, str]],
+    maximum_decoded_bytes: int,
+    mutate: Any,
+) -> tuple[bool, bool, NativeCacheMetrics]: ...
+def cache_replay_generation(
+    repo_root: Path,
+    global_fingerprint: str,
+    targets: list[tuple[str, str | None]],
+    maximum_decoded_bytes: int,
+) -> tuple[
+    tuple[list[str], str, str, int, str] | None,
+    NativeCacheMetrics,
+]: ...
 def annotation_facts(handle: ProgramHandle, path: Path) -> Any: ...
 def evaluate_native_core_rules(
     requests: list[

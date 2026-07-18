@@ -47,6 +47,7 @@ from tests.integration.src.strata.cli.main.helpers import (
     RestoreProbe,
     SkillReadCounter,
     cache_snapshot,
+    counting_load_check_context,
     counting_load_results,
     fail_skill_renderer,
     mutate_skill_freshness_state,
@@ -1315,6 +1316,7 @@ def test_given_unchanged_tree_when_rechecking_then_short_circuits_stored_output(
             expected_exit_code=1,
             expected_warm_loads=0,
             expected_edited_loads=0,
+            expected_warm_context_loads=0,
         )
     ],
     ids=lambda case: case.description,
@@ -1334,9 +1336,14 @@ def test_given_unchanged_tree_when_rechecking_then_skips_record_loads(
     (package / "clean.py").write_text("CLEAN: int = 1\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     counter: CallCounter = CallCounter()
+    context_counter: CallCounter = CallCounter()
     monkeypatch.setattr(
         "strata.cache.results.classes.result_cache.ResultCache.load_results",
         counting_load_results(counter),
+    )
+    monkeypatch.setattr(
+        "strata.cache.results.classes.result_cache.ResultCache.load_check_context",
+        counting_load_check_context(context_counter),
     )
     cold_stdout: CaptureOutput = CaptureOutput()
     warm_stdout: CaptureOutput = CaptureOutput()
@@ -1345,10 +1352,12 @@ def test_given_unchanged_tree_when_rechecking_then_skips_record_loads(
         argv=("--no-color", "--cache"), stdout=cold_stdout, stderr=CaptureOutput()
     )
     cold_loads: int = counter.calls
+    cold_context_loads: int = context_counter.calls
     warm_exit: int = run_check(
         argv=("--no-color", "--cache"), stdout=warm_stdout, stderr=CaptureOutput()
     )
     warm_loads: int = counter.calls - cold_loads
+    warm_context_loads: int = context_counter.calls - cold_context_loads
     (package / "faulty.py").write_text("TARGET = 1\nEXTRA = 2\n", encoding="utf-8")
     edited_exit: int = run_check(
         argv=("--no-color", "--cache"), stdout=CaptureOutput(), stderr=CaptureOutput()
@@ -1359,6 +1368,7 @@ def test_given_unchanged_tree_when_rechecking_then_skips_record_loads(
     assert edited_exit == test_case.expected_exit_code
     assert warm_stdout.getvalue() == cold_stdout.getvalue()
     assert warm_loads == test_case.expected_warm_loads
+    assert warm_context_loads == test_case.expected_warm_context_loads
     assert counter.calls - cold_loads - warm_loads == test_case.expected_edited_loads
 
 

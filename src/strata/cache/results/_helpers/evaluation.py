@@ -13,6 +13,7 @@ from strata.cache.results._helpers.dependencies import dependencies_are_current
 from strata.cache.results._helpers.paths import relative_repository_path
 from strata.cache.results.classes.result_cache import ResultCache
 from strata.cache.results.models import (
+    CachedCheckOutput,
     CachedCollectionContribution,
     CachedFileResult,
     CacheEvaluation,
@@ -126,16 +127,26 @@ def run_cached_evaluation(
             stats=CacheStats(non_cacheable=len(targets)),
         )
     cache: ResultCache = ResultCache(repo_root=tree.repo_root.path)
-    context: CheckCacheContext = cache.load_check_context(global_fingerprint=global_fingerprint)
-    index: CacheIndex | None = context.index
-    entries: dict[str, CacheIndexEntry] = (
-        {entry.path: entry for entry in index.entries} if index is not None else {}
-    )
     target_paths, source_fingerprints = _target_source_state(
         targets=targets,
         repo_root=tree.repo_root.path,
     )
     sorted_targets: tuple[str, ...] = tuple(sorted(target_paths))
+    native_replay: CacheEvaluation | None = _native_replayed_evaluation(
+        cache=cache,
+        scopes=scopes,
+        allow_short_circuit=allow_short_circuit,
+        global_fingerprint=global_fingerprint,
+        targets=targets,
+        sorted_targets=sorted_targets,
+        source_fingerprints=source_fingerprints,
+    )
+    if native_replay is not None:
+        return native_replay
+    context, entries = _loaded_cache_context(
+        cache=cache,
+        global_fingerprint=global_fingerprint,
+    )
     replay_inputs: _EditReplayInputs = _EditReplayInputs(
         scopes=scopes,
         context=context,
@@ -323,6 +334,46 @@ def _slow_path_collection(
     from strata.cache.results._helpers.conversion import build_collection_contributions
 
     return build_collection_contributions(evaluations=evaluations, repo_root=repo_root)
+
+
+def _native_replayed_evaluation(
+    *,
+    cache: ResultCache,
+    scopes: _RuleScopes,
+    allow_short_circuit: bool,
+    global_fingerprint: CacheFingerprint,
+    targets: tuple[EvaluationTarget, ...],
+    sorted_targets: tuple[str, ...],
+    source_fingerprints: dict[str, CacheFingerprint | None],
+) -> CacheEvaluation | None:
+    if not allow_short_circuit or scopes.scoped:
+        return None
+    OPERATION_COUNTERS.record(operation=CACHE_MANIFEST_VALIDATION_OPERATION)
+    output: CachedCheckOutput | None = cache.load_native_replay(
+        global_fingerprint=global_fingerprint,
+        targets=sorted_targets,
+        source_fingerprints=source_fingerprints,
+    )
+    if output is None:
+        return None
+    return CacheEvaluation(
+        result=None,
+        stats=CacheStats(hits=len(targets)),
+        short_circuit=output,
+    )
+
+
+def _loaded_cache_context(
+    *,
+    cache: ResultCache,
+    global_fingerprint: CacheFingerprint,
+) -> tuple[CheckCacheContext, dict[str, CacheIndexEntry]]:
+    context: CheckCacheContext = cache.load_check_context(global_fingerprint=global_fingerprint)
+    index: CacheIndex | None = context.index
+    entries: dict[str, CacheIndexEntry] = (
+        {entry.path: entry for entry in index.entries} if index is not None else {}
+    )
+    return context, entries
 
 
 def _early_cached_evaluation(
@@ -593,7 +644,9 @@ def _replayed_evaluation(
     global_fingerprint: CacheFingerprint,
     target_count: int,
 ) -> CacheEvaluation | None:
-    if scopes.scoped or not _replay_manifest_is_current(
+    if scopes.scoped:
+        return None
+    if not _replay_manifest_is_current(
         context=context,
         entries=entries,
         sorted_targets=sorted_targets,
@@ -765,7 +818,6 @@ def _replay_manifest_is_current(
     sorted_targets: tuple[str, ...],
     source_fingerprints: dict[str, CacheFingerprint | None],
 ) -> bool:
-    OPERATION_COUNTERS.record(operation=CACHE_MANIFEST_VALIDATION_OPERATION)
     if context.index is None or len(entries) != len(sorted_targets):
         return False
     for path in sorted_targets:

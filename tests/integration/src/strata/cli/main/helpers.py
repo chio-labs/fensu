@@ -20,7 +20,7 @@ from strata.agentdocs.exceptions import SkillInstallError
 from strata.cache.fingerprints.models import CacheFingerprint
 from strata.cache.results._helpers.conversion import restore_file_evaluation
 from strata.cache.results.classes.result_cache import ResultCache
-from strata.cache.results.models import CachedFileResult, CacheIndexEntry
+from strata.cache.results.models import CachedFileResult, CacheIndexEntry, CheckCacheContext
 from strata.cache.storage.constants import CACHE_DATABASE_RELATIVE_PATH
 from strata.cli.main._skills import run_skills
 from strata.config.main.load_config import load_config
@@ -1323,3 +1323,21 @@ def counting_load_results(
         )
 
     return _load_results
+
+
+def counting_load_check_context(
+    counter: CallCounter,
+) -> Callable[..., CheckCacheContext]:
+    """Return a context-loader replacement that counts and delegates."""
+
+    original: Callable[..., CheckCacheContext] = ResultCache.load_check_context
+
+    def _load_check_context(
+        cache: ResultCache,
+        *,
+        global_fingerprint: CacheFingerprint,
+    ) -> CheckCacheContext:
+        counter.calls += 1
+        return original(cache, global_fingerprint=global_fingerprint)
+
+    return _load_check_context

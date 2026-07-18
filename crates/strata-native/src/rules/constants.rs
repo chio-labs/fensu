@@ -14,6 +14,9 @@ pub const NO_COMPLEX_COMPREHENSIONS_IN_TOOLING_CODE: &str = "SFH006";
 pub const NO_UNNAMED_STRING_DECISIONS_CODE: &str = "SFH007";
 pub const NO_MAGIC_NUMERIC_COMPARISONS_CODE: &str = "SFH008";
 pub const NO_IMPORT_TIME_SIDE_EFFECTS_CODE: &str = "SFH009";
+pub const DEFAULT_MUTATION_RETURN_CODE: &str = "SFS110";
+pub const NO_OUTER_STATE_MUTATION_CODE: &str = "SFS130";
+pub const NO_COMPLEX_COMPREHENSIONS_CODE: &str = "SFS131";
 pub const NATIVE_RULE_FACT_FAMILIES: &[(&str, &[&str])] = &[
     (PARAMETER_ANNOTATION_CODE, &["annotations"]),
     (RETURN_ANNOTATION_CODE, &["annotations"]),
@@ -32,4 +35,7 @@ pub const NATIVE_RULE_FACT_FAMILIES: &[(&str, &[&str])] = &[
     (NO_UNNAMED_STRING_DECISIONS_CODE, &["hygiene"]),
     (NO_MAGIC_NUMERIC_COMPARISONS_CODE, &["hygiene"]),
     (NO_IMPORT_TIME_SIDE_EFFECTS_CODE, &["module_declarations"]),
+    (DEFAULT_MUTATION_RETURN_CODE, &["parameter_mutations"]),
+    (NO_OUTER_STATE_MUTATION_CODE, &["outer_state_mutations"]),
+    (NO_COMPLEX_COMPREHENSIONS_CODE, &["complex_comprehensions"]),
 ];

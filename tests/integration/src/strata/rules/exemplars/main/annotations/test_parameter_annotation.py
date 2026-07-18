@@ -35,6 +35,9 @@ _PARITY_NATIVE_CODES: frozenset[str] = frozenset(
         "SFH007",
         "SFH008",
         "SFH009",
+        "SFS110",
+        "SFS130",
+        "SFS131",
     }
 )
 
@@ -158,6 +161,29 @@ _PARITY_NATIVE_CODES: frozenset[str] = frozenset(
             description="SFH009 matches a public custom rule for import-time calls",
             native_code="SFH009",
             source="configure()\n",
+            expected_fault_count=1,
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFS110 matches a public custom rule for unreturned mutations",
+            native_code="SFS110",
+            source=(
+                "def update(left: list[int], right: list[int]) -> list[int]:\n"
+                "    left.append(1)\n"
+                "    right.append(2)\n"
+                "    return left\n"
+            ),
+            expected_fault_count=1,
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFS130 matches a public custom rule for outer-state mutations",
+            native_code="SFS130",
+            source="CACHE: list[int] = []\n\ndef run() -> None:\n    CACHE.append(1)\n",
+            expected_fault_count=1,
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFS131 matches a public custom rule for complex comprehensions",
+            native_code="SFS131",
+            source="pairs = [(left, right) for left in (1, 2) for right in (3, 4)]\n",
             expected_fault_count=1,
         ),
     ],

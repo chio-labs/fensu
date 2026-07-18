@@ -187,13 +187,13 @@ impl ProgramHandle {
             .0
     }
 
-    pub(crate) fn outer_state_mutation_rows(&self) -> &[SourceRangeRow] {
+    pub fn outer_state_mutation_rows(&self) -> &[SourceRangeRow] {
         self.rows
             .outer_state_mutations
             .get_or_init(|| extract_outer_state_mutations(self.module(), self.index()))
     }
 
-    pub(crate) fn parameter_mutation_rows(&self) -> &[ParameterMutationRow] {
+    pub fn parameter_mutation_rows(&self) -> &[ParameterMutationRow] {
         self.rows
             .parameter_mutations
             .get_or_init(|| extract_parameter_mutations(self.module(), self.index(), self.source()))

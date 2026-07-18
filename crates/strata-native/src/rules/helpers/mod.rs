@@ -2,3 +2,4 @@
 
 pub(crate) mod annotations;
 pub(crate) mod hygiene;
+pub(crate) mod shape;

@@ -2,7 +2,7 @@
 
 use std::fs::{self, File, FileTimes};
 use std::path::PathBuf;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 use std::time::{Duration, SystemTime};
 
 use rusqlite::Connection;

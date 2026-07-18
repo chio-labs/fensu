@@ -6,14 +6,15 @@ use std::os::unix::fs::PermissionsExt;
 #[cfg(unix)]
 use std::thread;
 
-use rusqlite::{Connection, OpenFlags};
+use rusqlite::Connection;
+#[cfg(unix)]
+use rusqlite::OpenFlags;
 use strata_memory::engine::main::sync_memory_index::sync_memory_index;
 
 use crate::dependencies::helpers;
-use crate::test_types::{
-    FixtureFile, MemoryConcurrentPublicationTestCase, MemoryPermissionFailureTestCase,
-    MemoryRecoveryTestCase, MemorySyncTestCase,
-};
+use crate::test_types::{FixtureFile, MemoryRecoveryTestCase, MemorySyncTestCase};
+#[cfg(unix)]
+use crate::test_types::{MemoryConcurrentPublicationTestCase, MemoryPermissionFailureTestCase};
 
 #[test]
 fn given_canonical_sources_when_syncing_then_classifies_changes_and_skips_unchanged_write() {

@@ -112,6 +112,7 @@ fn fact_family(name: &str) -> Option<FactFamily> {
         "comparisons" => Some(FactFamily::Comparisons),
         "contracts" => Some(FactFamily::Contracts),
         "control_flow" => Some(FactFamily::ControlFlow),
+        "dataclasses" => Some(FactFamily::Dataclasses),
         "declarations" => Some(FactFamily::Declarations),
         "functions" => Some(FactFamily::Functions),
         "hygiene" => Some(FactFamily::Hygiene),

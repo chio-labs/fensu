@@ -9,6 +9,7 @@ pub enum FactFamily {
     Comparisons,
     Contracts,
     ControlFlow,
+    Dataclasses,
     Declarations,
     Functions,
     Hygiene,

@@ -26,6 +26,7 @@ _RUNTIME_FACT_FAMILIES: tuple[str, ...] = (
     "comments",
     "contracts",
     "control_flow",
+    "dataclasses",
     "declarations",
     "functions",
     "hygiene",

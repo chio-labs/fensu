@@ -12,6 +12,7 @@ from strata.cache.fingerprints._helpers.fingerprints import (
     custom_rules_fingerprint,
     global_fingerprint,
     implementation_fingerprint,
+    installed_implementation_fingerprint,
     ruleset_fingerprint,
 )
 from strata.cache.fingerprints.models import CacheFingerprint, GlobalFingerprintBuild
@@ -46,13 +47,21 @@ def build_global_fingerprint(
                 fingerprint=None,
                 disabled_reason="the loaded implementation files are unavailable",
             )
-        implementation_paths: tuple[Path, ...] = collect_implementation_paths(
+        implementation: CacheFingerprint | None = installed_implementation_fingerprint(
             package_root=package_root
         )
-        if not implementation_paths:
-            return GlobalFingerprintBuild(
-                fingerprint=None,
-                disabled_reason="the loaded implementation files are unavailable",
+        if implementation is None:
+            implementation_paths: tuple[Path, ...] = collect_implementation_paths(
+                package_root=package_root
+            )
+            if not implementation_paths:
+                return GlobalFingerprintBuild(
+                    fingerprint=None,
+                    disabled_reason="the loaded implementation files are unavailable",
+                )
+            implementation = implementation_fingerprint(
+                package_root=package_root,
+                paths=implementation_paths,
             )
         custom_rules: CacheFingerprint | None = custom_rules_fingerprint(
             config=config,
@@ -65,10 +74,7 @@ def build_global_fingerprint(
             )
         return GlobalFingerprintBuild(
             fingerprint=global_fingerprint(
-                implementation=implementation_fingerprint(
-                    package_root=package_root,
-                    paths=implementation_paths,
-                ),
+                implementation=implementation,
                 config=config_fingerprint(config),
                 ruleset=ruleset_fingerprint(ruleset),
                 custom_rules=custom_rules,

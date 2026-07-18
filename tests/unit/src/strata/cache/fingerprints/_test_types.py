@@ -132,6 +132,16 @@ class ImplementationFingerprintTestCase:
 
 
 @dataclass(frozen=True)
+class WheelRecordFingerprintTestCase:
+    """Two persisted wheel RECORD values and expected immutable identity parity."""
+
+    description: str
+    first_record: str
+    second_record: str
+    expected_equal: bool
+
+
+@dataclass(frozen=True)
 class RulesetFingerprintTestCase:
     """Two rule messages and whether their ruleset identities must match."""
 
@@ -224,6 +234,7 @@ class GlobalFingerprintBuilderTestCase:
     package_available: bool
     source_available: bool
     complete_source: bool
+    installed_manifest_available: bool
     expected_available: bool
     expected_implementation_scans: int
 

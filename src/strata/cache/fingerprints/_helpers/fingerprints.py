@@ -10,7 +10,13 @@ import os
 import platform
 from collections.abc import Mapping
 from importlib.machinery import ModuleSpec
-from importlib.metadata import version
+from importlib.metadata import (
+    Distribution,
+    PackageNotFoundError,
+    PackagePath,
+    distribution,
+    version,
+)
 from pathlib import Path
 
 from strata.analysis.main.hash_repository_files import hash_repository_files
@@ -29,6 +35,9 @@ from strata.config.models import Config, RuleExceptionEntry
 from strata.instrumentation.constants import CANONICAL_ENCODE_OPERATION, OPERATION_COUNTERS
 from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import RuleCheck, Threshold
+
+_PACKAGE_RECORD_PREFIX: str = "strata/"
+_PACKAGE_RECORD_INIT: str = "strata/__init__.py"
 
 
 def canonical_fingerprint(value: CanonicalValue) -> CacheFingerprint:
@@ -176,6 +185,33 @@ def collect_implementation_paths(*, package_root: Path) -> tuple[Path, ...]:
     """Return the complete deterministic implementation path set."""
 
     return _implementation_paths(package_root)
+
+
+def installed_implementation_fingerprint(*, package_root: Path) -> CacheFingerprint | None:
+    """Return the persisted wheel RECORD identity for the loaded immutable package."""
+
+    try:
+        installed: Distribution = distribution("stratalint")
+        files: tuple[PackagePath, ...] = tuple(installed.files or ())
+        package_files: tuple[PackagePath, ...] = tuple(
+            path for path in files if str(path).startswith(_PACKAGE_RECORD_PREFIX)
+        )
+        package_init: PackagePath | None = next(
+            (path for path in package_files if str(path) == _PACKAGE_RECORD_INIT),
+            None,
+        )
+        if (
+            package_init is None
+            or any(path.hash is None for path in package_files)
+            or Path(package_init.locate()).resolve() != (package_root / "__init__.py").resolve()
+        ):
+            return None
+        record: str | None = installed.read_text("RECORD")
+        if record is None:
+            return None
+        return canonical_fingerprint([package_root.resolve().as_posix(), record])
+    except (OSError, PackageNotFoundError, RuntimeError, ValueError):
+        return None
 
 
 def implementation_fingerprint(

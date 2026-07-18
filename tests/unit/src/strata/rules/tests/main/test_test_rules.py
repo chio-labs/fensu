@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
@@ -17,6 +18,7 @@ from strata.evaluation.models import EvaluationResult, ParsedModule
 from strata.rules.authoring.types import RuleContext
 from strata.rules.tests._helpers import checks as test_checks
 from strata.rules.tests.constants import SFT_RULES
+from strata.rules.tests.main import _testing_rules as testing_rules_module
 from strata.rules.tests.types import SftCode
 from tests.unit.src.strata.rules.tests.main._test_types import (
     SftConfiguredLayoutTestCase,
@@ -886,6 +888,46 @@ def test_given_test_comprehensions_when_checking_then_flags_only_complex_forms(
 
     assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
     assert tuple(fault.line for fault in result.faults) == test_case.expected_lines
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SftRuleTestCase(
+            description="native SFT102 bypasses its Python core callback",
+            rule_code="SFT102",
+            files=good_test_files(test_source="from .helpers import build_case\n"),
+            expected_codes=("SFT102",),
+            expected_lines=(1,),
+            runtime_paths=("src/strata/rules/__init__.py",),
+        ),
+        SftRuleTestCase(
+            description="native SFT106 bypasses its Python core callback",
+            rule_code="SFT106",
+            files=good_test_files(
+                test_source=("pairs = [(left, right) for left in (1, 2) for right in (3, 4)]\n")
+            ),
+            expected_codes=("SFT106",),
+            expected_lines=(1,),
+            runtime_paths=("src/strata/rules/__init__.py",),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_registered_native_test_rule_when_evaluating_then_skips_python_callback(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: SftRuleTestCase,
+) -> None:
+    python_callback: Mock = Mock(side_effect=AssertionError("Python callback executed"))
+    monkeypatch.setattr(testing_rules_module, "test_faults", python_callback)
+
+    result: EvaluationResult = evaluate_tests_rule_test_case(
+        test_case=test_case, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
+    assert python_callback.call_count == 0
 
 
 @pytest.mark.parametrize(

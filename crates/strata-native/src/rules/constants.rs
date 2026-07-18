@@ -29,6 +29,13 @@ pub const VALIDATOR_MUST_NOT_RETURN_CODE: &str = "SFN001";
 pub const PREDICATE_MUST_RETURN_BOOL_CODE: &str = "SFN002";
 pub const VALUE_NAME_MUST_RETURN_VALUE_CODE: &str = "SFN003";
 pub const ITERATOR_NAME_MUST_PRODUCE_ITERATOR_CODE: &str = "SFN004";
+pub const ABSOLUTE_IMPORTS_ONLY_CODE: &str = "SFL001";
+pub const NO_STAR_IMPORTS_CODE: &str = "SFL002";
+pub const NO_CROSS_FILE_HELPER_PRIVATE_CLASS_CODE: &str = "SFL110";
+pub const PRIVATE_DEFINITION_ORDERING_CODE: &str = "SFR503";
+pub const TEST_ABSOLUTE_IMPORTS_CODE: &str = "SFT102";
+pub const TEST_NO_COMPLEX_COMPREHENSIONS_CODE: &str = "SFT106";
+pub const STAR_IMPORT_NAME: &str = "*";
 pub const NATIVE_RULE_FACT_FAMILIES: &[(&str, &[&str])] = &[
     (PARAMETER_ANNOTATION_CODE, &["annotations"]),
     (RETURN_ANNOTATION_CODE, &["annotations"]),
@@ -68,4 +75,13 @@ pub const NATIVE_RULE_FACT_FAMILIES: &[(&str, &[&str])] = &[
     (NO_OUTER_STATE_MUTATION_CODE, &["outer_state_mutations"]),
     (NO_COMPLEX_COMPREHENSIONS_CODE, &["complex_comprehensions"]),
     (MUTABLE_RESULT_MODEL_CODE, &["dataclasses"]),
+    (ABSOLUTE_IMPORTS_ONLY_CODE, &["references"]),
+    (NO_STAR_IMPORTS_CODE, &["references"]),
+    (NO_CROSS_FILE_HELPER_PRIVATE_CLASS_CODE, &["references"]),
+    (PRIVATE_DEFINITION_ORDERING_CODE, &["module_declarations"]),
+    (TEST_ABSOLUTE_IMPORTS_CODE, &["references"]),
+    (
+        TEST_NO_COMPLEX_COMPREHENSIONS_CODE,
+        &["complex_comprehensions"],
+    ),
 ];

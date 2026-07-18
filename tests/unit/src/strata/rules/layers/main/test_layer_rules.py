@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
 from strata.config.models import Config
 from strata.evaluation.models import EvaluationResult
+from strata.rules.authoring.models import RuleSpec
+from tests.unit.src.strata.rules.layers.main import helpers as layer_test_helpers
 from tests.unit.src.strata.rules.layers.main._test_types import (
     LayerRuleTestCase,
     ToolingImportRuleTestCase,
@@ -676,6 +680,59 @@ def test_given_helper_private_class_references_when_checking_layers_then_flags_c
 
     assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
     assert tuple(fault.line for fault in result.faults) == test_case.expected_lines
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        LayerRuleTestCase(
+            description="native SFL001 bypasses its Python core callback",
+            rule_code="SFL001",
+            files=(("src/pkg/domain/alpha/main/run.py", "from ..models import Result\n"),),
+            expected_codes=("SFL001",),
+            expected_lines=(1,),
+        ),
+        LayerRuleTestCase(
+            description="native SFL002 bypasses its Python core callback",
+            rule_code="SFL002",
+            files=(("src/pkg/domain/alpha/main/run.py", "from pkg.models import *\n"),),
+            expected_codes=("SFL002",),
+            expected_lines=(1,),
+        ),
+        LayerRuleTestCase(
+            description="native SFL110 bypasses its Python core callback",
+            rule_code="SFL110",
+            files=(
+                (
+                    "src/pkg/domain/alpha/main/run.py",
+                    "from pkg.domain.alpha._helpers.parse import _Cursor\n",
+                ),
+            ),
+            expected_codes=("SFL110",),
+            expected_lines=(1,),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_registered_native_layer_rule_when_evaluating_then_skips_python_callback(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: LayerRuleTestCase,
+) -> None:
+    python_callback: Mock = Mock(side_effect=AssertionError("Python callback executed"))
+    rules_by_code: dict[str, RuleSpec] = {rule.code: rule for rule in layer_test_helpers.SFL_RULES}
+    monkeypatch.setattr(
+        layer_test_helpers,
+        "SFL_RULES",
+        (replace(rules_by_code[test_case.rule_code], check=python_callback),),
+    )
+
+    result: EvaluationResult = evaluate_layer_test_case(
+        test_case=test_case, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
+    assert python_callback.call_count == 0
 
 
 @pytest.mark.parametrize(

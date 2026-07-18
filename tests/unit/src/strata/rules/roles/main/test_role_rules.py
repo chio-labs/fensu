@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
@@ -11,7 +13,9 @@ from strata.analysis.types import ProjectDependencyKind
 from strata.config.models import ThresholdOverride
 from strata.discovery.types import ScopeName
 from strata.evaluation.models import EvaluationResult
+from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Threshold
+from tests.unit.src.strata.rules.roles.main import helpers as role_test_helpers
 from tests.unit.src.strata.rules.roles.main._test_types import (
     ContainerDepthScaleTestCase,
     ContainerScaleTestCase,
@@ -2005,6 +2009,41 @@ def test_given_role_module_shapes_when_checking_then_flags_only_shape_violations
 
     assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
     assert tuple(fault.line for fault in result.faults) == test_case.expected_lines
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SfrRuleTestCase(
+            description="native SFR503 bypasses its Python core callback",
+            rule_code="SFR503",
+            relative_path="domain/core/_helpers/values.py",
+            source="def run() -> None:\n    return None\n\n_VALUE: int = 1\n",
+            expected_codes=("SFR503",),
+            expected_lines=(4,),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_registered_native_role_rule_when_evaluating_then_skips_python_callback(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: SfrRuleTestCase,
+) -> None:
+    python_callback: Mock = Mock(side_effect=AssertionError("Python callback executed"))
+    rules_by_code: dict[str, RuleSpec] = {rule.code: rule for rule in role_test_helpers.SFR_RULES}
+    monkeypatch.setattr(
+        role_test_helpers,
+        "SFR_RULES",
+        (replace(rules_by_code[test_case.rule_code], check=python_callback),),
+    )
+
+    result: EvaluationResult = evaluate_role_test_case(
+        test_case=test_case, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
+    assert python_callback.call_count == 0
 
 
 @pytest.mark.parametrize(

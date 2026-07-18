@@ -213,7 +213,7 @@ impl ProgramHandle {
         })
     }
 
-    pub(crate) fn reference_rows(&self) -> &ReferenceRows {
+    pub fn reference_rows(&self) -> &ReferenceRows {
         self.rows
             .references
             .get_or_init(|| extract_references(self.module(), self.index(), self.source()))

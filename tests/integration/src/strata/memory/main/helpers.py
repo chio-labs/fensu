@@ -12,6 +12,6 @@ def write_enabled_memory_project(*, root: Path) -> None:
     source_root.mkdir(parents=True)
     (source_root / "__init__.py").write_text("", encoding="utf-8")
     (root / "strata.toml").write_text(
-        'roots = ["src/pkg"]\n[memory]\nenabled = true\n',
+        'roots = ["src/pkg"]\n[experimental]\nmemory = true\n',
         encoding="utf-8",
     )

@@ -60,11 +60,6 @@ def _parser() -> argparse.ArgumentParser:
     skills.add_argument("--skills", dest="skills", action="store_true")
     skills.add_argument("--no-skills", dest="skills", action="store_false")
     parser.set_defaults(skills=None)
-    parser.add_argument(
-        "--memory",
-        action="store_true",
-        help="enable repository memory and create its canonical empty structure",
-    )
     parser.add_argument("--name")
     return parser
 
@@ -76,6 +71,5 @@ def _options(*, args: argparse.Namespace) -> InitOptions:
         tests=None if args.tests is None else tuple(args.tests),
         tooling=None if args.tooling is None else tuple(args.tooling),
         skills=args.skills,
-        memory=args.memory,
         name=args.name,
     )

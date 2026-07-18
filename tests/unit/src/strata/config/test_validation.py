@@ -32,10 +32,16 @@ from tests.unit.src.strata.config.helpers import write_strata_toml
             expected_error_fragment="Unknown memory config key(s): backend",
         ),
         InvalidConfigTestCase(
-            description="memory enabled preference must be boolean",
-            config_text='roots = ["src/pkg"]\n[memory]\nenabled = 1\n',
+            description="legacy memory activation has no compatibility alias",
+            config_text='roots = ["src/pkg"]\n[memory]\nenabled = true\n',
             expected_error_type=ConfigValidationError,
-            expected_error_fragment="memory.enabled must be a boolean",
+            expected_error_fragment="Unknown memory config key(s): enabled",
+        ),
+        InvalidConfigTestCase(
+            description="experimental memory preference must be boolean",
+            config_text='roots = ["src/pkg"]\n[experimental]\nmemory = 1\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="experimental.memory must be a boolean",
         ),
         InvalidConfigTestCase(
             description="memory tasks preference must be a table",

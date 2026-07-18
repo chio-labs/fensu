@@ -1489,7 +1489,7 @@ def test_given_enabled_invalid_memory_when_running_check_then_reports_memory_aft
     test_case: MemoryCheckIntegrationTestCase,
 ) -> None:
     (tmp_path / "strata.toml").write_text(
-        'roots = ["src/pkg"]\ntests = []\nselect = ["SFA101"]\n[memory]\nenabled = true\n',
+        'roots = ["src/pkg"]\ntests = []\nselect = ["SFA101"]\n[experimental]\nmemory = true\n',
         encoding="utf-8",
     )
     source: Path = tmp_path / "src/pkg/module.py"

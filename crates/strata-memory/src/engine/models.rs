@@ -7,6 +7,7 @@ pub struct IndexSummary {
     pub section_count: usize,
     pub list_item_count: usize,
     pub list_item_batch_count: usize,
+    pub max_loaded_document_batch: usize,
     pub link_count: usize,
     pub tag_count: usize,
     pub skill_file_count: usize,

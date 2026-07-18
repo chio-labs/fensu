@@ -10,12 +10,14 @@ from typing import cast
 import pytest
 
 from strata.cli.main.memory import run_memory
+from strata.memory.constants import MEMORY_DIRECTORIES, MEMORY_GITIGNORE_ENTRY
 from strata.memory.exceptions import MemoryOperationError
 from strata.memory.main._query_memory import query_memory
 from strata.memory.main.read_memory_schema import read_memory_schema
 from strata.memory.main.sync_memory import sync_memory
 from strata.memory.models import MemoryQueryExecution, MemorySchemaResult, MemorySyncResult
 from tests.integration.src.strata.memory.main._test_types import (
+    MemoryBootstrapTestCase,
     NativeMemoryArchiveTestCase,
     NativeMemoryCheckTestCase,
     NativeMemoryColorTestCase,
@@ -25,6 +27,76 @@ from tests.integration.src.strata.memory.main._test_types import (
     NativeMemorySchemaTestCase,
 )
 from tests.integration.src.strata.memory.main.helpers import write_enabled_memory_project
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        MemoryBootstrapTestCase(
+            description="first enabled operation creates canonical state exactly once",
+            existing_relative_path=None,
+            expected_error_fragment="",
+            expected_gitignore_exists=True,
+            expected_canonical_directories=True,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_enabled_project_without_memory_tree_when_resolving_twice_then_bootstraps_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    test_case: MemoryBootstrapTestCase,
+) -> None:
+    write_enabled_memory_project(root=tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    _ = read_memory_schema("tasks")
+    first_gitignore: bytes = (tmp_path / ".gitignore").read_bytes()
+    _ = read_memory_schema("tasks")
+
+    assert (tmp_path / ".gitignore").exists() is test_case.expected_gitignore_exists
+    assert first_gitignore == (tmp_path / ".gitignore").read_bytes()
+    assert first_gitignore.count(MEMORY_GITIGNORE_ENTRY.encode()) == 1
+    assert (
+        all((tmp_path / path).is_dir() for path in MEMORY_DIRECTORIES)
+        is test_case.expected_canonical_directories
+    )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        MemoryBootstrapTestCase(
+            description="noncanonical existing tree is refused before bootstrap writes",
+            existing_relative_path=".ai/legacy.md",
+            expected_error_fragment="will not be migrated automatically",
+            expected_gitignore_exists=False,
+            expected_canonical_directories=False,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_noncanonical_existing_tree_when_resolving_memory_then_refuses_without_writes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    test_case: MemoryBootstrapTestCase,
+) -> None:
+    write_enabled_memory_project(root=tmp_path)
+    existing: Path = tmp_path / str(test_case.existing_relative_path)
+    existing.parent.mkdir(parents=True)
+    existing.write_text("# Legacy\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    with pytest.raises(MemoryOperationError) as raised:
+        _ = read_memory_schema("tasks")
+
+    assert test_case.expected_error_fragment in str(raised.value)
+    assert (tmp_path / ".gitignore").exists() is test_case.expected_gitignore_exists
+    assert (
+        all((tmp_path / path).is_dir() for path in MEMORY_DIRECTORIES)
+        is test_case.expected_canonical_directories
+    )
+    assert existing.read_text(encoding="utf-8") == "# Legacy\n"
 
 
 @pytest.mark.parametrize(
@@ -207,10 +279,11 @@ def test_given_invalid_memory_source_when_checking_then_reports_fault_without_pu
     test_case: NativeMemoryCheckTestCase,
 ) -> None:
     write_enabled_memory_project(root=tmp_path)
-    source: Path = tmp_path / test_case.relative_path
-    source.parent.mkdir(parents=True)
-    source.write_text(test_case.contents, encoding="utf-8")
     monkeypatch.chdir(tmp_path)
+    _ = read_memory_schema("tasks")
+    source: Path = tmp_path / test_case.relative_path
+    source.parent.mkdir(parents=True, exist_ok=True)
+    source.write_text(test_case.contents, encoding="utf-8")
     stdout: io.StringIO = io.StringIO()
 
     exit_code: int = run_memory(argv=("check",), stdout=stdout, stderr=io.StringIO())
@@ -307,11 +380,12 @@ def test_given_enabled_graph_sources_when_running_cli_then_separates_sync_and_ma
     test_case: NativeMemoryGraphTestCase,
 ) -> None:
     write_enabled_memory_project(root=tmp_path)
+    monkeypatch.chdir(tmp_path)
+    _ = read_memory_schema("tasks")
     for relative_path, contents in test_case.files:
         source: Path = tmp_path / relative_path
         source.parent.mkdir(parents=True, exist_ok=True)
         source.write_text(contents, encoding="utf-8")
-    monkeypatch.chdir(tmp_path)
     first_stdout: io.StringIO = io.StringIO()
     first_stderr: io.StringIO = io.StringIO()
 

@@ -15,8 +15,8 @@ from strata.config.constants import (
     CONTRACT_BEHAVIORS,
     DOUBLE_PATH_SEPARATOR,
     EVALUATION_CONFIG_KEYS,
+    EXPERIMENTAL_MEMORY_CONFIG_KEY,
     MEMORY_CONFIG_KEYS,
-    MEMORY_ENABLED_CONFIG_KEY,
     MEMORY_TASKS_ARCHIVE_AFTER_DAYS_CONFIG_KEY,
     MEMORY_TASKS_CONFIG_KEY,
     MEMORY_TASKS_CONFIG_KEYS,
@@ -61,6 +61,7 @@ def validate_config(raw: Mapping[str, object]) -> None:
     _validate_contracts(value=raw.get("contracts"))
     _validate_rule_exceptions(value=raw.get("rule_exceptions"))
     _validate_cache(value=raw.get("cache"))
+    _validate_experimental(value=raw.get("experimental"))
     _validate_memory(value=raw.get("memory"))
     _validate_evaluation(value=raw.get("evaluation"))
     _validate_skills(value=raw.get("skills"))
@@ -106,11 +107,23 @@ def _validate_memory(*, value: object) -> None:
     if unknown_keys:
         names: str = ", ".join(sorted(str(key) for key in unknown_keys))
         raise ConfigValidationError(f"Unknown memory config key(s): {names}.")
-    if MEMORY_ENABLED_CONFIG_KEY in typed_value and not isinstance(
-        typed_value[MEMORY_ENABLED_CONFIG_KEY], bool
-    ):
-        raise ConfigValidationError("Config key memory.enabled must be a boolean.")
     _validate_memory_tasks(value=typed_value.get(MEMORY_TASKS_CONFIG_KEY))
+
+
+def _validate_experimental(*, value: object) -> None:
+    if value is None:
+        return
+    if not isinstance(value, dict):
+        raise ConfigValidationError("Config key experimental must be a table.")
+    typed_value: dict[object, object] = cast(dict[object, object], value)
+    unknown_keys: set[object] = set(typed_value) - {EXPERIMENTAL_MEMORY_CONFIG_KEY}
+    if unknown_keys:
+        names: str = ", ".join(sorted(str(key) for key in unknown_keys))
+        raise ConfigValidationError(f"Unknown experimental config key(s): {names}.")
+    if EXPERIMENTAL_MEMORY_CONFIG_KEY in typed_value and not isinstance(
+        typed_value[EXPERIMENTAL_MEMORY_CONFIG_KEY], bool
+    ):
+        raise ConfigValidationError("Config key experimental.memory must be a boolean.")
 
 
 def _validate_memory_tasks(*, value: object) -> None:

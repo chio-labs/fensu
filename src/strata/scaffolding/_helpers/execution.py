@@ -27,7 +27,6 @@ from strata.scaffolding._helpers.gitignore import (
 from strata.scaffolding.constants import (
     CONFIG_FILE_NAME,
     DEFAULT_SELECT,
-    MEMORY_DIRECTORIES,
     PACKAGE_MARKER_FILE_NAME,
     PYTHON_FILE_SUFFIX,
 )
@@ -58,17 +57,6 @@ def render_config(*, plan: InitPlan) -> str:
     if plan.tooling:
         lines.append(f"tooling = {_toml_array(values=plan.tooling)}")
     lines.append(f"select = {_toml_array(values=DEFAULT_SELECT)}")
-    if plan.memory_enabled:
-        lines.extend(
-            (
-                "",
-                "[memory]",
-                "enabled = true",
-                "",
-                "[memory.tasks]",
-                "archive_after_days = 7",
-            )
-        )
     return "\n".join(lines) + "\n"
 
 
@@ -88,7 +76,6 @@ def execute_init_plan(*, repository: Path, plan: InitPlan) -> tuple[Config, Init
     gitignore_plan: GitIgnorePlan | None = plan_gitignore_update(
         repository=repository,
         greenfield=plan.project_name is not None,
-        memory_enabled=plan.memory_enabled,
     )
     created: tuple[_PublishedPath, ...] = ()
     logical_paths: tuple[str, ...] = (
@@ -100,13 +87,6 @@ def execute_init_plan(*, repository: Path, plan: InitPlan) -> tuple[Config, Init
     try:
         for value in logical_paths:
             created = _create_empty_file(repository=repository, relative=value, created=created)
-        if plan.memory_enabled:
-            for value in MEMORY_DIRECTORIES:
-                created = _create_empty_directory(
-                    repository=repository,
-                    relative=value,
-                    created=created,
-                )
         _validate_layout(repository=repository, config=config)
         _validate_selected_scope_symlinks(repository=repository, config=config)
         config_publication = _atomic_write_config(repository=repository, text=text)

@@ -13,7 +13,6 @@ from strata.discovery.main.build_project_layout import build_project_layout
 from strata.discovery.models import ProjectLayout, RepoRoot
 from strata.reporting.constants import ANSI_BOLD_RED, ANSI_ORANGE
 from strata.scaffolding._helpers.execution import build_rendered_config, render_config
-from strata.scaffolding.constants import MEMORY_DIRECTORIES
 from strata.scaffolding.models import InitPlan
 from tests.integration.src.strata.cli.main._test_types import (
     InitApplicabilityTestCase,
@@ -21,7 +20,6 @@ from tests.integration.src.strata.cli.main._test_types import (
     InitExecutionTestCase,
     InitInteractiveTestCase,
     InitLocalTargetTestCase,
-    InitMemoryTestCase,
     InitOptionTestCase,
     InitPresentationTestCase,
     InitPromptFailureTestCase,
@@ -52,90 +50,6 @@ from tests.integration.src.strata.cli.main.helpers import (
     write_init_invalid_utf8_project,
     write_selected_root_python_symlink,
 )
-
-
-@pytest.mark.parametrize(
-    "test_case",
-    [
-        InitMemoryTestCase(
-            description="explicit memory opt-in creates canonical empty structure and config",
-            existing_memory_path=None,
-            expected_exit_code=0,
-            expected_enabled=True,
-            expected_error_fragment="",
-        )
-    ],
-    ids=lambda case: case.description,
-)
-def test_given_explicit_memory_option_when_initializing_then_creates_only_canonical_state(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    test_case: InitMemoryTestCase,
-) -> None:
-    configure_no_color(monkeypatch=monkeypatch, enabled=True)
-    write_init_hatch_project(root=tmp_path, include_fault=False)
-    stdout: TerminalBuffer = TerminalBuffer()
-    stderr: TerminalBuffer = TerminalBuffer()
-
-    exit_code: int = run_init(
-        argv=("--yes", "--no-skills", "--memory"),
-        stdin=TerminalBuffer(),
-        stdout=stdout,
-        stderr=stderr,
-        working_directory=tmp_path,
-    )
-
-    assert exit_code == test_case.expected_exit_code
-    assert test_case.expected_error_fragment in stderr.getvalue()
-    assert (tmp_path / "strata.toml").is_file() is test_case.expected_enabled
-    assert (
-        all((tmp_path / path).is_dir() for path in MEMORY_DIRECTORIES) is test_case.expected_enabled
-    )
-    assert (tmp_path / ".strata/memory/memory.sqlite3").exists() is False
-    config: Config = load_config(tmp_path)
-    assert config.memory.enabled is test_case.expected_enabled
-    assert config.memory.tasks.archive_after_days == 7
-    assert ".strata/memory/" in (tmp_path / ".gitignore").read_text(encoding="utf-8")
-    assert "Enabled repository memory in .ai/" in stdout.getvalue()
-
-
-@pytest.mark.parametrize(
-    "test_case",
-    [
-        InitMemoryTestCase(
-            description="noncanonical existing memory refuses automatic migration before writes",
-            existing_memory_path=".ai/legacy.md",
-            expected_exit_code=2,
-            expected_enabled=False,
-            expected_error_fragment="will not be migrated automatically",
-        )
-    ],
-    ids=lambda case: case.description,
-)
-def test_given_noncanonical_memory_when_initializing_then_refuses_before_writes(
-    tmp_path: Path,
-    test_case: InitMemoryTestCase,
-) -> None:
-    write_init_hatch_project(root=tmp_path, include_fault=False)
-    existing: Path = tmp_path / str(test_case.existing_memory_path)
-    existing.parent.mkdir(parents=True)
-    existing.write_text("# Legacy\n", encoding="utf-8")
-    stderr: TerminalBuffer = TerminalBuffer()
-
-    exit_code: int = run_init(
-        argv=("--yes", "--no-skills", "--memory"),
-        stdin=TerminalBuffer(),
-        stdout=TerminalBuffer(),
-        stderr=stderr,
-        working_directory=tmp_path,
-    )
-
-    assert exit_code == test_case.expected_exit_code
-    assert test_case.expected_error_fragment in stderr.getvalue()
-    assert (tmp_path / "strata.toml").is_file() is test_case.expected_enabled
-    assert all((tmp_path / path).is_dir() for path in MEMORY_DIRECTORIES) is False
-    assert existing.read_text(encoding="utf-8") == "# Legacy\n"
-    assert not (tmp_path / ".gitignore").exists()
 
 
 @pytest.mark.parametrize(

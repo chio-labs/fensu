@@ -19,6 +19,7 @@ fn given_large_list_corpus_when_rebuilding_then_bulk_publication_stays_bounded()
             list_marker: "",
             expected_list_item_count: 10_000,
             expected_list_item_batch_count: 10,
+            expected_max_loaded_documents: 100,
             expected_max_duration: Duration::from_secs(4),
         },
         MemoryPublicationPerformanceTestCase {
@@ -29,6 +30,7 @@ fn given_large_list_corpus_when_rebuilding_then_bulk_publication_stays_bounded()
             list_marker: "",
             expected_list_item_count: 10_000,
             expected_list_item_batch_count: 10,
+            expected_max_loaded_documents: 1,
             expected_max_duration: Duration::from_secs(4),
         },
         MemoryPublicationPerformanceTestCase {
@@ -39,6 +41,7 @@ fn given_large_list_corpus_when_rebuilding_then_bulk_publication_stays_bounded()
             list_marker: "[ ] ",
             expected_list_item_count: 10_000,
             expected_list_item_batch_count: 10,
+            expected_max_loaded_documents: 1,
             expected_max_duration: Duration::from_secs(4),
         },
     ];
@@ -70,6 +73,11 @@ fn given_large_list_corpus_when_rebuilding_then_bulk_publication_stays_bounded()
             "{}",
             test_case.description
         );
+        assert_eq!(
+            summary.max_loaded_document_batch, test_case.expected_max_loaded_documents,
+            "{}",
+            test_case.description
+        );
         assert!(
             elapsed < test_case.expected_max_duration,
             "{}: {elapsed:?} exceeded {:?}",
@@ -90,6 +98,7 @@ fn given_ten_million_list_items_when_rebuilding_then_reports_stress_evidence() {
         expected_document_count: 10_000,
         expected_list_item_count: 10_000_000,
         expected_list_item_batch_count: 10_000,
+        expected_max_loaded_documents: 512,
     }];
     for test_case in &test_cases {
         let root = helpers::write_repository(&[]);
@@ -124,6 +133,11 @@ fn given_ten_million_list_items_when_rebuilding_then_reports_stress_evidence() {
         );
         assert_eq!(
             summary.list_item_batch_count, test_case.expected_list_item_batch_count,
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            summary.max_loaded_document_batch, test_case.expected_max_loaded_documents,
             "{}",
             test_case.description
         );

@@ -1,4 +1,4 @@
-//! Markdown list item and checkbox publication.
+//! Bounded multi-row Markdown list-item publication.
 
 use rusqlite::types::Value;
 use rusqlite::{params_from_iter, Transaction};
@@ -20,28 +20,31 @@ struct ListItemRow<'item> {
 pub(crate) fn insert(
     transaction: &Transaction<'_>,
     corpus: &MemoryCorpus,
+    document_offset: usize,
 ) -> Result<(usize, usize), MemoryIndexError> {
-    let mut rows = Vec::with_capacity(constants::MEMORY_PUBLICATION_BATCH_ROWS);
+    let mut rows = Vec::with_capacity(SQLITE_INSERT_ROWS);
     let mut count = 0;
     let mut batch_count = 0;
-    for (document_index, document) in corpus.documents.iter().enumerate() {
+    for (local_index, document) in corpus.documents.iter().enumerate() {
         let Some(parsed) = &document.parsed_markdown else {
             continue;
         };
         for item in &parsed.list_items {
             rows.push(ListItemRow {
-                document_key: document_index as i64,
+                document_key: (document_offset + local_index) as i64,
                 item,
             });
-            if rows.len() == constants::MEMORY_PUBLICATION_BATCH_ROWS {
-                batch_count += append_batch(transaction, &rows)?;
+            if rows.len() == SQLITE_INSERT_ROWS {
+                append_batch(transaction, &rows)?;
                 rows.clear();
+                batch_count += 1;
             }
             count += 1;
         }
     }
     if !rows.is_empty() {
-        batch_count += append_batch(transaction, &rows)?;
+        append_batch(transaction, &rows)?;
+        batch_count += 1;
     }
     Ok((count, batch_count))
 }
@@ -49,21 +52,17 @@ pub(crate) fn insert(
 fn append_batch(
     transaction: &Transaction<'_>,
     rows: &[ListItemRow<'_>],
-) -> Result<usize, MemoryIndexError> {
-    let mut batch_count = 0;
-    for chunk in rows.chunks(SQLITE_INSERT_ROWS) {
-        let sql = insert_sql(chunk.len());
-        let mut parameters = Vec::with_capacity(chunk.len() * LIST_ITEM_COLUMN_COUNT);
-        for row in chunk {
-            append_parameters(&mut parameters, row);
-        }
-        transaction
-            .prepare_cached(&sql)
-            .and_then(|mut statement| statement.execute(params_from_iter(parameters.iter())))
-            .map_err(|error| MemoryIndexError::sqlite("insert list item batch", error))?;
-        batch_count += 1;
+) -> Result<(), MemoryIndexError> {
+    let sql = insert_sql(rows.len());
+    let mut parameters = Vec::with_capacity(rows.len() * LIST_ITEM_COLUMN_COUNT);
+    for row in rows {
+        append_parameters(&mut parameters, row);
     }
-    Ok(batch_count)
+    transaction
+        .prepare_cached(&sql)
+        .and_then(|mut statement| statement.execute(params_from_iter(parameters.iter())))
+        .map_err(|error| MemoryIndexError::sqlite("insert list item batch", error))?;
+    Ok(())
 }
 
 fn append_parameters(parameters: &mut Vec<Value>, row: &ListItemRow<'_>) {
@@ -114,3 +113,10 @@ fn insert_sql(row_count: usize) -> String {
         vec![row; row_count].join(", ")
     )
 }
+
+#[cfg(test)]
+#[path = "../../../../tests/engine/list_batch/test_types.rs"]
+mod test_types;
+#[cfg(test)]
+#[path = "../../../../tests/engine/list_batch/list_batches.rs"]
+mod tests;

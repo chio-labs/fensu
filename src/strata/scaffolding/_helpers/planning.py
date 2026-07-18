@@ -226,7 +226,6 @@ def build_init_plan(
         roots=roots,
         tests=tests,
         tooling=tooling,
-        memory_enabled=options.memory,
     )
 
 
@@ -280,7 +279,6 @@ def _empty_plan(
         roots=(f"src/{project_name}",),
         tests=(DEFAULT_TEST_PATH,),
         tooling=(),
-        memory_enabled=options.memory,
         project_name=project_name,
     )
 

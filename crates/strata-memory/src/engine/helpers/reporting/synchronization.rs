@@ -5,13 +5,11 @@ use std::path::Path;
 
 use rusqlite::{Connection, OpenFlags};
 
-use crate::corpus::main::load_discovered_memory_corpus::load_discovered_memory_corpus;
 use crate::engine::constants;
 use crate::engine::errors::MemoryIndexError;
 use crate::engine::helpers::publication::database;
 use crate::engine::helpers::reporting::schema_metadata;
 use crate::engine::models::{IndexSummary, SyncSummary};
-use crate::graph::main::resolve_memory_graph::resolve_memory_graph;
 use crate::source::models::DiscoveryResult;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -59,10 +57,8 @@ pub(crate) fn sync(
     if inspection.current && !changed {
         return Ok(summary(changes, false, &stored));
     }
-    let corpus = load_discovered_memory_corpus(discovery);
-    let graph = resolve_memory_graph(&corpus);
-    let index = database::publish(&corpus, &graph, database_path)?;
-    Ok(rebuilt_summary(changes, changed, &index))
+    let publication = database::publish_discovery(discovery, database_path, false)?;
+    Ok(rebuilt_summary(changes, changed, &publication.summary))
 }
 
 impl ChangeCounts {

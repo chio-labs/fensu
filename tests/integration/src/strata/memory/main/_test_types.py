@@ -88,3 +88,14 @@ class NativeMemoryGraphTestCase:
     expected_sync_fragment: str
     expected_sources_unchanged: bool
     expected_exit_code: int
+
+
+@dataclass(frozen=True)
+class MemoryBootstrapTestCase:
+    """One first-use bootstrap scenario and its expected repository state."""
+
+    description: str
+    existing_relative_path: str | None
+    expected_error_fragment: str
+    expected_gitignore_exists: bool
+    expected_canonical_directories: bool

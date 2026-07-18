@@ -79,7 +79,7 @@ def repository_guidance_lines(
 def memory_retrieval_guidance_lines(config: Config) -> tuple[str, ...]:
     """Return staged retrieval guidance only for enabled repository memory."""
 
-    if not config.memory.enabled:
+    if not config.experimental.memory:
         return ()
     return (
         "## Strata Memory Retrieval",

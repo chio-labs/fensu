@@ -20,14 +20,13 @@ from tests.e2e.src.strata.cli.main._test_types import InstalledEntryCliTestCase
             argv=("--help",),
             expected_exit_code=0,
             expected_stdout=(
-                "Usage: strata {init,check,rule,map,skills,memory} ...\n\n"
+                "Usage: strata {init,check,rule,map,skills} ...\n\n"
                 "Commands:\n"
                 "  init    Initialize Strata configuration for a repository.\n"
                 "  check   Evaluate repository architecture rules.\n"
                 "  rule    Show details for one rule.\n"
                 "  map     Render a downstream project call map.\n"
-                "  skills  Generate and install agent guidance.\n"
-                "  memory  Inspect and query persistent repository memory.\n\n"
+                "  skills  Generate and install agent guidance.\n\n"
                 "Run `strata <command> --help` for command-specific options.\n"
             ),
             expected_stderr="",

@@ -22,6 +22,10 @@ mod performance;
 mod query;
 #[path = "schema.rs"]
 mod schema;
+#[path = "streaming.rs"]
+mod streaming;
+#[path = "streaming/helpers.rs"]
+mod streaming_helpers;
 #[path = "summary.rs"]
 mod summary;
 #[path = "sync.rs"]

@@ -6,4 +6,5 @@ pub(crate) mod lists;
 pub(crate) mod references;
 pub(crate) mod sections;
 pub(crate) mod skills;
+pub(crate) mod streaming;
 pub(crate) mod values;

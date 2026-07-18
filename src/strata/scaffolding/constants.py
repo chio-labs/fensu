@@ -39,24 +39,6 @@ TEST_DIRECTORY_NAMES: tuple[str, ...] = ("tests", "test")
 TOOLING_DIRECTORY_NAMES: tuple[str, ...] = ("scripts", "tools", "bin", "tasks")
 SOURCE_CONTAINER_NAMES: tuple[str, ...] = ("src", "lib", "libs", "python")
 STRATA_GITIGNORE_BLOCK: bytes = b"# Strata\n.strata/cache/\n"
-STRATA_MEMORY_GITIGNORE_BLOCK: bytes = b"# Strata\n.strata/memory/\n"
-MEMORY_DIRECTORIES: tuple[str, ...] = (
-    ".ai/tasks/not-started",
-    ".ai/tasks/in-progress",
-    ".ai/tasks/completed",
-    ".ai/tasks/cancelled",
-    ".ai/tasks/superseded",
-    ".ai/knowledge/repo/notes",
-    ".ai/knowledge/repo/decisions",
-    ".ai/knowledge/repo/skills",
-    ".ai/_archive/tasks/completed",
-    ".ai/_archive/tasks/cancelled",
-    ".ai/_archive/tasks/superseded",
-    ".ai/_archive/knowledge/repo/notes",
-    ".ai/_archive/knowledge/repo/decisions",
-    ".ai/_archive/knowledge/repo/skills",
-)
-MEMORY_DATABASE_RELATIVE_PATH: str = ".strata/memory/memory.sqlite3"
 PYTHON_GITIGNORE_SOURCE: str = (
     "https://github.com/github/gitignore/blob/"
     "576334520435382d6522f349b9d270eda1e79a25/Python.gitignore"

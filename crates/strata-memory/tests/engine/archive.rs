@@ -265,3 +265,51 @@ fn given_old_mtime_and_recent_ctime_when_archiving_then_terminal_task_receives_g
         fs::remove_dir_all(root).expect("ctime repository is removable");
     }
 }
+
+#[cfg(windows)]
+#[test]
+fn given_old_mtime_when_archiving_on_windows_then_terminal_task_is_eligible() {
+    let test_cases = [MemoryArchiveCtimeTestCase {
+        description: "uses mtime when Windows provides no Unix ctime",
+        file: FixtureFile {
+            path: ".ai/tasks/completed/20260717T120004_000000Z__FIX-old-windows-task.md",
+            contents: b"# Old Windows Task\n",
+        },
+        archive_after_days: 7,
+        old_mtime_days: 30,
+        expected_move_count: 1,
+    }];
+    for test_case in &test_cases {
+        let root = helpers::write_repository(std::slice::from_ref(&test_case.file));
+        let database_path = root.join("memory.sqlite3");
+        let source_path = root.join(test_case.file.path);
+        let old_mtime = SystemTime::now()
+            .checked_sub(Duration::from_secs(test_case.old_mtime_days * 86_400))
+            .expect("fixture mtime is representable");
+        File::options()
+            .write(true)
+            .open(&source_path)
+            .expect("terminal task opens")
+            .set_times(FileTimes::new().set_modified(old_mtime))
+            .expect("terminal task mtime changes");
+
+        let result = archive_memory(
+            &root,
+            &database_path,
+            &[],
+            test_case.archive_after_days,
+            false,
+        )
+        .expect("automatic archive succeeds");
+
+        assert_eq!(
+            result.moves.len(),
+            test_case.expected_move_count,
+            "{}",
+            test_case.description
+        );
+        assert!(!source_path.exists(), "{}", test_case.description);
+        assert!(result.sync.is_some(), "{}", test_case.description);
+        fs::remove_dir_all(root).expect("Windows mtime repository is removable");
+    }
+}

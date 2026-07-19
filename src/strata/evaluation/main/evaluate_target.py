@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from strata.config.models import Config
 from strata.discovery.models import DiscoveredTree
 from strata.evaluation._helpers.file_evaluation import evaluate_file
@@ -61,8 +63,15 @@ def evaluate_target(
                 tree=tree,
                 project=project,
                 applicable_rule_codes=target.applicable_rule_codes,
-                native_faults_by_code=direct_native_faults,
-                native_threshold_override_uses=direct_native_uses,
+                native_evaluation=(
+                    replace(
+                        native_evaluation,
+                        faults_by_code=direct_native_faults or {},
+                        threshold_override_uses=direct_native_uses,
+                    )
+                    if native_evaluation is not None
+                    else None
+                ),
             )
         )
     if target.custom_rule_registrations:
@@ -83,23 +92,24 @@ def evaluate_target(
                 file_cache_seed={
                     CUSTOM_RULE_REGISTRATIONS_CACHE_KEY: target.custom_rule_registrations
                 },
-                native_faults_by_code=(
-                    {
-                        RoleCode.CUSTOM_RULE_TEST_COVERAGE: native_evaluation.faults_by_code.get(
-                            RoleCode.CUSTOM_RULE_TEST_COVERAGE, ()
-                        )
-                    }
-                    if native_evaluation is not None
-                    else None
-                ),
-                native_threshold_override_uses=(
-                    tuple(
-                        use
-                        for use in native_evaluation.threshold_override_uses
-                        if use.threshold is Threshold.MIN_CUSTOM_RULE_TEST_CASES
+                native_evaluation=(
+                    replace(
+                        native_evaluation,
+                        faults_by_code={
+                            RoleCode.CUSTOM_RULE_TEST_COVERAGE: (
+                                native_evaluation.faults_by_code.get(
+                                    RoleCode.CUSTOM_RULE_TEST_COVERAGE, ()
+                                )
+                            )
+                        },
+                        threshold_override_uses=tuple(
+                            use
+                            for use in native_evaluation.threshold_override_uses
+                            if use.threshold is Threshold.MIN_CUSTOM_RULE_TEST_CASES
+                        ),
                     )
                     if native_evaluation is not None
-                    else ()
+                    else None
                 ),
             )
         )

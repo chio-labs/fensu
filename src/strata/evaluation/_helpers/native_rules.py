@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-from types import ModuleType
-from typing import cast
 
+from strata.analysis.exceptions import PythonSourceParseError
 from strata.analysis.main.associate_rule_tests import associate_rule_tests
+from strata.analysis.main.decode_source import decode_python_source
 from strata.analysis.models import (
     EvaluateRuleCallFact,
     ProjectFunctionFact,
@@ -18,11 +18,12 @@ from strata.config.models import Config, ThresholdResolution
 from strata.discovery.main.position import position_facts
 from strata.discovery.models import PositionFacts
 from strata.discovery.types import ScopeName
+from strata.evaluation._helpers.parsing import parse_scoped_file, read_source_snapshot
 from strata.evaluation.constants import INIT_MODULE_NAME
-from strata.evaluation.models import EvaluationTarget, ThresholdOverrideUse
+from strata.evaluation.models import EvaluationTarget, SourceSnapshot, ThresholdOverrideUse
 from strata.evaluation.types import (
     EvaluationProjectAnalysis,
-    NativeCoreRuleRequest,
+    NativeExecutionRequest,
     NativeProjectQueryKind,
     NativeThresholdValues,
 )
@@ -45,27 +46,25 @@ _maximum_native_metric: int = 2**32 - 1
 _native_naming_codes: frozenset[str] = frozenset({"SFN001", "SFN002", "SFN003", "SFN004"})
 
 
-def prepare_native_rule_request(
+def prepare_native_execution_request(
     *,
     target: EvaluationTarget,
-    program: object | None,
+    source: str,
     codes: tuple[str, ...],
     config: Config,
     repo_root: Path,
     tooling_packages: tuple[str, ...],
     scope_roots: tuple[tuple[str, str], ...],
-) -> tuple[NativeCoreRuleRequest | None, tuple[ThresholdOverrideUse, ...]]:
-    """Build one raw native request and retain threshold override provenance."""
+) -> tuple[NativeExecutionRequest, tuple[ThresholdOverrideUse, ...]]:
+    """Build one source-owned request for the opaque native execution batch."""
 
-    if program is None:
-        return None, ()
     position: PositionFacts = position_facts(target.scoped_file)
     repository_path: str = target.scoped_file.path.relative_to(repo_root).as_posix()
     thresholds: NativeThresholdValues = {}
     uses: list[ThresholdOverrideUse] = []
-    for code in codes:
-        threshold: Threshold | None = _threshold_by_code.get(code)
-        if threshold is None or (
+    selected_codes: frozenset[str] = frozenset(codes)
+    for code, threshold in _threshold_by_code.items():
+        if code not in selected_codes or (
             code in _main_only_threshold_codes and not position.is_main_module
         ):
             continue
@@ -91,8 +90,8 @@ def prepare_native_rule_request(
                     repository_path=resolution.repository_path,
                 )
             )
-    request: NativeCoreRuleRequest = (
-        program,
+    request: NativeExecutionRequest = (
+        source,
         list(codes),
         target.scoped_file.scope.value,
         position.role,
@@ -123,81 +122,134 @@ def prepare_native_rule_request(
     return request, tuple(uses)
 
 
-def observe_native_rule_projects(
+def prepare_native_execution_requests(
     *,
-    native: ModuleType,
-    requests: tuple[NativeCoreRuleRequest | None, ...],
+    targets: tuple[EvaluationTarget, ...],
+    codes_by_target: tuple[tuple[str, ...], ...],
+    config: Config,
+    repo_root: Path,
+    tooling_packages: tuple[str, ...],
+    scope_roots: tuple[tuple[str, str], ...],
+) -> tuple[
+    tuple[SourceSnapshot, ...],
+    tuple[str, ...],
+    tuple[tuple[NativeExecutionRequest, tuple[ThresholdOverrideUse, ...]], ...],
+]:
+    """Read targets and build the aligned coarse native execution requests."""
+
+    snapshots: tuple[SourceSnapshot, ...] = tuple(
+        read_source_snapshot(path=target.scoped_file.path) for target in targets
+    )
+    decoded: list[str] = []
+    for target, snapshot in zip(targets, snapshots, strict=True):
+        try:
+            source: str = decode_python_source(
+                path=target.scoped_file.path,
+                content=snapshot.content,
+            )
+        except PythonSourceParseError:
+            source = parse_scoped_file(
+                scoped_file=target.scoped_file,
+                source_snapshot=snapshot,
+            ).source
+        decoded.append(source)
+    sources: tuple[str, ...] = tuple(decoded)
+    prepared: tuple[tuple[NativeExecutionRequest, tuple[ThresholdOverrideUse, ...]], ...] = tuple(
+        prepare_native_execution_request(
+            target=target,
+            source=source,
+            codes=codes,
+            config=config,
+            repo_root=repo_root,
+            tooling_packages=tooling_packages,
+            scope_roots=scope_roots,
+        )
+        for target, source, codes in zip(targets, sources, codes_by_target, strict=True)
+    )
+    return snapshots, sources, prepared
+
+
+def observe_native_rule_query_plans(
+    *,
+    plans: list[list[tuple[str, str, str, str]]],
     targets: tuple[EvaluationTarget, ...],
     project: EvaluationProjectAnalysis,
     repo_root: Path,
     scope_roots: tuple[tuple[str, str], ...],
-) -> tuple[NativeCoreRuleRequest | None, ...]:
-    """Fulfill native query plans through dependency-recording project APIs."""
+) -> list[dict[str, list[str]]]:
+    """Fulfill one repository-scale native query plan through recorded project APIs."""
 
-    active: list[NativeCoreRuleRequest] = [request for request in requests if request is not None]
-    plans: list[list[tuple[str, str, str, str]]] = native.plan_native_core_rule_queries(active)
-    observed: list[NativeCoreRuleRequest | None] = []
-    plan_index: int = 0
-    for request, target in zip(requests, targets, strict=True):
-        if request is None:
-            observed.append(None)
-            continue
-        answers: dict[str, list[str]] = {}
-        for key, kind, path_text, argument in plans[plan_index]:
-            path: Path = repo_root / path_text
-            if kind == NativeProjectQueryKind.EXISTS:
-                answers[key] = [
-                    _bool_text(project.exists(requester=target.scoped_file.path, path=path))
-                ]
-            elif kind == NativeProjectQueryKind.IS_FILE:
-                answers[key] = [
-                    _bool_text(project.is_file(requester=target.scoped_file.path, path=path))
-                ]
-            elif kind == NativeProjectQueryKind.IS_DIR:
-                answers[key] = [
-                    _bool_text(project.is_dir(requester=target.scoped_file.path, path=path))
-                ]
-            elif kind == NativeProjectQueryKind.DATACLASSES:
-                answers[key] = [
-                    fact.name
-                    for fact in project.dataclasses(requester=target.scoped_file.path, path=path)
-                ]
-            elif kind == NativeProjectQueryKind.MODULE_FUNCTION:
-                function: ProjectFunctionFact | None = project.module_function(
-                    requester=target.scoped_file.path,
-                    module_name=path_text,
-                    function_name=argument,
-                )
-                answers[key] = (
-                    []
-                    if function is None
-                    else ["meaningful" if function.meaningful_result else "empty"]
-                )
-            elif kind == NativeProjectQueryKind.PACKAGE_ANCHOR:
-                answers[key] = [
-                    _bool_text(
-                        _is_package_anchor(
-                            project=project,
-                            requester=target.scoped_file.path,
-                            package_dir=path,
-                            reported_path=repo_root / argument,
-                        )
+    return [
+        _observe_query_plan(
+            plan=plan,
+            target=target,
+            project=project,
+            repo_root=repo_root,
+            scope_roots=scope_roots,
+        )
+        for plan, target in zip(plans, targets, strict=True)
+    ]
+
+
+def _observe_query_plan(
+    *,
+    plan: list[tuple[str, str, str, str]],
+    target: EvaluationTarget,
+    project: EvaluationProjectAnalysis,
+    repo_root: Path,
+    scope_roots: tuple[tuple[str, str], ...],
+) -> dict[str, list[str]]:
+    answers: dict[str, list[str]] = {}
+    for key, kind, path_text, argument in plan:
+        path: Path = repo_root / path_text
+        if kind == NativeProjectQueryKind.EXISTS:
+            answers[key] = [
+                _bool_text(project.exists(requester=target.scoped_file.path, path=path))
+            ]
+        elif kind == NativeProjectQueryKind.IS_FILE:
+            answers[key] = [
+                _bool_text(project.is_file(requester=target.scoped_file.path, path=path))
+            ]
+        elif kind == NativeProjectQueryKind.IS_DIR:
+            answers[key] = [
+                _bool_text(project.is_dir(requester=target.scoped_file.path, path=path))
+            ]
+        elif kind == NativeProjectQueryKind.DATACLASSES:
+            answers[key] = [
+                fact.name
+                for fact in project.dataclasses(requester=target.scoped_file.path, path=path)
+            ]
+        elif kind == NativeProjectQueryKind.MODULE_FUNCTION:
+            function: ProjectFunctionFact | None = project.module_function(
+                requester=target.scoped_file.path,
+                module_name=path_text,
+                function_name=argument,
+            )
+            answers[key] = (
+                []
+                if function is None
+                else ["meaningful" if function.meaningful_result else "empty"]
+            )
+        elif kind == NativeProjectQueryKind.PACKAGE_ANCHOR:
+            answers[key] = [
+                _bool_text(
+                    _is_package_anchor(
+                        project=project,
+                        requester=target.scoped_file.path,
+                        package_dir=path,
+                        reported_path=repo_root / argument,
                     )
-                ]
-            elif kind == NativeProjectQueryKind.CUSTOM_RULE_COVERAGE:
-                answers[key] = _coverage_answers(
-                    project=project,
-                    requester=target.scoped_file.path,
-                    registrations=target.custom_rule_registrations,
-                    repo_root=repo_root,
-                    scope_roots=scope_roots,
                 )
-        values: list[object] = list(request)
-        project_context: tuple[object, ...] = request[11]
-        values[11] = (*project_context[:2], answers, project_context[3])
-        observed.append(cast(NativeCoreRuleRequest, tuple(values)))
-        plan_index += 1
-    return tuple(observed)
+            ]
+        elif kind == NativeProjectQueryKind.CUSTOM_RULE_COVERAGE:
+            answers[key] = _coverage_answers(
+                project=project,
+                requester=target.scoped_file.path,
+                registrations=target.custom_rule_registrations,
+                repo_root=repo_root,
+                scope_roots=scope_roots,
+            )
+    return answers
 
 
 def _bool_text(value: bool) -> str:

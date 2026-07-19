@@ -10,38 +10,14 @@ from strata.analysis.classes.file_analysis import PythonFileAnalysis
 from strata.analysis.classes.lazy_syntax_artifacts import LazySyntaxArtifacts
 from strata.analysis.exceptions import PythonSourceParseError
 from strata.analysis.main.decode_source import decode_python_source
-from strata.analysis.main.extract_native_fact_rows import extract_native_fact_rows
 from strata.analysis.main.parse_native_program import parse_native_program
 from strata.analysis.main.parse_native_programs import parse_native_programs
 from strata.analysis.main.parse_source import parse_python_source
 from strata.discovery.main.position import position_facts
 from strata.discovery.models import ScopedFile
-from strata.discovery.types import ScopeName
 from strata.evaluation.exceptions import ParseError
 from strata.evaluation.models import ParsedModule, SourceSnapshot
 from strata.evaluation.types import EvaluationProjectAnalysis
-
-_RUNTIME_FACT_FAMILIES: tuple[str, ...] = (
-    "annotations",
-    "comments",
-    "contracts",
-    "control_flow",
-    "dataclasses",
-    "declarations",
-    "functions",
-    "hygiene",
-    "outer_state_mutations",
-    "parameter_mutations",
-    "references",
-)
-_TEST_FACT_FAMILIES: tuple[str, ...] = (
-    "annotations",
-    "comments",
-    "control_flow",
-    "references",
-    "test_functions",
-    "test_module",
-)
 
 
 def read_source_snapshot(*, path: Path) -> SourceSnapshot:
@@ -116,13 +92,6 @@ def prewarm_scoped_files(
     programs: tuple[object | None, ...] = parse_native_programs(
         sources=tuple(source for _, _, _, source in readable)
     )
-    _ = extract_native_fact_rows(
-        requests=tuple(
-            (program, _prewarm_fact_families(scoped_file))
-            for (_, scoped_file, _, _), program in zip(readable, programs, strict=True)
-            if program is not None
-        )
-    )
     aligned: list[object | None] = [None] * len(scoped_files)
     for (index, scoped_file, snapshot, source), program in zip(readable, programs, strict=True):
         aligned[index] = program
@@ -141,10 +110,32 @@ def prewarm_scoped_files(
     return tuple(aligned)
 
 
-def _prewarm_fact_families(scoped_file: ScopedFile) -> tuple[str, ...]:
-    if scoped_file.scope is ScopeName.TEST:
-        return _TEST_FACT_FAMILIES
-    return _RUNTIME_FACT_FAMILIES
+def prewarm_native_programs(
+    *,
+    project: EvaluationProjectAnalysis,
+    scoped_files: tuple[ScopedFile, ...],
+    sources: tuple[str, ...],
+    source_fingerprints: tuple[str, ...],
+    programs: tuple[object, ...],
+) -> None:
+    """Adopt shared native programs for the Python callback target set."""
+
+    for scoped_file, source, fingerprint, program in zip(
+        scoped_files,
+        sources,
+        source_fingerprints,
+        programs,
+        strict=True,
+    ):
+        project.prewarm(
+            parsed=_build_parsed_module(
+                scoped_file=scoped_file,
+                source=source,
+                source_fingerprint=fingerprint,
+                artifacts=LazySyntaxArtifacts(path=scoped_file.path, source=source),
+                program=program,
+            )
+        )
 
 
 def _parse_native_scoped_file(

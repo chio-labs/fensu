@@ -14,12 +14,14 @@ strata_facts: Any = pytest.importorskip(NATIVE_FACT_MODULE_NAME)
 from scripts.perfcorpus.main.generate_corpus import generate_corpus  # noqa: E402
 from scripts.perfcorpus.models import CorpusSpec  # noqa: E402
 from strata.instrumentation.constants import (  # noqa: E402
+    EVALUATION_WORKER_PARTITION_OPERATION,
     FRESH_EVALUATION_OPERATION,
     NATIVE_PARSE_OPERATION,
     PARSE_OPERATION,
 )
 from tests.integration.src.strata.instrumentation.classes._test_types import (  # noqa: E402
     NativeEditCountsTestCase,
+    NativeExecutionBoundaryTestCase,
     NativeUncachedCountsTestCase,
 )
 from tests.integration.src.strata.instrumentation.classes.helpers import (  # noqa: E402
@@ -29,6 +31,38 @@ from tests.integration.src.strata.instrumentation.classes.helpers import (  # no
 )
 
 _MAX_NATIVE_PARSES_PER_FILE: int = 2
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        NativeExecutionBoundaryTestCase(
+            description="explicit jobs use one Python orchestration and one native work partition",
+            file_target=120,
+            seed=0,
+            jobs=4,
+            expected_worker_partitions=1,
+            expected_python_parses=0,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_multiple_jobs_when_checking_uncached_then_uses_one_native_execution_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: NativeExecutionBoundaryTestCase,
+) -> None:
+    _ = generate_corpus(
+        spec=CorpusSpec(target=tmp_path, file_target=test_case.file_target, seed=test_case.seed)
+    )
+    monkeypatch.chdir(tmp_path)
+
+    counts: dict[str, int] = counted_check(
+        argv=("--no-color", "--no-cache", "--jobs", str(test_case.jobs))
+    )
+
+    assert counts[EVALUATION_WORKER_PARTITION_OPERATION] == test_case.expected_worker_partitions
+    assert counts.get(PARSE_OPERATION, 0) == test_case.expected_python_parses
 
 
 @pytest.mark.parametrize(

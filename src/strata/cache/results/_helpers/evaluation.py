@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from importlib import import_module
 from pathlib import Path
+from types import ModuleType
 from typing import TYPE_CHECKING
 
 from strata.cache.fingerprints.main.source import fingerprint_source
@@ -20,7 +22,6 @@ from strata.cache.results.models import (
 from strata.cache.storage.exceptions import CachePathError, CacheRecordError
 from strata.discovery.constants import SNAPSHOT_TABLE
 from strata.discovery.main.prime_snapshot_hashes import prime_snapshot_hashes
-from strata.evaluation.constants import PREWARM_CHUNK_SIZE
 from strata.evaluation.main.build_targets import build_evaluation_targets
 from strata.evaluation.main.select_files import select_evaluation_files
 from strata.instrumentation.constants import CACHE_MANIFEST_VALIDATION_OPERATION, OPERATION_COUNTERS
@@ -77,6 +78,7 @@ def run_cached_evaluation(
         ruleset=ruleset,
         warning_rules=warning_rules,
         custom_rule_registrations=custom_rule_registrations,
+        plan_rule_owners=False,
     )
     scopes: _RuleScopes = _rule_scopes(ruleset=ruleset, warning_rules=warning_rules)
     if scopes.fully_fresh:
@@ -107,6 +109,13 @@ def run_cached_evaluation(
     )
     if replayed is not None:
         return replayed
+    targets = build_evaluation_targets(
+        tree=tree,
+        selection=selection,
+        ruleset=ruleset,
+        warning_rules=warning_rules,
+        custom_rule_registrations=custom_rule_registrations,
+    )
     plan: NativeGenerationPlan | None = cache.plan_native_generation(
         global_fingerprint=global_fingerprint,
         targets=sorted_targets,
@@ -248,29 +257,23 @@ def _evaluate_misses(
 ) -> tuple[FileEvaluation, ...]:
     from strata.evaluation.main.evaluate_target_chunk import evaluate_target_chunk
 
-    miss_paths: frozenset[str] = frozenset(plan.miss_paths)
-    miss_targets: tuple[EvaluationTarget, ...] = tuple(
-        target
-        for target in targets
-        if relative_repository_path(
-            path=target.scoped_file.path,
-            repo_root=tree.repo_root.path,
-        )
-        in miss_paths
+    ordered_paths: list[str] = [
+        target.scoped_file.path.relative_to(tree.repo_root.path).as_posix() for target in targets
+    ]
+    native: ModuleType = import_module("strata._native")
+    work_indexes: list[int] = native.partition_native_execution_targets(
+        ordered_paths,
+        list(plan.miss_paths),
     )
-    fresh: list[FileEvaluation] = []
-    for start in range(0, len(miss_targets), PREWARM_CHUNK_SIZE):
-        fresh.extend(
-            evaluate_target_chunk(
-                targets=miss_targets[start : start + PREWARM_CHUNK_SIZE],
-                ruleset=scopes.cacheable_ruleset,
-                warning_rules=scopes.cacheable_warning_rules,
-                config=config,
-                tree=tree,
-                project=project,
-            )
-        )
-    return tuple(fresh)
+    miss_targets: tuple[EvaluationTarget, ...] = tuple(targets[index] for index in work_indexes)
+    return evaluate_target_chunk(
+        targets=miss_targets,
+        ruleset=scopes.cacheable_ruleset,
+        warning_rules=scopes.cacheable_warning_rules,
+        config=config,
+        tree=tree,
+        project=project,
+    )
 
 
 def _planned_evaluations(

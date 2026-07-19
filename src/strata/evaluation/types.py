@@ -13,8 +13,8 @@ from strata.rules.authoring.models import Fault
 type NativeFaultRow = tuple[str, str | None, int | None, int | None, str | None, str | None]
 type NativeFaultsByCode = dict[str, tuple[Fault, ...]]
 type NativeThresholdValues = dict[str, int]
-type NativeCoreRuleRequest = tuple[
-    object,
+type NativeExecutionRequest = tuple[
+    str,
     list[str],
     str,
     str | None,

@@ -29,6 +29,7 @@ type MemoryQueryValue = (
 )
 
 class ProgramHandle: ...
+class NativeExecutionBatch: ...
 
 type NativeCacheRecord = tuple[str, object, str]
 type NativeCacheMetrics = tuple[int, int, int, int, int, int]
@@ -101,33 +102,30 @@ def cache_store_check_output(
     maximum_decoded_bytes: int,
 ) -> tuple[bool, NativeCacheMetrics]: ...
 def annotation_facts(handle: ProgramHandle, path: Path) -> Any: ...
-def evaluate_native_core_rules(
-    requests: list[
-        tuple[
-            ProgramHandle,
-            list[str],
-            str,
-            str | None,
-            bool,
-            dict[str, int],
-            str,
-            list[tuple[str, str]],
-            list[str],
-            bool,
-            str,
-            tuple[
-                list[str],
-                list[tuple[str, str]],
-                dict[str, list[str]],
-                list[tuple[str, str, str, str, int, int]],
-            ],
-        ]
-    ],
-) -> list[list[tuple[str, str | None, int | None, int | None, str | None, str | None]]]: ...
-def plan_native_core_rule_queries(
-    requests: list[tuple[Any, ...]],
-) -> list[list[tuple[str, str, str, str]]]: ...
 def native_rule_fact_families() -> list[tuple[str, list[str]]]: ...
+def plan_native_execution_batch(
+    requests: list[tuple[Any, ...]], major: int, minor: int
+) -> tuple[
+    NativeExecutionBatch,
+    list[list[tuple[str, str, str, str]]],
+    list[int],
+]: ...
+def evaluate_native_execution_batch(
+    batch: NativeExecutionBatch, observations: list[dict[str, list[str]]]
+) -> list[list[tuple[str, str | None, int | None, int | None, str | None, str | None]]]: ...
+def native_execution_programs(
+    batch: NativeExecutionBatch,
+) -> list[ProgramHandle | None]: ...
+def select_native_execution_files(
+    paths: list[str], includes: list[str], excludes: list[str]
+) -> tuple[list[int] | None, int]: ...
+def plan_native_execution_owners(
+    targets: list[tuple[str, str, str, list[str], bool]],
+    rules: list[tuple[str, str, str]],
+) -> list[tuple[list[str], list[tuple[str, str]]]]: ...
+def partition_native_execution_targets(
+    ordered_paths: list[str], work_paths: list[str]
+) -> list[int]: ...
 def assignment_reference_facts(handle: ProgramHandle, path: Path) -> tuple[Any, ...]: ...
 def backend_version() -> str: ...
 def class_declaration_facts(handle: ProgramHandle, path: Path) -> tuple[Any, ...]: ...

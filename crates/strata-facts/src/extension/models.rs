@@ -1,6 +1,6 @@
 //! Parsed-program state shared by native fact-family bindings and rule kernels.
 
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 use pyo3::pyclass;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
@@ -62,10 +62,8 @@ struct FactRowCache {
     test_module: OnceLock<TestModuleRows>,
 }
 
-/// One parsed Python module retained for repeated fact extraction.
-#[pyclass(frozen, module = "strata._native")]
 #[derive(Debug)]
-pub struct ProgramHandle {
+struct ProgramData {
     source: String,
     parsed: Parsed<ModModule>,
     index: LineIndex,
@@ -73,19 +71,28 @@ pub struct ProgramHandle {
     rows: FactRowCache,
 }
 
+/// One shareable parsed Python module retained for repeated fact extraction.
+#[pyclass(frozen, module = "strata._native", skip_from_py_object)]
+#[derive(Clone, Debug)]
+pub struct ProgramHandle {
+    data: Arc<ProgramData>,
+}
+
 impl ProgramHandle {
     pub(crate) fn parse(source: &str, version: PythonVersion) -> Result<Self, ParseFailure> {
         let parsed = parse_strict(source, version)?;
         Ok(Self {
-            source: source.to_owned(),
-            parsed,
-            index: index_lines(source),
-            version,
-            rows: FactRowCache::default(),
+            data: Arc::new(ProgramData {
+                source: source.to_owned(),
+                parsed,
+                index: index_lines(source),
+                version,
+                rows: FactRowCache::default(),
+            }),
         })
     }
 
-    pub(crate) fn parse_many(sources: Vec<String>, version: PythonVersion) -> Vec<Option<Self>> {
+    pub fn parse_many(sources: Vec<String>, version: PythonVersion) -> Vec<Option<Self>> {
         sources
             .into_par_iter()
             .map(|source| Self::parse(&source, version).ok())
@@ -93,33 +100,35 @@ impl ProgramHandle {
     }
 
     pub(crate) fn source(&self) -> &str {
-        &self.source
+        &self.data.source
     }
 
     pub(crate) fn module(&self) -> &ModModule {
-        self.parsed.syntax()
+        self.data.parsed.syntax()
     }
 
     pub(crate) fn tokens(&self) -> &Tokens {
-        self.parsed.tokens()
+        self.data.parsed.tokens()
     }
 
     pub(crate) fn index(&self) -> &LineIndex {
-        &self.index
+        &self.data.index
     }
 
     pub(crate) fn version(&self) -> PythonVersion {
-        self.version
+        self.data.version
     }
 
     pub fn annotation_rows(&self) -> &AnnotationRows {
-        self.rows
+        self.data
+            .rows
             .annotations
             .get_or_init(|| extract_annotations(self.module(), self.index(), self.source()))
     }
 
     pub(crate) fn assignment_reference_rows(&self) -> &[AssignmentReferenceRow] {
         &self
+            .data
             .rows
             .rule_references
             .get_or_init(|| extract_rule_references(self.module(), self.index(), self.source()))
@@ -127,19 +136,22 @@ impl ProgramHandle {
     }
 
     pub fn comment_rows(&self) -> &[CommentRow] {
-        self.rows
+        self.data
+            .rows
             .comments
             .get_or_init(|| extract_comments(self.tokens(), self.source(), self.index()))
     }
 
     pub(crate) fn class_declaration_rows(&self) -> &[ClassDeclarationRow] {
-        self.rows
+        self.data
+            .rows
             .class_declarations
             .get_or_init(|| extract_class_declarations(self.module(), self.index(), self.source()))
     }
 
     pub(crate) fn comparison_rows(&self) -> &[ComparisonRow] {
         &self
+            .data
             .rows
             .rule_references
             .get_or_init(|| extract_rule_references(self.module(), self.index(), self.source()))
@@ -147,25 +159,27 @@ impl ProgramHandle {
     }
 
     pub fn contract_rows(&self) -> &[FunctionContractRow] {
-        self.rows.contracts.get_or_init(|| {
+        self.data.rows.contracts.get_or_init(|| {
             extract_function_contracts(self.module(), self.index(), self.source(), self.version())
         })
     }
 
     pub fn control_flow_rows(&self) -> &ControlFlowRows {
-        self.rows
+        self.data
+            .rows
             .control_flow
             .get_or_init(|| extract_control_flow(self.module(), self.index(), self.source()))
     }
 
     pub fn declaration_rows(&self) -> &ModuleDeclarationRows {
-        self.rows
+        self.data
+            .rows
             .declarations
             .get_or_init(|| extract_module_declarations(self.module(), self.index(), self.source()))
     }
 
     pub fn source_line_count(&self) -> usize {
-        let mut characters = self.source.chars().peekable();
+        let mut characters = self.data.source.chars().peekable();
         let mut count = 0;
         let mut trailing_text = false;
         while let Some(character) = characters.next() {
@@ -183,25 +197,29 @@ impl ProgramHandle {
     }
 
     pub fn dataclass_rows(&self) -> &[DataclassRow] {
-        self.rows
+        self.data
+            .rows
             .dataclasses
             .get_or_init(|| extract_dataclasses(self.module(), self.index(), self.source()))
     }
 
     pub fn function_rows(&self) -> &(Vec<FunctionMetricRow>, Vec<usize>) {
-        self.rows
+        self.data
+            .rows
             .functions
             .get_or_init(|| extract_functions(self.module(), self.index(), self.source()))
     }
 
     pub fn hygiene_rows(&self) -> &HygieneRows {
-        self.rows
+        self.data
+            .rows
             .hygiene
             .get_or_init(|| extract_hygiene(self.module(), self.index(), self.source()))
     }
 
     pub(crate) fn local_call_edge_rows(&self) -> &[LocalCallEdgeRow] {
         &self
+            .data
             .rows
             .rule_calls
             .get_or_init(|| extract_rule_calls(self.module(), self.index(), self.source()))
@@ -210,6 +228,7 @@ impl ProgramHandle {
 
     pub(crate) fn named_call_rows(&self) -> &[RuleNamedCallRow] {
         &self
+            .data
             .rows
             .rule_calls
             .get_or_init(|| extract_rule_calls(self.module(), self.index(), self.source()))
@@ -217,48 +236,57 @@ impl ProgramHandle {
     }
 
     pub fn outer_state_mutation_rows(&self) -> &[SourceRangeRow] {
-        self.rows
+        self.data
+            .rows
             .outer_state_mutations
             .get_or_init(|| extract_outer_state_mutations(self.module(), self.index()))
     }
 
     pub fn parameter_mutation_rows(&self) -> &[ParameterMutationRow] {
-        self.rows
+        self.data
+            .rows
             .parameter_mutations
             .get_or_init(|| extract_parameter_mutations(self.module(), self.index(), self.source()))
     }
 
     pub fn project_rows(&self) -> &(Vec<ProjectFunctionRow>, Vec<DiscardedCallRow>) {
-        self.rows
+        self.data
+            .rows
             .project
             .get_or_init(|| extract_project_facts(self.module(), self.index(), self.source()))
     }
 
     pub(crate) fn parameter_mutation_occurrence_rows(&self) -> &[ParameterMutationOccurrenceRow] {
-        self.rows.parameter_mutation_occurrences.get_or_init(|| {
-            extract_parameter_mutation_occurrences(self.module(), self.index(), self.source())
-        })
+        self.data
+            .rows
+            .parameter_mutation_occurrences
+            .get_or_init(|| {
+                extract_parameter_mutation_occurrences(self.module(), self.index(), self.source())
+            })
     }
 
     pub fn reference_rows(&self) -> &ReferenceRows {
-        self.rows
+        self.data
+            .rows
             .references
             .get_or_init(|| extract_references(self.module(), self.index(), self.source()))
     }
 
     pub fn test_function_rows(&self) -> &[TestFunctionRow] {
-        self.rows
+        self.data
+            .rows
             .test_functions
             .get_or_init(|| extract_test_functions(self.module(), self.index(), self.source()))
     }
 
     pub fn test_module_rows(&self) -> &TestModuleRows {
-        self.rows
+        self.data
+            .rows
             .test_module
             .get_or_init(|| extract_test_module(self.module(), self.index(), self.source()))
     }
 
-    pub(crate) fn extract_rows(&self, family: FactFamily) {
+    pub fn extract_rows(&self, family: FactFamily) {
         match family {
             FactFamily::Annotations => {
                 let _ = self.annotation_rows();
@@ -307,6 +335,9 @@ impl ProgramHandle {
             }
             FactFamily::ParameterMutationOccurrences => {
                 let _ = self.parameter_mutation_occurrence_rows();
+            }
+            FactFamily::Project => {
+                let _ = self.project_rows();
             }
             FactFamily::References => {
                 let _ = self.reference_rows();

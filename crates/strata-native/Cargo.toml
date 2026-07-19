@@ -15,8 +15,10 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 flate2.workspace = true
+globset.workspace = true
 pyo3.workspace = true
 rayon.workspace = true
+ruff_python_ast.workspace = true
 rusqlite.workspace = true
 sha2.workspace = true
 serde_json.workspace = true

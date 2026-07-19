@@ -18,6 +18,7 @@ pub enum FactFamily {
     OuterStateMutations,
     ParameterMutationOccurrences,
     ParameterMutations,
+    Project,
     References,
     TestFunctions,
     TestModule,

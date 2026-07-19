@@ -2041,8 +2041,10 @@ name = "strata-native"
 version = "0.1.0"
 dependencies = [
  "flate2",
+ "globset",
  "pyo3",
  "rayon",
+ "ruff_python_ast",
  "rusqlite",
  "serde_json",
  "sha2",

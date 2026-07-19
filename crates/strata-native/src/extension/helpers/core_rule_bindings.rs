@@ -1,10 +1,14 @@
 //! Python bindings for batched native core-rule evaluation.
 
 use pyo3::exceptions::PyValueError;
-use pyo3::{pyfunction, Py, PyResult, Python};
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use pyo3::{pyclass, pyfunction, Bound, Py, PyResult, Python};
+use rayon::iter::{
+    IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator, ParallelIterator,
+};
+use ruff_python_ast::PythonVersion;
 use std::collections::HashMap;
 use strata_facts::extension::models::ProgramHandle;
+use strata_facts::facts::types::FactFamily;
 
 use crate::rules::constants::NATIVE_RULE_FACT_FAMILIES;
 use crate::rules::main::evaluate_core_rules::evaluate_core_rules;
@@ -19,8 +23,17 @@ type NativeFaultTuple = (
     Option<String>,
     Option<String>,
 );
-type NativeRuleRequestTuple = (
-    Py<ProgramHandle>,
+type NativeProjectContextTuple = (
+    Vec<String>,
+    Vec<(String, String)>,
+    HashMap<String, Vec<String>>,
+    Vec<(String, String, String, String, u32, u32)>,
+);
+
+type NativeProjectQueryTuple = (String, String, String, String);
+
+type NativeRuleContextTuple = (
+    String,
     Vec<String>,
     String,
     Option<String>,
@@ -33,96 +46,163 @@ type NativeRuleRequestTuple = (
     String,
     NativeProjectContextTuple,
 );
-type NativeProjectContextTuple = (
-    Vec<String>,
-    Vec<(String, String)>,
-    HashMap<String, Vec<String>>,
-    Vec<(String, String, String, String, u32, u32)>,
+
+struct NativeExecutionRequest {
+    program: ProgramHandle,
+    codes: Vec<String>,
+    context: NativeRuleContext,
+}
+
+#[pyclass(frozen, module = "strata._native")]
+pub(crate) struct NativeExecutionBatch {
+    requests: Vec<Option<NativeExecutionRequest>>,
+}
+
+type NativeExecutionPlanTuple = (
+    Py<NativeExecutionBatch>,
+    Vec<Vec<NativeProjectQueryTuple>>,
+    Vec<usize>,
 );
 
-type NativeProjectQueryTuple = (String, String, String, String);
-
 #[pyfunction]
-pub(crate) fn evaluate_native_core_rules(
+pub(crate) fn plan_native_execution_batch(
     py: Python<'_>,
-    requests: Vec<NativeRuleRequestTuple>,
-) -> PyResult<Vec<Vec<NativeFaultTuple>>> {
-    py.detach(move || {
-        let batches: Result<Vec<Vec<NativeFaultTuple>>, String> = requests
-            .par_iter()
-            .map(
-                |(
-                    handle,
-                    codes,
-                    scope,
-                    role,
-                    is_main_module,
-                    thresholds,
-                    repository_path,
-                    contracts,
-                    relative_parts,
-                    is_entry_module,
-                    package_name,
-                    project_context,
-                )| {
-                    let context = NativeRuleContext {
-                        scope: scope.clone(),
-                        role: role.clone(),
-                        is_main_module: *is_main_module,
-                        thresholds: thresholds.clone(),
-                        repository_path: repository_path.clone(),
-                        contracts: contracts.clone(),
-                        relative_parts: relative_parts.clone(),
-                        is_entry_module: *is_entry_module,
-                        package_name: package_name.clone(),
-                        tooling_packages: project_context.0.clone(),
-                        scope_roots: project_context.1.clone(),
-                        observations: project_context.2.clone(),
-                        custom_registrations: project_context.3.clone(),
-                    };
-                    evaluate_core_rules(handle.get(), codes, &context)
-                        .map(|rows| rows.into_iter().map(as_tuple).collect())
-                },
-            )
+    requests: Vec<NativeRuleContextTuple>,
+    major: u8,
+    minor: u8,
+) -> PyResult<NativeExecutionPlanTuple> {
+    let version = PythonVersion { major, minor };
+    let (batch, plans, failures) = py.detach(move || {
+        let sources: Vec<String> = requests.iter().map(|request| request.0.clone()).collect();
+        let programs = ProgramHandle::parse_many(sources, version);
+        let prepared: Vec<Option<NativeExecutionRequest>> = programs
+            .into_iter()
+            .zip(requests)
+            .map(|(program, request)| {
+                program.map(|program| NativeExecutionRequest {
+                    program,
+                    codes: request.1,
+                    context: NativeRuleContext {
+                        scope: request.2,
+                        role: request.3,
+                        is_main_module: request.4,
+                        thresholds: request.5,
+                        repository_path: request.6,
+                        contracts: request.7,
+                        relative_parts: request.8,
+                        is_entry_module: request.9,
+                        package_name: request.10,
+                        tooling_packages: request.11 .0,
+                        scope_roots: request.11 .1,
+                        observations: request.11 .2,
+                        custom_registrations: request.11 .3,
+                    },
+                })
+            })
             .collect();
-        batches.map_err(PyValueError::new_err)
-    })
-}
-
-#[pyfunction]
-pub(crate) fn plan_native_core_rule_queries(
-    py: Python<'_>,
-    requests: Vec<NativeRuleRequestTuple>,
-) -> Vec<Vec<NativeProjectQueryTuple>> {
-    py.detach(move || {
-        requests
+        let plans = prepared
             .par_iter()
             .map(|request| {
-                let context = context_from_request(request);
-                plan_core_rule_queries(request.0.get(), &request.1, &context)
-                    .into_iter()
-                    .map(|query| (query.key(), query.kind, query.path, query.argument))
-                    .collect()
+                request.as_ref().map_or_else(Vec::new, |request| {
+                    plan_core_rule_queries(&request.program, &request.codes, &request.context)
+                        .into_iter()
+                        .map(|query| (query.key(), query.kind, query.path, query.argument))
+                        .collect()
+                })
             })
-            .collect()
+            .collect();
+        let failures = prepared
+            .iter()
+            .enumerate()
+            .filter_map(|(index, request)| request.is_none().then_some(index))
+            .collect();
+        (NativeExecutionBatch { requests: prepared }, plans, failures)
+    });
+    Ok((Py::new(py, batch)?, plans, failures))
+}
+
+#[pyfunction]
+pub(crate) fn evaluate_native_execution_batch(
+    py: Python<'_>,
+    batch: &Bound<'_, NativeExecutionBatch>,
+    observations: Vec<HashMap<String, Vec<String>>>,
+) -> PyResult<Vec<Vec<NativeFaultTuple>>> {
+    let batch = batch.get();
+    py.detach(|| {
+        batch
+            .requests
+            .par_iter()
+            .zip(observations.into_par_iter())
+            .map(|(request, observations)| {
+                let Some(request) = request else {
+                    return Ok(Vec::new());
+                };
+                let mut context = request.context.clone();
+                context.observations = observations;
+                extract_required_rows(&request.program, &request.codes);
+                evaluate_core_rules(&request.program, &request.codes, &context)
+                    .map(|rows| rows.into_iter().map(as_tuple).collect())
+            })
+            .collect::<Result<Vec<_>, String>>()
+            .map_err(PyValueError::new_err)
     })
 }
 
-fn context_from_request(request: &NativeRuleRequestTuple) -> NativeRuleContext {
-    NativeRuleContext {
-        scope: request.2.clone(),
-        role: request.3.clone(),
-        is_main_module: request.4,
-        thresholds: request.5.clone(),
-        repository_path: request.6.clone(),
-        contracts: request.7.clone(),
-        relative_parts: request.8.clone(),
-        is_entry_module: request.9,
-        package_name: request.10.clone(),
-        tooling_packages: request.11 .0.clone(),
-        scope_roots: request.11 .1.clone(),
-        observations: request.11 .2.clone(),
-        custom_registrations: request.11 .3.clone(),
+#[pyfunction]
+pub(crate) fn native_execution_programs(
+    py: Python<'_>,
+    batch: &Bound<'_, NativeExecutionBatch>,
+) -> PyResult<Vec<Option<Py<ProgramHandle>>>> {
+    batch
+        .get()
+        .requests
+        .iter()
+        .map(|request| {
+            request
+                .as_ref()
+                .map(|request| Py::new(py, request.program.clone()))
+                .transpose()
+        })
+        .collect()
+}
+
+fn extract_required_rows(program: &ProgramHandle, codes: &[String]) {
+    let selected: std::collections::HashSet<&str> = codes.iter().map(String::as_str).collect();
+    for (code, families) in NATIVE_RULE_FACT_FAMILIES {
+        if !selected.contains(code) {
+            continue;
+        }
+        for family in *families {
+            if let Some(family) = fact_family(family) {
+                program.extract_rows(family);
+            }
+        }
+    }
+}
+
+fn fact_family(name: &str) -> Option<FactFamily> {
+    match name {
+        "annotations" => Some(FactFamily::Annotations),
+        "assignment_references" => Some(FactFamily::AssignmentReferences),
+        "class_declarations" => Some(FactFamily::ClassDeclarations),
+        "comments" => Some(FactFamily::Comments),
+        "complex_comprehensions" | "function_conditionals" => Some(FactFamily::ControlFlow),
+        "comparisons" => Some(FactFamily::Comparisons),
+        "dataclasses" => Some(FactFamily::Dataclasses),
+        "function_contracts" => Some(FactFamily::Contracts),
+        "functions" => Some(FactFamily::Functions),
+        "hygiene" => Some(FactFamily::Hygiene),
+        "local_call_edges" => Some(FactFamily::LocalCallEdges),
+        "module_declarations" => Some(FactFamily::Declarations),
+        "named_calls" => Some(FactFamily::NamedCalls),
+        "outer_state_mutations" => Some(FactFamily::OuterStateMutations),
+        "parameter_mutation_occurrences" => Some(FactFamily::ParameterMutationOccurrences),
+        "parameter_mutations" => Some(FactFamily::ParameterMutations),
+        "project_calls" | "project_functions" => Some(FactFamily::Project),
+        "references" => Some(FactFamily::References),
+        "test_functions" => Some(FactFamily::TestFunctions),
+        "test_module" => Some(FactFamily::TestModule),
+        _ => None,
     }
 }
 

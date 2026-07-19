@@ -5,7 +5,6 @@ from __future__ import annotations
 from strata.config.models import Config
 from strata.discovery.models import DiscoveredTree
 from strata.evaluation._helpers.project_analysis import build_project_analysis
-from strata.evaluation.constants import PREWARM_CHUNK_SIZE
 from strata.evaluation.main.build_targets import build_evaluation_targets
 from strata.evaluation.main.evaluate_target_chunk import evaluate_target_chunk
 from strata.evaluation.main.select_files import select_evaluation_files
@@ -42,18 +41,16 @@ def evaluate_partition(
     )
     if partition is not None:
         targets = tuple(target for target in targets if str(target.scoped_file.path) in partition)
-    for start in range(0, len(targets), PREWARM_CHUNK_SIZE):
-        chunk: tuple[EvaluationTarget, ...] = targets[start : start + PREWARM_CHUNK_SIZE]
-        file_evaluations.extend(
-            evaluate_target_chunk(
-                targets=chunk,
-                ruleset=ruleset,
-                warning_rules=warning_rules,
-                config=config,
-                tree=tree,
-                project=project,
-            )
+    file_evaluations.extend(
+        evaluate_target_chunk(
+            targets=targets,
+            ruleset=ruleset,
+            warning_rules=warning_rules,
+            config=config,
+            tree=tree,
+            project=project,
         )
+    )
     return PartitionEvaluation(
         file_evaluations=tuple(file_evaluations),
         dependencies=project.dependencies(),

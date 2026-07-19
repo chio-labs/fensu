@@ -1,0 +1,1 @@
+"""Fensu Memory domain."""

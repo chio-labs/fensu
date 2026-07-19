@@ -1,0 +1,27 @@
+[build-system]
+requires = ["maturin>=1.14,<2"]
+build-backend = "maturin"
+
+[project]
+name = "fensu-cli"
+version = "0.1.0" # x-release-please-version
+description = "Native command-line executable for fensu"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Rust",
+  "Topic :: Software Development :: Quality Assurance",
+]
+
+[project.urls]
+Homepage = "https://github.com/chio-labs/fensu"
+Issues = "https://github.com/chio-labs/fensu/issues"
+Repository = "https://github.com/chio-labs/fensu"
+
+[tool.maturin]
+bindings = "bin"
+manifest-path = "../../crates/fensu-cli/Cargo.toml"

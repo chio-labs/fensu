@@ -1,0 +1,15 @@
+pub(crate) const COLOR_ALWAYS: &str = "always";
+pub(crate) const COLOR_AUTO: &str = "auto";
+pub(crate) const COLOR_NEVER: &str = "never";
+pub(crate) const GLOB_ALL: &str = "**";
+pub(crate) const OPTION_COLOR: &str = "--color";
+pub(crate) const OWNER_FILE: &str = "file";
+pub(crate) const OWNER_PACKAGE: &str = "package";
+pub(crate) const ROLE_HELPERS: &str = "_helpers";
+pub(crate) const ROLE_MAIN: &str = "main";
+pub(crate) const ROLE_RULES: &str = "rules";
+pub(crate) const SCOPE_TEST: &str = "test";
+pub(crate) const SCOPE_TOOLING: &str = "tooling";
+pub(crate) const STEM_INIT: &str = "__init__";
+pub(crate) const SUFFIX_INIT: &str = "__init__.py";
+pub(crate) const VALUE_TRUE: &str = "true";

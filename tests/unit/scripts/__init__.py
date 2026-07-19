@@ -1,0 +1,1 @@
+"""Mirrored tests for scripts/."""

@@ -1,0 +1,49 @@
+[workspace]
+members = [
+    "crates/fensu-cli",
+    "crates/fensu-facts",
+    "crates/fensu-memory",
+    "crates/fensu-native",
+    "crates/fensu-structure-checker",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[workspace.dependencies]
+dunce = "1.0"
+flate2 = { version = "1", default-features = false, features = ["zlib"] }
+gix = { version = "0.85.0", default-features = false, features = ["excludes", "sha1"] }
+globset = "0.4"
+hex = "0.4"
+proc-macro2 = { version = "1", features = ["span-locations"] }
+pyo3 = { version = "0.29", features = ["abi3-py312"] }
+pulldown-cmark = { version = "0.13.4", default-features = false }
+quote = "1"
+rayon = "1"
+rusqlite = { version = "0.38", features = ["bundled"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+serde = { version = "1", features = ["derive"] }
+sha2 = "0.10"
+fensu-facts = { path = "crates/fensu-facts", default-features = false }
+fensu-memory = { path = "crates/fensu-memory" }
+fensu-native = { path = "crates/fensu-native", default-features = false }
+ruff_python_ast = "=0.0.4"
+ruff_python_parser = "=0.0.4"
+ruff_text_size = "=0.0.4"
+syn = { version = "2", features = ["full", "visit", "extra-traits"] }
+tempfile = "3"
+toml = "0.9"
+unicode-ident = "1"
+walkdir = "2"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+unreachable_pub = "deny"
+unused_must_use = "deny"
+
+[workspace.lints.clippy]
+await_holding_lock = "deny"

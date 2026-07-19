@@ -18,10 +18,14 @@ from tests.unit.scripts.perfbudget.main._test_types import SpecResolutionTestCas
             cold_ceiling=None,
             warm_ceiling=None,
             edit_ceiling=None,
-            expected_uncached=7.5,
-            expected_cold=11.0,
-            expected_warm=4.0,
-            expected_edit=6.0,
+            version_ceiling=None,
+            init_ceiling=None,
+            expected_uncached=0.95,
+            expected_cold=0.95,
+            expected_warm=0.16,
+            expected_edit=0.7,
+            expected_version=0.03,
+            expected_init=0.9,
         ),
         SpecResolutionTestCase(
             description="explicit ceilings override every native default",
@@ -29,10 +33,14 @@ from tests.unit.scripts.perfbudget.main._test_types import SpecResolutionTestCas
             cold_ceiling=2.0,
             warm_ceiling=3.0,
             edit_ceiling=4.0,
+            version_ceiling=5.0,
+            init_ceiling=6.0,
             expected_uncached=1.0,
             expected_cold=2.0,
             expected_warm=3.0,
             expected_edit=4.0,
+            expected_version=5.0,
+            expected_init=6.0,
         ),
     ],
     ids=lambda case: case.description,
@@ -47,6 +55,8 @@ def test_given_overrides_when_resolving_spec_then_returns_expected_ceilings(
         cold_ceiling=test_case.cold_ceiling,
         warm_ceiling=test_case.warm_ceiling,
         edit_ceiling=test_case.edit_ceiling,
+        version_ceiling=test_case.version_ceiling,
+        init_ceiling=test_case.init_ceiling,
         executable=None,
     )
 
@@ -54,3 +64,5 @@ def test_given_overrides_when_resolving_spec_then_returns_expected_ceilings(
     assert spec.cold_ceiling == test_case.expected_cold
     assert spec.warm_ceiling == test_case.expected_warm
     assert spec.edit_ceiling == test_case.expected_edit
+    assert spec.version_ceiling == test_case.expected_version
+    assert spec.init_ceiling == test_case.expected_init

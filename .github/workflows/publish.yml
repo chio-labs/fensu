@@ -72,6 +72,14 @@ jobs:
           args: --release --out dist --features extension-module,memory
           target: ${{ matrix.platform.target }}
           manylinux: auto
+      - name: Build native CLI wheel
+        uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          args: --release --out ../../dist
+          target: ${{ matrix.platform.target }}
+          manylinux: auto
+          working-directory: packages/stratalint-cli
       - uses: actions/upload-artifact@v4
         with:
           name: wheel-${{ matrix.platform.name }}
@@ -89,6 +97,12 @@ jobs:
         with:
           command: sdist
           args: --out dist
+      - name: Build native CLI sdist
+        uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out ../../dist
+          working-directory: packages/stratalint-cli
       - uses: actions/upload-artifact@v4
         with:
           name: sdist

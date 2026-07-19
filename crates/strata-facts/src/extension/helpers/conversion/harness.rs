@@ -7,7 +7,7 @@ use crate::constants;
 use crate::extension::helpers::conversion::annotations::location_object;
 use crate::extension::helpers::conversion::declarations::{location_tuple, to_object};
 use crate::extension::helpers::gateway::model_types::{model_type, type_member};
-use crate::extension::helpers::gateway::program::ProgramHandle;
+use crate::extension::models::ProgramHandle;
 use crate::facts::main::extract_evaluate_rule_calls::extract_evaluate_rule_calls;
 use crate::facts::models::{DimensionRow, ParametrizeRow, StaticReferenceRow};
 

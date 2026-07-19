@@ -14,8 +14,8 @@ from strata.cli._helpers.map_cache_status import write_map_cache_status
 from strata.cli.constants import NO_COLOR_ENVIRONMENT_VARIABLE
 from strata.cli.types import ColorMode
 from strata.mapping.exceptions import MapError
-from strata.mapping.main.ast import build_ast_call_map
 from strata.mapping.main.build import build_call_map
+from strata.mapping.main.native import build_native_call_map
 from strata.mapping.main.render import render_call_tree
 from strata.mapping.main.resolve_project import resolve_mapping_project
 from strata.mapping.models import MappingProject
@@ -62,7 +62,7 @@ def run_map(
                 symbol=args.symbol,
                 depth=args.depth,
                 repo_root=project.repo_root,
-                provider=build_ast_call_map,
+                provider=build_native_call_map,
                 path_mode=PathMode(args.paths),
                 use_color=use_color,
             )

@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from importlib import import_module
 from pathlib import Path
+from types import ModuleType
 
+from strata.analysis.constants import NATIVE_FACT_MODULE_NAME
 from strata.discovery.models import DiscoveredTree, ScopedFile
 from strata.discovery.types import ScopeName
-from strata.evaluation._helpers.execution_owners import planned_rule_codes
 from strata.evaluation.models import EvaluationSelection, EvaluationTarget
 from strata.rules.authoring.models import CustomRuleRegistration, RuleSpec
 from strata.rules.roles.types import RoleCode
@@ -20,6 +22,7 @@ def build_evaluation_targets(
     ruleset: tuple[RuleSpec, ...],
     warning_rules: tuple[RuleSpec, ...],
     custom_rule_registrations: tuple[CustomRuleRegistration, ...],
+    plan_rule_owners: bool = True,
 ) -> tuple[EvaluationTarget, ...]:
     """Merge supplemental coverage work into records owned by each rule source."""
 
@@ -43,16 +46,31 @@ def build_evaluation_targets(
     ordered: tuple[EvaluationTarget, ...] = tuple(
         sorted(targets.values(), key=lambda item: str(item.scoped_file.path))
     )
-    codes_by_path: dict[Path, frozenset[str]] = planned_rule_codes(
-        targets=ordered,
-        rules=(*ruleset, *warning_rules),
+    if not plan_rule_owners:
+        return ordered
+    native: ModuleType = import_module(NATIVE_FACT_MODULE_NAME)
+    planned: list[tuple[list[str], list[tuple[str, str]]]] = native.plan_native_execution_owners(
+        [
+            (
+                target.scoped_file.path.relative_to(tree.repo_root.path).as_posix(),
+                target.scoped_file.scope.value,
+                str(target.scoped_file.root),
+                list(target.scoped_file.relative_parts),
+                target.direct,
+            )
+            for target in ordered
+        ],
+        [
+            (rule.code, rule.family.value, rule.execution_owner.value)
+            for rule in (*ruleset, *warning_rules)
+        ],
     )
     return tuple(
         replace(
             target,
-            applicable_rule_codes=codes_by_path.get(target.scoped_file.path, frozenset()),
+            applicable_rule_codes=frozenset(codes),
         )
-        for target in ordered
+        for target, (codes, _identities) in zip(ordered, planned, strict=True)
     )
 
 

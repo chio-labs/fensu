@@ -12,6 +12,7 @@ from strata.evaluation._helpers.rule_exceptions import file_exception_scope, sup
 from strata.evaluation.models import (
     FileEvaluation,
     FileExceptionScope,
+    NativeCoreRuleEvaluation,
     ParsedModule,
     RuleExceptionKey,
     ThresholdOverrideUse,
@@ -31,15 +32,24 @@ def evaluate_file(
     project: EvaluationProjectAnalysis,
     file_cache_seed: Mapping[str, object] | None = None,
     applicable_rule_codes: frozenset[str] | None = None,
+    native_evaluation: NativeCoreRuleEvaluation | None = None,
 ) -> FileEvaluation:
     """Return unrendered output and observed inputs for one source file."""
 
-    parsed_module: ParsedModule = project.parsed_module(scoped_file)
+    parsed_module: ParsedModule | None = None
     faults: list[Fault] = []
     warnings: list[Fault] = []
     applied_exceptions: set[RuleExceptionKey] = set()
     file_cache: dict[str, object] = dict(file_cache_seed or {})
-    threshold_override_uses: list[ThresholdOverrideUse] = []
+    native_faults_by_code: Mapping[str, tuple[Fault, ...]] | None = (
+        native_evaluation.faults_by_code if native_evaluation is not None else None
+    )
+    source_fingerprint: str | None = (
+        native_evaluation.source_fingerprint if native_evaluation is not None else None
+    )
+    threshold_override_uses: list[ThresholdOverrideUse] = list(
+        native_evaluation.threshold_override_uses if native_evaluation is not None else ()
+    )
     applicable_families: frozenset[Family] = families_for_scope(scoped_file=scoped_file)
     exception_scope: FileExceptionScope | None = file_exception_scope(
         path=scoped_file.path,
@@ -52,17 +62,24 @@ def evaluate_file(
                 continue
             if rule.family != Family.CUSTOM and rule.family not in applicable_families:
                 continue
-            rule_faults: list[Fault] = execute_rule(
-                rule=rule,
-                parsed_module=parsed_module,
-                config=config,
-                repo_root=tree.repo_root,
-                layout=tree.layout,
-                project=project,
-                file_cache=file_cache,
-                threshold_override_uses=threshold_override_uses,
-            )
+            if native_faults_by_code is not None and rule.code in native_faults_by_code:
+                rule_faults: list[Fault] = list(native_faults_by_code[rule.code])
+            else:
+                if parsed_module is None:
+                    parsed_module = project.parsed_module(scoped_file)
+                rule_faults = execute_rule(
+                    rule=rule,
+                    parsed_module=parsed_module,
+                    config=config,
+                    repo_root=tree.repo_root,
+                    layout=tree.layout,
+                    project=project,
+                    file_cache=file_cache,
+                    threshold_override_uses=threshold_override_uses,
+                )
             if exception_scope is not None:
+                if parsed_module is None:
+                    parsed_module = project.parsed_module(scoped_file)
                 retained, applied = suppress_faults(
                     faults=rule_faults,
                     parsed_module=parsed_module,
@@ -72,9 +89,13 @@ def evaluate_file(
                 applied_exceptions.update(applied)
             else:
                 tier_faults.extend(rule_faults)
+    if source_fingerprint is None:
+        if parsed_module is None:
+            parsed_module = project.parsed_module(scoped_file)
+        source_fingerprint = parsed_module.source_fingerprint
     return FileEvaluation(
         path=scoped_file.path,
-        source_fingerprint=parsed_module.source_fingerprint,
+        source_fingerprint=source_fingerprint,
         faults=tuple(faults),
         warnings=tuple(warnings),
         applied_exception_keys=tuple(

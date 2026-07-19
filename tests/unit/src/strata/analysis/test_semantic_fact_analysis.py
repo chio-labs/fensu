@@ -1,5 +1,6 @@
 """Native fact facade delegation and parse-failure behavior."""
 
+from importlib import import_module
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from typing import cast
@@ -13,6 +14,7 @@ from strata.analysis.exceptions import NativeSourceCompatibilityError
 from tests.unit.src.strata.analysis._test_types import (
     FactAnalysisOwnerTestCase,
     FactDelegationTestCase,
+    NativeFactFamilyParityTestCase,
 )
 from tests.unit.src.strata.analysis.helpers import fact_analysis_owners
 
@@ -135,3 +137,25 @@ def test_given_production_analysis_when_scanning_fact_protocol_then_has_one_conc
     owners: tuple[str, ...] = fact_analysis_owners(root=package_root)
 
     assert owners == test_case.expected_owners
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        NativeFactFamilyParityTestCase(
+            description="every native core fact family is public and API-tested",
+            expected_missing_families=(),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_registered_native_rules_when_checking_fact_families_then_all_are_public(
+    test_case: NativeFactFamilyParityTestCase,
+) -> None:
+    native: ModuleType = import_module(NATIVE_FACT_MODULE_NAME)
+    registrations: list[tuple[str, list[str]]] = native.native_rule_fact_families()
+    required_families: set[str] = set().union(*(set(families) for _, families in registrations))
+    public_families: set[str] = set(_FACT_FAMILY_NAMES).intersection(dir(SemanticFactAnalysis))
+    missing: tuple[str, ...] = tuple(sorted(required_families - public_families))
+
+    assert missing == test_case.expected_missing_families

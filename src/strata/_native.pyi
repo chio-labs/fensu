@@ -29,8 +29,103 @@ type MemoryQueryValue = (
 )
 
 class ProgramHandle: ...
+class NativeExecutionBatch: ...
 
+type NativeCacheRecord = tuple[str, object, str]
+type NativeCacheMetrics = tuple[int, int, int, int, int, int]
+type NativeCacheWrite = tuple[str, str, bytes, bool]
+
+def cache_encode_record(
+    kind: str, payload: object, payload_is_validated: bool, maximum_decoded_bytes: int
+) -> bytes: ...
+def cache_decode_record(
+    data: bytes, expected_kind: str, maximum_decoded_bytes: int
+) -> NativeCacheRecord | None: ...
+def cache_read_batch(
+    repo_root: Path, reads: list[tuple[str, str]], maximum_decoded_bytes: int
+) -> tuple[bool, list[NativeCacheRecord | None], NativeCacheMetrics]: ...
+def cache_write_batch(
+    repo_root: Path, writes: list[NativeCacheWrite]
+) -> tuple[bool, NativeCacheMetrics]: ...
+def cache_mutate_batch(
+    repo_root: Path,
+    reads: list[tuple[str, str]],
+    maximum_decoded_bytes: int,
+    mutate: Any,
+) -> tuple[bool, bool, NativeCacheMetrics]: ...
+def cache_replay_generation(
+    repo_root: Path,
+    global_fingerprint: str,
+    targets: list[tuple[str, str | None]],
+    maximum_decoded_bytes: int,
+) -> tuple[
+    tuple[list[str], str, str, int, str] | None,
+    NativeCacheMetrics,
+]: ...
+def cache_plan_generation(
+    repo_root: Path,
+    global_fingerprint: str,
+    targets: list[tuple[str, str | None]],
+    allow_edit: bool,
+    maximum_decoded_bytes: int,
+) -> tuple[
+    tuple[
+        str,
+        str | None,
+        list[tuple[str, str, str, str]],
+        list[dict[str, object]],
+        list[dict[str, object]],
+        list[str],
+        int,
+        int,
+        int,
+    ]
+    | None,
+    NativeCacheMetrics,
+]: ...
+def cache_publish_generation(
+    repo_root: Path,
+    global_fingerprint: str,
+    expected_index_fingerprint: str | None,
+    retained_entries: list[tuple[str, str, str, str]],
+    evaluations: list[dict[str, object] | None],
+    options: tuple[bool, int],
+) -> tuple[
+    tuple[int, int, bool, bool, str | None],
+    NativeCacheMetrics,
+]: ...
+def cache_store_check_output(
+    repo_root: Path,
+    global_fingerprint: str,
+    expected_index_fingerprint: str,
+    surface: tuple[list[str], str, str, int],
+    maximum_decoded_bytes: int,
+) -> tuple[bool, NativeCacheMetrics]: ...
 def annotation_facts(handle: ProgramHandle, path: Path) -> Any: ...
+def native_rule_fact_families() -> list[tuple[str, list[str]]]: ...
+def plan_native_execution_batch(
+    requests: list[tuple[Any, ...]], major: int, minor: int
+) -> tuple[
+    NativeExecutionBatch,
+    list[list[tuple[str, str, str, str]]],
+    list[int],
+]: ...
+def evaluate_native_execution_batch(
+    batch: NativeExecutionBatch, observations: list[dict[str, list[str]]]
+) -> list[list[tuple[str, str | None, int | None, int | None, str | None, str | None]]]: ...
+def native_execution_programs(
+    batch: NativeExecutionBatch,
+) -> list[ProgramHandle | None]: ...
+def select_native_execution_files(
+    paths: list[str], includes: list[str], excludes: list[str]
+) -> tuple[list[int] | None, int]: ...
+def plan_native_execution_owners(
+    targets: list[tuple[str, str, str, list[str], bool]],
+    rules: list[tuple[str, str, str]],
+) -> list[tuple[list[str], list[tuple[str, str]]]]: ...
+def partition_native_execution_targets(
+    ordered_paths: list[str], work_paths: list[str]
+) -> list[int]: ...
 def assignment_reference_facts(handle: ProgramHandle, path: Path) -> tuple[Any, ...]: ...
 def backend_version() -> str: ...
 def class_declaration_facts(handle: ProgramHandle, path: Path) -> tuple[Any, ...]: ...
@@ -49,6 +144,8 @@ def dataclass_facts(handle: ProgramHandle, path: Path) -> tuple[Any, ...]: ...
 def project_facts(handle: ProgramHandle, path: Path) -> tuple[Any, Any]: ...
 def parse_program(source: str, major: int, minor: int) -> ProgramHandle: ...
 def parse_programs(sources: list[str], major: int, minor: int) -> list[ProgramHandle | None]: ...
+def mapping_index_facts(handle: ProgramHandle) -> tuple[Any, Any, Any, Any]: ...
+def mapping_declaration_facts(handle: ProgramHandle) -> tuple[Any, Any, Any, Any]: ...
 def check_syntax(source: str, major: int, minor: int) -> tuple[int, int, str] | None: ...
 def list_syntax_nodes(
     source: str, major: int, minor: int

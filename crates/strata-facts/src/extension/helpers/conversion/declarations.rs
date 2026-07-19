@@ -6,7 +6,7 @@ use pyo3::{Bound, BoundObject, IntoPyObject, Py, PyAny, PyErr, PyResult, Python}
 use crate::constants;
 use crate::extension::helpers::conversion::annotations::location_object;
 use crate::extension::helpers::gateway::model_types::model_type;
-use crate::extension::helpers::gateway::program::ProgramHandle;
+use crate::extension::models::ProgramHandle;
 use crate::facts::models::{ModuleStatementRow, NamedCallRow, TypeDeclarationRow};
 
 pub(crate) fn module_declaration_facts_object(

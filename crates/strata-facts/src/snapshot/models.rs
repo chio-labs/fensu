@@ -1,5 +1,6 @@
 //! Snapshot rows describing walked repository files.
 
+use std::collections::{HashMap, HashSet};
 use std::ffi::OsString;
 use std::path::PathBuf;
 
@@ -11,61 +12,58 @@ pub struct WalkedEntry {
     pub root_relative_parts: Option<Vec<OsString>>,
 }
 
-/// One supported repository metadata question.
-#[derive(Clone, Copy, Debug)]
-pub enum RepositoryStatKind {
-    Exists,
-    IsFile,
-    IsDir,
-}
-
-/// One repository-relative metadata question.
+/// Filesystem metadata captured once for all dependency queries in a generation.
 #[derive(Debug)]
-pub struct RepositoryStatQuery {
-    pub relative_path: PathBuf,
-    pub kind: RepositoryStatKind,
+pub struct RepositoryObservationIndex {
+    pub(crate) repo_root: PathBuf,
+    pub(crate) entries: Vec<String>,
+    pub(crate) directory_order: Vec<String>,
+    pub(crate) direct_entries: HashMap<String, Vec<String>>,
+    pub(crate) file_paths: HashSet<String>,
+    pub(crate) directory_paths: HashSet<String>,
 }
 
-/// One resolved repository-relative identity and metadata answer.
-#[derive(Debug, PartialEq, Eq)]
-pub struct RepositoryStatAnswer {
-    pub dependency_path: String,
-    pub answer: bool,
-}
-
-/// One repository-relative Python glob question.
-#[derive(Debug)]
-pub struct RepositoryPythonGlobQuery {
-    pub relative_path: PathBuf,
+/// One persisted repository query consumed by the shared observation index.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct RepositoryObservationQuery {
+    pub relative_path: String,
+    pub kind: String,
+    pub pattern: Option<String>,
     pub recursive: bool,
 }
 
-/// One resolved repository-relative identity and ordered Python glob answer.
-#[derive(Debug, PartialEq, Eq)]
-pub struct RepositoryPythonGlobAnswer {
+/// One resolved repository query state produced from a shared traversal.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RepositoryObservationState {
     pub dependency_path: String,
-    pub answer: Vec<String>,
+    pub answer: RepositoryObservationAnswer,
 }
 
-/// One supported repository source or namespace question.
-#[derive(Clone, Copy, Debug)]
-pub enum RepositoryContextKind {
-    Source,
-    DirectoryEntries,
-    PythonAnchor,
+/// Supported canonical answers for persisted repository queries.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum RepositoryObservationAnswer {
+    None,
+    Bool(bool),
+    String(String),
+    Paths(Vec<String>),
 }
 
-/// One repository-relative source or namespace question.
-#[derive(Debug)]
-pub struct RepositoryContextQuery {
-    pub relative_path: PathBuf,
-    pub kind: RepositoryContextKind,
+impl RepositoryObservationAnswer {
+    /// Return an ordered path answer when this query produces paths.
+    pub fn as_paths(&self) -> Option<&[String]> {
+        match self {
+            Self::Paths(paths) => Some(paths),
+            _ => None,
+        }
+    }
 }
 
-/// One resolved identity and source or namespace answer.
-#[derive(Debug, PartialEq, Eq)]
-pub struct RepositoryContextAnswer {
-    pub dependency_path: String,
-    pub source_answer: Option<String>,
-    pub path_answer: Vec<String>,
+impl RepositoryObservationQuery {
+    /// Observe this query through an already-built repository index.
+    pub fn observe(
+        &self,
+        index: &RepositoryObservationIndex,
+    ) -> Option<RepositoryObservationState> {
+        index.observe(self)
+    }
 }

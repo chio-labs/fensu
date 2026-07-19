@@ -98,7 +98,7 @@ def _label(*, node: CallMapNode, repo_root: Path, path_mode: PathMode, use_color
     function: str = _color(text=f"{display_name}(...)", style=ANSI_FUNCTION, enabled=use_color)
     location: str = _location(
         path=node.definition.path,
-        line=node.definition.node.lineno,
+        line=node.definition.syntax.line,
         repo_root=repo_root,
         path_mode=path_mode,
     )

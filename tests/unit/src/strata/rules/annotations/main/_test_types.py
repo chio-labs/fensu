@@ -14,3 +14,4 @@ class AnnotationRuleTestCase:
     source: str
     expected_codes: tuple[str, ...]
     expected_lines: tuple[int | None, ...]
+    expected_faults: tuple[tuple[str, int | None, int | None, str, str | None], ...] = ()

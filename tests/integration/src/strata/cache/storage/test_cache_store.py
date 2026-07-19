@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sqlite3
 from pathlib import Path
 
 import pytest
@@ -14,6 +13,7 @@ from tests.integration.src.strata.cache.storage.helpers import (
     read_batches_during_concurrent_writes,
     read_during_concurrent_writes,
     write_records_concurrently,
+    write_while_database_blocked,
 )
 
 
@@ -200,13 +200,11 @@ def test_given_busy_database_when_publishing_then_preserves_committed_state(
         payload={"value": test_case.expected_payload_values[0]},
     )
     _ = store.write(relative_path=Path(test_case.relative_path), record=previous)
-    with sqlite3.connect(store.root, isolation_level=None) as blocker:
-        blocker.execute("BEGIN IMMEDIATE")
-        written: bool = store.write(
-            relative_path=Path(test_case.relative_path),
-            record=CacheRecord(kind=test_case.kind, payload={"value": 8}),
-        )
-        blocker.rollback()
+    written: bool = write_while_database_blocked(
+        store=store,
+        relative_path=Path(test_case.relative_path),
+        record=CacheRecord(kind=test_case.kind, payload={"value": 8}),
+    )
     loaded: CacheRecord | None = store.read(
         relative_path=Path(test_case.relative_path),
         expected_kind=test_case.kind,

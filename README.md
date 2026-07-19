@@ -33,13 +33,25 @@ Strata is functional and self-hosting, but remains pre-release.
 pip install stratalint
 ```
 
-The distribution name is `stratalint`; the installed command is `strata`.
+The authoring/API distribution is `stratalint`. It installs the lockstep
+`stratalint-cli` binary package, which exclusively owns the `strata` command.
+Core-only `check`, `init`, `rule`, and `--version` execution is native; custom
+rules, `skills`, and `map` launch the active environment's Python interpreter.
+
+`python -m strata` is the supported fallback if a binary wheel is unavailable.
+Installing `stratalint-cli` from its source distribution requires Rust. During
+an upgrade from a pre-split release, a stale Python-generated `strata` wrapper
+reports an actionable reinstall error; repair it with:
+
+```bash
+python -m pip install --force-reinstall stratalint-cli
+```
 
 Strata requires Python 3.12+ and includes a compiled analysis core. Prebuilt
 wheels cover Linux (x86_64, aarch64) and macOS (Intel, Apple silicon); on any
 other platform, `pip` builds from source, which requires a Rust toolchain.
-Native Windows is not yet verified — use WSL, where the Linux wheels work
-as-is.
+Release wheels are built for Windows x86_64 as well as the listed Linux and
+macOS platforms.
 
 ## Quick Start
 

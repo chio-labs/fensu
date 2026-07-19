@@ -3,11 +3,13 @@
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FactFamily {
     Annotations,
+    Comments,
     AssignmentReferences,
     ClassDeclarations,
     Comparisons,
     Contracts,
     ControlFlow,
+    Dataclasses,
     Declarations,
     Functions,
     Hygiene,
@@ -16,6 +18,7 @@ pub enum FactFamily {
     OuterStateMutations,
     ParameterMutationOccurrences,
     ParameterMutations,
+    Project,
     References,
     TestFunctions,
     TestModule,

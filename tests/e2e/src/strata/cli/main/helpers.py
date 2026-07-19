@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import os
+import shutil
 import sqlite3
 import subprocess
 import sys
 import tomllib
+from functools import partial
 from pathlib import Path
 from typing import cast
 
@@ -16,6 +18,24 @@ from tests.e2e.src.strata.cli.main._test_types import (
     CliProjectFile,
     ConfigurableLayoutCliTestCase,
 )
+
+_EXECUTABLE_NAMES: dict[str, str] = {"nt": "strata.exe", "posix": "strata"}
+_SITE_PACKAGES_DIRECTORIES: dict[str, str] = {
+    "nt": "Lib/site-packages",
+    "posix": "lib/python3.12/site-packages",
+}
+
+
+def installed_strata_executable() -> Path:
+    """Return the platform-specific native executable beside the active Python."""
+
+    return Path(sys.executable).with_name(_EXECUTABLE_NAMES[os.name])
+
+
+def isolated_site_packages(prefix: Path) -> Path:
+    """Return the platform-specific site-packages directory for an isolated prefix."""
+
+    return prefix / _SITE_PACKAGES_DIRECTORIES[os.name]
 
 
 def run_configurable_layout_case(
@@ -33,7 +53,7 @@ def run_configurable_layout_case(
     environment: dict[str, str] = dict(os.environ)
     environment["NO_COLOR"] = "1"
     return subprocess.run(
-        (str(Path(sys.executable).with_name("strata")), *test_case.argv),
+        (str(installed_strata_executable()), *test_case.argv),
         cwd=working_directory,
         env=environment,
         capture_output=True,
@@ -48,13 +68,38 @@ def run_cli_check(*, root: Path, argv: tuple[str, ...]) -> subprocess.CompletedP
     environment: dict[str, str] = dict(os.environ)
     environment["NO_COLOR"] = "1"
     return subprocess.run(
-        (str(Path(sys.executable).with_name("strata")), "check", "--no-color", *argv),
+        (str(installed_strata_executable()), "check", "--no-color", *argv),
         cwd=root,
         env=environment,
         capture_output=True,
         text=True,
         check=False,
     )
+
+
+def run_cli_terminal_check(*, root: Path, argv: tuple[str, ...]) -> tuple[int, str]:
+    """Run an installed check with stdout and stderr attached to a pseudo-terminal."""
+
+    master, slave = os.openpty()
+    environment: dict[str, str] = dict(os.environ)
+    environment.pop("NO_COLOR", None)
+    process: subprocess.Popen[bytes] = subprocess.Popen(
+        (str(installed_strata_executable()), "check", *argv),
+        cwd=root,
+        env=environment,
+        stdout=slave,
+        stderr=slave,
+    )
+    os.close(slave)
+    chunks: list[bytes] = []
+    try:
+        while chunk := os.read(master, 4096):
+            chunks.append(chunk)
+    except OSError:
+        pass
+    finally:
+        os.close(master)
+    return process.wait(), b"".join(chunks).decode()
 
 
 def run_cli_init(
@@ -65,7 +110,7 @@ def run_cli_init(
     environment: dict[str, str] = dict(os.environ)
     environment["NO_COLOR"] = "1"
     return subprocess.run(
-        (str(Path(sys.executable).with_name("strata")), "init", *argv),
+        (str(installed_strata_executable()), "init", *argv),
         cwd=root,
         env=environment,
         input=input_text,
@@ -85,12 +130,17 @@ def write_project_files(*, root: Path, files: tuple[CliProjectFile, ...]) -> Non
 
 
 def repository_text_snapshot(root: Path) -> tuple[tuple[str, str], ...]:
-    """Return every repository file and its text in deterministic order."""
+    """Return every user-authored repository text file in deterministic order."""
 
-    paths: filter[Path] = filter(Path.is_file, sorted(root.rglob("*")))
+    files: filter[Path] = filter(Path.is_file, sorted(root.rglob("*")))
+    paths: filter[Path] = filter(partial(_is_user_authored_file, root=root), files)
     return tuple(
         (path.relative_to(root).as_posix(), path.read_text(encoding="utf-8")) for path in paths
     )
+
+
+def _is_user_authored_file(path: Path, *, root: Path) -> bool:
+    return not path.relative_to(root).as_posix().startswith(".strata/cache/")
 
 
 def config_values(root: Path) -> tuple[tuple[str, tuple[str, ...]], ...]:
@@ -159,3 +209,59 @@ def remove_check_output_record(root: Path) -> int:
             (CACHE_CHECK_OUTPUT_KIND,),
         )
     return cursor.rowcount
+
+
+def run_command_parity(
+    *, root: Path, argv: tuple[str, ...]
+) -> tuple[subprocess.CompletedProcess[str], subprocess.CompletedProcess[str]]:
+    """Run one command through the Python fallback and installed native binary."""
+
+    environment: dict[str, str] = dict(os.environ)
+    environment["NO_COLOR"] = "1"
+    python_result: subprocess.CompletedProcess[str] = subprocess.run(
+        (sys.executable, "-m", "strata", *argv),
+        cwd=root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    native_result: subprocess.CompletedProcess[str] = subprocess.run(
+        (str(installed_strata_executable()), *argv),
+        cwd=root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return python_result, native_result
+
+
+def native_exec_trace(
+    *, root: Path, argv: tuple[str, ...], trace_path: Path
+) -> subprocess.CompletedProcess[str]:
+    """Run the installed binary under OS exec accounting."""
+
+    return subprocess.run(
+        (
+            shutil.which("strace") or "strace",
+            "-f",
+            "-e",
+            "trace=execve",
+            "-o",
+            str(trace_path),
+            str(installed_strata_executable()),
+            *argv,
+        ),
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def exec_trace_lines(trace_path: Path) -> tuple[str, ...]:
+    """Return process-exec events from one strace output file."""
+
+    lines: list[str] = trace_path.read_text(encoding="utf-8").splitlines()
+    return tuple(filter(lambda line: "execve(" in line, lines))

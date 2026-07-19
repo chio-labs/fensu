@@ -7,7 +7,11 @@ import tempfile
 from pathlib import Path
 from statistics import median
 
-from scripts.perfbudget._helpers.execution import dense_scenarios, standard_scenarios
+from scripts.perfbudget._helpers.execution import (
+    dense_scenarios,
+    standard_scenarios,
+    startup_scenarios,
+)
 from scripts.perfbudget._helpers.specification import resolved_budget_spec
 from scripts.perfbudget._helpers.validation import budget_failures, repeated_run_failures
 from scripts.perfbudget.constants import DENSE_FAULT_EVERY
@@ -29,6 +33,8 @@ def run_budget(
     cold_ceiling: float | None,
     warm_ceiling: float | None,
     edit_ceiling: float | None,
+    version_ceiling: float | None,
+    init_ceiling: float | None,
     runs: int = 1,
     executable: Path | None = None,
 ) -> int:
@@ -41,6 +47,8 @@ def run_budget(
         cold_ceiling=cold_ceiling,
         warm_ceiling=warm_ceiling,
         edit_ceiling=edit_ceiling,
+        version_ceiling=version_ceiling,
+        init_ceiling=init_ceiling,
         executable=executable,
     )
     if runs < 1:
@@ -94,6 +102,11 @@ def _measured_runs(*, spec: BudgetSpec, runs: int, workspace: Path) -> BudgetMea
             )
         )
         results.update(dense_scenarios(spec=spec, project=dense_project))
+        init_project: Path = workspace / f"init-{index}"
+        _ = generate_corpus(
+            spec=CorpusSpec(target=init_project, file_target=spec.file_target, seed=spec.seed)
+        )
+        results.update(startup_scenarios(spec=spec, project=init_project))
         measured.append(results)
         corpus_files = summary.files_written
         corpus_faults = summary.faults_expected

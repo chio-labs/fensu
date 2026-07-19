@@ -29,6 +29,8 @@ from strata.rules.layers._helpers.imports import (
 from strata.rules.layers.models import ModuleOwnership
 
 _wildcard_import_name: str = "*"
+_rules_domain_name: str = "rules"
+_exemplars_subdomain_name: str = "exemplars"
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,6 +150,8 @@ def no_internal_public_surface_imports(*, module: ast.Module, ctx: RuleContext) 
     """Reject internal imports routed through the bare runtime package surface."""
 
     del module
+    if ctx.domain() == _rules_domain_name and ctx.subdomain() == _exemplars_subdomain_name:
+        return []
     if ctx.scope() is not ScopeName.ROOT or (
         ctx.path.name == INIT_MODULE_FILE_NAME and len(ctx.relative_parts()) == 1
     ):

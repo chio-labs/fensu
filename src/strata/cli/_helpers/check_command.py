@@ -49,9 +49,6 @@ def execute_check(
             project_dir=project_dir,
             warn=args.warn,
             jobs=args.jobs,
-            invocation_dir=invocation_dir,
-            argument_paths=tuple(args.paths),
-            cache_enabled=args.cache_enabled,
         )
     except (CliCommandError, ConfigError) as error:
         stderr.write(f"{error}\n")

@@ -46,3 +46,5 @@ def test_given_ceiling_when_running_budget_then_returns_expected_exit_code(
 
     assert exit_code == test_case.expected_exit_code
     assert f"runs={test_case.expected_run_count}" in captured[0]
+    assert "scenario=version" in captured[0]
+    assert "scenario=init" in captured[0]

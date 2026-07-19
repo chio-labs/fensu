@@ -15,6 +15,10 @@ from strata.cache.storage.constants import CACHE_DATABASE_RELATIVE_PATH
 from strata.cache.storage.exceptions import CacheRecordError
 from strata.cli.main._skills import run_skills
 from strata.cli.main.check import run_check
+from strata.instrumentation.constants import (
+    EVALUATION_WORKER_PARTITION_OPERATION,
+    OPERATION_COUNTERS,
+)
 from tests.integration.src.strata.cli.main._test_types import (
     CacheableNoticeTestCase,
     CheckCacheModeTestCase,
@@ -43,7 +47,7 @@ from tests.integration.src.strata.cli.main.helpers import (
     RestoreProbe,
     SkillReadCounter,
     cache_snapshot,
-    counting_load_results,
+    counting_plan_native_generation,
     fail_skill_renderer,
     mutate_skill_freshness_state,
     prepare_normal_check_skill_state,
@@ -109,11 +113,25 @@ def test_given_evaluation_filter_when_running_check_then_reports_exact_cached_pa
     "test_case",
     [
         ParallelCheckTestCase(
-            description="parallel workers produce byte-identical no-cache reporting",
+            description="parallel no-cache workers produce byte-identical reporting",
             jobs="2",
+            cache_flag="--no-cache",
             expected_exit_code=1,
             expected_fault_fragments=("src/pkg/alpha.py", "src/pkg/gamma.py"),
-        )
+            expected_cache_exists=False,
+            expected_cache_stats_fragment="",
+            expected_worker_partitions=1,
+        ),
+        ParallelCheckTestCase(
+            description="parallel cold-cache workers publish byte-identical reporting",
+            jobs="2",
+            cache_flag="--cache",
+            expected_exit_code=1,
+            expected_fault_fragments=("src/pkg/alpha.py", "src/pkg/gamma.py"),
+            expected_cache_exists=True,
+            expected_cache_stats_fragment="hits=0 misses=3 invalidations=0 writes=3",
+            expected_worker_partitions=1,
+        ),
     ],
     ids=lambda case: case.description,
 )
@@ -134,21 +152,37 @@ def test_given_parallel_jobs_when_running_check_then_matches_serial_output(
     monkeypatch.chdir(tmp_path)
     serial_stdout: CaptureOutput = CaptureOutput()
     parallel_stdout: CaptureOutput = CaptureOutput()
+    parallel_stderr: CaptureOutput = CaptureOutput()
 
     serial_exit: int = run_check(
         argv=("--no-color", "--no-cache"), stdout=serial_stdout, stderr=CaptureOutput()
     )
+    OPERATION_COUNTERS.enable()
     parallel_exit: int = run_check(
-        argv=("--no-color", "--no-cache", "--jobs", test_case.jobs),
+        argv=(
+            "--no-color",
+            test_case.cache_flag,
+            "--cache-stats",
+            "--jobs",
+            test_case.jobs,
+        ),
         stdout=parallel_stdout,
-        stderr=CaptureOutput(),
+        stderr=parallel_stderr,
     )
+    operation_counts: dict[str, int] = OPERATION_COUNTERS.snapshot()
+    OPERATION_COUNTERS.disable()
 
     assert serial_exit == test_case.expected_exit_code
     assert parallel_exit == test_case.expected_exit_code
     assert parallel_stdout.getvalue() == serial_stdout.getvalue()
     for fragment in test_case.expected_fault_fragments:
         assert fragment in parallel_stdout.getvalue()
+    assert (tmp_path / CACHE_DATABASE_RELATIVE_PATH).exists() is test_case.expected_cache_exists
+    assert test_case.expected_cache_stats_fragment in parallel_stderr.getvalue()
+    assert (
+        operation_counts.get(EVALUATION_WORKER_PARTITION_OPERATION, 0)
+        == test_case.expected_worker_partitions
+    )
 
 
 @pytest.mark.parametrize(
@@ -946,7 +980,7 @@ def test_given_internal_cache_error_when_running_check_then_warns_and_preserves_
         del cache, kwargs
         raise CacheRecordError("publication rejected")
 
-    monkeypatch.setattr(ResultCache, "publish", raise_publish)
+    monkeypatch.setattr(ResultCache, "publish_native_generation", raise_publish)
 
     exit_code: int = run_check(argv=test_case.argv, stdout=stdout, stderr=stderr)
 
@@ -1247,7 +1281,7 @@ def test_given_unchanged_tree_when_rechecking_then_short_circuits_stored_output(
     (package / "clean.py").write_text("CLEAN: int = 1\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     probe: RestoreProbe = RestoreProbe()
-    monkeypatch.setattr("strata.cache.results._helpers.conversion.restore_file_evaluation", probe)
+    monkeypatch.setattr("strata.cache.results._helpers.conversion.restore_native_evaluation", probe)
     cold_stdout: CaptureOutput = CaptureOutput()
     warm_stdout: CaptureOutput = CaptureOutput()
     edited_stdout: CaptureOutput = CaptureOutput()
@@ -1280,7 +1314,8 @@ def test_given_unchanged_tree_when_rechecking_then_short_circuits_stored_output(
             description="warm and edited runs replay observations without reading records",
             expected_exit_code=1,
             expected_warm_loads=0,
-            expected_edited_loads=0,
+            expected_edited_loads=1,
+            expected_warm_context_loads=0,
         )
     ],
     ids=lambda case: case.description,
@@ -1301,8 +1336,8 @@ def test_given_unchanged_tree_when_rechecking_then_skips_record_loads(
     monkeypatch.chdir(tmp_path)
     counter: CallCounter = CallCounter()
     monkeypatch.setattr(
-        "strata.cache.results.classes.result_cache.ResultCache.load_results",
-        counting_load_results(counter),
+        "strata.cache.results.classes.result_cache.ResultCache.plan_native_generation",
+        counting_plan_native_generation(counter),
     )
     cold_stdout: CaptureOutput = CaptureOutput()
     warm_stdout: CaptureOutput = CaptureOutput()

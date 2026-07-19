@@ -7,7 +7,7 @@ use crate::constants;
 use crate::extension::helpers::conversion::annotations::location_object;
 use crate::extension::helpers::conversion::declarations::to_object;
 use crate::extension::helpers::gateway::model_types::model_type;
-use crate::extension::helpers::gateway::program::ProgramHandle;
+use crate::extension::models::ProgramHandle;
 
 pub(crate) fn function_facts_object(
     py: Python<'_>,
@@ -77,11 +77,7 @@ pub(crate) fn dataclass_facts_object(
     program: &ProgramHandle,
     path: &Bound<'_, PyAny>,
 ) -> PyResult<Py<PyAny>> {
-    let rows = crate::facts::main::extract_dataclasses::extract_dataclasses(
-        program.module(),
-        program.index(),
-        program.source(),
-    );
+    let rows = program.dataclass_rows();
     let constructor = model_type(py, constants::DATACLASS_FACT_NAME)?;
     let mut objects: Vec<Py<PyAny>> = Vec::with_capacity(rows.len());
     for row in rows {
@@ -89,7 +85,7 @@ pub(crate) fn dataclass_facts_object(
         let arguments = PyTuple::new(
             py,
             vec![
-                to_object(py, row.name)?,
+                to_object(py, &row.name)?,
                 location_object(py, path, row.line, row.column)?.unbind(),
                 fields.into_any().unbind(),
                 to_object(py, row.frozen)?,

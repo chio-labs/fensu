@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from strata.cache.storage.constants import CACHE_DATABASE_RELATIVE_PATH
 from strata.config.models import Config
 from strata.scaffolding._helpers.drift import measure_drift
 from strata.scaffolding.models import DriftSummary
@@ -44,8 +45,11 @@ def test_given_tiny_real_project_when_measuring_drift_then_aggregates_selected_f
     config: Config = Config(roots=("src/pkg",), tests=(), select=test_case.select)
 
     summary: DriftSummary = measure_drift(repository=tmp_path, config=config)
+    replayed: DriftSummary = measure_drift(repository=tmp_path, config=config)
 
     assert tuple(code for code, _, _ in summary.family_counts) == test_case.expected_family_codes
     assert tuple(count for _, _, count in summary.family_counts) == test_case.expected_family_counts
     assert summary.fault_count == test_case.expected_fault_count
     assert summary.file_count == test_case.expected_file_count
+    assert replayed == summary
+    assert (tmp_path / CACHE_DATABASE_RELATIVE_PATH).is_file()

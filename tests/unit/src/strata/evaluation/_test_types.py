@@ -8,6 +8,16 @@ from strata.rules.authoring.types import ExecutionOwner, Threshold
 
 
 @dataclass(frozen=True)
+class DefaultWorkerCountTestCase:
+    """One repository size, host CPU count, and expected automatic workers."""
+
+    description: str
+    target_count: int
+    cpu_count: int | None
+    expected_workers: int
+
+
+@dataclass(frozen=True)
 class EvaluationSelectionTestCase:
     """Discovered paths, selection policy, and expected direct targets."""
 
@@ -209,15 +219,6 @@ class ExecutionOwnerEvaluationTestCase:
     files: tuple[tuple[str, str], ...]
     execution_owner: ExecutionOwner
     expected_invocation_paths: tuple[str, ...]
-
-
-@dataclass(frozen=True)
-class PrewarmFamilyPlanTestCase:
-    """Mixed-scope sources and the expected per-file native fact-family plans."""
-
-    description: str
-    files: tuple[tuple[str, str], ...]
-    expected_family_plans: tuple[tuple[str, ...], ...]
 
 
 @dataclass(frozen=True)

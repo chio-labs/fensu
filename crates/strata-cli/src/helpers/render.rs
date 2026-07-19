@@ -7,6 +7,8 @@ const RED: &str = "\x1b[1;31m";
 const GREEN: &str = "\x1b[1;32m";
 const DIM: &str = "\x1b[2m";
 const RESET: &str = "\x1b[0m";
+const REPORT_LINE_WIDTH: usize = 100;
+const HELP_CONTINUATION: &str = "          ";
 
 pub(crate) struct ReportRequest<'a> {
     pub(crate) faults: &'a [Fault],
@@ -143,11 +145,7 @@ fn format_fault(fault: &Fault, root: &Path, color: bool) -> String {
     }
     if let Some(remediation) = &fault.remediation {
         let label = if fault.warning { "warning" } else { "help" };
-        lines.push(if color {
-            format!("  {DIM}= {label}:{RESET} {remediation}")
-        } else {
-            format!("  = {label}: {remediation}")
-        });
+        lines.extend(wrapped_help(remediation, label, color));
     } else if fault.warning {
         lines.push(if color {
             format!("  {DIM}= warning{RESET}")
@@ -156,6 +154,65 @@ fn format_fault(fault: &Fault, root: &Path, color: bool) -> String {
         });
     }
     lines.join("\n")
+}
+
+fn wrapped_help(remediation: &str, label: &str, color: bool) -> Vec<String> {
+    let prefix = format!("  = {label}: ");
+    let mut wrapped = wrap_text(remediation, &prefix, HELP_CONTINUATION);
+    if color {
+        let first = wrapped[0].strip_prefix(&prefix).unwrap_or(&wrapped[0]);
+        wrapped[0] = format!("  {DIM}= {label}:{RESET} {first}");
+    }
+    wrapped
+}
+
+fn wrap_text(text: &str, initial_indent: &str, subsequent_indent: &str) -> Vec<String> {
+    let mut lines = Vec::new();
+    let mut line = initial_indent.to_owned();
+    let mut line_len = initial_indent.chars().count();
+    let mut has_content = false;
+    for word in text.split_whitespace() {
+        let separator_len = usize::from(has_content);
+        let word_len = word.chars().count();
+        if line_len + separator_len + word_len <= REPORT_LINE_WIDTH {
+            if has_content {
+                line.push(' ');
+                line_len += 1;
+            }
+            line.push_str(word);
+            line_len += word_len;
+            has_content = true;
+            continue;
+        }
+        if has_content {
+            lines.push(line);
+            line = subsequent_indent.to_owned();
+            line_len = subsequent_indent.chars().count();
+            has_content = false;
+        }
+        let mut chunks = word.chars();
+        loop {
+            let capacity = REPORT_LINE_WIDTH.saturating_sub(line_len);
+            let chunk: String = chunks.by_ref().take(capacity).collect();
+            if chunk.is_empty() {
+                break;
+            }
+            line.push_str(&chunk);
+            line_len += chunk.chars().count();
+            has_content = true;
+            if line_len < REPORT_LINE_WIDTH {
+                break;
+            }
+            lines.push(line);
+            line = subsequent_indent.to_owned();
+            line_len = subsequent_indent.chars().count();
+            has_content = false;
+        }
+    }
+    if has_content || lines.is_empty() {
+        lines.push(line);
+    }
+    lines
 }
 
 fn source_line(path: &Path, line: u32) -> Option<String> {

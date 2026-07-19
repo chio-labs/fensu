@@ -2,6 +2,7 @@
 
 use std::sync::{Arc, OnceLock};
 
+#[cfg(feature = "python")]
 use pyo3::pyclass;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use ruff_python_ast::token::Tokens;
@@ -72,7 +73,10 @@ struct ProgramData {
 }
 
 /// One shareable parsed Python module retained for repeated fact extraction.
-#[pyclass(frozen, module = "strata._native", skip_from_py_object)]
+#[cfg_attr(
+    feature = "python",
+    pyclass(frozen, module = "strata._native", skip_from_py_object)
+)]
 #[derive(Clone, Debug)]
 pub struct ProgramHandle {
     data: Arc<ProgramData>,

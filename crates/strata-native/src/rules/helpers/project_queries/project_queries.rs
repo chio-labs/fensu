@@ -15,6 +15,7 @@ use crate::rules::constants::{
     TEST_SCRIPTS_MIRROR_DEPTH_CODE, TEST_SRC_AREA_EXISTS_CODE, TEST_SRC_MIRROR_DEPTH_CODE,
     TEST_SRC_PACKAGE_EXISTS_CODE, TOOLING_PACKAGE_LAYOUT_CODE,
 };
+use crate::rules::helpers::role_project_layout_queries;
 use crate::rules::models::{NativeProjectQuery, NativeRuleContext};
 
 const INIT_FILE: &str = "__init__.py";
@@ -146,6 +147,13 @@ pub(crate) fn plan_project_queries(
             > 0
     {
         queries.push(query("custom_rule_coverage", "", ""));
+    }
+    for code in &selected {
+        if let Some(layout_queries) =
+            role_project_layout_queries::project_layout_queries(code, context)
+        {
+            queries.extend(layout_queries);
+        }
     }
     let mut seen = HashSet::new();
     queries

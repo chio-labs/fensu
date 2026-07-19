@@ -65,6 +65,7 @@ class NativeUncachedCountsTestCase:
     file_target: int
     seed: int
     expected_python_parses: int
+    expected_python_core_callbacks: int
 
 
 @dataclass(frozen=True)

@@ -6,6 +6,8 @@ pub(crate) mod annotations;
 pub(crate) mod hygiene;
 #[path = "layers/local.rs"]
 mod layer_local;
+#[path = "layers/project.rs"]
+mod layer_project;
 #[path = "layers/layers.rs"]
 pub(crate) mod layers;
 #[path = "naming/naming.rs"]
@@ -18,6 +20,12 @@ pub(crate) mod project_queries;
 mod role_declarations;
 #[path = "roles/paths.rs"]
 mod role_paths;
+#[path = "roles/project_layout.rs"]
+mod role_project_layout;
+#[path = "roles/project_layout_paths.rs"]
+mod role_project_layout_paths;
+#[path = "roles/project_layout_queries.rs"]
+mod role_project_layout_queries;
 #[path = "roles/surfaces.rs"]
 mod role_surfaces;
 #[path = "roles/roles.rs"]

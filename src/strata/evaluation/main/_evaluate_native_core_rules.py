@@ -14,6 +14,8 @@ from strata.config.models import Config
 from strata.evaluation._helpers.native_rules import (
     observe_native_rule_query_plans,
     prepare_native_execution_requests,
+    prepare_native_project_plane,
+    record_native_parses,
 )
 from strata.evaluation._helpers.parsing import parse_scoped_file, prewarm_native_programs
 from strata.evaluation.models import (
@@ -25,7 +27,6 @@ from strata.evaluation.types import (
     NativeFaultRow,
     NativeFaultsByCode,
 )
-from strata.instrumentation.constants import NATIVE_PARSE_OPERATION, OPERATION_COUNTERS
 from strata.rules.authoring.models import Fault, RuleSpec
 from strata.rules.roles.types import RoleCode
 
@@ -61,10 +62,20 @@ def evaluate_native_core_rules(
         repo_root=repo_root,
         tooling_packages=tooling_packages,
         scope_roots=scope_roots,
+        project=project,
     )
-    OPERATION_COUNTERS.record(operation=NATIVE_PARSE_OPERATION, amount=len(sources))
+    project_files, entrypoint_modules = prepare_native_project_plane(
+        targets=targets,
+        codes_by_target=codes_by_target,
+        project=project,
+        repo_root=repo_root,
+        scope_roots=scope_roots,
+    )
+    record_native_parses(sources=sources)
     batch, plans, failures = native.plan_native_execution_batch(
         [request for request, _ in prepared],
+        project_files,
+        entrypoint_modules,
         sys.version_info[0],
         sys.version_info[1],
     )

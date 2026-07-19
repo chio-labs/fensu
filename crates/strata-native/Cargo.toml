@@ -24,6 +24,7 @@ sha2.workspace = true
 serde_json.workspace = true
 strata-facts.workspace = true
 strata-memory = { workspace = true, optional = true }
+unicode-ident.workspace = true
 
 [features]
 extension-module = ["pyo3/extension-module"]

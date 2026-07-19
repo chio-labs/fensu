@@ -2,6 +2,8 @@
 
 use std::collections::HashMap;
 
+use strata_facts::extension::models::ProgramHandle;
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NativeFaultRow {
     pub code: String,
@@ -40,6 +42,7 @@ pub struct NativeRuleContext {
     pub scope_roots: Vec<(String, String)>,
     pub observations: HashMap<String, Vec<String>>,
     pub custom_registrations: Vec<(String, String, String, String, u32, u32)>,
+    pub repo_root: String,
 }
 
 impl NativeRuleContext {
@@ -49,4 +52,18 @@ impl NativeRuleContext {
             .map(Vec::as_slice)
             .unwrap_or_default()
     }
+}
+
+#[derive(Clone, Debug)]
+pub struct NativeProjectModule {
+    pub path: String,
+    pub scope: String,
+    pub module_parts: Vec<String>,
+    pub program: ProgramHandle,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct NativeProjectPlane {
+    pub modules: Vec<NativeProjectModule>,
+    pub entrypoint_modules: Vec<String>,
 }

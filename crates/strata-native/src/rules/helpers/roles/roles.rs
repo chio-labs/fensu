@@ -2,7 +2,7 @@
 
 use strata_facts::extension::models::ProgramHandle;
 
-use crate::rules::helpers::{role_declarations, role_paths, role_surfaces};
+use crate::rules::helpers::{role_declarations, role_paths, role_project_layout, role_surfaces};
 use crate::rules::models::{NativeFaultRow, NativeRuleContext};
 
 const CORE_RULE_CODE_LENGTH: usize = 6;
@@ -14,6 +14,7 @@ pub(crate) fn role_faults(
     context: &NativeRuleContext,
 ) -> Option<Vec<NativeFaultRow>> {
     role_declarations::declaration_faults(program, code, context)
+        .or_else(|| role_project_layout::project_layout_faults(code, context))
         .or_else(|| role_paths::path_faults(code, context))
         .or_else(|| role_surfaces::surface_faults(program, code, context))
 }

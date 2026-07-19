@@ -1,0 +1,1 @@
+"""Agent-document generation domain."""

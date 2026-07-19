@@ -1,0 +1,14 @@
+"""Naming rule-family types."""
+
+from __future__ import annotations
+
+from enum import StrEnum
+
+
+class NamingCode(StrEnum):
+    """Stable naming rule codes."""
+
+    VALIDATOR_MUST_NOT_RETURN = "SFN001"
+    PREDICATE_MUST_RETURN_BOOL = "SFN002"
+    VALUE_NAME_MUST_RETURN_VALUE = "SFN003"
+    ITERATOR_NAME_MUST_PRODUCE_ITERATOR = "SFN004"

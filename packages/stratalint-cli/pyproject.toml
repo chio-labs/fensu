@@ -1,0 +1,27 @@
+[build-system]
+requires = ["maturin>=1.14,<2"]
+build-backend = "maturin"
+
+[project]
+name = "stratalint-cli"
+version = "0.21.1" # x-release-please-version
+description = "Native command-line executable for stratalint"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Rust",
+  "Topic :: Software Development :: Quality Assurance",
+]
+
+[project.urls]
+Homepage = "https://github.com/chio-labs/strata"
+Issues = "https://github.com/chio-labs/strata/issues"
+Repository = "https://github.com/chio-labs/strata"
+
+[tool.maturin]
+bindings = "bin"
+manifest-path = "../../crates/strata-cli/Cargo.toml"

@@ -1,0 +1,1 @@
+"""Helpers for shape rules."""

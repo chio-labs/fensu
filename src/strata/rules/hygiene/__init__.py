@@ -1,0 +1,1 @@
+"""Hygiene rule family."""

@@ -1,0 +1,182 @@
+"""Parse discovered files into evaluation models."""
+
+from __future__ import annotations
+
+import hashlib
+from pathlib import Path
+from typing import Never
+
+from strata.analysis.classes.file_analysis import PythonFileAnalysis
+from strata.analysis.classes.lazy_syntax_artifacts import LazySyntaxArtifacts
+from strata.analysis.exceptions import PythonSourceParseError
+from strata.analysis.main.decode_source import decode_python_source
+from strata.analysis.main.parse_native_program import parse_native_program
+from strata.analysis.main.parse_native_programs import parse_native_programs
+from strata.analysis.main.parse_source import parse_python_source
+from strata.discovery.main.position import position_facts
+from strata.discovery.models import ScopedFile
+from strata.evaluation.exceptions import ParseError
+from strata.evaluation.models import ParsedModule, SourceSnapshot
+from strata.evaluation.types import EvaluationProjectAnalysis
+
+
+def read_source_snapshot(*, path: Path) -> SourceSnapshot:
+    """Read source bytes once and return their stable identity."""
+
+    content: bytes = path.read_bytes()
+    return SourceSnapshot(content=content, fingerprint=hashlib.sha256(content).hexdigest())
+
+
+def parse_scoped_file(
+    *,
+    scoped_file: ScopedFile,
+    source_snapshot: SourceSnapshot | None = None,
+) -> ParsedModule:
+    """Read and parse one discovered Python file."""
+
+    snapshot: SourceSnapshot = source_snapshot or read_source_snapshot(path=scoped_file.path)
+    native_parsed: ParsedModule | None = _parse_native_scoped_file(
+        scoped_file=scoped_file, snapshot=snapshot
+    )
+    if native_parsed is not None:
+        return native_parsed
+    return _raise_parse_error(scoped_file=scoped_file, snapshot=snapshot)
+
+
+def _raise_parse_error(*, scoped_file: ScopedFile, snapshot: SourceSnapshot) -> Never:
+    """Raise the CPython syntax error or a native-parser compatibility error."""
+
+    try:
+        _ = parse_python_source(
+            path=scoped_file.path,
+            content=snapshot.content,
+            source_fingerprint=snapshot.fingerprint,
+        )
+    except PythonSourceParseError as error:
+        message: str = (
+            f"Could not parse {scoped_file.path}: syntax is not valid for the Python "
+            "interpreter running strata. Run strata under the target project's Python "
+            "version or newer."
+        )
+        raise ParseError(
+            path=scoped_file.path, message=message, line=error.line, column=error.column
+        ) from error
+    message = (
+        f"Could not analyze {scoped_file.path}: syntax is valid for the running Python "
+        "interpreter but unsupported by the required native analyzer. Upgrade stratalint "
+        "or report the syntax compatibility gap."
+    )
+    raise ParseError(
+        path=scoped_file.path,
+        message=message,
+        line=None,
+        column=None,
+    )
+
+
+def prewarm_scoped_files(
+    *,
+    project: EvaluationProjectAnalysis,
+    scoped_files: tuple[ScopedFile, ...],
+) -> tuple[object | None, ...]:
+    """Batch-parse upcoming files, seed the project, and return aligned native handles."""
+
+    readable: list[tuple[int, ScopedFile, SourceSnapshot, str]] = []
+    for index, scoped_file in enumerate(scoped_files):
+        try:
+            snapshot: SourceSnapshot = read_source_snapshot(path=scoped_file.path)
+            source: str = decode_python_source(path=scoped_file.path, content=snapshot.content)
+        except (OSError, PythonSourceParseError):
+            continue
+        readable.append((index, scoped_file, snapshot, source))
+    programs: tuple[object | None, ...] = parse_native_programs(
+        sources=tuple(source for _, _, _, source in readable)
+    )
+    aligned: list[object | None] = [None] * len(scoped_files)
+    for (index, scoped_file, snapshot, source), program in zip(readable, programs, strict=True):
+        aligned[index] = program
+        if program is None:
+            continue
+        artifacts: LazySyntaxArtifacts = LazySyntaxArtifacts(path=scoped_file.path, source=source)
+        project.prewarm(
+            parsed=_build_parsed_module(
+                scoped_file=scoped_file,
+                source=source,
+                source_fingerprint=snapshot.fingerprint,
+                artifacts=artifacts,
+                program=program,
+            )
+        )
+    return tuple(aligned)
+
+
+def prewarm_native_programs(
+    *,
+    project: EvaluationProjectAnalysis,
+    scoped_files: tuple[ScopedFile, ...],
+    sources: tuple[str, ...],
+    source_fingerprints: tuple[str, ...],
+    programs: tuple[object, ...],
+) -> None:
+    """Adopt shared native programs for the Python callback target set."""
+
+    for scoped_file, source, fingerprint, program in zip(
+        scoped_files,
+        sources,
+        source_fingerprints,
+        programs,
+        strict=True,
+    ):
+        project.prewarm(
+            parsed=_build_parsed_module(
+                scoped_file=scoped_file,
+                source=source,
+                source_fingerprint=fingerprint,
+                artifacts=LazySyntaxArtifacts(path=scoped_file.path, source=source),
+                program=program,
+            )
+        )
+
+
+def _parse_native_scoped_file(
+    *, scoped_file: ScopedFile, snapshot: SourceSnapshot
+) -> ParsedModule | None:
+    try:
+        source: str = decode_python_source(path=scoped_file.path, content=snapshot.content)
+    except PythonSourceParseError:
+        return None
+    program: object | None = parse_native_program(source=source)
+    if program is None:
+        return None
+    artifacts: LazySyntaxArtifacts = LazySyntaxArtifacts(path=scoped_file.path, source=source)
+    return _build_parsed_module(
+        scoped_file=scoped_file,
+        source=source,
+        source_fingerprint=snapshot.fingerprint,
+        artifacts=artifacts,
+        program=program,
+    )
+
+
+def _build_parsed_module(
+    *,
+    scoped_file: ScopedFile,
+    source: str,
+    source_fingerprint: str,
+    artifacts: LazySyntaxArtifacts,
+    program: object,
+) -> ParsedModule:
+    analysis: PythonFileAnalysis = PythonFileAnalysis(
+        path=scoped_file.path,
+        source=source,
+        artifacts=artifacts,
+        program=program,
+    )
+    return ParsedModule(
+        scoped_file=scoped_file,
+        source=source,
+        source_fingerprint=source_fingerprint,
+        syntax_artifacts=artifacts,
+        position=position_facts(scoped_file),
+        analysis=analysis,
+    )

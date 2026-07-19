@@ -1,0 +1,63 @@
+name: Memory Release Proof
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wheel-e2e:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x86_64 wheel and E2E
+            runner: windows-latest
+            platform: windows
+            architecture: x86_64
+            target: x86_64
+          - name: macOS Intel wheel and E2E
+            runner: macos-15-intel
+            platform: macos
+            architecture: x86_64
+            target: x86_64
+          - name: macOS Apple Silicon wheel and E2E
+            runner: macos-15
+            platform: macos
+            architecture: aarch64
+            target: aarch64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv python install 3.14
+      - name: Run native Memory engine tests
+        run: cargo test -p strata-memory --features sqlite-engine --test engine
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          args: --release --out dist --features extension-module,memory
+          target: ${{ matrix.target }}
+      - name: Install wheel into clean Python 3.14 environment
+        shell: bash
+        run: |
+          uv venv --python 3.14 .release-proof
+          wheel=$(find dist -name '*.whl' -print -quit)
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            python=.release-proof/Scripts/python.exe
+          else
+            python=.release-proof/bin/python
+          fi
+          uv pip install --python "$python" "$wheel"
+          "$python" .github/scripts/memory_release_proof.py \
+            --platform "${{ matrix.platform }}" \
+            --architecture "${{ matrix.architecture }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: memory-proof-${{ matrix.platform }}-${{ matrix.architecture }}
+          path: dist

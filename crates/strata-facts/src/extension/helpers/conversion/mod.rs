@@ -6,6 +6,7 @@ pub mod declarations;
 pub mod functions;
 pub mod harness;
 pub mod hygiene;
+pub mod mapping;
 pub mod references;
 pub mod rule_authoring;
 pub mod state;

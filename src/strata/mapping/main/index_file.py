@@ -1,6 +1,6 @@
 """Index one immutable mapping source snapshot."""
 
-from strata.mapping._helpers.index import build_file_index
+from strata.mapping._helpers.native_index import build_file_index
 from strata.mapping.models import ProjectIndex, SourceSnapshot
 
 

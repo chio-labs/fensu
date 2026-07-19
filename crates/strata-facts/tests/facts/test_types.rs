@@ -34,3 +34,14 @@ pub(crate) struct RuleAuthoringRowsTestCase {
     pub(crate) expected_mutation_kinds: &'static [&'static str],
     pub(crate) expected_first_only_count: usize,
 }
+
+pub(crate) struct MappingRowsTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) source: &'static str,
+    pub(crate) expected_declaration_function_count: usize,
+    pub(crate) expected_class_name: &'static str,
+    pub(crate) expected_annotation_import_count: usize,
+    pub(crate) expected_parameter_name: &'static str,
+    pub(crate) expected_binding_name: Option<&'static str>,
+    pub(crate) expected_calls: &'static [&'static str],
+}

@@ -54,7 +54,8 @@ from strata.mapping.constants import (
 )
 from strata.mapping.exceptions import MapError
 from strata.mapping.main.discover_sources import discover_mapping_sources
-from strata.mapping.main.index_file import index_mapping_file
+from strata.mapping.main.index_declarations import index_mapping_declarations
+from strata.mapping.main.index_files import index_mapping_files
 from strata.mapping.main.select import select_mapping_function
 from strata.mapping.main.tree import build_mapping_tree
 from strata.mapping.models import (
@@ -142,12 +143,12 @@ def _rebuild(
         for identity in identities
     )
     records: tuple[CacheRecord | None, ...] = store.read_batch(reads=reads)
-    declarations: list[FileDeclarations] = []
+    declarations: list[FileDeclarations | None] = []
     indexes: dict[str, ProjectIndex] = {}
     writes: list[CacheWrite] = []
     reused_records: list[tuple[Path, FileDeclarations]] = []
     reused: int = 0
-    parsed: int = 0
+    missing: list[tuple[int, SourceSnapshot, str]] = []
     for snapshot, identity, record in zip(snapshots, identities, records, strict=True):
         declaration: FileDeclarations | None = decode_file_declarations(record)
         if declaration is not None and file_declarations_are_current(
@@ -156,21 +157,27 @@ def _rebuild(
             reused += 1
             reused_records.append((MAP_FILE_PREFIX / identity, declaration))
         else:
-            indexed: ProjectIndex = index_mapping_file(snapshot=snapshot)
-            indexes[identity] = indexed
-            declaration = seal_file_declarations(
-                _declarations(snapshot=snapshot, identity=identity, index=indexed)
-            )
-            writes.append(
-                CacheWrite(
-                    relative_path=MAP_FILE_PREFIX / identity,
-                    record=file_declarations_record(declaration),
-                )
-            )
-            parsed += 1
+            missing.append((len(declarations), snapshot, identity))
         declarations.append(declaration)
+    indexed_missing: tuple[ProjectIndex, ...] = index_mapping_declarations(
+        snapshots=tuple(snapshot for _, snapshot, _ in missing)
+    )
+    for (position, snapshot, identity), indexed in zip(missing, indexed_missing, strict=True):
+        declaration = seal_file_declarations(
+            _declarations(snapshot=snapshot, identity=identity, index=indexed)
+        )
+        declarations[position] = declaration
+        writes.append(
+            CacheWrite(
+                relative_path=MAP_FILE_PREFIX / identity,
+                record=file_declarations_record(declaration),
+            )
+        )
+    complete_declarations: tuple[FileDeclarations, ...] = tuple(
+        declaration for declaration in declarations if declaration is not None
+    )
     manifest: MapManifest = seal_manifest(
-        _manifest(declarations=tuple(declarations), input_fingerprint=input_fingerprint)
+        _manifest(declarations=complete_declarations, input_fingerprint=input_fingerprint)
     )
     writes.append(CacheWrite(relative_path=MAP_MANIFEST_PATH, record=manifest_record(manifest)))
     publication: CacheMutationOutcome = store.mutate_batch(
@@ -198,7 +205,7 @@ def _rebuild(
     return CachedCallMap(
         root=tree,
         stats=MapCacheStats(
-            parsed_files=parsed + resolver.parsed_files,
+            parsed_files=len(missing) + resolver.parsed_files,
             reused_file_records=reused,
             writes=_publication_write_count(publication),
             storage_failed=not publication.published,
@@ -246,8 +253,7 @@ def _fresh_after_internal_failure(
 ) -> CachedCallMap:
     functions: dict[str, FunctionDefinition] = {}
     classes: dict[str, ClassDefinition] = {}
-    for snapshot in snapshots:
-        indexed: ProjectIndex = index_mapping_file(snapshot=snapshot)
+    for indexed in index_mapping_files(snapshots=snapshots):
         functions.update(indexed.functions)
         classes.update(indexed.classes)
     index: ProjectIndex = ProjectIndex(

@@ -20,6 +20,7 @@ use crate::extension::helpers::conversion::harness::{
 use crate::extension::helpers::conversion::hygiene::{
     control_flow_facts_objects, hygiene_facts_object,
 };
+use crate::extension::helpers::conversion::mapping::mapping_rows_object;
 use crate::extension::helpers::conversion::references::{
     reference_facts_object, test_module_facts_object,
 };
@@ -27,6 +28,8 @@ use crate::extension::helpers::conversion::state::outer_state_mutation_facts_obj
 use crate::extension::helpers::gateway::model_types::model_type;
 use crate::extension::models::ProgramHandle;
 use crate::facts::main::enumerate_nodes::enumerate_nodes;
+use crate::facts::mapping::main::extract_mapping_declarations::extract_mapping_declarations;
+use crate::facts::mapping::main::extract_mapping_facts::extract_mapping_facts;
 use crate::facts::types::FactFamily;
 use crate::parsing::main::parse_strict::parse_strict;
 use crate::positions::main::locate_offset::locate_offset;
@@ -74,6 +77,29 @@ pub(crate) fn parse_programs(
 ) -> Vec<Option<ProgramHandle>> {
     let version = PythonVersion { major, minor };
     py.detach(move || ProgramHandle::parse_many(sources, version))
+}
+
+#[pyfunction]
+pub(crate) fn mapping_index_facts(
+    py: Python<'_>,
+    handle: &Bound<'_, ProgramHandle>,
+) -> PyResult<Py<PyAny>> {
+    let program = handle.get();
+    let rows =
+        py.detach(|| extract_mapping_facts(program.module(), program.index(), program.source()));
+    mapping_rows_object(py, &rows)
+}
+
+#[pyfunction]
+pub(crate) fn mapping_declaration_facts(
+    py: Python<'_>,
+    handle: &Bound<'_, ProgramHandle>,
+) -> PyResult<Py<PyAny>> {
+    let program = handle.get();
+    let rows = py.detach(|| {
+        extract_mapping_declarations(program.module(), program.index(), program.source())
+    });
+    mapping_rows_object(py, &rows)
 }
 
 #[pyfunction]

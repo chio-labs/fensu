@@ -17,10 +17,7 @@ pub(crate) fn run_init(arguments: &[String]) -> Result<CliOutput, String> {
     if options.help {
         return Ok(CliOutput::success("usage: strata init [-h] [--yes] [--root ROOTS [ROOTS ...]] [--tests TESTS [TESTS ...]] [--tooling TOOLING [TOOLING ...]] [--skills | --no-skills] [--name NAME]\n\noptions:\n  -h, --help\n".to_owned()));
     }
-    let repository = env::current_dir()
-        .map_err(|error| error.to_string())?
-        .canonicalize()
-        .map_err(|error| error.to_string())?;
+    let repository = env::current_dir().map_err(|error| error.to_string())?;
     if let Some(path) = local_config(&repository) {
         return Ok(CliOutput::success(format!(
             "Strata configuration already exists: {} (nothing to do)\n",

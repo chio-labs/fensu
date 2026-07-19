@@ -1,5 +1,6 @@
 use std::env;
 use std::fs;
+use std::io::{self, IsTerminal};
 use std::path::Path;
 
 use strata_facts::extension::models::ProgramHandle;
@@ -53,9 +54,11 @@ pub(crate) fn execute_check(arguments: &[String]) -> Result<CliOutput, String> {
     let discovered = discover(&root, &config)?;
     let (mut sources, excluded) = select_sources(discovered, &config);
     let cache_enabled = options.cache_enabled.unwrap_or(config.cache_enabled);
+    let color =
+        !options.no_color && env::var_os("NO_COLOR").is_none() && io::stdout().is_terminal();
     let identity = check_identity(&config, &sources, options.warn);
     if cache_enabled {
-        if let Some(cached) = cache::read(&root, &identity, &sources) {
+        if let Some(cached) = cache::read(&root, &identity, &sources, color) {
             if options.cache_stats {
                 stderr.push_str(&format!(
                     "Cache: hits={} misses=0 invalidations=0 writes=0 non_cacheable=0\n",
@@ -70,14 +73,8 @@ pub(crate) fn execute_check(arguments: &[String]) -> Result<CliOutput, String> {
         }
     }
     parse_sources(&mut sources)?;
-    let (output, exit_code) = evaluate_and_render(
-        &root,
-        &config,
-        &sources,
-        excluded,
-        options.warn,
-        options.no_color,
-    )?;
+    let (output, exit_code) =
+        evaluate_and_render(&root, &config, &sources, excluded, options.warn, color)?;
     if cache_enabled {
         let cached = CachedOutput {
             identity,
@@ -85,7 +82,7 @@ pub(crate) fn execute_check(arguments: &[String]) -> Result<CliOutput, String> {
             exit_code,
             file_count: sources.len(),
         };
-        if !cache::write(&root, &cached, &sources) {
+        if !cache::write(&root, &cached, &sources, color) {
             stderr.push_str("Cache disabled for this run: cache publication failed\n");
         } else if options.cache_stats {
             stderr.push_str(&format!(

@@ -1,6 +1,4 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::env;
-use std::io::{self, IsTerminal};
 use std::path::Path;
 
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
@@ -25,7 +23,7 @@ pub(crate) fn evaluate_and_render(
     sources: &[ScopedSource],
     excluded: usize,
     show_warnings: bool,
-    no_color: bool,
+    color: bool,
 ) -> Result<(String, i32), String> {
     let blocking = selected_rules(&config.select, &config.ignore);
     let warning_rules = if show_warnings {
@@ -144,7 +142,6 @@ pub(crate) fn evaluate_and_render(
             excluded
         )
     });
-    let color = !no_color && env::var_os("NO_COLOR").is_none() && io::stdout().is_terminal();
     let output = render::report(render::ReportRequest {
         faults: &blocking_faults,
         warnings: &warnings,

@@ -99,13 +99,14 @@ pub(crate) fn report(request: ReportRequest<'_>) -> String {
 }
 
 fn format_fault(fault: &Fault, root: &Path, color: bool) -> String {
-    let path = fault
-        .path
-        .strip_prefix(root.to_string_lossy().as_ref())
-        .map_or_else(
-            || fault.path.clone(),
-            |value| value.trim_start_matches('/').to_owned(),
-        );
+    let fault_path = Path::new(&fault.path);
+    let path = fault_path
+        .strip_prefix(root)
+        .unwrap_or(fault_path)
+        .to_string_lossy()
+        .replace('\\', "/")
+        .trim_start_matches('/')
+        .to_owned();
     let line = fault
         .line
         .map_or_else(|| "-".to_owned(), |value| value.to_string());

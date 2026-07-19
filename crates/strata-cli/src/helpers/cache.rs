@@ -9,8 +9,15 @@ use crate::models::{CachedOutput, ScopedSource};
 
 const DATABASE: &str = ".strata/cache/v4.db";
 const APPLICATION_ID: i32 = 0x5354_5241;
+const COLOR_OUTPUT_KEY: &str = "native/check-output/color";
+const PLAIN_OUTPUT_KEY: &str = "native/check-output/plain";
 
-pub(crate) fn read(root: &Path, identity: &str, sources: &[ScopedSource]) -> Option<CachedOutput> {
+pub(crate) fn read(
+    root: &Path,
+    identity: &str,
+    sources: &[ScopedSource],
+    color: bool,
+) -> Option<CachedOutput> {
     let connection = Connection::open_with_flags(
         root.join(DATABASE),
         rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
@@ -22,7 +29,7 @@ pub(crate) fn read(root: &Path, identity: &str, sources: &[ScopedSource]) -> Opt
     let data = connection
         .query_row(
             "SELECT data FROM records WHERE key = ? AND kind = 'check_output'",
-            ["native/check-output"],
+            [output_key(color)],
             |row| row.get::<_, Vec<u8>>(0),
         )
         .optional()
@@ -54,7 +61,12 @@ pub(crate) fn read(root: &Path, identity: &str, sources: &[ScopedSource]) -> Opt
     Some(output)
 }
 
-pub(crate) fn write(root: &Path, output: &CachedOutput, sources: &[ScopedSource]) -> bool {
+pub(crate) fn write(
+    root: &Path,
+    output: &CachedOutput,
+    sources: &[ScopedSource],
+    color: bool,
+) -> bool {
     let path = root.join(DATABASE);
     let Some(parent) = path.parent() else {
         return false;
@@ -98,7 +110,7 @@ pub(crate) fn write(root: &Path, output: &CachedOutput, sources: &[ScopedSource]
     if connection
         .execute(
             "INSERT INTO records(key,kind,data) VALUES (?,'check_output',?) ON CONFLICT(key) DO UPDATE SET kind=excluded.kind,data=excluded.data",
-            params!["native/check-output", data],
+            params![output_key(color), data],
         )
         .is_err()
     {
@@ -134,4 +146,12 @@ fn valid_database(connection: &Connection) -> bool {
         .query_row("PRAGMA application_id", [], |row| row.get::<_, i32>(0))
         .ok()
         == Some(APPLICATION_ID)
+}
+
+fn output_key(color: bool) -> &'static str {
+    if color {
+        COLOR_OUTPUT_KEY
+    } else {
+        PLAIN_OUTPUT_KEY
+    }
 }

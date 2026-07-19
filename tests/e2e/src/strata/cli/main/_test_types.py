@@ -53,6 +53,18 @@ class CacheCliTestCase:
 
 
 @dataclass(frozen=True)
+class CacheColorCliTestCase:
+    """Cached CLI output across plain and terminal presentation modes."""
+
+    description: str
+    config: str
+    files: tuple[CliProjectFile, ...]
+    expected_exit_code: int
+    expected_plain_stdout: str
+    expected_color_fragment: str
+
+
+@dataclass(frozen=True)
 class CacheMutationCliTestCase:
     """Installed CLI source mutation and expected invalidated output."""
 
@@ -140,7 +152,7 @@ class DistributionOwnershipTestCase:
     """One installed two-package ownership expectation."""
 
     description: str
-    expected_cli_script_suffix: str
+    expected_cli_script_name: str
     expected_authoring_entrypoint_count: int
 
 

@@ -57,6 +57,18 @@ from tests.e2e.src.strata.cli.main.helpers import (
             expected_exit_code=1,
         ),
         NativeCommandParityTestCase(
+            description="long diagnostic remediation wrapping is byte-identical",
+            argv=("check", "--no-cache", "--no-color"),
+            config='roots = ["src/pkg"]\ntests = []\nselect = ["SFH008"]\n',
+            files=(
+                CliProjectFile(
+                    relative_path="src/pkg/_helpers/comparison.py",
+                    source="def exceeds(value: int) -> bool:\n    return value > 250\n",
+                ),
+            ),
+            expected_exit_code=1,
+        ),
+        NativeCommandParityTestCase(
             description="existing-config init is byte-identical",
             argv=("init", "--yes", "--no-skills"),
             config='roots = ["src/pkg"]\ntests = []\n',

@@ -1,0 +1,32 @@
+[package]
+name = "strata-cli"
+version = "0.21.1" # x-release-please-version
+edition.workspace = true
+license.workspace = true
+publish = false
+build = "build.rs"
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "strata"
+path = "src/main.rs"
+
+[dependencies]
+globset.workspace = true
+rayon.workspace = true
+ruff_python_ast.workspace = true
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+strata-facts = { workspace = true, default-features = false }
+# Keep the complete local workspace dependency graph in the CLI sdist.
+strata-memory.workspace = true
+strata-native = { workspace = true, default-features = false }
+toml.workspace = true
+walkdir.workspace = true
+
+[build-dependencies]
+serde_json.workspace = true

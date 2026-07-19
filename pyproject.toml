@@ -1,0 +1,80 @@
+[build-system]
+requires = [
+  "maturin>=1.14,<2",
+  "patchelf>=0.17.2; sys_platform == 'linux'",
+]
+build-backend = "maturin"
+
+[project]
+name = "stratalint"
+version = "0.21.1"
+description = "Architecture linting for Python repositories"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+keywords = ["architecture", "lint", "linter", "python", "static-analysis"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Rust",
+  "Topic :: Software Development :: Quality Assurance",
+]
+dependencies = [
+  "stratalint-cli==0.21.1", # x-release-please-version
+]
+
+[project.urls]
+Homepage = "https://github.com/chio-labs/strata"
+Issues = "https://github.com/chio-labs/strata/issues"
+Repository = "https://github.com/chio-labs/strata"
+
+[tool.maturin]
+manifest-path = "crates/strata-native/Cargo.toml"
+module-name = "strata._native"
+python-source = "src"
+features = ["extension-module", "memory"]
+
+[dependency-groups]
+dev = [
+  "commitizen>=4.16.4",
+  "pre-commit>=4.6.0",
+  "pytest>=8.0",
+  "pytest-xdist>=3.6",
+  "ruff>=0.12.0",
+  "ty>=0.0.1a19",
+]
+
+[tool.uv]
+cache-keys = [
+  { file = "pyproject.toml" },
+  { file = "Cargo.toml" },
+  { file = "crates/strata-facts/Cargo.toml" },
+  { file = "crates/strata-facts/src/**/*.rs" },
+  { file = "crates/strata-memory/Cargo.toml" },
+  { file = "crates/strata-memory/src/**/*.rs" },
+  { file = "crates/strata-native/Cargo.toml" },
+  { file = "crates/strata-native/src/**/*.rs" },
+  { file = "src/strata/_native.pyi" },
+]
+
+[tool.uv.sources]
+stratalint-cli = { path = "packages/stratalint-cli" }
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "I", "PLR0913", "PLR0915", "UP"]
+
+[tool.ruff.lint.pylint]
+max-args = 10
+max-statements = 70
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/test_*.py" = ["E501"]
+"tests/**/helpers.py" = ["PLR0913"]

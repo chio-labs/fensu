@@ -1,0 +1,372 @@
+//! Parsed-program state shared by native fact-family bindings and rule kernels.
+
+use std::sync::{Arc, OnceLock};
+
+#[cfg(feature = "python")]
+use pyo3::pyclass;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use ruff_python_ast::token::Tokens;
+use ruff_python_ast::{ModModule, PythonVersion};
+use ruff_python_parser::Parsed;
+
+use crate::facts::main::extract_annotations::extract_annotations;
+use crate::facts::main::extract_class_declarations::extract_class_declarations;
+use crate::facts::main::extract_comments::extract_comments;
+use crate::facts::main::extract_control_flow::extract_control_flow;
+use crate::facts::main::extract_dataclasses::extract_dataclasses;
+use crate::facts::main::extract_function_contracts::extract_function_contracts;
+use crate::facts::main::extract_functions::extract_functions;
+use crate::facts::main::extract_hygiene::extract_hygiene;
+use crate::facts::main::extract_module_declarations::extract_module_declarations;
+use crate::facts::main::extract_outer_state_mutations::extract_outer_state_mutations;
+use crate::facts::main::extract_parameter_mutation_occurrences::extract_parameter_mutation_occurrences;
+use crate::facts::main::extract_parameter_mutations::extract_parameter_mutations;
+use crate::facts::main::extract_project_facts::extract_project_facts;
+use crate::facts::main::extract_references::extract_references;
+use crate::facts::main::extract_rule_calls::extract_rule_calls;
+use crate::facts::main::extract_rule_references::extract_rule_references;
+use crate::facts::main::extract_test_functions::extract_test_functions;
+use crate::facts::main::extract_test_module::extract_test_module;
+use crate::facts::models::{
+    AnnotationRows, AssignmentReferenceRow, ClassDeclarationRow, CommentRow, ComparisonRow,
+    ControlFlowRows, DataclassRow, DiscardedCallRow, FunctionContractRow, FunctionMetricRow,
+    HygieneRows, LocalCallEdgeRow, ModuleDeclarationRows, ParameterMutationOccurrenceRow,
+    ParameterMutationRow, ProjectFunctionRow, ReferenceRows, RuleNamedCallRow, SourceRangeRow,
+    TestFunctionRow, TestModuleRows,
+};
+use crate::facts::types::FactFamily;
+use crate::parsing::main::parse_strict::parse_strict;
+use crate::parsing::models::ParseFailure;
+use crate::positions::main::index_lines::index_lines;
+use crate::positions::models::LineIndex;
+
+/// Extracted fact rows cached once per parsed program.
+#[derive(Debug, Default)]
+struct FactRowCache {
+    annotations: OnceLock<AnnotationRows>,
+    class_declarations: OnceLock<Vec<ClassDeclarationRow>>,
+    comments: OnceLock<Vec<CommentRow>>,
+    contracts: OnceLock<Vec<FunctionContractRow>>,
+    control_flow: OnceLock<ControlFlowRows>,
+    dataclasses: OnceLock<Vec<DataclassRow>>,
+    declarations: OnceLock<ModuleDeclarationRows>,
+    functions: OnceLock<(Vec<FunctionMetricRow>, Vec<usize>)>,
+    hygiene: OnceLock<HygieneRows>,
+    rule_calls: OnceLock<(Vec<RuleNamedCallRow>, Vec<LocalCallEdgeRow>)>,
+    rule_references: OnceLock<(Vec<AssignmentReferenceRow>, Vec<ComparisonRow>)>,
+    outer_state_mutations: OnceLock<Vec<SourceRangeRow>>,
+    parameter_mutation_occurrences: OnceLock<Vec<ParameterMutationOccurrenceRow>>,
+    parameter_mutations: OnceLock<Vec<ParameterMutationRow>>,
+    project: OnceLock<(Vec<ProjectFunctionRow>, Vec<DiscardedCallRow>)>,
+    references: OnceLock<ReferenceRows>,
+    test_functions: OnceLock<Vec<TestFunctionRow>>,
+    test_module: OnceLock<TestModuleRows>,
+}
+
+#[derive(Debug)]
+struct ProgramData {
+    source: String,
+    parsed: Parsed<ModModule>,
+    index: LineIndex,
+    version: PythonVersion,
+    rows: FactRowCache,
+}
+
+/// One shareable parsed Python module retained for repeated fact extraction.
+#[cfg_attr(
+    feature = "python",
+    pyclass(frozen, module = "strata._native", skip_from_py_object)
+)]
+#[derive(Clone, Debug)]
+pub struct ProgramHandle {
+    data: Arc<ProgramData>,
+}
+
+impl ProgramHandle {
+    pub(crate) fn parse(source: &str, version: PythonVersion) -> Result<Self, ParseFailure> {
+        let parsed = parse_strict(source, version)?;
+        Ok(Self {
+            data: Arc::new(ProgramData {
+                source: source.to_owned(),
+                parsed,
+                index: index_lines(source),
+                version,
+                rows: FactRowCache::default(),
+            }),
+        })
+    }
+
+    pub fn parse_many(sources: Vec<String>, version: PythonVersion) -> Vec<Option<Self>> {
+        sources
+            .into_par_iter()
+            .map(|source| Self::parse(&source, version).ok())
+            .collect()
+    }
+
+    pub fn source(&self) -> &str {
+        &self.data.source
+    }
+
+    pub(crate) fn module(&self) -> &ModModule {
+        self.data.parsed.syntax()
+    }
+
+    pub(crate) fn tokens(&self) -> &Tokens {
+        self.data.parsed.tokens()
+    }
+
+    pub(crate) fn index(&self) -> &LineIndex {
+        &self.data.index
+    }
+
+    pub(crate) fn version(&self) -> PythonVersion {
+        self.data.version
+    }
+
+    pub fn annotation_rows(&self) -> &AnnotationRows {
+        self.data
+            .rows
+            .annotations
+            .get_or_init(|| extract_annotations(self.module(), self.index(), self.source()))
+    }
+
+    pub fn assignment_reference_rows(&self) -> &[AssignmentReferenceRow] {
+        &self
+            .data
+            .rows
+            .rule_references
+            .get_or_init(|| extract_rule_references(self.module(), self.index(), self.source()))
+            .0
+    }
+
+    pub fn comment_rows(&self) -> &[CommentRow] {
+        self.data
+            .rows
+            .comments
+            .get_or_init(|| extract_comments(self.tokens(), self.source(), self.index()))
+    }
+
+    pub fn class_declaration_rows(&self) -> &[ClassDeclarationRow] {
+        self.data
+            .rows
+            .class_declarations
+            .get_or_init(|| extract_class_declarations(self.module(), self.index(), self.source()))
+    }
+
+    pub fn comparison_rows(&self) -> &[ComparisonRow] {
+        &self
+            .data
+            .rows
+            .rule_references
+            .get_or_init(|| extract_rule_references(self.module(), self.index(), self.source()))
+            .1
+    }
+
+    pub fn contract_rows(&self) -> &[FunctionContractRow] {
+        self.data.rows.contracts.get_or_init(|| {
+            extract_function_contracts(self.module(), self.index(), self.source(), self.version())
+        })
+    }
+
+    pub fn control_flow_rows(&self) -> &ControlFlowRows {
+        self.data
+            .rows
+            .control_flow
+            .get_or_init(|| extract_control_flow(self.module(), self.index(), self.source()))
+    }
+
+    pub fn declaration_rows(&self) -> &ModuleDeclarationRows {
+        self.data
+            .rows
+            .declarations
+            .get_or_init(|| extract_module_declarations(self.module(), self.index(), self.source()))
+    }
+
+    pub fn source_line_count(&self) -> usize {
+        let mut characters = self.data.source.chars().peekable();
+        let mut count = 0;
+        let mut trailing_text = false;
+        while let Some(character) = characters.next() {
+            if Self::is_python_line_boundary(character) {
+                count += 1;
+                trailing_text = false;
+                if character == '\r' && characters.peek() == Some(&'\n') {
+                    let _ = characters.next();
+                }
+            } else {
+                trailing_text = true;
+            }
+        }
+        count + usize::from(trailing_text)
+    }
+
+    pub fn dataclass_rows(&self) -> &[DataclassRow] {
+        self.data
+            .rows
+            .dataclasses
+            .get_or_init(|| extract_dataclasses(self.module(), self.index(), self.source()))
+    }
+
+    pub fn function_rows(&self) -> &(Vec<FunctionMetricRow>, Vec<usize>) {
+        self.data
+            .rows
+            .functions
+            .get_or_init(|| extract_functions(self.module(), self.index(), self.source()))
+    }
+
+    pub fn hygiene_rows(&self) -> &HygieneRows {
+        self.data
+            .rows
+            .hygiene
+            .get_or_init(|| extract_hygiene(self.module(), self.index(), self.source()))
+    }
+
+    pub fn local_call_edge_rows(&self) -> &[LocalCallEdgeRow] {
+        &self
+            .data
+            .rows
+            .rule_calls
+            .get_or_init(|| extract_rule_calls(self.module(), self.index(), self.source()))
+            .1
+    }
+
+    pub fn named_call_rows(&self) -> &[RuleNamedCallRow] {
+        &self
+            .data
+            .rows
+            .rule_calls
+            .get_or_init(|| extract_rule_calls(self.module(), self.index(), self.source()))
+            .0
+    }
+
+    pub fn outer_state_mutation_rows(&self) -> &[SourceRangeRow] {
+        self.data
+            .rows
+            .outer_state_mutations
+            .get_or_init(|| extract_outer_state_mutations(self.module(), self.index()))
+    }
+
+    pub fn parameter_mutation_rows(&self) -> &[ParameterMutationRow] {
+        self.data
+            .rows
+            .parameter_mutations
+            .get_or_init(|| extract_parameter_mutations(self.module(), self.index(), self.source()))
+    }
+
+    pub fn project_rows(&self) -> &(Vec<ProjectFunctionRow>, Vec<DiscardedCallRow>) {
+        self.data
+            .rows
+            .project
+            .get_or_init(|| extract_project_facts(self.module(), self.index(), self.source()))
+    }
+
+    pub fn parameter_mutation_occurrence_rows(&self) -> &[ParameterMutationOccurrenceRow] {
+        self.data
+            .rows
+            .parameter_mutation_occurrences
+            .get_or_init(|| {
+                extract_parameter_mutation_occurrences(self.module(), self.index(), self.source())
+            })
+    }
+
+    pub fn reference_rows(&self) -> &ReferenceRows {
+        self.data
+            .rows
+            .references
+            .get_or_init(|| extract_references(self.module(), self.index(), self.source()))
+    }
+
+    pub fn test_function_rows(&self) -> &[TestFunctionRow] {
+        self.data
+            .rows
+            .test_functions
+            .get_or_init(|| extract_test_functions(self.module(), self.index(), self.source()))
+    }
+
+    pub fn test_module_rows(&self) -> &TestModuleRows {
+        self.data
+            .rows
+            .test_module
+            .get_or_init(|| extract_test_module(self.module(), self.index(), self.source()))
+    }
+
+    pub fn extract_rows(&self, family: FactFamily) {
+        match family {
+            FactFamily::Annotations => {
+                let _ = self.annotation_rows();
+            }
+            FactFamily::AssignmentReferences => {
+                let _ = self.assignment_reference_rows();
+            }
+            FactFamily::ClassDeclarations => {
+                let _ = self.class_declaration_rows();
+            }
+            FactFamily::Comments => {
+                let _ = self.comment_rows();
+            }
+            FactFamily::Comparisons => {
+                let _ = self.comparison_rows();
+            }
+            FactFamily::Contracts => {
+                let _ = self.contract_rows();
+            }
+            FactFamily::ControlFlow => {
+                let _ = self.control_flow_rows();
+            }
+            FactFamily::Dataclasses => {
+                let _ = self.dataclass_rows();
+            }
+            FactFamily::Declarations => {
+                let _ = self.declaration_rows();
+            }
+            FactFamily::Functions => {
+                let _ = self.function_rows();
+            }
+            FactFamily::Hygiene => {
+                let _ = self.hygiene_rows();
+            }
+            FactFamily::LocalCallEdges => {
+                let _ = self.local_call_edge_rows();
+            }
+            FactFamily::NamedCalls => {
+                let _ = self.named_call_rows();
+            }
+            FactFamily::OuterStateMutations => {
+                let _ = self.outer_state_mutation_rows();
+            }
+            FactFamily::ParameterMutations => {
+                let _ = self.parameter_mutation_rows();
+            }
+            FactFamily::ParameterMutationOccurrences => {
+                let _ = self.parameter_mutation_occurrence_rows();
+            }
+            FactFamily::Project => {
+                let _ = self.project_rows();
+            }
+            FactFamily::References => {
+                let _ = self.reference_rows();
+            }
+            FactFamily::TestFunctions => {
+                let _ = self.test_function_rows();
+            }
+            FactFamily::TestModule => {
+                let _ = self.test_module_rows();
+            }
+        }
+    }
+
+    fn is_python_line_boundary(character: char) -> bool {
+        matches!(
+            character,
+            '\n' | '\r'
+                | '\u{000b}'
+                | '\u{000c}'
+                | '\u{001c}'
+                | '\u{001d}'
+                | '\u{001e}'
+                | '\u{0085}'
+                | '\u{2028}'
+                | '\u{2029}'
+        )
+    }
+}

@@ -1,0 +1,26 @@
+{
+  "packages": {
+    ".": {
+      "release-type": "python",
+      "package-name": "stratalint",
+      "include-v-in-tag": true,
+      "include-component-in-tag": false,
+      "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": false,
+      "extra-files": [
+        {
+          "type": "generic",
+          "path": "pyproject.toml"
+        },
+        {
+          "type": "generic",
+          "path": "crates/strata-cli/Cargo.toml"
+        },
+        {
+          "type": "generic",
+          "path": "packages/stratalint-cli/pyproject.toml"
+        }
+      ]
+    }
+  }
+}

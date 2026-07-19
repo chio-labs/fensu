@@ -1,0 +1,10 @@
+roots = ["src/fensu"]
+tests = ["tests"]
+tooling = ["scripts"]
+select = ["FF"]
+
+[experimental]
+memory = true
+
+[memory.tasks]
+archive_after_days = 7

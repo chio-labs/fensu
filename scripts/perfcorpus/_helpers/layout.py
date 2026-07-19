@@ -6,11 +6,11 @@ from pathlib import Path
 from types import MappingProxyType
 
 from scripts.perfcorpus.constants import (
+    FENSU_CONFIG,
     FILES_PER_DOMAIN,
     MINIMUM_DOMAINS,
     PACKAGE_NAME,
     SOURCE_ROOT,
-    STRATA_CONFIG,
     TEST_SCOPE,
     TESTS_ROOT,
 )
@@ -28,7 +28,7 @@ def scaffolding_files() -> MappingProxyType[str, str]:
     """Return the corpus-level configuration and package scaffolding."""
 
     files: dict[str, str] = {
-        "strata.toml": STRATA_CONFIG,
+        "fensu.toml": FENSU_CONFIG,
         f"{SOURCE_ROOT}/{PACKAGE_NAME}/__init__.py": _SCAFFOLD_INIT_CONTENT,
         f"{TESTS_ROOT}/__init__.py": _SCAFFOLD_INIT_CONTENT,
         f"{TESTS_ROOT}/{TEST_SCOPE}/__init__.py": _SCAFFOLD_INIT_CONTENT,

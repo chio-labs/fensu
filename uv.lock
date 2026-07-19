@@ -153,6 +153,42 @@ wheels = [
 ]
 
 [[package]]
+name = "fensu"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "fensu-cli" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "commitizen" },
+    { name = "pre-commit" },
+    { name = "pytest" },
+    { name = "pytest-xdist" },
+    { name = "ruff" },
+    { name = "ty" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "fensu-cli", directory = "packages/fensu-cli" }]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "commitizen", specifier = ">=4.16.4" },
+    { name = "pre-commit", specifier = ">=4.6.0" },
+    { name = "pytest", specifier = ">=8.0" },
+    { name = "pytest-xdist", specifier = ">=3.6" },
+    { name = "ruff", specifier = ">=0.12.0" },
+    { name = "ty", specifier = ">=0.0.1a19" },
+]
+
+[[package]]
+name = "fensu-cli"
+version = "0.1.0"
+source = { directory = "packages/fensu-cli" }
+
+[[package]]
 name = "filelock"
 version = "3.29.7"
 source = { registry = "https://pypi.org/simple" }
@@ -451,42 +487,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/fa/f0/fe47c501f9dea92a26d788ff98bb5d92ed4cb4c88792c5c88af6b697dc8e/ruff-0.15.20-py3-none-win_amd64.whl", hash = "sha256:a525c81c70fb0380344dd1d8745d8cc1c890b7fc94a58d5a07bd8eb9557b8415", size = 11993274, upload-time = "2026-06-25T17:20:31.871Z" },
     { url = "https://files.pythonhosted.org/packages/d7/2b/9555445e1201d92b3195f45cdb153a0b68f24e0a4273f6e3d5ab46e212bb/ruff-0.15.20-py3-none-win_arm64.whl", hash = "sha256:2f5b2a6d614e8700388806a14996c40fab2c47b819ef57d790a34878858ed9ca", size = 11343498, upload-time = "2026-06-25T17:20:35.03Z" },
 ]
-
-[[package]]
-name = "stratalint"
-version = "0.20.0"
-source = { editable = "." }
-dependencies = [
-    { name = "stratalint-cli" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "commitizen" },
-    { name = "pre-commit" },
-    { name = "pytest" },
-    { name = "pytest-xdist" },
-    { name = "ruff" },
-    { name = "ty" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "stratalint-cli", directory = "packages/stratalint-cli" }]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "commitizen", specifier = ">=4.16.4" },
-    { name = "pre-commit", specifier = ">=4.6.0" },
-    { name = "pytest", specifier = ">=8.0" },
-    { name = "pytest-xdist", specifier = ">=3.6" },
-    { name = "ruff", specifier = ">=0.12.0" },
-    { name = "ty", specifier = ">=0.0.1a19" },
-]
-
-[[package]]
-name = "stratalint-cli"
-version = "0.20.0"
-source = { directory = "packages/stratalint-cli" }
 
 [[package]]
 name = "termcolor"

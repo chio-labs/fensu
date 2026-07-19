@@ -1,4 +1,4 @@
-"""Execute and summarize complete Strata check processes."""
+"""Execute and summarize complete Fensu check processes."""
 
 from __future__ import annotations
 
@@ -59,12 +59,12 @@ def _run_check(*, project: Path, executable: Path) -> CheckRun:
             check=False,
         )
     except OSError as error:
-        raise BenchmarkError(f"Could not execute Strata check at {executable}: {error}") from error
+        raise BenchmarkError(f"Could not execute Fensu check at {executable}: {error}") from error
     elapsed: float = time.perf_counter() - started
     if completed.returncode not in _allowed_check_return_codes:
         error: str = completed.stderr.decode("utf-8", errors="replace").strip()
         raise BenchmarkError(
-            f"Strata check exited {completed.returncode}: {error or 'no error output'}"
+            f"Fensu check exited {completed.returncode}: {error or 'no error output'}"
         )
     return CheckRun(
         elapsed_seconds=elapsed,

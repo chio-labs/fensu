@@ -1,4 +1,4 @@
-"""Exercise an installed Strata wheel's Memory surface on release platforms."""
+"""Exercise an installed Fensu wheel's Memory surface on release platforms."""
 
 from __future__ import annotations
 
@@ -41,7 +41,7 @@ def _prove_commands(root: Path) -> None:
 
 
 def _prove_atomic_publication(*, root: Path, expected_platform: str) -> None:
-    database = root / ".strata" / "memory" / "memory.sqlite3"
+    database = root / ".fensu" / "memory" / "memory.sqlite3"
     prior = database.read_bytes()
     reader = sqlite3.connect(f"{database.as_uri()}?mode=ro", uri=True)
     cursor = reader.execute("SELECT count(*) FROM documents")
@@ -80,7 +80,7 @@ def _prove_archive_and_skills(root: Path) -> None:
     archived = root / ".ai/_archive/knowledge/repo/notes" / Path(gamma).name
     _require(archived.is_file(), "archive command did not move the explicit note")
     _run(root, "skills", "--target", "opencode", "--install-root", "project")
-    skill = root / ".opencode" / "skills" / "strata-release-proof" / "SKILL.md"
+    skill = root / ".opencode" / "skills" / "fensu-release-proof" / "SKILL.md"
     _require(skill.is_file(), "skills command did not install project guidance")
 
 
@@ -102,7 +102,7 @@ def _prove_macos_collisions(root: Path) -> None:
 def _write_project(root: Path) -> None:
     (root / "src/pkg").mkdir(parents=True)
     (root / "src/pkg/__init__.py").write_text("", encoding="utf-8")
-    (root / "strata.toml").write_text(
+    (root / "fensu.toml").write_text(
         'roots = ["src/pkg"]\n[experimental]\nmemory = true\n[skills]\nname = "release-proof"\n',
         encoding="utf-8",
     )
@@ -124,7 +124,7 @@ def _write_note(root: Path, name: str, contents: str) -> None:
 
 
 def _run(root: Path, *arguments: str, expected: int | None = 0) -> subprocess.CompletedProcess[str]:
-    executable = Path(sys.executable).with_name("strata.exe" if os.name == "nt" else "strata")
+    executable = Path(sys.executable).with_name("fensu.exe" if os.name == "nt" else "fensu")
     environment = dict(os.environ)
     environment["NO_COLOR"] = "1"
     result = subprocess.run(

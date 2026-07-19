@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
+from fensu.cli.main.check import run_check
 from scripts.perfcorpus.main.generate_corpus import generate_corpus
 from scripts.perfcorpus.models import CorpusSpec, CorpusSummary
-from strata.cli.main.check import run_check
 from tests.integration.scripts.perfcorpus.main._test_types import (
     CorpusDeterminismTestCase,
     CorpusFaultParityTestCase,
@@ -71,14 +71,14 @@ def test_given_file_target_when_generating_then_summary_matches_written_tree(
 
     assert summary.domains >= test_case.expected_minimum_domains
     assert summary.files_written == counted_files(root=tmp_path)
-    assert (tmp_path / "strata.toml").is_file()
+    assert (tmp_path / "fensu.toml").is_file()
 
 
 @pytest.mark.parametrize(
     "test_case",
     [
         CorpusFaultParityTestCase(
-            description="strata reports exactly the declared injected faults",
+            description="fensu reports exactly the declared injected faults",
             file_target=120,
             seed=0,
             expected_exit_code=1,

@@ -1,4 +1,4 @@
-"""Run end-to-end or instrumented Strata benchmarks."""
+"""Run end-to-end or instrumented Fensu benchmarks."""
 
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ def run_benchmark(
             sys.stdout.write(render_profile(report=report))
         else:
             resolved_executable: Path = (
-                _installed_strata() if executable is None else executable.resolve()
+                _installed_fensu() if executable is None else executable.resolve()
             )
             benchmark: BenchmarkReport = benchmark_processes(
                 project=resolved_project,
@@ -55,8 +55,8 @@ def run_benchmark(
         return 2
 
 
-def _installed_strata() -> Path:
-    located: str | None = which("strata", path=str(Path(sys.executable).parent))
+def _installed_fensu() -> Path:
+    located: str | None = which("fensu", path=str(Path(sys.executable).parent))
     if located is None:
-        raise BenchmarkError("Could not locate the installed Strata executable.")
+        raise BenchmarkError("Could not locate the installed Fensu executable.")
     return Path(located)

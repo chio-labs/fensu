@@ -53,4 +53,4 @@ DOMAIN_SECOND_WORDS: tuple[str, ...] = (
     "journals",
     "digests",
 )
-STRATA_CONFIG: str = 'roots = ["src/corpusapp"]\ntests = ["tests"]\nselect = ["SF"]\n'
+FENSU_CONFIG: str = 'roots = ["src/corpusapp"]\ntests = ["tests"]\nselect = ["FF"]\n'

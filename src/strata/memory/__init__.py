@@ -1,1 +1,0 @@
-"""Strata Memory domain."""

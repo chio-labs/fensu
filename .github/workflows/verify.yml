@@ -60,6 +60,6 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - run: uv python install 3.12
       - run: uv sync
-      - run: uv run strata --version
-      - run: uv run python -m strata --version
-      - run: uv run pytest tests/e2e/src/strata/cli/main/test_entry.py tests/e2e/src/strata/cli/main/test_native_distribution.py -q
+      - run: uv run fensu --version
+      - run: uv run python -m fensu --version
+      - run: uv run pytest tests/e2e/src/fensu/cli/main/test_entry.py tests/e2e/src/fensu/cli/main/test_native_distribution.py -q

@@ -27,7 +27,7 @@ class CorpusShapeTestCase:
 
 @dataclass(frozen=True)
 class CorpusFaultParityTestCase:
-    """One expectation that declared faults match strata output."""
+    """One expectation that declared faults match fensu output."""
 
     description: str
     file_target: int

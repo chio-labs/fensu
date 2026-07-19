@@ -1,4 +1,4 @@
-"""Run one instrumented Strata check."""
+"""Run one instrumented Fensu check."""
 
 from __future__ import annotations
 
@@ -9,15 +9,15 @@ from io import StringIO
 from pathlib import Path
 from typing import cast
 
+from fensu.analysis.main.resolve_native_backend_version import resolve_native_backend_version
+from fensu.cache.results._helpers.paths import relative_repository_path
+from fensu.cli.main.check import run_check
+from fensu.instrumentation.main.measure_operations import measure_operations
 from scripts.benchmarking.classes.check_profiler import CheckProfiler
 from scripts.benchmarking.models import OperationReport, ProfileReport
 from scripts.benchmarking.types import OperationProfileMode
-from strata.analysis.main.resolve_native_backend_version import resolve_native_backend_version
-from strata.cache.results._helpers.paths import relative_repository_path
-from strata.cli.main.check import run_check
-from strata.instrumentation.main.measure_operations import measure_operations
 
-_CACHE_DIRECTORY_NAME: str = ".strata"
+_CACHE_DIRECTORY_NAME: str = ".fensu"
 
 
 def profile_check(project: Path) -> ProfileReport:

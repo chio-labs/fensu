@@ -54,7 +54,7 @@ def run_budget(
     if runs < 1:
         print("BUDGET FAILURE runs: runs must be at least one", file=sys.stderr)
         return 1
-    with tempfile.TemporaryDirectory(prefix="strata-perfbudget-") as workspace:
+    with tempfile.TemporaryDirectory(prefix="fensu-perfbudget-") as workspace:
         measurement: BudgetMeasurement = _measured_runs(
             spec=spec,
             runs=runs,

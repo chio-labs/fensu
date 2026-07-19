@@ -1,4 +1,4 @@
-"""Run reproducible Strata benchmarks against a configured Python repository."""
+"""Run reproducible Fensu benchmarks against a configured Python repository."""
 
 from __future__ import annotations
 

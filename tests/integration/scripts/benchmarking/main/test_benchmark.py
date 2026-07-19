@@ -8,11 +8,11 @@ from pathlib import Path
 
 import pytest
 
+from fensu.cli.main.check import run_check
 from scripts.benchmarking._helpers.profiling import profile_operations
 from scripts.benchmarking.classes.check_profiler import CheckProfiler
 from scripts.benchmarking.models import OperationReport, ProfileReport
 from scripts.benchmarking.types import OperationProfileMode
-from strata.cli.main.check import run_check
 from tests.integration.scripts.benchmarking.main._test_types import (
     BenchmarkErrorTestCase,
     OperationProfileTestCase,
@@ -24,7 +24,7 @@ from tests.integration.scripts.benchmarking.main.helpers import (
     run_benchmark_command,
     run_profile_benchmark_command,
     write_custom_rule_profile_project,
-    write_fake_strata,
+    write_fake_fensu,
     write_profile_project,
 )
 
@@ -47,7 +47,7 @@ def test_given_stable_check_when_running_benchmark_then_reports_diagnostic_ident
     tmp_path: Path,
     test_case: ProcessBenchmarkTestCase,
 ) -> None:
-    executable: Path = write_fake_strata(root=tmp_path, output=test_case.output)
+    executable: Path = write_fake_fensu(root=tmp_path, output=test_case.output)
 
     completed: subprocess.CompletedProcess[str] = run_benchmark_command(
         project=tmp_path,
@@ -77,7 +77,7 @@ def test_given_changing_check_when_running_benchmark_then_returns_clear_error(
     tmp_path: Path,
     test_case: BenchmarkErrorTestCase,
 ) -> None:
-    executable: Path = write_fake_strata(root=tmp_path, output="", changing=True)
+    executable: Path = write_fake_fensu(root=tmp_path, output="", changing=True)
 
     completed: subprocess.CompletedProcess[str] = run_benchmark_command(
         project=tmp_path,

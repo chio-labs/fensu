@@ -37,7 +37,7 @@ jobs:
           enable-cache: true
       - run: uv python install 3.14
       - name: Run native Memory engine tests
-        run: cargo test -p strata-memory --features sqlite-engine --test engine
+        run: cargo test -p fensu-memory --features sqlite-engine --test engine
       - uses: PyO3/maturin-action@v1
         with:
           command: build

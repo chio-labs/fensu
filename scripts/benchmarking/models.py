@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True, slots=True)
 class CheckRun:
-    """One complete Strata process result."""
+    """One complete Fensu process result."""
 
     elapsed_seconds: float
     output: bytes

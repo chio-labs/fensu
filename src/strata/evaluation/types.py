@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from pathlib import Path
 from typing import Protocol
 
 from strata.analysis.types import ProjectAnalysis
@@ -30,8 +31,10 @@ type NativeExecutionRequest = tuple[
         list[tuple[str, str]],
         dict[str, list[str]],
         list[tuple[str, str, str, str, int, int]],
+        str,
     ],
 ]
+type NativeProjectFile = tuple[str, str, list[str], str]
 
 
 class NativeProjectQueryKind(StrEnum):
@@ -44,6 +47,9 @@ class NativeProjectQueryKind(StrEnum):
     MODULE_FUNCTION = "module_function"
     PACKAGE_ANCHOR = "package_anchor"
     CUSTOM_RULE_COVERAGE = "custom_rule_coverage"
+    DIRECTORY_ENTRIES = "directory_entries"
+    GLOB = "glob"
+    PYTHON_ANCHOR = "python_anchor"
 
 
 class EvaluationProjectAnalysis(ProjectAnalysis, Protocol):
@@ -55,4 +61,8 @@ class EvaluationProjectAnalysis(ProjectAnalysis, Protocol):
 
     def prewarm(self, *, parsed: ParsedModule) -> None:
         """Adopt one pre-parsed discovered module for later single-use retrieval."""
+        ...
+
+    def native_source(self, *, requester: Path, path: Path) -> str | None:
+        """Return decoded source while recording its source dependency without a CPython AST."""
         ...

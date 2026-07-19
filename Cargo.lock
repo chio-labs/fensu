@@ -2050,6 +2050,7 @@ dependencies = [
  "sha2",
  "strata-facts",
  "strata-memory",
+ "unicode-ident",
 ]
 
 [[package]]

@@ -18,6 +18,7 @@ from strata.instrumentation.constants import (  # noqa: E402
     FRESH_EVALUATION_OPERATION,
     NATIVE_PARSE_OPERATION,
     PARSE_OPERATION,
+    PYTHON_CORE_RULE_CALLBACK_OPERATION,
 )
 from tests.integration.src.strata.instrumentation.classes._test_types import (  # noqa: E402
     NativeEditCountsTestCase,
@@ -69,10 +70,14 @@ def test_given_multiple_jobs_when_checking_uncached_then_uses_one_native_executi
     "test_case",
     [
         NativeUncachedCountsTestCase(
-            description="native-backend core-only uncached checks build zero CPython ASTs",
+            description=(
+                "native-backend core-only uncached checks build zero CPython ASTs and invoke "
+                "zero Python core callbacks"
+            ),
             file_target=120,
             seed=0,
             expected_python_parses=0,
+            expected_python_core_callbacks=0,
         )
     ],
     ids=lambda case: case.description,
@@ -90,6 +95,10 @@ def test_given_native_backend_when_checking_uncached_then_no_cpython_ast_is_buil
     counts: dict[str, int] = counted_check(argv=("--no-color", "--no-cache"))
 
     assert counts.get(PARSE_OPERATION, 0) == test_case.expected_python_parses
+    assert (
+        counts.get(PYTHON_CORE_RULE_CALLBACK_OPERATION, 0)
+        == test_case.expected_python_core_callbacks
+    )
     assert counts[FRESH_EVALUATION_OPERATION] == files
     assert counts[NATIVE_PARSE_OPERATION] >= files
     assert counts[NATIVE_PARSE_OPERATION] <= files * _MAX_NATIVE_PARSES_PER_FILE

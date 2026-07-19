@@ -737,6 +737,13 @@ def test_given_helper_private_class_references_when_checking_layers_then_flags_c
             expected_lines=(1,),
         ),
         LayerRuleTestCase(
+            description="native SFL105 bypasses its Python core callback",
+            rule_code="SFL105",
+            files=(("src/pkg/domain/alpha/main/run.py", "def run() -> None:\n    pass\n"),),
+            expected_codes=("SFL105",),
+            expected_lines=(None,),
+        ),
+        LayerRuleTestCase(
             description="native SFL110 bypasses its Python core callback",
             rule_code="SFL110",
             files=(
@@ -784,7 +791,7 @@ def test_given_registered_native_layer_rule_when_evaluating_then_skips_python_ca
     "test_case",
     [
         NativeLayerRegistryTestCase(
-            description="native layers include FILE-owned project observation rules",
+            description="all layer rules execute natively including the project owner",
             expected_native_codes=(
                 "SFL001",
                 "SFL002",
@@ -792,15 +799,16 @@ def test_given_registered_native_layer_rule_when_evaluating_then_skips_python_ca
                 "SFL102",
                 "SFL103",
                 "SFL104",
+                "SFL105",
                 "SFL110",
                 "SFL301",
             ),
-            expected_python_codes=("SFL105",),
+            expected_python_codes=(),
         )
     ],
     ids=lambda case: case.description,
 )
-def test_given_layer_registry_when_selecting_native_rules_then_only_project_owner_stays_python(
+def test_given_layer_registry_when_selecting_native_rules_then_all_core_layers_are_native(
     test_case: NativeLayerRegistryTestCase,
 ) -> None:
     native: ModuleType = import_module(NATIVE_FACT_MODULE_NAME)

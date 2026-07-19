@@ -41,6 +41,7 @@ _PARITY_NATIVE_CODES: frozenset[str] = frozenset(
         "SFL102",
         "SFL103",
         "SFL104",
+        "SFL105",
         "SFL110",
         "SFL301",
         "SFN001",
@@ -72,10 +73,15 @@ _PARITY_NATIVE_CODES: frozenset[str] = frozenset(
         "SFR203",
         "SFR204",
         "SFR205",
+        "SFR301",
+        "SFR302",
         "SFR303",
         "SFR304",
         "SFR305",
+        "SFR306",
         "SFR307",
+        "SFR308",
+        "SFR309",
         "SFR401",
         "SFR402",
         "SFR403",
@@ -127,15 +133,7 @@ _PARITY_NATIVE_CODES: frozenset[str] = frozenset(
         "SFT414",
     }
 )
-_PYTHON_OWNED_SFR_CODES: frozenset[str] = frozenset(
-    {
-        "SFR301",
-        "SFR302",
-        "SFR306",
-        "SFR308",
-        "SFR309",
-    }
-)
+_PYTHON_OWNED_SFR_CODES: frozenset[str] = frozenset()
 
 
 @pytest.mark.parametrize(
@@ -1078,6 +1076,48 @@ _PYTHON_OWNED_SFR_CODES: frozenset[str] = frozenset(
             source="",
             expected_fault_count=1,
             path="src/example/shared/__init__.py",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFL105 matches public project import graph observations",
+            native_code="SFL105",
+            source="def run() -> None:\n    pass\n",
+            expected_fault_count=1,
+            path="src/example/domain/main/run.py",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFR301 matches public helpers package observations",
+            native_code="SFR301",
+            source="",
+            expected_fault_count=0,
+            path="src/example/domain/_helpers/__init__.py",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFR302 matches public main package observations",
+            native_code="SFR302",
+            source="",
+            expected_fault_count=0,
+            path="src/example/domain/main/__init__.py",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFR306 matches public domain shape observations",
+            native_code="SFR306",
+            source="",
+            expected_fault_count=0,
+            path="src/example/domain/models.py",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFR308 matches public scope prefix observations",
+            native_code="SFR308",
+            source="",
+            expected_fault_count=0,
+            path="src/example/domain/models.py",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="SFR309 matches public leaf main observations",
+            native_code="SFR309",
+            source="def run() -> None:\n    pass\n",
+            expected_fault_count=0,
+            path="src/example/domain/main/run.py",
         ),
         NativeCustomRuleParityTestCase(
             description="SFR405 matches public sibling directory observations",

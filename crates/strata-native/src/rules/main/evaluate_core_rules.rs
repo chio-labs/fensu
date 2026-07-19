@@ -16,12 +16,13 @@ use crate::rules::helpers::naming::naming_faults;
 use crate::rules::helpers::roles::role_faults;
 use crate::rules::helpers::shape::shape_faults;
 use crate::rules::helpers::tests::test_faults;
-use crate::rules::models::{NativeFaultRow, NativeRuleContext};
+use crate::rules::models::{NativeFaultRow, NativeProjectPlane, NativeRuleContext};
 
 pub fn evaluate_core_rules(
     program: &ProgramHandle,
     codes: &[String],
     context: &NativeRuleContext,
+    project: &NativeProjectPlane,
 ) -> Result<Vec<NativeFaultRow>, String> {
     let mut faults: Vec<NativeFaultRow> = Vec::new();
     for code in codes {
@@ -48,7 +49,7 @@ pub fn evaluate_core_rules(
                     faults.extend(rule_faults);
                 } else if let Some(rule_faults) = shape_faults(program, code, context) {
                     faults.extend(rule_faults);
-                } else if let Some(rule_faults) = layer_faults(program, code, context) {
+                } else if let Some(rule_faults) = layer_faults(program, code, context, project) {
                     faults.extend(rule_faults);
                 } else if let Some(rule_faults) = role_faults(program, code, context) {
                     faults.extend(rule_faults);

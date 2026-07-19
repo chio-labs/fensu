@@ -96,6 +96,9 @@ from strata.rules.exemplars.main.layers._no_sibling_package_internals import (
     no_sibling_package_internals_equivalent,
 )
 from strata.rules.exemplars.main.layers._no_star_imports import no_star_imports_equivalent
+from strata.rules.exemplars.main.layers._public_main_entry_external_use import (
+    public_main_entry_external_use_equivalent,
+)
 from strata.rules.exemplars.main.naming._iterator_name_must_produce_iterator import (
     iterator_name_must_produce_iterator_equivalent,
 )
@@ -114,14 +117,23 @@ from strata.rules.exemplars.main.roles._banned_generic_package_name import (
 from strata.rules.exemplars.main.roles._custom_rule_test_coverage import (
     custom_rule_test_coverage_equivalent,
 )
+from strata.rules.exemplars.main.roles._helpers_package_layout import (
+    helpers_package_layout_equivalent,
+)
+from strata.rules.exemplars.main.roles._leaf_main_boundary import leaf_main_boundary_equivalent
 from strata.rules.exemplars.main.roles._main_entry_name_collision import (
     main_entry_name_collision_equivalent,
 )
+from strata.rules.exemplars.main.roles._main_package_layout import main_package_layout_equivalent
 from strata.rules.exemplars.main.roles._private_definition_ordering import (
     private_definition_ordering_equivalent,
 )
+from strata.rules.exemplars.main.roles._shared_domain_prefix import shared_domain_prefix_equivalent
 from strata.rules.exemplars.main.roles._tooling_package_layout import (
     tooling_package_layout_equivalent,
+)
+from strata.rules.exemplars.main.roles._top_level_domain_shape import (
+    top_level_domain_shape_equivalent,
 )
 from strata.rules.exemplars.main.shape._default_mutation_return import (
     default_mutation_return_equivalent,
@@ -247,6 +259,7 @@ NATIVE_CUSTOM_RULE_EQUIVALENTS: dict[str, RuleCheck] = {
     "SFL102": no_cross_package_internals_equivalent,
     "SFL103": no_internal_public_surface_imports_equivalent,
     "SFL104": no_cross_domain_private_main_imports_equivalent,
+    "SFL105": public_main_entry_external_use_equivalent,
     "SFL110": no_cross_file_helper_private_classes_equivalent,
     "SFL301": no_runtime_imports_from_tooling_equivalent,
     "SFR001": models_only_models_equivalent,
@@ -262,10 +275,15 @@ NATIVE_CUSTOM_RULE_EQUIVALENTS: dict[str, RuleCheck] = {
     "SFR203": classes_module_name_equivalent,
     "SFR204": banned_generic_package_name_equivalent,
     "SFR205": helpers_classes_file_private_equivalent,
+    "SFR301": helpers_package_layout_equivalent,
+    "SFR302": main_package_layout_equivalent,
     "SFR303": helpers_reserved_role_filenames_equivalent,
     "SFR304": nested_direct_modules_equivalent,
     "SFR305": nested_direct_subpackages_equivalent,
+    "SFR306": top_level_domain_shape_equivalent,
     "SFR307": top_level_direct_modules_equivalent,
+    "SFR308": shared_domain_prefix_equivalent,
+    "SFR309": leaf_main_boundary_equivalent,
     "SFR401": entry_module_shape_equivalent,
     "SFR402": init_module_empty_equivalent,
     "SFR403": no_reexport_shim_equivalent,

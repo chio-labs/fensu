@@ -11,7 +11,9 @@ from strata.discovery.models import ProjectLayout, RepoRoot
 from strata.evaluation.classes.rule_context import EvaluationRuleContext
 from strata.evaluation.exceptions import ModuleUnavailableError
 from strata.evaluation.models import ParsedModule, ThresholdOverrideUse
+from strata.instrumentation.constants import OPERATION_COUNTERS, PYTHON_CORE_RULE_CALLBACK_OPERATION
 from strata.rules.authoring.models import Fault, RuleSpec
+from strata.rules.authoring.types import RuleKind
 
 
 class _UnavailableModule:
@@ -53,4 +55,6 @@ def execute_rule(
     module: ast.Module = (
         parsed_module.syntax_artifacts.module if rule.uses_module else _UNAVAILABLE_MODULE
     )
+    if rule.kind is RuleKind.CORE:
+        OPERATION_COUNTERS.record(operation=PYTHON_CORE_RULE_CALLBACK_OPERATION)
     return rule.check(module=module, ctx=ctx)

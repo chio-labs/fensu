@@ -13,7 +13,9 @@ use strata_facts::facts::types::FactFamily;
 use crate::rules::constants::NATIVE_RULE_FACT_FAMILIES;
 use crate::rules::main::evaluate_core_rules::evaluate_core_rules;
 use crate::rules::main::plan_core_rule_queries::plan_core_rule_queries;
-use crate::rules::models::{NativeFaultRow, NativeRuleContext};
+use crate::rules::models::{
+    NativeFaultRow, NativeProjectModule, NativeProjectPlane, NativeRuleContext,
+};
 
 type NativeFaultTuple = (
     String,
@@ -28,9 +30,11 @@ type NativeProjectContextTuple = (
     Vec<(String, String)>,
     HashMap<String, Vec<String>>,
     Vec<(String, String, String, String, u32, u32)>,
+    String,
 );
 
 type NativeProjectQueryTuple = (String, String, String, String);
+type NativeProjectFileTuple = (String, String, Vec<String>, String);
 
 type NativeRuleContextTuple = (
     String,
@@ -56,6 +60,7 @@ struct NativeExecutionRequest {
 #[pyclass(frozen, module = "strata._native")]
 pub(crate) struct NativeExecutionBatch {
     requests: Vec<Option<NativeExecutionRequest>>,
+    project: NativeProjectPlane,
 }
 
 type NativeExecutionPlanTuple = (
@@ -68,6 +73,8 @@ type NativeExecutionPlanTuple = (
 pub(crate) fn plan_native_execution_batch(
     py: Python<'_>,
     requests: Vec<NativeRuleContextTuple>,
+    project_files: Vec<NativeProjectFileTuple>,
+    entrypoint_modules: Vec<String>,
     major: u8,
     minor: u8,
 ) -> PyResult<NativeExecutionPlanTuple> {
@@ -96,6 +103,7 @@ pub(crate) fn plan_native_execution_batch(
                         scope_roots: request.11 .1,
                         observations: request.11 .2,
                         custom_registrations: request.11 .3,
+                        repo_root: request.11 .4,
                     },
                 })
             })
@@ -116,7 +124,56 @@ pub(crate) fn plan_native_execution_batch(
             .enumerate()
             .filter_map(|(index, request)| request.is_none().then_some(index))
             .collect();
-        (NativeExecutionBatch { requests: prepared }, plans, failures)
+        let request_programs: HashMap<String, ProgramHandle> = prepared
+            .iter()
+            .filter_map(|request| {
+                request.as_ref().map(|request| {
+                    (
+                        request.context.repository_path.clone(),
+                        request.program.clone(),
+                    )
+                })
+            })
+            .collect();
+        let missing_sources: Vec<String> = project_files
+            .iter()
+            .filter(|(path, _, _, _)| !request_programs.contains_key(path))
+            .map(|(_, _, _, source)| source.clone())
+            .collect();
+        let mut parsed_missing = ProgramHandle::parse_many(missing_sources, version).into_iter();
+        let project_programs: Vec<Option<ProgramHandle>> = project_files
+            .iter()
+            .map(|(path, _, _, _)| {
+                request_programs
+                    .get(path)
+                    .cloned()
+                    .map(Some)
+                    .unwrap_or_else(|| parsed_missing.next().flatten())
+            })
+            .collect();
+        let modules = project_files
+            .into_iter()
+            .zip(project_programs)
+            .filter_map(|((path, scope, module_parts, _), program)| {
+                program.map(|program| NativeProjectModule {
+                    path,
+                    scope,
+                    module_parts,
+                    program,
+                })
+            })
+            .collect();
+        (
+            NativeExecutionBatch {
+                requests: prepared,
+                project: NativeProjectPlane {
+                    modules,
+                    entrypoint_modules,
+                },
+            },
+            plans,
+            failures,
+        )
     });
     Ok((Py::new(py, batch)?, plans, failures))
 }
@@ -140,7 +197,7 @@ pub(crate) fn evaluate_native_execution_batch(
                 let mut context = request.context.clone();
                 context.observations = observations;
                 extract_required_rows(&request.program, &request.codes);
-                evaluate_core_rules(&request.program, &request.codes, &context)
+                evaluate_core_rules(&request.program, &request.codes, &context, &batch.project)
                     .map(|rows| rows.into_iter().map(as_tuple).collect())
             })
             .collect::<Result<Vec<_>, String>>()

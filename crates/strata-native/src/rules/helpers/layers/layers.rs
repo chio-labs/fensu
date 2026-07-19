@@ -6,11 +6,14 @@ use strata_facts::facts::models::ImportRow;
 use crate::rules::constants::{
     ABSOLUTE_IMPORTS_ONLY_CODE, NO_CROSS_DOMAIN_PRIVATE_MAIN_IMPORTS_CODE,
     NO_CROSS_PACKAGE_INTERNALS_CODE, NO_SIBLING_PACKAGE_INTERNALS_CODE, NO_STAR_IMPORTS_CODE,
-    STAR_IMPORT_NAME,
+    PUBLIC_MAIN_ENTRY_EXTERNAL_USE_CODE, STAR_IMPORT_NAME,
 };
 use crate::rules::helpers::layer_local::local_layer_faults;
+use crate::rules::helpers::layer_project::public_entry_faults;
 use crate::rules::helpers::roles::location_fault;
-use crate::rules::models::{NativeFaultRow, NativeProjectQuery, NativeRuleContext};
+use crate::rules::models::{
+    NativeFaultRow, NativeProjectPlane, NativeProjectQuery, NativeRuleContext,
+};
 
 const INIT_FILE_NAME: &str = "__init__.py";
 const INIT_MODULE_STEM: &str = "__init__";
@@ -21,6 +24,7 @@ pub(crate) fn layer_faults(
     program: &ProgramHandle,
     code: &str,
     context: &NativeRuleContext,
+    project: &NativeProjectPlane,
 ) -> Option<Vec<NativeFaultRow>> {
     let rows = program.reference_rows();
     let faults = match code {
@@ -48,18 +52,19 @@ pub(crate) fn layer_faults(
         NO_CROSS_DOMAIN_PRIVATE_MAIN_IMPORTS_CODE => {
             private_main_import_faults(code, context, &rows.imports)
         }
+        PUBLIC_MAIN_ENTRY_EXTERNAL_USE_CODE => public_entry_faults(code, project),
         _ => return local_layer_faults(program, code, context),
     };
     Some(faults)
 }
 
 #[derive(Clone)]
-struct Ownership {
-    package: Option<String>,
-    owner_prefix: Vec<String>,
-    domain: Option<String>,
-    first_role: Option<String>,
-    tail: Vec<String>,
+pub(crate) struct Ownership {
+    pub(crate) package: Option<String>,
+    pub(crate) owner_prefix: Vec<String>,
+    pub(crate) domain: Option<String>,
+    pub(crate) first_role: Option<String>,
+    pub(crate) tail: Vec<String>,
 }
 
 fn ownership_faults(
@@ -149,7 +154,7 @@ fn private_main_import_faults(
     faults
 }
 
-fn classify(parts: &[String], initializer: bool) -> Ownership {
+pub(crate) fn classify(parts: &[String], initializer: bool) -> Ownership {
     let structural = [
         "main",
         "_helpers",
@@ -227,14 +232,14 @@ fn private_main(target: &Ownership) -> bool {
             .is_some_and(|name| name.starts_with('_') && !name.starts_with("__"))
 }
 
-fn shares_domain(current: &Ownership, target: &Ownership) -> bool {
+pub(crate) fn shares_domain(current: &Ownership, target: &Ownership) -> bool {
     current.package.is_some()
         && current.package == target.package
         && current.domain.is_some()
         && current.domain == target.domain
 }
 
-fn normalized_targets(
+pub(crate) fn normalized_targets(
     row: &ImportRow,
     current_parts: &[String],
     current_initializer: bool,

@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.21.1](https://github.com/chio-labs/strata/compare/v0.21.0...v0.21.1) (2026-07-19)
+
+
+### Performance Improvements
+
+* **custom-rules:** profile external rule packages ([cb4040b](https://github.com/chio-labs/strata/commit/cb4040bfe61864e4a888b7eb7c711e9552d423c0))
+* **evaluation:** reuse prewarmed project analysis ([d892daa](https://github.com/chio-labs/strata/commit/d892daa75202860f9b9747fb3d7ecd9644cd7d21))
+
 ## [0.21.0](https://github.com/chio-labs/strata/compare/v0.20.0...v0.21.0) (2026-07-19)
 
 

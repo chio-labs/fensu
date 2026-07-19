@@ -7,7 +7,7 @@ build-backend = "maturin"
 
 [project]
 name = "stratalint"
-version = "0.20.0"
+version = "0.21.0"
 description = "Architecture linting for Python repositories"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -24,7 +24,7 @@ classifiers = [
   "Topic :: Software Development :: Quality Assurance",
 ]
 dependencies = [
-  "stratalint-cli==0.20.0", # x-release-please-version
+  "stratalint-cli==0.21.0", # x-release-please-version
 ]
 
 [project.urls]

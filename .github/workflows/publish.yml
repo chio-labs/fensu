@@ -1,0 +1,131 @@
+name: Publish
+
+on:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish, for example v0.1.0"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  release-tag:
+    name: Resolve release tag
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release-tag.outputs.tag }}
+    steps:
+      - name: Resolve release tag
+        id: release-tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            tag="${{ inputs.tag }}"
+          else
+            tag="${{ github.event.release.tag_name }}"
+          fi
+
+          case "$tag" in
+            v0*) ;;
+            *)
+              echo "Refusing to publish tag '$tag'. PyPI publishing is limited to v0* tags."
+              exit 1
+              ;;
+          esac
+
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+  wheels:
+    name: Build wheel (${{ matrix.platform.name }})
+    needs: release-tag
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      matrix:
+        platform:
+          - name: linux-x86_64
+            runner: ubuntu-latest
+            target: x86_64
+          - name: linux-aarch64
+            runner: ubuntu-24.04-arm
+            target: aarch64
+          - name: macos-x86_64
+            runner: macos-latest
+            target: x86_64
+          - name: macos-arm64
+            runner: macos-latest
+            target: aarch64
+          - name: windows-x86_64
+            runner: windows-latest
+            target: x86_64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-tag.outputs.tag }}
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          args: --release --out dist --features extension-module,memory
+          target: ${{ matrix.platform.target }}
+          manylinux: auto
+      - name: Build native CLI wheel
+        uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          args: --release --out ../../dist
+          target: ${{ matrix.platform.target }}
+          manylinux: auto
+          working-directory: packages/fensu-cli
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel-${{ matrix.platform.name }}
+          path: dist
+
+  sdist:
+    name: Build sdist
+    needs: release-tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-tag.outputs.tag }}
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist
+      - name: Build native CLI sdist
+        uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out ../../dist
+          working-directory: packages/fensu-cli
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist
+
+  pypi:
+    name: Publish to PyPI
+    needs:
+      - release-tag
+      - wheels
+      - sdist
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist

@@ -1,0 +1,10 @@
+"""Native evaluation-generation boundary constants."""
+
+WINDOWS_PATH_SEPARATOR: str = "\\"
+POSIX_PATH_SEPARATOR: str = "/"
+PARENT_PATH_PART: str = ".."
+REPOSITORY_ROOT_PATH: str = "."
+NATIVE_COLD_MODE: str = "cold"
+NATIVE_EDIT_MODE: str = "edit"
+CACHE_CHECK_OUTPUT_KIND: str = "check_output"
+CACHE_FILE_RESULT_KIND: str = "file_result"

@@ -1,0 +1,62 @@
+name: Version Guard
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  block-1-0:
+    name: Block automatic 1.0 releases
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reject versions at or above 1.0.0
+        run: |
+          python - <<'PY'
+          import sys
+          import tomllib
+          from pathlib import Path
+
+          with open("pyproject.toml", "rb") as pyproject:
+              project = tomllib.load(pyproject)["project"]
+              version = project["version"]
+
+          cli_dependency = next(
+              item for item in project["dependencies"] if item.startswith("fensu-cli==")
+          ).partition("==")[2]
+          with Path("packages/fensu-cli/pyproject.toml").open("rb") as pyproject:
+              cli_package_version = tomllib.load(pyproject)["project"]["version"]
+          with Path("crates/fensu-cli/Cargo.toml").open("rb") as cargo:
+              cli_crate_version = tomllib.load(cargo)["package"]["version"]
+
+          versions = {version, cli_dependency, cli_package_version, cli_crate_version}
+          if len(versions) != 1:
+              print(f"Fensu package versions are not locked: {sorted(versions)}", file=sys.stderr)
+              sys.exit(1)
+
+          parts = version.split(".")
+          try:
+              major = int(parts[0])
+          except (IndexError, ValueError):
+              print(f"Invalid project version: {version}", file=sys.stderr)
+              sys.exit(1)
+
+          if major >= 1:
+              print(
+                  f"Refusing automatic release version {version}. "
+                  "Crossing to 1.0.0 requires an explicit manual decision.",
+                  file=sys.stderr,
+              )
+              sys.exit(1)
+
+          print(f"Project version {version} is below 1.0.0.")
+          PY

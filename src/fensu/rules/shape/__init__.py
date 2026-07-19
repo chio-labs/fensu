@@ -1,0 +1,1 @@
+"""Shape rule family."""

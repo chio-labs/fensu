@@ -1,0 +1,80 @@
+[build-system]
+requires = [
+  "maturin>=1.14,<2",
+  "patchelf>=0.17.2; sys_platform == 'linux'",
+]
+build-backend = "maturin"
+
+[project]
+name = "fensu"
+version = "0.1.0"
+description = "Architecture linting for Python repositories"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+keywords = ["architecture", "lint", "linter", "python", "static-analysis"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Rust",
+  "Topic :: Software Development :: Quality Assurance",
+]
+dependencies = [
+  "fensu-cli==0.1.0", # x-release-please-version
+]
+
+[project.urls]
+Homepage = "https://github.com/chio-labs/fensu"
+Issues = "https://github.com/chio-labs/fensu/issues"
+Repository = "https://github.com/chio-labs/fensu"
+
+[tool.maturin]
+manifest-path = "crates/fensu-native/Cargo.toml"
+module-name = "fensu._native"
+python-source = "src"
+features = ["extension-module", "memory"]
+
+[dependency-groups]
+dev = [
+  "commitizen>=4.16.4",
+  "pre-commit>=4.6.0",
+  "pytest>=8.0",
+  "pytest-xdist>=3.6",
+  "ruff>=0.12.0",
+  "ty>=0.0.1a19",
+]
+
+[tool.uv]
+cache-keys = [
+  { file = "pyproject.toml" },
+  { file = "Cargo.toml" },
+  { file = "crates/fensu-facts/Cargo.toml" },
+  { file = "crates/fensu-facts/src/**/*.rs" },
+  { file = "crates/fensu-memory/Cargo.toml" },
+  { file = "crates/fensu-memory/src/**/*.rs" },
+  { file = "crates/fensu-native/Cargo.toml" },
+  { file = "crates/fensu-native/src/**/*.rs" },
+  { file = "src/fensu/_native.pyi" },
+]
+
+[tool.uv.sources]
+fensu-cli = { path = "packages/fensu-cli" }
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "I", "PLR0913", "PLR0915", "UP"]
+
+[tool.ruff.lint.pylint]
+max-args = 10
+max-statements = 70
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/test_*.py" = ["E501"]
+"tests/**/helpers.py" = ["PLR0913"]

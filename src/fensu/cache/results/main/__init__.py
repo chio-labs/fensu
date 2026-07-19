@@ -1,0 +1,1 @@
+"""Persistent result-cache orchestration."""

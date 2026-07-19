@@ -24,9 +24,24 @@ jobs:
           python - <<'PY'
           import sys
           import tomllib
+          from pathlib import Path
 
           with open("pyproject.toml", "rb") as pyproject:
-              version = tomllib.load(pyproject)["project"]["version"]
+              project = tomllib.load(pyproject)["project"]
+              version = project["version"]
+
+          cli_dependency = next(
+              item for item in project["dependencies"] if item.startswith("stratalint-cli==")
+          ).partition("==")[2]
+          with Path("packages/stratalint-cli/pyproject.toml").open("rb") as pyproject:
+              cli_package_version = tomllib.load(pyproject)["project"]["version"]
+          with Path("crates/strata-cli/Cargo.toml").open("rb") as cargo:
+              cli_crate_version = tomllib.load(cargo)["package"]["version"]
+
+          versions = {version, cli_dependency, cli_package_version, cli_crate_version}
+          if len(versions) != 1:
+              print(f"Strata package versions are not locked: {sorted(versions)}", file=sys.stderr)
+              sys.exit(1)
 
           parts = version.split(".")
           try:

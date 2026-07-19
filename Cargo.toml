@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "crates/strata-cli",
     "crates/strata-facts",
     "crates/strata-memory",
     "crates/strata-native",
@@ -25,9 +26,11 @@ quote = "1"
 rayon = "1"
 rusqlite = { version = "0.38", features = ["bundled"] }
 serde_json = { version = "1", features = ["preserve_order"] }
+serde = { version = "1", features = ["derive"] }
 sha2 = "0.10"
 strata-facts = { path = "crates/strata-facts" }
 strata-memory = { path = "crates/strata-memory" }
+strata-native = { path = "crates/strata-native" }
 ruff_python_ast = "=0.0.4"
 ruff_python_parser = "=0.0.4"
 ruff_text_size = "=0.0.4"

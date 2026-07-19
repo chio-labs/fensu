@@ -27,6 +27,31 @@ impl NativeProjectQuery {
     }
 }
 
+impl NativeProjectModule {
+    pub fn new(
+        path: String,
+        scope: String,
+        module_parts: Vec<String>,
+        program: ProgramHandle,
+    ) -> Self {
+        Self {
+            path,
+            scope,
+            module_parts,
+            program,
+        }
+    }
+}
+
+impl NativeProjectPlane {
+    pub fn new(modules: Vec<NativeProjectModule>, entrypoint_modules: Vec<String>) -> Self {
+        Self {
+            modules,
+            entrypoint_modules,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NativeRuleContext {
     pub scope: String,

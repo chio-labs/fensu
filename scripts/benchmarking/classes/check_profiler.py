@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sys
 import time
 from collections import defaultdict
 from collections.abc import Callable
@@ -55,7 +56,9 @@ class CheckProfiler:
         """Run one instrumented check and restore evaluator functions afterward."""
 
         previous_directory: Path = Path.cwd()
+        previous_bytecode: bool = sys.dont_write_bytecode
         os.chdir(project)
+        sys.dont_write_bytecode = True
         self._project_analysis.parse_scoped_file = self._timed_parse
         self._project_analysis.build_external_analysis = self._timed_external_analysis
         self._evaluator.execute_rule = self._timed_execute
@@ -65,6 +68,7 @@ class CheckProfiler:
             self._project_analysis.parse_scoped_file = self._original_parse
             self._project_analysis.build_external_analysis = self._original_external_analysis
             self._evaluator.execute_rule = self._original_execute
+            sys.dont_write_bytecode = previous_bytecode
             os.chdir(previous_directory)
 
     def _timed_parse(

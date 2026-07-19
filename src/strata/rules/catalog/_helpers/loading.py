@@ -91,6 +91,8 @@ def build_catalogue_from_config(
 def _load_rule_modules(*, module_names: tuple[str, ...], repo_root: Path) -> tuple[RuleSpec, ...]:
     loaded: list[RuleSpec] = []
     repository_path: str = _add_repository_import_path(repo_root)
+    previous_names: set[str] = set(sys.modules)
+    displaced_modules: dict[str, ModuleType] = _displace_conflicting_modules(repo_root)
     try:
         for module_name in module_names:
             try:
@@ -110,6 +112,8 @@ def _load_rule_modules(*, module_names: tuple[str, ...], repo_root: Path) -> tup
                 )
             )
     finally:
+        _remove_loaded_repository_modules(repo_root=repo_root, previous_names=previous_names)
+        sys.modules.update(displaced_modules)
         _remove_repository_import_path(repository_path)
     return tuple(loaded)
 

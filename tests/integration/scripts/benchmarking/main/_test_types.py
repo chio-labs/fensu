@@ -34,6 +34,15 @@ class ProfileBenchmarkTestCase:
 
 
 @dataclass(frozen=True)
+class ProfileCommandTestCase:
+    """External custom-rule project and expected profiler command output."""
+
+    description: str
+    expected_rule_code: str
+    expected_output_fragments: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class OperationProfileTestCase:
     """One cache state and required deterministic operation names."""
 

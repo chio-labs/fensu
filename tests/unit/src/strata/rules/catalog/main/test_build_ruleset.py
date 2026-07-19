@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib
 import sys
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
@@ -190,6 +191,42 @@ def test_given_rule_path_with_package_import_when_building_then_resolves_reposit
     assert tuple(rule.code for rule in ruleset) == (test_case.expected_code,)
     assert test_case.expected_source_fragment in (ruleset[0].source or "")
     assert str(tmp_path) not in sys.path
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CustomRuleLoadTestCase(
+            description="configured module displaces and restores conflicting scripts package",
+            rule_code="XRG005",
+            expected_code="XRG005",
+            expected_source_fragment="scripts/strata/rules/custom.py",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_rule_module_with_conflicting_package_when_building_then_restores_import_state(
+    tmp_path: Path,
+    test_case: CustomRuleLoadTestCase,
+) -> None:
+    scripts_package: ModuleType = importlib.import_module("scripts")
+    benchmarking_package: ModuleType = importlib.import_module("scripts.benchmarking")
+    _ = write_importing_custom_rule_package(root=tmp_path, rule_code=test_case.rule_code)
+    config: Config = Config(
+        roots=("src/pkg",),
+        rule_modules=("scripts.strata.rules.custom",),
+        select=(test_case.rule_code,),
+    )
+    previous_path: tuple[str, ...] = tuple(sys.path)
+
+    ruleset: tuple[RuleSpec, ...] = build_ruleset(config=config, repo_root=tmp_path)
+
+    assert tuple(rule.code for rule in ruleset) == (test_case.expected_code,)
+    assert test_case.expected_source_fragment in (ruleset[0].source or "")
+    assert sys.modules["scripts"] is scripts_package
+    assert sys.modules["scripts.benchmarking"] is benchmarking_package
+    assert "scripts.strata.rules.custom" not in sys.modules
+    assert tuple(sys.path) == previous_path
 
 
 @pytest.mark.parametrize(

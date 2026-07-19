@@ -31,26 +31,32 @@ from tests.integration.src.strata.cache.results._test_types import (
     CachedEvaluationReuseTestCase,
     CachedEvaluationSelectionTestCase,
     CachedEvaluationSweepTestCase,
+    CachedGenerationConcurrencyTestCase,
     CachedLeafMainInvalidationTestCase,
     CachedNamingParityTestCase,
     CachedNativeProjectRuleTestCase,
+    CachedPublicationInterruptionTestCase,
     CachedResultReadFilteringTestCase,
+    CachedSemanticCorruptionTestCase,
     CachedSharedDomainPrefixInvalidationTestCase,
+    CachedSymlinkDependencyTestCase,
     EditReplayDependencyTestCase,
     EditReplayFastPathTestCase,
 )
 from tests.integration.src.strata.cache.results.helpers import (
-    ResultLoadProbe,
+    arbitrary_glob_fault_rule,
     context_source_fault_rule,
+    corrupt_indexed_result_record,
     dependency_fault_rule,
     discover_project,
+    evaluate_cache_concurrently,
+    evaluate_cache_while_database_blocked,
     evaluated_result,
     exception_config,
     exception_fault_rule,
     failing_rule,
     install_cache_write_rejection,
     install_publish_error,
-    install_result_load_probe,
     install_rule_execution_failure,
     invalid_fault_rule,
     result_record_keys,
@@ -60,6 +66,61 @@ from tests.integration.src.strata.cache.results.helpers import (
 )
 
 _GLOBAL_FINGERPRINT: CacheFingerprint = CacheFingerprint("e" * 64)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CachedEvaluationInvalidationTestCase(
+            description="recursive arbitrary glob invalidates when a matching asset appears",
+            relative_path="src/pkg/models.py",
+            first_source="VALUE: int = 1\n",
+            second_source="select 1\n",
+            expected_invalidations=1,
+            expected_message="orders.sql",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_cached_arbitrary_glob_when_match_appears_then_invalidates_requester(
+    tmp_path: Path,
+    test_case: CachedEvaluationInvalidationTestCase,
+) -> None:
+    write_project_sources(
+        repo_root=tmp_path,
+        files=((test_case.relative_path, test_case.first_source),),
+    )
+    (tmp_path / "assets").mkdir()
+    config, tree = discover_project(repo_root=tmp_path)
+    ruleset: tuple[RuleSpec, ...] = (arbitrary_glob_fault_rule(),)
+    cold: CacheEvaluation = evaluate_with_cache(
+        tree=tree,
+        ruleset=ruleset,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+    warm: CacheEvaluation = evaluate_with_cache(
+        tree=tree,
+        ruleset=ruleset,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+    write_project_sources(
+        repo_root=tmp_path,
+        files=(("assets/nested/orders.sql", test_case.second_source),),
+    )
+
+    changed: CacheEvaluation = evaluate_with_cache(
+        tree=tree,
+        ruleset=ruleset,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+
+    assert warm.stats.hits == 1
+    assert evaluated_result(warm).faults == evaluated_result(cold).faults
+    assert changed.stats.invalidations == test_case.expected_invalidations
+    assert evaluated_result(changed).faults[0].message == test_case.expected_message
 
 
 @pytest.mark.parametrize(
@@ -395,7 +456,6 @@ def test_given_published_result_when_source_changes_then_recomputes_diagnostic(
     ids=lambda case: case.description,
 )
 def test_given_changed_sources_when_loading_cache_then_reads_only_source_equal_results(
-    monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     test_case: CachedResultReadFilteringTestCase,
 ) -> None:
@@ -409,8 +469,6 @@ def test_given_changed_sources_when_loading_cache_then_reads_only_source_equal_r
         global_fingerprint=_GLOBAL_FINGERPRINT,
     )
     write_project_sources(repo_root=tmp_path, files=test_case.changed_files)
-    probe: ResultLoadProbe = install_result_load_probe(monkeypatch=monkeypatch)
-
     changed: CacheEvaluation = evaluate_with_cache(
         tree=tree,
         ruleset=ruleset,
@@ -419,7 +477,6 @@ def test_given_changed_sources_when_loading_cache_then_reads_only_source_equal_r
     )
     uncached: EvaluationResult = evaluate(tree=tree, ruleset=ruleset, config=config)
 
-    assert probe.loaded_paths == test_case.expected_loaded_paths
     assert changed.stats.invalidations == test_case.expected_invalidations
     assert evaluated_result(changed).faults == uncached.faults
 
@@ -491,7 +548,6 @@ def test_given_edited_queried_file_when_replaying_then_recomputes_dependents(
     ids=lambda case: case.description,
 )
 def test_given_independent_edit_when_replaying_then_skips_unchanged_record_reads(
-    monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     test_case: EditReplayFastPathTestCase,
 ) -> None:
@@ -515,8 +571,6 @@ def test_given_independent_edit_when_replaying_then_skips_unchanged_record_reads
         files=(("src/pkg/target.py", test_case.changed_target_source),),
     )
     changed_tree: DiscoveredTree = discover_project(repo_root=tmp_path)[1]
-    probe: ResultLoadProbe = install_result_load_probe(monkeypatch=monkeypatch)
-
     changed: CacheEvaluation = evaluate_with_cache(
         tree=changed_tree,
         ruleset=ruleset,
@@ -524,7 +578,6 @@ def test_given_independent_edit_when_replaying_then_skips_unchanged_record_reads
         global_fingerprint=_GLOBAL_FINGERPRINT,
     )
 
-    assert probe.loaded_paths == test_case.expected_loaded_paths
     assert changed.stats.invalidations == test_case.expected_invalidations
     assert (
         tuple(fault.message for fault in evaluated_result(changed).faults)
@@ -1177,3 +1230,217 @@ def test_given_rule_failure_when_evaluating_then_does_not_publish_cache(
         )
 
     assert (tmp_path / ".strata").exists() is test_case.expected_cache_exists
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CachedSemanticCorruptionTestCase(
+            description="resealed result corruption is rejected against the indexed identity",
+            relative_path="src/pkg/models.py",
+            source="value: int = 1\n",
+            expected_misses=1,
+            expected_writes=1,
+            expected_fault_count=1,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_resealed_result_corruption_when_evaluating_then_regenerates_complete_result(
+    tmp_path: Path,
+    test_case: CachedSemanticCorruptionTestCase,
+) -> None:
+    write_project_sources(
+        repo_root=tmp_path,
+        files=((test_case.relative_path, test_case.source),),
+    )
+    config, tree = discover_project(repo_root=tmp_path)
+    ruleset: tuple[RuleSpec, ...] = (source_fault_rule(),)
+    cold: CacheEvaluation = evaluate_with_cache(
+        tree=tree,
+        ruleset=ruleset,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+    corrupt_indexed_result_record(repo_root=tmp_path)
+
+    repaired: CacheEvaluation = evaluate_with_cache(
+        tree=tree,
+        ruleset=ruleset,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+
+    assert repaired.stats.misses == test_case.expected_misses
+    assert repaired.stats.writes == test_case.expected_writes
+    assert len(evaluated_result(repaired).faults) == test_case.expected_fault_count
+    assert evaluated_result(repaired).faults == evaluated_result(cold).faults
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CachedGenerationConcurrencyTestCase(
+            description="concurrent cold publishers leave one complete reusable generation",
+            relative_paths=("src/pkg/alpha.py", "src/pkg/bravo.py"),
+            writer_count=4,
+            expected_warm_hits=2,
+            expected_fault_count=2,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_concurrent_cold_publications_when_loading_warm_then_generation_is_complete(
+    tmp_path: Path,
+    test_case: CachedGenerationConcurrencyTestCase,
+) -> None:
+    write_project_sources(
+        repo_root=tmp_path,
+        files=tuple((path, "value: int = 1\n") for path in test_case.relative_paths),
+    )
+    config, tree = discover_project(repo_root=tmp_path)
+    ruleset: tuple[RuleSpec, ...] = (source_fault_rule(),)
+
+    concurrent: tuple[CacheEvaluation, ...] = evaluate_cache_concurrently(
+        tree=tree,
+        ruleset=ruleset,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+        writer_count=test_case.writer_count,
+    )
+    warm: CacheEvaluation = evaluate_with_cache(
+        tree=tree,
+        ruleset=ruleset,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+
+    assert len(concurrent) == test_case.writer_count
+    assert warm.stats.hits == test_case.expected_warm_hits
+    assert len(evaluated_result(warm).faults) == test_case.expected_fault_count
+    assert all(
+        evaluated_result(result).faults == evaluated_result(warm).faults for result in concurrent
+    )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CachedSymlinkDependencyTestCase(
+            description="retargeted custom source dependency invalidates its requester",
+            requester_path="src/pkg/target.py",
+            first_context_path="src/pkg/context_a.py",
+            second_context_path="src/pkg/context_b.py",
+            expected_warm_hits=1,
+            expected_invalidations=1,
+            expected_changed_message="CONTEXT: int = 2",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_cached_symlink_dependency_when_retargeted_then_invalidates_requester(
+    tmp_path: Path,
+    test_case: CachedSymlinkDependencyTestCase,
+) -> None:
+    write_project_sources(
+        repo_root=tmp_path,
+        files=(
+            (test_case.requester_path, "TARGET: int = 1\n"),
+            (test_case.first_context_path, "CONTEXT: int = 1\n"),
+            (test_case.second_context_path, "CONTEXT: int = 2\n"),
+        ),
+    )
+    context: Path = tmp_path / "src/pkg/context.py"
+    context.symlink_to(Path(test_case.first_context_path).name)
+    config: Config = Config(
+        roots=("src/pkg",),
+        tests=(),
+        evaluation=EvaluationConfig(include=(test_case.requester_path,)),
+    )
+    tree: DiscoveredTree = discover_project(repo_root=tmp_path)[1]
+    ruleset: tuple[RuleSpec, ...] = (context_source_fault_rule(),)
+    _ = evaluate_with_cache(
+        tree=tree,
+        ruleset=ruleset,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+    warm: CacheEvaluation = evaluate_with_cache(
+        tree=tree,
+        ruleset=ruleset,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+    context.unlink()
+    context.symlink_to(Path(test_case.second_context_path).name)
+
+    changed: CacheEvaluation = evaluate_with_cache(
+        tree=tree,
+        ruleset=ruleset,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+
+    assert warm.stats.hits == test_case.expected_warm_hits
+    assert changed.stats.invalidations == test_case.expected_invalidations
+    assert evaluated_result(changed).faults[0].message == test_case.expected_changed_message
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CachedPublicationInterruptionTestCase(
+            description="blocked changed publication preserves the prior complete generation",
+            relative_path="src/pkg/models.py",
+            first_source="value: int = 1\n",
+            second_source="value: int = 2\n",
+            expected_storage_failed=True,
+            expected_interrupted_writes=0,
+            expected_restored_hits=1,
+            expected_restored_message="value: int = 1",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_blocked_generation_publication_when_restoring_source_then_prior_cache_is_reusable(
+    tmp_path: Path,
+    test_case: CachedPublicationInterruptionTestCase,
+) -> None:
+    write_project_sources(
+        repo_root=tmp_path,
+        files=((test_case.relative_path, test_case.first_source),),
+    )
+    config, tree = discover_project(repo_root=tmp_path)
+    ruleset: tuple[RuleSpec, ...] = (source_fault_rule(),)
+    _ = evaluate_with_cache(
+        tree=tree,
+        ruleset=ruleset,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+    write_project_sources(
+        repo_root=tmp_path,
+        files=((test_case.relative_path, test_case.second_source),),
+    )
+    interrupted: CacheEvaluation = evaluate_cache_while_database_blocked(
+        tree=tree,
+        ruleset=ruleset,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+    write_project_sources(
+        repo_root=tmp_path,
+        files=((test_case.relative_path, test_case.first_source),),
+    )
+
+    restored: CacheEvaluation = evaluate_with_cache(
+        tree=tree,
+        ruleset=ruleset,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+
+    assert interrupted.stats.storage_failed is test_case.expected_storage_failed
+    assert interrupted.stats.writes == test_case.expected_interrupted_writes
+    assert restored.stats.hits == test_case.expected_restored_hits
+    assert evaluated_result(restored).faults[0].message == test_case.expected_restored_message

@@ -4,72 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from strata.cache.results.models import CachedFileResult, CacheIndex
-
-
-@dataclass(frozen=True)
-class PersistentTypedResultTestCase:
-    """One typed result and expected cross-store persistence behavior."""
-
-    description: str
-    relative_path: str
-    result: CachedFileResult
-    expected_write: bool
-    expected_result: CachedFileResult
-
-
-@dataclass(frozen=True)
-class InvalidCachedRuleCodeTestCase:
-    """One invalid cached fault code and expected serialization error."""
-
-    description: str
-    rule_code: str
-    expected_error_type: type[Exception]
-
-
-@dataclass(frozen=True)
-class ResultCachePersistenceTestCase:
-    """One published file evaluation and expected repository behavior."""
-
-    description: str
-    relative_path: str
-    expected_index_entries: int
-    expected_misses: int
-    expected_writes: int
-    expected_non_cacheable: int
-
-
-@dataclass(frozen=True)
-class ResultCacheMissTestCase:
-    """One cache mismatch and expected safe miss."""
-
-    description: str
-    relative_path: str
-    expected_result: CachedFileResult | None
-    expected_missed: bool = False
-    expected_invalidated: bool = False
-
-
-@dataclass(frozen=True)
-class ResultCachePublicationFailureTestCase:
-    """One failed transaction and expected unpublished result counts."""
-
-    description: str
-    relative_path: str
-    expected_writes: int
-    expected_index: CacheIndex | None
-
-
-@dataclass(frozen=True)
-class ResultCacheCandidateTestCase:
-    """One indexed candidate and expected validation transitions."""
-
-    description: str
-    relative_path: str
-    expected_initial_invalidated: bool
-    expected_source_invalidated: bool
-    expected_dependency_invalidated: bool
-
 
 @dataclass(frozen=True)
 class CachedEvaluationReuseTestCase:
@@ -274,3 +208,53 @@ class CachedEvaluationFailureTestCase:
     source: str
     expected_error_type: type[Exception]
     expected_cache_exists: bool
+
+
+@dataclass(frozen=True)
+class CachedSemanticCorruptionTestCase:
+    """One resealed result corruption and expected conservative regeneration."""
+
+    description: str
+    relative_path: str
+    source: str
+    expected_misses: int
+    expected_writes: int
+    expected_fault_count: int
+
+
+@dataclass(frozen=True)
+class CachedGenerationConcurrencyTestCase:
+    """Concurrent cold publications and expected complete warm generation."""
+
+    description: str
+    relative_paths: tuple[str, ...]
+    writer_count: int
+    expected_warm_hits: int
+    expected_fault_count: int
+
+
+@dataclass(frozen=True)
+class CachedSymlinkDependencyTestCase:
+    """One symlink dependency transition and expected requester invalidation."""
+
+    description: str
+    requester_path: str
+    first_context_path: str
+    second_context_path: str
+    expected_warm_hits: int
+    expected_invalidations: int
+    expected_changed_message: str
+
+
+@dataclass(frozen=True)
+class CachedPublicationInterruptionTestCase:
+    """Interrupted generation publication and expected retained committed state."""
+
+    description: str
+    relative_path: str
+    first_source: str
+    second_source: str
+    expected_storage_failed: bool
+    expected_interrupted_writes: int
+    expected_restored_hits: int
+    expected_restored_message: str

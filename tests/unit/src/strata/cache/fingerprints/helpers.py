@@ -10,9 +10,6 @@ from types import MappingProxyType
 import pytest
 
 import strata.cache.fingerprints.main.build_global as build_global_module
-from strata.analysis.types import ProjectDependencyKind
-from strata.cache.fingerprints.models import CacheFingerprint
-from strata.cache.results.models import CachedFault, CachedFileResult, DependencyObservation
 from strata.config.constants import DEFAULT_THRESHOLDS
 from strata.config.models import Config
 from strata.rules.authoring.models import Fault, RuleSpec
@@ -108,34 +105,6 @@ def write_custom_rule(*, path: Path, returns_fault: bool) -> None:
         "    del module\n"
         f"    return {result}\n",
         encoding="utf-8",
-    )
-
-
-def cached_file_result(*, dependency_answer: bool, fault_message: str) -> CachedFileResult:
-    """Return one deterministic file result for fingerprint tests."""
-
-    return CachedFileResult(
-        path="src/pkg/models.py",
-        source_fingerprint=CacheFingerprint("a" * 64),
-        faults=(
-            CachedFault(
-                code="SFA001",
-                path="src/pkg/models.py",
-                message=fault_message,
-                line=1,
-                column=0,
-            ),
-        ),
-        applied_exception_keys=(),
-        dependencies=(
-            DependencyObservation(
-                requester_path="src/pkg/models.py",
-                query_path="src/pkg/dependency.py",
-                dependency_path="src/pkg/dependency.py",
-                kind=ProjectDependencyKind.EXISTS,
-                answer=dependency_answer,
-            ),
-        ),
     )
 
 

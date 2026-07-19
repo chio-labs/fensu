@@ -77,18 +77,6 @@ pub fn register_fact_functions(module: &Bound<'_, PyModule>) -> PyResult<()> {
         repository_bindings::hash_source_files,
         module
     )?)?;
-    module.add_function(wrap_pyfunction!(
-        repository_bindings::observe_repository_stats,
-        module
-    )?)?;
-    module.add_function(wrap_pyfunction!(
-        repository_bindings::observe_repository_python_globs,
-        module
-    )?)?;
-    module.add_function(wrap_pyfunction!(
-        repository_bindings::observe_repository_contexts,
-        module
-    )?)?;
     module.add_class::<ProgramHandle>()?;
     Ok(())
 }

@@ -1,6 +1,6 @@
 //! Native cache operation models.
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum CanonicalValue {
     Null,
     Bool(bool),
@@ -8,6 +8,68 @@ pub(crate) enum CanonicalValue {
     String(String),
     List(Vec<CanonicalValue>),
     Object(Vec<(String, CanonicalValue)>),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct NativeIndexEntry {
+    pub path: String,
+    pub source_fingerprint: String,
+    pub result_fingerprint: String,
+    pub record_fingerprint: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(crate) struct NativeDependencyKey {
+    pub query_path: String,
+    pub kind: String,
+    pub pattern: Option<String>,
+    pub recursive: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct NativeDependencyObservation {
+    pub requester_path: String,
+    pub key: NativeDependencyKey,
+    pub dependency_path: String,
+    pub answer: CanonicalValue,
+}
+
+#[derive(Debug)]
+pub(crate) struct NativeGenerationPlan {
+    pub mode: String,
+    pub index_fingerprint: Option<String>,
+    pub entries: Vec<NativeIndexEntry>,
+    pub cached_results: Vec<CanonicalValue>,
+    pub contributions: Vec<CanonicalValue>,
+    pub miss_paths: Vec<String>,
+    pub hits: usize,
+    pub misses: usize,
+    pub invalidations: usize,
+}
+
+#[derive(Debug)]
+pub(crate) struct NativePublicationCandidate {
+    pub path: String,
+    pub source_fingerprint: String,
+    pub payload: CanonicalValue,
+    pub contribution: Option<CanonicalValue>,
+    pub observations: Vec<NativeDependencyObservation>,
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct NativePublicationPreparation {
+    pub candidates: Vec<NativePublicationCandidate>,
+    pub non_cacheable: usize,
+    pub internal_error: bool,
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct NativePublicationResult {
+    pub writes: usize,
+    pub non_cacheable: usize,
+    pub storage_failed: bool,
+    pub internal_error: bool,
+    pub index_fingerprint: Option<String>,
 }
 
 impl CanonicalValue {

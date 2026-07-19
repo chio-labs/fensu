@@ -9,30 +9,6 @@ from strata.analysis.types import RuleCaseForm
 
 
 @dataclass(frozen=True, slots=True)
-class RepositoryStatAnswer:
-    """One native live repository metadata answer."""
-
-    dependency_path: str
-    answer: bool
-
-
-@dataclass(frozen=True, slots=True)
-class RepositoryGlobAnswer:
-    """One native live ordered repository glob answer."""
-
-    dependency_path: str
-    answer: tuple[str, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class RepositoryContextAnswer:
-    """One native live repository source or namespace answer."""
-
-    dependency_path: str
-    answer: None | str | tuple[str, ...]
-
-
-@dataclass(frozen=True, slots=True)
 class NodeId:
     """An opaque syntax identity unique within one analyzed file."""
 

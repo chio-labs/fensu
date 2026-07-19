@@ -4,6 +4,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic;
 
+use strata_facts::snapshot::models::{RepositoryObservationQuery, RepositoryObservationState};
+
 use crate::test_types;
 
 static TREE_COUNTER: atomic::AtomicUsize = atomic::AtomicUsize::new(0);
@@ -50,4 +52,30 @@ pub(crate) fn expected_rows(
             (entry.entry_suffix.to_owned(), parts)
         })
         .collect()
+}
+
+pub(crate) fn observation_query(
+    path: &str,
+    kind: &str,
+    pattern: Option<&str>,
+    recursive: bool,
+) -> RepositoryObservationQuery {
+    RepositoryObservationQuery {
+        relative_path: path.to_owned(),
+        kind: kind.to_owned(),
+        pattern: pattern.map(str::to_owned),
+        recursive,
+    }
+}
+
+pub(crate) fn observation_paths(answer: &RepositoryObservationState) -> Vec<String> {
+    answer
+        .answer
+        .as_paths()
+        .expect("expected path answer")
+        .to_vec()
+}
+
+pub(crate) fn owned_strings(values: &[&str]) -> Vec<String> {
+    values.iter().map(ToString::to_string).collect()
 }

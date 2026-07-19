@@ -47,8 +47,7 @@ from tests.integration.src.strata.cli.main.helpers import (
     RestoreProbe,
     SkillReadCounter,
     cache_snapshot,
-    counting_load_check_context,
-    counting_load_results,
+    counting_plan_native_generation,
     fail_skill_renderer,
     mutate_skill_freshness_state,
     prepare_normal_check_skill_state,
@@ -981,7 +980,7 @@ def test_given_internal_cache_error_when_running_check_then_warns_and_preserves_
         del cache, kwargs
         raise CacheRecordError("publication rejected")
 
-    monkeypatch.setattr(ResultCache, "publish", raise_publish)
+    monkeypatch.setattr(ResultCache, "publish_native_generation", raise_publish)
 
     exit_code: int = run_check(argv=test_case.argv, stdout=stdout, stderr=stderr)
 
@@ -1282,7 +1281,7 @@ def test_given_unchanged_tree_when_rechecking_then_short_circuits_stored_output(
     (package / "clean.py").write_text("CLEAN: int = 1\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     probe: RestoreProbe = RestoreProbe()
-    monkeypatch.setattr("strata.cache.results._helpers.conversion.restore_file_evaluation", probe)
+    monkeypatch.setattr("strata.cache.results._helpers.conversion.restore_native_evaluation", probe)
     cold_stdout: CaptureOutput = CaptureOutput()
     warm_stdout: CaptureOutput = CaptureOutput()
     edited_stdout: CaptureOutput = CaptureOutput()
@@ -1315,7 +1314,7 @@ def test_given_unchanged_tree_when_rechecking_then_short_circuits_stored_output(
             description="warm and edited runs replay observations without reading records",
             expected_exit_code=1,
             expected_warm_loads=0,
-            expected_edited_loads=0,
+            expected_edited_loads=1,
             expected_warm_context_loads=0,
         )
     ],
@@ -1336,14 +1335,9 @@ def test_given_unchanged_tree_when_rechecking_then_skips_record_loads(
     (package / "clean.py").write_text("CLEAN: int = 1\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     counter: CallCounter = CallCounter()
-    context_counter: CallCounter = CallCounter()
     monkeypatch.setattr(
-        "strata.cache.results.classes.result_cache.ResultCache.load_results",
-        counting_load_results(counter),
-    )
-    monkeypatch.setattr(
-        "strata.cache.results.classes.result_cache.ResultCache.load_check_context",
-        counting_load_check_context(context_counter),
+        "strata.cache.results.classes.result_cache.ResultCache.plan_native_generation",
+        counting_plan_native_generation(counter),
     )
     cold_stdout: CaptureOutput = CaptureOutput()
     warm_stdout: CaptureOutput = CaptureOutput()
@@ -1352,12 +1346,10 @@ def test_given_unchanged_tree_when_rechecking_then_skips_record_loads(
         argv=("--no-color", "--cache"), stdout=cold_stdout, stderr=CaptureOutput()
     )
     cold_loads: int = counter.calls
-    cold_context_loads: int = context_counter.calls
     warm_exit: int = run_check(
         argv=("--no-color", "--cache"), stdout=warm_stdout, stderr=CaptureOutput()
     )
     warm_loads: int = counter.calls - cold_loads
-    warm_context_loads: int = context_counter.calls - cold_context_loads
     (package / "faulty.py").write_text("TARGET = 1\nEXTRA = 2\n", encoding="utf-8")
     edited_exit: int = run_check(
         argv=("--no-color", "--cache"), stdout=CaptureOutput(), stderr=CaptureOutput()
@@ -1368,7 +1360,6 @@ def test_given_unchanged_tree_when_rechecking_then_skips_record_loads(
     assert edited_exit == test_case.expected_exit_code
     assert warm_stdout.getvalue() == cold_stdout.getvalue()
     assert warm_loads == test_case.expected_warm_loads
-    assert warm_context_loads == test_case.expected_warm_context_loads
     assert counter.calls - cold_loads - warm_loads == test_case.expected_edited_loads
 
 

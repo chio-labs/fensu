@@ -33,20 +33,21 @@ pub(crate) struct HashTestCase {
     pub(crate) expected_hash: Option<&'static str>,
 }
 
-pub(crate) struct GlobTestCase {
-    pub(crate) description: &'static str,
-    pub(crate) expected_direct_paths: &'static [&'static str],
-    pub(crate) expected_recursive_paths: &'static [&'static str],
-}
-
-pub(crate) struct StatTestCase {
-    pub(crate) description: &'static str,
-    pub(crate) expected_answers: &'static [Option<(&'static str, bool)>],
-}
-
-pub(crate) struct ContextTestCase {
+pub(crate) struct ObservationTestCase {
     pub(crate) description: &'static str,
     pub(crate) expected_source_hash: &'static str,
     pub(crate) expected_directory_entries: &'static [&'static str],
     pub(crate) expected_anchor: &'static str,
+}
+
+pub(crate) struct GlobObservationTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_match_count: usize,
+}
+
+pub(crate) struct MissingObservationTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_initial: bool,
+    pub(crate) expected_current: bool,
+    pub(crate) expected_external_supported: bool,
 }

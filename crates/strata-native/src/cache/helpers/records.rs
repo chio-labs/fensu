@@ -118,6 +118,20 @@ pub(crate) fn value_to_python(py: Python<'_>, value: CanonicalValue) -> PyResult
     }
 }
 
+pub(crate) fn encode_canonical_record(
+    kind: &str,
+    payload: &CanonicalValue,
+    maximum_decoded_bytes: usize,
+) -> Option<Vec<u8>> {
+    let mut canonical = payload.clone();
+    sort_objects(&mut canonical);
+    encode_decoded(kind, &canonical, maximum_decoded_bytes)
+}
+
+pub(crate) fn content_fingerprint(data: &[u8]) -> String {
+    hex_digest(data)
+}
+
 fn encode_decoded(
     kind: &str,
     payload: &CanonicalValue,
@@ -162,7 +176,7 @@ fn decompressed(data: &[u8], maximum_decoded_bytes: usize) -> Option<Vec<u8>> {
     Some(decoded)
 }
 
-fn canonical_from_python(value: &Bound<'_, PyAny>) -> PyResult<CanonicalValue> {
+pub(crate) fn canonical_from_python(value: &Bound<'_, PyAny>) -> PyResult<CanonicalValue> {
     if value.is_none() {
         return Ok(CanonicalValue::Null);
     }

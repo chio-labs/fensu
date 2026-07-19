@@ -1,4 +1,4 @@
-"""Execute measured strata check scenarios against one corpus."""
+"""Execute measured fensu check scenarios against one corpus."""
 
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ from scripts.perfbudget.constants import (
 )
 from scripts.perfbudget.models import BudgetSpec, ScenarioResult
 
-_CACHE_DIRECTORY_NAME: str = ".strata"
+_CACHE_DIRECTORY_NAME: str = ".fensu"
 _STATS_PREFIX: str = "Cache:"
 _GNU_TIME_PATH: Path = Path("/usr/bin/time")
 
@@ -106,7 +106,7 @@ def standard_scenarios(*, spec: BudgetSpec, project: Path) -> dict[str, Scenario
         project=project,
         cache=False,
     )
-    config_path: Path = project / "strata.toml"
+    config_path: Path = project / "fensu.toml"
     config_path.write_text(
         config_path.read_text(encoding="utf-8") + GLOBAL_MISMATCH_CONFIG_APPENDIX,
         encoding="utf-8",
@@ -154,7 +154,7 @@ def startup_scenarios(*, spec: BudgetSpec, project: Path) -> dict[str, ScenarioR
         command=[str(spec.executable), "--version"],
         project=project,
     )
-    (project / "strata.toml").unlink()
+    (project / "fensu.toml").unlink()
     initialized: ScenarioResult = measured_command(
         name=INIT_SCENARIO,
         command=[str(spec.executable), "init", "--yes", "--no-skills"],
@@ -170,7 +170,7 @@ def measured_check(
     project: Path,
     cache: bool,
 ) -> ScenarioResult:
-    """Run one timed strata check and capture its output identity and stats."""
+    """Run one timed fensu check and capture its output identity and stats."""
 
     cache_flag: str = "--cache" if cache else "--no-cache"
     command: list[str] = [
@@ -248,7 +248,7 @@ def _timing_path() -> Path | None:
     if not sys.platform.startswith("linux") or not _GNU_TIME_PATH.is_file():
         return None
     created: tuple[int, str] = tempfile.mkstemp(
-        prefix="strata-perfbudget-rss-",
+        prefix="fensu-perfbudget-rss-",
     )
     descriptor: int = created[0]
     path: Path = Path(created[1])

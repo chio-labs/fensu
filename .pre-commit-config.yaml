@@ -29,9 +29,9 @@ repos:
         language: system
         pass_filenames: false
 
-      - id: strata-check
-        name: strata self-check
-        entry: bash -c 'uv run strata check'
+      - id: fensu-check
+        name: fensu self-check
+        entry: bash -c 'uv run fensu check'
         language: system
         pass_filenames: false
 

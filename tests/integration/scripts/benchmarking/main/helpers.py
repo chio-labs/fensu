@@ -5,8 +5,8 @@ import sys
 from pathlib import Path
 
 
-def write_fake_strata(*, root: Path, output: str, changing: bool = False) -> Path:
-    """Write a fake Strata executable with stable or changing diagnostics."""
+def write_fake_fensu(*, root: Path, output: str, changing: bool = False) -> Path:
+    """Write a fake Fensu executable with stable or changing diagnostics."""
 
     check_script: Path = root / "check"
     changing_body: str = (
@@ -31,7 +31,7 @@ def write_fake_strata(*, root: Path, output: str, changing: bool = False) -> Pat
 def run_benchmark_command(
     *, project: Path, executable: Path, runs: int
 ) -> subprocess.CompletedProcess[str]:
-    """Run the public benchmark command against a fake Strata executable."""
+    """Run the public benchmark command against a fake Fensu executable."""
 
     return subprocess.run(
         (
@@ -77,8 +77,8 @@ def write_profile_project(root: Path) -> None:
     source: Path = root / "src/pkg/domain/core/models.py"
     source.parent.mkdir(parents=True)
     source.write_text("VALUE: int = 1\n", encoding="utf-8")
-    (root / "strata.toml").write_text(
-        'roots = ["src/pkg"]\ntests = []\ntooling = []\nselect = ["SFR601"]\n'
+    (root / "fensu.toml").write_text(
+        'roots = ["src/pkg"]\ntests = []\ntooling = []\nselect = ["FFR601"]\n'
         '[[threshold_overrides]]\npaths = ["src/pkg/**/*.py"]\n'
         'reason = "Profile rendering."\nthresholds = { max_file_lines = 2 }\n',
         encoding="utf-8",
@@ -86,7 +86,7 @@ def write_profile_project(root: Path) -> None:
 
 
 def write_custom_rule_profile_project(*, root: Path, rule_code: str) -> None:
-    """Write an external profile project whose scripts package conflicts with Strata's."""
+    """Write an external profile project whose scripts package conflicts with Fensu's."""
 
     source: Path = root / "src/pkg/models.py"
     source.parent.mkdir(parents=True)
@@ -98,7 +98,7 @@ def write_custom_rule_profile_project(*, root: Path, rule_code: str) -> None:
     (package / "rules.py").write_text(
         f'''import sys
 
-from strata import Family, Fault, RuleContext, rule
+from fensu import Family, Fault, RuleContext, rule
 
 
 if not sys.dont_write_bytecode:
@@ -112,7 +112,7 @@ def profile_rule(*, module: object, ctx: RuleContext) -> list[Fault]:
 ''',
         encoding="utf-8",
     )
-    (root / "strata.toml").write_text(
+    (root / "fensu.toml").write_text(
         f'roots = ["src/pkg"]\ntests = []\ntooling = []\nselect = ["{rule_code}"]\n'
         'rule_modules = ["scripts.policy.rules"]\n',
         encoding="utf-8",

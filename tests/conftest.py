@@ -1,1 +1,1 @@
-"""Shared pytest fixtures for the strata test suite."""
+"""Shared pytest fixtures for the fensu test suite."""

@@ -1,0 +1,33 @@
+[package]
+name = "fensu-native"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[lib]
+name = "fensu_native"
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+flate2.workspace = true
+globset.workspace = true
+pyo3 = { workspace = true, optional = true }
+rayon.workspace = true
+ruff_python_ast.workspace = true
+rusqlite.workspace = true
+sha2.workspace = true
+serde_json.workspace = true
+fensu-facts = { workspace = true, default-features = false }
+fensu-memory = { workspace = true, optional = true }
+unicode-ident.workspace = true
+
+[features]
+default = ["python"]
+extension-module = ["python", "pyo3/extension-module"]
+memory = ["python", "dep:fensu-memory", "fensu-memory/sqlite-engine"]
+python = ["dep:pyo3", "fensu-facts/python"]

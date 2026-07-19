@@ -2,4 +2,4 @@
 
 
 class BenchmarkError(RuntimeError):
-    """Raised when a benchmark target or Strata invocation is invalid."""
+    """Raised when a benchmark target or Fensu invocation is invalid."""

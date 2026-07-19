@@ -1,0 +1,300 @@
+"""Tests for naming contract rules."""
+
+from __future__ import annotations
+
+from dataclasses import replace
+from pathlib import Path
+from unittest.mock import Mock
+
+import pytest
+
+from fensu.config.exceptions import ConfigError
+from fensu.evaluation.models import EvaluationResult
+from fensu.rules.authoring.models import RuleSpec
+from tests.unit.src.fensu.rules.naming.main import helpers as naming_test_helpers
+from tests.unit.src.fensu.rules.naming.main._test_types import (
+    FfnConflictTestCase,
+    FfnRuleTestCase,
+)
+from tests.unit.src.fensu.rules.naming.main.helpers import evaluate_naming_test_case
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        FfnRuleTestCase(
+            description="validator returning value is flagged",
+            source="def validate_config() -> bool:\n    return True\n",
+            expected_codes=("FFN001",),
+            expected_lines=(2,),
+            expected_message_fragments=("validate_config", "meaningful value"),
+            expected_remediation_fragments=("Remove the meaningful return", "rename"),
+        ),
+        FfnRuleTestCase(
+            description="validator returning None is allowed",
+            source="def validate_config() -> None:\n    return None\n",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        FfnRuleTestCase(
+            description="validator bare return is allowed",
+            source="def validate_config() -> None:\n    return\n",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        FfnRuleTestCase(
+            description="enforcer returning value is flagged",
+            source="async def enforce_policy() -> int:\n    return 1\n",
+            expected_codes=("FFN001",),
+            expected_lines=(2,),
+        ),
+        FfnRuleTestCase(
+            description="accepted predicate annotations and missing annotations are legal",
+            source=(
+                "from typing import TypeGuard\n"
+                "from typing_extensions import TypeIs\n"
+                "def is_ready() -> bool:\n    return True\n"
+                "def has_items() -> builtins.bool:\n    return True\n"
+                "def can_narrow(value: object) -> TypeGuard[int]:\n    return True\n"
+                "def supports_narrow(value: object) -> typing_extensions.TypeIs[int]:\n"
+                "    return True\n"
+                "async def is_async() -> 'bool':\n    return True\n"
+                "def has_missing():\n    return True\n"
+            ),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        FfnRuleTestCase(
+            description="predicate annotations outside the exact accepted forms are flagged",
+            source=(
+                "def is_count() -> int:\n    return 1\n"
+                "def has_status() -> Status:\n    return Status()\n"
+                "def can_retry() -> bool | None:\n    return None\n"
+                "def supports_mode() -> Literal[True]:\n    return True\n"
+                "def is_done() -> None:\n    return None\n"
+            ),
+            expected_codes=("FFN002",) * 5,
+            expected_lines=(1, 3, 5, 7, 9),
+            expected_message_fragments=("is_count", "int", "has_status", "Status"),
+            expected_remediation_fragments=("Return bool", "rename", "count_status"),
+        ),
+        FfnRuleTestCase(
+            description="value names allow concrete optional raising and missing declarations",
+            source=(
+                "def get_user() -> User:\n    return User()\n"
+                "def get_optional() -> User | None:\n    return None\n"
+                "def get_legacy() -> Optional[User]:\n    return None\n"
+                "def to_text() -> str:\n    return 'value'\n"
+                "def as_record() -> Record:\n    raise LookupError\n"
+                "def get_missing():\n    return object()\n"
+            ),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        FfnRuleTestCase(
+            description="value names reject every explicit no-value annotation spelling",
+            source=(
+                "def get_user() -> None:\n    return None\n"
+                "def to_user() -> NoReturn:\n    raise RuntimeError\n"
+                "def as_user() -> typing.NoReturn:\n    raise RuntimeError\n"
+                "def get_never() -> Never:\n    raise RuntimeError\n"
+                "def to_never() -> 'typing.Never':\n    raise RuntimeError\n"
+                "def as_none() -> 'None':\n    return None\n"
+            ),
+            expected_codes=("FFN003",) * 6,
+            expected_lines=(1, 3, 5, 7, 9, 11),
+            expected_message_fragments=("get_user", "None", "to_never", "typing.Never"),
+            expected_remediation_fragments=("Return the queried value", "write_json", "rename"),
+        ),
+        FfnRuleTestCase(
+            description="iterator names allow owned yields and exact iterator declarations",
+            source=(
+                "def iter_yield() -> Iterable[int]:\n    yield 1\n"
+                "async def iter_async_yield():\n    yield 1\n"
+                "def iter_items() -> Iterator[int]:\n    return iterator\n"
+                "def iter_generated() -> Generator[int, None, None]:\n    return generator\n"
+                "def iter_async_items() -> typing.AsyncIterator[int]:\n    return iterator\n"
+                "def iter_async_generated() -> 'typing.AsyncGenerator[int, None]':\n"
+                "    return generator\n"
+                "def iter_delegated() -> collections.abc.Iterator[int]:\n    return iter(())\n"
+                "def iter_unannotated():\n    yield from ()\n"
+            ),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        FfnRuleTestCase(
+            description="iterator names reject eager iterable and no-value results",
+            source=(
+                "def iter_list() -> list[int]:\n    return []\n"
+                "def iter_tuple() -> tuple[int, ...]:\n    return ()\n"
+                "def iter_iterable() -> Iterable[int]:\n    return []\n"
+                "def iter_none() -> None:\n    return None\n"
+                "def iter_nested() -> list[int]:\n"
+                "    def nested():\n        yield 1\n"
+                "    return list(nested())\n"
+                "def iter_missing():\n    return []\n"
+            ),
+            expected_codes=("FFN004",) * 5,
+            expected_lines=(1, 3, 5, 7, 9),
+            expected_message_fragments=("iter_list", "list[int]", "iter_nested"),
+            expected_remediation_fragments=("Return an iterator", "collect_list", "rename"),
+        ),
+        FfnRuleTestCase(
+            description="custom patterns support every behavior",
+            source=(
+                "def ensure_ready() -> int:\n    return 1\n"
+                "def eligible() -> Status:\n    return Status()\n"
+                "def fetch_user() -> None:\n    return None\n"
+                "def stream_rows() -> list[int]:\n    return []\n"
+            ),
+            contracts={
+                "ensure_*": "no-return",
+                "eligible": "returns-bool",
+                "fetch_*": "returns-value",
+                "stream_*": "returns-iterator",
+            },
+            expected_codes=("FFN001", "FFN002", "FFN003", "FFN004"),
+            expected_lines=(2, 3, 5, 7),
+        ),
+        FfnRuleTestCase(
+            description="exact default pattern override changes the enforced behavior",
+            source="def is_ready() -> None:\n    return None\n",
+            contracts={"is_*": "returns-value"},
+            expected_codes=("FFN003",),
+            expected_lines=(1,),
+        ),
+        FfnRuleTestCase(
+            description="same behavior overlap is deduplicated",
+            source="def is_ready() -> Status:\n    return Status()\n",
+            contracts={"*_ready": "returns-bool"},
+            expected_codes=("FFN002",),
+            expected_lines=(1,),
+        ),
+        FfnRuleTestCase(
+            description="check returning bool is not contracted",
+            source="def check_value() -> bool:\n    return True\n",
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        FfnRuleTestCase(
+            description="nested helper return does not count for validator",
+            source=(
+                "def validate_config() -> None:\n"
+                "    def build_value() -> int:\n"
+                "        return 1\n"
+                "    build_value()\n"
+                "    return None\n"
+            ),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        FfnRuleTestCase(
+            description="custom no-return writer returning value is flagged",
+            source="def write_record() -> int:\n    return 1\n",
+            contracts={"write_*": "no-return"},
+            expected_codes=("FFN001",),
+            expected_lines=(2,),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_function_contracts_when_checking_returns_then_flags_meaningful_values(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: FfnRuleTestCase,
+) -> None:
+    result: EvaluationResult = evaluate_naming_test_case(
+        test_case=test_case, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
+    assert tuple(fault.line for fault in result.faults) == test_case.expected_lines
+    messages: str = "\n".join(fault.message for fault in result.faults)
+    remediations: str = "\n".join(fault.remediation or "" for fault in result.faults)
+    assert all(fragment in messages for fragment in test_case.expected_message_fragments)
+    assert all(fragment in remediations for fragment in test_case.expected_remediation_fragments)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        FfnConflictTestCase(
+            description="different overlapping behaviors fail in sorted pattern order",
+            source="def is_ready() -> bool:\n    return True\n",
+            contracts={"*_ready": "returns-value"},
+            expected_error_type=ConfigError,
+            expected_message=(
+                "Conflicting contracts for function 'is_ready' at "
+                "src/pkg/domain/core/_helpers/checks.py: '*_ready' (returns-value), "
+                "'is_*' (returns-bool)."
+            ),
+        ),
+        FfnConflictTestCase(
+            description="custom predicate conflicts with default validator in sorted order",
+            source="def validate_ready() -> bool:\n    return True\n",
+            contracts={"*_ready": "returns-bool"},
+            expected_error_type=ConfigError,
+            expected_message=(
+                "Conflicting contracts for function 'validate_ready' at "
+                "src/pkg/domain/core/_helpers/checks.py: '*_ready' (returns-bool), "
+                "'validate_*' (no-return)."
+            ),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_conflicting_contracts_when_function_matches_then_raises_stable_config_error(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: FfnConflictTestCase,
+) -> None:
+    with pytest.raises(test_case.expected_error_type) as error:
+        evaluate_naming_test_case(
+            test_case=FfnRuleTestCase(
+                description=test_case.description,
+                source=test_case.source,
+                contracts=test_case.contracts,
+                expected_codes=(),
+                expected_lines=(),
+            ),
+            tmp_path=tmp_path,
+            monkeypatch=monkeypatch,
+        )
+
+    assert str(error.value) == test_case.expected_message
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        FfnRuleTestCase(
+            description="all registered native naming rules bypass Python core callbacks",
+            source=(
+                "def validate_config() -> bool:\n    return True\n"
+                "def is_ready() -> Status:\n    return Status()\n"
+                "def get_user() -> None:\n    return None\n"
+                "def iter_rows() -> list[int]:\n    return []\n"
+            ),
+            expected_codes=("FFN001", "FFN002", "FFN003", "FFN004"),
+            expected_lines=(2, 3, 5, 7),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_registered_native_naming_rules_when_evaluating_then_skip_python_callbacks(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: FfnRuleTestCase,
+) -> None:
+    python_callback: Mock = Mock(side_effect=AssertionError("Python callback executed"))
+    patched_rules: tuple[RuleSpec, ...] = tuple(
+        replace(rule, check=python_callback) for rule in naming_test_helpers.FFN_RULES
+    )
+    monkeypatch.setattr(naming_test_helpers, "FFN_RULES", patched_rules)
+
+    result: EvaluationResult = evaluate_naming_test_case(
+        test_case=test_case, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
+    assert python_callback.call_count == 0

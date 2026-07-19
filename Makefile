@@ -18,28 +18,28 @@ check:
 	uv run ruff format .
 	uv run ruff check --fix .
 	uv run ty check src tests scripts
-	uv run strata check
+	uv run fensu check
 	@command -v cargo >/dev/null && $(MAKE) --no-print-directory check-rust || true
 
 check-rust:
 	cargo fmt --check
 	cargo clippy --all-targets --quiet -- -D warnings
-	cargo run -p strata-structure-checker --quiet
+	cargo run -p fensu-structure-checker --quiet
 
 test-rust:
 	cargo test --all --quiet
 
 develop-native:
-	uv sync --reinstall-package stratalint
+	uv sync --reinstall-package fensu
 
 develop-memory:
 	uvx --from 'maturin[patchelf]>=1.14,<2' maturin develop --release --uv --features extension-module,memory
 
 self-check:
-	uv run strata check
+	uv run fensu check
 
 skills:
-	uv run strata skills
+	uv run fensu skills
 
 test:
 	uv run pytest tests -q -n auto
@@ -51,7 +51,7 @@ test-integration:
 	uv run pytest tests/integration -q -n auto
 
 test-memory:
-	cargo test -p strata-memory --features sqlite-engine
+	cargo test -p fensu-memory --features sqlite-engine
 
 test-e2e:
 	uv run pytest tests/e2e -q -n auto

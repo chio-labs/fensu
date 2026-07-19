@@ -1,1 +1,1 @@
-"""Strata performance benchmarking tooling."""
+"""Fensu performance benchmarking tooling."""

@@ -2,7 +2,7 @@
   "packages": {
     ".": {
       "release-type": "python",
-      "package-name": "stratalint",
+      "package-name": "fensu",
       "include-v-in-tag": true,
       "include-component-in-tag": false,
       "bump-minor-pre-major": true,
@@ -14,11 +14,11 @@
         },
         {
           "type": "generic",
-          "path": "crates/strata-cli/Cargo.toml"
+          "path": "crates/fensu-cli/Cargo.toml"
         },
         {
           "type": "generic",
-          "path": "packages/stratalint-cli/pyproject.toml"
+          "path": "packages/fensu-cli/pyproject.toml"
         }
       ]
     }

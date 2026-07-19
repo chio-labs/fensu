@@ -1,4 +1,4 @@
-"""Generate a deterministic performance corpus for Strata benchmarking."""
+"""Generate a deterministic performance corpus for Fensu benchmarking."""
 
 from __future__ import annotations
 

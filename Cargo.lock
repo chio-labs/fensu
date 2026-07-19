@@ -343,6 +343,81 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9f1f227452a390804cdb637b74a86990f2a7d7ba4b7d5693aac9b4dd6defd8d6"
 
 [[package]]
+name = "fensu-cli"
+version = "0.1.0"
+dependencies = [
+ "fensu-facts",
+ "fensu-memory",
+ "fensu-native",
+ "globset",
+ "rayon",
+ "ruff_python_ast",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+ "toml",
+ "walkdir",
+]
+
+[[package]]
+name = "fensu-facts"
+version = "0.1.0"
+dependencies = [
+ "dunce",
+ "globset",
+ "hex",
+ "pyo3",
+ "rayon",
+ "ruff_python_ast",
+ "ruff_python_parser",
+ "ruff_text_size",
+ "sha2",
+ "walkdir",
+]
+
+[[package]]
+name = "fensu-memory"
+version = "0.1.0"
+dependencies = [
+ "gix",
+ "hex",
+ "pulldown-cmark",
+ "rayon",
+ "rusqlite",
+ "sha2",
+ "tempfile",
+]
+
+[[package]]
+name = "fensu-native"
+version = "0.1.0"
+dependencies = [
+ "fensu-facts",
+ "fensu-memory",
+ "flate2",
+ "globset",
+ "pyo3",
+ "rayon",
+ "ruff_python_ast",
+ "rusqlite",
+ "serde_json",
+ "sha2",
+ "unicode-ident",
+]
+
+[[package]]
+name = "fensu-structure-checker"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+ "toml",
+ "walkdir",
+]
+
+[[package]]
 name = "filetime"
 version = "0.2.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2007,81 +2082,6 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
-
-[[package]]
-name = "strata-cli"
-version = "0.20.0"
-dependencies = [
- "globset",
- "rayon",
- "ruff_python_ast",
- "rusqlite",
- "serde",
- "serde_json",
- "sha2",
- "strata-facts",
- "strata-memory",
- "strata-native",
- "toml",
- "walkdir",
-]
-
-[[package]]
-name = "strata-facts"
-version = "0.1.0"
-dependencies = [
- "dunce",
- "globset",
- "hex",
- "pyo3",
- "rayon",
- "ruff_python_ast",
- "ruff_python_parser",
- "ruff_text_size",
- "sha2",
- "walkdir",
-]
-
-[[package]]
-name = "strata-memory"
-version = "0.1.0"
-dependencies = [
- "gix",
- "hex",
- "pulldown-cmark",
- "rayon",
- "rusqlite",
- "sha2",
- "tempfile",
-]
-
-[[package]]
-name = "strata-native"
-version = "0.1.0"
-dependencies = [
- "flate2",
- "globset",
- "pyo3",
- "rayon",
- "ruff_python_ast",
- "rusqlite",
- "serde_json",
- "sha2",
- "strata-facts",
- "strata-memory",
- "unicode-ident",
-]
-
-[[package]]
-name = "strata-structure-checker"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
- "toml",
- "walkdir",
-]
 
 [[package]]
 name = "syn"

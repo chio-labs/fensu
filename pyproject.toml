@@ -6,8 +6,8 @@ requires = [
 build-backend = "maturin"
 
 [project]
-name = "stratalint"
-version = "0.21.1"
+name = "fensu"
+version = "0.1.0"
 description = "Architecture linting for Python repositories"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -24,17 +24,17 @@ classifiers = [
   "Topic :: Software Development :: Quality Assurance",
 ]
 dependencies = [
-  "stratalint-cli==0.21.1", # x-release-please-version
+  "fensu-cli==0.1.0", # x-release-please-version
 ]
 
 [project.urls]
-Homepage = "https://github.com/chio-labs/strata"
-Issues = "https://github.com/chio-labs/strata/issues"
-Repository = "https://github.com/chio-labs/strata"
+Homepage = "https://github.com/chio-labs/fensu"
+Issues = "https://github.com/chio-labs/fensu/issues"
+Repository = "https://github.com/chio-labs/fensu"
 
 [tool.maturin]
-manifest-path = "crates/strata-native/Cargo.toml"
-module-name = "strata._native"
+manifest-path = "crates/fensu-native/Cargo.toml"
+module-name = "fensu._native"
 python-source = "src"
 features = ["extension-module", "memory"]
 
@@ -52,17 +52,17 @@ dev = [
 cache-keys = [
   { file = "pyproject.toml" },
   { file = "Cargo.toml" },
-  { file = "crates/strata-facts/Cargo.toml" },
-  { file = "crates/strata-facts/src/**/*.rs" },
-  { file = "crates/strata-memory/Cargo.toml" },
-  { file = "crates/strata-memory/src/**/*.rs" },
-  { file = "crates/strata-native/Cargo.toml" },
-  { file = "crates/strata-native/src/**/*.rs" },
-  { file = "src/strata/_native.pyi" },
+  { file = "crates/fensu-facts/Cargo.toml" },
+  { file = "crates/fensu-facts/src/**/*.rs" },
+  { file = "crates/fensu-memory/Cargo.toml" },
+  { file = "crates/fensu-memory/src/**/*.rs" },
+  { file = "crates/fensu-native/Cargo.toml" },
+  { file = "crates/fensu-native/src/**/*.rs" },
+  { file = "src/fensu/_native.pyi" },
 ]
 
 [tool.uv.sources]
-stratalint-cli = { path = "packages/stratalint-cli" }
+fensu-cli = { path = "packages/fensu-cli" }
 
 [tool.ruff]
 target-version = "py312"

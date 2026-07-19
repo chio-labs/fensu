@@ -31,5 +31,5 @@ EDITED_HELPER_FILE_NAME: str = "record_shaping.py"
 EDIT_APPENDIX: str = "\nEDIT_MARKER: int = 1\n"
 CHURN_APPENDIX: str = "\n"
 GLOBAL_MISMATCH_CONFIG_APPENDIX: str = (
-    '\n[evaluation]\nexclude = ["__strata_performance_no_match__/**"]\n'
+    '\n[evaluation]\nexclude = ["__fensu_performance_no_match__/**"]\n'
 )

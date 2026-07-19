@@ -1,4 +1,4 @@
-"""Instrument one in-process Strata check by phase and rule."""
+"""Instrument one in-process Fensu check by phase and rule."""
 
 from __future__ import annotations
 
@@ -10,25 +10,25 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import cast
 
-import strata.evaluation._helpers.file_evaluation as file_evaluation_module
-import strata.evaluation._helpers.project_analysis as project_analysis_module
-from scripts.benchmarking.models import ProfileReport
-from scripts.benchmarking.types import EvaluatorModule, ProjectAnalysisModule
-from strata.analysis.types import ProjectAnalysis
-from strata.cli._helpers.check_reporting import render_check_result
-from strata.config.main.load_config import load_config
-from strata.config.models import Config
-from strata.discovery.main.discover_files import discover_files
-from strata.discovery.models import ProjectLayout, RepoRoot, ScopedFile
-from strata.evaluation.main.evaluate import evaluate
-from strata.evaluation.models import (
+import fensu.evaluation._helpers.file_evaluation as file_evaluation_module
+import fensu.evaluation._helpers.project_analysis as project_analysis_module
+from fensu.analysis.types import ProjectAnalysis
+from fensu.cli._helpers.check_reporting import render_check_result
+from fensu.config.main.load_config import load_config
+from fensu.config.models import Config
+from fensu.discovery.main.discover_files import discover_files
+from fensu.discovery.models import ProjectLayout, RepoRoot, ScopedFile
+from fensu.evaluation.main.evaluate import evaluate
+from fensu.evaluation.models import (
     ExternalAnalysisBuild,
     ParsedModule,
     SourceSnapshot,
     ThresholdOverrideUse,
 )
-from strata.rules.authoring.models import Fault, RuleSpec
-from strata.rules.catalog.main.build_ruleset import build_ruleset
+from fensu.rules.authoring.models import Fault, RuleSpec
+from fensu.rules.catalog.main.build_ruleset import build_ruleset
+from scripts.benchmarking.models import ProfileReport
+from scripts.benchmarking.types import EvaluatorModule, ProjectAnalysisModule
 
 
 class CheckProfiler:

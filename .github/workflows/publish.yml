@@ -79,7 +79,7 @@ jobs:
           args: --release --out ../../dist
           target: ${{ matrix.platform.target }}
           manylinux: auto
-          working-directory: packages/stratalint-cli
+          working-directory: packages/fensu-cli
       - uses: actions/upload-artifact@v4
         with:
           name: wheel-${{ matrix.platform.name }}
@@ -102,7 +102,7 @@ jobs:
         with:
           command: sdist
           args: --out ../../dist
-          working-directory: packages/stratalint-cli
+          working-directory: packages/fensu-cli
       - uses: actions/upload-artifact@v4
         with:
           name: sdist

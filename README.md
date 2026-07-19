@@ -1,20 +1,20 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/chio-labs/strata/main/.github/strata-logo-wide.png" alt="Strata" width="100%">
+  <img src="https://raw.githubusercontent.com/chio-labs/fensu/main/.github/fensu-logo-wide.png" alt="Fensu" width="100%">
 </p>
 
 <p align="center">
   Keeping Python repos from turning into spaghetti.
 </p>
 
-**Most linters catch bad code inside files. Strata catches architectural drift:
+**Most linters catch bad code inside files. Fensu catches architectural drift:
 code crossing the wrong boundary, living in the wrong module, or growing into the
 wrong shape.**
 
 As a repository grows, code moves, lessons get forgotten, and the mental map
-decays. Tests preserve behavior and types preserve interfaces. Strata makes the
+decays. Tests preserve behavior and types preserve interfaces. Fensu makes the
 repository's architectural expectations executable.
 
-Strata enforces:
+Fensu enforces:
 
 - which layers may import which;
 - what each module or role file may contain;
@@ -25,29 +25,23 @@ Strata enforces:
 It ships a coherent default architecture rather than a blank rule framework, then
 lets projects disable, extend, or replace parts deliberately.
 
-Strata is functional and self-hosting, but remains pre-release.
+Fensu is functional and self-hosting, but remains pre-release.
 
 ## Installation
 
 ```bash
-pip install stratalint
+pip install fensu
 ```
 
-The authoring/API distribution is `stratalint`. It installs the lockstep
-`stratalint-cli` binary package, which exclusively owns the `strata` command.
+The authoring/API distribution is `fensu`. It installs the lockstep
+`fensu-cli` binary package, which exclusively owns the `fensu` command.
 Core-only `check`, `init`, `rule`, and `--version` execution is native; custom
 rules, `skills`, and `map` launch the active environment's Python interpreter.
 
-`python -m strata` is the supported fallback if a binary wheel is unavailable.
-Installing `stratalint-cli` from its source distribution requires Rust. During
-an upgrade from a pre-split release, a stale Python-generated `strata` wrapper
-reports an actionable reinstall error; repair it with:
+`python -m fensu` is the supported fallback if a binary wheel is unavailable.
+Installing `fensu-cli` from its source distribution requires Rust.
 
-```bash
-python -m pip install --force-reinstall stratalint-cli
-```
-
-Strata requires Python 3.12+ and includes a compiled analysis core. Prebuilt
+Fensu requires Python 3.12+ and includes a compiled analysis core. Prebuilt
 wheels cover Linux (x86_64, aarch64) and macOS (Intel, Apple silicon); on any
 other platform, `pip` builds from source, which requires a Rust toolchain.
 Release wheels are built for Windows x86_64 as well as the listed Linux and
@@ -59,11 +53,11 @@ Detect the repository layout, choose a starting ruleset, and write a validated
 configuration:
 
 ```bash
-strata init
+fensu init
 ```
 
-For non-interactive setup, use `strata init --yes`. To configure manually instead,
-add `strata.toml` at the repository root:
+For non-interactive setup, use `fensu init --yes`. To configure manually instead,
+add `fensu.toml` at the repository root:
 
 ```toml
 roots = ["src/my_package"]
@@ -77,7 +71,7 @@ enabled = true
 Then run:
 
 ```bash
-strata check
+fensu check
 ```
 
 All rule families are enabled by default. Product roots and tooling receive
@@ -126,66 +120,66 @@ under `scripts/<tool>/<role>/`.
 ## Core Commands
 
 ```bash
-strata init
-strata check
-strata rule SFS131
-strata map run_plan --depth 3
+fensu init
+fensu check
+fensu rule FFS131
+fensu map run_plan --depth 3
 ```
 
-`strata init` detects and validates an onboarding configuration, `strata check`
-enforces the configured architecture, `strata rule` explains one rule and its
-remediation, and `strata map` renders a conservative downstream call tree. Mapping
+`fensu init` detects and validates an onboarding configuration, `fensu check`
+enforces the configured architecture, `fensu rule` explains one rule and its
+remediation, and `fensu map` renders a conservative downstream call tree. Mapping
 follows project functions and class methods when imports,
 annotations, constructors, or return types prove the receiver. Calls through
 protocols and untyped parameters remain visible as unresolved dispatch seams
-rather than guessed implementations. Mapping does not require Strata
+rather than guessed implementations. Mapping does not require Fensu
 configuration or rule adoption.
 
-`strata check` stores disposable evaluation results in a repository-local
-SQLite database under `.strata/cache/`
+`fensu check` stores disposable evaluation results in a repository-local
+SQLite database under `.fensu/cache/`
 and reuses them only after validating source, configuration, rule, implementation,
 and project-query inputs. Caching is enabled by default; set `cache.enabled = false`
 in configuration or pass `--no-cache` for an explicit uncached check. `--cache`
 overrides a disabled project preference for one invocation.
-Deleting `.strata/cache/` is always safe; ignore that directory rather than the
-complete `.strata/` namespace, which is reserved for other Strata-owned state.
+Deleting `.fensu/cache/` is always safe; ignore that directory rather than the
+complete `.fensu/` namespace, which is reserved for other Fensu-owned state.
 
 ## Enforce It, Then See It
 
-Because Strata enforces the structure, it can also render it. `strata map`
+Because Fensu enforces the structure, it can also render it. `fensu map`
 produces a deterministic downstream call tree with clickable `path:line`
 locations, class-qualified method names, and explicit protocol seams while
 marking unresolved dynamic calls, depth limits, and cycles.
 
 ```text
-$ strata map run_map --depth 4
+$ fensu map run_map --depth 4
 
-run_map(...)  src/strata/cli/main/map.py:21
-├── _parser(...)  src/strata/cli/main/map.py:53
-├── resolve_mapping_project(...)  src/strata/mapping/main/resolve_project.py:11
-│   └── resolve_mapping_project(...)  src/strata/mapping/_helpers/project.py:15
-│       ├── _find_project_root(...)  src/strata/mapping/_helpers/project.py:73
-│       ├── _explicit_source(...)  src/strata/mapping/_helpers/project.py:65
-│       ├── _optional_config_source(...)  src/strata/mapping/_helpers/project.py:38
-│       │   └── find_config_source(...)  src/strata/config/main/find_config.py:12  (depth limit)
-│       └── _configured_project(...)  src/strata/mapping/_helpers/project.py:45
-│           ├── load_config(...)  src/strata/config/main/load_config.py:15  (depth limit)
-│           └── _configured_source(...)  src/strata/mapping/_helpers/project.py:57
-└── build_call_map(...)  src/strata/mapping/main/build.py:12
-    ├── provider(...)  src/strata/mapping/main/build.py:24  (unresolved parameter call)
-    └── render_tree(...)  src/strata/mapping/_helpers/render.py:19
-        ├── _child_lines(...)  src/strata/mapping/_helpers/render.py:41
-        │   └── _child_lines(...)  src/strata/mapping/_helpers/render.py:41  (cycle)
-        └── _label(...)  src/strata/mapping/_helpers/render.py:88
+run_map(...)  src/fensu/cli/main/map.py:21
+├── _parser(...)  src/fensu/cli/main/map.py:53
+├── resolve_mapping_project(...)  src/fensu/mapping/main/resolve_project.py:11
+│   └── resolve_mapping_project(...)  src/fensu/mapping/_helpers/project.py:15
+│       ├── _find_project_root(...)  src/fensu/mapping/_helpers/project.py:73
+│       ├── _explicit_source(...)  src/fensu/mapping/_helpers/project.py:65
+│       ├── _optional_config_source(...)  src/fensu/mapping/_helpers/project.py:38
+│       │   └── find_config_source(...)  src/fensu/config/main/find_config.py:12  (depth limit)
+│       └── _configured_project(...)  src/fensu/mapping/_helpers/project.py:45
+│           ├── load_config(...)  src/fensu/config/main/load_config.py:15  (depth limit)
+│           └── _configured_source(...)  src/fensu/mapping/_helpers/project.py:57
+└── build_call_map(...)  src/fensu/mapping/main/build.py:12
+    ├── provider(...)  src/fensu/mapping/main/build.py:24  (unresolved parameter call)
+    └── render_tree(...)  src/fensu/mapping/_helpers/render.py:19
+        ├── _child_lines(...)  src/fensu/mapping/_helpers/render.py:41
+        │   └── _child_lines(...)  src/fensu/mapping/_helpers/render.py:41  (cycle)
+        └── _label(...)  src/fensu/mapping/_helpers/render.py:88
 ```
 
-The map is useful precisely because it is not guessing. `strata check` enforces
-layers, roles, and public surfaces first, and `strata map` then renders the
+The map is useful precisely because it is not guessing. `fensu check` enforces
+layers, roles, and public surfaces first, and `fensu map` then renders the
 structure the code is required to expose.
 
 ## Philosophy
 
-Strata is strict by default wherever it can make an honest deterministic claim.
+Fensu is strict by default wherever it can make an honest deterministic claim.
 Following the rules should remove repeated architectural decisions from everyday
 work. Deliberate differences belong in selection, configuration, or custom rules,
 where they remain visible, rather than in scattered inline suppressions.
@@ -194,7 +188,7 @@ Unavoidable external calling conventions can use exact symbol-scoped exceptions:
 
 ```toml
 [[rule_exceptions]]
-rule = "SFS120"
+rule = "FFS120"
 path = "src/my_package/integrations/_helpers/callbacks.py"
 symbols = ["ProgressCollector.update"]
 reason = "The external API invokes this callback positionally."
@@ -202,7 +196,7 @@ reason = "The external API invokes this callback positionally."
 
 Exceptions accept one exact rule code, repository-relative Python file, and one
 or more qualified symbols. Globs, directories, line numbers, path-only entries,
-and inline suppression comments are not supported. `strata check` rejects stale
+and inline suppression comments are not supported. `fensu check` rejects stale
 exceptions that no longer suppress a fault.
 
 ## Agent Skills
@@ -210,39 +204,37 @@ exceptions that no longer suppress a fault.
 Generate repository-aware guidance from the active ruleset:
 
 ```bash
-strata skills
-strata skills --global
+fensu skills
+fensu skills --global
 ```
 
-The generated skill includes Strata usage, rule-supported architecture examples,
+The generated skill includes Fensu usage, rule-supported architecture examples,
 navigation and work-handoff guidance, and every enabled core and custom rule.
 Existing user-authored skill files are preserved unless `--force` is supplied.
 
 ## Custom Rules
 
 Custom checks use `X...` codes and the same `RuleContext` as core rules. Once
-configured, they participate in `strata check`, `strata rule`, and generated agent
+configured, they participate in `fensu check`, `fensu rule`, and generated agent
 skills. Rules can use `ctx.facts`, `ctx.project`, `ctx.text`, `ctx.syntax`, and
-`ctx.relations`; these are the same backend-neutral analysis zones used by Strata's
+`ctx.relations`; these are the same backend-neutral analysis zones used by Fensu's
 built-in rules. Project and filesystem reads made through `ctx.project` are tracked
 for cache invalidation. Raw `ast.Module` access remains available for checks that need
 unrestricted Python syntax traversal. Semantic fact contracts and author-facing models
 are public Python APIs, while their production extraction has one native Rust owner;
 raw AST, syntax, and relation artifacts remain lazy CPython capabilities. Keep
 project-owned checks in the canonical
-`scripts/strata/rules/` tooling role and load them explicitly:
+`scripts/fensu/rules/` tooling role and load them explicitly:
 
 ```toml
 tooling = ["scripts"]
-rule_paths = ["scripts/strata/rules"]
+rule_paths = ["scripts/fensu/rules"]
 ```
 
-See the
-[custom-rule guide](https://github.com/chio-labs/strata-docs/blob/main/concepts/custom-rules.mdx)
+See the [custom-rule guide](https://docs.fensu.dev/concepts/custom-rules)
 for the complete API and configuration.
 
 ## Documentation
 
 The quickstart, architecture model, configuration reference, adoption guide, and
-CLI reference live in the
-[Strata documentation repository](https://github.com/chio-labs/strata-docs).
+CLI reference live at [docs.fensu.dev](https://docs.fensu.dev).

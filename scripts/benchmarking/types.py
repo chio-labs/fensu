@@ -6,8 +6,8 @@ from collections.abc import Callable
 from enum import StrEnum
 from typing import Protocol
 
-from strata.evaluation.models import ExternalAnalysisBuild, ParsedModule
-from strata.rules.authoring.models import Fault
+from fensu.evaluation.models import ExternalAnalysisBuild, ParsedModule
+from fensu.rules.authoring.models import Fault
 
 
 class OperationProfileMode(StrEnum):

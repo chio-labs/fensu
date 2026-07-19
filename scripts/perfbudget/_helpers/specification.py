@@ -48,4 +48,4 @@ def resolved_budget_spec(
 
 
 def _default_executable() -> Path:
-    return Path(sys.executable).parent / "strata"
+    return Path(sys.executable).parent / "fensu"

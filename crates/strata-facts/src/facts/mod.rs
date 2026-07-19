@@ -2,5 +2,6 @@
 
 pub mod helpers;
 pub mod main;
+pub mod mapping;
 pub mod models;
 pub mod types;

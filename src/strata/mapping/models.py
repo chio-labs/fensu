@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import ast
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -54,10 +53,76 @@ class ModuleImports:
 
 
 @dataclass(frozen=True, slots=True)
+class MappingExpression:
+    """A compact native expression projection used by map tree policy."""
+
+    kind: str
+    spelling: str
+    parts: tuple[str, ...]
+    child: MappingExpression | None = None
+    string_value: str | None = None
+
+    @property
+    def name(self) -> str:
+        """Return the terminal static name when one is available."""
+
+        if self.parts:
+            return self.parts[-1]
+        return self.spelling.rsplit(".", maxsplit=1)[-1]
+
+
+@dataclass(frozen=True, slots=True)
+class MappingParameter:
+    """One function parameter and its optional annotation."""
+
+    name: str
+    annotation: MappingExpression | None
+
+
+@dataclass(frozen=True, slots=True)
+class MappingCall:
+    """One function-owned call in native traversal order."""
+
+    callee: MappingExpression
+    line: int
+
+
+@dataclass(frozen=True, slots=True)
+class MappingStatement:
+    """Receiver-binding and call facts for one direct function statement."""
+
+    control_flow: bool
+    assigned_names: frozenset[str]
+    binding_name: str | None
+    binding_annotation: MappingExpression | None
+    binding_value: MappingExpression | None
+    calls: tuple[MappingCall, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class FunctionSyntax:
+    """Native map facts owned by one function declaration."""
+
+    line: int
+    parameters: tuple[MappingParameter, ...]
+    returns: MappingExpression | None
+    statements: tuple[MappingStatement, ...]
+
+    @property
+    def calls(self) -> tuple[MappingCall, ...]:
+        """Return all owned calls in source-compatible traversal order."""
+
+        calls: list[MappingCall] = []
+        for statement in self.statements:
+            calls.extend(statement.calls)
+        return tuple(calls)
+
+
+@dataclass(frozen=True, slots=True)
 class ClassReference:
     """A class expression and the import context that owns it."""
 
-    expression: ast.expr
+    expression: MappingExpression
     annotation: bool
 
 
@@ -68,7 +133,7 @@ class FunctionDefinition:
     module_name: str
     name: str
     path: Path
-    node: ast.FunctionDef | ast.AsyncFunctionDef
+    syntax: FunctionSyntax
     imports: ModuleImports
     owning_class: str | None = None
 
@@ -122,9 +187,8 @@ class ClassDefinition:
     module_name: str
     name: str
     path: Path
-    node: ast.ClassDef
     imports: ModuleImports
-    bases: tuple[ast.expr, ...]
+    bases: tuple[MappingExpression, ...]
     base_keys: tuple[str, ...]
     protocol: bool
     class_attributes: dict[str, ClassReference]

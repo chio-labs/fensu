@@ -17,6 +17,11 @@ pub fn register_fact_functions(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(bindings::dataclass_facts, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::project_facts, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::list_syntax_nodes, module)?)?;
+    module.add_function(wrap_pyfunction!(bindings::mapping_index_facts, module)?)?;
+    module.add_function(wrap_pyfunction!(
+        bindings::mapping_declaration_facts,
+        module
+    )?)?;
     module.add_function(wrap_pyfunction!(bindings::comment_facts, module)?)?;
     module.add_function(wrap_pyfunction!(
         bindings::evaluate_rule_call_facts,

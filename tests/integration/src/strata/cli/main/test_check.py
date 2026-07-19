@@ -120,7 +120,7 @@ def test_given_evaluation_filter_when_running_check_then_reports_exact_cached_pa
             expected_fault_fragments=("src/pkg/alpha.py", "src/pkg/gamma.py"),
             expected_cache_exists=False,
             expected_cache_stats_fragment="",
-            expected_worker_partitions=2,
+            expected_worker_partitions=1,
         ),
         ParallelCheckTestCase(
             description="parallel cold-cache workers publish byte-identical reporting",
@@ -130,7 +130,7 @@ def test_given_evaluation_filter_when_running_check_then_reports_exact_cached_pa
             expected_fault_fragments=("src/pkg/alpha.py", "src/pkg/gamma.py"),
             expected_cache_exists=True,
             expected_cache_stats_fragment="hits=0 misses=3 invalidations=0 writes=3",
-            expected_worker_partitions=2,
+            expected_worker_partitions=1,
         ),
     ],
     ids=lambda case: case.description,

@@ -2,28 +2,30 @@
 
 from __future__ import annotations
 
+import sys
 from importlib import import_module
 from pathlib import Path
 from types import ModuleType
+from typing import cast
 
 from strata.analysis.constants import NATIVE_FACT_MODULE_NAME
 from strata.config.exceptions import ConfigError
 from strata.config.models import Config
 from strata.evaluation._helpers.native_rules import (
-    observe_native_rule_projects,
-    prepare_native_rule_request,
+    observe_native_rule_query_plans,
+    prepare_native_execution_requests,
 )
+from strata.evaluation._helpers.parsing import parse_scoped_file, prewarm_native_programs
 from strata.evaluation.models import (
     EvaluationTarget,
     NativeCoreRuleEvaluation,
-    ThresholdOverrideUse,
 )
 from strata.evaluation.types import (
     EvaluationProjectAnalysis,
-    NativeCoreRuleRequest,
     NativeFaultRow,
     NativeFaultsByCode,
 )
+from strata.instrumentation.constants import NATIVE_PARSE_OPERATION, OPERATION_COUNTERS
 from strata.rules.authoring.models import Fault, RuleSpec
 from strata.rules.roles.types import RoleCode
 
@@ -31,7 +33,6 @@ from strata.rules.roles.types import RoleCode
 def evaluate_native_core_rules(
     *,
     targets: tuple[EvaluationTarget, ...],
-    programs: tuple[object | None, ...],
     ruleset: tuple[RuleSpec, ...],
     warning_rules: tuple[RuleSpec, ...],
     config: Config,
@@ -53,42 +54,45 @@ def evaluate_native_core_rules(
         )
         for target in targets
     )
-    prepared: tuple[tuple[NativeCoreRuleRequest | None, tuple[ThresholdOverrideUse, ...]], ...] = (
-        tuple(
-            prepare_native_rule_request(
-                target=target,
-                program=program,
-                codes=codes,
-                config=config,
-                repo_root=repo_root,
-                tooling_packages=tooling_packages,
-                scope_roots=scope_roots,
-            )
-            for target, program, codes in zip(targets, programs, codes_by_target, strict=True)
-        )
+    snapshots, sources, prepared = prepare_native_execution_requests(
+        targets=targets,
+        codes_by_target=codes_by_target,
+        config=config,
+        repo_root=repo_root,
+        tooling_packages=tooling_packages,
+        scope_roots=scope_roots,
     )
-    observed_requests: tuple[NativeCoreRuleRequest | None, ...] = observe_native_rule_projects(
-        native=native,
-        requests=tuple(request for request, _ in prepared),
+    OPERATION_COUNTERS.record(operation=NATIVE_PARSE_OPERATION, amount=len(sources))
+    batch, plans, failures = native.plan_native_execution_batch(
+        [request for request, _ in prepared],
+        sys.version_info[0],
+        sys.version_info[1],
+    )
+    for index in failures:
+        _ = parse_scoped_file(
+            scoped_file=targets[index].scoped_file, source_snapshot=snapshots[index]
+        )
+    programs: list[object | None] = native.native_execution_programs(batch)
+    prewarm_native_programs(
+        project=project,
+        scoped_files=tuple(target.scoped_file for target in targets),
+        sources=sources,
+        source_fingerprints=tuple(snapshot.fingerprint for snapshot in snapshots),
+        programs=tuple(programs),
+    )
+    observations: list[dict[str, list[str]]] = observe_native_rule_query_plans(
+        plans=plans,
         targets=targets,
         project=project,
         repo_root=repo_root,
         scope_roots=scope_roots,
     )
     try:
-        batches: list[list[NativeFaultRow]] = native.evaluate_native_core_rules(
-            [request for request in observed_requests if request is not None]
+        batches: list[list[NativeFaultRow]] = native.evaluate_native_execution_batch(
+            batch, observations
         )
     except ValueError as error:
         raise ConfigError(str(error)) from error
-    rows_by_target: list[list[NativeFaultRow]] = []
-    batch_index: int = 0
-    for request, _ in prepared:
-        if request is None:
-            rows_by_target.append([])
-        else:
-            rows_by_target.append(batches[batch_index])
-            batch_index += 1
     return tuple(
         NativeCoreRuleEvaluation(
             faults_by_code=_faults_by_code(
@@ -98,10 +102,20 @@ def evaluate_native_core_rules(
                 rows=tuple(rows),
                 rules_by_code=rules_by_code,
             ),
+            source_fingerprint=snapshot.fingerprint,
+            source=source,
+            program=cast(object, program),
             threshold_override_uses=uses,
         )
-        for target, codes, rows, (_, uses) in zip(
-            targets, codes_by_target, rows_by_target, prepared, strict=True
+        for target, codes, rows, snapshot, source, program, (_, uses) in zip(
+            targets,
+            codes_by_target,
+            batches,
+            snapshots,
+            sources,
+            programs,
+            prepared,
+            strict=True,
         )
     )
 

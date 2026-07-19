@@ -42,7 +42,6 @@ pub fn register_fact_functions(module: &Bound<'_, PyModule>) -> PyResult<()> {
         bindings::outer_state_mutation_facts,
         module
     )?)?;
-    module.add_function(wrap_pyfunction!(bindings::extract_fact_rows, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::parse_program, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::parse_programs, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::reference_facts, module)?)?;

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from strata.config.models import Config
 from strata.discovery.models import DiscoveredTree
-from strata.evaluation._helpers.parsing import prewarm_scoped_files
 from strata.evaluation.main._evaluate_native_core_rules import evaluate_native_core_rules
 from strata.evaluation.main.evaluate_target import evaluate_target
 from strata.evaluation.models import EvaluationTarget, FileEvaluation, NativeCoreRuleEvaluation
@@ -23,10 +22,6 @@ def evaluate_target_chunk(
 ) -> tuple[FileEvaluation, ...]:
     """Evaluate one bounded target chunk through its registered execution owners."""
 
-    programs: tuple[object | None, ...] = prewarm_scoped_files(
-        project=project,
-        scoped_files=tuple(target.scoped_file for target in targets),
-    )
     scope_roots: tuple[tuple[str, str], ...] = (
         *(
             ("root", source.path.relative_to(tree.repo_root.path).as_posix())
@@ -41,9 +36,8 @@ def evaluate_target_chunk(
             for root in tree.layout.test_roots
         ),
     )
-    native: tuple[NativeCoreRuleEvaluation, ...] = evaluate_native_core_rules(
+    native_evaluations: tuple[NativeCoreRuleEvaluation, ...] = evaluate_native_core_rules(
         targets=targets,
-        programs=programs,
         ruleset=ruleset,
         warning_rules=warning_rules,
         config=config,
@@ -62,5 +56,5 @@ def evaluate_target_chunk(
             project=project,
             native_evaluation=native_evaluation,
         )
-        for target, native_evaluation in zip(targets, native, strict=True)
+        for target, native_evaluation in zip(targets, native_evaluations, strict=True)
     )

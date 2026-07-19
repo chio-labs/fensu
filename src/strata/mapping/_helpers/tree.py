@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
-import ast
-
 from strata.mapping.constants import (
     CLASS_RECEIVER_NAME,
+    MAPPING_EXPRESSION_ATTRIBUTE,
+    MAPPING_EXPRESSION_CALL,
+    MAPPING_EXPRESSION_NAME,
+    MAPPING_EXPRESSION_STRING,
+    MAPPING_EXPRESSION_SUBSCRIPT,
     METHOD_RECEIVER_NAMES,
     SELF_RECEIVER_NAME,
+    SUBSCRIPT_OPEN,
 )
 from strata.mapping.models import (
     CallMapNode,
@@ -15,6 +19,9 @@ from strata.mapping.models import (
     ClassReference,
     FunctionDefinition,
     ImportView,
+    MappingCall,
+    MappingExpression,
+    MappingStatement,
     ResolvedCallable,
     UnresolvedCall,
 )
@@ -104,19 +111,19 @@ def _call_entries(
 ) -> tuple[ResolvedCallable | UnresolvedCall, ...]:
     entries: list[ResolvedCallable | UnresolvedCall] = []
     seen: set[tuple[str, str | None]] = set()
-    parameter_names: frozenset[str] = _parameter_names(definition.node)
-    untyped_parameters: frozenset[str] = _untyped_parameter_names(definition.node)
-    receiver_states: dict[ast.Call, dict[str, str | None]] = _receiver_states(
+    parameter_names: frozenset[str] = _parameter_names(definition)
+    untyped_parameters: frozenset[str] = _untyped_parameter_names(definition)
+    receiver_states: dict[MappingCall, dict[str, str | None]] = _receiver_states(
         definition=definition,
         dispatch_class_key=dispatch_class_key,
         index=index,
         method_cache=method_cache,
     )
-    for call in _owned_calls(definition.node):
+    for call in definition.syntax.calls:
         local_types: dict[str, str | None] = receiver_states.get(call, {})
-        if isinstance(call.func, ast.Name) and call.func.id in parameter_names:
+        if call.callee.kind == MAPPING_EXPRESSION_NAME and call.callee.name in parameter_names:
             entries.append(
-                UnresolvedCall(name=call.func.id, line=call.lineno, reason="parameter call")
+                UnresolvedCall(name=call.callee.name, line=call.line, reason="parameter call")
             )
             continue
         target, unresolved = _resolve_call(
@@ -145,7 +152,7 @@ def _call_entries(
 
 def _resolve_call(
     *,
-    call: ast.Call,
+    call: MappingCall,
     definition: FunctionDefinition,
     dispatch_class_key: str | None,
     index: SymbolResolver,
@@ -153,15 +160,16 @@ def _resolve_call(
     untyped_parameters: frozenset[str],
     method_cache: dict[tuple[str, str, bool], FunctionDefinition | None],
 ) -> tuple[ResolvedCallable | None, UnresolvedCall | None]:
-    if isinstance(call.func, ast.Name):
-        if call.func.id in local_types:
+    callee: MappingExpression = call.callee
+    if callee.kind == MAPPING_EXPRESSION_NAME:
+        if callee.name in local_types:
             return None, None
-        key: str | None = _top_level_call_key(call=call.func, definition=definition)
+        key: str | None = _top_level_call_key(call=callee, definition=definition)
         target: FunctionDefinition | None = index.get_function(key) if key is not None else None
         return ResolvedCallable(target) if target is not None else None, None
-    if not isinstance(call.func, ast.Attribute):
+    if callee.kind != MAPPING_EXPRESSION_ATTRIBUTE or callee.child is None:
         return None, None
-    receiver: ast.expr = call.func.value
+    receiver: MappingExpression = callee.child
     receiver_class, project_owned = _receiver_class(
         expression=receiver,
         definition=definition,
@@ -176,7 +184,7 @@ def _resolve_call(
             for implementation in index.get_protocol_implementations(receiver_class.key):
                 implementation_method: FunctionDefinition | None = _method_definition(
                     class_definition=implementation,
-                    method_name=call.func.attr,
+                    method_name=callee.name,
                     index=index,
                     cache=method_cache,
                     active=frozenset(),
@@ -193,7 +201,7 @@ def _resolve_call(
             return None, _unresolved(call=call, reason="protocol dispatch")
         target: FunctionDefinition | None = _method_definition(
             class_definition=receiver_class,
-            method_name=call.func.attr,
+            method_name=callee.name,
             index=index,
             cache=method_cache,
             active=frozenset(),
@@ -211,29 +219,29 @@ def _resolve_call(
         return None, _unresolved(call=call, reason="dynamic attribute")
     if root_name is not None and root_name in local_types:
         return None, None
-    key = _imported_module_call_key(call=call.func, definition=definition)
+    key = _imported_module_call_key(call=callee, definition=definition)
     target = index.get_function(key) if key is not None else None
     return ResolvedCallable(target) if target is not None else None, None
 
 
 def _receiver_class(
     *,
-    expression: ast.expr,
+    expression: MappingExpression,
     definition: FunctionDefinition,
     dispatch_class_key: str | None,
     index: SymbolResolver,
     local_types: dict[str, str | None],
     method_cache: dict[tuple[str, str, bool], FunctionDefinition | None],
 ) -> tuple[ClassDefinition | None, bool]:
-    if isinstance(expression, ast.Name):
-        if expression.id in METHOD_RECEIVER_NAMES and definition.owning_class is not None:
+    if expression.kind == MAPPING_EXPRESSION_NAME:
+        if expression.name in METHOD_RECEIVER_NAMES and definition.owning_class is not None:
             class_key: str = dispatch_class_key or ClassDefinition.build_key(
                 module_name=definition.module_name,
                 name=definition.owning_class,
             )
             return index.get_class(class_key), True
-        if expression.id in local_types:
-            local_key: str | None = local_types[expression.id]
+        if expression.name in local_types:
+            local_key: str | None = local_types[expression.name]
             return (index.get_class(local_key), True) if local_key is not None else (None, False)
         direct_class: ClassDefinition | None = _resolve_class_expression(
             expression=expression, definition=definition, index=index
@@ -247,35 +255,35 @@ def _receiver_class(
         )
     if direct_class is not None:
         return direct_class, True
-    if isinstance(expression, ast.Call):
+    if expression.kind == MAPPING_EXPRESSION_CALL and expression.child is not None:
         constructor: ClassDefinition | None = None
-        constructor_root: str | None = _root_name(expression.func)
+        constructor_root: str | None = _root_name(expression.child)
         if constructor_root is None or constructor_root not in local_types:
             constructor = _resolve_class_expression(
-                expression=expression.func, definition=definition, index=index
+                expression=expression.child, definition=definition, index=index
             )
         if constructor is not None:
             return constructor, True
         factory: FunctionDefinition | None = _called_function(
-            call=expression,
+            call=MappingCall(callee=expression.child, line=0),
             definition=definition,
             dispatch_class_key=dispatch_class_key,
             index=index,
             local_types=local_types,
             method_cache=method_cache,
         )
-        if factory is None or factory.node.returns is None:
+        if factory is None or factory.syntax.returns is None:
             return None, factory is not None
         returned: ClassDefinition | None = _resolve_class_expression(
-            expression=factory.node.returns,
+            expression=factory.syntax.returns,
             definition=factory,
             index=index,
             annotation=True,
         )
         return returned, returned is not None
-    if isinstance(expression, ast.Attribute):
+    if expression.kind == MAPPING_EXPRESSION_ATTRIBUTE and expression.child is not None:
         owner, project_owned = _receiver_class(
-            expression=expression.value,
+            expression=expression.child,
             definition=definition,
             dispatch_class_key=dispatch_class_key,
             index=index,
@@ -284,9 +292,9 @@ def _receiver_class(
         )
         if owner is None:
             return None, project_owned
-        reference: ClassReference | None = owner.instance_attributes.get(expression.attr)
+        reference: ClassReference | None = owner.instance_attributes.get(expression.name)
         if reference is None:
-            reference = owner.class_attributes.get(expression.attr)
+            reference = owner.class_attributes.get(expression.name)
         if reference is None:
             return None, True
         attribute_class: ClassDefinition | None = _resolve_class_expression(
@@ -301,22 +309,23 @@ def _receiver_class(
 
 def _called_function(
     *,
-    call: ast.Call,
+    call: MappingCall,
     definition: FunctionDefinition,
     dispatch_class_key: str | None,
     index: SymbolResolver,
     local_types: dict[str, str | None],
     method_cache: dict[tuple[str, str, bool], FunctionDefinition | None],
 ) -> FunctionDefinition | None:
-    if isinstance(call.func, ast.Name):
-        if call.func.id in local_types:
+    callee: MappingExpression = call.callee
+    if callee.kind == MAPPING_EXPRESSION_NAME:
+        if callee.name in local_types:
             return None
-        key: str | None = _top_level_call_key(call=call.func, definition=definition)
+        key: str | None = _top_level_call_key(call=callee, definition=definition)
         return index.get_function(key) if key is not None else None
-    if not isinstance(call.func, ast.Attribute):
+    if callee.kind != MAPPING_EXPRESSION_ATTRIBUTE or callee.child is None:
         return None
     receiver, _ = _receiver_class(
-        expression=call.func.value,
+        expression=callee.child,
         definition=definition,
         dispatch_class_key=dispatch_class_key,
         index=index,
@@ -326,15 +335,15 @@ def _called_function(
     if receiver is not None:
         return _method_definition(
             class_definition=receiver,
-            method_name=call.func.attr,
+            method_name=callee.name,
             index=index,
             cache=method_cache,
             active=frozenset(),
         )
-    root_name: str | None = _root_name(call.func.value)
+    root_name: str | None = _root_name(callee.child)
     if root_name is not None and root_name in local_types:
         return None
-    key = _imported_module_call_key(call=call.func, definition=definition)
+    key = _imported_module_call_key(call=callee, definition=definition)
     return index.get_function(key) if key is not None else None
 
 
@@ -398,22 +407,21 @@ def _method_definition(
 
 def _resolve_class_expression(
     *,
-    expression: ast.expr,
+    expression: MappingExpression,
     definition: FunctionDefinition | ClassDefinition,
     index: SymbolResolver,
     annotation: bool = False,
 ) -> ClassDefinition | None:
-    if isinstance(expression, ast.Subscript):
+    if expression.kind == MAPPING_EXPRESSION_SUBSCRIPT and expression.child is not None:
         return _resolve_class_expression(
-            expression=expression.value,
+            expression=expression.child,
             definition=definition,
             index=index,
             annotation=annotation,
         )
-    if isinstance(expression, ast.Constant) and isinstance(expression.value, str):
-        try:
-            parsed: ast.expr = ast.parse(expression.value, mode="eval").body
-        except SyntaxError:
+    if expression.kind == MAPPING_EXPRESSION_STRING and expression.string_value is not None:
+        parsed: MappingExpression | None = _forward_expression(expression.string_value)
+        if parsed is None:
             return None
         return _resolve_class_expression(
             expression=parsed,
@@ -424,18 +432,18 @@ def _resolve_class_expression(
     imports: ImportView = (
         definition.imports.annotation if annotation else definition.imports.runtime
     )
-    if isinstance(expression, ast.Name):
+    if expression.kind == MAPPING_EXPRESSION_NAME:
         local: ClassDefinition | None = index.get_class(
-            ClassDefinition.build_key(module_name=definition.module_name, name=expression.id)
+            ClassDefinition.build_key(module_name=definition.module_name, name=expression.name)
         )
         if local is not None:
             return local
-        imported: tuple[str, str] | None = imports.symbols.get(expression.id)
+        imported: tuple[str, str] | None = imports.symbols.get(expression.name)
         if imported is not None:
             imported_key: str = ClassDefinition.build_key(module_name=imported[0], name=imported[1])
             return index.get_class(imported_key)
         return None
-    if isinstance(expression, ast.Attribute):
+    if expression.kind == MAPPING_EXPRESSION_ATTRIBUTE:
         spelling: str = _expression_name(expression)
         first, separator, remainder = spelling.partition(".")
         imported_module: str | None = imports.modules.get(first)
@@ -451,10 +459,10 @@ def _receiver_states(
     dispatch_class_key: str | None,
     index: SymbolResolver,
     method_cache: dict[tuple[str, str, bool], FunctionDefinition | None],
-) -> dict[ast.Call, dict[str, str | None]]:
-    bindings: dict[str, str | None] = {name: None for name in _parameter_names(definition.node)}
+) -> dict[MappingCall, dict[str, str | None]]:
+    bindings: dict[str, str | None] = {name: None for name in _parameter_names(definition)}
     invalid: set[str] = set()
-    for argument in _arguments(definition.node):
+    for argument in definition.syntax.parameters:
         if argument.annotation is None:
             continue
         class_definition: ClassDefinition | None = _resolve_class_expression(
@@ -464,14 +472,14 @@ def _receiver_states(
             annotation=True,
         )
         if class_definition is not None:
-            bindings[argument.arg] = class_definition.key
-    states: dict[ast.Call, dict[str, str | None]] = {
-        call: dict(bindings) for call in _owned_calls(definition.node)
+            bindings[argument.name] = class_definition.key
+    states: dict[MappingCall, dict[str, str | None]] = {
+        call: dict(bindings) for call in definition.syntax.calls
     }
-    for statement in definition.node.body:
-        statement_calls: tuple[ast.Call, ...] = _statement_calls(statement)
-        if _is_control_flow(statement):
-            assigned_names: frozenset[str] = _assigned_names(statement)
+    for statement in definition.syntax.statements:
+        statement_calls: tuple[MappingCall, ...] = statement.calls
+        if statement.control_flow:
+            assigned_names: frozenset[str] = statement.assigned_names
             statement_state: dict[str, str | None] = dict(bindings)
             for name in assigned_names:
                 statement_state[name] = None
@@ -492,7 +500,7 @@ def _receiver_states(
             method_cache=method_cache,
         )
         if name is None:
-            assigned_names = _assigned_names(statement)
+            assigned_names = statement.assigned_names
             invalid.update(assigned_names)
             for assigned_name in assigned_names:
                 bindings[assigned_name] = None
@@ -511,83 +519,57 @@ def _receiver_states(
 
 def _local_binding(
     *,
-    statement: ast.stmt,
+    statement: MappingStatement,
     definition: FunctionDefinition,
     dispatch_class_key: str | None,
     index: SymbolResolver,
     bindings: dict[str, str | None],
     method_cache: dict[tuple[str, str, bool], FunctionDefinition | None],
 ) -> tuple[str | None, ClassDefinition | None]:
-    if isinstance(statement, ast.AnnAssign) and isinstance(statement.target, ast.Name):
-        return statement.target.id, _resolve_class_expression(
-            expression=statement.annotation,
+    if statement.binding_name is not None and statement.binding_annotation is not None:
+        return statement.binding_name, _resolve_class_expression(
+            expression=statement.binding_annotation,
             definition=definition,
             index=index,
             annotation=True,
         )
-    if isinstance(statement, ast.Assign) and len(statement.targets) == 1:
-        target: ast.expr = statement.targets[0]
-        if not isinstance(target, ast.Name):
-            return None, None
-        if isinstance(statement.value, ast.Call):
+    if statement.binding_name is not None and statement.binding_value is not None:
+        target: str = statement.binding_name
+        value: MappingExpression = statement.binding_value
+        if value.kind == MAPPING_EXPRESSION_CALL and value.child is not None:
             constructor: ClassDefinition | None = None
-            constructor_root: str | None = _root_name(statement.value.func)
+            constructor_root: str | None = _root_name(value.child)
             if constructor_root is None or constructor_root not in bindings:
                 constructor = _resolve_class_expression(
-                    expression=statement.value.func,
+                    expression=value.child,
                     definition=definition,
                     index=index,
                 )
             if constructor is not None:
-                return target.id, constructor
+                return target, constructor
             factory: FunctionDefinition | None = _called_function(
-                call=statement.value,
+                call=MappingCall(callee=value.child, line=0),
                 definition=definition,
                 dispatch_class_key=dispatch_class_key,
                 index=index,
                 local_types=bindings,
                 method_cache=method_cache,
             )
-            if factory is None or factory.node.returns is None:
-                return target.id, None
-            return target.id, _resolve_class_expression(
-                expression=factory.node.returns,
+            if factory is None or factory.syntax.returns is None:
+                return target, None
+            return target, _resolve_class_expression(
+                expression=factory.syntax.returns,
                 definition=factory,
                 index=index,
                 annotation=True,
             )
-        if isinstance(statement.value, ast.Name):
-            alias_key: str | None = bindings.get(statement.value.id)
-            return target.id, index.get_class(alias_key) if alias_key is not None else None
-        return target.id, None
-    if isinstance(statement, ast.AugAssign) and isinstance(statement.target, ast.Name):
-        return statement.target.id, None
+        if value.kind == MAPPING_EXPRESSION_NAME:
+            alias_key: str | None = bindings.get(value.name)
+            return target, index.get_class(alias_key) if alias_key is not None else None
+        return target, None
+    if statement.binding_name is not None:
+        return statement.binding_name, None
     return None, None
-
-
-def _statement_calls(statement: ast.stmt) -> tuple[ast.Call, ...]:
-    if isinstance(statement, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
-        return ()
-    return _owned_calls(statement)
-
-
-def _is_control_flow(statement: ast.stmt) -> bool:
-    return isinstance(
-        statement,
-        ast.If
-        | ast.For
-        | ast.AsyncFor
-        | ast.While
-        | ast.Try
-        | ast.TryStar
-        | ast.With
-        | ast.AsyncWith
-        | ast.Match,
-    )
-
-
-def _assigned_names(node: ast.AST) -> frozenset[str]:
-    return frozenset(_collect_assigned_names(node=node, nested=False))
 
 
 def _dispatch_class_name(
@@ -601,106 +583,75 @@ def _dispatch_class_name(
     return dispatch_class.name
 
 
-def _collect_assigned_names(*, node: ast.AST, nested: bool) -> set[str]:
-    names: set[str] = set()
-    if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
-        if nested:
-            names.add(node.name)
-            return names
-    elif isinstance(node, ast.Lambda):
-        return names
-    elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store | ast.Del):
-        names.add(node.id)
-    elif isinstance(node, ast.Import | ast.ImportFrom):
-        for alias in node.names:
-            names.add(alias.asname or alias.name.split(".", maxsplit=1)[0])
-    elif isinstance(node, ast.ExceptHandler) and node.name is not None:
-        names.add(node.name)
-    elif isinstance(node, ast.MatchAs) and node.name is not None:
-        names.add(node.name)
-    elif isinstance(node, ast.MatchStar) and node.name is not None:
-        names.add(node.name)
-    elif isinstance(node, ast.MatchMapping) and node.rest is not None:
-        names.add(node.rest)
-    for child in ast.iter_child_nodes(node):
-        names.update(_collect_assigned_names(node=child, nested=True))
-    return names
-
-
-def _top_level_call_key(*, call: ast.Name, definition: FunctionDefinition) -> str:
-    imported: tuple[str, str] | None = definition.imports.runtime.symbols.get(call.id)
+def _top_level_call_key(*, call: MappingExpression, definition: FunctionDefinition) -> str:
+    imported: tuple[str, str] | None = definition.imports.runtime.symbols.get(call.name)
     if imported is not None:
         return FunctionDefinition.build_key(module_name=imported[0], name=imported[1])
-    return FunctionDefinition.build_key(module_name=definition.module_name, name=call.id)
+    return FunctionDefinition.build_key(module_name=definition.module_name, name=call.name)
 
 
-def _imported_module_call_key(*, call: ast.Attribute, definition: FunctionDefinition) -> str | None:
-    if not isinstance(call.value, ast.Name):
+def _imported_module_call_key(
+    *, call: MappingExpression, definition: FunctionDefinition
+) -> str | None:
+    if call.child is None or call.child.kind != MAPPING_EXPRESSION_NAME:
         return None
-    imported_module: str | None = definition.imports.runtime.modules.get(call.value.id)
+    imported_module: str | None = definition.imports.runtime.modules.get(call.child.name)
     if imported_module is None:
         return None
-    return FunctionDefinition.build_key(module_name=imported_module, name=call.attr)
+    return FunctionDefinition.build_key(module_name=imported_module, name=call.name)
 
 
-def _unresolved(*, call: ast.Call, reason: str) -> UnresolvedCall:
-    return UnresolvedCall(name=ast.unparse(call.func), line=call.lineno, reason=reason)
+def _unresolved(*, call: MappingCall, reason: str) -> UnresolvedCall:
+    return UnresolvedCall(name=call.callee.spelling, line=call.line, reason=reason)
 
 
-def _is_direct_self_receiver(expression: ast.expr) -> bool:
-    return isinstance(expression, ast.Name) and expression.id in METHOD_RECEIVER_NAMES
+def _is_direct_self_receiver(expression: MappingExpression) -> bool:
+    return expression.kind == MAPPING_EXPRESSION_NAME and expression.name in METHOD_RECEIVER_NAMES
 
 
-def _expression_name(node: ast.expr) -> str:
-    if isinstance(node, ast.Name):
-        return node.id
-    if isinstance(node, ast.Attribute):
-        prefix: str = _expression_name(node.value)
-        return f"{prefix}.{node.attr}" if prefix else node.attr
-    return ""
+def _expression_name(node: MappingExpression) -> str:
+    return ".".join(node.parts)
 
 
-def _root_name(node: ast.expr) -> str | None:
-    while isinstance(node, ast.Attribute):
-        node = node.value
-    return node.id if isinstance(node, ast.Name) else None
+def _root_name(node: MappingExpression) -> str | None:
+    while node.kind == MAPPING_EXPRESSION_ATTRIBUTE and node.child is not None:
+        node = node.child
+    return node.name if node.kind == MAPPING_EXPRESSION_NAME else None
 
 
-def _owned_calls(node: ast.AST) -> tuple[ast.Call, ...]:
-    calls: list[ast.Call] = []
-    for child in ast.iter_child_nodes(node):
-        if isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef | ast.Lambda):
-            continue
-        if isinstance(child, ast.Call):
-            calls.append(child)
-        calls.extend(_owned_calls(child))
-    return tuple(calls)
-
-
-def _arguments(node: ast.FunctionDef | ast.AsyncFunctionDef) -> tuple[ast.arg, ...]:
-    arguments: ast.arguments = node.args
-    positional: tuple[ast.arg, ...] = (*arguments.posonlyargs, *arguments.args)
-    return (*positional, *arguments.kwonlyargs)
-
-
-def _parameter_names(node: ast.FunctionDef | ast.AsyncFunctionDef) -> frozenset[str]:
-    arguments: ast.arguments = node.args
-    names: set[str] = {argument.arg for argument in _arguments(node)}
-    if arguments.vararg is not None:
-        names.add(arguments.vararg.arg)
-    if arguments.kwarg is not None:
-        names.add(arguments.kwarg.arg)
-    return frozenset(names)
+def _parameter_names(definition: FunctionDefinition) -> frozenset[str]:
+    return frozenset(parameter.name for parameter in definition.syntax.parameters)
 
 
 def _untyped_parameter_names(
-    node: ast.FunctionDef | ast.AsyncFunctionDef,
+    definition: FunctionDefinition,
 ) -> frozenset[str]:
-    names: set[str] = {argument.arg for argument in _arguments(node) if argument.annotation is None}
-    if node.args.vararg is not None and node.args.vararg.annotation is None:
-        names.add(node.args.vararg.arg)
-    if node.args.kwarg is not None and node.args.kwarg.annotation is None:
-        names.add(node.args.kwarg.arg)
+    names: set[str] = {
+        parameter.name for parameter in definition.syntax.parameters if parameter.annotation is None
+    }
     names.discard(SELF_RECEIVER_NAME)
     names.discard(CLASS_RECEIVER_NAME)
     return frozenset(names)
+
+
+def _forward_expression(value: str) -> MappingExpression | None:
+    spelling: str = "".join(value.split())
+    base: str = spelling.split("[", maxsplit=1)[0]
+    parts: tuple[str, ...] = tuple(base.split("."))
+    if not parts or any(not part.isidentifier() for part in parts):
+        return None
+    expression: MappingExpression = MappingExpression(
+        MAPPING_EXPRESSION_NAME, parts[0], (parts[0],)
+    )
+    for part in parts[1:]:
+        expression = MappingExpression(
+            MAPPING_EXPRESSION_ATTRIBUTE,
+            f"{expression.spelling}.{part}",
+            (*expression.parts, part),
+            child=expression,
+        )
+    if SUBSCRIPT_OPEN in spelling:
+        expression = MappingExpression(
+            MAPPING_EXPRESSION_SUBSCRIPT, spelling, expression.parts, child=expression
+        )
+    return expression

@@ -23,3 +23,15 @@ class ShapeRuleTestCase:
     role_thresholds: dict[str, dict[Threshold, int]] = field(default_factory=dict)
     threshold_overrides: tuple[ThresholdOverride, ...] = ()
     root: str = "src/pkg"
+
+
+@dataclass(frozen=True)
+class NativeThresholdOverrideUseTestCase:
+    """Expected native threshold observations for one file position."""
+
+    description: str
+    relative_path: str
+    expected_thresholds: tuple[Threshold, ...]
+    expected_repository_path: str
+    expected_effective_value: int
+    expected_reason: str

@@ -5,7 +5,7 @@ from __future__ import annotations
 from strata.config.models import Config
 from strata.discovery.models import DiscoveredTree
 from strata.evaluation._helpers.collection import collect_evaluation_result
-from strata.evaluation.main.evaluate_partition import evaluate_partition
+from strata.evaluation.main._evaluate_partition import evaluate_partition
 from strata.evaluation.models import EvaluationResult, PartitionEvaluation
 from strata.rules.authoring.models import CustomRuleRegistration, RuleSpec
 

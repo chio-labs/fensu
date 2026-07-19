@@ -5,7 +5,7 @@ use pyo3::{Bound, Py, PyAny, PyResult, Python};
 
 use crate::constants;
 use crate::extension::helpers::gateway::model_types::model_type;
-use crate::extension::helpers::gateway::program::ProgramHandle;
+use crate::extension::models::ProgramHandle;
 use crate::facts::models::SourceRangeRow;
 
 pub(crate) fn outer_state_mutation_facts_object(

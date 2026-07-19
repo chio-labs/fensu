@@ -5,9 +5,9 @@ use pyo3::wrap_pyfunction;
 use pyo3::{Bound, PyResult};
 
 use crate::extension::helpers::gateway::bindings;
-use crate::extension::helpers::gateway::program::ProgramHandle;
 use crate::extension::helpers::gateway::repository_bindings;
 use crate::extension::helpers::gateway::rule_authoring_bindings;
+use crate::extension::models::ProgramHandle;
 
 /// Expose the native fact-extraction functions to Python.
 pub fn register_fact_functions(module: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -17,6 +17,11 @@ pub fn register_fact_functions(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(bindings::dataclass_facts, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::project_facts, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::list_syntax_nodes, module)?)?;
+    module.add_function(wrap_pyfunction!(bindings::mapping_index_facts, module)?)?;
+    module.add_function(wrap_pyfunction!(
+        bindings::mapping_declaration_facts,
+        module
+    )?)?;
     module.add_function(wrap_pyfunction!(bindings::comment_facts, module)?)?;
     module.add_function(wrap_pyfunction!(
         bindings::evaluate_rule_call_facts,
@@ -37,7 +42,6 @@ pub fn register_fact_functions(module: &Bound<'_, PyModule>) -> PyResult<()> {
         bindings::outer_state_mutation_facts,
         module
     )?)?;
-    module.add_function(wrap_pyfunction!(bindings::extract_fact_rows, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::parse_program, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::parse_programs, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::reference_facts, module)?)?;
@@ -75,18 +79,6 @@ pub fn register_fact_functions(module: &Bound<'_, PyModule>) -> PyResult<()> {
     )?)?;
     module.add_function(wrap_pyfunction!(
         repository_bindings::hash_source_files,
-        module
-    )?)?;
-    module.add_function(wrap_pyfunction!(
-        repository_bindings::observe_repository_stats,
-        module
-    )?)?;
-    module.add_function(wrap_pyfunction!(
-        repository_bindings::observe_repository_python_globs,
-        module
-    )?)?;
-    module.add_function(wrap_pyfunction!(
-        repository_bindings::observe_repository_contexts,
         module
     )?)?;
     module.add_class::<ProgramHandle>()?;

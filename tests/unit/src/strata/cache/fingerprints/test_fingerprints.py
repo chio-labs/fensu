@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from importlib.metadata import FileHash, PackagePath
 from pathlib import Path
 from types import MappingProxyType
 from unittest.mock import Mock
@@ -9,27 +10,22 @@ from unittest.mock import Mock
 import pytest
 
 import strata.cache.fingerprints._helpers.fingerprints as fingerprint_module
+import strata.cache.fingerprints.main.build_global as global_builder_module
 from strata.cache.fingerprints._helpers.fingerprints import (
     canonical_fingerprint,
     config_fingerprint,
     custom_rules_fingerprint,
     global_fingerprint,
     implementation_fingerprint,
+    installed_implementation_fingerprint,
     ruleset_fingerprint,
     source_fingerprint,
 )
-from strata.cache.fingerprints.main._file_result import file_result_fingerprints
 from strata.cache.fingerprints.main.build_global import build_global_fingerprint
 from strata.cache.fingerprints.models import (
     CacheFingerprint,
-    FileResultFingerprints,
     GlobalFingerprintBuild,
 )
-from strata.cache.results._helpers.serialization import file_result_to_record
-from strata.cache.results.models import CachedFileResult
-from strata.cache.storage.main._encode_record import encode_record
-from strata.cache.storage.main._record_identity import record_content_fingerprint
-from strata.cache.storage.models import CacheRecord
 from strata.config.models import (
     CacheConfig,
     Config,
@@ -53,7 +49,6 @@ from tests.unit.src.strata.cache.fingerprints._test_types import (
     ContractFingerprintTestCase,
     CustomRulesFingerprintTestCase,
     EvaluationFingerprintTestCase,
-    FileResultFingerprintTestCase,
     GlobalFingerprintBuilderTestCase,
     GlobalFingerprintTestCase,
     GlobalRuntimeFingerprintTestCase,
@@ -68,9 +63,9 @@ from tests.unit.src.strata.cache.fingerprints._test_types import (
     ThresholdOverrideFingerprintTestCase,
     WarningFingerprintTestCase,
     WarningModeFingerprintTestCase,
+    WheelRecordFingerprintTestCase,
 )
 from tests.unit.src.strata.cache.fingerprints.helpers import (
-    cached_file_result,
     config_with_statement_threshold,
     configure_package_availability,
     custom_fingerprint_rule,
@@ -106,85 +101,6 @@ def test_given_canonical_values_when_fingerprinting_then_preserves_semantic_orde
 
     assert (first == second) is test_case.expected_equal
     assert len(first.value) == 64
-
-
-@pytest.mark.parametrize(
-    "test_case",
-    [
-        FileResultFingerprintTestCase(
-            description="equivalent result preserves both identities",
-            first_global="g" * 64,
-            second_global="g" * 64,
-            first_dependency_answer=False,
-            second_dependency_answer=False,
-            first_fault_message="missing annotation",
-            second_fault_message="missing annotation",
-            expected_result_equal=True,
-            expected_record_equal=True,
-        ),
-        FileResultFingerprintTestCase(
-            description="normalized dependency answer does not duplicate file-record identity",
-            first_global="g" * 64,
-            second_global="g" * 64,
-            first_dependency_answer=False,
-            second_dependency_answer=True,
-            first_fault_message="missing annotation",
-            second_fault_message="missing annotation",
-            expected_result_equal=True,
-            expected_record_equal=True,
-        ),
-        FileResultFingerprintTestCase(
-            description="fault mutation changes integrity but not correctness inputs",
-            first_global="g" * 64,
-            second_global="g" * 64,
-            first_dependency_answer=False,
-            second_dependency_answer=False,
-            first_fault_message="missing annotation",
-            second_fault_message="changed diagnostic",
-            expected_result_equal=False,
-            expected_record_equal=False,
-        ),
-        FileResultFingerprintTestCase(
-            description="global mutation changes correctness but not record integrity",
-            first_global="g" * 64,
-            second_global="h" * 64,
-            first_dependency_answer=False,
-            second_dependency_answer=False,
-            first_fault_message="missing annotation",
-            second_fault_message="missing annotation",
-            expected_result_equal=False,
-            expected_record_equal=True,
-        ),
-    ],
-    ids=lambda case: case.description,
-)
-def test_given_file_results_when_fingerprinting_then_separates_correctness_and_integrity(
-    test_case: FileResultFingerprintTestCase,
-) -> None:
-    first_result: CachedFileResult = cached_file_result(
-        dependency_answer=test_case.first_dependency_answer,
-        fault_message=test_case.first_fault_message,
-    )
-    second_result: CachedFileResult = cached_file_result(
-        dependency_answer=test_case.second_dependency_answer,
-        fault_message=test_case.second_fault_message,
-    )
-    first_record: CacheRecord = file_result_to_record(first_result)
-    second_record: CacheRecord = file_result_to_record(second_result)
-    first: FileResultFingerprints = file_result_fingerprints(
-        global_fingerprint=CacheFingerprint(test_case.first_global),
-        encoded=encode_record(record=first_record),
-    )
-    second: FileResultFingerprints = file_result_fingerprints(
-        global_fingerprint=CacheFingerprint(test_case.second_global),
-        encoded=encode_record(record=second_record),
-    )
-
-    assert (first.result == second.result) is test_case.expected_result_equal
-    assert (first.record == second.record) is test_case.expected_record_equal
-    assert first.record == record_content_fingerprint(record=first_record)
-    assert len(first.result.value) == 64
-    assert len(first.record.value) == 64
 
 
 @pytest.mark.parametrize(
@@ -586,6 +502,53 @@ def test_given_package_sources_when_fingerprinting_then_captures_editable_change
 @pytest.mark.parametrize(
     "test_case",
     [
+        WheelRecordFingerprintTestCase(
+            description="persisted wheel manifest avoids live source rehashing",
+            first_record="strata/__init__.py,sha256=first,1\n",
+            second_record="strata/__init__.py,sha256=first,1\n",
+            expected_equal=True,
+        ),
+        WheelRecordFingerprintTestCase(
+            description="wheel manifest mutation changes immutable package identity",
+            first_record="strata/__init__.py,sha256=first,1\n",
+            second_record="strata/__init__.py,sha256=second,1\n",
+            expected_equal=False,
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_wheel_record_when_fingerprinting_then_uses_persisted_install_identity(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: WheelRecordFingerprintTestCase,
+) -> None:
+    package_root: Path = tmp_path / "strata"
+    write_implementation(root=package_root, source="VALUE: int = 1\n")
+    installed: Mock = Mock()
+    package_init: PackagePath = PackagePath("strata/__init__.py")
+    package_module: PackagePath = PackagePath("strata/module.py")
+    for path, value in ((package_init, "init"), (package_module, "module")):
+        path.hash = FileHash(f"sha256={value}")
+        path.dist = installed
+    installed.files = (package_init, package_module)
+    installed.locate_file.side_effect = lambda path: tmp_path / str(path)
+    installed.read_text.side_effect = (test_case.first_record, test_case.second_record)
+    monkeypatch.setattr(fingerprint_module, "distribution", lambda _: installed)
+
+    first: CacheFingerprint | None = installed_implementation_fingerprint(package_root=package_root)
+    write_implementation(root=package_root, source="VALUE: int = 2\n")
+    second: CacheFingerprint | None = installed_implementation_fingerprint(
+        package_root=package_root
+    )
+
+    assert first is not None
+    assert second is not None
+    assert (first == second) is test_case.expected_equal
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
         ImplementationFingerprintTestCase(
             description="orphan bytecode mutation changes implementation identity",
             first="first bytecode",
@@ -920,6 +883,7 @@ def test_given_runtime_semantics_when_fingerprinting_then_captures_contract_iden
             package_available=True,
             source_available=True,
             complete_source=True,
+            installed_manifest_available=False,
             expected_available=True,
             expected_implementation_scans=2,
         ),
@@ -928,6 +892,7 @@ def test_given_runtime_semantics_when_fingerprinting_then_captures_contract_iden
             package_available=False,
             source_available=False,
             complete_source=False,
+            installed_manifest_available=False,
             expected_available=False,
             expected_implementation_scans=0,
         ),
@@ -936,6 +901,7 @@ def test_given_runtime_semantics_when_fingerprinting_then_captures_contract_iden
             package_available=True,
             source_available=False,
             complete_source=False,
+            installed_manifest_available=False,
             expected_available=False,
             expected_implementation_scans=0,
         ),
@@ -944,8 +910,18 @@ def test_given_runtime_semantics_when_fingerprinting_then_captures_contract_iden
             package_available=True,
             source_available=True,
             complete_source=False,
+            installed_manifest_available=False,
             expected_available=True,
             expected_implementation_scans=2,
+        ),
+        GlobalFingerprintBuilderTestCase(
+            description="immutable wheel manifest bypasses implementation source scans",
+            package_available=True,
+            source_available=True,
+            complete_source=True,
+            installed_manifest_available=True,
+            expected_available=True,
+            expected_implementation_scans=0,
         ),
     ],
     ids=lambda case: case.description,
@@ -964,6 +940,15 @@ def test_given_loaded_package_when_building_global_then_requires_complete_source
     )
     implementation_paths: Mock = Mock(wraps=fingerprint_module._implementation_paths)
     monkeypatch.setattr(fingerprint_module, "_implementation_paths", implementation_paths)
+    installed_manifest: CacheFingerprint | None = {
+        False: None,
+        True: CacheFingerprint("a" * 64),
+    }[test_case.installed_manifest_available]
+    monkeypatch.setattr(
+        global_builder_module,
+        "installed_implementation_fingerprint",
+        Mock(return_value=installed_manifest),
+    )
 
     first: GlobalFingerprintBuild = build_global_fingerprint(
         config=Config(roots=()), ruleset=(), repo_root=tmp_path

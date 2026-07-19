@@ -152,6 +152,9 @@ from strata.analysis.types import (
     RelationAnalysis as RelationAnalysis,
 )
 from strata.analysis.types import (
+    ReturnAnnotationCategory as ReturnAnnotationCategory,
+)
+from strata.analysis.types import (
     RuleCaseForm as RuleCaseForm,
 )
 from strata.analysis.types import (
@@ -160,6 +163,8 @@ from strata.analysis.types import (
 from strata.analysis.types import (
     TextAnalysis as TextAnalysis,
 )
+from strata.config.types import ContractBehavior as ContractBehavior
+from strata.discovery.types import ScopeName as ScopeName
 from strata.rules.authoring.main.define import rule as rule
 from strata.rules.authoring.models import Fault as Fault
 from strata.rules.authoring.types import (

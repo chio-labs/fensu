@@ -56,6 +56,17 @@ class ThresholdOverrideUse:
 
 
 @dataclass(frozen=True, slots=True)
+class NativeCoreRuleEvaluation:
+    """Native faults and Python-owned threshold observations for one file."""
+
+    faults_by_code: dict[str, tuple[Fault, ...]]
+    source_fingerprint: str
+    source: str
+    program: object
+    threshold_override_uses: tuple[ThresholdOverrideUse, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class SourceSnapshot:
     """Exact source bytes and their stable content identity."""
 

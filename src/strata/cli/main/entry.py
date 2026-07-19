@@ -14,12 +14,19 @@ from strata.cli._helpers.lazy_commands import (
     run_rule,
     run_skills,
 )
+from strata.cli._helpers.stale_script import is_stale_console_script
 from strata.cli.types import CliCommand, CliOption
 
 
 def main(argv: tuple[str, ...] | None = None) -> int:
     """Run the strata CLI."""
 
+    if argv is None and is_stale_console_script():
+        sys.stderr.write(
+            "The installed `strata` command is a stale Python console script from an older "
+            "stratalint release. Reinstall stratalint-cli, or use `python -m strata`.\n"
+        )
+        return 2
     args: tuple[str, ...] = tuple(sys.argv[1:] if argv is None else argv)
     if args and args[0] in {CliOption.HELP, CliOption.SHORT_HELP}:
         _write_help()

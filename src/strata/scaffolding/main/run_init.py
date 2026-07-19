@@ -90,7 +90,7 @@ def run_init(
     )
     try:
         summary: DriftSummary = measure_drift(repository=resolved, config=config)
-    except (ConfigError, ParseError, OSError, UnicodeError) as error:
+    except (ConfigError, InitError, ParseError, OSError, UnicodeError) as error:
         stderr.write(f"Warning: could not measure current drift: {error}\n")
     else:
         write_drift(stdout=stdout, style=style, summary=summary)

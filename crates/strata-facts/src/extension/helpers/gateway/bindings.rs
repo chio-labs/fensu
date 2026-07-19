@@ -3,7 +3,6 @@
 use pyo3::exceptions::PyValueError;
 use pyo3::types::{PyAnyMethods, PyTuple};
 use pyo3::{pyfunction, Bound, Py, PyAny, PyResult, Python};
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use ruff_python_ast::PythonVersion;
 
 use crate::constants;
@@ -20,15 +19,16 @@ use crate::extension::helpers::conversion::harness::{
 use crate::extension::helpers::conversion::hygiene::{
     control_flow_facts_objects, hygiene_facts_object,
 };
+use crate::extension::helpers::conversion::mapping::mapping_rows_object;
 use crate::extension::helpers::conversion::references::{
     reference_facts_object, test_module_facts_object,
 };
 use crate::extension::helpers::conversion::state::outer_state_mutation_facts_object;
 use crate::extension::helpers::gateway::model_types::model_type;
-use crate::extension::helpers::gateway::program::ProgramHandle;
+use crate::extension::models::ProgramHandle;
 use crate::facts::main::enumerate_nodes::enumerate_nodes;
-use crate::facts::main::extract_comments::extract_comments;
-use crate::facts::types::FactFamily;
+use crate::facts::mapping::main::extract_mapping_declarations::extract_mapping_declarations;
+use crate::facts::mapping::main::extract_mapping_facts::extract_mapping_facts;
 use crate::parsing::main::parse_strict::parse_strict;
 use crate::positions::main::locate_offset::locate_offset;
 
@@ -78,53 +78,26 @@ pub(crate) fn parse_programs(
 }
 
 #[pyfunction]
-pub(crate) fn extract_fact_rows(
+pub(crate) fn mapping_index_facts(
     py: Python<'_>,
-    requests: Vec<(Py<ProgramHandle>, Vec<String>)>,
-) -> usize {
-    let prepared: Vec<(Py<ProgramHandle>, Vec<FactFamily>)> = requests
-        .into_iter()
-        .map(|(handle, names)| {
-            let families: Vec<FactFamily> =
-                names.iter().filter_map(|name| fact_family(name)).collect();
-            (handle, families)
-        })
-        .collect();
-    py.detach(move || {
-        prepared
-            .par_iter()
-            .map(|(handle, families)| {
-                let program = handle.get();
-                for family in families {
-                    program.extract_rows(*family);
-                }
-                families.len()
-            })
-            .sum()
-    })
+    handle: &Bound<'_, ProgramHandle>,
+) -> PyResult<Py<PyAny>> {
+    let program = handle.get();
+    let rows =
+        py.detach(|| extract_mapping_facts(program.module(), program.index(), program.source()));
+    mapping_rows_object(py, &rows)
 }
 
-fn fact_family(name: &str) -> Option<FactFamily> {
-    match name {
-        "annotations" => Some(FactFamily::Annotations),
-        "assignment_references" => Some(FactFamily::AssignmentReferences),
-        "class_declarations" => Some(FactFamily::ClassDeclarations),
-        "comparisons" => Some(FactFamily::Comparisons),
-        "contracts" => Some(FactFamily::Contracts),
-        "control_flow" => Some(FactFamily::ControlFlow),
-        "declarations" => Some(FactFamily::Declarations),
-        "functions" => Some(FactFamily::Functions),
-        "hygiene" => Some(FactFamily::Hygiene),
-        "local_call_edges" => Some(FactFamily::LocalCallEdges),
-        "named_calls" => Some(FactFamily::NamedCalls),
-        "outer_state_mutations" => Some(FactFamily::OuterStateMutations),
-        "parameter_mutations" => Some(FactFamily::ParameterMutations),
-        "parameter_mutation_occurrences" => Some(FactFamily::ParameterMutationOccurrences),
-        "references" => Some(FactFamily::References),
-        "test_functions" => Some(FactFamily::TestFunctions),
-        "test_module" => Some(FactFamily::TestModule),
-        _ => None,
-    }
+#[pyfunction]
+pub(crate) fn mapping_declaration_facts(
+    py: Python<'_>,
+    handle: &Bound<'_, ProgramHandle>,
+) -> PyResult<Py<PyAny>> {
+    let program = handle.get();
+    let rows = py.detach(|| {
+        extract_mapping_declarations(program.module(), program.index(), program.source())
+    });
+    mapping_rows_object(py, &rows)
 }
 
 #[pyfunction]
@@ -260,11 +233,11 @@ pub(crate) fn comment_facts(
     path: &Bound<'_, PyAny>,
 ) -> PyResult<Py<PyTuple>> {
     let program = handle.get();
-    let rows = extract_comments(program.tokens(), program.source(), program.index());
+    let rows = program.comment_rows();
     let constructor = model_type(py, constants::COMMENT_FACT_NAME)?;
     let mut facts: Vec<Py<PyAny>> = Vec::with_capacity(rows.len());
     for row in rows {
-        let fact = constructor.call1((path, row.line, row.column, row.text))?;
+        let fact = constructor.call1((path, row.line, row.column, &row.text))?;
         facts.push(fact.unbind());
     }
     Ok(PyTuple::new(py, facts)?.unbind())

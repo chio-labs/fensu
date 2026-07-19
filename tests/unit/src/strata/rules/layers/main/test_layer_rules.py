@@ -2,14 +2,22 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+from importlib import import_module
 from pathlib import Path
+from types import ModuleType
+from unittest.mock import Mock
 
 import pytest
 
+from strata.analysis.constants import NATIVE_FACT_MODULE_NAME
 from strata.config.models import Config
 from strata.evaluation.models import EvaluationResult
+from strata.rules.authoring.models import RuleSpec
+from tests.unit.src.strata.rules.layers.main import helpers as layer_test_helpers
 from tests.unit.src.strata.rules.layers.main._test_types import (
     LayerRuleTestCase,
+    NativeLayerRegistryTestCase,
     ToolingImportRuleTestCase,
 )
 from tests.unit.src.strata.rules.layers.main.helpers import (
@@ -300,6 +308,18 @@ def test_given_cross_package_imports_when_checking_layers_then_flags_only_intern
             description="root public surface may import package internals",
             rule_code="SFL103",
             files=(("src/pkg/__init__.py", "from pkg.domain.alpha.models import Model\n"),),
+            expected_codes=(),
+            expected_lines=(),
+        ),
+        LayerRuleTestCase(
+            description="shipped custom-rule exemplar may consume the public package API",
+            rule_code="SFL103",
+            files=(
+                (
+                    "src/pkg/rules/exemplars/main/annotations/_parameter_annotation.py",
+                    "from pkg import Family, RuleContext, rule\n",
+                ),
+            ),
             expected_codes=(),
             expected_lines=(),
         ),
@@ -664,6 +684,141 @@ def test_given_helper_private_class_references_when_checking_layers_then_flags_c
 
     assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
     assert tuple(fault.line for fault in result.faults) == test_case.expected_lines
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        LayerRuleTestCase(
+            description="native SFL001 bypasses its Python core callback",
+            rule_code="SFL001",
+            files=(("src/pkg/domain/alpha/main/run.py", "from ..models import Result\n"),),
+            expected_codes=("SFL001",),
+            expected_lines=(1,),
+        ),
+        LayerRuleTestCase(
+            description="native SFL002 bypasses its Python core callback",
+            rule_code="SFL002",
+            files=(("src/pkg/domain/alpha/main/run.py", "from pkg.models import *\n"),),
+            expected_codes=("SFL002",),
+            expected_lines=(1,),
+        ),
+        LayerRuleTestCase(
+            description="native SFL101 bypasses its Python core callback",
+            rule_code="SFL101",
+            files=(
+                ("src/pkg/domain/alpha/main/run.py", "from pkg.domain.beta._helpers import load\n"),
+            ),
+            expected_codes=("SFL101",),
+            expected_lines=(1,),
+        ),
+        LayerRuleTestCase(
+            description="native SFL102 bypasses its Python core callback",
+            rule_code="SFL102",
+            files=(("src/pkg/domain/alpha/main/run.py", "from pkg.other._helpers import load\n"),),
+            expected_codes=("SFL102",),
+            expected_lines=(1,),
+        ),
+        LayerRuleTestCase(
+            description="native SFL104 bypasses its Python core callback",
+            rule_code="SFL104",
+            files=(
+                ("src/pkg/domain/alpha/main/run.py", "from pkg.other.main._load import load\n"),
+                ("src/pkg/other/main/_load.py", "def load() -> None:\n    return None\n"),
+            ),
+            expected_codes=("SFL104",),
+            expected_lines=(1,),
+        ),
+        LayerRuleTestCase(
+            description="native SFL103 bypasses its Python core callback",
+            rule_code="SFL103",
+            files=(("src/pkg/domain/alpha/main/run.py", "from pkg import Model\n"),),
+            expected_codes=("SFL103",),
+            expected_lines=(1,),
+        ),
+        LayerRuleTestCase(
+            description="native SFL105 bypasses its Python core callback",
+            rule_code="SFL105",
+            files=(("src/pkg/domain/alpha/main/run.py", "def run() -> None:\n    pass\n"),),
+            expected_codes=("SFL105",),
+            expected_lines=(None,),
+        ),
+        LayerRuleTestCase(
+            description="native SFL110 bypasses its Python core callback",
+            rule_code="SFL110",
+            files=(
+                (
+                    "src/pkg/domain/alpha/main/run.py",
+                    "from pkg.domain.alpha._helpers.parse import _Cursor\n",
+                ),
+            ),
+            expected_codes=("SFL110",),
+            expected_lines=(1,),
+        ),
+        LayerRuleTestCase(
+            description="native SFL301 bypasses its Python core callback",
+            rule_code="SFL301",
+            files=(("src/pkg/domain/alpha/main/run.py", "from scripts.tools import helper\n"),),
+            tooling=("scripts",),
+            expected_codes=("SFL301",),
+            expected_lines=(1,),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_registered_native_layer_rule_when_evaluating_then_skips_python_callback(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: LayerRuleTestCase,
+) -> None:
+    python_callback: Mock = Mock(side_effect=AssertionError("Python callback executed"))
+    rules_by_code: dict[str, RuleSpec] = {rule.code: rule for rule in layer_test_helpers.SFL_RULES}
+    monkeypatch.setattr(
+        layer_test_helpers,
+        "SFL_RULES",
+        (replace(rules_by_code[test_case.rule_code], check=python_callback),),
+    )
+
+    result: EvaluationResult = evaluate_layer_test_case(
+        test_case=test_case, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
+    assert python_callback.call_count == 0
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        NativeLayerRegistryTestCase(
+            description="all layer rules execute natively including the project owner",
+            expected_native_codes=(
+                "SFL001",
+                "SFL002",
+                "SFL101",
+                "SFL102",
+                "SFL103",
+                "SFL104",
+                "SFL105",
+                "SFL110",
+                "SFL301",
+            ),
+            expected_python_codes=(),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_layer_registry_when_selecting_native_rules_then_all_core_layers_are_native(
+    test_case: NativeLayerRegistryTestCase,
+) -> None:
+    native: ModuleType = import_module(NATIVE_FACT_MODULE_NAME)
+    registered_codes: set[str] = {code for code, _ in native.native_rule_fact_families()}
+    layer_codes: set[str] = {rule.code for rule in layer_test_helpers.SFL_RULES}
+    native_layer_codes: tuple[str, ...] = tuple(sorted(registered_codes.intersection(layer_codes)))
+    python_layer_codes: tuple[str, ...] = tuple(sorted(layer_codes.difference(registered_codes)))
+
+    assert native_layer_codes == test_case.expected_native_codes
+    assert python_layer_codes == test_case.expected_python_codes
 
 
 @pytest.mark.parametrize(

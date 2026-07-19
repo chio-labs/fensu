@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
@@ -11,7 +13,9 @@ from strata.analysis.types import ProjectDependencyKind
 from strata.config.models import ThresholdOverride
 from strata.discovery.types import ScopeName
 from strata.evaluation.models import EvaluationResult
+from strata.rules.authoring.models import RuleSpec
 from strata.rules.authoring.types import Threshold
+from tests.unit.src.strata.rules.roles.main import helpers as role_test_helpers
 from tests.unit.src.strata.rules.roles.main._test_types import (
     ContainerDepthScaleTestCase,
     ContainerScaleTestCase,
@@ -23,6 +27,50 @@ from tests.unit.src.strata.rules.roles.main.helpers import (
     evaluate_flat_helpers_scale,
     evaluate_role_bucket_depth_scale,
     evaluate_role_test_case,
+)
+
+_LOCAL_NATIVE_SFR_CODES: frozenset[str] = frozenset(
+    {
+        "SFR001",
+        "SFR002",
+        "SFR003",
+        "SFR004",
+        "SFR101",
+        "SFR102",
+        "SFR103",
+        "SFR104",
+        "SFR201",
+        "SFR202",
+        "SFR203",
+        "SFR204",
+        "SFR205",
+        "SFR301",
+        "SFR302",
+        "SFR303",
+        "SFR304",
+        "SFR305",
+        "SFR306",
+        "SFR307",
+        "SFR308",
+        "SFR309",
+        "SFR401",
+        "SFR402",
+        "SFR403",
+        "SFR404",
+        "SFR405",
+        "SFR406",
+        "SFR501",
+        "SFR502",
+        "SFR503",
+        "SFR601",
+        "SFR701",
+        "SFR702",
+        "SFR703",
+        "SFR704",
+        "SFR705",
+        "SFR706",
+        "SFR707",
+    }
 )
 
 
@@ -2005,6 +2053,44 @@ def test_given_role_module_shapes_when_checking_then_flags_only_shape_violations
 
     assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
     assert tuple(fault.line for fault in result.faults) == test_case.expected_lines
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SfrRuleTestCase(
+            description="all native SFR rules bypass their Python core callbacks",
+            rule_code="SFR",
+            relative_path="domain/core/_helpers/values.py",
+            source="",
+            expected_codes=("SFR309",),
+            expected_lines=(None,),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_registered_native_role_rule_when_evaluating_then_skips_python_callback(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: SfrRuleTestCase,
+) -> None:
+    python_callback: Mock = Mock(side_effect=AssertionError("Python callback executed"))
+    rules_by_code: dict[str, RuleSpec] = {rule.code: rule for rule in role_test_helpers.SFR_RULES}
+    monkeypatch.setattr(
+        role_test_helpers,
+        "SFR_RULES",
+        tuple(
+            replace(rules_by_code[code], check=python_callback)
+            for code in sorted(_LOCAL_NATIVE_SFR_CODES)
+        ),
+    )
+
+    result: EvaluationResult = evaluate_role_test_case(
+        test_case=test_case, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
+    assert python_callback.call_count == 0
 
 
 @pytest.mark.parametrize(

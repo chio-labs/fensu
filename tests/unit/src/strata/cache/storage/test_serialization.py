@@ -31,7 +31,16 @@ from tests.unit.src.strata.cache.storage.helpers import deeply_nested_cache_json
             expected_bytes=(
                 b'{"kind":"metadata","payload":{"alpha":true,"zeta":[2,1]},"schema_version":4}'
             ),
-        )
+        ),
+        CacheRecordRoundTripTestCase(
+            description="non-ASCII keys and values retain Python canonical escaping",
+            kind="metadata",
+            payload={"caf\N{LATIN SMALL LETTER E WITH ACUTE}": "\N{GRINNING FACE}\n"},
+            expected_bytes=(
+                b'{"kind":"metadata","payload":{"caf\\u00e9":"\\ud83d\\ude00\\n"},'
+                b'"schema_version":4}'
+            ),
+        ),
     ],
     ids=lambda case: case.description,
 )

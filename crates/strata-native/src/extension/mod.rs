@@ -1,5 +1,5 @@
 //! Python extension adapter.
 
-#[cfg(feature = "memory")]
+pub(crate) mod constants;
 pub(crate) mod helpers;
 pub mod main;

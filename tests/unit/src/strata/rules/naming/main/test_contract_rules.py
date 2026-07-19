@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
 from strata.config.exceptions import ConfigError
 from strata.evaluation.models import EvaluationResult
+from strata.rules.authoring.models import RuleSpec
+from tests.unit.src.strata.rules.naming.main import helpers as naming_test_helpers
 from tests.unit.src.strata.rules.naming.main._test_types import (
     SfnConflictTestCase,
     SfnRuleTestCase,
@@ -224,7 +228,18 @@ def test_given_function_contracts_when_checking_returns_then_flags_meaningful_va
                 "src/pkg/domain/core/_helpers/checks.py: '*_ready' (returns-value), "
                 "'is_*' (returns-bool)."
             ),
-        )
+        ),
+        SfnConflictTestCase(
+            description="custom predicate conflicts with default validator in sorted order",
+            source="def validate_ready() -> bool:\n    return True\n",
+            contracts={"*_ready": "returns-bool"},
+            expected_error_type=ConfigError,
+            expected_message=(
+                "Conflicting contracts for function 'validate_ready' at "
+                "src/pkg/domain/core/_helpers/checks.py: '*_ready' (returns-bool), "
+                "'validate_*' (no-return)."
+            ),
+        ),
     ],
     ids=lambda case: case.description,
 )
@@ -247,3 +262,39 @@ def test_given_conflicting_contracts_when_function_matches_then_raises_stable_co
         )
 
     assert str(error.value) == test_case.expected_message
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SfnRuleTestCase(
+            description="all registered native naming rules bypass Python core callbacks",
+            source=(
+                "def validate_config() -> bool:\n    return True\n"
+                "def is_ready() -> Status:\n    return Status()\n"
+                "def get_user() -> None:\n    return None\n"
+                "def iter_rows() -> list[int]:\n    return []\n"
+            ),
+            expected_codes=("SFN001", "SFN002", "SFN003", "SFN004"),
+            expected_lines=(2, 3, 5, 7),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_registered_native_naming_rules_when_evaluating_then_skip_python_callbacks(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: SfnRuleTestCase,
+) -> None:
+    python_callback: Mock = Mock(side_effect=AssertionError("Python callback executed"))
+    patched_rules: tuple[RuleSpec, ...] = tuple(
+        replace(rule, check=python_callback) for rule in naming_test_helpers.SFN_RULES
+    )
+    monkeypatch.setattr(naming_test_helpers, "SFN_RULES", patched_rules)
+
+    result: EvaluationResult = evaluate_naming_test_case(
+        test_case=test_case, tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+
+    assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
+    assert python_callback.call_count == 0

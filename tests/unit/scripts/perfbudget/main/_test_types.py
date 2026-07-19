@@ -14,7 +14,11 @@ class SpecResolutionTestCase:
     cold_ceiling: float | None
     warm_ceiling: float | None
     edit_ceiling: float | None
+    version_ceiling: float | None
+    init_ceiling: float | None
     expected_uncached: float
     expected_cold: float
     expected_warm: float
     expected_edit: float
+    expected_version: float
+    expected_init: float

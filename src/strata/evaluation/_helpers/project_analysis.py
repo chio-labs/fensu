@@ -8,6 +8,7 @@ from pathlib import Path
 from strata.analysis.classes.query_observer import QueryObserver
 from strata.analysis.exceptions import PythonSourceParseError
 from strata.analysis.main.build import build_analysis
+from strata.analysis.main.decode_source import decode_python_source
 from strata.analysis.main.parse_source import parse_python_source
 from strata.analysis.models import (
     DataclassFact,
@@ -104,6 +105,9 @@ class _EvaluationProjectAnalysis:
 
         path: Path = self._resolve(parsed.scoped_file.path)
         _ = self._parsed_modules.setdefault(str(path), parsed)
+        if parsed.scoped_file.path.name == _test_types_file_name:
+            self._source_answers[str(path)] = parsed.source_fingerprint
+            self._dataclasses[str(path)] = parsed.analysis.facts.dataclasses()
 
     def analysis(self, *, requester: Path, path: Path) -> Analysis | None:
         """Return tolerant analysis for a queried path and record its dependency."""
@@ -138,6 +142,27 @@ class _EvaluationProjectAnalysis:
             answer=self._source_answers[path_key],
         )
         return result
+
+    def native_source(self, *, requester: Path, path: Path) -> str | None:
+        """Return decoded source and record a source dependency without constructing an AST."""
+
+        resolved_path: Path = self._resolve(path)
+        try:
+            snapshot: SourceSnapshot = read_source_snapshot(path=resolved_path)
+            source: str | None = decode_python_source(path=resolved_path, content=snapshot.content)
+        except (OSError, PythonSourceParseError):
+            fingerprint: str | None = None
+            source = None
+        else:
+            fingerprint = snapshot.fingerprint
+        self._source_answers[str(resolved_path)] = fingerprint
+        self._record(
+            requester=requester,
+            dependency=path,
+            kind=ProjectDependencyKind.SOURCE,
+            answer=fingerprint,
+        )
+        return source
 
     def dependencies(self) -> tuple[ProjectDependency, ...]:
         """Return deterministic requester-to-path dependencies observed so far."""

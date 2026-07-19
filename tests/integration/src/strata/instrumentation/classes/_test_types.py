@@ -65,6 +65,19 @@ class NativeUncachedCountsTestCase:
     file_target: int
     seed: int
     expected_python_parses: int
+    expected_python_core_callbacks: int
+
+
+@dataclass(frozen=True)
+class NativeExecutionBoundaryTestCase:
+    """One repository-scale native execution boundary expectation."""
+
+    description: str
+    file_target: int
+    seed: int
+    jobs: int
+    expected_worker_partitions: int
+    expected_python_parses: int
 
 
 @dataclass(frozen=True)

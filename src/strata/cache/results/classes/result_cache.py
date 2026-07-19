@@ -1,432 +1,178 @@
-"""Publish and validate persistent per-file evaluation results."""
+"""Native persistent evaluation-generation boundary."""
 
-from __future__ import annotations
-
+from importlib import import_module
 from pathlib import Path
+from types import ModuleType
 
-from strata.cache.fingerprints.main._file_result_identity import file_result_identity
-from strata.cache.fingerprints.main.source import fingerprint_source
 from strata.cache.fingerprints.models import CacheFingerprint
-from strata.cache.results._helpers.conversion import build_publication_preparation
-from strata.cache.results._helpers.dependencies import dependencies_are_current
-from strata.cache.results._helpers.serialization import (
-    check_output_from_record,
-    check_output_to_record,
-    collection_from_record,
-    collection_to_record,
-    dependencies_from_record,
-    dependencies_to_record,
-    dependency_observation_index,
-    file_result_from_record,
-    index_from_record,
-    index_to_record,
-    metadata_from_record,
-    metadata_to_record,
-)
-from strata.cache.results._helpers.validation import is_fingerprint
-from strata.cache.results.constants import (
-    CACHE_CHECK_OUTPUT_KIND,
-    CACHE_CHECK_OUTPUT_PATH,
-    CACHE_COLLECTION_KIND,
-    CACHE_COLLECTION_PATH,
-    CACHE_DEPENDENCIES_KIND,
-    CACHE_DEPENDENCIES_PATH,
-    CACHE_FILE_RESULT_KIND,
-    CACHE_INDEX_KIND,
-    CACHE_INDEX_PATH,
-    CACHE_JSON_SUFFIX,
-    CACHE_METADATA_KIND,
-    CACHE_METADATA_PATH,
-    CACHE_RESULTS_DIRECTORY,
-    FINGERPRINT_DIRECTORY_PREFIX_LENGTH,
+from strata.cache.results._helpers.conversion import (
+    native_evaluation_payload,
+    restore_native_contribution,
+    restore_native_evaluation,
 )
 from strata.cache.results.models import (
     CachedCheckOutput,
-    CachedCollectionContribution,
-    CachedFileResult,
-    CacheIndex,
     CacheIndexEntry,
-    CacheLookup,
-    CacheMetadata,
     CacheStats,
-    CheckCacheContext,
-    DependencyObservation,
-    EditReplaySurface,
-    PublicationPreparation,
+    NativeGenerationPlan,
 )
-from strata.cache.results.types import DependencyReferenceKey, DependencyStateCache
-from strata.cache.storage.exceptions import CacheRecordError
-from strata.cache.storage.main._build_store import build_cache_store
-from strata.cache.storage.main._encode_record import encode_record
-from strata.cache.storage.models import (
-    CacheMutation,
-    CacheMutationOutcome,
-    CacheRead,
-    CacheRecord,
-    CacheWrite,
-    EncodedCacheWrite,
-)
-from strata.cache.storage.types import CacheStorage
 from strata.evaluation.models import FileEvaluation
 
 
 class ResultCache:
-    """Own typed result publication and integrity-checked loading."""
+    """Expose fail-soft native generation operations to check orchestration."""
 
     def __init__(self, *, repo_root: Path) -> None:
         """Bind a result cache without creating persistent storage."""
 
         self._repo_root: Path = repo_root.resolve()
-        self._store: CacheStorage = build_cache_store(repo_root=self._repo_root)
 
-    def publish(
+    def load_native_replay(
+        self,
+        *,
+        global_fingerprint: CacheFingerprint,
+        targets: tuple[str, ...],
+        source_fingerprints: dict[str, CacheFingerprint | None],
+    ) -> CachedCheckOutput | None:
+        """Return a fully native-validated rendered generation when current."""
+
+        from strata.cache.storage.classes.cache_store import _record_metrics
+        from strata.cache.storage.constants import CACHE_RECORD_MAX_DECODED_BYTES
+
+        try:
+            native: ModuleType = import_module("strata._native")
+            row, metrics = native.cache_replay_generation(
+                self._repo_root,
+                global_fingerprint.value,
+                [(path, _fingerprint_value(source_fingerprints.get(path))) for path in targets],
+                CACHE_RECORD_MAX_DECODED_BYTES,
+            )
+        except (AttributeError, ImportError, OSError, RuntimeError, TypeError, ValueError):
+            return None
+        _record_metrics(metrics)
+        if row is None:
+            return None
+        _record_native_observation()
+        return CachedCheckOutput(
+            global_fingerprint=global_fingerprint,
+            index_fingerprint=CacheFingerprint(value=row[4]),
+            targets=tuple(row[0]),
+            plain_output=row[1],
+            color_output=row[2],
+            exit_code=row[3],
+        )
+
+    def plan_native_generation(
+        self,
+        *,
+        global_fingerprint: CacheFingerprint,
+        targets: tuple[str, ...],
+        source_fingerprints: dict[str, CacheFingerprint | None],
+        allow_edit: bool = True,
+    ) -> NativeGenerationPlan | None:
+        """Return Rust-validated replay inputs and complete per-target miss decisions."""
+
+        from strata.cache.storage.classes.cache_store import _record_metrics
+        from strata.cache.storage.constants import CACHE_RECORD_MAX_DECODED_BYTES
+
+        try:
+            native: ModuleType = import_module("strata._native")
+            row, metrics = native.cache_plan_generation(
+                self._repo_root,
+                global_fingerprint.value,
+                [(path, _fingerprint_value(source_fingerprints.get(path))) for path in targets],
+                allow_edit,
+                CACHE_RECORD_MAX_DECODED_BYTES,
+            )
+        except (AttributeError, ImportError, OSError, RuntimeError, TypeError, ValueError):
+            return None
+        _record_metrics(metrics)
+        if row is None:
+            return None
+        entries: tuple[CacheIndexEntry, ...] = tuple(
+            CacheIndexEntry(
+                path=value[0],
+                source_fingerprint=CacheFingerprint(value[1]),
+                result_fingerprint=CacheFingerprint(value[2]),
+                record_fingerprint=CacheFingerprint(value[3]),
+            )
+            for value in row[2]
+        )
+        entries_by_path: dict[str, CacheIndexEntry] = {entry.path: entry for entry in entries}
+        try:
+            cached_evaluations: tuple[FileEvaluation, ...] = tuple(
+                restore_native_evaluation(payload=payload, repo_root=self._repo_root)
+                for payload in row[3]
+            )
+            retained_evaluations: tuple[FileEvaluation, ...] = tuple(
+                restore_native_contribution(
+                    payload=payload,
+                    source_fingerprint=entries_by_path[str(payload["path"])].source_fingerprint,
+                    repo_root=self._repo_root,
+                )
+                for payload in row[4]
+            )
+        except (KeyError, TypeError, ValueError):
+            return None
+        return NativeGenerationPlan(
+            mode=row[0],
+            index_fingerprint=(CacheFingerprint(row[1]) if row[1] is not None else None),
+            retained_entries=entries,
+            cached_evaluations=cached_evaluations,
+            retained_evaluations=retained_evaluations,
+            miss_paths=tuple(row[5]),
+            hits=row[6],
+            misses=row[7],
+            invalidations=row[8],
+        )
+
+    def publish_native_generation(
         self,
         *,
         global_fingerprint: CacheFingerprint,
         evaluations: tuple[FileEvaluation, ...],
-        retained_entries: tuple[CacheIndexEntry, ...] = (),
-        retained_results: tuple[CachedFileResult, ...] = (),
-        retained_observations: tuple[DependencyObservation, ...] | None = None,
-        collection: tuple[CachedCollectionContribution, ...] | None = None,
+        retained_entries: tuple[CacheIndexEntry, ...],
+        expected_index_fingerprint: CacheFingerprint | None,
+        retain_all_observations: bool,
     ) -> CacheStats:
-        """Merge, publish, and sweep one complete generation in one transaction."""
+        """Publish one complete generation through a Rust-owned transaction."""
 
-        preparation: PublicationPreparation = build_publication_preparation(
-            global_fingerprint=global_fingerprint,
-            evaluations=evaluations,
-            repo_root=self._repo_root,
-        )
-        aggregate: tuple[DependencyObservation, ...] | None = _aggregated_observations(
-            preparation=preparation,
-            retained_results=retained_results,
-            retained_observations=retained_observations,
-        )
-        if (
-            not preparation.candidates
-            and aggregate is not None
-            and self._retained_index_is_current(
-                global_fingerprint=global_fingerprint,
-                retained_entries=retained_entries,
+        from strata.cache.storage.classes.cache_store import _record_metrics
+        from strata.cache.storage.constants import CACHE_RECORD_MAX_DECODED_BYTES
+
+        payloads: list[dict[str, object] | None] = [
+            native_evaluation_payload(evaluation=evaluation, repo_root=self._repo_root)
+            for evaluation in evaluations
+        ]
+        try:
+            native: ModuleType = import_module("strata._native")
+            row, metrics = native.cache_publish_generation(
+                self._repo_root,
+                global_fingerprint.value,
+                _fingerprint_value(expected_index_fingerprint),
+                [
+                    (
+                        entry.path,
+                        entry.source_fingerprint.value,
+                        entry.result_fingerprint.value,
+                        entry.record_fingerprint.value,
+                    )
+                    for entry in retained_entries
+                ],
+                payloads,
+                (retain_all_observations, CACHE_RECORD_MAX_DECODED_BYTES),
             )
-            and self._aggregate_is_current(aggregate=aggregate)
-            and self._collection_is_current(collection=collection)
-        ):
-            return CacheStats(
-                misses=len(evaluations),
-                non_cacheable=preparation.non_cacheable,
-                internal_error=preparation.internal_error,
-            )
-        reads: tuple[CacheRead, ...] = (
-            CacheRead(relative_path=CACHE_METADATA_PATH, expected_kind=CACHE_METADATA_KIND),
-            CacheRead(relative_path=CACHE_INDEX_PATH, expected_kind=CACHE_INDEX_KIND),
-        )
-        outcome: CacheMutationOutcome = self._store.mutate_batch(
-            reads=reads,
-            mutate=lambda records: self._merged_mutation(
-                records=records,
-                global_fingerprint=global_fingerprint,
-                preparation=preparation,
-                retained_entries=retained_entries,
-                aggregate=aggregate,
-                collection=collection,
-            ),
-        )
-        conflicted: bool = _publication_conflicted(outcome)
-        index_fingerprint: CacheFingerprint | None = _published_index_fingerprint(outcome.mutation)
+        except (AttributeError, ImportError, OSError, RuntimeError, TypeError, ValueError):
+            return CacheStats(storage_failed=True, internal_error=True)
+        _record_metrics(metrics)
         return CacheStats(
             misses=len(evaluations),
-            writes=_result_write_count(outcome.mutation),
-            non_cacheable=preparation.non_cacheable,
-            storage_failed=not outcome.published or conflicted,
-            internal_error=preparation.internal_error or aggregate is None or conflicted,
-            index_fingerprint=index_fingerprint,
+            writes=row[0],
+            non_cacheable=row[1],
+            storage_failed=row[2],
+            internal_error=row[3],
+            index_fingerprint=CacheFingerprint(row[4]) if row[4] is not None else None,
         )
-
-    def _retained_index_is_current(
-        self,
-        *,
-        global_fingerprint: CacheFingerprint,
-        retained_entries: tuple[CacheIndexEntry, ...],
-    ) -> bool:
-        existing_index: CacheIndex | None = self.load_index(global_fingerprint=global_fingerprint)
-        if existing_index is None:
-            return False
-        existing_entries: dict[str, CacheIndexEntry] = {
-            entry.path: entry for entry in existing_index.entries
-        }
-        retained: tuple[CacheIndexEntry, ...] = tuple(
-            sorted(
-                (
-                    existing_entries[entry.path]
-                    for entry in retained_entries
-                    if entry.path in existing_entries
-                ),
-                key=lambda entry: entry.path,
-            )
-        )
-        return retained == existing_index.entries
-
-    def _aggregate_is_current(
-        self,
-        *,
-        aggregate: tuple[DependencyObservation, ...] | None,
-    ) -> bool:
-        if aggregate is None:
-            return True
-        existing: CacheRecord | None = self._store.read(
-            relative_path=CACHE_DEPENDENCIES_PATH,
-            expected_kind=CACHE_DEPENDENCIES_KIND,
-        )
-        if existing is None:
-            return False
-        return dependencies_from_record(existing) == aggregate
-
-    def _collection_is_current(
-        self,
-        *,
-        collection: tuple[CachedCollectionContribution, ...] | None,
-    ) -> bool:
-        if collection is None:
-            return True
-        existing: CacheRecord | None = self._store.read(
-            relative_path=CACHE_COLLECTION_PATH,
-            expected_kind=CACHE_COLLECTION_KIND,
-        )
-        if existing is None:
-            return False
-        return collection_from_record(existing) == collection
-
-    def _merged_mutation(
-        self,
-        *,
-        records: tuple[CacheRecord | None, ...],
-        global_fingerprint: CacheFingerprint,
-        preparation: PublicationPreparation,
-        retained_entries: tuple[CacheIndexEntry, ...],
-        aggregate: tuple[DependencyObservation, ...] | None,
-        collection: tuple[CachedCollectionContribution, ...] | None,
-    ) -> CacheMutation | None:
-        existing_index: CacheIndex | None = _decoded_index(
-            metadata_record=records[0],
-            index_record=records[1],
-            global_fingerprint=global_fingerprint,
-        )
-        existing_entries: dict[str, CacheIndexEntry] = (
-            {entry.path: entry for entry in existing_index.entries}
-            if existing_index is not None
-            else {}
-        )
-        if any(existing_entries.get(entry.path) != entry for entry in retained_entries):
-            return CacheMutation(writes=())
-        entries: list[CacheIndexEntry] = [
-            entry for entry in retained_entries if entry.path in existing_entries
-        ]
-        writes: list[CacheWrite | EncodedCacheWrite] = []
-        dependencies_fingerprint: CacheFingerprint | None = None
-        if aggregate is not None:
-            aggregate_record: CacheRecord = dependencies_to_record(aggregate)
-            aggregate_encoded: bytes = encode_record(record=aggregate_record)
-            dependencies_fingerprint = fingerprint_source(aggregate_encoded)
-            writes.append(
-                EncodedCacheWrite(
-                    relative_path=CACHE_DEPENDENCIES_PATH,
-                    kind=CACHE_DEPENDENCIES_KIND,
-                    encoded=aggregate_encoded,
-                )
-            )
-        collection_fingerprint: CacheFingerprint | None = None
-        if collection is not None and aggregate is not None:
-            collection_record: CacheRecord = collection_to_record(collection)
-            collection_encoded: bytes = encode_record(record=collection_record)
-            collection_fingerprint = fingerprint_source(collection_encoded)
-            writes.append(
-                EncodedCacheWrite(
-                    relative_path=CACHE_COLLECTION_PATH,
-                    kind=CACHE_COLLECTION_KIND,
-                    encoded=collection_encoded,
-                )
-            )
-        for candidate in preparation.candidates:
-            entries.append(candidate.entry)
-            existing_entry: CacheIndexEntry | None = existing_entries.get(candidate.entry.path)
-            writes.append(
-                EncodedCacheWrite(
-                    relative_path=_result_path(candidate.entry.result_fingerprint),
-                    kind=CACHE_FILE_RESULT_KIND,
-                    encoded=candidate.encoded,
-                    insert_only=(
-                        existing_entry is None
-                        or existing_entry.result_fingerprint != candidate.entry.result_fingerprint
-                    ),
-                )
-            )
-        index: CacheIndex = CacheIndex(
-            global_fingerprint=global_fingerprint,
-            entries=tuple(sorted(entries, key=lambda entry: entry.path)),
-            dependencies_fingerprint=dependencies_fingerprint,
-            collection_fingerprint=collection_fingerprint,
-        )
-        if index != existing_index:
-            index_record: CacheRecord = index_to_record(index)
-            index_encoded: bytes = encode_record(record=index_record)
-            writes.extend(
-                (
-                    CacheWrite(
-                        relative_path=CACHE_METADATA_PATH,
-                        record=metadata_to_record(
-                            CacheMetadata(global_fingerprint=global_fingerprint)
-                        ),
-                    ),
-                    CacheWrite(
-                        relative_path=CACHE_INDEX_PATH,
-                        record=index_record,
-                        encoded=index_encoded,
-                    ),
-                )
-            )
-        if not writes:
-            return None
-        retained_fingerprints: frozenset[CacheFingerprint] = frozenset(
-            entry.result_fingerprint for entry in index.entries
-        )
-        deleted_paths: list[Path] = (
-            list(
-                _result_path(entry.result_fingerprint)
-                for entry in existing_index.entries
-                if entry.result_fingerprint not in retained_fingerprints
-            )
-            if existing_index is not None
-            else []
-        )
-        if aggregate is None:
-            deleted_paths.append(CACHE_DEPENDENCIES_PATH)
-        if collection_fingerprint is None:
-            deleted_paths.append(CACHE_COLLECTION_PATH)
-        return CacheMutation(
-            writes=tuple(writes),
-            swept_prefix=CACHE_RESULTS_DIRECTORY if existing_index is None else None,
-            retained_paths=tuple(_result_path(entry.result_fingerprint) for entry in index.entries),
-            deleted_paths=tuple(deleted_paths),
-        )
-
-    def load_check_context(self, *, global_fingerprint: CacheFingerprint) -> CheckCacheContext:
-        """Return the validated index identity needed to qualify replay."""
-
-        records: tuple[CacheRecord | None, ...] = self._store.read_batch(
-            reads=(
-                CacheRead(relative_path=CACHE_METADATA_PATH, expected_kind=CACHE_METADATA_KIND),
-                CacheRead(relative_path=CACHE_INDEX_PATH, expected_kind=CACHE_INDEX_KIND),
-            )
-        )
-        index: CacheIndex | None = _decoded_index(
-            metadata_record=records[0],
-            index_record=records[1],
-            global_fingerprint=global_fingerprint,
-        )
-        index_record: CacheRecord | None = records[1]
-        index_fingerprint: CacheFingerprint | None = (
-            index_record.content_fingerprint if index_record is not None else None
-        )
-        return CheckCacheContext(
-            index=index,
-            output=None,
-            observations=None,
-            index_fingerprint=index_fingerprint,
-        )
-
-    def load_check_surface(
-        self,
-        *,
-        global_fingerprint: CacheFingerprint,
-        context: CheckCacheContext,
-    ) -> CheckCacheContext:
-        """Load rendered output and dependencies after index qualification."""
-
-        if context.index is None or context.index_fingerprint is None:
-            return context
-        records: tuple[CacheRecord | None, ...] = self._store.read_batch(
-            reads=(
-                CacheRead(
-                    relative_path=CACHE_CHECK_OUTPUT_PATH,
-                    expected_kind=CACHE_CHECK_OUTPUT_KIND,
-                ),
-                CacheRead(
-                    relative_path=CACHE_DEPENDENCIES_PATH,
-                    expected_kind=CACHE_DEPENDENCIES_KIND,
-                ),
-            )
-        )
-        output_record: CacheRecord | None = records[0]
-        dependencies_record: CacheRecord | None = records[1]
-        if (
-            output_record is None
-            or dependencies_record is None
-            or context.index.dependencies_fingerprint is None
-            or dependencies_record.content_fingerprint != context.index.dependencies_fingerprint
-        ):
-            return context
-        output: CachedCheckOutput | None = check_output_from_record(output_record)
-        if (
-            output is None
-            or output.global_fingerprint != global_fingerprint
-            or output.index_fingerprint != context.index_fingerprint
-        ):
-            return context
-        observations: tuple[DependencyObservation, ...] | None = (
-            dependencies_from_record(dependencies_record)
-            if dependencies_record is not None
-            else None
-        )
-        return CheckCacheContext(
-            index=context.index,
-            output=output,
-            observations=observations,
-            index_fingerprint=context.index_fingerprint,
-        )
-
-    def load_edit_surface(
-        self,
-        *,
-        context: CheckCacheContext,
-    ) -> EditReplaySurface | None:
-        """Load fingerprint-bound observations and collection inputs for edit replay."""
-
-        if (
-            context.index is None
-            or context.index.dependencies_fingerprint is None
-            or context.index.collection_fingerprint is None
-        ):
-            return None
-        records: tuple[CacheRecord | None, ...] = self._store.read_batch(
-            reads=(
-                CacheRead(
-                    relative_path=CACHE_DEPENDENCIES_PATH,
-                    expected_kind=CACHE_DEPENDENCIES_KIND,
-                ),
-                CacheRead(
-                    relative_path=CACHE_COLLECTION_PATH,
-                    expected_kind=CACHE_COLLECTION_KIND,
-                ),
-            )
-        )
-        dependencies_record: CacheRecord | None = records[0]
-        collection_record: CacheRecord | None = records[1]
-        if (
-            dependencies_record is None
-            or collection_record is None
-            or dependencies_record.content_fingerprint != context.index.dependencies_fingerprint
-            or collection_record.content_fingerprint != context.index.collection_fingerprint
-        ):
-            return None
-        observations: tuple[DependencyObservation, ...] | None = dependencies_from_record(
-            dependencies_record
-        )
-        contributions: tuple[CachedCollectionContribution, ...] | None = collection_from_record(
-            collection_record
-        )
-        if observations is None or contributions is None:
-            return None
-        return EditReplaySurface(observations=observations, contributions=contributions)
 
     def store_check_output(
         self,
@@ -438,349 +184,34 @@ class ResultCache:
         exit_code: int,
         expected_index_fingerprint: CacheFingerprint,
     ) -> bool:
-        """Bind one rendered check surface to the current cache generation."""
+        """Bind one rendered check surface to the current native generation."""
 
-        output: CachedCheckOutput = CachedCheckOutput(
-            global_fingerprint=global_fingerprint,
-            index_fingerprint=expected_index_fingerprint,
-            targets=tuple(sorted(targets)),
-            plain_output=plain_output,
-            color_output=color_output,
-            exit_code=exit_code,
-        )
+        from strata.cache.storage.classes.cache_store import _record_metrics
+        from strata.cache.storage.constants import CACHE_RECORD_MAX_DECODED_BYTES
+
         try:
-            record: CacheRecord = check_output_to_record(output)
-        except CacheRecordError:
+            native: ModuleType = import_module("strata._native")
+            stored, metrics = native.cache_store_check_output(
+                self._repo_root,
+                global_fingerprint.value,
+                expected_index_fingerprint.value,
+                (sorted(targets), plain_output, color_output, exit_code),
+                CACHE_RECORD_MAX_DECODED_BYTES,
+            )
+        except (AttributeError, ImportError, OSError, RuntimeError, TypeError, ValueError):
             return False
-        outcome: CacheMutationOutcome = self._store.mutate_batch(
-            reads=(
-                CacheRead(relative_path=CACHE_METADATA_PATH, expected_kind=CACHE_METADATA_KIND),
-                CacheRead(relative_path=CACHE_INDEX_PATH, expected_kind=CACHE_INDEX_KIND),
-            ),
-            mutate=lambda records: _check_output_mutation(
-                records=records,
-                global_fingerprint=global_fingerprint,
-                expected_index_fingerprint=expected_index_fingerprint,
-                output_record=record,
-            ),
-        )
-        return outcome.published and outcome.mutation is not None
-
-    def load_index(self, *, global_fingerprint: CacheFingerprint) -> CacheIndex | None:
-        """Return the index only when metadata and index share the active identity."""
-
-        records: tuple[CacheRecord | None, ...] = self._store.read_batch(
-            reads=(
-                CacheRead(relative_path=CACHE_METADATA_PATH, expected_kind=CACHE_METADATA_KIND),
-                CacheRead(relative_path=CACHE_INDEX_PATH, expected_kind=CACHE_INDEX_KIND),
-            )
-        )
-        return _decoded_index(
-            metadata_record=records[0],
-            index_record=records[1],
-            global_fingerprint=global_fingerprint,
-        )
-
-    def load_result(
-        self,
-        *,
-        global_fingerprint: CacheFingerprint,
-        entry: CacheIndexEntry,
-        dependency_fingerprint: CacheFingerprint | None = None,
-    ) -> CachedFileResult | None:
-        """Return a result only when lookup, correctness, and integrity identities match."""
-
-        records: tuple[CacheRecord | None, ...] = self._store.read_batch(
-            reads=(
-                CacheRead(
-                    relative_path=CACHE_DEPENDENCIES_PATH,
-                    expected_kind=CACHE_DEPENDENCIES_KIND,
-                ),
-                CacheRead(
-                    relative_path=_result_path(entry.result_fingerprint),
-                    expected_kind=CACHE_FILE_RESULT_KIND,
-                ),
-            )
-        )
-        observations: tuple[DependencyObservation, ...] = _dependency_observations(
-            record=records[0],
-            expected_fingerprint=dependency_fingerprint,
-        )
-        observations_by_key: dict[DependencyReferenceKey, DependencyObservation] = (
-            dependency_observation_index(observations)
-        )
-        return _validated_result(
-            global_fingerprint=global_fingerprint,
-            entry=entry,
-            record=records[1],
-            dependency_observations=observations,
-            dependency_observations_by_key=observations_by_key,
-        )
-
-    def load_results(
-        self,
-        *,
-        global_fingerprint: CacheFingerprint,
-        entries: tuple[CacheIndexEntry, ...],
-        dependency_fingerprint: CacheFingerprint | None = None,
-    ) -> dict[str, CachedFileResult | None]:
-        """Load and validate indexed results through one database snapshot."""
-
-        if not entries:
-            return {}
-        records: tuple[CacheRecord | None, ...] = self._store.read_batch(
-            reads=(
-                CacheRead(
-                    relative_path=CACHE_DEPENDENCIES_PATH,
-                    expected_kind=CACHE_DEPENDENCIES_KIND,
-                ),
-                *(
-                    CacheRead(
-                        relative_path=_result_path(entry.result_fingerprint),
-                        expected_kind=CACHE_FILE_RESULT_KIND,
-                    )
-                    for entry in entries
-                ),
-            )
-        )
-        observations: tuple[DependencyObservation, ...] = _dependency_observations(
-            record=records[0],
-            expected_fingerprint=dependency_fingerprint,
-        )
-        observations_by_key: dict[DependencyReferenceKey, DependencyObservation] = (
-            dependency_observation_index(observations)
-        )
-        return {
-            entry.path: _validated_result(
-                global_fingerprint=global_fingerprint,
-                entry=entry,
-                record=record,
-                dependency_observations=observations,
-                dependency_observations_by_key=observations_by_key,
-            )
-            for entry, record in zip(entries, records[1:], strict=True)
-        }
-
-    def loaded_candidate(
-        self,
-        *,
-        entry: CacheIndexEntry,
-        source_fingerprint: CacheFingerprint,
-        result: CachedFileResult | None,
-        dependency_states: DependencyStateCache,
-    ) -> CacheLookup:
-        """Return a preloaded unchanged candidate or an explicit invalidation."""
-
-        return self._validate_candidate(
-            entry=entry,
-            source_fingerprint=source_fingerprint,
-            result=result,
-            dependency_states=dependency_states,
-        )
-
-    def _validate_candidate(
-        self,
-        *,
-        entry: CacheIndexEntry,
-        source_fingerprint: CacheFingerprint,
-        result: CachedFileResult | None,
-        dependency_states: DependencyStateCache | None = None,
-    ) -> CacheLookup:
-        if entry.source_fingerprint != source_fingerprint:
-            return CacheLookup(result=None, missed=False, invalidated=True)
-        if result is None:
-            return CacheLookup(result=None, missed=True, invalidated=False)
-        if not dependencies_are_current(
-            observations=result.dependencies,
-            repo_root=self._repo_root,
-            states=dependency_states,
-        ):
-            return CacheLookup(result=None, missed=False, invalidated=True)
-        return CacheLookup(result=result, missed=False, invalidated=False)
-
-    def load_candidate(
-        self,
-        *,
-        global_fingerprint: CacheFingerprint,
-        entry: CacheIndexEntry,
-        source_fingerprint: CacheFingerprint,
-    ) -> CacheLookup:
-        """Return an unchanged indexed candidate or an explicit invalidation."""
-
-        result: CachedFileResult | None = self.load_result(
-            global_fingerprint=global_fingerprint,
-            entry=entry,
-        )
-        return self._validate_candidate(
-            entry=entry,
-            source_fingerprint=source_fingerprint,
-            result=result,
-        )
+        _record_metrics(metrics)
+        return stored
 
 
-def _decoded_index(
-    *,
-    metadata_record: CacheRecord | None,
-    index_record: CacheRecord | None,
-    global_fingerprint: CacheFingerprint,
-) -> CacheIndex | None:
-    if metadata_record is None:
-        return None
-    metadata: CacheMetadata | None = metadata_from_record(metadata_record)
-    if metadata is None or metadata.global_fingerprint != global_fingerprint:
-        return None
-    if index_record is None:
-        return None
-    index: CacheIndex | None = index_from_record(index_record)
-    if index is None or index.global_fingerprint != global_fingerprint:
-        return None
-    return index
+def _fingerprint_value(fingerprint: CacheFingerprint | None) -> str | None:
+    return fingerprint.value if fingerprint is not None else None
 
 
-def _check_output_mutation(
-    *,
-    records: tuple[CacheRecord | None, ...],
-    global_fingerprint: CacheFingerprint,
-    expected_index_fingerprint: CacheFingerprint,
-    output_record: CacheRecord,
-) -> CacheMutation | None:
-    index: CacheIndex | None = _decoded_index(
-        metadata_record=records[0],
-        index_record=records[1],
-        global_fingerprint=global_fingerprint,
-    )
-    index_record: CacheRecord | None = records[1]
-    if (
-        index is None
-        or index_record is None
-        or index_record.content_fingerprint != expected_index_fingerprint
-    ):
-        return None
-    return CacheMutation(
-        writes=(CacheWrite(relative_path=CACHE_CHECK_OUTPUT_PATH, record=output_record),)
+def _record_native_observation() -> None:
+    from strata.instrumentation.constants import (
+        OPERATION_COUNTERS,
+        PROJECT_QUERY_OBSERVATION_OPERATION,
     )
 
-
-def _dependency_observations(
-    *,
-    record: CacheRecord | None,
-    expected_fingerprint: CacheFingerprint | None,
-) -> tuple[DependencyObservation, ...]:
-    if record is None:
-        return ()
-    if expected_fingerprint is not None and record.content_fingerprint != expected_fingerprint:
-        return ()
-    return dependencies_from_record(record) or ()
-
-
-def _result_write_count(mutation: CacheMutation | None) -> int:
-    if mutation is None:
-        return 0
-    return sum(
-        1
-        for write in mutation.writes
-        if write.relative_path.is_relative_to(CACHE_RESULTS_DIRECTORY)
-    )
-
-
-def _publication_conflicted(outcome: CacheMutationOutcome) -> bool:
-    return outcome.mutation is not None and not outcome.mutation.writes
-
-
-def _published_index_fingerprint(mutation: CacheMutation | None) -> CacheFingerprint | None:
-    if mutation is None:
-        return None
-    for write in mutation.writes:
-        if isinstance(write, CacheWrite) and write.relative_path == CACHE_INDEX_PATH:
-            encoded: bytes = (
-                write.encoded if write.encoded is not None else encode_record(record=write.record)
-            )
-            return fingerprint_source(encoded)
-    return None
-
-
-def _validated_result(
-    *,
-    global_fingerprint: CacheFingerprint,
-    entry: CacheIndexEntry,
-    record: CacheRecord | None,
-    dependency_observations: tuple[DependencyObservation, ...],
-    dependency_observations_by_key: dict[DependencyReferenceKey, DependencyObservation],
-) -> CachedFileResult | None:
-    if not is_fingerprint(entry.result_fingerprint.value):
-        return None
-    if record is None:
-        return None
-    if record.content_fingerprint is None or record.content_fingerprint != entry.record_fingerprint:
-        return None
-    if entry.result_fingerprint != file_result_identity(
-        global_fingerprint=global_fingerprint,
-        record_fingerprint=entry.record_fingerprint,
-    ):
-        return None
-    result: CachedFileResult | None = file_result_from_record(
-        record=record,
-        dependency_observations=dependency_observations,
-        dependency_observations_by_key=dependency_observations_by_key,
-    )
-    if (
-        result is None
-        or result.path != entry.path
-        or result.source_fingerprint != entry.source_fingerprint
-    ):
-        return None
-    return result
-
-
-def _aggregated_observations(
-    *,
-    preparation: PublicationPreparation,
-    retained_results: tuple[CachedFileResult, ...],
-    retained_observations: tuple[DependencyObservation, ...] | None = None,
-) -> tuple[DependencyObservation, ...] | None:
-    if preparation.observations_conflicted:
-        return None
-    merged: dict[tuple[str, str, str | None, bool], DependencyObservation] = {
-        _observation_key(observation): observation for observation in preparation.observations
-    }
-    retained: list[tuple[DependencyObservation, ...]] = [
-        result.dependencies for result in retained_results
-    ]
-    if retained_observations is not None:
-        retained.append(retained_observations)
-    for observations in retained:
-        for observation in observations:
-            key: tuple[str, str, str | None, bool] = _observation_key(observation)
-            existing: DependencyObservation | None = merged.get(key)
-            if existing is None:
-                merged[key] = observation
-                continue
-            if (existing.dependency_path, existing.answer) != (
-                observation.dependency_path,
-                observation.answer,
-            ):
-                return None
-            if observation.requester_path < existing.requester_path:
-                merged[key] = observation
-    ordered: list[tuple[str, str, str | None, bool]] = sorted(
-        merged,
-        key=lambda key: (key[0], key[1], key[2] or "", key[3]),
-    )
-    return tuple(merged[key] for key in ordered)
-
-
-def _observation_key(
-    observation: DependencyObservation,
-) -> tuple[str, str, str | None, bool]:
-    return (
-        observation.query_path,
-        observation.kind.value,
-        observation.pattern,
-        observation.recursive,
-    )
-
-
-def _result_path(fingerprint: CacheFingerprint) -> Path:
-    value: str = fingerprint.value
-    prefix: str = value[:FINGERPRINT_DIRECTORY_PREFIX_LENGTH]
-    return CACHE_RESULTS_DIRECTORY / prefix / f"{value}{CACHE_JSON_SUFFIX}"
+    OPERATION_COUNTERS.record(operation=PROJECT_QUERY_OBSERVATION_OPERATION)

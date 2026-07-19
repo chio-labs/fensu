@@ -53,6 +53,18 @@ class CacheCliTestCase:
 
 
 @dataclass(frozen=True)
+class CacheColorCliTestCase:
+    """Cached CLI output across plain and terminal presentation modes."""
+
+    description: str
+    config: str
+    files: tuple[CliProjectFile, ...]
+    expected_exit_code: int
+    expected_plain_stdout: str
+    expected_color_fragment: str
+
+
+@dataclass(frozen=True)
 class CacheMutationCliTestCase:
     """Installed CLI source mutation and expected invalidated output."""
 
@@ -110,3 +122,45 @@ class InstalledInitCliTestCase:
     expected_stderr_fragments: tuple[str, ...]
     expected_absent_output_fragments: tuple[str, ...]
     expected_stdout_is_empty: bool
+    expected_cache_exists: bool = False
+
+
+@dataclass(frozen=True)
+class NativeCommandParityTestCase:
+    """One Python-fallback and native-binary output parity scenario."""
+
+    description: str
+    argv: tuple[str, ...]
+    config: str
+    files: tuple[CliProjectFile, ...]
+    expected_exit_code: int
+
+
+@dataclass(frozen=True)
+class NativeProcessAccountingTestCase:
+    """One native check process-boundary expectation."""
+
+    description: str
+    config: str
+    files: tuple[CliProjectFile, ...]
+    expected_exit_code: int
+    expected_exec_count: int
+
+
+@dataclass(frozen=True)
+class DistributionOwnershipTestCase:
+    """One installed two-package ownership expectation."""
+
+    description: str
+    expected_cli_script_name: str
+    expected_authoring_entrypoint_count: int
+
+
+@dataclass(frozen=True)
+class UpgradeSafetyTestCase:
+    """One split-package upgrade failure and expected recovery guidance."""
+
+    description: str
+    installed_version: str
+    expected_exit_code: int
+    expected_error_fragment: str

@@ -10,12 +10,17 @@ from strata.agentdocs.exceptions import SkillInstallError
 from strata.agentdocs.main.build_generation_context import build_generation_context
 from strata.agentdocs.main.update import update_skills
 from strata.agentdocs.models import SkillGenerationContext, SkillUpdateResult
+from strata.cache.fingerprints.main.build_global import build_global_fingerprint
+from strata.cache.fingerprints.models import CacheFingerprint, GlobalFingerprintBuild
+from strata.cache.results.main.evaluate import evaluate_with_cache
+from strata.cache.results.models import CacheEvaluation
 from strata.config.exceptions import ConfigError
 from strata.config.models import Config, ConfigSource
 from strata.config.types import ConfigSourceKind
 from strata.discovery.main.discover_files import discover_files
 from strata.discovery.models import DiscoveredTree
 from strata.evaluation.main.evaluate import evaluate
+from strata.evaluation.main.resolve_worker_count import resolve_worker_count
 from strata.evaluation.models import EvaluationResult
 from strata.reporting.classes.cli_style import CliStyle
 from strata.rules.authoring.models import Fault, RuleSpec
@@ -24,6 +29,7 @@ from strata.rules.catalog.main.build_ruleset import build_ruleset
 from strata.rules.catalog.models import RuleSelection
 from strata.scaffolding._helpers.output import prompt_yes_no
 from strata.scaffolding.constants import CONFIG_FILE_NAME, FAMILY_LABELS
+from strata.scaffolding.exceptions import InitError
 from strata.scaffolding.models import DriftSummary
 
 
@@ -32,7 +38,26 @@ def measure_drift(*, repository: Path, config: Config) -> DriftSummary:
 
     tree: DiscoveredTree = discover_files(config=config, repo_root=repository)
     rules: tuple[RuleSpec, ...] = build_ruleset(config=config, repo_root=repository)
-    result: EvaluationResult = evaluate(tree=tree, ruleset=rules, config=config)
+    fingerprint_build: GlobalFingerprintBuild = build_global_fingerprint(
+        config=config,
+        ruleset=rules,
+        repo_root=repository,
+    )
+    fingerprint: CacheFingerprint | None = fingerprint_build.fingerprint
+    if fingerprint is None:
+        result: EvaluationResult = evaluate(tree=tree, ruleset=rules, config=config)
+    else:
+        cached: CacheEvaluation = evaluate_with_cache(
+            tree=tree,
+            ruleset=rules,
+            config=config,
+            global_fingerprint=fingerprint,
+            allow_short_circuit=False,
+            jobs=resolve_worker_count(target_count=len(tree.files)),
+        )
+        if cached.result is None:
+            raise InitError("Cache-aware drift evaluation returned no logical result.")
+        result = cached.result
     selected_codes: frozenset[str] = frozenset(rule.code[:3] for rule in rules)
     rows: list[tuple[str, str, int]] = []
     for code, name in FAMILY_LABELS:

@@ -28,7 +28,9 @@ from scripts.perfbudget.constants import (
     GLOBAL_MISMATCH_CONFIG_APPENDIX,
     GLOBAL_MISMATCH_SCENARIO,
     GLOBAL_MISMATCH_UNCACHED_SCENARIO,
+    INIT_SCENARIO,
     UNCACHED_SCENARIO,
+    VERSION_SCENARIO,
     WARM_SCENARIO,
 )
 from scripts.perfbudget.models import BudgetSpec, ScenarioResult
@@ -144,6 +146,23 @@ def dense_scenarios(*, spec: BudgetSpec, project: Path) -> dict[str, ScenarioRes
     return results
 
 
+def startup_scenarios(*, spec: BudgetSpec, project: Path) -> dict[str, ScenarioResult]:
+    """Measure version startup and initialization against a fresh corpus."""
+
+    version: ScenarioResult = measured_command(
+        name=VERSION_SCENARIO,
+        command=[str(spec.executable), "--version"],
+        project=project,
+    )
+    (project / "strata.toml").unlink()
+    initialized: ScenarioResult = measured_command(
+        name=INIT_SCENARIO,
+        command=[str(spec.executable), "init", "--yes", "--no-skills"],
+        project=project,
+    )
+    return {VERSION_SCENARIO: version, INIT_SCENARIO: initialized}
+
+
 def measured_check(
     *,
     name: str,
@@ -163,6 +182,17 @@ def measured_check(
         "--jobs",
         "1",
     ]
+    return measured_command(name=name, command=command, project=project)
+
+
+def measured_command(
+    *,
+    name: str,
+    command: list[str],
+    project: Path,
+) -> ScenarioResult:
+    """Run one timed command and capture its output identity and peak RSS."""
+
     timing_path: Path | None = _timing_path()
     if timing_path is not None:
         command = [

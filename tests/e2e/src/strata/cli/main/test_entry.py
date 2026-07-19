@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import subprocess
-import sys
 from importlib import metadata
-from pathlib import Path
 
 import pytest
 
 from tests.e2e.src.strata.cli.main._test_types import InstalledEntryCliTestCase
+from tests.e2e.src.strata.cli.main.helpers import installed_strata_executable
 
 
 @pytest.mark.parametrize(
@@ -45,7 +44,7 @@ def test_given_top_level_option_when_running_installed_cli_then_matches_contract
     test_case: InstalledEntryCliTestCase,
 ) -> None:
     completed: subprocess.CompletedProcess[str] = subprocess.run(
-        (str(Path(sys.executable).with_name("strata")), *test_case.argv),
+        (str(installed_strata_executable()), *test_case.argv),
         capture_output=True,
         text=True,
         check=False,

@@ -11,7 +11,7 @@ from strata.cache.mapping.models import CachedCallMap
 from strata.cache.storage.constants import CACHE_DATABASE_RELATIVE_PATH
 from strata.cli.main._map import run_map
 from strata.mapping.exceptions import MapError
-from strata.mapping.main.ast import build_ast_call_map
+from strata.mapping.main.native import build_native_call_map
 from strata.mapping.main.render import render_call_tree
 from strata.mapping.models import MappingSource
 from strata.mapping.types import PathMode
@@ -265,7 +265,7 @@ def test_given_path_selector_when_mapping_cached_then_matches_uncached_output(
     symbol: str = f"{path_spelling}::run"
 
     uncached_output: str = render_call_tree(
-        root=build_ast_call_map(sources=(source,), symbol=symbol, depth=2),
+        root=build_native_call_map(sources=(source,), symbol=symbol, depth=2),
         repo_root=tmp_path,
         path_mode=PathMode.RELATIVE,
         use_color=False,
@@ -305,10 +305,10 @@ def test_given_invalid_changed_source_when_mapping_then_raises_map_error(
     "test_case",
     [
         MapParseParityTestCase(
-            description="cached map translates invalid encoded bytes through shared factory",
+            description="native map rejects invalid encoding without a CPython parser",
             changed_source=b"value = '\xff'\n",
             expected_error="invalid or missing encoding declaration",
-            expected_direct_parse_paths=("_helpers/tree.py",),
+            expected_direct_parse_paths=(),
         )
     ],
     ids=lambda case: case.description,

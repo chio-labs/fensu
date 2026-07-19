@@ -16,6 +16,8 @@ def evaluate_with_cache(
     config: Config,
     global_fingerprint: CacheFingerprint,
     custom_rule_registrations: tuple[CustomRuleRegistration, ...] = (),
+    allow_short_circuit: bool = True,
+    jobs: int = 1,
 ) -> CacheEvaluation:
     """Return complete logical diagnostics and observable persistent-cache statistics."""
 
@@ -26,4 +28,6 @@ def evaluate_with_cache(
         config=config,
         global_fingerprint=global_fingerprint,
         custom_rule_registrations=custom_rule_registrations,
+        allow_short_circuit=allow_short_circuit,
+        jobs=jobs,
     )

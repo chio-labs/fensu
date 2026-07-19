@@ -8,6 +8,7 @@ import os
 import re
 import sqlite3
 from collections.abc import Callable
+from functools import partial
 from io import StringIO
 from pathlib import Path
 from typing import BinaryIO
@@ -17,9 +18,9 @@ import pytest
 from strata.agentdocs.constants import GENERATED_MARKER
 from strata.agentdocs.exceptions import SkillInstallError
 from strata.cache.fingerprints.models import CacheFingerprint
-from strata.cache.results._helpers.conversion import restore_file_evaluation
+from strata.cache.results._helpers.conversion import restore_native_evaluation
 from strata.cache.results.classes.result_cache import ResultCache
-from strata.cache.results.models import CachedFileResult, CacheIndexEntry
+from strata.cache.results.models import NativeGenerationPlan
 from strata.cache.storage.constants import CACHE_DATABASE_RELATIVE_PATH
 from strata.cli.main._skills import run_skills
 from strata.config.main.load_config import load_config
@@ -283,10 +284,15 @@ def write_init_existing_config(*, root: Path, source: str) -> Path:
 
 
 def project_file_snapshot(root: Path) -> tuple[str, ...]:
-    """Return all repository-relative files in stable order."""
+    """Return user-authored repository files in stable order."""
 
-    paths: filter[Path] = filter(Path.is_file, sorted(root.rglob("*")))
+    files: filter[Path] = filter(Path.is_file, sorted(root.rglob("*")))
+    paths: filter[Path] = filter(partial(_is_user_authored_file, root=root), files)
     return tuple(path.relative_to(root).as_posix() for path in paths)
+
+
+def _is_user_authored_file(path: Path, *, root: Path) -> bool:
+    return not path.relative_to(root).as_posix().startswith(".strata/cache/")
 
 
 def prepare_init_execution_project(*, root: Path, existing_project: bool) -> tuple[str, ...]:
@@ -1278,11 +1284,11 @@ class RestoreProbe:
 
         self.calls: int = 0
 
-    def __call__(self, *, result: CachedFileResult, repo_root: Path) -> FileEvaluation:
+    def __call__(self, *, payload: dict[str, object], repo_root: Path) -> FileEvaluation:
         """Record one restore and delegate to the real conversion."""
 
         self.calls += 1
-        return restore_file_evaluation(result=result, repo_root=repo_root)
+        return restore_native_evaluation(payload=payload, repo_root=repo_root)
 
 
 class CallCounter:
@@ -1294,26 +1300,28 @@ class CallCounter:
         self.calls: int = 0
 
 
-def counting_load_results(
+def counting_plan_native_generation(
     counter: CallCounter,
-) -> Callable[..., dict[str, CachedFileResult | None]]:
-    """Return a load_results replacement that counts and delegates."""
+) -> Callable[..., NativeGenerationPlan | None]:
+    """Return a native planner replacement that counts and delegates."""
 
-    original: Callable[..., dict[str, CachedFileResult | None]] = ResultCache.load_results
+    original: Callable[..., NativeGenerationPlan | None] = ResultCache.plan_native_generation
 
-    def _load_results(
+    def _plan_native_generation(
         cache: ResultCache,
         *,
         global_fingerprint: CacheFingerprint,
-        entries: tuple[CacheIndexEntry, ...],
-        dependency_fingerprint: CacheFingerprint | None = None,
-    ) -> dict[str, CachedFileResult | None]:
+        targets: tuple[str, ...],
+        source_fingerprints: dict[str, CacheFingerprint | None],
+        allow_edit: bool = True,
+    ) -> NativeGenerationPlan | None:
         counter.calls += 1
         return original(
             cache,
             global_fingerprint=global_fingerprint,
-            entries=entries,
-            dependency_fingerprint=dependency_fingerprint,
+            targets=targets,
+            source_fingerprints=source_fingerprints,
+            allow_edit=allow_edit,
         )
 
-    return _load_results
+    return _plan_native_generation

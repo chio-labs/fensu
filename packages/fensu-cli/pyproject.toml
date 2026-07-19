@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "fensu-cli"
-version = "0.2.0" # x-release-please-version
+version = "0.2.1" # x-release-please-version
 description = "Native command-line executable for fensu"
 readme = "README.md"
 requires-python = ">=3.12"

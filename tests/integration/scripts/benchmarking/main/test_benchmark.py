@@ -18,9 +18,12 @@ from tests.integration.scripts.benchmarking.main._test_types import (
     OperationProfileTestCase,
     ProcessBenchmarkTestCase,
     ProfileBenchmarkTestCase,
+    ProfileCommandTestCase,
 )
 from tests.integration.scripts.benchmarking.main.helpers import (
     run_benchmark_command,
+    run_profile_benchmark_command,
+    write_custom_rule_profile_project,
     write_fake_strata,
     write_profile_project,
 )
@@ -113,6 +116,29 @@ def test_given_profile_project_when_running_profiler_then_completes_instrumented
     assert report.file_count == test_case.expected_file_count
     assert report.rule_count == test_case.expected_rule_count
     assert report.rendered_bytes == len(stdout.getvalue().removesuffix("\n").encode("utf-8"))
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ProfileCommandTestCase(
+            description="external scripts package custom rule loads in profiler subprocess",
+            expected_rule_code="XBP001",
+            expected_output_fragments=("files=1 faults=0 rules=1", "XBP001", "calls=1"),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_external_custom_rule_project_when_profiling_then_command_loads_target_package(
+    tmp_path: Path,
+    test_case: ProfileCommandTestCase,
+) -> None:
+    write_custom_rule_profile_project(root=tmp_path, rule_code=test_case.expected_rule_code)
+
+    completed: subprocess.CompletedProcess[str] = run_profile_benchmark_command(project=tmp_path)
+
+    assert completed.returncode == 0
+    assert all(fragment in completed.stdout for fragment in test_case.expected_output_fragments)
 
 
 @pytest.mark.parametrize(

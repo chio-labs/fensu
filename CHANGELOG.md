@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.21.0](https://github.com/chio-labs/strata/compare/v0.20.0...v0.21.0) (2026-07-19)
+
+
+### Features
+
+* **cli:** ship native strata executable ([8b0c71b](https://github.com/chio-labs/strata/commit/8b0c71bb6108d7d449fca56e97f7a15c53a5ebff))
+
+
+### Bug Fixes
+
+* **cli:** preserve native output parity ([cf862db](https://github.com/chio-labs/strata/commit/cf862db40cc4a2811b3038dc7371d26ec34db190))
+* **cli:** restore cross-platform native parity ([735eef9](https://github.com/chio-labs/strata/commit/735eef942653ea6e078648c7a3914d623c3af658))
+* **packaging:** separate CLI from Python linkage ([9d910a1](https://github.com/chio-labs/strata/commit/9d910a190157eaedcd3577dfba82bbc748b3e0d0))
+
+
+### Performance Improvements
+
+* **cache:** finish native replay and publication ([ba4949a](https://github.com/chio-labs/strata/commit/ba4949aa13c1da79bb62d4fe5d0b65ae3ea5a09b))
+* **cache:** move storage and warm replay to Rust ([b40c7f2](https://github.com/chio-labs/strata/commit/b40c7f2295f8068dd663c4017fee57b1e99fc6d1))
+* **evaluation:** move execution planning to Rust ([7330793](https://github.com/chio-labs/strata/commit/733079374789c53e11e2f6cd1daa689e731fd596))
+* **map:** move index substrate to Rust ([a3142f2](https://github.com/chio-labs/strata/commit/a3142f2d3f9aac5fd99b2776fb8153f37b3c74a4))
+* **rules:** finish native file-rule execution ([ccc9de8](https://github.com/chio-labs/strata/commit/ccc9de8990fa41062eaf7492f597d3f6a030ecd7))
+* **rules:** port aggregate core rules to Rust ([72e0788](https://github.com/chio-labs/strata/commit/72e0788a753b33cfccb8d2a8b3a03f10b28389e6))
+* **rules:** port local layer policies to Rust ([e3870d9](https://github.com/chio-labs/strata/commit/e3870d92c355fed51b6c9d8376c52746b0eceeeb))
+* **rules:** port local role policies to Rust ([bbaf4e3](https://github.com/chio-labs/strata/commit/bbaf4e3c894e99253b0a690ca9761c499d252bcc))
+* **rules:** port local test policies to Rust ([af8df62](https://github.com/chio-labs/strata/commit/af8df62c1b46a187e5c0097262fcd1d0018f90b7))
+
 ## [0.20.0](https://github.com/chio-labs/strata/compare/v0.19.0...v0.20.0) (2026-07-18)
 
 

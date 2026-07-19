@@ -11,6 +11,7 @@ import pytest
 from strata.cache.storage.constants import CACHE_DATABASE_RELATIVE_PATH
 from tests.e2e.src.strata.cli.main._test_types import (
     CacheCliTestCase,
+    CacheColorCliTestCase,
     CacheDependencyCliTestCase,
     CacheManifestCliTestCase,
     CacheMutationCliTestCase,
@@ -21,8 +22,43 @@ from tests.e2e.src.strata.cli.main.helpers import (
     corrupt_result_cache_record,
     remove_check_output_record,
     run_cli_check,
+    run_cli_terminal_check,
     write_cli_project,
 )
+
+
+@pytest.mark.skipif(not hasattr(os, "openpty"), reason="pseudo-terminal is required")
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CacheColorCliTestCase(
+            description="plain cached report does not suppress terminal color",
+            config='roots = ["src/pkg"]\ntests = []\nselect = ["SFA101"]\n',
+            files=(CliProjectFile(relative_path="src/pkg/models.py", source="VALUE: int = 1\n"),),
+            expected_exit_code=0,
+            expected_plain_stdout="Found 0 faults\n",
+            expected_color_fragment="\033[1;32mFound 0 faults\033[0m",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_plain_cached_report_when_checking_on_terminal_then_output_is_colored(
+    tmp_path: Path,
+    test_case: CacheColorCliTestCase,
+) -> None:
+    write_cli_project(
+        root=tmp_path,
+        config=test_case.config,
+        files=tuple((file.relative_path, file.source) for file in test_case.files),
+    )
+    plain: subprocess.CompletedProcess[str] = run_cli_check(root=tmp_path, argv=("--cache",))
+
+    exit_code, terminal_output = run_cli_terminal_check(root=tmp_path, argv=("--cache",))
+
+    assert plain.returncode == test_case.expected_exit_code
+    assert plain.stdout == test_case.expected_plain_stdout
+    assert exit_code == test_case.expected_exit_code
+    assert test_case.expected_color_fragment in terminal_output
 
 
 @pytest.mark.parametrize(

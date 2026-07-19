@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
@@ -19,6 +20,8 @@ from tests.e2e.src.strata.cli.main._test_types import (
 )
 from tests.e2e.src.strata.cli.main.helpers import (
     exec_trace_lines,
+    installed_strata_executable,
+    isolated_site_packages,
     native_exec_trace,
     run_command_parity,
     write_cli_project,
@@ -96,7 +99,10 @@ def test_given_supported_command_when_running_python_and_binary_then_output_is_i
     assert native_result.stderr == python_result.stderr
 
 
-@pytest.mark.skipif(shutil.which("strace") is None, reason="strace is required for exec accounting")
+@pytest.mark.skipif(
+    os.name != "posix" or shutil.which("strace") is None,
+    reason="Linux-compatible strace is required for exec accounting",
+)
 @pytest.mark.parametrize(
     "test_case",
     [
@@ -138,7 +144,7 @@ def test_given_no_custom_rules_when_running_check_then_no_interpreter_is_execute
     [
         DistributionOwnershipTestCase(
             description="CLI package exclusively owns the native script",
-            expected_cli_script_suffix="bin/strata",
+            expected_cli_script_name=installed_strata_executable().name,
             expected_authoring_entrypoint_count=0,
         )
     ],
@@ -154,7 +160,7 @@ def test_given_installed_distributions_when_inspecting_files_then_script_has_one
         metadata.distribution("stratalint").entry_points
     )
 
-    assert any(path.endswith(test_case.expected_cli_script_suffix) for path in cli_files)
+    assert any(Path(path).name == test_case.expected_cli_script_name for path in cli_files)
     assert len(authoring_entrypoints) == test_case.expected_authoring_entrypoint_count
 
 
@@ -163,7 +169,7 @@ def test_given_installed_distributions_when_inspecting_files_then_script_has_one
     [
         UpgradeSafetyTestCase(
             description="stale Python wrapper reports binary reinstall recovery",
-            installed_version="0.19.0",
+            installed_version="0.20.0",
             expected_exit_code=2,
             expected_error_fragment="stale Python console script",
         )
@@ -182,7 +188,7 @@ def test_given_pre_split_console_wrapper_when_invoked_then_stale_script_is_rejec
     wrapper.chmod(0o755)
 
     completed: subprocess.CompletedProcess[str] = subprocess.run(
-        (str(wrapper), "--version"),
+        (sys.executable, str(wrapper), "--version"),
         capture_output=True,
         text=True,
         check=False,
@@ -209,13 +215,12 @@ def test_given_mixed_upgrade_versions_when_delegating_then_handshake_rejects_env
     test_case: UpgradeSafetyTestCase,
 ) -> None:
     prefix: Path = tmp_path / "environment"
-    binary: Path = prefix / "bin/strata"
+    installed_binary: Path = installed_strata_executable()
+    binary: Path = prefix / installed_binary.parent.name / installed_binary.name
     binary.parent.mkdir(parents=True)
-    shutil.copy2(Path(sys.executable).with_name("strata"), binary)
+    shutil.copy2(installed_binary, binary)
     dist_info: Path = (
-        prefix
-        / "lib/python3.12/site-packages"
-        / f"stratalint-{test_case.installed_version}.dist-info"
+        isolated_site_packages(prefix) / f"stratalint-{test_case.installed_version}.dist-info"
     )
     dist_info.mkdir(parents=True)
     (dist_info / "METADATA").write_text(

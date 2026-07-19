@@ -61,6 +61,45 @@ def cache_replay_generation(
     tuple[list[str], str, str, int, str] | None,
     NativeCacheMetrics,
 ]: ...
+def cache_plan_generation(
+    repo_root: Path,
+    global_fingerprint: str,
+    targets: list[tuple[str, str | None]],
+    allow_edit: bool,
+    maximum_decoded_bytes: int,
+) -> tuple[
+    tuple[
+        str,
+        str | None,
+        list[tuple[str, str, str, str]],
+        list[dict[str, object]],
+        list[dict[str, object]],
+        list[str],
+        int,
+        int,
+        int,
+    ]
+    | None,
+    NativeCacheMetrics,
+]: ...
+def cache_publish_generation(
+    repo_root: Path,
+    global_fingerprint: str,
+    expected_index_fingerprint: str | None,
+    retained_entries: list[tuple[str, str, str, str]],
+    evaluations: list[dict[str, object] | None],
+    options: tuple[bool, int],
+) -> tuple[
+    tuple[int, int, bool, bool, str | None],
+    NativeCacheMetrics,
+]: ...
+def cache_store_check_output(
+    repo_root: Path,
+    global_fingerprint: str,
+    expected_index_fingerprint: str,
+    surface: tuple[list[str], str, str, int],
+    maximum_decoded_bytes: int,
+) -> tuple[bool, NativeCacheMetrics]: ...
 def annotation_facts(handle: ProgramHandle, path: Path) -> Any: ...
 def evaluate_native_core_rules(
     requests: list[

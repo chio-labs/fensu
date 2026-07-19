@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from multiprocessing import get_context
 from multiprocessing.context import BaseContext
@@ -20,6 +21,15 @@ def write_while_database_blocked(
 ) -> bool:
     """Attempt native publication while an independent process owns the write lock."""
 
+    return run_while_database_blocked(
+        store=store,
+        operation=lambda: store.write(relative_path=relative_path, record=record),
+    )
+
+
+def run_while_database_blocked[T](*, store: CacheStore, operation: Callable[[], T]) -> T:
+    """Run one cache operation while an independent process owns the write lock."""
+
     context: BaseContext = get_context("spawn")
     ready: ProcessEvent = context.Event()
     release: ProcessEvent = context.Event()
@@ -30,7 +40,7 @@ def write_while_database_blocked(
     blocker.start()
     ready.wait()
     try:
-        return store.write(relative_path=relative_path, record=record)
+        return operation()
     finally:
         release.set()
         blocker.join()

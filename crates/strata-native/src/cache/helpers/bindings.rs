@@ -2,14 +2,24 @@
 
 use std::path::PathBuf;
 
-use pyo3::types::{PyAnyMethods, PyBytes};
+use pyo3::types::{PyAnyMethods, PyBytes, PyList, PyListMethods};
 use pyo3::{pyfunction, Bound, Py, PyAny, PyResult, Python};
 
-use crate::cache::helpers::records::{decode_record, encode_record, value_to_python};
+use crate::cache::helpers::generation::plan_generation;
+use crate::cache::helpers::publication::{
+    prepare_publication, publish_generation, store_check_output, PublicationRequest,
+};
+use crate::cache::helpers::records::{
+    canonical_from_python, decode_record, encode_record, value_to_python,
+};
 use crate::cache::helpers::storage::{mutate_records, read_records, write_records};
 use crate::cache::main::replay_generation::replay_generation;
-use crate::cache::models::{CacheMetrics, CacheMutation, DecodedRecord, EncodedWrite};
-use crate::cache::types::{MetricsRow, MutationRow, PythonRecord, ReplayRow};
+use crate::cache::models::{
+    CacheMetrics, CacheMutation, DecodedRecord, EncodedWrite, NativeIndexEntry,
+};
+use crate::cache::types::{
+    GenerationPlanRow, MetricsRow, MutationRow, PublicationRow, PythonRecord, ReplayRow,
+};
 
 #[pyfunction]
 pub(crate) fn cache_encode_record<'py>(
@@ -160,6 +170,137 @@ pub(crate) fn cache_replay_generation(
         )),
         metrics_row(&metrics),
     )
+}
+
+#[pyfunction]
+pub(crate) fn cache_plan_generation(
+    py: Python<'_>,
+    repo_root: PathBuf,
+    global_fingerprint: String,
+    targets: Vec<(String, Option<String>)>,
+    allow_edit: bool,
+    maximum_decoded_bytes: usize,
+) -> PyResult<(Option<GenerationPlanRow>, MetricsRow)> {
+    let outcome = py.detach(move || {
+        plan_generation(
+            &repo_root,
+            &global_fingerprint,
+            &targets,
+            allow_edit,
+            maximum_decoded_bytes,
+        )
+    });
+    let Some((plan, metrics)) = outcome else {
+        return Ok((None, metrics_row(&CacheMetrics::default())));
+    };
+    let results = plan
+        .cached_results
+        .into_iter()
+        .map(|value| value_to_python(py, value))
+        .collect::<PyResult<Vec<_>>>()?;
+    let contributions = plan
+        .contributions
+        .into_iter()
+        .map(|value| value_to_python(py, value))
+        .collect::<PyResult<Vec<_>>>()?;
+    let entries = plan
+        .entries
+        .into_iter()
+        .map(|entry| {
+            (
+                entry.path,
+                entry.source_fingerprint,
+                entry.result_fingerprint,
+                entry.record_fingerprint,
+            )
+        })
+        .collect();
+    Ok((
+        Some((
+            plan.mode,
+            plan.index_fingerprint,
+            entries,
+            results,
+            contributions,
+            plan.miss_paths,
+            plan.hits,
+            plan.misses,
+            plan.invalidations,
+        )),
+        metrics_row(&metrics),
+    ))
+}
+
+#[pyfunction]
+pub(crate) fn cache_publish_generation(
+    py: Python<'_>,
+    repo_root: PathBuf,
+    global_fingerprint: String,
+    expected_index_fingerprint: Option<String>,
+    retained_entries: Vec<(String, String, String, String)>,
+    evaluations: &Bound<'_, PyList>,
+    options: (bool, usize),
+) -> PyResult<(PublicationRow, MetricsRow)> {
+    let (retain_all_observations, maximum_decoded_bytes) = options;
+    let values = evaluations
+        .iter()
+        .map(|value| canonical_from_python(&value))
+        .collect::<PyResult<Vec<_>>>()?;
+    let request = PublicationRequest {
+        global_fingerprint,
+        expected_index_fingerprint,
+        retained_entries: retained_entries
+            .into_iter()
+            .map(
+                |(path, source_fingerprint, result_fingerprint, record_fingerprint)| {
+                    NativeIndexEntry {
+                        path,
+                        source_fingerprint,
+                        result_fingerprint,
+                        record_fingerprint,
+                    }
+                },
+            )
+            .collect(),
+        preparation: prepare_publication(values),
+        retain_all_observations,
+        maximum_decoded_bytes,
+    };
+    let (result, metrics) = py.detach(move || publish_generation(&repo_root, request));
+    Ok((
+        (
+            result.writes,
+            result.non_cacheable,
+            result.storage_failed,
+            result.internal_error,
+            result.index_fingerprint,
+        ),
+        metrics_row(&metrics),
+    ))
+}
+
+#[pyfunction]
+pub(crate) fn cache_store_check_output(
+    py: Python<'_>,
+    repo_root: PathBuf,
+    global_fingerprint: String,
+    expected_index_fingerprint: String,
+    surface: (Vec<String>, String, String, i64),
+    maximum_decoded_bytes: usize,
+) -> (bool, MetricsRow) {
+    let (targets, plain_output, color_output, exit_code) = surface;
+    let outcome = py.detach(move || {
+        store_check_output(
+            &repo_root,
+            (&global_fingerprint, &expected_index_fingerprint),
+            (&targets, &plain_output, &color_output, exit_code),
+            maximum_decoded_bytes,
+        )
+    });
+    match outcome {
+        Some(metrics) => (true, metrics_row(&metrics)),
+        None => (false, metrics_row(&CacheMetrics::default())),
+    }
 }
 
 fn prepare_writes(writes: Vec<(String, String, Vec<u8>, bool)>) -> Vec<EncodedWrite> {

@@ -15,6 +15,7 @@ crate-type = ["rlib"]
 
 [dependencies]
 dunce.workspace = true
+globset.workspace = true
 hex.workspace = true
 pyo3.workspace = true
 rayon.workspace = true

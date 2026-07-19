@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.2](https://github.com/chio-labs/fensu/compare/v0.2.1...v0.2.2) (2026-07-19)
+
+
+### Bug Fixes
+
+* allow retrying partial PyPI publishes ([476bce6](https://github.com/chio-labs/fensu/commit/476bce6cc9ddfdf187332081f82835cc0020fcdb))
+* allow retrying partial PyPI publishes ([16aa17e](https://github.com/chio-labs/fensu/commit/16aa17e70c5b97351b85327a686003c597e0c538))
+
 ## [0.2.1](https://github.com/chio-labs/fensu/compare/v0.2.0...v0.2.1) (2026-07-19)
 
 

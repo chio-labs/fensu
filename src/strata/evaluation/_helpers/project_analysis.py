@@ -123,9 +123,12 @@ class _EvaluationProjectAnalysis:
             OPERATION_COUNTERS.record(operation=PROJECT_QUERY_SOURCE_OPERATION)
             scoped_file: ScopedFile | None = self._scoped_files.get(path_key)
             if scoped_file is not None:
-                parsed, answer = _build_discovered_analysis(scoped_file=scoped_file)
-                if parsed is not None:
-                    self._parsed_modules[path_key] = parsed
+                if parsed is None:
+                    parsed, answer = _build_discovered_analysis(scoped_file=scoped_file)
+                    if parsed is not None:
+                        self._parsed_modules[path_key] = parsed
+                else:
+                    answer = parsed.source_fingerprint
             else:
                 external_build: ExternalAnalysisBuild = build_external_analysis(path=resolved_path)
                 external = external_build.analysis

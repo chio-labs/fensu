@@ -11,6 +11,8 @@ from strata.analysis.constants import NATIVE_FACT_MODULE_NAME
 
 strata_facts: Any = pytest.importorskip(NATIVE_FACT_MODULE_NAME)
 
+from strata.analysis.models import ProjectDependency  # noqa: E402
+from strata.analysis.types import Analysis  # noqa: E402
 from strata.config.models import Config  # noqa: E402
 from strata.discovery.models import ScopedFile  # noqa: E402
 from strata.evaluation._helpers import project_analysis as project_analysis_module  # noqa: E402
@@ -60,10 +62,17 @@ def test_given_prewarmed_file_when_reading_parsed_module_then_skips_reparse(
     monkeypatch.setattr(project_analysis_module, "parse_scoped_file", record_reparse)
     prewarm_scoped_files(project=project, scoped_files=(scoped_file,))
 
+    analysis: Analysis | None = project.analysis(requester=scoped_file.path, path=scoped_file.path)
     parsed: ParsedModule = project.parsed_module(scoped_file)
+    dependencies: tuple[ProjectDependency, ...] = project.dependencies_for(
+        requester=scoped_file.path
+    )
+
     assert len(reparse_calls) == test_case.expected_reparse_calls
+    assert analysis is parsed.analysis
     assert parsed.scoped_file.path == scoped_file.path
     assert parsed.source == test_case.source.decode()
+    assert dependencies[0].answer == parsed.source_fingerprint
 
 
 @pytest.mark.parametrize(

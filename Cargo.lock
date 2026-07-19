@@ -1876,6 +1876,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
 dependencies = [
  "serde_core",
+ "serde_derive",
 ]
 
 [[package]]
@@ -2006,6 +2007,24 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
+
+[[package]]
+name = "strata-cli"
+version = "0.19.0"
+dependencies = [
+ "globset",
+ "rayon",
+ "ruff_python_ast",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+ "strata-facts",
+ "strata-memory",
+ "strata-native",
+ "toml",
+ "walkdir",
+]
 
 [[package]]
 name = "strata-facts"

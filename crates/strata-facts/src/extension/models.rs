@@ -99,7 +99,7 @@ impl ProgramHandle {
             .collect()
     }
 
-    pub(crate) fn source(&self) -> &str {
+    pub fn source(&self) -> &str {
         &self.data.source
     }
 
@@ -126,7 +126,7 @@ impl ProgramHandle {
             .get_or_init(|| extract_annotations(self.module(), self.index(), self.source()))
     }
 
-    pub(crate) fn assignment_reference_rows(&self) -> &[AssignmentReferenceRow] {
+    pub fn assignment_reference_rows(&self) -> &[AssignmentReferenceRow] {
         &self
             .data
             .rows
@@ -142,14 +142,14 @@ impl ProgramHandle {
             .get_or_init(|| extract_comments(self.tokens(), self.source(), self.index()))
     }
 
-    pub(crate) fn class_declaration_rows(&self) -> &[ClassDeclarationRow] {
+    pub fn class_declaration_rows(&self) -> &[ClassDeclarationRow] {
         self.data
             .rows
             .class_declarations
             .get_or_init(|| extract_class_declarations(self.module(), self.index(), self.source()))
     }
 
-    pub(crate) fn comparison_rows(&self) -> &[ComparisonRow] {
+    pub fn comparison_rows(&self) -> &[ComparisonRow] {
         &self
             .data
             .rows
@@ -217,7 +217,7 @@ impl ProgramHandle {
             .get_or_init(|| extract_hygiene(self.module(), self.index(), self.source()))
     }
 
-    pub(crate) fn local_call_edge_rows(&self) -> &[LocalCallEdgeRow] {
+    pub fn local_call_edge_rows(&self) -> &[LocalCallEdgeRow] {
         &self
             .data
             .rows
@@ -226,7 +226,7 @@ impl ProgramHandle {
             .1
     }
 
-    pub(crate) fn named_call_rows(&self) -> &[RuleNamedCallRow] {
+    pub fn named_call_rows(&self) -> &[RuleNamedCallRow] {
         &self
             .data
             .rows
@@ -256,7 +256,7 @@ impl ProgramHandle {
             .get_or_init(|| extract_project_facts(self.module(), self.index(), self.source()))
     }
 
-    pub(crate) fn parameter_mutation_occurrence_rows(&self) -> &[ParameterMutationOccurrenceRow] {
+    pub fn parameter_mutation_occurrence_rows(&self) -> &[ParameterMutationOccurrenceRow] {
         self.data
             .rows
             .parameter_mutation_occurrences

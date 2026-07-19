@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -165,3 +166,59 @@ def remove_check_output_record(root: Path) -> int:
             (CACHE_CHECK_OUTPUT_KIND,),
         )
     return cursor.rowcount
+
+
+def run_command_parity(
+    *, root: Path, argv: tuple[str, ...]
+) -> tuple[subprocess.CompletedProcess[str], subprocess.CompletedProcess[str]]:
+    """Run one command through the Python fallback and installed native binary."""
+
+    environment: dict[str, str] = dict(os.environ)
+    environment["NO_COLOR"] = "1"
+    python_result: subprocess.CompletedProcess[str] = subprocess.run(
+        (sys.executable, "-m", "strata", *argv),
+        cwd=root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    native_result: subprocess.CompletedProcess[str] = subprocess.run(
+        (str(Path(sys.executable).with_name("strata")), *argv),
+        cwd=root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return python_result, native_result
+
+
+def native_exec_trace(
+    *, root: Path, argv: tuple[str, ...], trace_path: Path
+) -> subprocess.CompletedProcess[str]:
+    """Run the installed binary under OS exec accounting."""
+
+    return subprocess.run(
+        (
+            shutil.which("strace") or "strace",
+            "-f",
+            "-e",
+            "trace=execve",
+            "-o",
+            str(trace_path),
+            str(Path(sys.executable).with_name("strata")),
+            *argv,
+        ),
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def exec_trace_lines(trace_path: Path) -> tuple[str, ...]:
+    """Return process-exec events from one strace output file."""
+
+    lines: list[str] = trace_path.read_text(encoding="utf-8").splitlines()
+    return tuple(filter(lambda line: "execve(" in line, lines))

@@ -48,3 +48,18 @@ jobs:
           enable-cache: true
       - run: uv python install 3.12
       - run: uv run pytest tests -q -n auto
+
+  native-package-smoke:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - uses: astral-sh/setup-uv@v6
+      - run: uv python install 3.12
+      - run: uv sync
+      - run: uv run strata --version
+      - run: uv run python -m strata --version
+      - run: uv run pytest tests/e2e/src/strata/cli/main/test_entry.py tests/e2e/src/strata/cli/main/test_native_distribution.py -q

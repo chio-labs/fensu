@@ -1,0 +1,43 @@
+use std::env;
+use std::path::Path;
+
+use crate::command::main::{check, help, init, rule};
+use crate::helpers::{config, process};
+use crate::models::CliOutput;
+
+pub fn run_cli() -> CliOutput {
+    let arguments = env::args().skip(1).collect::<Vec<_>>();
+    dispatch(&arguments).unwrap_or_else(CliOutput::error)
+}
+
+fn dispatch(arguments: &[String]) -> Result<CliOutput, String> {
+    let Some(command) = arguments.first().map(String::as_str) else {
+        return Ok(CliOutput::error(
+            "Usage: strata {check,init,rule,skills,map} ...".to_owned(),
+        ));
+    };
+    match command {
+        "--version" => Ok(CliOutput::success(format!(
+            "strata {}\n",
+            env!("CARGO_PKG_VERSION")
+        ))),
+        "--help" | "-h" => Ok(CliOutput::success(help::help())),
+        "check" => {
+            if config::custom_rules_are_configured(Path::new("."))? {
+                process::run_python(arguments).map(CliOutput::delegated)
+            } else {
+                check::run(&arguments[1..])
+            }
+        }
+        "init" => init::init(&arguments[1..]),
+        "rule" => rule::rule(&arguments[1..]),
+        "skills" | "map" | "memory" => process::run_python(arguments).map(CliOutput::delegated),
+        _ => Ok(CliOutput {
+            stdout: String::new(),
+            stderr: format!(
+                "Unknown command: {command}\nUsage: strata {{check,init,rule,skills,map}} ...\n"
+            ),
+            exit_code: 2,
+        }),
+    }
+}

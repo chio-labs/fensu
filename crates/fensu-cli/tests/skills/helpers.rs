@@ -3,6 +3,10 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 pub(crate) const CONFIG: &str = "roots = [\"src/pkg\"]\ntests = []\nselect = [\"FF\"]\n[experimental]\nmemory = true\n[skills]\nname = \"Fixture\"\n";
+#[cfg(not(windows))]
+const WORKSPACE_PYTHON: &str = ".venv/bin/python";
+#[cfg(windows)]
+const WORKSPACE_PYTHON: &str = ".venv/Scripts/python.exe";
 
 pub(crate) fn write(path: impl AsRef<Path>, content: impl AsRef<[u8]>) {
     let path = path.as_ref();
@@ -46,6 +50,12 @@ pub(crate) fn target(root: &Path, agent: &str, identity: &str) -> PathBuf {
         .join("skills")
         .join(identity)
         .join("SKILL.md")
+}
+
+pub(crate) fn workspace_python() -> Option<PathBuf> {
+    let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).parent()?.parent()?;
+    let executable = workspace.join(WORKSPACE_PYTHON);
+    executable.is_file().then_some(executable)
 }
 
 pub(crate) fn remove_skill(_root: &Path, path: &Path, _original: &[u8]) {

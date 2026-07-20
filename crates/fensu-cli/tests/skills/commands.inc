@@ -1,10 +1,9 @@
 use std::fs;
-use std::path::Path;
 use std::process::{Command, Stdio};
 
 use crate::helpers::{
     collide_skill, diverge_skill, malform_skill, native, native_with_python, project, remove_skill,
-    stale_skill, target, text, write, CONFIG,
+    stale_skill, target, text, workspace_python, write, CONFIG,
 };
 use crate::test_types::{
     ExceptionSymbolTestCase, FreshnessTestCase, PublicationRaceTestCase, RendererParityTestCase,
@@ -386,6 +385,9 @@ fn given_symlink_and_case_collisions_when_updating_then_preflight_prevents_all_w
 
 #[test]
 fn given_python_and_native_installs_when_cross_checking_then_both_are_current() {
+    let Some(python_executable) = workspace_python() else {
+        return;
+    };
     let test_cases = [
         RendererParityTestCase {
             description: "default core selectors",
@@ -412,14 +414,8 @@ fn given_python_and_native_installs_when_cross_checking_then_both_are_current() 
         for path in test_case.fixture_paths {
             write(repository.path().join(path).join("__init__.py"), b"");
         }
-        let workspace = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .and_then(Path::parent)
-            .expect("workspace root");
-        let python = Command::new("uv")
-            .args(["run", "--project"])
-            .arg(workspace)
-            .args(["python", "-m", "fensu", "skills", "--target", "agents"])
+        let python = Command::new(&python_executable)
+            .args(["-m", "fensu", "skills", "--target", "agents"])
             .current_dir(repository.path())
             .output()
             .expect("Python skills oracle");
@@ -447,11 +443,9 @@ fn given_python_and_native_installs_when_cross_checking_then_both_are_current() 
             "{}",
             text(&native_update.stderr)
         );
-        let python_check = Command::new("uv")
-            .args(["run", "--project"])
-            .arg(workspace)
+        let python_check = Command::new(&python_executable)
             .args([
-                "python", "-m", "fensu", "skills", "--target", "opencode", "--check",
+                "-m", "fensu", "skills", "--target", "opencode", "--check",
             ])
             .current_dir(repository.path())
             .output()
@@ -470,6 +464,10 @@ fn given_python_and_native_installs_when_cross_checking_then_both_are_current() 
 #[test]
 fn given_custom_rules_when_updating_then_one_compatible_metadata_host_is_required() {
     use std::os::unix::fs::PermissionsExt;
+
+    let Some(python_executable) = workspace_python() else {
+        return;
+    };
 
     let test_cases = [SkillsCommandTestCase {
         description: "custom rules use one host and host failures leave targets untouched",
@@ -495,16 +493,12 @@ def always(module: ast.Module, ctx: RuleContext) -> list[Fault]:
     return [ctx.fault(node=module.body[0])]
 "#,
         );
-        let workspace = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .and_then(Path::parent)
-            .expect("workspace root");
         let count = repository.path().join("host.count");
         let wrapper = repository.path().join("python-wrapper");
         let wrapper_text = format!(
             "#!/bin/sh\nprintf x >> '{}'\nexec '{}' \"$@\"\n",
             count.display(),
-            workspace.join(".venv/bin/python").display()
+            python_executable.display()
         );
         write(&wrapper, wrapper_text);
         fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o755)).expect("wrapper mode");

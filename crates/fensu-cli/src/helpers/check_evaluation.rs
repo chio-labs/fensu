@@ -227,9 +227,14 @@ pub(crate) fn owner_identity(source: &ScopedSource, owner: &str) -> Option<Strin
             .parent()
             .map(|path| path.to_string_lossy().into_owned()),
         "domain" => domain.map(|value| format!("{}\0{}\0{value}", source.scope, source.root_text)),
-        "subdomain" => {
-            subdomain.map(|value| format!("{}\0{}\0{value}", source.scope, source.root_text))
-        }
+        "subdomain" => subdomain.map(|value| {
+            format!(
+                "{}\0{}\0{}\0{value}",
+                source.scope,
+                source.root_text,
+                domain.map(String::as_str).unwrap_or_default()
+            )
+        }),
         "leaf" => domain.map(|value| {
             format!(
                 "{}\0{}\0{value}\0{}",
@@ -250,6 +255,7 @@ pub(crate) fn anchor_key(source: &ScopedSource, owner: &str) -> (bool, usize, St
     let expected_depth = match owner {
         "scope" => Some(1),
         "domain" => Some(2),
+        "subdomain" => Some(3),
         "leaf" => Some(
             if source.relative_parts.get(1).is_some_and(|part| {
                 !part.ends_with(".py")

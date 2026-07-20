@@ -1,6 +1,7 @@
 use std::env;
+use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, ExitStatus};
+use std::process::{Command, ExitStatus, Stdio};
 
 pub(crate) fn run_python(arguments: &[String]) -> Result<i32, String> {
     verify_authoring_version()?;
@@ -79,6 +80,38 @@ fn python_executable() -> Result<PathBuf, String> {
         }
     }
     Err("Could not locate the environment's Python interpreter for this command.".to_owned())
+}
+
+pub(crate) fn run_skills_metadata_host(request: &[u8]) -> Result<Vec<u8>, String> {
+    let mut child = Command::new(python_executable()?)
+        .args([
+            "-c",
+            "from fensu.cli.main._skills_metadata_host import main; raise SystemExit(main())",
+        ])
+        .env("PYTHONDONTWRITEBYTECODE", "1")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|error| format!("Could not launch Fensu's custom-rule metadata host: {error}"))?;
+    child
+        .stdin
+        .take()
+        .ok_or_else(|| "Could not open the custom-rule metadata host request stream.".to_owned())?
+        .write_all(request)
+        .map_err(|error| format!("Could not send custom-rule metadata request: {error}"))?;
+    let output = child
+        .wait_with_output()
+        .map_err(|error| format!("Could not read custom-rule metadata response: {error}"))?;
+    if !output.status.success() {
+        let detail = String::from_utf8_lossy(&output.stderr).trim().to_owned();
+        return Err(if detail.is_empty() {
+            "Fensu's custom-rule metadata host failed without a diagnostic.".to_owned()
+        } else {
+            format!("Fensu's custom-rule metadata host failed: {detail}")
+        });
+    }
+    Ok(output.stdout)
 }
 
 fn exit_code(status: ExitStatus) -> i32 {

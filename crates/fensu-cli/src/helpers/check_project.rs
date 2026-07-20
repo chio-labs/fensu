@@ -11,6 +11,8 @@ use crate::constants::{SCOPE_TEST, STEM_INIT, VALUE_TRUE};
 use crate::helpers::check_policy::{bool_text, program, python_version, relative};
 use crate::models::{Config, ScopedSource};
 
+const ENTRYPOINT_SECTIONS: [&str; 3] = ["scripts", "gui-scripts", "entry-points"];
+
 pub(crate) fn project_plane(
     root: &Path,
     config: &Config,
@@ -95,19 +97,38 @@ pub(crate) fn entrypoint_modules(root: &Path, _config_raw: &[u8]) -> Vec<String>
     let Ok(text) = fs::read_to_string(root.join("pyproject.toml")) else {
         return Vec::new();
     };
-    let Ok(value) = text.parse::<toml::Value>() else {
+    let Ok(value) = toml::from_str::<toml::Value>(&text) else {
         return Vec::new();
     };
-    value
-        .get("project")
-        .and_then(|project| project.get("scripts"))
-        .and_then(toml::Value::as_table)
+    let Some(project) = value.get("project") else {
+        return Vec::new();
+    };
+    let mut values = Vec::new();
+    for section in ENTRYPOINT_SECTIONS {
+        if let Some(value) = project.get(section) {
+            collect_entrypoint_values(value, &mut values);
+        }
+    }
+    let mut modules = values
         .into_iter()
-        .flatten()
-        .filter_map(|(_, value)| value.as_str())
         .filter_map(|value| value.split(':').next())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
         .map(str::to_owned)
-        .collect()
+        .collect::<Vec<_>>();
+    modules.sort();
+    modules.dedup();
+    modules
+}
+
+fn collect_entrypoint_values<'a>(value: &'a toml::Value, values: &mut Vec<&'a str>) {
+    if let Some(value) = value.as_str() {
+        values.push(value);
+    } else if let Some(table) = value.as_table() {
+        for value in table.values() {
+            collect_entrypoint_values(value, values);
+        }
+    }
 }
 
 pub(crate) fn observe(

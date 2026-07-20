@@ -14,6 +14,8 @@ name = "fensu"
 path = "src/main.rs"
 
 [dependencies]
+dunce.workspace = true
+encoding_rs.workspace = true
 globset.workspace = true
 rayon.workspace = true
 ruff_python_ast.workspace = true
@@ -23,10 +25,14 @@ serde_json.workspace = true
 sha2.workspace = true
 fensu-facts = { workspace = true, default-features = false }
 # Keep the complete local workspace dependency graph in the CLI sdist.
-fensu-memory.workspace = true
+fensu-memory = { workspace = true, features = ["sqlite-engine"] }
 fensu-native = { workspace = true, default-features = false }
 toml.workspace = true
+unicode-normalization.workspace = true
 walkdir.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
 
 [build-dependencies]
 serde_json.workspace = true

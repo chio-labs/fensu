@@ -234,3 +234,11 @@ pub(crate) struct MemoryArchiveCtimeTestCase {
     pub(crate) old_mtime_days: u64,
     pub(crate) expected_move_count: usize,
 }
+
+pub(crate) struct MemoryBootstrapTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_gitignore: &'static str,
+    pub(crate) expected_error: &'static str,
+    pub(crate) expected_marker_exists: bool,
+    pub(crate) expected_target: &'static str,
+}

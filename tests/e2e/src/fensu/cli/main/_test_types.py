@@ -138,11 +138,12 @@ class NativeCommandParityTestCase:
 
 @dataclass(frozen=True)
 class NativeProcessAccountingTestCase:
-    """One native check process-boundary expectation."""
+    """One native command process-boundary expectation."""
 
     description: str
     config: str
     files: tuple[CliProjectFile, ...]
+    argv: tuple[str, ...]
     expected_exit_code: int
     expected_exec_count: int
 

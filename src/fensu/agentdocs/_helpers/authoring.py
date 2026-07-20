@@ -108,7 +108,7 @@ def rule_testing_lines(context: SkillGenerationContext) -> tuple[str, ...]:
         "import pytest",
         "",
         "from fensu import RuleCase, RuleResult, evaluate_rule",
-        "from scripts.fensu.rules.client_ownership import no_global_client",
+        "from scripts.fensu_policy.rules.client_ownership import no_global_client",
         "",
         "@pytest.mark.parametrize(",
         '    "test_case",',

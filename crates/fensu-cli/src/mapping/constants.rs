@@ -1,0 +1,10 @@
+pub(crate) const EXPRESSION_ATTRIBUTE: &str = "attribute";
+pub(crate) const EXPRESSION_CALL: &str = "call";
+pub(crate) const EXPRESSION_NAME: &str = "name";
+pub(crate) const EXPRESSION_STRING: &str = "string";
+pub(crate) const EXPRESSION_SUBSCRIPT: &str = "subscript";
+pub(crate) const INIT_MODULE_FILE: &str = "__init__.py";
+pub(crate) const INIT_MODULE: &str = "__init__";
+pub(crate) const SELF_RECEIVER: &str = "self";
+pub(crate) const CLASS_RECEIVER: &str = "cls";
+pub(crate) const MAX_COMPACT_PATH_PARTS: usize = 4;

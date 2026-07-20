@@ -1,10 +1,12 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::fs;
 use std::path::Path;
 
 use fensu_facts::extension::models::ProgramHandle;
 use globset::{GlobBuilder, GlobSetBuilder};
 use ruff_python_ast::PythonVersion;
 use sha2::{Digest, Sha256};
+use walkdir::WalkDir;
 
 use crate::constants::{GLOB_ALL, ROLE_HELPERS, ROLE_MAIN, ROLE_RULES, SCOPE_TOOLING, SUFFIX_INIT};
 use crate::models::{Config, Fault, ScopedSource, ThresholdUse};
@@ -233,9 +235,14 @@ pub(crate) fn path_matches(path: &str, pattern: &str) -> bool {
     builder.build().is_ok_and(|set| set.is_match(path))
 }
 
-pub(crate) fn check_identity(config: &Config, sources: &[ScopedSource], warnings: bool) -> String {
+pub(crate) fn check_identity(
+    root: &Path,
+    config: &Config,
+    sources: &[ScopedSource],
+    warnings: bool,
+) -> String {
     let mut digest = Sha256::new();
-    digest.update(b"fensu-native-check-v1\0");
+    digest.update(b"fensu-native-check-v2\0");
     digest.update(env!("CARGO_PKG_VERSION").as_bytes());
     digest.update(&config.raw);
     digest.update([u8::from(warnings)]);
@@ -243,7 +250,55 @@ pub(crate) fn check_identity(config: &Config, sources: &[ScopedSource], warnings
         digest.update(source.repository_path.as_bytes());
         digest.update(source.fingerprint.as_bytes());
     }
+    digest_project_observations(&mut digest, root, config);
     format!("{:x}", digest.finalize())
+}
+
+fn digest_project_observations(digest: &mut Sha256, root: &Path, config: &Config) {
+    let mut entries = BTreeMap::new();
+    for configured_root in config
+        .roots
+        .iter()
+        .chain(&config.tests)
+        .chain(&config.tooling)
+    {
+        for entry in WalkDir::new(root.join(configured_root))
+            .follow_links(false)
+            .into_iter()
+            .filter_map(Result::ok)
+            .skip(1)
+        {
+            let Ok(path) = entry.path().strip_prefix(root) else {
+                continue;
+            };
+            let repository_path = path.to_string_lossy().replace('\\', "/");
+            let kind = if entry.file_type().is_dir() {
+                b'd'
+            } else if entry.file_type().is_file() {
+                b'f'
+            } else if entry.file_type().is_symlink() {
+                b'l'
+            } else {
+                b'o'
+            };
+            entries.insert(repository_path, (kind, entry.path().to_path_buf()));
+        }
+    }
+    for (path, (kind, filesystem_path)) in entries {
+        digest.update(path.as_bytes());
+        digest.update([kind]);
+        if filesystem_path.extension().and_then(|value| value.to_str()) == Some("pyi") {
+            match fs::read(&filesystem_path) {
+                Ok(content) => digest.update(Sha256::digest(content)),
+                Err(error) => digest.update(error.to_string().as_bytes()),
+            }
+        }
+    }
+    let pyproject = root.join("pyproject.toml");
+    if let Ok(content) = fs::read(pyproject) {
+        digest.update(b"pyproject.toml\0");
+        digest.update(Sha256::digest(content));
+    }
 }
 
 pub(crate) fn hex_digest(bytes: &[u8]) -> String {

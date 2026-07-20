@@ -104,7 +104,11 @@ def cache_store_check_output(
 def annotation_facts(handle: ProgramHandle, path: Path) -> Any: ...
 def native_rule_fact_families() -> list[tuple[str, list[str]]]: ...
 def plan_native_execution_batch(
-    requests: list[tuple[Any, ...]], major: int, minor: int
+    requests: list[tuple[Any, ...]],
+    project_files: list[tuple[str, str, list[str], str]],
+    entrypoint_modules: list[str],
+    major: int,
+    minor: int,
 ) -> tuple[
     NativeExecutionBatch,
     list[list[tuple[str, str, str, str]]],

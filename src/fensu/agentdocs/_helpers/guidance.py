@@ -77,7 +77,7 @@ def repository_guidance_lines(
 
 
 def memory_retrieval_guidance_lines(config: Config) -> tuple[str, ...]:
-    """Return staged retrieval guidance only for enabled repository memory."""
+    """Return retrieval and operations guidance only for enabled repository memory."""
 
     if not config.experimental.memory:
         return ()
@@ -127,6 +127,99 @@ def memory_retrieval_guidance_lines(config: Config) -> tuple[str, ...]:
         'fensu memory sql "SELECT identity, title FROM memory.documents WHERE '
         "archive_state = 'archived' ORDER BY identity\"",
         "```",
+        "",
+        "## Fensu Memory Operations",
+        "",
+        (
+            "Treat canonical Markdown under `.ai/` as authoritative. The SQLite index under "
+            "`.fensu/memory/` is disposable generated state; never edit it directly."
+        ),
+        "",
+        "Canonical sources:",
+        "",
+        "```text",
+        ".ai/",
+        "├── tasks/{not-started,in-progress,completed,cancelled,superseded}/",
+        "├── knowledge/repo/{notes,decisions,skills}/",
+        "└── _archive/",
+        "    ├── tasks/{completed,cancelled,superseded}/",
+        "    └── knowledge/repo/{notes,decisions,skills}/",
+        "```",
+        "",
+        (
+            "Task files use `<YYYYMMDDTHHMMSS_ffffffZ>__<CATEGORY>-<kebab-slug>.md`; "
+            "`CATEGORY` is `SPIKE`, `FIX`, `PERF`, `FEAT`, `REFACTOR`, or `CHORE`. Notes use "
+            "`NOTE` and decisions use `ADR`. The timestamp determines the stable identity "
+            "(`task:<timestamp>`, `note:<timestamp>`, or `decision:<timestamp>`), while the task "
+            "directory determines lifecycle. Never rename the timestamp to change state."
+        ),
+        "",
+        "Locate a document before editing it:",
+        "",
+        "```bash",
+        'fensu memory sql "SELECT identity, filesystem_path FROM memory.current_documents '
+        "WHERE identity = 'task:...'\"",
+        "```",
+        "",
+        (
+            "Edit the returned canonical Markdown path, then run `fensu memory sync`. To change a "
+            "task lifecycle, move the unchanged file between live lifecycle directories with a "
+            "plain filesystem move; sources may be untracked, so do not assume `git mv` applies."
+        ),
+        "",
+        (
+            "Create a task only after querying active tasks for duplicates. Add a correctly named "
+            "document under `.ai/tasks/not-started/`, mirror the structure of nearby tasks, then "
+            "run `fensu memory sync`."
+        ),
+        "",
+        (
+            "Run `fensu memory check` for canonical-source diagnostics. Use `fensu memory archive` "
+            "for age-based archival, or pass explicit paths and `--yes` for terminal tasks; never "
+            "move documents into `.ai/_archive/` manually. Automatic task archival uses the "
+            f"configured `{config.memory.tasks.archive_after_days}`-day retention."
+        ),
+        "",
+        "## Phased Implementation",
+        "",
+        (
+            "Execute task documents as vertical slices. Each slice must leave the affected flow "
+            "working, verified, and shippable; do not implement horizontal layers such as all "
+            "models before all wiring."
+        ),
+        "",
+        (
+            "For each slice: implement, verify with the narrowest faithful tests plus relevant "
+            "Fensu checks or parity evidence, update only the task checkboxes proven by that "
+            "evidence, then begin the next slice. Leave partial work unchecked and record its gap."
+        ),
+        "",
+        (
+            "Write task phases as observable end-to-end outcomes, each with checkboxes and an "
+            "explicit verification gate. Example:"
+        ),
+        "",
+        "```markdown",
+        "## Phase 1: Native Memory Check",
+        "",
+        "- [ ] Parse `memory check` in the Rust CLI, call the native engine, render exact faults,",
+        "      and preserve exit codes without launching Python.",
+        "- [ ] Add command-parity and process-accounting coverage.",
+        "",
+        "Verification: focused Rust and CLI tests pass; output matches the Python oracle; the",
+        "process trace contains no Python executable.",
+        "```",
+        "",
+        (
+            "This is one vertical slice because it delivers one usable behavior through every "
+            "affected layer. Separate phases such as `Add models`, `Add helpers`, and `Wire CLI` "
+            "are horizontal work queues and are not acceptable slices."
+        ),
+        "",
+        (
+            "For performance work, use paired A/B measurements, keep or revert from evidence, and "
+            "record retained and rejected results in the task ledger."
+        ),
         "",
     )
 

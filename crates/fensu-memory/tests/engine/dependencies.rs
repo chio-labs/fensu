@@ -8,6 +8,8 @@ use crate::test_types;
 
 #[path = "archive.rs"]
 mod archive;
+#[path = "bootstrap.rs"]
+mod bootstrap;
 #[path = "check.rs"]
 mod check;
 #[path = "graph_query.rs"]

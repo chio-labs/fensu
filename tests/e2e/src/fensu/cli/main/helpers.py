@@ -218,6 +218,8 @@ def run_command_parity(
 
     environment: dict[str, str] = dict(os.environ)
     environment["NO_COLOR"] = "1"
+    environment["PYTHONIOENCODING"] = "utf-8"
+    environment["PYTHONUTF8"] = "1"
     python_result: subprocess.CompletedProcess[str] = subprocess.run(
         (sys.executable, "-m", "fensu", *argv),
         cwd=root,

@@ -256,6 +256,10 @@ def _config_value(config: Config) -> dict[str, object]:
             "include": list(config.evaluation.include),
             "exclude": list(config.evaluation.exclude),
         },
+        "experimental": {"memory": config.experimental.memory},
+        "memory": {
+            "tasks": {"archive_after_days": config.memory.tasks.archive_after_days},
+        },
         "skills": {"name": config.skills.name},
         "thresholds": _threshold_values(config.thresholds),
         "role_thresholds": {

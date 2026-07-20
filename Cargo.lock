@@ -344,8 +344,10 @@ checksum = "9f1f227452a390804cdb637b74a86990f2a7d7ba4b7d5693aac9b4dd6defd8d6"
 
 [[package]]
 name = "fensu-cli"
-version = "0.2.0"
+version = "0.2.2"
 dependencies = [
+ "dunce",
+ "encoding_rs",
  "fensu-facts",
  "fensu-memory",
  "fensu-native",
@@ -356,7 +358,9 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "tempfile",
  "toml",
+ "unicode-normalization",
  "walkdir",
 ]
 
@@ -382,6 +386,7 @@ version = "0.1.0"
 dependencies = [
  "gix",
  "hex",
+ "libc",
  "pulldown-cmark",
  "rayon",
  "rusqlite",

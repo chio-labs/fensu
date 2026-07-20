@@ -49,6 +49,7 @@ pub(crate) struct InitOptions {
 }
 
 #[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct RuleMetadata {
     pub(crate) code: String,
     pub(crate) family: String,
@@ -58,6 +59,12 @@ pub(crate) struct RuleMetadata {
     pub(crate) severity: String,
     pub(crate) enabled_by_default: bool,
     pub(crate) execution_owner: String,
+    #[serde(default = "crate::helpers::rule::core_kind")]
+    pub(crate) kind: String,
+    #[serde(default)]
+    pub(crate) source: Option<String>,
+    #[serde(default = "crate::helpers::rule::cacheable_default")]
+    pub(crate) cacheable: bool,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -71,6 +78,7 @@ pub(crate) struct Config {
     pub(crate) rule_paths: Vec<String>,
     pub(crate) rule_modules: Vec<String>,
     pub(crate) cache_enabled: bool,
+    pub(crate) cache_require_cacheable: bool,
     pub(crate) evaluation_include: Vec<String>,
     pub(crate) evaluation_exclude: Vec<String>,
     pub(crate) thresholds: HashMap<String, u32>,
@@ -79,6 +87,9 @@ pub(crate) struct Config {
     pub(crate) contracts: Vec<(String, String)>,
     pub(crate) exceptions: Vec<RuleException>,
     pub(crate) memory_enabled: bool,
+    pub(crate) memory_archive_after_days: u64,
+    pub(crate) skills_name: Option<String>,
+    pub(crate) source_kind: String,
     pub(crate) raw: Vec<u8>,
 }
 

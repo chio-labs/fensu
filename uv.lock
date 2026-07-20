@@ -154,7 +154,7 @@ wheels = [
 
 [[package]]
 name = "fensu"
-version = "0.2.0"
+version = "0.2.2"
 source = { editable = "." }
 dependencies = [
     { name = "fensu-cli" },
@@ -185,7 +185,7 @@ dev = [
 
 [[package]]
 name = "fensu-cli"
-version = "0.2.0"
+version = "0.2.2"
 source = { directory = "packages/fensu-cli" }
 
 [[package]]

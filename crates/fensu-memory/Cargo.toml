@@ -11,6 +11,7 @@ workspace = true
 [dependencies]
 gix.workspace = true
 hex.workspace = true
+libc.workspace = true
 pulldown-cmark.workspace = true
 rayon.workspace = true
 rusqlite = { workspace = true, optional = true }

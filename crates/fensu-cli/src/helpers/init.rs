@@ -3,12 +3,12 @@ use std::env;
 use std::fs;
 use std::io::{self, IsTerminal};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use walkdir::WalkDir;
 
-use crate::helpers::process;
 use crate::models::{CliOutput, InitOptions};
+use crate::skills::main::execute;
+use crate::skills::models::SkillOptions;
 
 const FENSU_IGNORE: &str = "# Fensu\n.fensu/cache/\n";
 
@@ -97,15 +97,16 @@ pub(crate) fn run_init(arguments: &[String]) -> Result<CliOutput, String> {
         ));
     }
     if options.skills == Some(true) {
-        let args = vec!["skills".to_owned()];
-        let code = process::run_python(&args)?;
-        if code != 0 {
+        let skill_output = execute::execute(&repository, &SkillOptions::default(), true)?;
+        if skill_output.exit_code != 0 {
             return Ok(CliOutput {
                 stdout: output,
-                stderr: String::new(),
-                exit_code: code,
+                stderr: skill_output.stderr,
+                exit_code: skill_output.exit_code,
             });
         }
+        output.push('\n');
+        output.push_str(&skill_output.stdout);
     }
     output.push_str("\n-> Next\n\n    fensu check            run anytime\n    fensu rule FFA001      inspect any code in the output\n");
     Ok(CliOutput::success(output))
@@ -287,13 +288,14 @@ fn python_count(path: &Path) -> usize {
 }
 
 fn native_drift(repository: &Path) -> Result<(usize, usize), String> {
-    let executable = env::current_exe().map_err(|error| error.to_string())?;
-    let output = Command::new(executable)
-        .args(["check", "--no-color", "--cache"])
-        .current_dir(repository)
-        .output()
-        .map_err(|error| error.to_string())?;
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let invocation = env::current_dir().map_err(|error| error.to_string())?;
+    env::set_current_dir(repository).map_err(|error| error.to_string())?;
+    let result = crate::helpers::check_execution::execute_check(&[
+        "--no-color".to_owned(),
+        "--cache".to_owned(),
+    ]);
+    env::set_current_dir(invocation).map_err(|error| error.to_string())?;
+    let stdout = result?.stdout;
     let faults = stdout.matches(" --> ").count();
     let files = stdout
         .lines()

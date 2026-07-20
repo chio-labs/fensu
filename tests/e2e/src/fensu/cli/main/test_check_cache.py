@@ -405,3 +405,94 @@ def test_given_negative_dependency_when_file_appears_then_installed_process_inva
     assert second.returncode == test_case.expected_second_exit_code
     assert test_case.expected_first_fragment in first.stdout
     assert test_case.expected_second_fragment in second.stdout
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CacheDependencyCliTestCase(
+            description="entrypoint metadata change invalidates project-rule output",
+            config=('roots = ["src/pkg"]\ntests = []\ntooling = []\nselect = ["FFL105"]\n'),
+            requester_path="src/pkg/orders/billing/main/calculate.py",
+            requester_source="def calculate() -> None:\n    pass\n",
+            dependency_path="pyproject.toml",
+            dependency_source=(
+                '[project]\nname = "fixture"\n[project.scripts]\ncalculate = '
+                '"pkg.orders.billing.main.calculate:calculate"\n'
+            ),
+            expected_first_exit_code=1,
+            expected_second_exit_code=0,
+            expected_first_fragment="FFL105",
+            expected_second_fragment="Found 0 faults",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_entrypoint_metadata_when_changed_then_installed_cache_invalidates(
+    tmp_path: Path,
+    test_case: CacheDependencyCliTestCase,
+) -> None:
+    write_cli_project(
+        root=tmp_path,
+        config=test_case.config,
+        files=(
+            ("src/pkg/__init__.py", ""),
+            (test_case.requester_path, test_case.requester_source),
+        ),
+    )
+    first: subprocess.CompletedProcess[str] = run_cli_check(root=tmp_path, argv=("--cache",))
+    (tmp_path / test_case.dependency_path).write_text(
+        test_case.dependency_source,
+        encoding="utf-8",
+    )
+
+    second: subprocess.CompletedProcess[str] = run_cli_check(root=tmp_path, argv=("--cache",))
+
+    assert first.returncode == test_case.expected_first_exit_code
+    assert second.returncode == test_case.expected_second_exit_code
+    assert test_case.expected_first_fragment in first.stdout
+    assert test_case.expected_second_fragment in second.stdout
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CacheDependencyCliTestCase(
+            description="stub importer creation invalidates project-rule output",
+            config=('roots = ["src/pkg"]\ntests = []\ntooling = []\nselect = ["FFL105"]\n'),
+            requester_path="src/pkg/orders/billing/main/calculate.py",
+            requester_source="def calculate() -> None:\n    pass\n",
+            dependency_path="src/pkg/__init__.pyi",
+            dependency_source=(
+                "from pkg.orders.billing.main.calculate import calculate as calculate\n"
+            ),
+            expected_first_exit_code=1,
+            expected_second_exit_code=0,
+            expected_first_fragment="FFL105",
+            expected_second_fragment="Found 0 faults",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_stub_dependency_when_created_then_installed_cache_invalidates(
+    tmp_path: Path,
+    test_case: CacheDependencyCliTestCase,
+) -> None:
+    write_cli_project(
+        root=tmp_path,
+        config=test_case.config,
+        files=(
+            ("src/pkg/__init__.py", ""),
+            (test_case.requester_path, test_case.requester_source),
+        ),
+    )
+    first: subprocess.CompletedProcess[str] = run_cli_check(root=tmp_path, argv=("--cache",))
+    dependency: Path = tmp_path / test_case.dependency_path
+    dependency.write_text(test_case.dependency_source, encoding="utf-8")
+
+    second: subprocess.CompletedProcess[str] = run_cli_check(root=tmp_path, argv=("--cache",))
+
+    assert first.returncode == test_case.expected_first_exit_code
+    assert second.returncode == test_case.expected_second_exit_code
+    assert test_case.expected_first_fragment in first.stdout
+    assert test_case.expected_second_fragment in second.stdout

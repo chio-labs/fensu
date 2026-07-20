@@ -52,13 +52,13 @@ def main(argv: tuple[str, ...] | None = None) -> int:
         return 2
     if args:
         sys.stderr.write(f"Unknown command: {args[0]}\n")
-    sys.stderr.write("Usage: fensu {check,init,rule,skills,map} ...\n")
+    sys.stderr.write("Usage: fensu {check,init,rule,skills,map,memory} ...\n")
     return 2
 
 
 def _write_help() -> None:
     sys.stdout.write(
-        "Usage: fensu {init,check,rule,map,skills} ...\n"
+        "Usage: fensu {init,check,rule,map,skills,memory} ...\n"
         "\n"
         "Commands:\n"
         "  init    Initialize Fensu configuration for a repository.\n"
@@ -66,6 +66,7 @@ def _write_help() -> None:
         "  rule    Show details for one rule.\n"
         "  map     Render a downstream project call map.\n"
         "  skills  Generate and install agent guidance.\n"
+        "  memory  Synchronize, inspect, and query persistent repository memory.\n"
         "\n"
         "Run `fensu <command> --help` for command-specific options.\n"
     )

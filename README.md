@@ -35,8 +35,9 @@ pip install fensu
 
 The authoring/API distribution is `fensu`. It installs the lockstep
 `fensu-cli` binary package, which exclusively owns the `fensu` command.
-Core-only `check`, `init`, `rule`, and `--version` execution is native; custom
-rules, `skills`, and `map` launch the active environment's Python interpreter.
+Core-only `check`, `init`, `rule`, `map`, `skills`, `memory`, and `--version`
+execution is native. Configured Python custom rules launch one compatible Python
+host only for the policy metadata or callbacks they require.
 
 `python -m fensu` is the supported fallback if a binary wheel is unavailable.
 Installing `fensu-cli` from its source distribution requires Rust.
@@ -224,11 +225,11 @@ unrestricted Python syntax traversal. Semantic fact contracts and author-facing 
 are public Python APIs, while their production extraction has one native Rust owner;
 raw AST, syntax, and relation artifacts remain lazy CPython capabilities. Keep
 project-owned checks in the canonical
-`scripts/fensu/rules/` tooling role and load them explicitly:
+`scripts/fensu_policy/rules/` tooling role and load them explicitly:
 
 ```toml
 tooling = ["scripts"]
-rule_paths = ["scripts/fensu/rules"]
+rule_paths = ["scripts/fensu_policy/rules"]
 ```
 
 See the [custom-rule guide](https://docs.fensu.dev/concepts/custom-rules)

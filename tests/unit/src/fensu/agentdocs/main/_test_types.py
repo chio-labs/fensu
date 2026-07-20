@@ -46,3 +46,11 @@ class SkillContextImmutabilityTestCase:
     description: str
     context: SkillGenerationContext
     expected_error_type: type[Exception]
+
+
+@dataclass(frozen=True)
+class NativeInvariantAssetTestCase:
+    """One native renderer invariant asset contract."""
+
+    description: str
+    expected_section_count: int

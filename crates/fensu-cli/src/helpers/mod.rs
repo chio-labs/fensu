@@ -3,7 +3,6 @@ pub(crate) mod check_evaluation;
 pub(crate) mod check_execution;
 pub(crate) mod check_policy;
 pub(crate) mod check_project;
-pub(crate) mod config;
 pub(crate) mod init;
 pub(crate) mod process;
 pub(crate) mod render;

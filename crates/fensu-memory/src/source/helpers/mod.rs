@@ -1,5 +1,6 @@
 //! Internal phases for canonical source discovery.
 
+pub(crate) mod bootstrap;
 pub(crate) mod collisions;
 pub(crate) mod discovery;
 pub(crate) mod documents;

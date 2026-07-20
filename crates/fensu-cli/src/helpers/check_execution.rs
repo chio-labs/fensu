@@ -6,12 +6,14 @@ use std::path::Path;
 use fensu_facts::extension::models::ProgramHandle;
 use walkdir::WalkDir;
 
+use crate::configuration::main::load;
+use crate::helpers::cache;
 use crate::helpers::check_evaluation::evaluate_and_render;
 use crate::helpers::check_policy::{
     check_identity, hex_digest, path_matches, python_version, validate_package_names,
 };
-use crate::helpers::{cache, config};
 use crate::models::{CachedOutput, CheckOptions, CliOutput, Config, ScopedSource};
+use crate::skills::main::core_freshness;
 
 const CHECK_HELP: &str = "usage: fensu check [-h] [--no-color] [--warn] [--cache | --no-cache] [--cache-stats] [--jobs JOBS] [paths ...]\n";
 
@@ -28,7 +30,7 @@ pub(crate) fn execute_check(arguments: &[String]) -> Result<CliOutput, String> {
         .map_err(|error| error.to_string())?
         .canonicalize()
         .map_err(|error| error.to_string())?;
-    let (config_path, mut config) = config::load(&invocation)?;
+    let (config_path, mut config) = load::load(&invocation)?;
     let _memory_enabled = config.memory_enabled;
     let root = config_path
         .parent()
@@ -56,7 +58,7 @@ pub(crate) fn execute_check(arguments: &[String]) -> Result<CliOutput, String> {
     let cache_enabled = options.cache_enabled.unwrap_or(config.cache_enabled);
     let color =
         !options.no_color && env::var_os("NO_COLOR").is_none() && io::stdout().is_terminal();
-    let identity = check_identity(&config, &sources, options.warn);
+    let identity = check_identity(&root, &config, &sources, options.warn);
     if cache_enabled {
         if let Some(cached) = cache::read(&root, &identity, &sources, color) {
             if options.cache_stats {
@@ -65,6 +67,7 @@ pub(crate) fn execute_check(arguments: &[String]) -> Result<CliOutput, String> {
                     sources.len()
                 ));
             }
+            stderr.push_str(&core_freshness::core_freshness(&invocation).unwrap_or_default());
             return Ok(CliOutput {
                 stdout: cached.output,
                 stderr,
@@ -75,6 +78,7 @@ pub(crate) fn execute_check(arguments: &[String]) -> Result<CliOutput, String> {
     parse_sources(&mut sources)?;
     let (output, exit_code) =
         evaluate_and_render(&root, &config, &sources, excluded, options.warn, color)?;
+    stderr.push_str(&core_freshness::core_freshness(&invocation).unwrap_or_default());
     if cache_enabled {
         let cached = CachedOutput {
             identity,

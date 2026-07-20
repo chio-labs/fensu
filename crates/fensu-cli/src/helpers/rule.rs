@@ -3,16 +3,36 @@ use std::io::{self, IsTerminal};
 use std::path::Path;
 use std::sync::OnceLock;
 
+use crate::configuration::main::load;
 use crate::constants::{COLOR_ALWAYS, COLOR_AUTO, COLOR_NEVER, OPTION_COLOR};
-use crate::helpers::config;
 use crate::models::{Config, RuleMetadata};
+use crate::skills::main::catalogue::load_rule_catalogue;
 
 static CATALOGUE: OnceLock<Vec<RuleMetadata>> = OnceLock::new();
 
+pub(crate) fn core_kind() -> String {
+    "core".to_owned()
+}
+
+pub(crate) fn cacheable_default() -> bool {
+    false
+}
+
 pub(crate) fn rule_output(arguments: &[String]) -> Result<String, String> {
     let (color, code) = parse_arguments(arguments)?;
-    let metadata = rule(&code).ok_or_else(|| format!("Unknown rule code: {code}"))?;
-    let (_, loaded) = config::load(Path::new("."))?;
+    let (config_path, loaded) = load::load(Path::new("."))?;
+    let project_root = config_path
+        .parent()
+        .ok_or_else(|| "Configuration has no parent directory.".to_owned())?;
+    let catalogue = if loaded.rule_paths.is_empty() && loaded.rule_modules.is_empty() {
+        catalogue().to_vec()
+    } else {
+        load_rule_catalogue(&loaded, project_root)?
+    };
+    let metadata = catalogue
+        .iter()
+        .find(|metadata| metadata.code == code)
+        .ok_or_else(|| format!("Unknown rule code: {code}"))?;
     Ok(render(metadata, &loaded, use_color(&color)))
 }
 
@@ -84,9 +104,9 @@ fn render_metadata(output: &mut String, metadata: &RuleMetadata, color: bool) {
     for (label, value) in [
         ("Family", metadata.family.as_str()),
         ("Severity", metadata.severity.as_str()),
-        ("Kind", "core"),
+        ("Kind", metadata.kind.as_str()),
         ("Enabled by default", enabled),
-        ("Source", "core"),
+        ("Source", metadata.source.as_deref().unwrap_or("core")),
         ("Message", metadata.message.as_str()),
         (
             "Remediation",

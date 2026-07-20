@@ -4,16 +4,36 @@ from __future__ import annotations
 
 import json
 from dataclasses import FrozenInstanceError
+from pathlib import Path
 
 import pytest
 
+from fensu.agentdocs._helpers.authoring import authoring_lookup_lines, rule_context_lines
+from fensu.agentdocs._helpers.guidance import (
+    memory_retrieval_guidance_lines,
+    repository_guidance_lines,
+)
+from fensu.agentdocs._helpers.ownership import skill_input_fingerprint
+from fensu.agentdocs._helpers.work_practices import (
+    custom_rule_authority_lines,
+    work_practice_lines,
+)
+from fensu.agentdocs._helpers.workflow import navigation_workflow_lines
 from fensu.agentdocs.main._generate import generate_skill
-from fensu.config.models import Config, ExperimentalConfig, RuleExceptionEntry, ThresholdOverride
+from fensu.config.models import (
+    Config,
+    ExperimentalConfig,
+    MemoryConfig,
+    MemoryTasksConfig,
+    RuleExceptionEntry,
+    ThresholdOverride,
+)
 from fensu.rules.authoring.models import RuleSpec
 from fensu.rules.authoring.types import Threshold
 from fensu.rules.catalog.constants import CORE_RULES
 from tests.unit.src.fensu.agentdocs.main._test_types import (
     GuidanceTestCase,
+    NativeInvariantAssetTestCase,
     SkillContentTestCase,
     SkillContextImmutabilityTestCase,
     SkillDeterminismTestCase,
@@ -36,6 +56,50 @@ _ESCAPED_OVERRIDE_REASON: str = 'Generated "API" path.\nKeep \\ escapes.'
 @pytest.mark.parametrize(
     "test_case",
     [
+        NativeInvariantAssetTestCase(
+            description="compiled native invariant sections match the current Python renderer",
+            expected_section_count=8,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_native_invariant_asset_when_comparing_python_sections_then_bytes_match_worktree(
+    test_case: NativeInvariantAssetTestCase,
+) -> None:
+    repository: Path = Path(__file__).resolve().parents[6]
+    asset: dict[str, list[str]] = json.loads(
+        (repository / "crates/fensu-cli/assets/skills_invariant.json").read_text(encoding="utf-8")
+    )
+    active_codes: frozenset[str] = frozenset(rule.code for rule in CORE_RULES)
+    base_config: Config = Config(roots=("__ROOT__",), tests=("__TEST__",), tooling=())
+    tooling_config: Config = Config(roots=("__ROOT__",), tests=("__TEST__",), tooling=("__TOOL__",))
+    memory_config: Config = Config(
+        roots=("__ROOT__",),
+        experimental=ExperimentalConfig(memory=True),
+        memory=MemoryConfig(tasks=MemoryTasksConfig(archive_after_days=987654321)),
+    )
+    expected: dict[str, list[str]] = {
+        "authoring_lookup": list(authoring_lookup_lines()),
+        "custom_authority": list(custom_rule_authority_lines()),
+        "memory": list(memory_retrieval_guidance_lines(memory_config)),
+        "navigation": list(navigation_workflow_lines()),
+        "repository": list(
+            repository_guidance_lines(config=base_config, active_codes=active_codes)
+        ),
+        "repository_tooling": list(
+            repository_guidance_lines(config=tooling_config, active_codes=active_codes)
+        ),
+        "rule_context": list(rule_context_lines()),
+        "work_practices": list(work_practice_lines()),
+    }
+
+    assert len(asset) == test_case.expected_section_count
+    assert asset == expected
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
         GuidanceTestCase(
             description="disabled memory omits retrieval guidance without changing base policy",
             config=Config(
@@ -46,7 +110,13 @@ _ESCAPED_OVERRIDE_REASON: str = 'Generated "API" path.\nKeep \\ escapes.'
             ),
             rule_codes=("FFH001",),
             expected_fragments=("## Commands", "## Navigation And Work Handoffs"),
-            expected_absent_fragments=("## Fensu Memory Retrieval", "memory.blocked_tasks"),
+            expected_absent_fragments=(
+                "## Fensu Memory Retrieval",
+                "## Fensu Memory Operations",
+                "## Phased Implementation",
+                ".ai/tasks/",
+                "memory.blocked_tasks",
+            ),
         ),
         GuidanceTestCase(
             description="enabled memory adds concise staged retrieval and ledger guidance",
@@ -79,8 +149,34 @@ _ESCAPED_OVERRIDE_REASON: str = 'Generated "API" path.\nKeep \\ escapes.'
                 "search archived documents for history and regressions",
                 "fensu memory schema current_documents",
                 "FROM memory.sections",
+                "## Fensu Memory Operations",
+                "canonical Markdown under `.ai/` as authoritative",
+                "tasks/{not-started,in-progress,completed,cancelled,superseded}/",
+                "knowledge/repo/{notes,decisions,skills}/",
+                "<YYYYMMDDTHHMMSS_ffffffZ>__<CATEGORY>-<kebab-slug>.md",
+                "`SPIKE`, `FIX`, `PERF`, `FEAT`, `REFACTOR`, or `CHORE`",
+                "SELECT identity, filesystem_path FROM memory.current_documents",
+                "move the unchanged file between live lifecycle directories",
+                "do not assume `git mv` applies",
+                ".ai/tasks/not-started/",
+                "fensu memory sync",
+                "fensu memory check",
+                "fensu memory archive",
+                "never move documents into `.ai/_archive/` manually",
+                "configured `7`-day retention",
+                "## Phased Implementation",
+                "vertical slices",
+                "Leave partial work unchecked and record its gap",
+                "observable end-to-end outcomes",
+                "## Phase 1: Native Memory Check",
+                "call the native engine, render exact faults",
+                "command-parity and process-accounting coverage",
+                "process trace contains no Python executable",
+                "Separate phases such as `Add models`, `Add helpers`, and `Wire CLI`",
+                "horizontal work queues and are not acceptable slices",
+                "paired A/B measurements",
             ),
-            expected_absent_fragments=("MCP", "corpus injection"),
+            expected_absent_fragments=("MCP", "corpus injection", "fensu memory locate"),
         ),
         GuidanceTestCase(
             description="selected naming behavior excludes unselected naming guidance",
@@ -684,6 +780,67 @@ def test_given_equivalent_reordered_contexts_when_rendering_then_bytes_are_deter
     assert (first == second) is test_case.expected_equal
     assert b"\r" not in first
     assert first.endswith(b"\n")
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SkillDeterminismTestCase(
+            description="memory activation changes generated skill input identity",
+            first_context=generation_context(
+                config=Config(
+                    roots=("src/acme",),
+                    tests=(),
+                    tooling=(),
+                    experimental=ExperimentalConfig(memory=False),
+                ),
+                blocking_rules=core_rules_for_codes(("FFH001",)),
+            ),
+            second_context=generation_context(
+                config=Config(
+                    roots=("src/acme",),
+                    tests=(),
+                    tooling=(),
+                    experimental=ExperimentalConfig(memory=True),
+                ),
+                blocking_rules=core_rules_for_codes(("FFH001",)),
+            ),
+            expected_equal=False,
+        ),
+        SkillDeterminismTestCase(
+            description="memory retention changes generated skill input identity",
+            first_context=generation_context(
+                config=Config(
+                    roots=("src/acme",),
+                    tests=(),
+                    tooling=(),
+                    experimental=ExperimentalConfig(memory=True),
+                    memory=MemoryConfig(tasks=MemoryTasksConfig(archive_after_days=7)),
+                ),
+                blocking_rules=core_rules_for_codes(("FFH001",)),
+            ),
+            second_context=generation_context(
+                config=Config(
+                    roots=("src/acme",),
+                    tests=(),
+                    tooling=(),
+                    experimental=ExperimentalConfig(memory=True),
+                    memory=MemoryConfig(tasks=MemoryTasksConfig(archive_after_days=14)),
+                ),
+                blocking_rules=core_rules_for_codes(("FFH001",)),
+            ),
+            expected_equal=False,
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_memory_config_when_fingerprinting_then_identity_tracks_generated_guidance(
+    test_case: SkillDeterminismTestCase,
+) -> None:
+    first: str = skill_input_fingerprint(test_case.first_context)
+    second: str = skill_input_fingerprint(test_case.second_context)
+
+    assert (first == second) is test_case.expected_equal
 
 
 @pytest.mark.parametrize(

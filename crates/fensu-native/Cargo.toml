@@ -31,3 +31,7 @@ default = ["python"]
 extension-module = ["python", "pyo3/extension-module"]
 memory = ["python", "dep:fensu-memory", "fensu-memory/sqlite-engine"]
 python = ["dep:pyo3", "fensu-facts/python"]
+
+[dev-dependencies]
+serde.workspace = true
+tempfile.workspace = true

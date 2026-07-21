@@ -160,6 +160,9 @@ pub(crate) fn check_source_file(
     src_root: &path::Path,
     file: &models::SourceFile,
 ) -> Vec<models::Violation> {
+    if let Some(kind) = inline_test_file_kind(file) {
+        return check_test_syntax(file, kind);
+    }
     let kind = source_file_kind(file, repo_root, src_root);
     let syntax = syn::parse_file(&file.source);
     let mut violations = hygiene::check_source(file, syntax.as_ref().ok(), kind);
@@ -184,6 +187,10 @@ pub(crate) fn check_test_file(
     file: &models::SourceFile,
 ) -> Vec<models::Violation> {
     let kind = test_file_kind(file, repo_root, tests_root);
+    check_test_syntax(file, kind)
+}
+
+fn check_test_syntax(file: &models::SourceFile, kind: FileKind) -> Vec<models::Violation> {
     let syntax = syn::parse_file(&file.source);
     let mut violations = hygiene::check_test_file(file, syntax.as_ref().ok());
     violations.extend(roles::check_common(file));
@@ -196,6 +203,23 @@ pub(crate) fn check_test_file(
         Err(error) => violations.push(parse_violation(file, error)),
     }
     violations
+}
+
+fn inline_test_file_kind(file: &models::SourceFile) -> Option<FileKind> {
+    if file.file_name() == constants::INLINE_TEST_HARNESS_FILE
+        && file.path.with_extension("").is_dir()
+    {
+        return Some(FileKind::TestHarness);
+    }
+    let tests_directory = file.path.ancestors().find(|path| {
+        path.file_name().and_then(|name| name.to_str()) == Some(constants::TESTS_DIRECTORY)
+            && path.with_extension("rs").is_file()
+    })?;
+    (file.path != tests_directory).then(|| match file.file_name() {
+        "test_types.rs" => FileKind::TestTypes,
+        "helpers.rs" => FileKind::TestHelpers,
+        _ => FileKind::TestTopic,
+    })
 }
 
 fn parse_violation(file: &models::SourceFile, error: &syn::Error) -> models::Violation {

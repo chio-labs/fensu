@@ -39,8 +39,9 @@ Core-only `check`, `init`, `rule`, `map`, `skills`, `memory`, and `--version`
 execution is native. Configured Python custom rules launch one compatible Python
 host only for the policy metadata or callbacks they require.
 
-`python -m fensu` is the supported fallback if a binary wheel is unavailable.
-Installing `fensu-cli` from its source distribution requires Rust.
+Built-in commands are available only through the native `fensu` executable;
+`python -m fensu` is retired. Installing `fensu-cli` from its source
+distribution requires Rust.
 
 Fensu requires Python 3.12+ and includes a compiled analysis core. Prebuilt
 wheels cover Linux (x86_64, aarch64) and macOS (Intel, Apple silicon); on any

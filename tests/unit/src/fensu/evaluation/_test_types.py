@@ -4,7 +4,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from fensu.rules.authoring.types import ExecutionOwner, Threshold
+from fensu.rules.authoring.types import ExecutionOwner, RuleKind, Threshold
+
+
+@dataclass(frozen=True)
+class MissingCallbackTestCase:
+    """A callback-free rule and the execution error it must raise."""
+
+    description: str
+    code: str
+    kind: RuleKind
+    expected_error_type: type[Exception]
+    expected_message: str
 
 
 @dataclass(frozen=True)

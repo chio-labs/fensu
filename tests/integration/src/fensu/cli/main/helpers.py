@@ -7,6 +7,7 @@ import json
 import os
 import re
 import sqlite3
+import subprocess
 from collections.abc import Callable
 from functools import partial
 from io import StringIO
@@ -15,14 +16,11 @@ from typing import BinaryIO
 
 import pytest
 
-from fensu.agentdocs.constants import GENERATED_MARKER
-from fensu.agentdocs.exceptions import SkillInstallError
 from fensu.cache.fingerprints.models import CacheFingerprint
 from fensu.cache.results._helpers.conversion import restore_native_evaluation
 from fensu.cache.results.classes.result_cache import ResultCache
 from fensu.cache.results.models import NativeGenerationPlan
 from fensu.cache.storage.constants import CACHE_DATABASE_RELATIVE_PATH
-from fensu.cli.main._skills import run_skills
 from fensu.config.main.load_config import load_config
 from fensu.config.models import Config
 from fensu.evaluation.models import FileEvaluation
@@ -149,7 +147,7 @@ class FailingSkillDeleter:
         return action()
 
     def _fail(self) -> object:
-        raise SkillInstallError("simulated legacy deletion failure")
+        raise OSError("simulated legacy deletion failure")
 
 
 class RacingLegacyRenamer:
@@ -642,7 +640,7 @@ def prepare_normal_check_skill_state(*, root: Path, state: str) -> None:
         "declined": lambda: None,
         "unmanaged": lambda: _write_user_skill(path),
         "malformed-marker": lambda: _write_malformed_skill(path),
-        "current": lambda: run_skills(argv=("--target", "agents")),
+        "current": lambda: _run_native_skills(argv=("--target", "agents")),
         "divergent": lambda: _install_then_mutate(root=root, state="divergent"),
         "stale-all": lambda: _install_all_then_stale(root),
     }
@@ -680,23 +678,33 @@ def _write_user_skill(path: Path) -> None:
 def _write_malformed_skill(path: Path) -> None:
     path.parent.mkdir(parents=True)
     path.write_text(
-        f"{GENERATED_MARKER}\n<!-- fensu-skill-owner: malformed -->\n",
+        "<!-- generated-by: fensu skills update -->\n<!-- fensu-skill-owner: malformed -->\n",
         encoding="utf-8",
     )
 
 
 def _install_then_mutate(*, root: Path, state: str) -> None:
-    _ = run_skills(argv=("--target", "agents"))
+    _ = _run_native_skills(argv=("--target", "agents"))
     mutate_skill_freshness_state(root=root, state=state)
 
 
 def _install_all_then_stale(root: Path) -> None:
-    _ = run_skills(argv=())
+    _ = _run_native_skills(argv=())
     config: Path = root / "fensu.toml"
     config.write_text(
         config.read_text(encoding="utf-8") + "\n[cache]\nenabled = false\n",
         encoding="utf-8",
     )
+
+
+def _run_native_skills(*, argv: tuple[str, ...]) -> int:
+    completed: subprocess.CompletedProcess[str] = subprocess.run(
+        ("fensu", "skills", *argv),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return completed.returncode
 
 
 def write_cli_no_fault_project(root: Path) -> None:

@@ -5,11 +5,9 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 from types import MappingProxyType
-from unittest.mock import Mock
 
 import pytest
 
-import fensu.rules.roles._helpers.checks as role_checks
 from fensu.analysis.models import ProjectDependency
 from fensu.analysis.types import ProjectDependencyKind
 from fensu.config.constants import DEFAULT_THRESHOLDS
@@ -89,35 +87,6 @@ def evaluate_flat_helpers_scale(
         ruleset=(_rule_by_code("FFR301"),),
         config=config,
     )
-
-
-def evaluate_role_bucket_depth_scale(
-    *, project_root: Path, depth: int, monkeypatch: pytest.MonkeyPatch
-) -> tuple[EvaluationResult, int]:
-    """Evaluate one namespace role bucket with Python initializers at each depth."""
-
-    bucket: Path = project_root / "src/pkg/domain/orders/_helpers/main"
-    for index in range(depth):
-        bucket /= f"level_{index:03d}"
-        bucket.mkdir(parents=True)
-        (bucket / "__init__.py").write_text("", encoding="utf-8")
-    monkeypatch.chdir(project_root)
-    thresholds: dict[Threshold, int] = dict(DEFAULT_THRESHOLDS)
-    thresholds[Threshold.MAX_ROLE_DEPTH] = depth + 1
-    config: Config = Config(
-        roots=("src/pkg",),
-        tests=(),
-        thresholds=MappingProxyType(thresholds),
-    )
-    inspection_counter: Mock = Mock(wraps=role_checks._is_forbidden_role_bucket_name)
-    with monkeypatch.context() as context:
-        context.setattr(role_checks, "_is_forbidden_role_bucket_name", inspection_counter)
-        result: EvaluationResult = evaluate(
-            tree=discover_files(config=config),
-            ruleset=(_rule_by_code("FFR301"),),
-            config=config,
-        )
-    return result, inspection_counter.call_count
 
 
 def anchor_dependencies(result: EvaluationResult) -> tuple[ProjectDependency, ...]:

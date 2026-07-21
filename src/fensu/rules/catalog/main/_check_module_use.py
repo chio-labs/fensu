@@ -10,9 +10,11 @@ from fensu.rules.authoring.types import RuleCheck
 from fensu.rules.catalog.constants import MODULE_PARAMETER_NAME
 
 
-def check_uses_module(*, check: RuleCheck) -> bool:
+def check_uses_module(*, check: RuleCheck | None) -> bool:
     """Return whether a check body references module beyond deleting it."""
 
+    if check is None:
+        return False
     try:
         source: str = textwrap.dedent(inspect.getsource(check))
         parsed: ast.Module = ast.parse(source)

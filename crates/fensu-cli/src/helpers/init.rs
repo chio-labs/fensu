@@ -41,9 +41,7 @@ pub(crate) fn run_init(arguments: &[String]) -> Result<CliOutput, String> {
         return Err("Empty repository initialization with --yes requires --name NAME.\nExample: fensu init --yes --name my_package".to_owned());
     }
     if !options.yes {
-        return Err(
-            "Interactive initialization requires the Python fallback; rerun with --yes.".to_owned(),
-        );
+        return Err("Interactive initialization is not supported; rerun with --yes.".to_owned());
     }
     let (roots, tests, tooling, project_name) = if empty {
         let name =

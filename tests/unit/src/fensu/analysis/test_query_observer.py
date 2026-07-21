@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from fensu.analysis.classes.query_observer import QueryObserver
-from fensu.cache.fingerprints.main.source import fingerprint_source
+from fensu.cache.fingerprints.main._source import fingerprint_source
 from fensu.evaluation._helpers.parsing import read_source_snapshot
 from tests.unit.src.fensu.analysis._test_types import (
     ObserverFingerprintParityTestCase,

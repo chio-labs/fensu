@@ -3,14 +3,17 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Stdio};
 
-pub(crate) fn run_python(arguments: &[String]) -> Result<i32, String> {
+pub(crate) fn run_custom_check_host(arguments: &[String]) -> Result<i32, String> {
     verify_authoring_version()?;
     let status = Command::new(python_executable()?)
-        .arg("-m")
-        .arg("fensu")
+        .args([
+            "-c",
+            "import sys; from fensu.cli.main.custom_check_host import run_custom_check; raise SystemExit(run_custom_check(argv=tuple(sys.argv[1:])))",
+        ])
         .args(arguments)
+        .env("PYTHONDONTWRITEBYTECODE", "1")
         .status()
-        .map_err(|error| format!("Could not launch Fensu's Python command host: {error}"))?;
+        .map_err(|error| format!("Could not launch Fensu's custom-check host: {error}"))?;
     Ok(exit_code(status))
 }
 

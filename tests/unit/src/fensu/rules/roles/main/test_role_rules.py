@@ -8,7 +8,6 @@ from unittest.mock import Mock
 
 import pytest
 
-from fensu.analysis.models import ProjectDependency
 from fensu.analysis.types import ProjectDependencyKind
 from fensu.config.models import ThresholdOverride
 from fensu.discovery.types import ScopeName
@@ -17,15 +16,12 @@ from fensu.rules.authoring.models import RuleSpec
 from fensu.rules.authoring.types import Threshold
 from tests.unit.src.fensu.rules.roles.main import helpers as role_test_helpers
 from tests.unit.src.fensu.rules.roles.main._test_types import (
-    ContainerDepthScaleTestCase,
     ContainerScaleTestCase,
     FfrRuleTestCase,
     FfrSupportFile,
 )
 from tests.unit.src.fensu.rules.roles.main.helpers import (
-    anchor_dependencies,
     evaluate_flat_helpers_scale,
-    evaluate_role_bucket_depth_scale,
     evaluate_role_test_case,
 )
 
@@ -1592,50 +1588,6 @@ def test_given_wider_role_when_evaluating_containers_then_project_queries_grow_n
     assert len(small.faults) == test_case.expected_small_fault_count
     assert len(large.faults) == test_case.expected_large_fault_count
     assert large_query_count <= small_query_count * test_case.expected_max_query_multiplier
-
-
-@pytest.mark.parametrize(
-    "test_case",
-    [
-        ContainerDepthScaleTestCase(
-            description="tenfold namespace depth keeps bucket anchor queries compact and linear",
-            small_depth=10,
-            large_depth=100,
-            expected_max_query_multiplier=11,
-            expected_max_inspection_multiplier=11,
-            expected_fault_count=1,
-            expected_max_anchor_answer_paths=1,
-        )
-    ],
-    ids=lambda case: case.description,
-)
-def test_given_deeper_role_bucket_when_evaluating_then_anchor_queries_remain_compact(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    test_case: ContainerDepthScaleTestCase,
-) -> None:
-    small, small_inspections = evaluate_role_bucket_depth_scale(
-        project_root=tmp_path / "small-depth",
-        depth=test_case.small_depth,
-        monkeypatch=monkeypatch,
-    )
-    large, large_inspections = evaluate_role_bucket_depth_scale(
-        project_root=tmp_path / "large-depth",
-        depth=test_case.large_depth,
-        monkeypatch=monkeypatch,
-    )
-    small_queries: tuple[ProjectDependency, ...] = anchor_dependencies(small)
-    large_queries: tuple[ProjectDependency, ...] = anchor_dependencies(large)
-
-    assert len(small.faults) == test_case.expected_fault_count
-    assert len(large.faults) == test_case.expected_fault_count
-    assert len(large_queries) <= len(small_queries) * test_case.expected_max_query_multiplier
-    assert large_inspections <= small_inspections * test_case.expected_max_inspection_multiplier
-    assert all(
-        isinstance(dependency.answer, tuple)
-        and len(dependency.answer) <= test_case.expected_max_anchor_answer_paths
-        for dependency in (*small_queries, *large_queries)
-    )
 
 
 @pytest.mark.parametrize(

@@ -239,4 +239,3 @@ class MissingConfigGuidanceTestCase:
     description: str
     expected_prefix: str
     expected_guidance: str
-    expected_source: None

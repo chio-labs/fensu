@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import ast
-
-from fensu.rules.annotations._helpers.checks import annotation_faults
 from fensu.rules.annotations.types import AnnotationCode
-from fensu.rules.authoring.models import Fault, RuleSpec
-from fensu.rules.authoring.types import Family, RuleContext
+from fensu.rules.authoring.models import RuleSpec
+from fensu.rules.authoring.types import Family
 
 
 def annotation_rules() -> tuple[RuleSpec, ...]:
@@ -56,15 +53,10 @@ def annotation_rules() -> tuple[RuleSpec, ...]:
 
 
 def _rule(*, code: AnnotationCode, slug: str, message: str, remediation: str) -> RuleSpec:
-    def check(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
-        del module
-        return annotation_faults(ctx=ctx, code=code)
-
     return RuleSpec(
         code=code,
         family=Family.ANNOTATIONS,
         slug=slug,
         message=message,
         remediation=remediation,
-        check=check,
     )

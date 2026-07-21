@@ -9,6 +9,14 @@ class ModuleUnavailableError(Exception):
     """Raised when a rule declared module-free reads the raw module parameter."""
 
 
+class NativeCoreCallbackError(RuntimeError):
+    """Raised when native evaluation omits a selected core rule result."""
+
+
+class RuleCallbackUnavailableError(RuntimeError):
+    """Raised when a non-core rule has no executable callback."""
+
+
 class ParseError(Exception):
     """Raised when a Python file cannot be parsed by the running interpreter."""
 

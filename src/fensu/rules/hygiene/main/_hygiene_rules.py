@@ -4,17 +4,6 @@ from __future__ import annotations
 
 from fensu.rules.authoring.models import RuleSpec
 from fensu.rules.authoring.types import Family
-from fensu.rules.hygiene._helpers.checks import (
-    no_assert_in_runtime,
-    no_complex_comprehensions_in_tooling,
-    no_import_time_side_effects,
-    no_magic_numeric_comparisons,
-    no_raw_builtin_raise,
-    no_standalone_comments,
-    no_swallowed_exception_probe,
-    no_unnamed_string_decisions,
-    single_line_docstrings,
-)
 from fensu.rules.hygiene.types import HygieneCode
 
 
@@ -33,7 +22,6 @@ def hygiene_rules() -> tuple[RuleSpec, ...]:
                 "Keep one concise summary line and move extended rationale into documentation "
                 "or tests."
             ),
-            check=single_line_docstrings,
         ),
         RuleSpec(
             code=HygieneCode.NO_STANDALONE_COMMENTS,
@@ -44,7 +32,6 @@ def hygiene_rules() -> tuple[RuleSpec, ...]:
                 "Replace the comment with clearer names or move lasting explanation into "
                 "documentation or tests."
             ),
-            check=no_standalone_comments,
         ),
         RuleSpec(
             code=HygieneCode.NO_RAW_BUILTIN_RAISE,
@@ -55,7 +42,6 @@ def hygiene_rules() -> tuple[RuleSpec, ...]:
                 "Raise a domain-specific exception from exceptions.py with a stable actionable "
                 "message."
             ),
-            check=no_raw_builtin_raise,
         ),
         RuleSpec(
             code=HygieneCode.NO_ASSERT_IN_RUNTIME,
@@ -65,7 +51,6 @@ def hygiene_rules() -> tuple[RuleSpec, ...]:
             remediation=(
                 "Replace assert with an explicit guard that raises a domain-specific exception."
             ),
-            check=no_assert_in_runtime,
         ),
         RuleSpec(
             code=HygieneCode.NO_SWALLOWED_EXCEPTION_PROBE,
@@ -76,14 +61,12 @@ def hygiene_rules() -> tuple[RuleSpec, ...]:
                 "Use an explicit metadata or existence check, or catch only the expected "
                 "exception and preserve failures."
             ),
-            check=no_swallowed_exception_probe,
         ),
         RuleSpec(
             code=HygieneCode.NO_COMPLEX_COMPREHENSIONS_IN_TOOLING,
             family=Family.HYGIENE,
             slug="no-complex-comprehensions-in-tooling",
             message="nested or multi-generator comprehensions hide control flow and data shapes",
-            check=no_complex_comprehensions_in_tooling,
             remediation=(
                 "Extract a named helper when the transformation has a coherent purpose. For "
                 "one-off local logic, use simple statements with named intermediate values "
@@ -99,7 +82,6 @@ def hygiene_rules() -> tuple[RuleSpec, ...]:
                 "Name the decision value in constants.py or compare against an enum member so "
                 "the branch expresses the concept it represents."
             ),
-            check=no_unnamed_string_decisions,
         ),
         RuleSpec(
             code=HygieneCode.NO_MAGIC_NUMERIC_COMPARISONS,
@@ -110,7 +92,6 @@ def hygiene_rules() -> tuple[RuleSpec, ...]:
                 "Name the threshold or sentinel in constants.py and compare against that name; "
                 "only -1, 0, and 1 are self-explanatory comparison values."
             ),
-            check=no_magic_numeric_comparisons,
         ),
         RuleSpec(
             code=HygieneCode.NO_IMPORT_TIME_SIDE_EFFECTS,
@@ -120,6 +101,5 @@ def hygiene_rules() -> tuple[RuleSpec, ...]:
             remediation=(
                 "Move the operation into an explicit function or assign a pure constructor result."
             ),
-            check=no_import_time_side_effects,
         ),
     )

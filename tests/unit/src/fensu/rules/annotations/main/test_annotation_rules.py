@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import Mock
 
 import pytest
 
@@ -131,7 +130,7 @@ def test_given_python_oracle_golden_when_checking_native_rule_then_output_is_ide
     "test_case",
     [
         AnnotationRuleTestCase(
-            description="registered native rule bypasses its Python core callback",
+            description="registered native rule has no Python core callback",
             rule_code="FFA001",
             source="def run(value) -> None:\n    return None\n",
             expected_codes=("FFA001",),
@@ -140,20 +139,17 @@ def test_given_python_oracle_golden_when_checking_native_rule_then_output_is_ide
     ],
     ids=lambda case: case.description,
 )
-def test_given_registered_native_rule_when_evaluating_then_skips_python_callback(
+def test_given_registered_native_rule_when_evaluating_then_has_no_python_callback(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     test_case: AnnotationRuleTestCase,
 ) -> None:
-    python_callback: Mock = Mock(side_effect=AssertionError("Python callback executed"))
-    monkeypatch.setattr(annotation_rules_module, "annotation_faults", python_callback)
-
     result: EvaluationResult = evaluate_annotation_test_case(
         test_case=test_case, tmp_path=tmp_path, monkeypatch=monkeypatch
     )
 
     assert tuple(fault.code for fault in result.faults) == test_case.expected_codes
-    assert python_callback.call_count == 0
+    assert all(rule.check is None for rule in annotation_rules_module.annotation_rules())
 
 
 @pytest.mark.parametrize(

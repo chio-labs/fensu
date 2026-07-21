@@ -11,10 +11,15 @@ from fensu.discovery.main.position import position_facts
 from fensu.discovery.main.route import families_for_scope
 from fensu.discovery.models import PositionFacts, ScopedFile
 from fensu.evaluation._helpers.parsing import parse_scoped_file
-from fensu.evaluation.exceptions import ModuleUnavailableError
+from fensu.evaluation.exceptions import (
+    ModuleUnavailableError,
+    NativeCoreCallbackError,
+    RuleCallbackUnavailableError,
+)
 from fensu.evaluation.main.evaluate import evaluate
 from fensu.evaluation.models import EvaluationResult, ParsedModule, ThresholdOverrideUse
-from fensu.rules.authoring.types import ExecutionOwner, Family, Threshold
+from fensu.rules.authoring.models import RuleSpec
+from fensu.rules.authoring.types import ExecutionOwner, Family, RuleKind, Threshold
 from tests.unit.src.fensu.evaluation._test_types import (
     AnalysisContextTestCase,
     AstHelperContextTestCase,
@@ -25,6 +30,7 @@ from tests.unit.src.fensu.evaluation._test_types import (
     EvaluationOperationTestCase,
     ExecutionOwnerEvaluationTestCase,
     FaultFactoryTestCase,
+    MissingCallbackTestCase,
     ModuleGateTestCase,
     ProjectDependencyEvaluationTestCase,
     ThresholdObservationTestCase,
@@ -49,6 +55,46 @@ from tests.unit.src.fensu.evaluation.helpers import (
     make_undeclared_module_rule,
     write_sources,
 )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        MissingCallbackTestCase(
+            description="missing native core result fails loud",
+            code="FFA999",
+            kind=RuleKind.CORE,
+            expected_error_type=NativeCoreCallbackError,
+            expected_message="Native evaluation returned no result for selected core rule FFA999.",
+        ),
+        MissingCallbackTestCase(
+            description="callback-free custom rule fails loud",
+            code="XCR999",
+            kind=RuleKind.CUSTOM,
+            expected_error_type=RuleCallbackUnavailableError,
+            expected_message="Custom rule XCR999 has no callback.",
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_callback_free_rule_when_evaluating_then_fails_loud(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: MissingCallbackTestCase,
+) -> None:
+    write_sources(repo_root=tmp_path, files=(("src/pkg/models.py", "value: int = 1\n"),))
+    monkeypatch.chdir(tmp_path)
+    config: Config = Config(roots=("src/pkg",))
+    rule: RuleSpec = RuleSpec(
+        code=test_case.code,
+        family=Family.CUSTOM,
+        slug="missing-callback",
+        message="missing callback",
+        kind=test_case.kind,
+    )
+
+    with pytest.raises(test_case.expected_error_type, match=test_case.expected_message):
+        evaluate(tree=discover_test_tree(config=config), ruleset=(rule,), config=config)
 
 
 @pytest.mark.parametrize(

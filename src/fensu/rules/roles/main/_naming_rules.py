@@ -4,13 +4,6 @@ from __future__ import annotations
 
 from fensu.rules.authoring.models import RuleSpec
 from fensu.rules.authoring.types import Family
-from fensu.rules.roles._helpers.checks import (
-    banned_generic_filename,
-    banned_generic_package_name,
-    classes_module_name,
-    helpers_classes_file_private,
-    helpers_module_name,
-)
 from fensu.rules.roles.types import RoleCode
 
 
@@ -24,7 +17,6 @@ def naming_rules() -> tuple[RuleSpec, ...]:
             slug="banned-generic-filename",
             message="generic filenames hide module ownership",
             remediation="Rename the module after the domain concept or operation it owns.",
-            check=banned_generic_filename,
         ),
         RuleSpec(
             code=RoleCode.HELPERS_MODULE_NAME,
@@ -34,7 +26,6 @@ def naming_rules() -> tuple[RuleSpec, ...]:
             remediation=(
                 "Replace helpers.py with an _helpers/ package of specifically named modules."
             ),
-            check=helpers_module_name,
         ),
         RuleSpec(
             code=RoleCode.CLASSES_MODULE_NAME,
@@ -44,7 +35,6 @@ def naming_rules() -> tuple[RuleSpec, ...]:
             remediation=(
                 "Replace classes.py with a classes/ package containing one class per module."
             ),
-            check=classes_module_name,
         ),
         RuleSpec(
             code=RoleCode.BANNED_GENERIC_PACKAGE_NAME,
@@ -54,7 +44,6 @@ def naming_rules() -> tuple[RuleSpec, ...]:
             remediation=(
                 "Rename the package after the business domain or technical capability it owns."
             ),
-            check=banned_generic_package_name,
         ),
         RuleSpec(
             code=RoleCode.HELPERS_CLASSES_FILE_PRIVATE,
@@ -64,6 +53,5 @@ def naming_rules() -> tuple[RuleSpec, ...]:
             remediation=(
                 "Prefix a file-local helper class with _, or move a shared class into classes/."
             ),
-            check=helpers_classes_file_private,
         ),
     )

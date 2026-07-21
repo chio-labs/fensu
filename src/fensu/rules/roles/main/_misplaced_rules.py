@@ -4,12 +4,6 @@ from __future__ import annotations
 
 from fensu.rules.authoring.models import RuleSpec
 from fensu.rules.authoring.types import Family
-from fensu.rules.roles._helpers.checks import (
-    constant_outside_constants,
-    exception_declaration_outside_exceptions,
-    model_declaration_outside_models,
-    type_declaration_outside_types,
-)
 from fensu.rules.roles.types import RoleCode
 
 
@@ -25,7 +19,6 @@ def misplaced_rules() -> tuple[RuleSpec, ...]:
             remediation=(
                 "Move the dataclass or structured model into models.py or a models/ package."
             ),
-            check=model_declaration_outside_models,
         ),
         RuleSpec(
             code=RoleCode.TYPE_DECLARATION_OUTSIDE_TYPES,
@@ -33,7 +26,6 @@ def misplaced_rules() -> tuple[RuleSpec, ...]:
             slug="type-declaration-outside-types",
             message="type-layer declarations must be defined in the types role",
             remediation="Move the protocol, enum, TypedDict, or public type alias into types.py.",
-            check=type_declaration_outside_types,
         ),
         RuleSpec(
             code=RoleCode.CONSTANT_OUTSIDE_CONSTANTS,
@@ -41,7 +33,6 @@ def misplaced_rules() -> tuple[RuleSpec, ...]:
             slug="constant-outside-constants",
             message="public uppercase constants must be defined in the constants role",
             remediation="Move the public constant into constants.py and import it from there.",
-            check=constant_outside_constants,
         ),
         RuleSpec(
             code=RoleCode.EXCEPTION_DECLARATION_OUTSIDE_EXCEPTIONS,
@@ -49,6 +40,5 @@ def misplaced_rules() -> tuple[RuleSpec, ...]:
             slug="exception-declaration-outside-exceptions",
             message="custom exceptions must be defined in the exceptions role",
             remediation="Move the exception class into exceptions.py or an exceptions/ package.",
-            check=exception_declaration_outside_exceptions,
         ),
     )

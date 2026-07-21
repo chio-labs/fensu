@@ -7,7 +7,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import TYPE_CHECKING
 
-from fensu.cache.fingerprints.main.source import fingerprint_source
+from fensu.cache.fingerprints.main._source import fingerprint_source
 from fensu.cache.fingerprints.models import CacheFingerprint
 from fensu.cache.results._helpers.paths import relative_repository_path
 from fensu.cache.results.classes.result_cache import ResultCache

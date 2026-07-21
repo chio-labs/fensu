@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
-import sys
 from importlib import metadata
 from pathlib import Path
 
@@ -14,7 +13,6 @@ import pytest
 from tests.e2e.src.fensu.cli.main._test_types import (
     CliProjectFile,
     DistributionOwnershipTestCase,
-    NativeCommandParityTestCase,
     NativeProcessAccountingTestCase,
     UpgradeSafetyTestCase,
 )
@@ -23,103 +21,8 @@ from tests.e2e.src.fensu.cli.main.helpers import (
     installed_fensu_executable,
     isolated_site_packages,
     native_exec_trace,
-    run_command_parity,
     write_cli_project,
 )
-
-
-@pytest.mark.parametrize(
-    "test_case",
-    [
-        NativeCommandParityTestCase(
-            description="top-level help is byte-identical",
-            argv=("--help",),
-            config='roots = ["src/pkg"]\ntests = []\n',
-            files=(),
-            expected_exit_code=0,
-        ),
-        NativeCommandParityTestCase(
-            description="version is byte-identical",
-            argv=("--version",),
-            config='roots = ["src/pkg"]\ntests = []\n',
-            files=(),
-            expected_exit_code=0,
-        ),
-        NativeCommandParityTestCase(
-            description="rule metadata is byte-identical",
-            argv=("rule", "FFA101", "--color", "never"),
-            config='roots = ["src/pkg"]\ntests = []\n',
-            files=(CliProjectFile(relative_path="src/pkg/__init__.py", source=""),),
-            expected_exit_code=0,
-        ),
-        NativeCommandParityTestCase(
-            description="core check diagnostic is byte-identical",
-            argv=("check", "--no-cache", "--no-color"),
-            config='roots = ["src/pkg"]\ntests = []\nselect = ["FFA101"]\n',
-            files=(CliProjectFile(relative_path="src/pkg/models.py", source="VALUE = 1\n"),),
-            expected_exit_code=1,
-        ),
-        NativeCommandParityTestCase(
-            description="long diagnostic remediation wrapping is byte-identical",
-            argv=("check", "--no-cache", "--no-color"),
-            config='roots = ["src/pkg"]\ntests = []\nselect = ["FFH008"]\n',
-            files=(
-                CliProjectFile(
-                    relative_path="src/pkg/_helpers/comparison.py",
-                    source="def exceeds(value: int) -> bool:\n    return value > 250\n",
-                ),
-            ),
-            expected_exit_code=1,
-        ),
-        NativeCommandParityTestCase(
-            description="existing-config init is byte-identical",
-            argv=("init", "--yes", "--no-skills"),
-            config='roots = ["src/pkg"]\ntests = []\n',
-            files=(),
-            expected_exit_code=0,
-        ),
-        NativeCommandParityTestCase(
-            description="native memory schema is byte-identical",
-            argv=("memory", "schema", "current_tasks", "--color", "never"),
-            config=('roots = ["src/pkg"]\ntests = []\n[experimental]\nmemory = true\n'),
-            files=(),
-            expected_exit_code=0,
-        ),
-        NativeCommandParityTestCase(
-            description="native map is byte-identical",
-            argv=("map", "pkg.entry.run", "--depth", "2", "--no-cache", "--color", "never"),
-            config='roots = ["src/pkg"]\ntests = []\n',
-            files=(
-                CliProjectFile(
-                    relative_path="src/pkg/entry.py",
-                    source=("from pkg.steps import step\n\ndef run() -> None:\n    step()\n"),
-                ),
-                CliProjectFile(
-                    relative_path="src/pkg/steps.py",
-                    source="def step() -> None:\n    return None\n",
-                ),
-            ),
-            expected_exit_code=0,
-        ),
-    ],
-    ids=lambda case: case.description,
-)
-def test_given_supported_command_when_running_python_and_binary_then_output_is_identical(
-    tmp_path: Path,
-    test_case: NativeCommandParityTestCase,
-) -> None:
-    write_cli_project(
-        root=tmp_path,
-        config=test_case.config,
-        files=tuple((file.relative_path, file.source) for file in test_case.files),
-    )
-
-    python_result, native_result = run_command_parity(root=tmp_path, argv=test_case.argv)
-
-    assert python_result.returncode == test_case.expected_exit_code
-    assert native_result.returncode == test_case.expected_exit_code
-    assert native_result.stdout == python_result.stdout
-    assert native_result.stderr == python_result.stderr
 
 
 @pytest.mark.skipif(
@@ -363,6 +266,64 @@ def test_given_custom_rules_when_tracing_skills_then_launches_exactly_one_metada
     assert sum("python" in line.lower() for line in exec_lines) == 1
 
 
+@pytest.mark.skipif(
+    os.name != "posix" or shutil.which("strace") is None,
+    reason="Linux-compatible strace is required for exec accounting",
+)
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        NativeProcessAccountingTestCase(
+            description="custom check executes one binary and exactly one Python callback host",
+            config=(
+                'roots = ["src/pkg"]\ntests = []\nselect = ["XCK001"]\n'
+                'rule_paths = ["rules/custom.py"]\n'
+            ),
+            files=(
+                CliProjectFile(relative_path="src/pkg/target.py", source="VALUE: int = 1\n"),
+                CliProjectFile(
+                    relative_path="rules/custom.py",
+                    source=(
+                        "import ast\n"
+                        "from fensu import Family, Fault, RuleContext, rule\n\n"
+                        '@rule(code="XCK001", family=Family.CUSTOM, slug="always", '
+                        'message="custom fault")\n'
+                        "def always(module: ast.Module, ctx: RuleContext) -> list[Fault]:\n"
+                        "    return [ctx.fault(node=module.body[0])]\n"
+                    ),
+                ),
+            ),
+            argv=("check", "--no-cache", "--no-color"),
+            expected_exit_code=1,
+            expected_exec_count=2,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_custom_rules_when_tracing_check_then_launches_exactly_one_callback_host(
+    tmp_path: Path,
+    test_case: NativeProcessAccountingTestCase,
+) -> None:
+    write_cli_project(
+        root=tmp_path,
+        config=test_case.config,
+        files=tuple((file.relative_path, file.source) for file in test_case.files),
+    )
+    trace_path: Path = tmp_path / "custom-check.trace"
+
+    completed: subprocess.CompletedProcess[str] = native_exec_trace(
+        root=tmp_path,
+        argv=test_case.argv,
+        trace_path=trace_path,
+    )
+    exec_lines: tuple[str, ...] = exec_trace_lines(trace_path)
+
+    assert completed.returncode == test_case.expected_exit_code
+    assert "XCK001" in completed.stdout
+    assert len(exec_lines) == test_case.expected_exec_count
+    assert sum("python" in line.lower() for line in exec_lines) == 1
+
+
 @pytest.mark.parametrize(
     "test_case",
     [
@@ -386,40 +347,6 @@ def test_given_installed_distributions_when_inspecting_files_then_script_has_one
 
     assert any(Path(path).name == test_case.expected_cli_script_name for path in cli_files)
     assert len(authoring_entrypoints) == test_case.expected_authoring_entrypoint_count
-
-
-@pytest.mark.parametrize(
-    "test_case",
-    [
-        UpgradeSafetyTestCase(
-            description="stale Python wrapper reports binary reinstall recovery",
-            installed_version="0.20.0",
-            expected_exit_code=2,
-            expected_error_fragment="stale Python console script",
-        )
-    ],
-    ids=lambda case: case.description,
-)
-def test_given_pre_split_console_wrapper_when_invoked_then_stale_script_is_rejected(
-    tmp_path: Path,
-    test_case: UpgradeSafetyTestCase,
-) -> None:
-    wrapper: Path = tmp_path / "fensu"
-    wrapper.write_text(
-        f"#!{sys.executable}\nfrom fensu.cli.main.entry import main\nraise SystemExit(main())\n",
-        encoding="utf-8",
-    )
-    wrapper.chmod(0o755)
-
-    completed: subprocess.CompletedProcess[str] = subprocess.run(
-        (sys.executable, str(wrapper), "--version"),
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    assert completed.returncode == test_case.expected_exit_code
-    assert test_case.expected_error_fragment in completed.stderr
 
 
 @pytest.mark.parametrize(

@@ -4,12 +4,6 @@ from __future__ import annotations
 
 from fensu.rules.authoring.models import RuleSpec
 from fensu.rules.authoring.types import Family
-from fensu.rules.roles._helpers.checks import (
-    constants_only_constants,
-    exceptions_only_exceptions,
-    models_only_models,
-    types_only_types,
-)
 from fensu.rules.roles.types import RoleCode
 
 
@@ -23,7 +17,6 @@ def content_rules() -> tuple[RuleSpec, ...]:
             slug="models-only-models",
             message="models role files may contain only structured runtime models",
             remediation="Move functions and non-model declarations to their owning role module.",
-            check=models_only_models,
         ),
         RuleSpec(
             code=RoleCode.TYPES_ONLY_TYPES,
@@ -33,7 +26,6 @@ def content_rules() -> tuple[RuleSpec, ...]:
             remediation=(
                 "Move runtime values and functions out of types.py into their owning runtime role."
             ),
-            check=types_only_types,
         ),
         RuleSpec(
             code=RoleCode.CONSTANTS_ONLY_CONSTANTS,
@@ -43,7 +35,6 @@ def content_rules() -> tuple[RuleSpec, ...]:
             remediation=(
                 "Move functions and classes out of constants.py into their owning role module."
             ),
-            check=constants_only_constants,
         ),
         RuleSpec(
             code=RoleCode.EXCEPTIONS_ONLY_EXCEPTIONS,
@@ -53,6 +44,5 @@ def content_rules() -> tuple[RuleSpec, ...]:
             remediation=(
                 "Move non-exception declarations out of exceptions.py into their owning role."
             ),
-            check=exceptions_only_exceptions,
         ),
     )

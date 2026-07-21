@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0](https://github.com/chio-labs/fensu/compare/v0.2.2...v0.3.0) (2026-07-21)
+
+
+### Features
+
+* **cli:** run built-in commands natively ([a405bf2](https://github.com/chio-labs/fensu/commit/a405bf29e42efb5c3a5e098b91c4ecbcb27545ad))
+* **cli:** run built-in commands natively ([ffc19f7](https://github.com/chio-labs/fensu/commit/ffc19f7e9a7026d2d7ef4cc8c9b38b95c5192474))
+
 ## [0.2.2](https://github.com/chio-labs/fensu/compare/v0.2.1...v0.2.2) (2026-07-19)
 
 

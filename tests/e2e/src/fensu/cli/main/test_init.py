@@ -8,7 +8,6 @@ from pathlib import Path
 import pytest
 
 from fensu.cache.storage.constants import CACHE_DATABASE_RELATIVE_PATH
-from fensu.scaffolding.constants import FENSU_GITIGNORE_BLOCK, PYTHON_GITIGNORE_TEMPLATE
 from tests.e2e.src.fensu.cli.main._test_types import (
     CliProjectFile,
     InstalledInitCliTestCase,
@@ -42,10 +41,6 @@ from tests.e2e.src.fensu.cli.main.helpers import (
             ),
             expected_exit_code=0,
             expected_files=(
-                CliProjectFile(
-                    relative_path=".gitignore",
-                    source=FENSU_GITIGNORE_BLOCK.decode(),
-                ),
                 CliProjectFile(
                     relative_path="pyproject.toml",
                     source=(
@@ -88,10 +83,6 @@ from tests.e2e.src.fensu.cli.main.helpers import (
             initial_files=(),
             expected_exit_code=0,
             expected_files=(
-                CliProjectFile(
-                    relative_path=".gitignore",
-                    source=(PYTHON_GITIGNORE_TEMPLATE + FENSU_GITIGNORE_BLOCK).decode(),
-                ),
                 CliProjectFile(relative_path="src/my_project/__init__.py", source=""),
                 CliProjectFile(
                     relative_path="fensu.toml",

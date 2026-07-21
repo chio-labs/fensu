@@ -11,7 +11,7 @@ from typing import cast
 
 from fensu.analysis.main.resolve_native_backend_version import resolve_native_backend_version
 from fensu.cache.results._helpers.paths import relative_repository_path
-from fensu.cli.main.check import run_check
+from fensu.cli.main.custom_check_host import run_custom_check as run_check
 from fensu.instrumentation.main.measure_operations import measure_operations
 from scripts.benchmarking.classes.check_profiler import CheckProfiler
 from scripts.benchmarking.models import OperationReport, ProfileReport

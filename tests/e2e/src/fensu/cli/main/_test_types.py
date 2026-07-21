@@ -126,17 +126,6 @@ class InstalledInitCliTestCase:
 
 
 @dataclass(frozen=True)
-class NativeCommandParityTestCase:
-    """One Python-fallback and native-binary output parity scenario."""
-
-    description: str
-    argv: tuple[str, ...]
-    config: str
-    files: tuple[CliProjectFile, ...]
-    expected_exit_code: int
-
-
-@dataclass(frozen=True)
 class NativeProcessAccountingTestCase:
     """One native command process-boundary expectation."""
 

@@ -24,10 +24,3 @@ pub(crate) struct PublicationRaceTestCase {
     pub(crate) staged_payload_size: usize,
     pub(crate) expected_exit_code: i32,
 }
-
-pub(crate) struct RendererParityTestCase {
-    pub(crate) description: &'static str,
-    pub(crate) config: &'static str,
-    pub(crate) fixture_paths: &'static [&'static str],
-    pub(crate) expected_exit_code: i32,
-}

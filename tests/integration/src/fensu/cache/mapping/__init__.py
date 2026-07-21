@@ -1,1 +1,0 @@
-"""Mapping cache integration tests."""

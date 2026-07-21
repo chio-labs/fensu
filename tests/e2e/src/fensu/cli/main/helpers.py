@@ -20,6 +20,7 @@ from tests.e2e.src.fensu.cli.main._test_types import (
 )
 
 _EXECUTABLE_NAMES: dict[str, str] = {"nt": "fensu.exe", "posix": "fensu"}
+_GENERATED_SNAPSHOT_PATHS: frozenset[str] = frozenset({".gitignore"})
 _SITE_PACKAGES_DIRECTORIES: dict[str, str] = {
     "nt": "Lib/site-packages",
     "posix": "lib/python3.12/site-packages",
@@ -140,7 +141,10 @@ def repository_text_snapshot(root: Path) -> tuple[tuple[str, str], ...]:
 
 
 def _is_user_authored_file(path: Path, *, root: Path) -> bool:
-    return not path.relative_to(root).as_posix().startswith(".fensu/cache/")
+    relative_path: str = path.relative_to(root).as_posix()
+    return relative_path not in _GENERATED_SNAPSHOT_PATHS and not relative_path.startswith(
+        ".fensu/cache/"
+    )
 
 
 def config_values(root: Path) -> tuple[tuple[str, tuple[str, ...]], ...]:
@@ -209,34 +213,6 @@ def remove_check_output_record(root: Path) -> int:
             (CACHE_CHECK_OUTPUT_KIND,),
         )
     return cursor.rowcount
-
-
-def run_command_parity(
-    *, root: Path, argv: tuple[str, ...]
-) -> tuple[subprocess.CompletedProcess[str], subprocess.CompletedProcess[str]]:
-    """Run one command through the Python fallback and installed native binary."""
-
-    environment: dict[str, str] = dict(os.environ)
-    environment["NO_COLOR"] = "1"
-    environment["PYTHONIOENCODING"] = "utf-8"
-    environment["PYTHONUTF8"] = "1"
-    python_result: subprocess.CompletedProcess[str] = subprocess.run(
-        (sys.executable, "-m", "fensu", *argv),
-        cwd=root,
-        env=environment,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    native_result: subprocess.CompletedProcess[str] = subprocess.run(
-        (str(installed_fensu_executable()), *argv),
-        cwd=root,
-        env=environment,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    return python_result, native_result
 
 
 def native_exec_trace(

@@ -6,8 +6,7 @@ use crate::helpers::{
     stale_skill, target, text, workspace_python, write, CONFIG,
 };
 use crate::test_types::{
-    ExceptionSymbolTestCase, FreshnessTestCase, PublicationRaceTestCase, RendererParityTestCase,
-    SkillsCommandTestCase,
+    ExceptionSymbolTestCase, FreshnessTestCase, PublicationRaceTestCase, SkillsCommandTestCase,
 };
 
 #[test]
@@ -380,83 +379,6 @@ fn given_symlink_and_case_collisions_when_updating_then_preflight_prevents_all_w
         assert_eq!(result.status.code(), Some(2));
         assert!(text(&result.stderr).contains("normalization collides"));
         assert!(!target(collision.path(), ".agents", "fensu-fixture").exists());
-    }
-}
-
-#[test]
-fn given_python_and_native_installs_when_cross_checking_then_both_are_current() {
-    let Some(python_executable) = workspace_python() else {
-        return;
-    };
-    let test_cases = [
-        RendererParityTestCase {
-            description: "default core selectors",
-            config: "roots = [\"src/pkg\"]\ntests = []\nselect = [\"FF\"]\n[skills]\nname = \"fixture\"\n",
-            fixture_paths: &["src/pkg"],
-            expected_exit_code: 0,
-        },
-        RendererParityTestCase {
-            description: "partial blocking warning and ignore selectors",
-            config: "roots = [\"src/pkg\"]\ntests = []\nselect = [\"FFR3\"]\nwarn = [\"FFN\"]\nignore = [\"FFR307\"]\n[skills]\nname = \"fixture\"\n",
-            fixture_paths: &["src/pkg"],
-            expected_exit_code: 0,
-        },
-        RendererParityTestCase {
-            description: "multiple runtime test and tooling roots",
-            config: "roots = [\"src/pkg\", \"lib/other\"]\ntests = [\"tests\"]\ntooling = [\"scripts\"]\nselect = [\"FF\"]\n[skills]\nname = \"fixture\"\n",
-            fixture_paths: &["src/pkg", "lib/other", "tests", "scripts"],
-            expected_exit_code: 0,
-        },
-    ];
-    for test_case in test_cases {
-        let repository = tempfile::tempdir().expect("renderer parity project");
-        write(repository.path().join("fensu.toml"), test_case.config);
-        for path in test_case.fixture_paths {
-            write(repository.path().join(path).join("__init__.py"), b"");
-        }
-        let python = Command::new(&python_executable)
-            .args(["-m", "fensu", "skills", "--target", "agents"])
-            .current_dir(repository.path())
-            .output()
-            .expect("Python skills oracle");
-        assert_eq!(
-            python.status.code(),
-            Some(test_case.expected_exit_code),
-            "{}: {}",
-            test_case.description,
-            text(&python.stderr)
-        );
-        let native_check = native(repository.path(), &["--target", "agents", "--check"]);
-        assert_eq!(
-            native_check.status.code(),
-            Some(0),
-            "{}: stdout={} stderr={}",
-            test_case.description,
-            text(&native_check.stdout),
-            text(&native_check.stderr)
-        );
-
-        let native_update = native(repository.path(), &["--target", "opencode"]);
-        assert_eq!(
-            native_update.status.code(),
-            Some(0),
-            "{}",
-            text(&native_update.stderr)
-        );
-        let python_check = Command::new(&python_executable)
-            .args([
-                "-m", "fensu", "skills", "--target", "opencode", "--check",
-            ])
-            .current_dir(repository.path())
-            .output()
-            .expect("Python skills check oracle");
-        assert_eq!(
-            python_check.status.code(),
-            Some(0),
-            "stdout={} stderr={}",
-            text(&python_check.stdout),
-            text(&python_check.stderr)
-        );
     }
 }
 

@@ -32,16 +32,6 @@ class FftRuleTestCase:
 
 
 @dataclass(frozen=True)
-class FftOperationTestCase:
-    """Expected operation counts from evaluating the complete FFT family."""
-
-    description: str
-    expected_parse_count: int
-    expected_layout_count: int
-    expected_function_issue_count: int
-
-
-@dataclass(frozen=True)
 class FftConfiguredLayoutTestCase:
     """Configured source and test paths expected to form a valid mirror."""
 

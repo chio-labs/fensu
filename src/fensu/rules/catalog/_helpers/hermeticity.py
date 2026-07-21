@@ -8,7 +8,7 @@ from pathlib import Path
 
 from fensu.config.exceptions import ConfigError
 from fensu.rules.authoring.models import RuleSpec
-from fensu.rules.authoring.types import RuleKind
+from fensu.rules.authoring.types import RuleCheck, RuleKind
 from fensu.rules.catalog.constants import (
     CACHEABLE_ALLOWED_IMPORT_ROOTS,
     CACHEABLE_BANNED_BUILTIN_CALLS,
@@ -134,8 +134,11 @@ def _receiver_names(receiver: ast.expr) -> tuple[str, ...]:
 
 
 def _check_source_path(rule: RuleSpec) -> Path | None:
+    check: RuleCheck | None = rule.check
+    if check is None:
+        return None
     try:
-        source_path: str | None = inspect.getsourcefile(rule.check)
+        source_path: str | None = inspect.getsourcefile(check)
     except TypeError:
         return None
     if source_path is None:

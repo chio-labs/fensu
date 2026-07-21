@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from fensu.cli.main.check import run_check
+from fensu.cli.main.custom_check_host import run_custom_check as run_check
 from scripts.benchmarking._helpers.profiling import profile_operations
 from scripts.benchmarking.classes.check_profiler import CheckProfiler
 from scripts.benchmarking.models import OperationReport, ProfileReport

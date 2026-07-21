@@ -4,16 +4,6 @@ from __future__ import annotations
 
 from fensu.rules.authoring.models import RuleSpec
 from fensu.rules.authoring.types import ExecutionOwner, Family
-from fensu.rules.layers._helpers.checks import (
-    absolute_imports_only,
-    no_cross_domain_private_main_imports,
-    no_cross_package_internals,
-    no_internal_public_surface_imports,
-    no_runtime_imports_from_tooling,
-    no_sibling_package_internals,
-    no_star_imports,
-    public_main_entry_external_use,
-)
 from fensu.rules.layers.types import LayerCode
 
 
@@ -27,7 +17,6 @@ def import_rules() -> tuple[RuleSpec, ...]:
             slug="absolute-imports-only",
             message="use absolute imports; relative imports hide package boundaries",
             remediation="Replace relative imports with an absolute import path.",
-            check=absolute_imports_only,
         ),
         RuleSpec(
             code=LayerCode.NO_STAR_IMPORTS,
@@ -35,7 +24,6 @@ def import_rules() -> tuple[RuleSpec, ...]:
             slug="no-star-imports",
             message="star imports hide names from dependency-boundary analysis",
             remediation="Import each required name explicitly.",
-            check=no_star_imports,
         ),
         RuleSpec(
             code=LayerCode.NO_SIBLING_PACKAGE_INTERNALS,
@@ -45,7 +33,6 @@ def import_rules() -> tuple[RuleSpec, ...]:
             remediation=(
                 "Publish the dependency through the owning sibling's main/ entry or role files."
             ),
-            check=no_sibling_package_internals,
         ),
         RuleSpec(
             code=LayerCode.NO_CROSS_PACKAGE_INTERNALS,
@@ -55,7 +42,6 @@ def import_rules() -> tuple[RuleSpec, ...]:
             remediation=(
                 "Import from classes, models, types, constants, exceptions, or a thin main/ entry."
             ),
-            check=no_cross_package_internals,
         ),
         RuleSpec(
             code=LayerCode.NO_INTERNAL_PUBLIC_SURFACE_IMPORTS,
@@ -63,7 +49,6 @@ def import_rules() -> tuple[RuleSpec, ...]:
             slug="no-internal-public-surface-imports",
             message="internal code must import from the owning module, not the bare package",
             remediation="Import from the concrete owning module below the package surface.",
-            check=no_internal_public_surface_imports,
         ),
         RuleSpec(
             code=LayerCode.NO_CROSS_DOMAIN_PRIVATE_MAIN_IMPORTS,
@@ -74,7 +59,6 @@ def import_rules() -> tuple[RuleSpec, ...]:
                 "Remove the leading underscore to publish the main entry, or route the caller "
                 "through a public main entry owned by the target domain."
             ),
-            check=no_cross_domain_private_main_imports,
         ),
         RuleSpec(
             code=LayerCode.PUBLIC_MAIN_ENTRY_EXTERNAL_USE,
@@ -85,7 +69,6 @@ def import_rules() -> tuple[RuleSpec, ...]:
                 "Prefix the entry module filename with '_' until another domain or tooling "
                 "imports it."
             ),
-            check=public_main_entry_external_use,
             execution_owner=ExecutionOwner.PROJECT,
         ),
         RuleSpec(
@@ -97,6 +80,5 @@ def import_rules() -> tuple[RuleSpec, ...]:
                 "Move reusable logic into the runtime package or keep the dependency inside "
                 "tooling."
             ),
-            check=no_runtime_imports_from_tooling,
         ),
     )

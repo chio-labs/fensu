@@ -3,15 +3,7 @@
 from __future__ import annotations
 
 from fensu.rules.authoring.models import RuleSpec
-from fensu.rules.authoring.types import Family, RuleCheck
-from fensu.rules.roles._helpers.checks import (
-    entry_module_shape,
-    init_module_empty,
-    main_entry_name_collision,
-    no_internal_helper_exports,
-    no_reexport_shim,
-    public_surface_shape,
-)
+from fensu.rules.authoring.types import Family
 from fensu.rules.roles._helpers.metadata import role_rule_details
 from fensu.rules.roles.types import RoleCode
 
@@ -20,30 +12,25 @@ def surface_rules() -> tuple[RuleSpec, ...]:
     """Build role surface rules."""
 
     return (
-        _rule(
-            code=RoleCode.ENTRY_MODULE_SHAPE, slug="entry-module-shape", check=entry_module_shape
-        ),
-        _rule(code=RoleCode.INIT_MODULE_EMPTY, slug="init-module-empty", check=init_module_empty),
-        _rule(code=RoleCode.NO_REEXPORT_SHIM, slug="no-reexport-shim", check=no_reexport_shim),
+        _rule(code=RoleCode.ENTRY_MODULE_SHAPE, slug="entry-module-shape"),
+        _rule(code=RoleCode.INIT_MODULE_EMPTY, slug="init-module-empty"),
+        _rule(code=RoleCode.NO_REEXPORT_SHIM, slug="no-reexport-shim"),
         _rule(
             code=RoleCode.NO_INTERNAL_HELPER_EXPORTS,
             slug="no-internal-helper-exports",
-            check=no_internal_helper_exports,
         ),
         _rule(
             code=RoleCode.MAIN_ENTRY_NAME_COLLISION,
             slug="main-entry-name-collision",
-            check=main_entry_name_collision,
         ),
         _rule(
             code=RoleCode.PUBLIC_SURFACE_SHAPE,
             slug="public-surface-shape",
-            check=public_surface_shape,
         ),
     )
 
 
-def _rule(*, code: RoleCode, slug: str, check: RuleCheck) -> RuleSpec:
+def _rule(*, code: RoleCode, slug: str) -> RuleSpec:
     message, remediation = role_rule_details(code)
     return RuleSpec(
         code=code,
@@ -51,5 +38,4 @@ def _rule(*, code: RoleCode, slug: str, check: RuleCheck) -> RuleSpec:
         slug=slug,
         message=message,
         remediation=remediation,
-        check=check,
     )

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from fensu.cli.main.check import run_check
+from fensu.cli.main.custom_check_host import run_custom_check as run_check
 from tests.integration.src.fensu.cli.main._test_types import (
     CheckErrorTestCase,
     CustomRuleCoverageCacheTestCase,

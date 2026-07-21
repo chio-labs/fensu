@@ -4,12 +4,6 @@ from __future__ import annotations
 
 from fensu.rules.authoring.models import RuleSpec
 from fensu.rules.authoring.types import Family
-from fensu.rules.naming._helpers.checks import (
-    iterator_name_must_produce_iterator,
-    predicate_must_return_bool,
-    validator_must_not_return,
-    value_name_must_return_value,
-)
 from fensu.rules.naming.types import NamingCode
 
 
@@ -26,7 +20,6 @@ def contract_rules() -> tuple[RuleSpec, ...]:
                 "Remove the meaningful return and raise on invalid input, or rename a "
                 "value-producing function as a query such as is_valid or get_validation_result."
             ),
-            check=validator_must_not_return,
         ),
         RuleSpec(
             code=NamingCode.PREDICATE_MUST_RETURN_BOOL,
@@ -37,7 +30,6 @@ def contract_rules() -> tuple[RuleSpec, ...]:
                 "Return bool (or TypeGuard/TypeIs), or rename the function to describe the value "
                 "it returns, such as read_status or current_status."
             ),
-            check=predicate_must_return_bool,
         ),
         RuleSpec(
             code=NamingCode.VALUE_NAME_MUST_RETURN_VALUE,
@@ -48,7 +40,6 @@ def contract_rules() -> tuple[RuleSpec, ...]:
                 "Return the queried or converted value, or rename the function to describe its "
                 "side effect, such as initialize_cache or export_json."
             ),
-            check=value_name_must_return_value,
         ),
         RuleSpec(
             code=NamingCode.ITERATOR_NAME_MUST_PRODUCE_ITERATOR,
@@ -59,6 +50,5 @@ def contract_rules() -> tuple[RuleSpec, ...]:
                 "Return an iterator or generator, or rename an eager collection function with a "
                 "name such as collect_items."
             ),
-            check=iterator_name_must_produce_iterator,
         ),
     )

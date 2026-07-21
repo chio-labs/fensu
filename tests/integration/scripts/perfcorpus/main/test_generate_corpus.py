@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from fensu.cli.main.check import run_check
+from fensu.cli.main.custom_check_host import run_custom_check as run_check
 from scripts.perfcorpus.main.generate_corpus import generate_corpus
 from scripts.perfcorpus.models import CorpusSpec, CorpusSummary
 from tests.integration.scripts.perfcorpus.main._test_types import (

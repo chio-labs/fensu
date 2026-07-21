@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from importlib import metadata
 
 import pytest
@@ -46,6 +47,37 @@ def test_given_top_level_option_when_running_installed_cli_then_matches_contract
 ) -> None:
     completed: subprocess.CompletedProcess[str] = subprocess.run(
         (str(installed_fensu_executable()), *test_case.argv),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == test_case.expected_exit_code
+    assert completed.stdout == test_case.expected_stdout
+    assert completed.stderr == test_case.expected_stderr
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        InstalledEntryCliTestCase(
+            description="retired Python module entry directs users to the native command",
+            argv=("--version",),
+            expected_exit_code=2,
+            expected_stdout="",
+            expected_stderr=(
+                "`python -m fensu` has been retired; install and run the native `fensu` command "
+                "from the fensu-cli package.\n"
+            ),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_python_module_entry_when_invoked_then_rejects_retired_fallback(
+    test_case: InstalledEntryCliTestCase,
+) -> None:
+    completed: subprocess.CompletedProcess[str] = subprocess.run(
+        (sys.executable, "-m", "fensu", *test_case.argv),
         capture_output=True,
         text=True,
         check=False,

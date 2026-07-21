@@ -27,14 +27,6 @@ impl CliOutput {
             exit_code: 2,
         }
     }
-
-    pub fn delegated(exit_code: i32) -> Self {
-        Self {
-            stdout: String::new(),
-            stderr: String::new(),
-            exit_code,
-        }
-    }
 }
 
 #[derive(Debug, Default)]

@@ -4,15 +4,6 @@ from __future__ import annotations
 
 from fensu.rules.authoring.models import RuleSpec
 from fensu.rules.authoring.types import Family
-from fensu.rules.roles._helpers.checks import (
-    custom_rule_test_coverage,
-    descriptive_rule_module_names,
-    rules_role_content,
-    tooling_entrypoint_delegation,
-    tooling_entrypoint_line_count,
-    tooling_entrypoint_shape,
-    tooling_package_layout,
-)
 from fensu.rules.roles.types import RoleCode
 
 
@@ -29,7 +20,6 @@ def tooling_rules() -> tuple[RuleSpec, ...]:
                 "Keep one public main(), optional private _parse_args() and _build_parser(), and "
                 "move implementation into a scripts/<tool>/main/ entry."
             ),
-            check=tooling_entrypoint_shape,
         ),
         RuleSpec(
             code=RoleCode.TOOLING_ENTRYPOINT_DELEGATION,
@@ -40,7 +30,6 @@ def tooling_rules() -> tuple[RuleSpec, ...]:
                 "Import a typed entry function from a runtime or scripts/<tool>/main/ module and "
                 "return its result from main()."
             ),
-            check=tooling_entrypoint_delegation,
         ),
         RuleSpec(
             code=RoleCode.TOOLING_ENTRYPOINT_LINE_COUNT,
@@ -48,7 +37,6 @@ def tooling_rules() -> tuple[RuleSpec, ...]:
             slug="tooling-entrypoint-line-count",
             message="direct scripts must stay below the configured line limit",
             remediation="Move command implementation into a named tooling or runtime package.",
-            check=tooling_entrypoint_line_count,
         ),
         RuleSpec(
             code=RoleCode.RULES_ROLE_CONTENT,
@@ -59,7 +47,6 @@ def tooling_rules() -> tuple[RuleSpec, ...]:
                 "Keep imports and @rule functions here; move supporting implementation into "
                 "_helpers/, classes/, models.py, types.py, constants.py, or exceptions.py."
             ),
-            check=rules_role_content,
         ),
         RuleSpec(
             code=RoleCode.TOOLING_PACKAGE_LAYOUT,
@@ -70,7 +57,6 @@ def tooling_rules() -> tuple[RuleSpec, ...]:
                 "Use main/, _helpers/, classes/, rules/, models.py, types.py, constants.py, or "
                 "exceptions.py directly beneath scripts/<tool>/."
             ),
-            check=tooling_package_layout,
         ),
         RuleSpec(
             code=RoleCode.DESCRIPTIVE_RULE_MODULE_NAMES,
@@ -83,7 +69,6 @@ def tooling_rules() -> tuple[RuleSpec, ...]:
                 "Rename the module after the policy or rule family it implements, using a name "
                 "such as conditional_test_flow.py instead of fft104.py."
             ),
-            check=descriptive_rule_module_names,
         ),
         RuleSpec(
             code=RoleCode.CUSTOM_RULE_TEST_COVERAGE,
@@ -94,6 +79,5 @@ def tooling_rules() -> tuple[RuleSpec, ...]:
                 "Add parametrized RuleCase coverage for the rule's passing and failing boundaries "
                 "using evaluate_rule."
             ),
-            check=custom_rule_test_coverage,
         ),
     )

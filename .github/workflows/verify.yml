@@ -61,5 +61,4 @@ jobs:
       - run: uv python install 3.12
       - run: uv sync
       - run: uv run fensu --version
-      - run: uv run python -m fensu --version
       - run: uv run pytest tests/e2e/src/fensu/cli/main/test_entry.py tests/e2e/src/fensu/cli/main/test_native_distribution.py -q

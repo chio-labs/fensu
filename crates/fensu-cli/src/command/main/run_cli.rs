@@ -25,7 +25,12 @@ fn dispatch(arguments: &[String]) -> Result<CliOutput, String> {
         "--help" | "-h" => Ok(CliOutput::success(help::help())),
         "check" => {
             if custom_rules::custom_rules_are_configured(Path::new("."))? {
-                process::run_python(arguments).map(CliOutput::delegated)
+                let exit_code = process::run_custom_check_host(&arguments[1..])?;
+                Ok(CliOutput {
+                    stdout: String::new(),
+                    stderr: String::new(),
+                    exit_code,
+                })
             } else {
                 check::run(&arguments[1..])
             }

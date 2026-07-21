@@ -99,7 +99,7 @@ def ruleset_fingerprint(ruleset: tuple[RuleSpec, ...]) -> CacheFingerprint:
     payload: CanonicalValue = [
         {
             "cacheable": bool(rule.cacheable),
-            "check_module": rule.check.__module__,
+            "check_module": _check_module(rule.check),
             "check_name": _check_name(rule.check),
             "code": rule.code,
             "enabled_by_default": rule.enabled_by_default,
@@ -292,16 +292,24 @@ def _role_threshold_values(
     return values
 
 
-def _check_name(check: RuleCheck) -> str:
+def _check_module(check: RuleCheck | None) -> str | None:
+    return None if check is None else check.__module__
+
+
+def _check_name(check: RuleCheck | None) -> str | None:
+    if check is None:
+        return None
     name: object = getattr(check, "__qualname__", None)
     return name if isinstance(name, str) else type(check).__qualname__
 
 
 def _check_source_fingerprint(
     *,
-    check: RuleCheck,
+    check: RuleCheck | None,
     source_fingerprints: dict[Path, CanonicalValue],
 ) -> CanonicalValue:
+    if check is None:
+        return None
     try:
         source_path: str | None = inspect.getsourcefile(check)
     except TypeError:

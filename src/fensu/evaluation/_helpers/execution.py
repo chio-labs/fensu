@@ -9,11 +9,14 @@ from fensu.analysis.types import ProjectAnalysis
 from fensu.config.models import Config
 from fensu.discovery.models import ProjectLayout, RepoRoot
 from fensu.evaluation.classes.rule_context import EvaluationRuleContext
-from fensu.evaluation.exceptions import ModuleUnavailableError
+from fensu.evaluation.exceptions import (
+    ModuleUnavailableError,
+    NativeCoreCallbackError,
+    RuleCallbackUnavailableError,
+)
 from fensu.evaluation.models import ParsedModule, ThresholdOverrideUse
-from fensu.instrumentation.constants import OPERATION_COUNTERS, PYTHON_CORE_RULE_CALLBACK_OPERATION
 from fensu.rules.authoring.models import Fault, RuleSpec
-from fensu.rules.authoring.types import RuleKind
+from fensu.rules.authoring.types import RuleCheck, RuleKind
 
 
 class _UnavailableModule:
@@ -42,6 +45,13 @@ def execute_rule(
 ) -> list[Fault]:
     """Run one rule against one parsed module."""
 
+    check: RuleCheck | None = rule.check
+    if check is None:
+        if rule.kind is RuleKind.CORE:
+            raise NativeCoreCallbackError(
+                f"Native evaluation returned no result for selected core rule {rule.code}."
+            )
+        raise RuleCallbackUnavailableError(f"Custom rule {rule.code} has no callback.")
     ctx: EvaluationRuleContext = EvaluationRuleContext(
         parsed_module=parsed_module,
         config=config,
@@ -55,6 +65,4 @@ def execute_rule(
     module: ast.Module = (
         parsed_module.syntax_artifacts.module if rule.uses_module else _UNAVAILABLE_MODULE
     )
-    if rule.kind is RuleKind.CORE:
-        OPERATION_COUNTERS.record(operation=PYTHON_CORE_RULE_CALLBACK_OPERATION)
-    return rule.check(module=module, ctx=ctx)
+    return check(module=module, ctx=ctx)

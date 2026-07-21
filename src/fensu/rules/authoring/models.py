@@ -45,7 +45,7 @@ class RuleSpec:
     family: Family
     slug: str
     message: str
-    check: RuleCheck
+    check: RuleCheck | None = None
     remediation: str | None = None
     severity: Severity = Severity.ERROR
     kind: RuleKind = RuleKind.CORE

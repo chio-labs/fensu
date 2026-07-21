@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fensu.cache.fingerprints.main.source import fingerprint_source
+from fensu.cache.fingerprints.main._source import fingerprint_source
 from fensu.cache.fingerprints.models import CacheFingerprint
 from fensu.cache.storage._helpers.serialization import encode_cache_record
 from fensu.cache.storage.models import CacheRecord

@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, TextIO
 from fensu.analysis.main.resolve_native_backend_version import resolve_native_backend_version
 from fensu.cli._helpers.check_evaluation import evaluated_check
 from fensu.cli._helpers.check_output import write_memory_check_result
-from fensu.cli._helpers.check_reporting import skill_freshness_footer, write_check_diagnostics
+from fensu.cli._helpers.check_reporting import write_check_diagnostics
 from fensu.cli._helpers.check_setup import prepare_check_inputs
 from fensu.cli.exceptions import CliCommandError
 from fensu.config.exceptions import ConfigError
@@ -61,13 +61,6 @@ def execute_check(
         show_stats=args.cache_stats,
         disabled_reason=evaluation.disabled_reason,
     )
-    freshness_footer: str = skill_freshness_footer(
-        loaded=loaded,
-        selection=rule_selection,
-        project_root=project_dir,
-        invocation_root=invocation_dir,
-        use_color=not args.no_color and stderr.isatty(),
-    )
     if evaluation.short_circuit is not None:
         stdout.write(
             evaluation.short_circuit.color_output
@@ -79,7 +72,6 @@ def execute_check(
             result=inputs.memory_result,
             use_color=use_color,
         )
-        stderr.write(freshness_footer)
         return 1 if evaluation.short_circuit.exit_code or memory_fault_count else 0
     result: EvaluationResult | None = evaluation.result
     if result is None:
@@ -119,7 +111,6 @@ def execute_check(
         result=inputs.memory_result,
         use_color=use_color,
     )
-    stderr.write(freshness_footer)
     return 1 if fault_count or memory_fault_count else 0
 
 

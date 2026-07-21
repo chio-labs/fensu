@@ -49,16 +49,3 @@ class ContainerScaleTestCase:
     expected_max_query_multiplier: int
     expected_small_fault_count: int
     expected_large_fault_count: int
-
-
-@dataclass(frozen=True)
-class ContainerDepthScaleTestCase:
-    """Two namespace depths and expected compact near-linear anchor queries."""
-
-    description: str
-    small_depth: int
-    large_depth: int
-    expected_max_query_multiplier: int
-    expected_max_inspection_multiplier: int
-    expected_fault_count: int
-    expected_max_anchor_answer_paths: int

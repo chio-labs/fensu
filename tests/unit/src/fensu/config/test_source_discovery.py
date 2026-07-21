@@ -8,9 +8,8 @@ from pathlib import Path
 import pytest
 
 from fensu.config.exceptions import ConfigError
-from fensu.config.main.find_config import find_config_source
 from fensu.config.main.load_config import load_config
-from fensu.config.models import Config, ConfigSource
+from fensu.config.models import Config
 from tests.unit.src.fensu.config._test_types import (
     ConfigDiscoveryTestCase,
     ConfigSourceLoadTestCase,
@@ -167,7 +166,6 @@ def test_given_missing_source_when_loading_then_raises_config_error(
             description="missing config keeps prefix and suggests init",
             expected_prefix="No fensu config found",
             expected_guidance="Run 'fensu init' to create one.",
-            expected_source=None,
         )
     ],
     ids=lambda case: case.description,
@@ -182,27 +180,6 @@ def test_given_missing_source_when_loading_then_preserves_prefix_and_suggests_in
     message: str = str(error.value)
     assert message.startswith(test_case.expected_prefix)
     assert test_case.expected_guidance in message
-
-
-@pytest.mark.parametrize(
-    "test_case",
-    [
-        MissingConfigGuidanceTestCase(
-            description="missing config remains optional during discovery",
-            expected_prefix="No fensu config found",
-            expected_guidance="Run 'fensu init' to create one.",
-            expected_source=None,
-        )
-    ],
-    ids=lambda case: case.description,
-)
-def test_given_missing_source_when_finding_optional_config_then_returns_none(
-    tmp_path: Path,
-    test_case: MissingConfigGuidanceTestCase,
-) -> None:
-    source: ConfigSource | None = find_config_source(tmp_path)
-
-    assert source is test_case.expected_source
 
 
 @pytest.mark.parametrize(

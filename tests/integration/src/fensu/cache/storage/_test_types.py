@@ -1,4 +1,4 @@
-"""Test case types for persistent cache storage integration."""
+"""Test-case types for persistent native-cache Python boundaries."""
 
 from __future__ import annotations
 
@@ -6,13 +6,11 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
-class PersistentStoreTestCase:
-    """A disk-backed cache record and expected process-independent result."""
+class PersistentStoreBoundaryTestCase:
+    """One cache boundary observed across Python store instances or threads."""
 
     description: str
     relative_path: str
     kind: str
-    writer_count: int
-    expected_payload_values: tuple[int, ...]
-    expected_temporary_count: int
-    expected_miss_count: int = 0
+    values: tuple[int, ...]
+    expected_available: bool

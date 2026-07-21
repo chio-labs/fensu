@@ -114,6 +114,28 @@ fn given_test_layout_fixtures_when_checking_then_reports_expected_codes() {
             }],
             expected_violation_codes: vec!["RST003"],
         },
+        test_types::CheckRepoTestCase {
+            description: "private source unit-test tree uses test structure rules",
+            repo_files: vec![
+                test_types::RepoFile {
+                    path: "crates/example/src/cache/mod.rs".to_owned(),
+                    contents: "#[cfg(test)]\nmod tests;\n".to_owned(),
+                },
+                test_types::RepoFile {
+                    path: "crates/example/src/cache/tests.rs".to_owned(),
+                    contents: "#[path = \"tests/checking.rs\"]\nmod checking;\n#[path = \"tests/test_types.rs\"]\nmod test_types;\n".to_owned(),
+                },
+                test_types::RepoFile {
+                    path: "crates/example/src/cache/tests/test_types.rs".to_owned(),
+                    contents: "pub(crate) struct ValueTestCase {\n    pub(crate) description: &'static str,\n    pub(crate) expected_value: usize,\n}\n".to_owned(),
+                },
+                test_types::RepoFile {
+                    path: "crates/example/src/cache/tests/checking.rs".to_owned(),
+                    contents: "use crate::cache::tests::test_types;\n\n#[test]\nfn given_a_when_b_then_c() {\n    let test_cases = [test_types::ValueTestCase { description: \"d\", expected_value: 1 }];\n\n    for test_case in &test_cases {\n        assert_eq!(1, test_case.expected_value, \"{}\", test_case.description);\n    }\n}\n".to_owned(),
+                },
+            ],
+            expected_violation_codes: vec![],
+        },
     ];
 
     for test_case in &test_cases {

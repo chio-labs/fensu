@@ -406,8 +406,10 @@ dependencies = [
  "rayon",
  "ruff_python_ast",
  "rusqlite",
+ "serde",
  "serde_json",
  "sha2",
+ "tempfile",
  "unicode-ident",
 ]
 

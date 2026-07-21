@@ -55,6 +55,7 @@ pub const TYPES_FILE: &str = "types.rs";
 pub const CONSTANTS_FILE: &str = "constants.rs";
 pub const ERRORS_FILE: &str = "errors.rs";
 pub const TEST_TYPES_FILE: &str = "test_types.rs";
+pub const INLINE_TEST_HARNESS_FILE: &str = "tests.rs";
 pub const SOURCE_DIRECTORY: &str = "src";
 pub const TESTS_DIRECTORY: &str = "tests";
 pub const CARGO_MANIFEST_FILE: &str = "Cargo.toml";

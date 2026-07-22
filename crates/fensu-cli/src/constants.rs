@@ -17,6 +17,8 @@ pub(crate) const CONFIG_FENSU_FILE: &str = "fensu.toml";
 pub(crate) const CONFIG_PYPROJECT_FILE: &str = "pyproject.toml";
 pub(crate) const CONFIG_PYPROJECT_HEADER: &str = "[tool.fensu]";
 pub(crate) const DEFAULT_MEMORY_ARCHIVE_DAYS: u64 = 7;
+pub(crate) const MAX_CORE_SELECTOR_SUFFIX: usize = 4;
+pub(crate) const PYTHON_CACHE_DIRECTORY: &str = "__pycache__";
 pub(crate) const DEFAULT_THRESHOLDS: &[(&str, u32)] = &[
     ("max_statements", 40),
     ("max_distinct_calls", 20),

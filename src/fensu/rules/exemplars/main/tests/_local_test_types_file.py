@@ -13,7 +13,8 @@ from fensu.rules.exemplars.types import ExemplarTestPathName
     slug="local-test-types-file-equivalent",
     message="test directories must provide a local _test_types.py",
     remediation=(
-        "Create _test_types.py beside the test module and place test-case dataclasses there."
+        "Create _test_types.py beside the test. Custom-rule tests should define a local wrapper "
+        "dataclass there rather than parametrizing directly with RuleCase."
     ),
 )
 def local_test_types_file_equivalent(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:

@@ -108,6 +108,52 @@ class CacheDependencyCliTestCase:
 
 
 @dataclass(frozen=True)
+class CheckCleanupCliTestCase:
+    """Installed check mode and expected cleanup behavior."""
+
+    description: str
+    config: str
+    files: tuple[CliProjectFile, ...]
+    expected_exit_code: int
+    expected_stdout_fragment: str
+
+
+@dataclass(frozen=True)
+class CheckCleanupPreExecutionCliTestCase:
+    """Installed custom-host pre-execution exit and expected preserved path."""
+
+    description: str
+    config: str
+    files: tuple[CliProjectFile, ...]
+    argv: tuple[str, ...]
+    expected_exit_code: int
+    expected_path: str
+
+
+@dataclass(frozen=True)
+class RuleIgnoreCliTestCase:
+    """Installed custom check and expected path-scoped policy result."""
+
+    description: str
+    config: str
+    files: tuple[CliProjectFile, ...]
+    expected_exit_code: int
+    expected_present_fragments: tuple[str, ...]
+    expected_absent_fragment: str
+
+
+@dataclass(frozen=True)
+class CustomRuleCompositionCliTestCase:
+    """Custom-rule test source and expected composed policy diagnostics."""
+
+    description: str
+    test_source: str
+    expected_exit_code: int
+    expected_present_codes: tuple[str, ...]
+    expected_absent_codes: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class InstalledInitCliTestCase:
     """Installed init invocation and expected repository and process state."""
 

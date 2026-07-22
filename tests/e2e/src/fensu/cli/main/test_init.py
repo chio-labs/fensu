@@ -183,6 +183,37 @@ from tests.e2e.src.fensu.cli.main.helpers import (
             expected_stdout_is_empty=False,
         ),
         InstalledInitCliTestCase(
+            description="existing configuration remains a no-op despite default skill approval",
+            argv=("--yes",),
+            input_text="",
+            initial_files=(
+                CliProjectFile(
+                    relative_path="fensu.toml",
+                    source='roots = ["src/pkg"]\n',
+                ),
+                CliProjectFile(
+                    relative_path=".agents/skills/user/SKILL.md",
+                    source="user-owned guidance\n",
+                ),
+            ),
+            expected_exit_code=0,
+            expected_files=(
+                CliProjectFile(
+                    relative_path="fensu.toml",
+                    source='roots = ["src/pkg"]\n',
+                ),
+                CliProjectFile(
+                    relative_path=".agents/skills/user/SKILL.md",
+                    source="user-owned guidance\n",
+                ),
+            ),
+            expected_config_values=(("roots", ("src/pkg",)),),
+            expected_stdout_fragments=("configuration already exists", "nothing to do"),
+            expected_stderr_fragments=(),
+            expected_absent_output_fragments=("Updated", "Created", "\x1b["),
+            expected_stdout_is_empty=False,
+        ),
+        InstalledInitCliTestCase(
             description="empty repository refuses explicit runtime scope",
             argv=("--yes", "--root", "src/example", "--no-skills"),
             input_text="",

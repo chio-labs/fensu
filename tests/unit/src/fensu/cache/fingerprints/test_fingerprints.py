@@ -33,6 +33,7 @@ from fensu.config.models import (
     ExperimentalConfig,
     MemoryConfig,
     MemoryTasksConfig,
+    RuleIgnoreEntry,
     SkillsConfig,
     ThresholdOverride,
 )
@@ -55,6 +56,7 @@ from tests.unit.src.fensu.cache.fingerprints._test_types import (
     ImplementationFingerprintTestCase,
     MemoryPreferenceFingerprintTestCase,
     NativeBackendFingerprintTestCase,
+    RuleIgnoreFingerprintTestCase,
     RulesetExecutionOwnerFingerprintTestCase,
     RulesetFingerprintTestCase,
     RulesetSourceReuseTestCase,
@@ -347,6 +349,47 @@ def test_given_evaluation_selection_when_fingerprinting_then_changes_config_iden
         Config(
             roots=("src/pkg",),
             evaluation=EvaluationConfig(include=test_case.second_include),
+        )
+    )
+
+    assert (first == second) is test_case.expected_equal
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        RuleIgnoreFingerprintTestCase(
+            description="rule ignore selector path and reason participate in semantic identity",
+            expected_equal=False,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_rule_ignores_when_fingerprinting_then_changes_config_identity(
+    test_case: RuleIgnoreFingerprintTestCase,
+) -> None:
+    first: CacheFingerprint = config_fingerprint(
+        Config(
+            roots=("src/pkg",),
+            rule_ignores=(
+                RuleIgnoreEntry(
+                    rules=("FFA",),
+                    paths=("src/pkg/generated/**",),
+                    reason="Generated interfaces are checked upstream.",
+                ),
+            ),
+        )
+    )
+    second: CacheFingerprint = config_fingerprint(
+        Config(
+            roots=("src/pkg",),
+            rule_ignores=(
+                RuleIgnoreEntry(
+                    rules=("FFS",),
+                    paths=("src/pkg/legacy/**",),
+                    reason="Legacy interfaces are checked upstream.",
+                ),
+            ),
         )
     )
 

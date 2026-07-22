@@ -45,6 +45,15 @@ class RuleExceptionEntry:
 
 
 @dataclass(frozen=True, slots=True)
+class RuleIgnoreEntry:
+    """One additive rule-selector and reported-path suppression policy."""
+
+    rules: tuple[str, ...]
+    paths: tuple[str, ...]
+    reason: str
+
+
+@dataclass(frozen=True, slots=True)
 class CacheConfig:
     """Operational persistent-cache preferences."""
 
@@ -127,6 +136,7 @@ class Config:
     rule_paths: tuple[str, ...] = ()
     rule_modules: tuple[str, ...] = ()
     rule_exceptions: tuple[RuleExceptionEntry, ...] = ()
+    rule_ignores: tuple[RuleIgnoreEntry, ...] = ()
     cache: CacheConfig = field(default_factory=lambda: CacheConfig(enabled=DEFAULT_CACHE_ENABLED))
     evaluation: EvaluationConfig = field(default_factory=EvaluationConfig)
     experimental: ExperimentalConfig = field(default_factory=ExperimentalConfig)

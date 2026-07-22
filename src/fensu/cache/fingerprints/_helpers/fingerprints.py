@@ -72,6 +72,10 @@ def config_fingerprint(config: Config) -> CacheFingerprint:
         "role_thresholds": _role_threshold_values(config.role_thresholds),
         "roots": list(config.roots),
         "rule_exceptions": [_rule_exception_value(item) for item in config.rule_exceptions],
+        "rule_ignores": [
+            {"paths": list(item.paths), "reason": item.reason, "rules": list(item.rules)}
+            for item in config.rule_ignores
+        ],
         "rule_modules": list(config.rule_modules),
         "rule_paths": list(config.rule_paths),
         "select": list(config.select),

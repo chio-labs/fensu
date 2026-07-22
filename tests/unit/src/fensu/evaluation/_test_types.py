@@ -109,6 +109,15 @@ class EvaluationFaultTestCase:
 
 
 @dataclass(frozen=True)
+class RuleIgnoreCollectionTestCase:
+    """Path-scoped declarations and expected visible finding codes and paths."""
+
+    description: str
+    expected_faults: tuple[tuple[str, str], ...]
+    expected_warnings: tuple[tuple[str, str], ...]
+
+
+@dataclass(frozen=True)
 class ContextThresholdTestCase:
     """A file role and expected threshold lookup value."""
 

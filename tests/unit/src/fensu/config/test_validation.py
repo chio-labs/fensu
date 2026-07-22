@@ -20,6 +20,65 @@ from tests.unit.src.fensu.config.helpers import write_fensu_toml
     "test_case",
     [
         InvalidConfigTestCase(
+            description="rule ignores must be an array of tables",
+            config_text='roots = ["src/pkg"]\nrule_ignores = true\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="rule_ignores must be an array of tables",
+        ),
+        InvalidConfigTestCase(
+            description="rule ignore selectors must not be empty",
+            config_text=(
+                'roots = ["src/pkg"]\n[[rule_ignores]]\nrules = []\n'
+                'paths = ["src/**"]\nreason = "Required."\n'
+            ),
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="selectors must not be empty",
+        ),
+        InvalidConfigTestCase(
+            description="rule ignore selectors use rule grammar",
+            config_text=(
+                'roots = ["src/pkg"]\n[[rule_ignores]]\nrules = ["bad"]\n'
+                'paths = ["src/**"]\nreason = "Required."\n'
+            ),
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="invalid selector bad",
+        ),
+        InvalidConfigTestCase(
+            description="rule ignore paths use repository glob grammar",
+            config_text=(
+                'roots = ["src/pkg"]\n[[rule_ignores]]\nrules = ["FFA"]\n'
+                'paths = ["../src/**"]\nreason = "Required."\n'
+            ),
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="repository-relative POSIX glob",
+        ),
+        InvalidConfigTestCase(
+            description="rule ignore reason must be meaningful",
+            config_text=(
+                'roots = ["src/pkg"]\n[[rule_ignores]]\nrules = ["FFA"]\n'
+                'paths = ["src/**"]\nreason = " "\n'
+            ),
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="reason must be non-empty",
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_invalid_rule_ignore_when_loading_then_raises_validation_error(
+    tmp_path: Path, test_case: InvalidConfigTestCase
+) -> None:
+    write_fensu_toml(root=tmp_path, contents=test_case.config_text)
+
+    with pytest.raises(test_case.expected_error_type) as error:
+        load_config(tmp_path)
+
+    assert test_case.expected_error_fragment in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        InvalidConfigTestCase(
             description="memory preference must be a table",
             config_text='roots = ["src/pkg"]\nmemory = true\n',
             expected_error_type=ConfigValidationError,

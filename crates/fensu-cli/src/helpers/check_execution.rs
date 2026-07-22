@@ -7,6 +7,7 @@ use fensu_facts::extension::models::ProgramHandle;
 use walkdir::WalkDir;
 
 use crate::configuration::main::load;
+use crate::constants::PYTHON_CACHE_DIRECTORY;
 use crate::helpers::cache;
 use crate::helpers::check_evaluation::evaluate_and_render;
 use crate::helpers::check_policy::{
@@ -158,6 +159,7 @@ fn discover(root: &Path, config: &Config) -> Result<Vec<ScopedSource>, String> {
         }
         for entry in WalkDir::new(&source_root)
             .into_iter()
+            .filter_entry(|entry| entry.file_name() != PYTHON_CACHE_DIRECTORY)
             .filter_map(Result::ok)
         {
             if !entry.file_type().is_file()

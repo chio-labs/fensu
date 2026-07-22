@@ -45,23 +45,47 @@ the public backend-neutral zones do not expose the needed syntax.
 
 ## Test The Real Pipeline
 
+Define the parametrized wrapper in the test directory's `_test_types.py`:
+
+```python
+from dataclasses import dataclass
+
+from fensu import RuleFile
+
+
+@dataclass(frozen=True)
+class CustomRuleTestCase:
+    description: str
+    path: str
+    source: str
+    expected_fault_count: int
+    files: tuple[RuleFile, ...] = ()
+    scope: str = "root"
+    scope_root: str | None = None
+```
+
+Construct the public harness value inside the test:
+
 ```python
 import pytest
 
 from fensu import RuleCase, RuleResult, evaluate_rule
 from scripts.fensu_policy.rules.no_bare_except import no_bare_except
+from tests.unit.scripts.fensu_policy.rules._test_types import CustomRuleTestCase
 
 
 @pytest.mark.parametrize(
     "test_case",
     [
-        RuleCase(
+        CustomRuleTestCase(
             description="reports a bare except handler",
+            path="package/example.py",
             source="try:\n    run()\nexcept:\n    recover()\n",
             expected_fault_count=1,
         ),
-        RuleCase(
+        CustomRuleTestCase(
             description="allows a typed handler",
+            path="package/example.py",
             source="try:\n    run()\nexcept ValueError:\n    recover()\n",
             expected_fault_count=0,
         ),
@@ -69,21 +93,36 @@ from scripts.fensu_policy.rules.no_bare_except import no_bare_except
     ids=lambda case: case.description,
 )
 def test_given_handler_when_checking_then_returns_expected_faults(
-    test_case: RuleCase,
+    test_case: CustomRuleTestCase,
 ) -> None:
-    result: RuleResult = evaluate_rule(rule=no_bare_except, test_case=test_case)
+    result: RuleResult = evaluate_rule(
+        rule=no_bare_except,
+        test_case=RuleCase(
+            description=test_case.description,
+            path=test_case.path,
+            source=test_case.source,
+            expected_fault_count=test_case.expected_fault_count,
+            files=test_case.files,
+            scope=test_case.scope,
+            scope_root=test_case.scope_root,
+        ),
+    )
 
     assert result.fault_count == test_case.expected_fault_count
 ```
 
 ## Configure Discovery
 
-Store project policy under the configured tooling scope and load it explicitly:
+Store project policy under the configured tooling scope and load concrete modules explicitly:
 
 ```toml
 tooling = ["scripts"]
-rule_paths = ["scripts/fensu_policy/rules"]
+rule_modules = ["scripts.fensu_policy.rules.no_bare_except"]
 ```
+
+Keep decorated declarations in `rules/`, shared implementation in the sibling
+`_helpers/`, and constants in the policy package's sibling `constants.py`. Do not
+place helpers beneath `rules/`; that conflicts with FFR704.
 
 Custom rule codes begin with `X`. Run `fensu check`, `fensu rule XPR001`, and
 `fensu skills` after configuration. Generated skills include the active

@@ -3,7 +3,7 @@ use std::path::Path;
 
 use crate::command::main::{check, help, init, map, memory, rule, skills};
 use crate::configuration::main::custom_rules;
-use crate::helpers::process;
+use crate::helpers::{check_cleanup, process};
 use crate::models::CliOutput;
 
 pub fn run_cli() -> CliOutput {
@@ -23,18 +23,7 @@ fn dispatch(arguments: &[String]) -> Result<CliOutput, String> {
             env!("CARGO_PKG_VERSION")
         ))),
         "--help" | "-h" => Ok(CliOutput::success(help::help())),
-        "check" => {
-            if custom_rules::custom_rules_are_configured(Path::new("."))? {
-                let exit_code = process::run_custom_check_host(&arguments[1..])?;
-                Ok(CliOutput {
-                    stdout: String::new(),
-                    stderr: String::new(),
-                    exit_code,
-                })
-            } else {
-                check::run(&arguments[1..])
-            }
-        }
+        "check" => dispatch_check(&arguments[1..]),
         "init" => init::init(&arguments[1..]),
         "map" => map::run(&arguments[1..]),
         "memory" => memory::run(&arguments[1..]),
@@ -48,4 +37,30 @@ fn dispatch(arguments: &[String]) -> Result<CliOutput, String> {
             exit_code: 2,
         }),
     }
+}
+
+fn dispatch_check(arguments: &[String]) -> Result<CliOutput, String> {
+    let cleanup = check_cleanup::prepare(Path::new("."));
+    let result = if custom_rules::custom_rules_are_configured(Path::new("."))? {
+        let exit_code = process::run_custom_check_host(arguments)?;
+        Ok(CliOutput {
+            stdout: String::new(),
+            stderr: String::new(),
+            exit_code,
+        })
+    } else {
+        check::run(arguments)
+    };
+    if result
+        .as_ref()
+        .is_ok_and(|output| matches!(output.exit_code, 0 | 1))
+        && !arguments
+            .iter()
+            .any(|argument| matches!(argument.as_str(), "--help" | "-h"))
+    {
+        if let Some(cleanup) = cleanup {
+            cleanup.run();
+        }
+    }
+    result
 }

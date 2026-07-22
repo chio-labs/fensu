@@ -249,6 +249,9 @@ fn config_value(config: &Config) -> Value {
         "rule_exceptions": config.exceptions.iter().map(|item| json!({
             "rule": item.rule, "path": item.path, "reason": item.reason, "symbols": item.symbols,
         })).collect::<Vec<_>>(),
+        "rule_ignores": config.rule_ignores.iter().map(|item| json!({
+            "rules": item.rules, "paths": item.paths, "reason": item.reason,
+        })).collect::<Vec<_>>(),
         "cache": {"enabled": config.cache_enabled, "require_cacheable": config.cache_require_cacheable},
         "evaluation": {"include": config.evaluation_include, "exclude": config.evaluation_exclude},
         "experimental": {"memory": config.memory_enabled},

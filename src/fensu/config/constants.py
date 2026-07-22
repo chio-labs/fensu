@@ -56,6 +56,7 @@ CONFIG_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
         "roles",
         "contracts",
         "rule_exceptions",
+        "rule_ignores",
         "threshold_overrides",
         "cache",
         "experimental",
@@ -86,6 +87,7 @@ DOUBLE_PATH_SEPARATOR: str = "//"
 SINGLE_COMPONENT_GLOB: str = "*"
 RECURSIVE_GLOB: str = "**"
 THRESHOLD_OVERRIDE_KEYS: frozenset[str] = frozenset({"paths", "thresholds", "reason"})
+RULE_IGNORE_KEYS: frozenset[str] = frozenset({"rules", "paths", "reason"})
 EVALUATION_CONFIG_KEYS: frozenset[str] = frozenset({"include", "exclude"})
 MEMORY_CONFIG_KEYS: frozenset[str] = frozenset({MEMORY_TASKS_CONFIG_KEY})
 MEMORY_TASKS_CONFIG_KEYS: frozenset[str] = frozenset({MEMORY_TASKS_ARCHIVE_AFTER_DAYS_CONFIG_KEY})

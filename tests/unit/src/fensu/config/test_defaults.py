@@ -11,6 +11,7 @@ from fensu.config.main.resolve_threshold import resolve_threshold
 from fensu.config.models import (
     Config,
     RuleExceptionEntry,
+    RuleIgnoreEntry,
     ThresholdOverride,
     ThresholdResolution,
 )
@@ -24,11 +25,47 @@ from tests.unit.src.fensu.config._test_types import (
     EvaluationConfigTestCase,
     MemoryConfigTestCase,
     RuleExceptionConfigTestCase,
+    RuleIgnoreConfigTestCase,
     SkillsConfigTestCase,
     ThresholdOverrideConfigTestCase,
     ThresholdResolutionTestCase,
 )
 from tests.unit.src.fensu.config.helpers import write_fensu_toml
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        RuleIgnoreConfigTestCase(
+            description="path-scoped rule ignore preserves declaration values",
+            config_text=(
+                'roots = ["src/pkg"]\n\n'
+                "[[rule_ignores]]\n"
+                'rules = ["FFA", "XTEAM"]\n'
+                'paths = ["src/pkg/generated/**", "conftest.py"]\n'
+                'reason = "Generated interfaces are checked upstream."\n'
+            ),
+            expected_rules=("FFA", "XTEAM"),
+            expected_paths=("src/pkg/generated/**", "conftest.py"),
+            expected_reason="Generated interfaces are checked upstream.",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_rule_ignores_when_loading_then_preserves_additive_policy(
+    tmp_path: Path, test_case: RuleIgnoreConfigTestCase
+) -> None:
+    write_fensu_toml(root=tmp_path, contents=test_case.config_text)
+
+    config: Config = load_config(tmp_path)
+
+    assert config.rule_ignores == (
+        RuleIgnoreEntry(
+            rules=test_case.expected_rules,
+            paths=test_case.expected_paths,
+            reason=test_case.expected_reason,
+        ),
+    )
 
 
 @pytest.mark.parametrize(

@@ -92,6 +92,7 @@ fn render(metadata: &RuleMetadata, config: &Config, color: bool) -> String {
     let mut output = format!("{header}\n");
     render_metadata(&mut output, metadata, color);
     render_exceptions(&mut output, metadata, config);
+    render_rule_ignores(&mut output, metadata, config);
     output
 }
 
@@ -139,5 +140,26 @@ fn render_exceptions(output: &mut String, metadata: &RuleMetadata, config: &Conf
         };
         output.push_str(&format!("  {}: {scope}\n", exception.path));
         output.push_str(&format!("    Reason: {}\n", exception.reason));
+    }
+}
+
+fn render_rule_ignores(output: &mut String, metadata: &RuleMetadata, config: &Config) {
+    let ignores = config
+        .rule_ignores
+        .iter()
+        .filter(|entry| {
+            entry
+                .rules
+                .iter()
+                .any(|selector| metadata.code.starts_with(selector))
+        })
+        .collect::<Vec<_>>();
+    if ignores.is_empty() {
+        return;
+    }
+    output.push_str("\nActive path-scoped rule ignores:\n");
+    for entry in ignores {
+        output.push_str(&format!("  {}\n", entry.paths.join(", ")));
+        output.push_str(&format!("    Reason: {}\n", entry.reason));
     }
 }

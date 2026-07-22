@@ -167,6 +167,33 @@ fn given_built_in_rules_when_updating_and_checking_then_runs_without_python() {
 }
 
 #[test]
+fn given_path_scoped_rule_ignores_when_generating_skill_then_renders_policy_and_tracks_freshness() {
+    let repository = project();
+    let configured = format!(
+        "{CONFIG}\n[[rule_ignores]]\nrules = [\"FFA\"]\npaths = [\"src/pkg/generated/**\"]\nreason = \"Generated interfaces are checked upstream.\"\n"
+    );
+    write(repository.path().join("fensu.toml"), &configured);
+
+    let update = native(repository.path(), &["--target", "agents"]);
+    let skill_path = target(repository.path(), ".agents", "fensu-fixture");
+    let skill = text(&fs::read(&skill_path).expect("generated skill"));
+
+    assert_eq!(update.status.code(), Some(0), "{}", text(&update.stderr));
+    assert!(skill.contains("### Configured Path-Scoped Rule Ignores"));
+    assert!(skill.contains("src/pkg/generated/**"));
+    assert!(skill.contains("Generated interfaces are checked upstream."));
+
+    write(
+        repository.path().join("fensu.toml"),
+        configured.replace("checked upstream", "checked by generation tests"),
+    );
+    let check = native(repository.path(), &["--target", "agents", "--check"]);
+
+    assert_eq!(check.status.code(), Some(1));
+    assert!(text(&check.stdout).contains("stale"));
+}
+
+#[test]
 fn given_installed_skill_states_when_checking_then_reports_status_without_writes() {
     let test_cases = [
         FreshnessTestCase {
@@ -434,11 +461,18 @@ def always(module: ast.Module, ctx: RuleContext) -> list[Fault]:
             text(&update.stderr)
         );
         assert_eq!(fs::read(&count).expect("host count"), b"x");
-        assert!(text(
+        let guidance = text(
             &fs::read(target(repository.path(), ".agents", "fensu-fixture"))
-                .expect("custom guidance")
-        )
-        .contains("### XSK001: always"));
+                .expect("custom guidance"),
+        );
+        assert!(guidance.contains("### XSK001: always"));
+        assert!(guidance.contains("class CustomRuleTestCase"));
+        assert!(guidance.contains("test_case=RuleCase("));
+        assert!(guidance.contains("When FFT413 is active"));
+        assert!(guidance.contains("Configure concrete `rule_modules`"));
+        assert!(guidance.contains("sibling `_helpers/`"));
+        assert!(guidance.contains("does not mean helpers belong beneath `rules/`"));
+        assert!(!guidance.contains("test_case: RuleCase"));
         let inspected = Command::new(env!("CARGO_BIN_EXE_fensu"))
             .args(["rule", "XSK001", "--color", "never"])
             .current_dir(repository.path())
@@ -480,7 +514,11 @@ def always(module: ast.Module, ctx: RuleContext) -> list[Fault]:
         fs::remove_dir_all(repository.path().join(".agents")).expect("remove first installation");
         let failed = native_with_python(repository.path(), &["--target", "agents"], &incompatible);
         assert_eq!(failed.status.code(), Some(2));
-        assert!(text(&failed.stderr).contains("Incompatible custom-rule metadata protocol"));
+        assert!(
+            text(&failed.stderr).contains("Incompatible custom-rule metadata protocol"),
+            "stderr: {}",
+            text(&failed.stderr)
+        );
         assert!(!repository.path().join(".agents").exists());
     }
 }
@@ -535,18 +573,20 @@ fn given_global_legacy_init_and_core_flows_when_running_then_they_remain_native(
 
         let initialized = tempfile::tempdir().expect("empty init repository");
         let init = Command::new(env!("CARGO_BIN_EXE_fensu"))
-            .args(["init", "--yes", "--name", "native_app", "--skills"])
+            .args(["init", "--yes", "--name", "native_app"])
             .current_dir(initialized.path())
             .env("FENSU_PYTHON", initialized.path().join("missing-python"))
             .output()
             .expect("native init skills");
         assert_eq!(init.status.code(), Some(0), "{}", text(&init.stderr));
-        let initialized_skills = fs::read_dir(initialized.path().join(".agents/skills"))
-            .expect("initialized skills")
-            .collect::<Result<Vec<_>, _>>()
-            .expect("initialized skill entries");
-        assert_eq!(initialized_skills.len(), 1);
-        assert!(initialized_skills[0].path().join("SKILL.md").is_file());
+        for agent in [".agents", ".claude", ".opencode"] {
+            let initialized_skills = fs::read_dir(initialized.path().join(agent).join("skills"))
+                .expect("initialized skills")
+                .collect::<Result<Vec<_>, _>>()
+                .expect("initialized skill entries");
+            assert_eq!(initialized_skills.len(), 1);
+            assert!(initialized_skills[0].path().join("SKILL.md").is_file());
+        }
 
         let check_project = project();
         let installed = native(check_project.path(), &["--target", "agents"]);

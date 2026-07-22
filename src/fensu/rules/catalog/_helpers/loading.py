@@ -17,8 +17,8 @@ from fensu.config.exceptions import ConfigError
 from fensu.config.models import Config
 from fensu.discovery.constants import INIT_MODULE_FILE_NAME
 from fensu.rules.authoring.main._inspect import rule_specs_in_module
-from fensu.rules.authoring.main._matches_rule_selector import matches_rule_selector
 from fensu.rules.authoring.main.is_rule_code import is_rule_code
+from fensu.rules.authoring.main.matches_rule_selector import matches_rule_selector
 from fensu.rules.authoring.models import CustomRuleRegistration, RuleSpec
 from fensu.rules.authoring.types import Family, RuleKind
 from fensu.rules.catalog._helpers.hermeticity import validate_cacheable_rules

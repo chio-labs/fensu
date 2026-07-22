@@ -114,6 +114,17 @@ class SkillsConfigTestCase:
 
 
 @dataclass(frozen=True)
+class RuleIgnoreConfigTestCase:
+    """Path-scoped rule policy and its expected normalized values."""
+
+    description: str
+    config_text: str
+    expected_rules: tuple[str, ...]
+    expected_paths: tuple[str, ...]
+    expected_reason: str
+
+
+@dataclass(frozen=True)
 class ConfigListFieldTestCase:
     """A list-valued config field and the expected normalized tuple."""
 

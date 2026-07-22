@@ -1,7 +1,9 @@
 use std::collections::HashSet;
 
 use crate::configuration::helpers::exceptions;
-use crate::constants::{CONFIG_ROLE_NAMES, CONTRACT_BEHAVIORS, DEFAULT_THRESHOLDS};
+use crate::constants::{
+    CONFIG_ROLE_NAMES, CONTRACT_BEHAVIORS, DEFAULT_THRESHOLDS, MAX_CORE_SELECTOR_SUFFIX,
+};
 
 const RECURSIVE_GLOB: &str = "**";
 
@@ -21,6 +23,7 @@ pub(crate) fn validate(table: &toml::map::Map<String, toml::Value>) -> Result<()
             "roles",
             "contracts",
             "rule_exceptions",
+            "rule_ignores",
             "threshold_overrides",
             "cache",
             "experimental",
@@ -55,6 +58,7 @@ pub(crate) fn validate(table: &toml::map::Map<String, toml::Value>) -> Result<()
     validate_contracts(table.get("contracts"))?;
     validate_threshold_overrides(table.get("threshold_overrides"))?;
     exceptions::validate(table.get("rule_exceptions"))?;
+    validate_rule_ignores(table.get("rule_ignores"))?;
     validate_evaluation(table.get("evaluation"))?;
     Ok(())
 }
@@ -208,6 +212,75 @@ fn validate_threshold_overrides(value: Option<&toml::Value>) -> Result<(), Strin
         )?;
     }
     Ok(())
+}
+
+fn validate_rule_ignores(value: Option<&toml::Value>) -> Result<(), String> {
+    let Some(value) = value else {
+        return Ok(());
+    };
+    let entries = value
+        .as_array()
+        .ok_or_else(|| "Config key rule_ignores must be an array of tables.".to_owned())?;
+    for entry in entries {
+        let table = entry.as_table().ok_or_else(|| {
+            "Each rule_ignores entry must define only rules, paths, and reason.".to_owned()
+        })?;
+        let expected = HashSet::from(["rules", "paths", "reason"]);
+        let actual = table.keys().map(String::as_str).collect::<HashSet<_>>();
+        if actual != expected {
+            return Err(
+                "Each rule_ignores entry must define only rules, paths, and reason.".to_owned(),
+            );
+        }
+        let rules = required_strings(table.get("rules"), "rule_ignores.rules")?;
+        if rules.is_empty() {
+            return Err("Rule ignore selectors must not be empty.".to_owned());
+        }
+        for selector in rules {
+            if !valid_rule_selector(&selector) {
+                return Err(format!(
+                    "Config key rule_ignores.rules contains invalid selector {selector}."
+                ));
+            }
+        }
+        let paths = required_strings(table.get("paths"), "rule_ignores.paths")?;
+        if paths.is_empty() {
+            return Err("Rule ignore paths must not be empty.".to_owned());
+        }
+        for path in paths {
+            validate_path_pattern(&path, "Rule ignore path")?;
+        }
+        if table
+            .get("reason")
+            .and_then(toml::Value::as_str)
+            .is_none_or(|reason| reason.trim().is_empty())
+        {
+            return Err("Rule ignore reason must be non-empty.".to_owned());
+        }
+    }
+    Ok(())
+}
+
+fn valid_rule_selector(value: &str) -> bool {
+    if matches!(value, "FF" | "X") {
+        return true;
+    }
+    if let Some(rest) = value.strip_prefix("FF") {
+        return rest.len() <= MAX_CORE_SELECTOR_SUFFIX
+            && rest
+                .chars()
+                .next()
+                .is_some_and(|item| item.is_ascii_uppercase())
+            && rest[1..].chars().all(|item| item.is_ascii_digit());
+    }
+    value.strip_prefix('X').is_some_and(|rest| {
+        let digit = rest
+            .find(|character: char| character.is_ascii_digit())
+            .unwrap_or(rest.len());
+        !rest.is_empty()
+            && rest[..digit].chars().all(|item| item.is_ascii_uppercase())
+            && rest[digit..].chars().all(|item| item.is_ascii_digit())
+    })
 }
 
 fn validate_evaluation(value: Option<&toml::Value>) -> Result<(), String> {

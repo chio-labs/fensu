@@ -81,7 +81,9 @@ def test_rule_details(code: FftCode) -> tuple[str, str]:
         ),
         FftCode.LOCAL_TEST_CASE_CONSTRUCTORS: (
             "pytest cases must construct dataclasses from the local _test_types.py",
-            "Move or define the test-case dataclass locally and instantiate that type directly.",
+            "Parametrize using a dataclass imported from local _test_types.py. For framework "
+            "harness inputs such as RuleCase, store their fields in the local dataclass and "
+            "construct the framework object inside the test.",
         ),
         FftCode.DESCRIPTION_LAMBDA_IDS: (
             "pytest case ids must come from each test case description",
@@ -89,7 +91,8 @@ def test_rule_details(code: FftCode) -> tuple[str, str]:
         ),
         FftCode.LOCAL_TEST_TYPES_FILE: (
             "test directories must provide a local _test_types.py",
-            "Create _test_types.py beside the test module and place test-case dataclasses there.",
+            "Create _test_types.py beside the test. Custom-rule tests should define a local "
+            "wrapper dataclass there rather than parametrizing directly with RuleCase.",
         ),
         FftCode.NO_TOP_LEVEL_HELPERS: (
             "test modules may contain only tests, imports, and declarations",

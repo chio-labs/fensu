@@ -255,6 +255,25 @@ pub(crate) fn effective_config_lines(context: &SkillContext) -> Result<Vec<Strin
             ));
         }
     }
+    lines.extend([
+        String::new(),
+        "### Configured Path-Scoped Rule Ignores".to_owned(),
+        String::new(),
+    ]);
+    if config.rule_ignores.is_empty() {
+        lines.push("- None.".to_owned());
+    } else {
+        for (index, item) in config.rule_ignores.iter().enumerate() {
+            lines.push(format!(
+                "- Declaration {}: rules={}; paths={}; reason={}",
+                index + 1,
+                sorted_json(&item.rules)?,
+                path_list(context, &item.paths)?,
+                py_json(&json!(item.reason))?
+            ));
+        }
+        lines.push("- Rules remain active outside matching paths, matching files remain available as project context, and exact exceptions remain separately stale-validated.".to_owned());
+    }
     lines.push(String::new());
     Ok(lines)
 }

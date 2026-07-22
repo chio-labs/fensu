@@ -80,6 +80,14 @@ class ThresholdOverrideFingerprintTestCase:
 
 
 @dataclass(frozen=True)
+class RuleIgnoreFingerprintTestCase:
+    """Path-scoped ignore variants and expected config identity relationship."""
+
+    description: str
+    expected_equal: bool
+
+
+@dataclass(frozen=True)
 class CachePreferenceFingerprintTestCase:
     """Two operational cache preferences and expected semantic identity parity."""
 

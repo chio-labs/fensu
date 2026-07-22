@@ -13,10 +13,33 @@ pub(crate) fn run(repository: &Path, arguments: &[&str]) -> Output {
         .expect("native fensu process runs")
 }
 
+pub(crate) fn run_check(repository: &Path) -> Output {
+    run_check_with(repository, &["--no-cache"])
+}
+
+pub(crate) fn run_check_with(repository: &Path, arguments: &[&str]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_fensu"))
+        .args(["check", "--no-color"])
+        .args(arguments)
+        .current_dir(repository)
+        .env("FENSU_PYTHON", repository.join("python-does-not-exist"))
+        .env("NO_COLOR", "1")
+        .output()
+        .expect("native fensu process runs")
+}
+
 pub(crate) fn write(path: impl AsRef<Path>, contents: &str) {
+    write_bytes(path, contents.as_bytes());
+}
+
+pub(crate) fn write_bytes(path: impl AsRef<Path>, contents: &[u8]) {
     let path = path.as_ref();
     fs::create_dir_all(path.parent().expect("fixture parent")).expect("fixture directory");
     fs::write(path, contents).expect("fixture file");
+}
+
+pub(crate) fn create_directory(path: impl AsRef<Path>) {
+    fs::create_dir_all(path).expect("fixture directory");
 }
 
 pub(crate) fn assert_success(output: &Output, expected: &str) {

@@ -76,8 +76,9 @@ def tooling_rules() -> tuple[RuleSpec, ...]:
             slug="custom-rule-test-coverage",
             message="configured custom rules must have statically declared public-harness cases",
             remediation=(
-                "Add parametrized RuleCase coverage for the rule's passing and failing boundaries "
-                "using evaluate_rule."
+                "Add statically visible RuleCase construction passed to evaluate_rule for each "
+                "custom rule. When FFT413 is active, parametrize with a local _test_types.py "
+                "dataclass and convert it to RuleCase inside the test."
             ),
         ),
     )

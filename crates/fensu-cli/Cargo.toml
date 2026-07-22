@@ -14,6 +14,8 @@ name = "fensu"
 path = "src/main.rs"
 
 [dependencies]
+cap-fs-ext.workspace = true
+cap-std.workspace = true
 dunce.workspace = true
 encoding_rs.workspace = true
 globset.workspace = true

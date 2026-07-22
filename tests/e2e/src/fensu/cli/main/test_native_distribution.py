@@ -146,17 +146,17 @@ def test_given_native_command_when_running_then_no_interpreter_is_executed(
     "test_case",
     [
         NativeProcessAccountingTestCase(
-            description="init skills and stale core check each execute one native process",
+            description="default init skills and stale core check each execute one native process",
             config="",
             files=(),
-            argv=("init", "--yes", "--name", "native_app", "--skills"),
+            argv=("init", "--yes", "--name", "native_app"),
             expected_exit_code=0,
             expected_exec_count=1,
         )
     ],
     ids=lambda case: case.description,
 )
-def test_given_init_skills_and_stale_core_check_when_tracing_then_each_uses_one_native_process(
+def test_given_default_init_skills_and_stale_core_check_when_tracing_then_each_uses_one_native_process(
     tmp_path: Path,
     test_case: NativeProcessAccountingTestCase,
 ) -> None:

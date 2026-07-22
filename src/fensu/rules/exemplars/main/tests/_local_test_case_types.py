@@ -53,7 +53,9 @@ def test_case_annotation_equivalent(*, module: ast.Module, ctx: RuleContext) -> 
     slug="local-test-case-constructors-equivalent",
     message="pytest cases must construct dataclasses from the local _test_types.py",
     remediation=(
-        "Move or define the test-case dataclass locally and instantiate that type directly."
+        "Parametrize using a dataclass imported from local _test_types.py. For framework harness "
+        "inputs such as RuleCase, store their fields in the local dataclass and construct the "
+        "framework object inside the test."
     ),
 )
 def _local_test_case_constructors_equivalent(

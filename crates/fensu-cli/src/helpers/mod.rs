@@ -1,4 +1,5 @@
 pub(crate) mod cache;
+pub(crate) mod check_cleanup;
 pub(crate) mod check_evaluation;
 pub(crate) mod check_execution;
 pub(crate) mod check_policy;

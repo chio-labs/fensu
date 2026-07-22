@@ -94,7 +94,7 @@ pub(crate) fn run_init(arguments: &[String]) -> Result<CliOutput, String> {
             if drift.1 == 1 { "file" } else { "files" }
         ));
     }
-    if options.skills == Some(true) {
+    if options.skills.unwrap_or(options.yes) {
         let skill_output = execute::execute(&repository, &SkillOptions::default(), true)?;
         if skill_output.exit_code != 0 {
             return Ok(CliOutput {

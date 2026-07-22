@@ -37,6 +37,7 @@ def evaluate_target(
     OPERATION_COUNTERS.record(operation=FRESH_EVALUATION_OPERATION)
     evaluations: list[FileEvaluation] = []
     if target.direct:
+        direct_applicable_rule_codes: frozenset[str] | None = target.applicable_rule_codes
         direct_native_faults: NativeFaultsByCode | None = (
             native_evaluation.faults_by_code if native_evaluation is not None else None
         )
@@ -44,6 +45,10 @@ def evaluate_target(
             native_evaluation.threshold_override_uses if native_evaluation is not None else ()
         )
         if target.custom_rule_registrations and direct_native_faults is not None:
+            if direct_applicable_rule_codes is not None:
+                direct_applicable_rule_codes = direct_applicable_rule_codes - {
+                    RoleCode.CUSTOM_RULE_TEST_COVERAGE
+                }
             direct_native_faults = {
                 code: faults
                 for code, faults in direct_native_faults.items()
@@ -62,7 +67,7 @@ def evaluate_target(
                 config=config,
                 tree=tree,
                 project=project,
-                applicable_rule_codes=target.applicable_rule_codes,
+                applicable_rule_codes=direct_applicable_rule_codes,
                 native_evaluation=(
                     replace(
                         native_evaluation,

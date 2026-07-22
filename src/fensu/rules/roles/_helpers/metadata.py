@@ -109,8 +109,9 @@ def role_rule_details(code: RoleCode) -> tuple[str, str]:
         ),
         RoleCode.CUSTOM_RULE_TEST_COVERAGE: (
             "configured custom rules must have statically declared public-harness cases",
-            "Add parametrized RuleCase coverage for the rule's passing and failing boundaries "
-            "using evaluate_rule.",
+            "Add statically visible RuleCase construction passed to evaluate_rule for each custom "
+            "rule. When FFT413 is active, parametrize with a local _test_types.py dataclass and "
+            "convert it to RuleCase inside the test.",
         ),
     }
     return details[code]

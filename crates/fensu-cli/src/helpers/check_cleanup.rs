@@ -104,6 +104,7 @@ fn clean_directory(directory: &Dir, relative: &Path, protected_roots: &BTreeSet<
             continue;
         };
         clean_directory(&child, &path, protected_roots);
+        drop(child);
         let _ = directory.remove_dir(&name);
     }
 
@@ -148,6 +149,7 @@ fn clean_directory(directory: &Dir, relative: &Path, protected_roots: &BTreeSet<
 
     for (name, cache_directory) in cache_directories {
         remove_disposable_cache_tree(&cache_directory);
+        drop(cache_directory);
         let _ = directory.remove_dir(name);
     }
 }
@@ -190,6 +192,7 @@ fn remove_disposable_cache_tree(directory: &Dir) {
                 continue;
             };
             remove_disposable_cache_tree(&child);
+            drop(child);
             let _ = directory.remove_dir(&name);
         } else if file_type.is_file() && is_bytecode(&name) {
             let _ = directory.remove_file(&name);
@@ -211,6 +214,7 @@ fn remove_empty_directories(directory: &Dir) {
                 continue;
             };
             remove_empty_directories(&child);
+            drop(child);
             let _ = directory.remove_dir(&name);
         }
     }

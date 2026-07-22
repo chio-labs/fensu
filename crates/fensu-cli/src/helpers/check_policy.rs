@@ -3,12 +3,14 @@ use std::fs;
 use std::path::Path;
 
 use fensu_facts::extension::models::ProgramHandle;
-use globset::{GlobBuilder, GlobSetBuilder};
 use ruff_python_ast::PythonVersion;
 use sha2::{Digest, Sha256};
 use walkdir::WalkDir;
 
-use crate::constants::{GLOB_ALL, ROLE_HELPERS, ROLE_MAIN, ROLE_RULES, SCOPE_TOOLING, SUFFIX_INIT};
+use crate::constants::{
+    GLOB_ALL, PYTHON_CACHE_DIRECTORY, ROLE_HELPERS, ROLE_MAIN, ROLE_RULES, SCOPE_TOOLING,
+    SUFFIX_INIT,
+};
 use crate::models::{Config, Fault, ScopedSource, ThresholdUse};
 
 pub(crate) fn resolved_thresholds(
@@ -219,20 +221,46 @@ pub(crate) fn validate_package_names(root: &Path, config: &Config) -> Result<(),
 
 pub(crate) fn path_matches(path: &str, pattern: &str) -> bool {
     let value = if pattern.contains('/') || pattern == GLOB_ALL {
-        pattern.to_owned()
+        pattern.as_bytes().to_vec()
     } else {
-        format!("{{{pattern},**/{pattern}}}")
+        format!("**/{pattern}").into_bytes()
     };
-    let Ok(glob) = GlobBuilder::new(&value)
-        .literal_separator(true)
-        .backslash_escape(false)
-        .build()
-    else {
-        return false;
+    wildcard_matches(path.as_bytes(), &value, 0, 0, &mut HashMap::new())
+}
+
+fn wildcard_matches(
+    path: &[u8],
+    pattern: &[u8],
+    path_index: usize,
+    pattern_index: usize,
+    memo: &mut HashMap<(usize, usize), bool>,
+) -> bool {
+    if let Some(result) = memo.get(&(path_index, pattern_index)) {
+        return *result;
+    }
+    let result = if pattern_index == pattern.len() {
+        path_index == path.len()
+    } else if pattern[pattern_index..].starts_with(b"**/") {
+        wildcard_matches(path, pattern, path_index, pattern_index + 3, memo)
+            || (path_index..path.len()).any(|index| {
+                path[index] == b'/'
+                    && wildcard_matches(path, pattern, index + 1, pattern_index + 3, memo)
+            })
+    } else if pattern[pattern_index..].starts_with(b"**") {
+        (path_index..=path.len())
+            .any(|index| wildcard_matches(path, pattern, index, pattern_index + 2, memo))
+    } else if pattern[pattern_index] == b'*' {
+        (path_index..=path.len())
+            .take_while(|index| {
+                *index == path.len() || path.get(*index).is_some_and(|value| *value != b'/')
+            })
+            .any(|index| wildcard_matches(path, pattern, index, pattern_index + 1, memo))
+    } else {
+        path.get(path_index) == pattern.get(pattern_index)
+            && wildcard_matches(path, pattern, path_index + 1, pattern_index + 1, memo)
     };
-    let mut builder = GlobSetBuilder::new();
-    builder.add(glob);
-    builder.build().is_ok_and(|set| set.is_match(path))
+    memo.insert((path_index, pattern_index), result);
+    result
 }
 
 pub(crate) fn check_identity(
@@ -268,6 +296,17 @@ fn digest_project_observations(digest: &mut Sha256, root: &Path, config: &Config
             .filter_map(Result::ok)
             .skip(1)
         {
+            if entry.file_type().is_dir() && entry.file_name() == PYTHON_CACHE_DIRECTORY {
+                continue;
+            }
+            if entry.file_type().is_file()
+                && matches!(
+                    entry.path().extension().and_then(|value| value.to_str()),
+                    Some("pyc" | "pyo")
+                )
+            {
+                continue;
+            }
             let Ok(path) = entry.path().strip_prefix(root) else {
                 continue;
             };
@@ -304,6 +343,31 @@ fn digest_project_observations(digest: &mut Sha256, root: &Path, config: &Config
 pub(crate) fn hex_digest(bytes: &[u8]) -> String {
     let digest = Sha256::digest(bytes);
     format!("{digest:x}")
+}
+
+pub(crate) fn apply_rule_ignores(faults: Vec<Fault>, root: &Path, config: &Config) -> Vec<Fault> {
+    faults
+        .into_iter()
+        .filter(|fault| {
+            let Some(repository_path) = Path::new(&fault.path)
+                .strip_prefix(root)
+                .ok()
+                .map(|path| path.to_string_lossy().replace('\\', "/"))
+            else {
+                return true;
+            };
+            !config.rule_ignores.iter().any(|entry| {
+                entry
+                    .rules
+                    .iter()
+                    .any(|selector| fault.code.starts_with(selector))
+                    && entry
+                        .paths
+                        .iter()
+                        .any(|pattern| path_matches(&repository_path, pattern))
+            })
+        })
+        .collect()
 }
 
 pub(crate) fn bool_text(value: bool) -> String {

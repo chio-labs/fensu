@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::configuration::helpers::validation::{required_strings, validate_keys};
 use crate::constants::{DEFAULT_MEMORY_ARCHIVE_DAYS, DEFAULT_THRESHOLDS};
-use crate::models::{Config, RuleException, ThresholdOverride};
+use crate::models::{Config, RuleException, RuleIgnore, ThresholdOverride};
 
 pub(crate) fn build(
     table: &toml::map::Map<String, toml::Value>,
@@ -49,6 +49,7 @@ pub(crate) fn build(
         threshold_overrides: threshold_overrides(table.get("threshold_overrides")),
         contracts,
         exceptions: exceptions(table.get("rule_exceptions")),
+        rule_ignores: rule_ignores(table.get("rule_ignores")),
         memory_enabled: memory_enabled(table)?,
         memory_archive_after_days: memory_archive_after_days(table)?,
         skills_name: skills_name(table)?,
@@ -219,6 +220,23 @@ fn exceptions(value: Option<&toml::Value>) -> Vec<RuleException> {
                     path: text(table, "path"),
                     reason: text(table, "reason"),
                     symbols: strings(table.get("symbols")),
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn rule_ignores(value: Option<&toml::Value>) -> Vec<RuleIgnore> {
+    value
+        .and_then(toml::Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(toml::Value::as_table)
+                .map(|table| RuleIgnore {
+                    rules: strings(table.get("rules")),
+                    paths: strings(table.get("paths")),
+                    reason: text(table, "reason"),
                 })
                 .collect()
         })

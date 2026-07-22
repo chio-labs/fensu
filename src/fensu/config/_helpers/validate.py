@@ -23,6 +23,7 @@ from fensu.config.constants import (
     PATH_SEPARATOR,
     RECURSIVE_GLOB,
     RULE_EXCEPTION_SYMBOLS_CONFIG_KEY,
+    RULE_IGNORE_KEYS,
     SKILLS_CONFIG_KEYS,
     SKILLS_NAME_CONFIG_KEY,
     THRESHOLD_OVERRIDE_KEYS,
@@ -60,6 +61,7 @@ def validate_config(raw: Mapping[str, object]) -> None:
     _validate_threshold_overrides(value=raw.get("threshold_overrides"))
     _validate_contracts(value=raw.get("contracts"))
     _validate_rule_exceptions(value=raw.get("rule_exceptions"))
+    _validate_rule_ignores(value=raw.get("rule_ignores"))
     _validate_cache(value=raw.get("cache"))
     _validate_experimental(value=raw.get("experimental"))
     _validate_memory(value=raw.get("memory"))
@@ -280,6 +282,38 @@ def _validate_threshold_overrides(*, value: object) -> None:
                 "Threshold override thresholds must be a non-empty inline table."
             )
         _validate_thresholds(value=thresholds, owner="threshold_overrides.thresholds")
+
+
+def _validate_rule_ignores(*, value: object) -> None:
+    if value is None:
+        return
+    if not isinstance(value, list):
+        raise ConfigValidationError("Config key rule_ignores must be an array of tables.")
+    for entry in value:
+        if not isinstance(entry, dict) or set(entry) != RULE_IGNORE_KEYS:
+            raise ConfigValidationError(
+                "Each rule_ignores entry must define only rules, paths, and reason."
+            )
+        rules: tuple[str, ...] = _validate_string_sequence(
+            name="rule_ignores.rules", value=entry.get("rules")
+        )
+        if not rules:
+            raise ConfigValidationError("Rule ignore selectors must not be empty.")
+        for selector in rules:
+            if not is_rule_selector(selector):
+                raise ConfigValidationError(
+                    f"Config key rule_ignores.rules contains invalid selector {selector}."
+                )
+        paths: tuple[str, ...] = _validate_string_sequence(
+            name="rule_ignores.paths", value=entry.get("paths")
+        )
+        if not paths:
+            raise ConfigValidationError("Rule ignore paths must not be empty.")
+        for pattern in paths:
+            _validate_path_pattern(pattern=pattern, owner="Rule ignore path")
+        reason: object = entry.get("reason")
+        if not isinstance(reason, str) or not reason.strip():
+            raise ConfigValidationError("Rule ignore reason must be non-empty.")
 
 
 def _validate_path_pattern(*, pattern: str, owner: str) -> None:

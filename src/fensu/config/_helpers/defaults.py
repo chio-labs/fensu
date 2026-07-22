@@ -32,6 +32,7 @@ from fensu.config.models import (
     MemoryConfig,
     MemoryTasksConfig,
     RuleExceptionEntry,
+    RuleIgnoreEntry,
     SkillsConfig,
     ThresholdOverride,
 )
@@ -69,6 +70,7 @@ def build_config(raw: Mapping[str, object]) -> Config:
         rule_paths=_string_tuple(value=raw.get("rule_paths")),
         rule_modules=_string_tuple(value=raw.get("rule_modules")),
         rule_exceptions=_rule_exceptions(raw.get("rule_exceptions")),
+        rule_ignores=_rule_ignores(raw.get("rule_ignores")),
         cache=_cache_config(raw.get("cache")),
         experimental=_experimental_config(raw.get("experimental")),
         memory=_memory_config(raw.get("memory")),
@@ -183,6 +185,27 @@ def _rule_exceptions(value: object) -> tuple[RuleExceptionEntry, ...]:
                     path=path,
                     reason=reason,
                     symbols=tuple(symbol for symbol in symbols if isinstance(symbol, str)),
+                )
+            )
+    return tuple(result)
+
+
+def _rule_ignores(value: object) -> tuple[RuleIgnoreEntry, ...]:
+    if not isinstance(value, list):
+        return ()
+    result: list[RuleIgnoreEntry] = []
+    for entry in value:
+        if not isinstance(entry, dict):
+            continue
+        rules: object = entry.get("rules")
+        paths: object = entry.get("paths")
+        reason: object = entry.get("reason")
+        if isinstance(rules, list) and isinstance(paths, list) and isinstance(reason, str):
+            result.append(
+                RuleIgnoreEntry(
+                    rules=tuple(rule for rule in rules if isinstance(rule, str)),
+                    paths=tuple(path for path in paths if isinstance(path, str)),
+                    reason=reason,
                 )
             )
     return tuple(result)

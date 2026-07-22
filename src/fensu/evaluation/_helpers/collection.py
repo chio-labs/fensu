@@ -12,6 +12,7 @@ from fensu.evaluation._helpers.rule_exceptions import (
     configured_exception_keys,
     stale_exception_error,
 )
+from fensu.evaluation._helpers.rule_ignores import visible_faults
 from fensu.evaluation.models import (
     EvaluationResult,
     EvaluationSelection,
@@ -77,6 +78,8 @@ def collect_evaluation_result(
     )
     if stale_error is not None:
         raise stale_error
+    faults = visible_faults(faults=faults, config=config, repo_root=repo_root)
+    warnings = visible_faults(faults=warnings, config=config, repo_root=repo_root)
     return EvaluationResult(
         faults=sort_faults(faults=faults, repo_root=repo_root),
         warnings=sort_faults(faults=warnings, repo_root=repo_root),

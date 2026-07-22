@@ -76,6 +76,14 @@ Then run:
 fensu check
 ```
 
+`fensu init --yes` installs repository-local guidance for Opencode, Claude, and
+Agents by default; pass `--no-skills` only for explicit configuration-only
+automation. Do not call onboarding complete until this succeeds:
+
+```bash
+fensu skills --check
+```
+
 All rule families are enabled by default. Product roots and tooling receive
 structural rules; tests receive test-convention and annotation rules.
 
@@ -200,6 +208,19 @@ Exceptions accept one exact rule code, repository-relative Python file, and one
 or more qualified symbols. Globs, directories, line numbers, path-only entries,
 and inline suppression comments are not supported. `fensu check` rejects stale
 exceptions that no longer suppress a fault.
+
+For a justified rule/path intersection that is broader than one exact finding,
+keep the rules and project context active with `[[rule_ignores]]`:
+
+```toml
+[[rule_ignores]]
+rules = ["FFA", "XGENERATED"]
+paths = ["src/my_package/generated/**"]
+reason = "Generated interfaces are checked by their source schema."
+```
+
+One declaration must match both the finding's rule code and its reported path.
+Unlike exact exceptions, path-scoped ignores are not stale-checked.
 
 ## Agent Skills
 

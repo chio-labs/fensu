@@ -78,6 +78,7 @@ pub(crate) struct Config {
     pub(crate) threshold_overrides: Vec<ThresholdOverride>,
     pub(crate) contracts: Vec<(String, String)>,
     pub(crate) exceptions: Vec<RuleException>,
+    pub(crate) rule_ignores: Vec<RuleIgnore>,
     pub(crate) memory_enabled: bool,
     pub(crate) memory_archive_after_days: u64,
     pub(crate) skills_name: Option<String>,
@@ -98,6 +99,13 @@ pub(crate) struct RuleException {
     pub(crate) path: String,
     pub(crate) reason: String,
     pub(crate) symbols: Vec<String>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub(crate) struct RuleIgnore {
+    pub(crate) rules: Vec<String>,
+    pub(crate) paths: Vec<String>,
+    pub(crate) reason: String,
 }
 
 #[derive(Clone, Debug)]

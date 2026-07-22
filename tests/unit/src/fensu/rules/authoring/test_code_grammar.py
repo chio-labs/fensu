@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from fensu.rules.authoring.main._matches_rule_selector import matches_rule_selector
 from fensu.rules.authoring.main.is_rule_code import is_rule_code
 from fensu.rules.authoring.main.is_rule_selector import is_rule_selector
+from fensu.rules.authoring.main.matches_rule_selector import matches_rule_selector
 from tests.unit.src.fensu.rules.authoring._test_types import (
     RuleGrammarTestCase,
     RuleSelectorMatchTestCase,

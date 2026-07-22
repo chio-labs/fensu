@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.4.0](https://github.com/chio-labs/fensu/compare/v0.3.0...v0.4.0) (2026-07-22)
+
+
+### Features
+
+* harden check policy and agent onboarding ([0c84d60](https://github.com/chio-labs/fensu/commit/0c84d6071341fa875cb9485ca5a87030fc57adf1))
+* harden check policy and agent onboarding ([404b619](https://github.com/chio-labs/fensu/commit/404b619b9efa758f3077fe31b629b533ee15954e))
+
+
+### Bug Fixes
+
+* release cleanup handles before removal ([79133b7](https://github.com/chio-labs/fensu/commit/79133b7d40b66f1f6d99a24861fe9dd2f638bde4))
+
 ## [0.3.0](https://github.com/chio-labs/fensu/compare/v0.2.2...v0.3.0) (2026-07-21)
 
 

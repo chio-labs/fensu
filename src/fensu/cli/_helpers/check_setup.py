@@ -39,6 +39,7 @@ def prepare_check_inputs(*, args: argparse.Namespace, invocation_dir: Path) -> C
             config=loaded.config,
             repo_root=project_dir,
             include_warnings=args.warn,
+            catalogue=loaded.catalogue,
         ),
     )
     config: Config = _configured(args=args, loaded=loaded, invocation_dir=invocation_dir)

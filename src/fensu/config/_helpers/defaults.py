@@ -36,10 +36,14 @@ from fensu.config.models import (
     SkillsConfig,
     ThresholdOverride,
 )
-from fensu.rules.authoring.types import Threshold
+from fensu.rules.authoring.types import RuleOptionValue, Threshold
 
 
-def build_config(raw: Mapping[str, object]) -> Config:
+def build_config(
+    *,
+    raw: Mapping[str, object],
+    rule_options: Mapping[str, Mapping[str, RuleOptionValue]] | None = None,
+) -> Config:
     """Build a Config by overlaying validated user values on shipped defaults."""
 
     thresholds: dict[Threshold, int] = dict(DEFAULT_THRESHOLDS)
@@ -69,6 +73,7 @@ def build_config(raw: Mapping[str, object]) -> Config:
         ignore=_string_tuple(value=raw.get("ignore"), default=DEFAULT_IGNORE),
         rule_paths=_string_tuple(value=raw.get("rule_paths")),
         rule_modules=_string_tuple(value=raw.get("rule_modules")),
+        rule_options=MappingProxyType({}) if rule_options is None else rule_options,
         rule_exceptions=_rule_exceptions(raw.get("rule_exceptions")),
         rule_ignores=_rule_ignores(raw.get("rule_ignores")),
         cache=_cache_config(raw.get("cache")),

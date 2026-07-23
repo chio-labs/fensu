@@ -57,6 +57,39 @@ pub(crate) struct RuleMetadata {
     pub(crate) source: Option<String>,
     #[serde(default = "crate::helpers::rule::cacheable_default")]
     pub(crate) cacheable: bool,
+    #[serde(default)]
+    pub(crate) options: Vec<RuleOptionMetadata>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct RuleOptionMetadata {
+    pub(crate) name: String,
+    pub(crate) kind: String,
+    pub(crate) required: bool,
+    pub(crate) default: Option<RuleOptionValue>,
+    pub(crate) current_value: RuleOptionValue,
+    pub(crate) description: Option<String>,
+    pub(crate) choices: Option<Vec<String>>,
+    pub(crate) minimum: Option<i64>,
+    pub(crate) maximum: Option<i64>,
+    pub(crate) minimum_items: Option<usize>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(untagged)]
+pub(crate) enum RuleOptionValue {
+    Boolean(bool),
+    Integer(i64),
+    String(String),
+    List(Vec<RuleOptionListValue>),
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(untagged)]
+pub(crate) enum RuleOptionListValue {
+    Integer(i64),
+    String(String),
 }
 
 #[derive(Clone, Debug, Default)]
@@ -69,6 +102,7 @@ pub(crate) struct Config {
     pub(crate) ignore: Vec<String>,
     pub(crate) rule_paths: Vec<String>,
     pub(crate) rule_modules: Vec<String>,
+    pub(crate) rule_options: toml::map::Map<String, toml::Value>,
     pub(crate) cache_enabled: bool,
     pub(crate) cache_require_cacheable: bool,
     pub(crate) evaluation_include: Vec<String>,

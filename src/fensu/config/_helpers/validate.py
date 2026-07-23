@@ -53,6 +53,7 @@ def validate_config(raw: Mapping[str, object]) -> None:
     _validate_optional_string_sequence(name="tooling", value=raw.get("tooling"))
     _validate_optional_string_sequence(name="rule_paths", value=raw.get("rule_paths"))
     _validate_optional_string_sequence(name="rule_modules", value=raw.get("rule_modules"))
+    _validate_rule_options_shape(value=raw.get("rule_options"))
     _validate_selection(name="select", value=raw.get("select"))
     _validate_selection(name="warn", value=raw.get("warn"))
     _validate_selection(name="ignore", value=raw.get("ignore"))
@@ -74,6 +75,16 @@ def _validate_top_level_keys(*, raw: Mapping[str, object]) -> None:
     if unknown_keys:
         names: str = ", ".join(sorted(unknown_keys))
         raise ConfigValidationError(f"Unknown config key(s): {names}.")
+
+
+def _validate_rule_options_shape(*, value: object) -> None:
+    if value is None:
+        return
+    if not isinstance(value, dict):
+        raise ConfigValidationError("Config key rule_options must be a table.")
+    for code, options in value.items():
+        if not isinstance(code, str) or not isinstance(options, dict):
+            raise ConfigValidationError("Config key rule_options must contain rule-code tables.")
 
 
 def _validate_cache(*, value: object) -> None:

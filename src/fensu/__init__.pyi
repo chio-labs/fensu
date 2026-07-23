@@ -167,6 +167,7 @@ from fensu.config.types import ContractBehavior as ContractBehavior
 from fensu.discovery.types import ScopeName as ScopeName
 from fensu.rules.authoring.main.define import rule as rule
 from fensu.rules.authoring.models import Fault as Fault
+from fensu.rules.authoring.models import RuleOption as RuleOption
 from fensu.rules.authoring.types import (
     ExecutionOwner as ExecutionOwner,
 )

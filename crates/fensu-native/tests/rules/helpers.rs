@@ -85,6 +85,7 @@ fn evaluate_fixture(test_case: &CoreRuleFixture) -> Vec<ExpectedFault> {
             })
             .collect(),
         repo_root,
+        rule_options: HashMap::new(),
     };
 
     evaluate_core_rules(&program, &test_case.codes, &context, &project)

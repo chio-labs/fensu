@@ -25,6 +25,33 @@ _SITE_PACKAGES_DIRECTORIES: dict[str, str] = {
     "nt": "Lib/site-packages",
     "posix": "lib/python3.12/site-packages",
 }
+_CUSTOM_RULE_OPTION_SOURCE: str = """from __future__ import annotations
+
+import ast
+
+from fensu import Family, Fault, RuleContext, RuleOption, rule
+
+_LIMIT = RuleOption.integer(name="limit", default=1, minimum=1, maximum=3)
+_REQUIRED_PATH = RuleOption.string(name="required_path", default="policy.marker")
+
+
+@rule(
+    code="XOP001",
+    family=Family.CUSTOM,
+    slug="configured-limit",
+    message="configured finding",
+    cacheable=True,
+    options=(_LIMIT, _REQUIRED_PATH),
+)
+def configured_limit(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    required_path = ctx.repo_root / ctx.option(_REQUIRED_PATH)
+    if not ctx.project.exists(requester=ctx.path, path=required_path):
+        return []
+    return [
+        ctx.fault(node=node, message=f"configured finding limit={ctx.option(_LIMIT)}")
+        for node in module.body[:ctx.option(_LIMIT)]
+    ]
+"""
 
 
 def installed_fensu_executable() -> Path:
@@ -172,6 +199,27 @@ def write_cli_project(
         path: Path = root / relative_path
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(source, encoding="utf-8")
+
+
+def write_custom_rule_option_project(*, root: Path) -> None:
+    """Write a cacheable discovered custom rule with typed options and an existing dependency."""
+
+    write_cli_project(
+        root=root,
+        config=(
+            'roots = ["src/pkg"]\n'
+            "tests = []\n"
+            "tooling = []\n"
+            'select = ["XOP001"]\n'
+            'rule_paths = ["rules/custom.py"]\n'
+        ),
+        files=(
+            ("src/pkg/alpha.py", "FIRST: int = 1\nSECOND: int = 2\n"),
+            ("src/pkg/beta.py", "FIRST: int = 1\nSECOND: int = 2\n"),
+            ("rules/custom.py", _CUSTOM_RULE_OPTION_SOURCE),
+            ("policy.marker", "present\n"),
+        ),
+    )
 
 
 def cache_snapshot(root: Path) -> tuple[tuple[str, bytes], ...]:

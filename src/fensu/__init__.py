@@ -56,6 +56,7 @@ __all__ = [
     "RuleCaseForm",
     "RuleContext",
     "RuleFile",
+    "RuleOption",
     "RuleResult",
     "RuleTestAssociationFact",
     "ScopeName",

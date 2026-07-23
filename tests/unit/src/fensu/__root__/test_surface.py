@@ -74,6 +74,7 @@ from tests.unit.src.fensu.__root__._test_types import (
                 "RuleCaseForm",
                 "RuleContext",
                 "RuleFile",
+                "RuleOption",
                 "RuleResult",
                 "RuleTestAssociationFact",
                 "ScopeName",

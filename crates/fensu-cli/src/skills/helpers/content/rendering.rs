@@ -5,6 +5,7 @@ use std::sync::OnceLock;
 use serde_json::{json, Value};
 
 use crate::models::RuleMetadata;
+use crate::skills::helpers::content::option_rendering::rule_option_lines;
 use crate::skills::helpers::content::sections::{
     display_project_path, effective_config_lines, expand_repository_profile, governed_path, py_json,
 };
@@ -327,6 +328,7 @@ fn tier_lines(heading: &str, rules: &[RuleMetadata]) -> Vec<String> {
             ),
             String::new(),
         ]);
+        lines.extend(rule_option_lines(rule));
     }
     lines
 }

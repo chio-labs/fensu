@@ -1,7 +1,10 @@
 use std::process::Command;
 
 use crate::helpers::{run_check, run_check_with, write};
-use crate::test_types::{CheckPolicyTestCase, InvalidCheckConfigTestCase, RuleRemediationTestCase};
+use crate::test_types::{
+    CheckPolicyTestCase, InvalidCheckConfigTestCase, RuleOptionsCheckRoutingTestCase,
+    RuleRemediationTestCase,
+};
 
 const CONFIG: &str =
     "roots = [\"src\"]\ntests = [\"tests\"]\ntooling = [\"scripts\"]\nselect = [\"FFA\"]\n";
@@ -145,16 +148,14 @@ fn given_warning_and_exact_exception_when_rule_ignore_overlaps_then_policy_order
 fn given_malformed_rule_ignore_when_checking_natively_then_configuration_fails_loudly() {
     let test_cases = [InvalidCheckConfigTestCase {
         description: "empty rule ignore selectors are rejected",
+        config: "roots = [\"src/pkg\"]\n\n[[rule_ignores]]\nrules = []\npaths = [\"src/**\"]\nreason = \"Required.\"\n",
         expected_exit_code: 2,
         expected_error: "selectors must not be empty",
     }];
 
     for test_case in &test_cases {
         let repository = tempfile::tempdir().expect("temporary repository");
-        write(
-            repository.path().join("fensu.toml"),
-            "roots = [\"src/pkg\"]\n\n[[rule_ignores]]\nrules = []\npaths = [\"src/**\"]\nreason = \"Required.\"\n",
-        );
+        write(repository.path().join("fensu.toml"), test_case.config);
         write(
             repository.path().join("src/pkg/module.py"),
             "value: int = 1\n",
@@ -170,6 +171,97 @@ fn given_malformed_rule_ignore_when_checking_natively_then_configuration_fails_l
         );
         assert!(
             String::from_utf8_lossy(&output.stderr).contains(test_case.expected_error),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_malformed_rule_options_when_checking_then_native_structure_validation_rejects_them() {
+    let test_cases = [
+        InvalidCheckConfigTestCase {
+            description: "rule options must be a table",
+            config: "roots = [\"src/pkg\"]\nrule_options = true\n",
+            expected_exit_code: 2,
+            expected_error: "Config key rule_options must be a table.",
+        },
+        InvalidCheckConfigTestCase {
+            description: "each rule option entry must be a table",
+            config: "roots = [\"src/pkg\"]\n[rule_options]\nXOP001 = true\n",
+            expected_exit_code: 2,
+            expected_error: "Config key rule_options must contain rule-code tables.",
+        },
+    ];
+
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(repository.path().join("fensu.toml"), test_case.config);
+        write(
+            repository.path().join("src/pkg/module.py"),
+            "value: int = 1\n",
+        );
+
+        let output = run_check(repository.path());
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains(test_case.expected_error),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_rule_options_table_when_checking_then_empty_stays_native_and_nonempty_routes_to_python() {
+    let test_cases = [
+        RuleOptionsCheckRoutingTestCase {
+            description: "empty rule options table remains on the native check path",
+            config: "roots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA001\"]\n[rule_options]\n",
+            expected_exit_code: 0,
+            expected_stdout: "Found 0 faults\n",
+            expected_stderr: "",
+        },
+        RuleOptionsCheckRoutingTestCase {
+            description: "non-empty rule options table routes to the Python check host",
+            config: "roots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA001\"]\n[rule_options.XOP001]\nenabled = true\n",
+            expected_exit_code: 2,
+            expected_stdout: "",
+            expected_stderr: "fensu is not installed beside fensu-cli; install `fensu` or use the CLI package only for `--version`.\n",
+        },
+    ];
+
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(repository.path().join("fensu.toml"), test_case.config);
+        write(
+            repository.path().join("src/pkg/module.py"),
+            "value: int = 1\n",
+        );
+
+        let output = run_check(repository.path());
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout),
+            test_case.expected_stdout,
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            String::from_utf8_lossy(&output.stderr),
+            test_case.expected_stderr,
             "{}",
             test_case.description
         );

@@ -48,6 +48,18 @@ def build_rule_selection_from_config(
     catalogue: tuple[RuleSpec, ...] = build_catalogue_from_config(
         config=config, repo_root=repo_root
     )
+    return build_rule_selection_from_catalogue(
+        config=config,
+        catalogue=catalogue,
+        repo_root=repo_root,
+    )
+
+
+def build_rule_selection_from_catalogue(
+    *, config: Config, catalogue: tuple[RuleSpec, ...], repo_root: Path | None = None
+) -> RuleSelection:
+    """Resolve blocking, warning, and ignored tiers from one discovered catalogue."""
+
     ignored: tuple[RuleSpec, ...] = _matching_rules(rules=catalogue, selectors=config.ignore)
     selected: tuple[RuleSpec, ...] = _selected_rules(rules=catalogue, selectors=config.select)
     ignored_codes: frozenset[str] = frozenset(rule.code for rule in ignored)
@@ -84,8 +96,17 @@ def build_catalogue_from_config(
     all_rules: tuple[RuleSpec, ...] = (*CORE_RULES, *custom_rules)
     _validate_rule_identities(rules=all_rules)
     _validate_unique_codes(rules=all_rules)
+    _validate_native_rule_options(rules=all_rules)
     _validate_exception_codes(config=config, rules=all_rules)
     return all_rules
+
+
+def _validate_native_rule_options(*, rules: tuple[RuleSpec, ...]) -> None:
+    for rule in rules:
+        if rule.kind is RuleKind.CORE and rule.check is None and rule.options:
+            raise ConfigError(
+                f"Native-backed core rule {rule.code} cannot declare options in this release."
+            )
 
 
 def _load_rule_modules(*, module_names: tuple[str, ...], repo_root: Path) -> tuple[RuleSpec, ...]:

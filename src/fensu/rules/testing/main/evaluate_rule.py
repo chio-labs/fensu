@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -24,7 +25,12 @@ from fensu.rules.testing._helpers.validation import validate_rule_case
 from fensu.rules.testing.models import RuleCase, RuleResult
 
 
-def evaluate_rule(*, rule: RuleCheck | RuleSpec, test_case: RuleCase) -> RuleResult:
+def evaluate_rule(
+    *,
+    rule: RuleCheck | RuleSpec,
+    test_case: RuleCase,
+    rule_options: Mapping[str, object] | None = None,
+) -> RuleResult:
     """Evaluate a decorated rule against one isolated real-pipeline case."""
 
     unresolved_rule: RuleSpec = resolve_rule_spec(value=rule)
@@ -33,7 +39,11 @@ def evaluate_rule(*, rule: RuleCheck | RuleSpec, test_case: RuleCase) -> RuleRes
         uses_module=check_uses_module(check=unresolved_rule.check),
     )
     validate_rule_case(test_case=test_case)
-    config: Config = build_harness_config(test_case=test_case)
+    config: Config = build_harness_config(
+        test_case=test_case,
+        rule=resolved_rule,
+        rule_options=rule_options,
+    )
     with TemporaryDirectory(prefix="fensu-rule-") as directory:
         repo_root: Path = Path(directory).resolve()
         write_harness_repository(repo_root=repo_root, test_case=test_case, config=config)

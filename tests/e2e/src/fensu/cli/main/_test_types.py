@@ -200,3 +200,27 @@ class UpgradeSafetyTestCase:
     installed_version: str
     expected_exit_code: int
     expected_error_fragment: str
+
+
+@dataclass(frozen=True)
+class CustomRuleOptionJobsCliTestCase:
+    """Typed custom-rule option and expected parity across jobs flag values."""
+
+    description: str
+    expected_exit_code: int
+    expected_fault_count: int
+    expected_output_fragment: str
+
+
+@dataclass(frozen=True)
+class CustomRuleOptionCacheCliTestCase:
+    """Typed custom-rule options and expected cross-process cache identity."""
+
+    description: str
+    override_value: int
+    expected_exit_code: int
+    expected_default_fault_count: int
+    expected_override_fault_count: int
+    expected_cold_stats: str
+    expected_warm_stats: str
+    expected_override_stats: str

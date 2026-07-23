@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
+
+from fensu.rules.authoring.models import RuleSpec
+from fensu.rules.authoring.types import RuleOptionValue
 
 
 @dataclass(frozen=True)
@@ -250,3 +254,60 @@ class MissingConfigGuidanceTestCase:
     description: str
     expected_prefix: str
     expected_guidance: str
+
+
+@dataclass(frozen=True)
+class RuleOptionsResolutionTestCase:
+    """Raw per-rule options and their expected resolved current values."""
+
+    description: str
+    raw_config: dict[str, object]
+    rules: tuple[RuleSpec, ...]
+    expected_rule_options: Mapping[str, Mapping[str, RuleOptionValue]]
+
+
+@dataclass(frozen=True)
+class InvalidRuleOptionsConfigTestCase:
+    """Invalid per-rule options and their expected deterministic error detail."""
+
+    description: str
+    raw_rule_options: dict[str, dict[str, object]]
+    rules: tuple[RuleSpec, ...]
+    expected_error_fragment: str
+
+
+@dataclass(frozen=True)
+class RuleOptionsImmutabilityTestCase:
+    """Nested per-rule values and their expected defensive-copy behavior."""
+
+    description: str
+    rule_code: str
+    option_name: str
+    original_value: RuleOptionValue
+    replacement_value: RuleOptionValue
+    expected_error_type: type[Exception]
+
+
+@dataclass(frozen=True)
+class PublicRuleOptionsLoadTestCase:
+    """A real custom rule config and its expected resolved option values."""
+
+    description: str
+    config_text: str
+    rule_relative_path: str
+    rule_source: str
+    expected_rule_options: Mapping[str, Mapping[str, RuleOptionValue]]
+
+
+@dataclass(frozen=True)
+class RuleOptionsValidationOrderTestCase:
+    """Malformed options and evidence that custom rule import did not execute."""
+
+    description: str
+    config_text: str
+    rule_relative_path: str
+    rule_source: str
+    marker_relative_path: str
+    expected_error_type: type[Exception]
+    expected_error_fragment: str
+    expected_marker_exists: bool

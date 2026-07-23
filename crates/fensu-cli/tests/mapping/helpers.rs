@@ -66,7 +66,35 @@ pub(crate) fn method_project(root: &Path) {
     );
     write(
         root.join("src/methods/entry.py"),
-        "from methods.contracts import Runner\nfrom methods.workers import Worker, make\n\ndef run(runner: Runner, dynamic) -> None:\n    worker = Worker()\n    worker.execute()\n    make().execute()\n    runner.execute()\n    dynamic.execute()\n",
+        "from methods.contracts import Runner\nfrom methods.workers import Worker, make\n\ndef run(runner: Runner, dynamic) -> None:\n    worker = Worker()\n    worker.execute()\n    make().execute()\n    runner.execute()\n    dynamic.execute()\n\ndef run_protocol(runner: Runner) -> None:\n    runner.execute()\n",
+    );
+}
+
+pub(crate) fn sibling_method_project(root: &Path) {
+    write(root.join("fensu.toml"), "roots = [\"src/siblings\"]\n");
+    write(
+        root.join("src/siblings/workers.py"),
+        "class Base:\n    def run(self) -> None:\n        self.hook()\n\nclass ChildA(Base):\n    def hook(self) -> None:\n        return None\n\nclass ChildB(Base):\n    def hook(self) -> None:\n        return None\n",
+    );
+    write(
+        root.join("src/siblings/entry.py"),
+        "from siblings.workers import ChildA, ChildB\n\ndef call_a() -> None:\n    ChildA().run()\n\ndef call_b() -> None:\n    ChildB().run()\n",
+    );
+}
+
+pub(crate) fn ambiguous_protocol_project(root: &Path) {
+    write(root.join("fensu.toml"), "roots = [\"src/protocols\"]\n");
+    write(
+        root.join("src/protocols/contracts.py"),
+        "from typing import Protocol\n\nclass Runner(Protocol):\n    def execute(self) -> None:\n        ...\n",
+    );
+    write(
+        root.join("src/protocols/workers.py"),
+        "from protocols.contracts import Runner\n\nclass First(Runner):\n    def execute(self) -> None:\n        return None\n\nclass Second(Runner):\n    def execute(self) -> None:\n        return None\n",
+    );
+    write(
+        root.join("src/protocols/entry.py"),
+        "from protocols.contracts import Runner\n\ndef run(runner: Runner) -> None:\n    runner.execute()\n",
     );
 }
 

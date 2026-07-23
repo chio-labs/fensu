@@ -3,7 +3,9 @@ use std::io::{self, IsTerminal};
 use std::path::Path;
 
 use crate::mapping::helpers::{cache, index, project, render, tree};
-use crate::mapping::models::{MapCacheStats, MapOptions, ProjectIndex, SourceSnapshot};
+use crate::mapping::models::{
+    MapCacheStats, MapDirection, MapOptions, ProjectIndex, SourceSnapshot,
+};
 use crate::models::CliOutput;
 
 pub(crate) fn execute(options: MapOptions) -> Result<CliOutput, String> {
@@ -19,7 +21,10 @@ pub(crate) fn execute(options: MapOptions) -> Result<CliOutput, String> {
         (index::build(&snapshots)?, None)
     };
     let root = index::select(&project_index.functions, &options.symbol)?;
-    let call_tree = tree::build_tree(root, &project_index, options.depth);
+    let call_tree = match options.direction {
+        MapDirection::Downstream => tree::build_tree(root, &project_index, options.depth),
+        MapDirection::Upstream => tree::build_upstream_tree(root, &project_index, options.depth),
+    };
     let use_color = env::var_os("NO_COLOR").is_none()
         && match options.color.as_str() {
             "always" => true,

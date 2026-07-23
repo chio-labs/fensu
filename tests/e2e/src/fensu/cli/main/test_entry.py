@@ -25,7 +25,7 @@ from tests.e2e.src.fensu.cli.main.helpers import installed_fensu_executable
                 "  init    Initialize Fensu configuration for a repository.\n"
                 "  check   Evaluate repository architecture rules.\n"
                 "  rule    Show details for one rule.\n"
-                "  map     Render a downstream project call map.\n"
+                "  map     Render a directional project call map.\n"
                 "  skills  Generate and install agent guidance.\n"
                 "  memory  Synchronize, inspect, and query persistent repository memory.\n\n"
                 "Run `fensu <command> --help` for command-specific options.\n"

@@ -149,11 +149,13 @@ fensu map run_plan --depth 3
 
 `fensu init` detects and validates an onboarding configuration, `fensu check`
 enforces the configured architecture, `fensu rule` explains one rule and its
-remediation, and `fensu map` renders a conservative downstream call tree. Mapping
+remediation, and `fensu map` renders a conservative project call tree. Downstream
+mapping is the default; `--direction upstream` shows proven callers. Mapping
 follows project functions and class methods when imports,
-annotations, constructors, or return types prove the receiver. Calls through
-protocols and untyped parameters remain visible as unresolved dispatch seams
-rather than guessed implementations. Mapping does not require Fensu
+annotations, constructors, or return types prove the receiver. Unique protocol
+dispatch can resolve to one concrete implementation; ambiguous protocols and
+untyped parameters remain visible as unresolved dispatch seams rather than guessed
+implementations. Mapping does not require Fensu
 configuration or rule adoption.
 
 `fensu check` stores disposable evaluation results in a repository-local
@@ -168,9 +170,10 @@ complete `.fensu/` namespace, which is reserved for other Fensu-owned state.
 ## Enforce It, Then See It
 
 Because Fensu enforces the structure, it can also render it. `fensu map`
-produces a deterministic downstream call tree with clickable `path:line`
-locations, class-qualified method names, and explicit protocol seams while
-marking unresolved dynamic calls, depth limits, and cycles.
+produces a deterministic call tree with clickable `path:line` locations,
+class-qualified method names, and explicit protocol seams while marking unresolved
+dynamic calls, depth limits, and cycles. Downstream walks follow proven callees;
+upstream walks invert those proven edges and omit callers Fensu cannot resolve.
 
 ```text
 $ fensu map run_map --depth 4

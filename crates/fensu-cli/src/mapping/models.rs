@@ -184,6 +184,13 @@ pub(crate) enum PathMode {
     None,
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) enum MapDirection {
+    #[default]
+    Downstream,
+    Upstream,
+}
+
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct MapCacheStats {
     pub(crate) manifest_hit: bool,
@@ -197,6 +204,7 @@ pub(crate) struct MapCacheStats {
 #[derive(Debug)]
 pub(crate) struct MapOptions {
     pub(crate) symbol: String,
+    pub(crate) direction: MapDirection,
     pub(crate) depth: usize,
     pub(crate) roots: Vec<String>,
     pub(crate) path_mode: PathMode,

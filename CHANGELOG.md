@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.1](https://github.com/chio-labs/fensu/compare/v0.4.0...v0.4.1) (2026-07-23)
+
+
+### Documentation
+
+* align README onboarding language ([f3c71fc](https://github.com/chio-labs/fensu/commit/f3c71fc50cdbccae99f30e669dbe2b2397098720))
+* align README onboarding language ([2534e5d](https://github.com/chio-labs/fensu/commit/2534e5d9fb0d0629c4891f06624cddf60774f781))
+
 ## [0.4.0](https://github.com/chio-labs/fensu/compare/v0.3.0...v0.4.0) (2026-07-22)
 
 

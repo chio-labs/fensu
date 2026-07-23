@@ -1,5 +1,6 @@
 use crate::command::constants::{LONG_OPTION_PREFIX, MAP_SHORT_HELP, MAP_USAGE, OPTION_TERMINATOR};
-use crate::mapping::models::{MapOptions, PathMode};
+use crate::mapping::constants::{MAP_DIRECTION_DOWNSTREAM, MAP_DIRECTION_UPSTREAM};
+use crate::mapping::models::{MapDirection, MapOptions, PathMode};
 
 const LONG_OPTIONS: &[&str] = &[
     "--help",
@@ -15,6 +16,7 @@ const LONG_OPTIONS: &[&str] = &[
 
 pub(crate) fn parse(arguments: &[String]) -> Result<Option<MapOptions>, String> {
     let mut symbol = None;
+    let mut direction = MapDirection::Downstream;
     let mut depth = 3;
     let mut roots = Vec::new();
     let mut path_mode = PathMode::Relative;
@@ -49,7 +51,16 @@ pub(crate) fn parse(arguments: &[String]) -> Result<Option<MapOptions>, String> 
             "-h" | "--help" => return Ok(None),
             "--direction" => {
                 let value = option_value(arguments, &mut position, resolved, inline)?;
-                choice(resolved, value, &["downstream"])?;
+                choice(
+                    resolved,
+                    value,
+                    &[MAP_DIRECTION_DOWNSTREAM, MAP_DIRECTION_UPSTREAM],
+                )?;
+                direction = if value == MAP_DIRECTION_UPSTREAM {
+                    MapDirection::Upstream
+                } else {
+                    MapDirection::Downstream
+                };
             }
             "--depth" => {
                 let value = option_value(arguments, &mut position, resolved, inline)?;
@@ -117,6 +128,7 @@ pub(crate) fn parse(arguments: &[String]) -> Result<Option<MapOptions>, String> 
         symbol.ok_or_else(|| parser_error("the following arguments are required: symbol"))?;
     Ok(Some(MapOptions {
         symbol,
+        direction,
         depth,
         roots,
         path_mode,

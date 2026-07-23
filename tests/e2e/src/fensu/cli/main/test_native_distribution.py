@@ -75,6 +75,31 @@ from tests.e2e.src.fensu.cli.main.helpers import (
             expected_exec_count=1,
         ),
         NativeProcessAccountingTestCase(
+            description="upstream map executes one binary and no interpreter",
+            config='roots = ["src/pkg"]\ntests = []\n',
+            files=(
+                CliProjectFile(
+                    relative_path="src/pkg/entry.py",
+                    source=("from pkg.steps import step\n\ndef run() -> None:\n    step()\n"),
+                ),
+                CliProjectFile(
+                    relative_path="src/pkg/steps.py",
+                    source="def step() -> None:\n    return None\n",
+                ),
+            ),
+            argv=(
+                "map",
+                "pkg.steps.step",
+                "--direction",
+                "upstream",
+                "--no-cache",
+                "--color",
+                "never",
+            ),
+            expected_exit_code=0,
+            expected_exec_count=1,
+        ),
+        NativeProcessAccountingTestCase(
             description="skills help executes one binary and no interpreter",
             config='roots = ["src/pkg"]\ntests = []\n',
             files=(),

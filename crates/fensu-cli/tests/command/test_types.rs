@@ -39,8 +39,17 @@ pub(crate) struct CheckPolicyTestCase {
 
 pub(crate) struct InvalidCheckConfigTestCase {
     pub(crate) description: &'static str,
+    pub(crate) config: &'static str,
     pub(crate) expected_exit_code: i32,
     pub(crate) expected_error: &'static str,
+}
+
+pub(crate) struct RuleOptionsCheckRoutingTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) config: &'static str,
+    pub(crate) expected_exit_code: i32,
+    pub(crate) expected_stdout: &'static str,
+    pub(crate) expected_stderr: &'static str,
 }
 
 pub(crate) struct RuleRemediationTestCase {

@@ -157,3 +157,12 @@ class LoadedModuleUseTestCase:
     rule_code: str
     check_body: str
     expected_uses_module: bool
+
+
+@dataclass(frozen=True)
+class UnselectedRuleOptionTestCase:
+    """An unselected discovered rule and its expected option validation error."""
+
+    description: str
+    rule_code: str
+    expected_error_fragment: str

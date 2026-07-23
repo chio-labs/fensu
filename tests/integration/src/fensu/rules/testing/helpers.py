@@ -11,9 +11,32 @@ from fensu import (
     FunctionFacts,
     ProjectFunctionFact,
     RuleContext,
+    RuleOption,
     SyntaxHandle,
     Threshold,
     rule,
+)
+
+_REPORT_FINDING_OPTION: RuleOption[bool] = RuleOption.boolean(
+    name="report_finding",
+    default=False,
+)
+_LABELS_OPTION: RuleOption[tuple[str, ...]] = RuleOption.string_list(
+    name="labels",
+    default=("default",),
+)
+_REQUIRED_COUNT_OPTION: RuleOption[int] = RuleOption.integer(
+    name="required_count",
+    required=True,
+    minimum=0,
+)
+_OWNER_ONLY_OPTION: RuleOption[bool] = RuleOption.boolean(
+    name="owner_only",
+    default=True,
+)
+_LOCAL_OPTION: RuleOption[bool] = RuleOption.boolean(
+    name="local_option",
+    default=True,
 )
 
 
@@ -173,4 +196,79 @@ def undecorated_rule(module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Provide an invalid undecorated harness input."""
 
     del module, ctx
+    return []
+
+
+@rule(
+    code="XOP001",
+    family=Family.CUSTOM,
+    slug="option-finding",
+    message="option-controlled finding",
+    options=(_REPORT_FINDING_OPTION,),
+)
+def option_finding(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Make finding presence observable from the resolved boolean option."""
+
+    del module
+    return [ctx.path_fault()] * int(ctx.option(_REPORT_FINDING_OPTION))
+
+
+@rule(
+    code="XOP002",
+    family=Family.CUSTOM,
+    slug="option-list-value",
+    message="resolved list option",
+    options=(_LABELS_OPTION,),
+)
+def option_list_value(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Expose the canonical container and values received by a custom rule."""
+
+    del module
+    labels: tuple[str, ...] = ctx.option(_LABELS_OPTION)
+    message: str = f"{type(labels).__name__}:{','.join(labels)}"
+    return [ctx.path_fault(message=message)]
+
+
+@rule(
+    code="XOP003",
+    family=Family.CUSTOM,
+    slug="required-option",
+    message="required option",
+    options=(_REQUIRED_COUNT_OPTION,),
+)
+def required_option(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Declare one required option for harness validation coverage."""
+
+    del module
+    _ = ctx.option(_REQUIRED_COUNT_OPTION)
+    return []
+
+
+@rule(
+    code="XOP004",
+    family=Family.CUSTOM,
+    slug="option-owner",
+    message="option owner",
+    options=(_OWNER_ONLY_OPTION,),
+)
+def option_owner(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Own an option that another rule must not access."""
+
+    del module
+    _ = ctx.option(_OWNER_ONLY_OPTION)
+    return []
+
+
+@rule(
+    code="XOP005",
+    family=Family.CUSTOM,
+    slug="cross-rule-option-access",
+    message="cross-rule option access",
+    options=(_LOCAL_OPTION,),
+)
+def cross_rule_option_access(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Attempt to access an option declared by a different rule."""
+
+    del module
+    _ = ctx.option(_OWNER_ONLY_OPTION)
     return []

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from collections.abc import Mapping
 from pathlib import Path
 
 from fensu.analysis.exceptions import PythonSourceParseError
@@ -26,11 +28,12 @@ from fensu.evaluation.types import (
     NativeExecutionRequest,
     NativeProjectFile,
     NativeProjectQueryKind,
+    NativeRuleOptionValues,
     NativeThresholdValues,
 )
 from fensu.instrumentation.constants import NATIVE_PARSE_OPERATION, OPERATION_COUNTERS
 from fensu.rules.authoring.models import CustomRuleRegistration
-from fensu.rules.authoring.types import Threshold
+from fensu.rules.authoring.types import RuleOptionValue, Threshold
 from fensu.rules.layers.types import LayerCode
 from fensu.rules.roles.types import RoleCode
 
@@ -142,9 +145,23 @@ def prepare_native_execution_request(
                 for registration in target.custom_rule_registrations
             ],
             str(repo_root),
+            _native_rule_options(config=config, codes=codes),
         ),
     )
     return request, tuple(uses)
+
+
+def _native_rule_options(*, config: Config, codes: tuple[str, ...]) -> NativeRuleOptionValues:
+    values: NativeRuleOptionValues = {}
+    for code in codes:
+        current: Mapping[str, RuleOptionValue] | None = config.rule_options.get(code)
+        if current is None:
+            continue
+        values[code] = {
+            name: json.dumps(value, ensure_ascii=True, separators=(",", ":"))
+            for name, value in sorted(current.items())
+        }
+    return values
 
 
 def record_native_parses(*, sources: tuple[str, ...]) -> None:

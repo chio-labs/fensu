@@ -18,6 +18,7 @@ from importlib.metadata import (
     version,
 )
 from pathlib import Path
+from typing import cast
 
 from fensu.analysis.main.hash_repository_files import hash_repository_files
 from fensu.cache.fingerprints.constants import (
@@ -33,7 +34,8 @@ from fensu.cache.fingerprints.types import CanonicalValue
 from fensu.cache.storage.constants import CACHE_SCHEMA_VERSION
 from fensu.config.models import Config, RuleExceptionEntry
 from fensu.instrumentation.constants import CANONICAL_ENCODE_OPERATION, OPERATION_COUNTERS
-from fensu.rules.authoring.models import RuleSpec
+from fensu.rules.authoring.constants import MISSING
+from fensu.rules.authoring.models import RuleOption, RuleSpec
 from fensu.rules.authoring.types import RuleCheck, Threshold
 
 _PACKAGE_RECORD_PREFIX: str = "fensu/"
@@ -77,6 +79,7 @@ def config_fingerprint(config: Config) -> CacheFingerprint:
             for item in config.rule_ignores
         ],
         "rule_modules": list(config.rule_modules),
+        "rule_options": _rule_options_value(config.rule_options),
         "rule_paths": list(config.rule_paths),
         "select": list(config.select),
         "skills": {"name": config.skills.name},
@@ -101,28 +104,72 @@ def ruleset_fingerprint(ruleset: tuple[RuleSpec, ...]) -> CacheFingerprint:
 
     source_fingerprints: dict[Path, CanonicalValue] = {}
     payload: CanonicalValue = [
-        {
-            "cacheable": bool(rule.cacheable),
-            "check_module": _check_module(rule.check),
-            "check_name": _check_name(rule.check),
-            "code": rule.code,
-            "enabled_by_default": rule.enabled_by_default,
-            "execution_owner": rule.execution_owner.value,
-            "family": rule.family.value,
-            "kind": rule.kind.value,
-            "message": rule.message,
-            "remediation": rule.remediation,
-            "severity": rule.severity.value,
-            "slug": rule.slug,
-            "source": rule.source,
-            "source_fingerprint": _check_source_fingerprint(
-                check=rule.check,
-                source_fingerprints=source_fingerprints,
-            ),
-        }
-        for rule in ruleset
+        _rule_spec_value(rule=rule, source_fingerprints=source_fingerprints) for rule in ruleset
     ]
     return canonical_fingerprint(payload)
+
+
+def _rule_spec_value(
+    *, rule: RuleSpec, source_fingerprints: dict[Path, CanonicalValue]
+) -> CanonicalValue:
+    return {
+        "cacheable": bool(rule.cacheable),
+        "check_module": _check_module(rule.check),
+        "check_name": _check_name(rule.check),
+        "code": rule.code,
+        "enabled_by_default": rule.enabled_by_default,
+        "execution_owner": rule.execution_owner.value,
+        "family": rule.family.value,
+        "kind": rule.kind.value,
+        "message": rule.message,
+        "options": _rule_option_schemas(rule.options),
+        "remediation": rule.remediation,
+        "severity": rule.severity.value,
+        "slug": rule.slug,
+        "source": rule.source,
+        "source_fingerprint": _check_source_fingerprint(
+            check=rule.check,
+            source_fingerprints=source_fingerprints,
+        ),
+    }
+
+
+def _rule_option_schemas(options: tuple[RuleOption[object], ...]) -> list[CanonicalValue]:
+    return [_rule_option_schema(option) for option in sorted(options, key=lambda item: item.name)]
+
+
+def _rule_options_value(
+    options: Mapping[str, Mapping[str, object]],
+) -> CanonicalValue:
+    result: dict[str, CanonicalValue] = {}
+    for code, values in sorted(options.items()):
+        current: dict[str, CanonicalValue] = {}
+        for name, value in sorted(values.items()):
+            current[name] = _rule_option_value(value)
+        result[code] = current
+    return result
+
+
+def _rule_option_schema(option: RuleOption[object]) -> CanonicalValue:
+    return {
+        "choices": (
+            None if option.choices is None else cast(list[CanonicalValue], sorted(option.choices))
+        ),
+        "default": (None if option.default is MISSING else _rule_option_value(option.default)),
+        "description": option.description,
+        "kind": option.kind.value,
+        "maximum": option.maximum,
+        "minimum": option.minimum,
+        "minimum_items": option.minimum_items,
+        "name": option.name,
+        "required": option.required,
+    }
+
+
+def _rule_option_value(value: object) -> CanonicalValue:
+    if isinstance(value, tuple):
+        return cast(list[CanonicalValue], list(value))
+    return cast(CanonicalValue, value)
 
 
 def custom_rules_fingerprint(*, config: Config, repo_root: Path) -> CacheFingerprint | None:

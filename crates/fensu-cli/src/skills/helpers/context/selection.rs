@@ -5,6 +5,7 @@ use serde_json::json;
 
 use crate::helpers::{process, rule};
 use crate::models::{Config, RuleMetadata};
+use crate::skills::helpers::context::option_validation::validate_rule_options;
 use crate::skills::models::{HostResponse, RuleSelection};
 
 const CORE_KIND: &str = "core";
@@ -13,6 +14,7 @@ const CORE_RULE_CODE_LENGTH: usize = 6;
 const CUSTOM_KIND: &str = "custom";
 const CUSTOM_PREFIX: char = 'X';
 const MAX_CORE_SELECTOR_SUFFIX: usize = 4;
+const METADATA_PROTOCOL: u32 = 2;
 
 pub(crate) fn validate_config_policy(config: &Config) -> Result<(), String> {
     for (name, selectors) in [
@@ -32,7 +34,10 @@ pub(crate) fn validate_config_policy(config: &Config) -> Result<(), String> {
 }
 
 pub(crate) fn selection(config: &Config, project_root: &Path) -> Result<RuleSelection, String> {
-    if !config.rule_paths.is_empty() || !config.rule_modules.is_empty() {
+    if !config.rule_paths.is_empty()
+        || !config.rule_modules.is_empty()
+        || !config.rule_options.is_empty()
+    {
         return hosted_selection(project_root);
     }
     let catalogue = rule::catalogue().to_vec();
@@ -57,7 +62,7 @@ pub(crate) fn selection(config: &Config, project_root: &Path) -> Result<RuleSele
 
 fn hosted_selection(project_root: &Path) -> Result<RuleSelection, String> {
     let request = serde_json::to_vec(&json!({
-        "protocol": 1,
+        "protocol": METADATA_PROTOCOL,
         "project_root": project_root.to_string_lossy(),
     }))
     .map_err(|error| error.to_string())?;
@@ -65,10 +70,10 @@ fn hosted_selection(project_root: &Path) -> Result<RuleSelection, String> {
     validate_host_shape(&raw)?;
     let response: HostResponse = serde_json::from_slice(&raw)
         .map_err(|error| format!("Invalid custom-rule metadata host response: {error}"))?;
-    if response.protocol != 1 {
+    if response.protocol != METADATA_PROTOCOL {
         return Err(format!(
-            "Incompatible custom-rule metadata protocol {}; expected 1.",
-            response.protocol
+            "Incompatible custom-rule metadata protocol {}; expected {}.",
+            response.protocol, METADATA_PROTOCOL
         ));
     }
     if response.package_version != env!("CARGO_PKG_VERSION") {
@@ -115,6 +120,7 @@ fn validate_host_shape(raw: &[u8]) -> Result<(), String> {
         "kind",
         "source",
         "cacheable",
+        "options",
     ]);
     for rule in catalogue {
         let fields = rule
@@ -174,6 +180,7 @@ fn validate_host_catalogue(catalogue: &[RuleMetadata]) -> Result<(), String> {
                 item.code
             ));
         }
+        validate_rule_options(item)?;
     }
     Ok(())
 }

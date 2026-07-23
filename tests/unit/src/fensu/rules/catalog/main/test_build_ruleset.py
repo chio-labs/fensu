@@ -4,19 +4,22 @@ from __future__ import annotations
 
 import importlib
 import sys
+from dataclasses import replace
 from pathlib import Path
 from types import ModuleType
 
 import pytest
 
-from fensu.config.exceptions import ConfigError
+from fensu.config.exceptions import ConfigError, ConfigValidationError
+from fensu.config.main.load_project_config import load_project_config
 from fensu.config.models import Config, RuleExceptionEntry
 from fensu.rules.authoring.main.define import rule
-from fensu.rules.authoring.models import RuleSpec
+from fensu.rules.authoring.models import RuleOption, RuleSpec
 from fensu.rules.authoring.types import Family, RuleKind
 from fensu.rules.catalog._helpers import loading as loading_module
 from fensu.rules.catalog.constants import CORE_RULES
 from fensu.rules.catalog.main._build_rule_selection import build_rule_selection
+from fensu.rules.catalog.main.build_catalogue import build_catalogue
 from fensu.rules.catalog.main.build_ruleset import build_ruleset
 from fensu.rules.catalog.models import RuleSelection
 from tests.unit.src.fensu.rules.catalog.main._test_types import (
@@ -29,6 +32,7 @@ from tests.unit.src.fensu.rules.catalog.main._test_types import (
     RuleSelectionErrorTestCase,
     RuleSelectionTestCase,
     SelectCompositionTestCase,
+    UnselectedRuleOptionTestCase,
 )
 from tests.unit.src.fensu.rules.catalog.main.helpers import (
     catalogue_quality_issues,
@@ -38,6 +42,44 @@ from tests.unit.src.fensu.rules.catalog.main.helpers import (
     write_importing_custom_rule_package,
     write_module_package,
 )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        UnselectedRuleOptionTestCase(
+            description="unselected discovered rule still validates required options",
+            rule_code="XOP010",
+            expected_error_fragment=("Required option required_count for rule XOP010 is missing"),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_unselected_discovered_rule_when_loading_config_then_validates_options(
+    tmp_path: Path,
+    test_case: UnselectedRuleOptionTestCase,
+) -> None:
+    _ = write_custom_rule_file(
+        root=tmp_path,
+        relative_path="rules/unselected.py",
+        rule_code=test_case.rule_code,
+        prelude=(
+            "from fensu import RuleOption\n\n"
+            "_REQUIRED_COUNT = RuleOption.integer("
+            "name='required_count', required=True)\n"
+        ),
+        decorator_arguments=", options=(_REQUIRED_COUNT,)",
+    )
+    (tmp_path / "fensu.toml").write_text(
+        'roots = ["src/pkg"]\ntests = []\ntooling = []\nselect = []\n'
+        'rule_paths = ["rules/unselected.py"]\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ConfigValidationError) as error:
+        load_project_config(tmp_path)
+
+    assert test_case.expected_error_fragment in str(error.value)
 
 
 @pytest.mark.parametrize(
@@ -768,5 +810,35 @@ def test_given_overlapping_policy_tiers_when_resolving_then_raises_config_error(
                 ignore=test_case.ignore,
             )
         )
+
+    assert str(error.value) == test_case.expected_error
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        RuleSelectionErrorTestCase(
+            description="native-backed core option declaration fails loudly",
+            select=(),
+            warn=(),
+            ignore=(),
+            expected_error="Native-backed core rule FFH001 cannot declare options in this release.",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_native_backed_option_declaration_when_discovering_then_rejects_it(
+    monkeypatch: pytest.MonkeyPatch,
+    test_case: RuleSelectionErrorTestCase,
+) -> None:
+    native_rule: RuleSpec = replace(
+        make_core_rule(code="FFH001", family=Family.HYGIENE),
+        check=None,
+        options=(RuleOption.boolean(name="enabled", default=True),),
+    )
+    monkeypatch.setattr(loading_module, "CORE_RULES", (native_rule,))
+
+    with pytest.raises(ConfigError) as error:
+        build_catalogue(config=Config(roots=("src/pkg",)), repo_root=Path.cwd())
 
     assert str(error.value) == test_case.expected_error

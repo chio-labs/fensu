@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -18,6 +19,7 @@ class HarnessEvaluationTestCase:
     expected_fault_count: int
     expected_lines: tuple[int | None, ...]
     expected_messages: tuple[str, ...]
+    rule_options: Mapping[str, object] | None = None
     expected_dependency_paths: tuple[str, ...] = ()
     expected_python_parse_count: int = 0
 
@@ -31,6 +33,7 @@ class HarnessMisuseTestCase:
     rule_case: Any
     expected_error_type: type[Exception]
     expected_error_fragment: str
+    rule_options: Mapping[str, object] | None = None
 
 
 @dataclass(frozen=True)

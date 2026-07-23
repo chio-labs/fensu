@@ -8,6 +8,7 @@ import os
 import re
 import sqlite3
 import subprocess
+import sys
 from collections.abc import Callable
 from functools import partial
 from io import StringIO
@@ -25,6 +26,59 @@ from fensu.config.main.load_config import load_config
 from fensu.config.models import Config
 from fensu.evaluation.models import FileEvaluation
 
+_CUSTOM_RULE_OPTION_SOURCE: str = """from __future__ import annotations
+
+import ast
+
+from fensu import Family, Fault, RuleContext, RuleOption, rule
+
+_LIMIT = RuleOption.integer(name="limit", default=1, minimum=1, maximum=3)
+_REQUIRED_PATH = RuleOption.string(name="required_path", default="policy.marker")
+
+
+@rule(
+    code="XOP001",
+    family=Family.CUSTOM,
+    slug="configured-limit",
+    message="configured finding",
+    cacheable=True,
+    options=(_LIMIT, _REQUIRED_PATH),
+)
+def configured_limit(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    required_path = ctx.repo_root / ctx.option(_REQUIRED_PATH)
+    if not ctx.project.exists(requester=ctx.path, path=required_path):
+        return []
+    return [
+        ctx.fault(node=node, message=f"configured finding limit={ctx.option(_LIMIT)}")
+        for node in module.body[:ctx.option(_LIMIT)]
+    ]
+"""
+_FAILING_CUSTOM_RULE_OPTION_SOURCE: str = """from __future__ import annotations
+
+import ast
+
+from fensu import Family, Fault, RuleContext, RuleOption, rule
+
+_LIMIT = RuleOption.integer(name="limit", default=1, minimum=1, maximum=3)
+
+
+@rule(
+    code="XOP001",
+    family=Family.CUSTOM,
+    slug="configured-limit",
+    message="configured finding",
+    options=(_LIMIT,),
+)
+def configured_limit(module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    del module
+    (ctx.repo_root / "evaluation-ran").write_text("evaluated", encoding="utf-8")
+    return []
+"""
+_CUSTOM_CHECK_PROCESS: str = (
+    "from fensu.cli.main.custom_check_host import run_custom_check; "
+    "raise SystemExit(run_custom_check())"
+)
+
 
 class CaptureOutput(StringIO):
     """Small text sink with configurable terminal-color support."""
@@ -35,6 +89,47 @@ class CaptureOutput(StringIO):
 
     def isatty(self) -> bool:
         return self._is_terminal
+
+
+def run_custom_check_process(
+    *, root: Path, argv: tuple[str, ...]
+) -> subprocess.CompletedProcess[str]:
+    """Run the Python custom-check command host in an isolated process."""
+
+    environment: dict[str, str] = dict(os.environ)
+    environment["NO_COLOR"] = "1"
+    return subprocess.run(
+        (sys.executable, "-c", _CUSTOM_CHECK_PROCESS, *argv),
+        cwd=root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def write_custom_rule_option_project(
+    *, root: Path, option_table: str = "", evaluation_marker: bool = False
+) -> None:
+    """Write a discovered custom rule with typed options and two target statements."""
+
+    source: str = {
+        False: _CUSTOM_RULE_OPTION_SOURCE,
+        True: _FAILING_CUSTOM_RULE_OPTION_SOURCE,
+    }[evaluation_marker]
+    (root / "fensu.toml").write_text(
+        'roots = ["src/pkg"]\ntests = []\ntooling = []\nselect = ["XOP001"]\n'
+        'rule_paths = ["rules/custom.py"]\n'
+        f"{option_table}",
+        encoding="utf-8",
+    )
+    target: Path = root / "src/pkg/target.py"
+    target.parent.mkdir(parents=True)
+    target.write_text("FIRST: int = 1\nSECOND: int = 2\n", encoding="utf-8")
+    rule_path: Path = root / "rules/custom.py"
+    rule_path.parent.mkdir()
+    rule_path.write_text(source, encoding="utf-8")
+    (root / "policy.marker").write_text("present\n", encoding="utf-8")
 
 
 class TerminalBuffer(StringIO):

@@ -270,7 +270,7 @@ pub(crate) fn check_identity(
     warnings: bool,
 ) -> String {
     let mut digest = Sha256::new();
-    digest.update(b"fensu-native-check-v2\0");
+    digest.update(b"fensu-native-check-v3\0");
     digest.update(env!("CARGO_PKG_VERSION").as_bytes());
     digest.update(&config.raw);
     digest.update([u8::from(warnings)]);

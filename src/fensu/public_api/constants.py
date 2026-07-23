@@ -60,6 +60,7 @@ PUBLIC_ATTRIBUTES: dict[str, tuple[str, str]] = {
     "RuleCaseForm": ("fensu.analysis.types", "RuleCaseForm"),
     "RuleContext": ("fensu.rules.authoring.types", "RuleContext"),
     "RuleFile": ("fensu.rules.testing.models", "RuleFile"),
+    "RuleOption": ("fensu.rules.authoring.models", "RuleOption"),
     "RuleResult": ("fensu.rules.testing.models", "RuleResult"),
     "ScopeName": ("fensu.discovery.types", "ScopeName"),
     "RuleTestAssociationFact": ("fensu.analysis.models", "RuleTestAssociationFact"),

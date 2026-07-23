@@ -10,7 +10,8 @@ from fensu.rules.authoring._helpers.envelope import (
     validate_code_namespace,
 )
 from fensu.rules.authoring.constants import _RULE_SPEC_ATTRIBUTE
-from fensu.rules.authoring.models import RuleSpec
+from fensu.rules.authoring.exceptions import RuleDefinitionError
+from fensu.rules.authoring.models import RuleOption, RuleSpec
 from fensu.rules.authoring.types import (
     ExecutionOwner,
     Family,
@@ -31,10 +32,16 @@ def rule(
     enabled_by_default: bool = True,
     cacheable: bool | None = None,
     execution_owner: ExecutionOwner = ExecutionOwner.FILE,
+    options: tuple[RuleOption[object], ...] = (),
 ) -> Callable[[RuleCheck], RuleCheck]:
     """Attach a compiled rule spec to the decorated function and return it unchanged."""
 
     def decorate(check: RuleCheck) -> RuleCheck:
+        if any(not isinstance(option, RuleOption) for option in options):
+            raise RuleDefinitionError(f"rule {code} options must contain only RuleOption values")
+        option_names: tuple[str, ...] = tuple(option.name for option in options)
+        if len(set(option_names)) != len(option_names):
+            raise RuleDefinitionError(f"rule {code} declares duplicate option names")
         resolved_family: Family = resolve_envelope(
             code=code,
             slug=slug,
@@ -55,6 +62,7 @@ def rule(
             enabled_by_default=enabled_by_default,
             cacheable=cacheable,
             execution_owner=execution_owner,
+            options=tuple(options),
         )
         _ = setattr(check, _RULE_SPEC_ATTRIBUTE, spec)
         return check

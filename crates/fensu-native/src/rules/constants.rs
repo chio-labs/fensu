@@ -257,3 +257,4 @@ pub const NATIVE_RULE_FACT_FAMILIES: &[(&str, &[&str])] = &[
     ),
     (TEST_DESCRIPTION_LAMBDA_IDS_CODE, &["test_functions"]),
 ];
+pub const NATIVE_RULE_OPTIONS: &[(&str, &[&str])] = &[];

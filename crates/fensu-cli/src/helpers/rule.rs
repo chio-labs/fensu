@@ -5,7 +5,7 @@ use std::sync::OnceLock;
 
 use crate::configuration::main::load;
 use crate::constants::{COLOR_ALWAYS, COLOR_AUTO, COLOR_NEVER, OPTION_COLOR};
-use crate::models::{Config, RuleMetadata};
+use crate::models::{Config, RuleMetadata, RuleOptionMetadata, RuleOptionValue};
 use crate::skills::main::catalogue::load_rule_catalogue;
 
 static CATALOGUE: OnceLock<Vec<RuleMetadata>> = OnceLock::new();
@@ -24,7 +24,10 @@ pub(crate) fn rule_output(arguments: &[String]) -> Result<String, String> {
     let project_root = config_path
         .parent()
         .ok_or_else(|| "Configuration has no parent directory.".to_owned())?;
-    let catalogue = if loaded.rule_paths.is_empty() && loaded.rule_modules.is_empty() {
+    let catalogue = if loaded.rule_paths.is_empty()
+        && loaded.rule_modules.is_empty()
+        && loaded.rule_options.is_empty()
+    {
         catalogue().to_vec()
     } else {
         load_rule_catalogue(&loaded, project_root)?
@@ -91,9 +94,79 @@ fn render(metadata: &RuleMetadata, config: &Config, color: bool) -> String {
     };
     let mut output = format!("{header}\n");
     render_metadata(&mut output, metadata, color);
+    render_options(&mut output, metadata);
     render_exceptions(&mut output, metadata, config);
     render_rule_ignores(&mut output, metadata, config);
     output
+}
+
+fn render_options(output: &mut String, metadata: &RuleMetadata) {
+    if metadata.options.is_empty() {
+        return;
+    }
+    let mut options = metadata.options.iter().collect::<Vec<_>>();
+    options.sort_by(|left, right| left.name.cmp(&right.name));
+    output.push_str("\nOptions:\n");
+    for option in options {
+        output.push_str(&format!("  {}\n", option.name));
+        for (label, value) in option_lines(option) {
+            output.push_str(&format!("    {label}: {value}\n"));
+        }
+    }
+}
+
+fn option_lines(option: &RuleOptionMetadata) -> [(&'static str, String); 9] {
+    [
+        ("Type", option_type(&option.kind).to_owned()),
+        ("Required", option.required.to_string()),
+        (
+            "Default",
+            if option.required {
+                "required".to_owned()
+            } else {
+                option_value(option.default.as_ref())
+            },
+        ),
+        ("Current value", option_value(Some(&option.current_value))),
+        (
+            "Description",
+            option
+                .description
+                .clone()
+                .unwrap_or_else(|| "None".to_owned()),
+        ),
+        (
+            "Choices",
+            serde_json::to_string(&option.choices).unwrap_or_else(|_| "null".to_owned()),
+        ),
+        ("Minimum", optional_number(option.minimum)),
+        ("Maximum", optional_number(option.maximum)),
+        (
+            "Minimum items",
+            option
+                .minimum_items
+                .map_or_else(|| "None".to_owned(), |value| value.to_string()),
+        ),
+    ]
+}
+
+fn option_type(kind: &str) -> &str {
+    match kind {
+        "string_list" => "list[string]",
+        "integer_list" => "list[integer]",
+        other => other,
+    }
+}
+
+fn option_value(value: Option<&RuleOptionValue>) -> String {
+    value.map_or_else(
+        || "None".to_owned(),
+        |value| serde_json::to_string(value).unwrap_or_else(|_| "null".to_owned()),
+    )
+}
+
+fn optional_number(value: Option<i64>) -> String {
+    value.map_or_else(|| "None".to_owned(), |value| value.to_string())
 }
 
 fn render_metadata(output: &mut String, metadata: &RuleMetadata, color: bool) {

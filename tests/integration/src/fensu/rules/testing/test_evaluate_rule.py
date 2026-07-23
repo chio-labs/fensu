@@ -11,6 +11,7 @@ from typing import Any, cast
 import pytest
 
 from fensu import RuleCase, RuleFile, RuleResult, evaluate_rule
+from fensu.config.exceptions import ConfigValidationError
 from fensu.instrumentation.constants import OPERATION_COUNTERS, PARSE_OPERATION
 from fensu.rules.authoring.exceptions import RuleDefinitionError
 from fensu.rules.testing.exceptions import RuleHarnessError
@@ -23,13 +24,17 @@ from tests.integration.src.fensu.rules.testing.helpers import (
     all_context_zones,
     always_fault,
     context_policy,
+    cross_rule_option_access,
     native_assignment_references,
     native_class_declarations,
     native_comparisons,
     native_local_call_edges,
     native_named_calls,
     native_parameter_mutation_occurrences,
+    option_finding,
+    option_list_value,
     ordinary_ordering,
+    required_option,
     undecorated_rule,
 )
 
@@ -260,6 +265,44 @@ EVALUATION_CASES: tuple[HarnessEvaluationTestCase, ...] = (
         expected_lines=(),
         expected_messages=(),
     ),
+    HarnessEvaluationTestCase(
+        description="declared default leaves the option-controlled finding disabled",
+        rule=option_finding,
+        rule_case=RuleCase(
+            description="default option value",
+            source="VALUE = 1\n",
+            expected_fault_count=0,
+        ),
+        expected_fault_count=0,
+        expected_lines=(),
+        expected_messages=(),
+    ),
+    HarnessEvaluationTestCase(
+        description="explicit override enables the option-controlled finding",
+        rule=option_finding,
+        rule_case=RuleCase(
+            description="overridden option value",
+            source="VALUE = 1\n",
+            expected_fault_count=1,
+        ),
+        expected_fault_count=1,
+        expected_lines=(None,),
+        expected_messages=("option-controlled finding",),
+        rule_options={"report_finding": True},
+    ),
+    HarnessEvaluationTestCase(
+        description="list override reaches the rule as an immutable tuple",
+        rule=option_list_value,
+        rule_case=RuleCase(
+            description="list option override",
+            source="VALUE = 1\n",
+            expected_fault_count=1,
+        ),
+        expected_fault_count=1,
+        expected_lines=(None,),
+        expected_messages=("tuple:alpha,beta",),
+        rule_options={"labels": ["alpha", "beta"]},
+    ),
     *_FACT_FAMILY_CASES,
 )
 
@@ -442,6 +485,40 @@ MISUSE_CASES: tuple[HarnessMisuseTestCase, ...] = (
         expected_error_type=RuleHarnessError,
         expected_error_fragment="harness-owned or unsupported key(s): rule_paths",
     ),
+    HarnessMisuseTestCase(
+        description="unknown option names are rejected for the evaluated rule",
+        rule=option_finding,
+        rule_case=RuleCase(
+            description="unknown option",
+            source="VALUE = 1\n",
+            expected_fault_count=0,
+        ),
+        expected_error_type=ConfigValidationError,
+        expected_error_fragment="Unknown option unknown_name for rule XOP001",
+        rule_options={"unknown_name": True},
+    ),
+    HarnessMisuseTestCase(
+        description="missing required options are rejected before evaluation",
+        rule=required_option,
+        rule_case=RuleCase(
+            description="missing required option",
+            source="VALUE = 1\n",
+            expected_fault_count=0,
+        ),
+        expected_error_type=ConfigValidationError,
+        expected_error_fragment="Required option required_count for rule XOP003 is missing",
+    ),
+    HarnessMisuseTestCase(
+        description="rules cannot access options declared by another rule",
+        rule=cross_rule_option_access,
+        rule_case=RuleCase(
+            description="cross-rule option access",
+            source="VALUE = 1\n",
+            expected_fault_count=0,
+        ),
+        expected_error_type=RuleDefinitionError,
+        expected_error_fragment="rule XOP005 requested undeclared option owner_only",
+    ),
 )
 
 
@@ -453,7 +530,11 @@ MISUSE_CASES: tuple[HarnessMisuseTestCase, ...] = (
 def test_given_rule_case_when_evaluating_rule_then_uses_real_pipeline(
     test_case: HarnessEvaluationTestCase,
 ) -> None:
-    result: RuleResult = evaluate_rule(rule=test_case.rule, test_case=test_case.rule_case)
+    result: RuleResult = evaluate_rule(
+        rule=test_case.rule,
+        test_case=test_case.rule_case,
+        rule_options=test_case.rule_options,
+    )
     dependency_paths: tuple[str, ...] = tuple(
         dependency.dependency.as_posix() for dependency in result.dependencies
     )
@@ -572,7 +653,11 @@ def test_given_invalid_harness_input_when_evaluating_then_raises_stable_error(
         test_case.expected_error_type,
         match=re.escape(test_case.expected_error_fragment),
     ):
-        evaluate_rule(rule=test_case.rule, test_case=test_case.rule_case)
+        evaluate_rule(
+            rule=test_case.rule,
+            test_case=test_case.rule_case,
+            rule_options=test_case.rule_options,
+        )
 
 
 @pytest.mark.parametrize(

@@ -6,6 +6,8 @@
   Keeping Python repos from turning into spaghetti.
 </p>
 
+<p align="center"><em>Fensu means "fence" in Japanese.</em></p>
+
 **Most linters catch bad code inside files. Fensu catches architectural drift:
 code crossing the wrong boundary, living in the wrong module, or growing into the
 wrong shape.**
@@ -44,30 +46,31 @@ Built-in commands are available only through the native `fensu` executable;
 distribution requires Rust.
 
 Fensu requires Python 3.12+ and includes a compiled analysis core. Prebuilt
-wheels cover Linux (x86_64, aarch64) and macOS (Intel, Apple silicon); on any
-other platform, `pip` builds from source, which requires a Rust toolchain.
-Release wheels are built for Windows x86_64 as well as the listed Linux and
-macOS platforms.
+wheels cover Linux (x86_64, aarch64), macOS (Intel, Apple silicon), and Windows
+(x86_64). On other platforms, `pip` builds from source and requires a Rust
+toolchain.
 
 ## Quick Start
 
-Detect the repository layout, choose a starting ruleset, and write a validated
-configuration:
+From the directory containing an existing repository's `pyproject.toml`, detect
+the layout, write a validated configuration with the full ruleset enabled, run an
+initial check, and install repository-local agent guidance:
 
 ```bash
-fensu init
+fensu init --yes
 ```
 
-For non-interactive setup, use `fensu init --yes`. To configure manually instead,
-add `fensu.toml` at the repository root:
+For an empty repository, provide the package name to scaffold `src/` and `tests/`:
 
-```toml
-roots = ["src/my_package"]
-tests = ["tests"]
-tooling = ["scripts"]
+```bash
+fensu init --yes --name my_package
+```
 
-[cache]
-enabled = true
+Pass `--no-skills` only when automation explicitly requires configuration without
+repository-local guidance. Do not call onboarding complete until this succeeds:
+
+```bash
+fensu skills --check
 ```
 
 Then run:
@@ -76,16 +79,24 @@ Then run:
 fensu check
 ```
 
-`fensu init --yes` installs repository-local guidance for Opencode, Claude, and
-Agents by default; pass `--no-skills` only for explicit configuration-only
-automation. Do not call onboarding complete until this succeeds:
+To configure manually instead, add a minimal `fensu.toml` at the repository root:
 
-```bash
-fensu skills --check
+```toml
+roots = ["src/my_package"]
 ```
 
-All rule families are enabled by default. Product roots and tooling receive
-structural rules; tests receive test-convention and annotation rules.
+`tests` defaults to `["tests"]`, `tooling` is optional, caching is enabled by
+default, and every rule family is on by default. Install and verify agent guidance
+after writing configuration manually:
+
+```bash
+fensu skills
+fensu skills --check
+fensu check
+```
+
+Product roots and tooling receive structural rules; tests receive test-convention
+and annotation rules.
 
 ## Default Structure
 

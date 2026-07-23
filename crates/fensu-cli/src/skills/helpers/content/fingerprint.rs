@@ -274,6 +274,8 @@ fn rules_value(rules: &[RuleMetadata]) -> Value {
         sorted
             .into_iter()
             .map(|rule| {
+                let mut options = rule.options.iter().collect::<Vec<_>>();
+                options.sort_by(|left, right| left.name.cmp(&right.name));
                 json!({
                     "code": rule.code,
                     "family": rule.family,
@@ -286,6 +288,7 @@ fn rules_value(rules: &[RuleMetadata]) -> Value {
                     "enabled_by_default": rule.enabled_by_default,
                     "cacheable": rule.cacheable,
                     "execution_owner": rule.execution_owner,
+                    "options": options,
                 })
             })
             .collect(),

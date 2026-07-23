@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sys
+from collections.abc import Mapping
 from importlib.metadata import version
 from pathlib import Path
 
@@ -11,7 +12,9 @@ from fensu.cli.constants import SKILLS_METADATA_PROTOCOL_VERSION
 from fensu.cli.exceptions import CliCommandError
 from fensu.config.main.load_project_config import load_project_config
 from fensu.config.models import LoadedConfig
-from fensu.rules.authoring.models import RuleSpec
+from fensu.rules.authoring.constants import MISSING
+from fensu.rules.authoring.models import RuleOption, RuleSpec
+from fensu.rules.authoring.types import RuleOptionValue
 from fensu.rules.catalog.main.build_check_rule_selection import build_check_rule_selection
 from fensu.rules.catalog.models import RuleSelection
 
@@ -31,11 +34,18 @@ def main() -> int:
         config=loaded.config,
         repo_root=project_root,
         include_warnings=True,
+        catalogue=loaded.catalogue,
     )
     response: dict[str, object] = {
         "protocol": SKILLS_METADATA_PROTOCOL_VERSION,
         "package_version": version("fensu"),
-        "catalogue": [_rule_value(rule) for rule in selection.catalogue],
+        "catalogue": [
+            _rule_value(
+                rule=rule,
+                current=loaded.config.rule_options.get(rule.code, {}),
+            )
+            for rule in selection.catalogue
+        ],
         "blocking": [rule.code for rule in selection.blocking],
         "warnings": [rule.code for rule in selection.warnings],
         "ignored": [rule.code for rule in selection.ignored],
@@ -45,7 +55,7 @@ def main() -> int:
     return 0
 
 
-def _rule_value(rule: RuleSpec) -> dict[str, object]:
+def _rule_value(*, rule: RuleSpec, current: Mapping[str, RuleOptionValue]) -> dict[str, object]:
     return {
         "code": rule.code,
         "family": rule.family.value,
@@ -58,4 +68,25 @@ def _rule_value(rule: RuleSpec) -> dict[str, object]:
         "kind": rule.kind.value,
         "source": rule.source,
         "cacheable": bool(rule.cacheable),
+        "options": [
+            _option_value(option=option, current=current)
+            for option in sorted(rule.options, key=lambda item: item.name)
+        ],
+    }
+
+
+def _option_value(
+    *, option: RuleOption[object], current: Mapping[str, RuleOptionValue]
+) -> dict[str, object]:
+    return {
+        "name": option.name,
+        "kind": option.kind.value,
+        "required": option.required,
+        "default": None if option.default is MISSING else option.default,
+        "current_value": current[option.name],
+        "description": option.description,
+        "choices": option.choices,
+        "minimum": option.minimum,
+        "maximum": option.maximum,
+        "minimum_items": option.minimum_items,
     }

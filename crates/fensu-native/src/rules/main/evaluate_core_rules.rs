@@ -4,7 +4,8 @@ use fensu_facts::extension::models::ProgramHandle;
 
 use crate::rules::constants::{
     CLASS_ATTRIBUTE_ANNOTATION_CODE, LOCAL_VARIABLE_ANNOTATION_CODE,
-    MODULE_VARIABLE_ANNOTATION_CODE, PARAMETER_ANNOTATION_CODE, RETURN_ANNOTATION_CODE,
+    MODULE_VARIABLE_ANNOTATION_CODE, NATIVE_RULE_OPTIONS, PARAMETER_ANNOTATION_CODE,
+    RETURN_ANNOTATION_CODE,
 };
 use crate::rules::helpers::annotations::{
     class_attribute_annotation_faults, local_variable_annotation_faults,
@@ -24,6 +25,7 @@ pub fn evaluate_core_rules(
     context: &NativeRuleContext,
     project: &NativeProjectPlane,
 ) -> Result<Vec<NativeFaultRow>, String> {
+    validate_rule_options(codes, context)?;
     let mut faults: Vec<NativeFaultRow> = Vec::new();
     for code in codes {
         match code.as_str() {
@@ -60,4 +62,27 @@ pub fn evaluate_core_rules(
         }
     }
     Ok(faults)
+}
+
+fn validate_rule_options(codes: &[String], context: &NativeRuleContext) -> Result<(), String> {
+    for (code, values) in &context.rule_options {
+        if !codes.contains(code) {
+            return Err(format!(
+                "Native options supplied for unselected rule {code}."
+            ));
+        }
+        let declared = NATIVE_RULE_OPTIONS
+            .iter()
+            .find_map(|(candidate, names)| (*candidate == code).then_some(*names))
+            .unwrap_or_default();
+        if let Some(name) = values
+            .keys()
+            .find(|name| !declared.contains(&name.as_str()))
+        {
+            return Err(format!(
+                "Native rule {code} does not declare option {name}; option was not ignored."
+            ));
+        }
+    }
+    Ok(())
 }

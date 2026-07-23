@@ -1,6 +1,6 @@
 """Persistent cache semantic fingerprint constants."""
 
-EVALUATION_FINGERPRINT_CONTRACT_VERSION: int = 1
+EVALUATION_FINGERPRINT_CONTRACT_VERSION: int = 2
 FILE_RESULT_FINGERPRINT_DOMAIN: bytes = b"fensu-file-result-v2\0"
 BYTECODE_SUFFIX: str = ".pyc"
 PYTHON_SOURCE_SUFFIX: str = ".py"

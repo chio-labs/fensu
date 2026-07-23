@@ -14,6 +14,7 @@ from fensu.rules.authoring.models import Fault
 type NativeFaultRow = tuple[str, str | None, int | None, int | None, str | None, str | None]
 type NativeFaultsByCode = dict[str, tuple[Fault, ...]]
 type NativeThresholdValues = dict[str, int]
+type NativeRuleOptionValues = dict[str, dict[str, str]]
 type NativeExecutionRequest = tuple[
     str,
     list[str],
@@ -32,6 +33,7 @@ type NativeExecutionRequest = tuple[
         dict[str, list[str]],
         list[tuple[str, str, str, str, int, int]],
         str,
+        NativeRuleOptionValues,
     ],
 ]
 type NativeProjectFile = tuple[str, str, list[str], str]

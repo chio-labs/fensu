@@ -6,8 +6,10 @@ from collections.abc import Mapping
 from pathlib import Path, PurePosixPath
 
 from fensu.config.main.build_config import build_config
+from fensu.config.main.build_config_for_rules import build_config_for_rules
 from fensu.config.models import Config
 from fensu.discovery.types import ScopeName
+from fensu.rules.authoring.models import RuleSpec
 from fensu.rules.testing._helpers.validation import resolved_scope_root, scope_name
 from fensu.rules.testing.constants import (
     FALLBACK_RUNTIME_ROOT,
@@ -20,7 +22,12 @@ from fensu.rules.testing.exceptions import RuleHarnessError
 from fensu.rules.testing.models import RuleCase, RuleFile
 
 
-def build_harness_config(*, test_case: RuleCase) -> Config:
+def build_harness_config(
+    *,
+    test_case: RuleCase,
+    rule: RuleSpec,
+    rule_options: Mapping[str, object] | None = None,
+) -> Config:
     """Merge meaningful case config into deterministic harness-owned roots and selection."""
 
     runtime_roots, test_roots, tooling_roots = _scope_roots(test_case=test_case)
@@ -32,7 +39,11 @@ def build_harness_config(*, test_case: RuleCase) -> Config:
     }
     if test_case.config is not None:
         raw.update(_plain_mapping(value=test_case.config))
-    return build_config(raw)
+    if rule_options is not None:
+        raw["rule_options"] = {rule.code: _plain_mapping(value=rule_options)}
+    if not rule.options and rule_options is None:
+        return build_config(raw)
+    return build_config_for_rules(raw=raw, rules=(rule,))
 
 
 def write_harness_repository(*, repo_root: Path, test_case: RuleCase, config: Config) -> None:

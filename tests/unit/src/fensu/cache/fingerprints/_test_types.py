@@ -1,9 +1,12 @@
 """Test case types for persistent cache fingerprints."""
 
+from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import Any
 
 from fensu.cache.fingerprints.types import CanonicalValue
-from fensu.rules.authoring.types import ExecutionOwner
+from fensu.rules.authoring.models import RuleOption
+from fensu.rules.authoring.types import ExecutionOwner, RuleOptionValue
 
 
 @dataclass(frozen=True)
@@ -24,6 +27,26 @@ class ConfigFingerprintTestCase:
     first_threshold: int
     second_threshold: int
     reverse_mapping_order: bool
+    expected_equal: bool
+
+
+@dataclass(frozen=True)
+class RuleOptionsConfigFingerprintTestCase:
+    """Two resolved per-rule option mappings and their expected identity relationship."""
+
+    description: str
+    first_rule_options: Mapping[str, Mapping[str, RuleOptionValue]]
+    second_rule_options: Mapping[str, Mapping[str, RuleOptionValue]]
+    expected_equal: bool
+
+
+@dataclass(frozen=True)
+class RuleOptionSchemaFingerprintTestCase:
+    """Two typed option schemas and their expected ruleset identity relationship."""
+
+    description: str
+    first_options: tuple[RuleOption[Any], ...]
+    second_options: tuple[RuleOption[Any], ...]
     expected_equal: bool
 
 

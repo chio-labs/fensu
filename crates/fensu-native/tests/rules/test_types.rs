@@ -23,6 +23,15 @@ pub(crate) struct CoreRuleCorpusTestCase {
     pub(crate) expected_fixture_count: usize,
 }
 
+pub(crate) struct NativeOptionRejectionTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) code: &'static str,
+    pub(crate) option_name: &'static str,
+    pub(crate) option_value: &'static str,
+    pub(crate) expected_error_fragment: &'static str,
+    pub(crate) expected_stored_value: &'static str,
+}
+
 #[derive(Debug, Deserialize)]
 pub(crate) struct FilesystemEntry {
     pub(crate) path: String,

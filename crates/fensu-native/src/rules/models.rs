@@ -52,7 +52,7 @@ impl NativeProjectPlane {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct NativeRuleContext {
     pub scope: String,
     pub role: Option<String>,
@@ -68,6 +68,7 @@ pub struct NativeRuleContext {
     pub observations: HashMap<String, Vec<String>>,
     pub custom_registrations: Vec<(String, String, String, String, u32, u32)>,
     pub repo_root: String,
+    pub rule_options: HashMap<String, HashMap<String, String>>,
 }
 
 impl NativeRuleContext {
@@ -76,6 +77,13 @@ impl NativeRuleContext {
             .get(&query.key())
             .map(Vec::as_slice)
             .unwrap_or_default()
+    }
+
+    pub fn option(&self, code: &str, name: &str) -> Option<&str> {
+        self.rule_options
+            .get(code)
+            .and_then(|values| values.get(name))
+            .map(String::as_str)
     }
 }
 

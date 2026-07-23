@@ -7,18 +7,30 @@ from pathlib import Path
 from fensu.config.models import Config
 from fensu.rules.authoring.models import RuleSpec
 from fensu.rules.catalog._helpers.hermeticity import validate_cacheable_rules
-from fensu.rules.catalog._helpers.loading import build_rule_selection_from_config
+from fensu.rules.catalog._helpers.loading import (
+    build_rule_selection_from_catalogue,
+    build_rule_selection_from_config,
+)
 from fensu.rules.catalog.models import RuleSelection
 
 
 def build_check_rule_selection(
-    *, config: Config, repo_root: Path, include_warnings: bool
+    *,
+    config: Config,
+    repo_root: Path,
+    include_warnings: bool,
+    catalogue: tuple[RuleSpec, ...] | None = None,
 ) -> RuleSelection:
     """Resolve tiers and validate cacheability only for rules this check evaluates."""
 
-    selection: RuleSelection = build_rule_selection_from_config(
-        config=config,
-        repo_root=repo_root,
+    selection: RuleSelection = (
+        build_rule_selection_from_config(config=config, repo_root=repo_root)
+        if catalogue is None
+        else build_rule_selection_from_catalogue(
+            config=config,
+            catalogue=catalogue,
+            repo_root=repo_root,
+        )
     )
     evaluated_warning_rules: tuple[RuleSpec, ...] = selection.warnings if include_warnings else ()
     validate_cacheable_rules(

@@ -19,7 +19,9 @@ if TYPE_CHECKING:
         SyntaxAnalysis,
         TextAnalysis,
     )
-    from fensu.rules.authoring.models import Fault
+    from fensu.rules.authoring.models import Fault, RuleOption
+
+type RuleOptionValue = bool | int | str | tuple[str, ...] | tuple[int, ...]
 
 
 class Family(StrEnum):
@@ -59,6 +61,22 @@ class ExecutionOwner(StrEnum):
     LEAF = "leaf"
     SCOPE = "scope"
     PROJECT = "project"
+
+
+class RuleOptionKind(StrEnum):
+    """The canonical scalar or immutable-list shape of one rule option."""
+
+    BOOLEAN = "boolean"
+    INTEGER = "integer"
+    STRING = "string"
+    STRING_LIST = "string_list"
+    INTEGER_LIST = "integer_list"
+
+
+class Missing(StrEnum):
+    """Sentinel type distinguishing an omitted option default from falsey values."""
+
+    VALUE = "missing"
 
 
 class Threshold(StrEnum):
@@ -109,6 +127,10 @@ class RuleContext(Protocol):
 
     def _memoize[T](self, *, key: str, operation: Callable[[], T]) -> T:
         """Return one value shared by all rules evaluating the current file."""
+        ...
+
+    def option[T](self, option: RuleOption[T]) -> T:
+        """Return the current value of an option declared by the active rule."""
         ...
 
     def fault(

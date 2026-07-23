@@ -425,9 +425,9 @@ fn given_custom_rules_when_updating_then_one_compatible_metadata_host_is_require
     for test_case in test_cases {
         let repository = tempfile::tempdir().expect("custom-rule project");
         write(
-        repository.path().join("fensu.toml"),
-        b"roots = [\"src/pkg\"]\ntests = []\nselect = [\"XSK001\"]\nrule_paths = [\"rules/custom.py\"]\n[skills]\nname = \"fixture\"\n",
-    );
+            repository.path().join("fensu.toml"),
+            b"roots = [\"src/pkg\"]\ntests = []\nselect = [\"XSK001\"]\nrule_paths = [\"rules/custom.py\"]\n[rule_options.XSK001]\nmode = \"strict\"\nlimit = 7\n[skills]\nname = \"fixture\"\n",
+        );
         write(
             repository.path().join("src/pkg/target.py"),
             b"VALUE: int = 1\n",
@@ -435,9 +435,32 @@ fn given_custom_rules_when_updating_then_one_compatible_metadata_host_is_require
         write(
             repository.path().join("rules/custom.py"),
             br#"import ast
-from fensu import Family, Fault, RuleContext, rule
+from fensu import Family, Fault, RuleContext, RuleOption, rule
 
-@rule(code="XSK001", family=Family.CUSTOM, slug="always", message="custom fault")
+@rule(
+    code="XSK001",
+    family=Family.CUSTOM,
+    slug="always",
+    message="custom fault",
+    options=(
+        RuleOption.string(
+            name="mode",
+            required=True,
+            choices=("strict", "lenient"),
+            description="Evaluation mode.",
+        ),
+        RuleOption.integer(
+            name="limit",
+            default=3,
+            minimum=1,
+            maximum=10,
+            description="Maximum findings.",
+        ),
+        RuleOption.boolean(name="enabled", default=True),
+        RuleOption.string_list(name="paths", default=("src",), minimum_items=1),
+        RuleOption.integer_list(name="levels", default=(1, 2), minimum_items=1),
+    ),
+)
 def always(module: ast.Module, ctx: RuleContext) -> list[Fault]:
     return [ctx.fault(node=module.body[0])]
 "#,
@@ -466,6 +489,17 @@ def always(module: ast.Module, ctx: RuleContext) -> list[Fault]:
                 .expect("custom guidance"),
         );
         assert!(guidance.contains("### XSK001: always"));
+        assert!(guidance.contains("#### `limit`"));
+        assert!(guidance.contains("- Default: 3"));
+        assert!(guidance.contains("- Current value: 7"));
+        assert!(guidance.contains("- Minimum: 1"));
+        assert!(guidance.contains("- Maximum: 10"));
+        assert!(guidance.contains("#### `mode`"));
+        assert!(guidance.contains("- Required: `true`"));
+        assert!(guidance.contains("- Default: required"));
+        assert!(guidance.contains("- Current value: \"strict\""));
+        assert!(guidance.contains("- Choices: [\"strict\", \"lenient\"]"));
+        assert!(guidance.contains("- Minimum items: 1"));
         assert!(guidance.contains("class CustomRuleTestCase"));
         assert!(guidance.contains("test_case=RuleCase("));
         assert!(guidance.contains("When FFT413 is active"));
@@ -473,6 +507,21 @@ def always(module: ast.Module, ctx: RuleContext) -> list[Fault]:
         assert!(guidance.contains("sibling `_helpers/`"));
         assert!(guidance.contains("does not mean helpers belong beneath `rules/`"));
         assert!(!guidance.contains("test_case: RuleCase"));
+        let rule_path = repository.path().join("rules/custom.py");
+        let rule_source = fs::read(&rule_path).expect("custom rule source");
+        write(
+            &rule_path,
+            text(&rule_source).replace("default=3", "default=4"),
+        );
+        let stale = native_with_python(
+            repository.path(),
+            &["--target", "agents", "--check"],
+            &wrapper,
+        );
+        assert_eq!(stale.status.code(), Some(1));
+        assert!(text(&stale.stdout).contains("stale"));
+        assert_eq!(fs::read(&count).expect("host count after check"), b"xx");
+        write(&rule_path, rule_source);
         let inspected = Command::new(env!("CARGO_BIN_EXE_fensu"))
             .args(["rule", "XSK001", "--color", "never"])
             .current_dir(repository.path())
@@ -484,7 +533,11 @@ def always(module: ast.Module, ctx: RuleContext) -> list[Fault]:
         assert!(text(&inspected.stdout).contains("Kind: custom"));
         assert!(text(&inspected.stdout).contains("Source:"));
         assert!(text(&inspected.stdout).contains("rules/custom.py"));
-        assert_eq!(fs::read(&count).expect("host count after rule"), b"xx");
+        assert!(text(&inspected.stdout).contains("Default: 3"));
+        assert!(text(&inspected.stdout).contains("Current value: 7"));
+        assert!(text(&inspected.stdout).contains("Default: required"));
+        assert!(text(&inspected.stdout).contains("Current value: \"strict\""));
+        assert_eq!(fs::read(&count).expect("host count after rule"), b"xxx");
 
         let unavailable = tempfile::tempdir().expect("unavailable-host project");
         write(
@@ -506,9 +559,9 @@ def always(module: ast.Module, ctx: RuleContext) -> list[Fault]:
 
         let incompatible = repository.path().join("incompatible-host");
         write(
-        &incompatible,
-        b"#!/bin/sh\nprintf '{\"protocol\":2,\"package_version\":\"0\",\"catalogue\":[],\"blocking\":[],\"warnings\":[],\"ignored\":[]}\\n'\n",
-    );
+            &incompatible,
+            b"#!/bin/sh\nprintf '{\"protocol\":1,\"package_version\":\"0\",\"catalogue\":[],\"blocking\":[],\"warnings\":[],\"ignored\":[]}\\n'\n",
+        );
         fs::set_permissions(&incompatible, fs::Permissions::from_mode(0o755))
             .expect("incompatible host mode");
         fs::remove_dir_all(repository.path().join(".agents")).expect("remove first installation");

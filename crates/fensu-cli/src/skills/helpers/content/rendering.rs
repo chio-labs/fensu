@@ -47,7 +47,7 @@ pub(crate) fn generate(context: &SkillContext) -> Result<String, String> {
         String::new(),
         "- Run `fensu check` after architecture-relevant changes.".to_owned(),
         "- Run `fensu rule <CODE>` to inspect a diagnostic and its remediation.".to_owned(),
-        "- Run `fensu map <SYMBOL>` for a conservative downstream project call tree.".to_owned(),
+        "- Run `fensu map <SYMBOL>` for proven callees, or add `--direction upstream` for proven callers.".to_owned(),
         "- Run `fensu skills` after changing rule selection or custom rules.".to_owned(),
         String::new(),
     ];

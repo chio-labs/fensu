@@ -38,5 +38,7 @@ pub(crate) fn load_optional(start: &Path) -> Result<Option<(PathBuf, Config)>, S
 
 pub(crate) fn custom_rules_are_configured(start: &Path) -> Result<bool, String> {
     let (_, config) = load(start)?;
-    Ok(!config.rule_paths.is_empty() || !config.rule_modules.is_empty())
+    Ok(!config.rule_paths.is_empty()
+        || !config.rule_modules.is_empty()
+        || !config.rule_options.is_empty())
 }

@@ -1,16 +1,14 @@
-"""Build validated configuration from an in-memory raw mapping."""
+"""Preserve option-free in-memory configuration construction."""
 
 from __future__ import annotations
 
 from collections.abc import Mapping
 
-from fensu.config._helpers.defaults import build_config as build_validated_config
-from fensu.config._helpers.validate import validate_config
+from fensu.config.main._build_config import build_config as _build
 from fensu.config.models import Config
 
 
 def build_config(raw: Mapping[str, object]) -> Config:
-    """Validate and build configuration from a parsed raw mapping."""
+    """Validate and build option-free configuration from a raw mapping."""
 
-    validate_config(raw)
-    return build_validated_config(raw)
+    return _build(raw)

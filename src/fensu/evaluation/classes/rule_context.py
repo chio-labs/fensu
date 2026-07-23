@@ -5,7 +5,7 @@ from __future__ import annotations
 import ast
 from collections.abc import Callable, Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from fensu.analysis.models import SourceLocation, SourceRange, SyntaxHandle
 from fensu.analysis.types import (
@@ -26,8 +26,9 @@ from fensu.discovery.models import ProjectLayout, RepoRoot
 from fensu.discovery.types import RoleName, ScopeName
 from fensu.evaluation._helpers import ast_access
 from fensu.evaluation.models import ParsedModule, ThresholdOverrideUse
-from fensu.rules.authoring.models import Fault, RuleSpec
-from fensu.rules.authoring.types import Threshold
+from fensu.rules.authoring.exceptions import RuleDefinitionError
+from fensu.rules.authoring.models import Fault, RuleOption, RuleSpec
+from fensu.rules.authoring.types import RuleOptionValue, Threshold
 
 _POSIX_PATH_SEPARATOR: str = "/"
 _ROLE_DIRECTORY_NAMES: frozenset[str] = frozenset(role.value for role in RoleName)
@@ -95,6 +96,16 @@ class EvaluationRuleContext:
         if key not in self._file_cache:
             self._file_cache[key] = operation()
         return self._file_cache[key]
+
+    def option[T](self, option: RuleOption[T]) -> T:
+        """Return the current value of an option declared by the active rule."""
+
+        if not any(declared is option for declared in self._rule.options):
+            raise RuleDefinitionError(
+                f"rule {self._rule.code} requested undeclared option {option.name}"
+            )
+        value: RuleOptionValue = self._config.rule_options[self._rule.code][option.name]
+        return cast(T, value)
 
     def fault(
         self,

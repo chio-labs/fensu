@@ -30,6 +30,11 @@ pub(crate) fn build(
         ignore: strings(table.get("ignore")),
         rule_paths: strings(table.get("rule_paths")),
         rule_modules: strings(table.get("rule_modules")),
+        rule_options: table
+            .get("rule_options")
+            .and_then(toml::Value::as_table)
+            .cloned()
+            .unwrap_or_default(),
         cache_enabled: cache
             .and_then(|values| values.get("enabled"))
             .and_then(toml::Value::as_bool)

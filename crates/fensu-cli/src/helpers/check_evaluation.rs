@@ -78,6 +78,7 @@ pub(crate) fn evaluate_and_render(
                 observations: HashMap::new(),
                 custom_registrations: Vec::new(),
                 repo_root: root.to_string_lossy().into_owned(),
+                rule_options: native_rule_options(codes)?,
             };
             let plans = plan_core_rule_queries(program(source), codes, &context);
             context.observations = observe(root, &plans, &program_by_path, &program_by_module);
@@ -154,6 +155,26 @@ pub(crate) fn evaluate_and_render(
         threshold_uses: &uses,
     });
     Ok((output, i32::from(!blocking_faults.is_empty())))
+}
+
+fn native_rule_options(
+    codes: &[String],
+) -> Result<HashMap<String, HashMap<String, String>>, String> {
+    let mut by_code = HashMap::new();
+    for code in codes {
+        let rule = rule::rule(code).ok_or_else(|| format!("Unknown native rule code: {code}"))?;
+        let mut values = HashMap::new();
+        for option in &rule.options {
+            values.insert(
+                option.name.clone(),
+                serde_json::to_string(&option.current_value).map_err(|error| error.to_string())?,
+            );
+        }
+        if !values.is_empty() {
+            by_code.insert(rule.code.clone(), values);
+        }
+    }
+    Ok(by_code)
 }
 
 pub(crate) fn selected_rules(select: &[String], ignore: &[String]) -> Vec<&'static RuleMetadata> {

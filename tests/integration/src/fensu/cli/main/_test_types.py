@@ -254,3 +254,25 @@ class CacheableNoticeTestCase:
     argv: tuple[str, ...]
     expected_exit_code: int
     expected_notice: bool
+
+
+@dataclass(frozen=True)
+class CustomRuleOptionProcessTestCase:
+    """Custom-rule option configuration and expected subprocess diagnostics."""
+
+    description: str
+    override_value: int
+    expected_default_fault_count: int
+    expected_override_fault_count: int
+    expected_exit_code: int
+
+
+@dataclass(frozen=True)
+class InvalidCustomRuleOptionProcessTestCase:
+    """Invalid custom-rule option and expected pre-evaluation process failure."""
+
+    description: str
+    option_table: str
+    expected_exit_code: int
+    expected_error_fragment: str
+    expected_evaluation_marker: bool

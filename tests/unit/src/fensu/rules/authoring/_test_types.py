@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
+from fensu import RuleOption
 from fensu.rules.authoring.types import ExecutionOwner, Family, RuleKind
 
 
@@ -122,3 +125,43 @@ class RuleCacheableFlagTestCase:
     description: str
     cacheable: bool | None
     expected_cacheable: bool | None
+
+
+@dataclass(frozen=True)
+class RuleOptionDeclarationTestCase:
+    """One public option declaration and its expected immutable values."""
+
+    description: str
+    option: RuleOption[Any]
+    expected_name: str
+    expected_kind: str
+    expected_default: object
+    expected_description: str | None
+    expected_required: bool = False
+
+
+@dataclass(frozen=True)
+class InvalidRuleOptionDeclarationTestCase:
+    """One invalid public option declaration and its expected error detail."""
+
+    description: str
+    constructor: Callable[[], RuleOption[Any]]
+    expected_error_fragment: str
+
+
+@dataclass(frozen=True)
+class DuplicateRuleOptionTestCase:
+    """Duplicate public option declarations and their expected definition error."""
+
+    description: str
+    options: tuple[RuleOption[Any], ...]
+    expected_error_fragment: str
+
+
+@dataclass(frozen=True)
+class PublicRuleOptionExportTestCase:
+    """One expected public RuleOption package export."""
+
+    description: str
+    attribute_name: str
+    expected_export: object

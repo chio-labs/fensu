@@ -15,7 +15,8 @@ from fensu.config.constants import (
     DEFAULT_THRESHOLDS,
 )
 from fensu.config.types import ConfigSourceKind
-from fensu.rules.authoring.types import Threshold
+from fensu.rules.authoring.models import RuleSpec
+from fensu.rules.authoring.types import RuleOptionValue, Threshold
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,6 +33,7 @@ class LoadedConfig:
 
     config: Config
     source: ConfigSource
+    catalogue: tuple[RuleSpec, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -135,6 +137,9 @@ class Config:
     ignore: tuple[str, ...] = ()
     rule_paths: tuple[str, ...] = ()
     rule_modules: tuple[str, ...] = ()
+    rule_options: Mapping[str, Mapping[str, RuleOptionValue]] = field(
+        default_factory=lambda: MappingProxyType({})
+    )
     rule_exceptions: tuple[RuleExceptionEntry, ...] = ()
     rule_ignores: tuple[RuleIgnoreEntry, ...] = ()
     cache: CacheConfig = field(default_factory=lambda: CacheConfig(enabled=DEFAULT_CACHE_ENABLED))
@@ -152,3 +157,11 @@ class Config:
         default_factory=lambda: MappingProxyType(dict(DEFAULT_CONTRACTS))
     )
     memory: MemoryConfig = field(default_factory=MemoryConfig)
+
+    def __post_init__(self) -> None:
+        """Freeze defensive copies of nested rule-option mappings."""
+
+        copied: dict[str, Mapping[str, RuleOptionValue]] = {
+            code: MappingProxyType(dict(values)) for code, values in self.rule_options.items()
+        }
+        object.__setattr__(self, "rule_options", MappingProxyType(copied))

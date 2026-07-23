@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.0](https://github.com/chio-labs/fensu/compare/v0.4.1...v0.5.0) (2026-07-23)
+
+
+### Features
+
+* add typed per-rule options ([a313a69](https://github.com/chio-labs/fensu/commit/a313a69b436dcd3b98bd9b258fe71a7bdb8a4082))
+* add typed per-rule options ([517a952](https://github.com/chio-labs/fensu/commit/517a95263308db9949ad57a4bf3276903de6f04e))
+
 ## [0.4.1](https://github.com/chio-labs/fensu/compare/v0.4.0...v0.4.1) (2026-07-23)
 
 

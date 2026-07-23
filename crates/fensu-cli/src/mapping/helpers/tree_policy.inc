@@ -10,8 +10,16 @@ use crate::mapping::models::{
     MappingExpression, MappingStatement, ProjectIndex, ResolvedCallable, UnresolvedCall,
 };
 
-type MethodCache = BTreeMap<(String, String, bool), Option<FunctionDefinition>>;
+type CallableStateKey = (String, Option<String>);
+type MethodCache = BTreeMap<(String, String, bool), Option<String>>;
 type ReceiverState = BTreeMap<String, Option<String>>;
+type IncomingCallers = BTreeMap<CallableStateKey, BTreeMap<CallableStateKey, CallableState>>;
+
+#[derive(Clone)]
+struct CallableState {
+    definition_key: String,
+    dispatch_class_key: Option<String>,
+}
 
 pub(crate) fn build_tree(
     root: FunctionDefinition,
@@ -30,6 +38,216 @@ pub(crate) fn build_tree(
         &BTreeSet::new(),
         &mut MethodCache::new(),
     )
+}
+
+pub(crate) fn build_upstream_tree(
+    root: FunctionDefinition,
+    index: &ProjectIndex,
+    depth: usize,
+) -> CallMapNode {
+    let dispatch = root
+        .owning_class
+        .as_deref()
+        .map(|class| build_class_key(&root.module_name, class));
+    let callers = incoming_callers(index);
+    build_upstream_node(
+        root,
+        dispatch,
+        index,
+        &callers,
+        depth,
+        &BTreeSet::new(),
+        true,
+    )
+}
+
+fn build_upstream_node(
+    definition: FunctionDefinition,
+    dispatch_class_key: Option<String>,
+    index: &ProjectIndex,
+    callers: &IncomingCallers,
+    remaining_depth: usize,
+    ancestors: &BTreeSet<CallableStateKey>,
+    aggregate_dispatch: bool,
+) -> CallMapNode {
+    let key = (definition.key(), dispatch_class_key.clone());
+    let dispatch_class_name =
+        dispatch_class_name(&definition, dispatch_class_key.as_deref(), index);
+    if ancestors.contains(&key) {
+        return CallMapNode {
+            definition,
+            entries: Vec::new(),
+            dispatch_class_name,
+            cycle: true,
+            truncated: false,
+        };
+    }
+    let incoming = incoming_states(&key, callers, aggregate_dispatch);
+    if remaining_depth == 0 {
+        return CallMapNode {
+            definition,
+            entries: Vec::new(),
+            dispatch_class_name,
+            cycle: false,
+            truncated: !incoming.is_empty(),
+        };
+    }
+    let mut next_ancestors = ancestors.clone();
+    next_ancestors.insert(key);
+    let entries = incoming
+        .into_iter()
+        .filter_map(|caller| {
+            let caller_definition = index.functions.get(&caller.definition_key)?.clone();
+            Some(CallMapEntry::Node(Box::new(build_upstream_node(
+                caller_definition,
+                caller.dispatch_class_key.clone(),
+                index,
+                callers,
+                remaining_depth - 1,
+                &next_ancestors,
+                false,
+            ))))
+        })
+        .collect();
+    CallMapNode {
+        definition,
+        entries,
+        dispatch_class_name,
+        cycle: false,
+        truncated: false,
+    }
+}
+
+fn incoming_states<'a>(
+    target: &CallableStateKey,
+    callers: &'a IncomingCallers,
+    aggregate_dispatch: bool,
+) -> Vec<&'a CallableState> {
+    let mut states = BTreeMap::new();
+    if aggregate_dispatch {
+        for ((definition_key, _), incoming) in callers {
+            if definition_key == &target.0 {
+                states.extend(incoming.iter().map(|(key, state)| (key.clone(), state)));
+            }
+        }
+    } else if let Some(incoming) = callers.get(target) {
+        states.extend(incoming.iter().map(|(key, state)| (key.clone(), state)));
+    }
+    states.into_values().collect()
+}
+
+fn incoming_callers(index: &ProjectIndex) -> IncomingCallers {
+    let mut callers = IncomingCallers::new();
+    let mut method_cache = MethodCache::new();
+    for caller in callable_states(index, &mut method_cache) {
+        let Some(definition) = index.functions.get(&caller.definition_key) else {
+            continue;
+        };
+        for entry in call_entries(
+            definition,
+            caller.dispatch_class_key.as_deref(),
+            index,
+            &mut method_cache,
+        ) {
+            let PendingEntry::Resolved(target) = entry else {
+                continue;
+            };
+            let target_key = (target.definition.key(), target.dispatch_class_key);
+            let caller_key = (
+                caller.definition_key.clone(),
+                caller.dispatch_class_key.clone(),
+            );
+            callers
+                .entry(target_key)
+                .or_default()
+                .insert(caller_key, caller.clone());
+        }
+    }
+    callers
+}
+
+fn callable_states(index: &ProjectIndex, method_cache: &mut MethodCache) -> Vec<CallableState> {
+    let descendants = inheritance_descendants(index);
+    let mut states = BTreeMap::new();
+    for definition in index.functions.values() {
+        let Some(owner) = definition.owning_class.as_deref() else {
+            let state = CallableState {
+                definition_key: definition.key(),
+                dispatch_class_key: None,
+            };
+            states.insert((definition.key(), None), state);
+            continue;
+        };
+        let owner_key = build_class_key(&definition.module_name, owner);
+        for class_key in descendants.get(&owner_key).into_iter().flatten() {
+            let Some(class) = index.classes.get(class_key) else {
+                continue;
+            };
+            let resolved = method_definition(
+                class,
+                &definition.name,
+                index,
+                method_cache,
+                &mut BTreeSet::new(),
+                false,
+            );
+            if resolved.as_ref().map(FunctionDefinition::key) != Some(definition.key()) {
+                continue;
+            }
+            let dispatch_class_key = Some(class.key());
+            states.insert(
+                (definition.key(), dispatch_class_key.clone()),
+                CallableState {
+                    definition_key: definition.key(),
+                    dispatch_class_key,
+                },
+            );
+        }
+    }
+    states.into_values().collect()
+}
+
+fn inheritance_descendants(index: &ProjectIndex) -> BTreeMap<String, BTreeSet<String>> {
+    let mut descendants = index
+        .classes
+        .keys()
+        .map(|key| (key.clone(), BTreeSet::from([key.clone()])))
+        .collect::<BTreeMap<_, _>>();
+    for class_key in index.classes.keys() {
+        let mut ancestors = BTreeSet::new();
+        collect_class_ancestors(
+            class_key,
+            index,
+            &mut BTreeSet::new(),
+            &mut ancestors,
+        );
+        for ancestor in ancestors {
+            descendants
+                .entry(ancestor)
+                .or_default()
+                .insert(class_key.clone());
+        }
+    }
+    descendants
+}
+
+fn collect_class_ancestors(
+    class_key: &str,
+    index: &ProjectIndex,
+    active: &mut BTreeSet<String>,
+    ancestors: &mut BTreeSet<String>,
+) {
+    if !active.insert(class_key.to_owned()) {
+        return;
+    }
+    if let Some(class) = index.classes.get(class_key) {
+        for base_key in &class.base_keys {
+            if index.classes.contains_key(base_key) && ancestors.insert(base_key.clone()) {
+                collect_class_ancestors(base_key, index, active, ancestors);
+            }
+        }
+    }
+    active.remove(class_key);
 }
 
 fn build_node(
@@ -416,7 +634,10 @@ fn method_definition(
 ) -> Option<FunctionDefinition> {
     let cache_key = (class.key(), method_name.to_owned(), exclude_protocol_bases);
     if let Some(cached) = cache.get(&cache_key) {
-        return cached.clone();
+        return cached
+            .as_deref()
+            .and_then(|key| index.functions.get(key))
+            .cloned();
     }
     let active_key = (class.key(), method_name.to_owned());
     if !active.insert(active_key.clone()) {
@@ -424,11 +645,11 @@ fn method_definition(
     }
     let direct_key = build_function_key(&class.module_name, method_name, Some(&class.name));
     if let Some(direct) = index.functions.get(&direct_key).cloned() {
-        cache.insert(cache_key, Some(direct.clone()));
+        cache.insert(cache_key, Some(direct_key));
         active.remove(&active_key);
         return Some(direct);
     }
-    let mut candidates = BTreeMap::new();
+    let mut candidates = BTreeSet::new();
     for base in &class.bases {
         let owner = class_as_function(class);
         let Some(base_class) = resolve_class_expression(base, &owner, index, false) else {
@@ -445,15 +666,15 @@ fn method_definition(
             active,
             exclude_protocol_bases,
         ) {
-            candidates.insert(inherited.key(), inherited);
+            candidates.insert(inherited.key());
         }
     }
     active.remove(&active_key);
-    let result = (candidates.len() == 1)
-        .then(|| candidates.into_values().next())
+    let result_key = (candidates.len() == 1)
+        .then(|| candidates.into_iter().next())
         .flatten();
-    cache.insert(cache_key, result.clone());
-    result
+    cache.insert(cache_key, result_key.clone());
+    result_key.and_then(|key| index.functions.get(&key).cloned())
 }
 
 fn resolve_class_expression(

@@ -1,6 +1,9 @@
 use std::fs;
 
-use crate::helpers::{basic_project, method_project, run, run_colored, text, write, write_bytes};
+use crate::helpers::{
+    ambiguous_protocol_project, basic_project, method_project, run, run_colored,
+    sibling_method_project, text, write, write_bytes,
+};
 
 #[test]
 fn given_native_map_when_python_is_missing_then_direct_calls_cycles_and_depth_are_deterministic() {
@@ -15,14 +18,161 @@ fn given_native_map_when_python_is_missing_then_direct_calls_cycles_and_depth_ar
         repository.path(),
         &["pkg.entry.run", "--depth", "3", "--no-cache"],
     );
+    let explicit = run(
+        repository.path(),
+        &[
+            "pkg.entry.run",
+            "--direction",
+            "downstream",
+            "--depth",
+            "3",
+            "--no-cache",
+        ],
+    );
     let stdout = text(&first.stdout);
 
     assert_eq!(first.status.code(), Some(0), "{}", text(&first.stderr));
     assert_eq!(first.stdout, second.stdout);
+    assert_eq!(first.stdout, explicit.stdout);
     assert!(stdout.ends_with('\n'));
     assert!(stdout.contains("step(...)  src/pkg/steps.py:3"));
     assert!(stdout.contains("callback(...)  src/pkg/entry.py:5  (unresolved parameter call)"));
     assert!(stdout.contains("run(...)  src/pkg/entry.py:3  (cycle)"));
+}
+
+#[test]
+fn given_upstream_direction_when_mapping_then_proven_callers_cycles_and_depth_are_deterministic() {
+    let repository = tempfile::tempdir().expect("temporary repository");
+    basic_project(repository.path());
+
+    let output = run(
+        repository.path(),
+        &[
+            "pkg.steps.step",
+            "--direction",
+            "upstream",
+            "--depth",
+            "3",
+            "--no-cache",
+        ],
+    );
+    let stdout = text(&output.stdout);
+
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    assert_eq!(
+        stdout,
+        "step(...)  src/pkg/steps.py:3\n└── run(...)  src/pkg/entry.py:3\n    └── finish(...)  src/pkg/finish.py:3\n        └── step(...)  src/pkg/steps.py:3  (cycle)\n"
+    );
+    assert!(!stdout.contains("callback"));
+
+    let limited = run(
+        repository.path(),
+        &[
+            "pkg.steps.step",
+            "--direction",
+            "upstream",
+            "--depth",
+            "1",
+            "--no-cache",
+        ],
+    );
+    assert!(text(&limited.stdout).contains("run(...)  src/pkg/entry.py:3  (depth limit)"));
+}
+
+#[test]
+fn given_inherited_method_dispatch_when_mapping_upstream_then_concrete_callers_are_preserved() {
+    let repository = tempfile::tempdir().expect("temporary repository");
+    method_project(repository.path());
+
+    let output = run(
+        repository.path(),
+        &[
+            "methods.workers.Worker.hook",
+            "--direction",
+            "upstream",
+            "--depth",
+            "3",
+            "--no-cache",
+        ],
+    );
+    let stdout = text(&output.stdout);
+
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    assert!(stdout.contains("Worker.hook(...)"));
+    assert!(stdout.contains("Worker.run(...)"));
+    assert!(stdout.contains("Worker.execute(...)"));
+    assert!(stdout.contains("run(...)  src/methods/entry.py:4"));
+    assert!(!stdout.contains("dynamic.execute"));
+}
+
+#[test]
+fn given_sibling_method_dispatch_when_mapping_upstream_then_callers_do_not_cross_subclasses() {
+    let repository = tempfile::tempdir().expect("temporary repository");
+    sibling_method_project(repository.path());
+
+    let output = run(
+        repository.path(),
+        &[
+            "siblings.workers.ChildA.hook",
+            "--direction",
+            "upstream",
+            "--depth",
+            "2",
+            "--no-cache",
+        ],
+    );
+    let stdout = text(&output.stdout);
+
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    assert!(stdout.contains("ChildA.run(...)"));
+    assert!(stdout.contains("call_a(...)"));
+    assert!(!stdout.contains("ChildB.run(...)"));
+    assert!(!stdout.contains("call_b(...)"));
+}
+
+#[test]
+fn given_unique_protocol_dispatch_when_mapping_upstream_then_proven_protocol_caller_is_included() {
+    let repository = tempfile::tempdir().expect("temporary repository");
+    method_project(repository.path());
+
+    let output = run(
+        repository.path(),
+        &[
+            "methods.workers.Worker.execute",
+            "--direction",
+            "upstream",
+            "--depth",
+            "1",
+            "--no-cache",
+        ],
+    );
+
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    assert!(text(&output.stdout).contains("run_protocol(...)"));
+}
+
+#[test]
+fn given_ambiguous_protocol_dispatch_when_mapping_upstream_then_caller_is_not_invented() {
+    let repository = tempfile::tempdir().expect("temporary repository");
+    ambiguous_protocol_project(repository.path());
+
+    let output = run(
+        repository.path(),
+        &[
+            "protocols.workers.First.execute",
+            "--direction",
+            "upstream",
+            "--depth",
+            "2",
+            "--no-cache",
+        ],
+    );
+
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    assert_eq!(
+        text(&output.stdout),
+        "First.execute(...)  src/protocols/workers.py:4\n"
+    );
 }
 
 #[test]
@@ -239,10 +389,11 @@ fn given_map_help_and_invalid_arguments_when_parsing_then_argparse_surface_is_pr
     let help = run(repository.path(), &["--help"]);
     assert_eq!(help.status.code(), Some(0));
     assert!(text(&help.stdout).contains("--cache | --no-cache"));
+    assert!(text(&help.stdout).contains("--direction {downstream,upstream}"));
     for arguments in [
         vec![],
         vec!["run", "--depth", "-1"],
-        vec!["run", "--direction", "upstream"],
+        vec!["run", "--direction", "sideways"],
         vec!["run", "--cache", "--no-cache"],
     ] {
         let output = run(repository.path(), &arguments);

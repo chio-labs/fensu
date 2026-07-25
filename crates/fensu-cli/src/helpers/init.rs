@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 
 use walkdir::WalkDir;
 
+use crate::configuration::main::implicit_namespace_packages::implicit_namespace_packages;
 use crate::configuration::main::load;
 use crate::configuration::main::validate_document::validate_document;
 use crate::models::{CliOutput, InitOptions};
@@ -80,6 +81,7 @@ pub(crate) fn run_init(arguments: &[String]) -> Result<CliOutput, String> {
             .sum::<usize>();
         output.push_str(&format!("-> Existing codebase - {runtime_count} Python files\n\n    Enabling the full Fensu ruleset: FF\n    Wrote fensu.toml\n"));
     }
+    output.push_str(&implicit_namespace_packages(&repository, &roots));
     let drift = native_drift(&repository)?;
     if drift.0 == 0 {
         output.push_str("\n-> Found 0 faults\n");

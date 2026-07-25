@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use crate::configuration::helpers::exceptions;
+use crate::configuration::helpers::roots::validate_nested_roots;
 use crate::constants::{
     CONFIG_ROLE_NAMES, CONTRACT_BEHAVIORS, DEFAULT_THRESHOLDS, MAX_CORE_SELECTOR_SUFFIX,
 };
@@ -74,20 +75,6 @@ fn validate_rule_options(value: Option<&toml::Value>) -> Result<(), String> {
         .ok_or_else(|| "Config key rule_options must be a table.".to_owned())?;
     if rules.values().any(|options| !options.is_table()) {
         return Err("Config key rule_options must contain rule-code tables.".to_owned());
-    }
-    Ok(())
-}
-
-fn validate_nested_roots(roots: Vec<String>) -> Result<(), String> {
-    for (index, first) in roots.iter().enumerate() {
-        let first = first.split('/').collect::<Vec<_>>();
-        for second in roots.iter().skip(index + 1) {
-            let second = second.split('/').collect::<Vec<_>>();
-            let length = first.len().min(second.len());
-            if first[..length] == second[..length] {
-                return Err("Config key roots must not contain nested paths.".to_owned());
-            }
-        }
     }
     Ok(())
 }

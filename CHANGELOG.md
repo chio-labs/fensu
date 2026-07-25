@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.1](https://github.com/chio-labs/fensu/compare/v0.5.0...v0.5.1) (2026-07-25)
+
+
+### Bug Fixes
+
+* tag native CLI wheels as interpreter-agnostic ([da314c4](https://github.com/chio-labs/fensu/commit/da314c413a9235c445433b5b3225116a3ae5b8a0))
+* tag native CLI wheels as interpreter-agnostic ([9b3bfb5](https://github.com/chio-labs/fensu/commit/9b3bfb5eb93eeade7372576a4f8b3e73dcaa4a58))
+
 ## [0.5.0](https://github.com/chio-labs/fensu/compare/v0.4.1...v0.5.0) (2026-07-23)
 
 

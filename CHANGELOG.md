@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.2](https://github.com/chio-labs/fensu/compare/v0.5.1...v0.5.2) (2026-07-25)
+
+
+### Bug Fixes
+
+* restore the CLI build interpreter and retag only ([fc5857a](https://github.com/chio-labs/fensu/commit/fc5857a9db9bab0f7a4ed74772518d67943b3189))
+* restore the CLI build interpreter and retag only ([a741a7e](https://github.com/chio-labs/fensu/commit/a741a7e767561e5deafe42eb9deb3ca4331ab311))
+
 ## [0.5.1](https://github.com/chio-labs/fensu/compare/v0.5.0...v0.5.1) (2026-07-25)
 
 

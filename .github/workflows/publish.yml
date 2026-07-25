@@ -52,23 +52,18 @@ jobs:
           - name: linux-x86_64
             runner: ubuntu-latest
             target: x86_64
-            interpreter: python3.12
           - name: linux-aarch64
             runner: ubuntu-24.04-arm
             target: aarch64
-            interpreter: python3.12
           - name: macos-x86_64
             runner: macos-latest
             target: x86_64
-            interpreter: python3.12
           - name: macos-arm64
             runner: macos-latest
             target: aarch64
-            interpreter: python3.12
           - name: windows-x86_64
             runner: windows-latest
             target: x86_64
-            interpreter: python
     steps:
       - uses: actions/checkout@v5
         with:
@@ -86,12 +81,29 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           command: build
-          args: >-
-            --release --out ../../dist
-            --interpreter ${{ matrix.platform.interpreter }}
+          args: --release --out ../../dist
           target: ${{ matrix.platform.target }}
           manylinux: auto
           working-directory: packages/fensu-cli
+      # fensu-cli ships one standalone Rust executable and links no libpython,
+      # so it must never carry a CPython tag. maturin still infers one from the
+      # workspace metadata graph, which reaches pyo3 through optional features
+      # that this binary does not build, so the tag is corrected explicitly.
+      - name: Retag native CLI wheel as interpreter-agnostic
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          wheels=(dist/fensu_cli-*.whl)
+          if [ ${#wheels[@]} -eq 0 ]; then
+            echo "No fensu-cli wheel was produced."
+            exit 1
+          fi
+          python -m pip install --quiet wheel
+          for wheel in "${wheels[@]}"; do
+            python -m wheel tags --python-tag py3 --abi-tag none --remove "$wheel"
+          done
+          bash .github/scripts/assert_cli_wheel_tags.sh dist
       - uses: actions/upload-artifact@v5
         with:
           name: wheel-${{ matrix.platform.name }}
@@ -132,10 +144,17 @@ jobs:
       contents: read
       id-token: write
     steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.release-tag.outputs.tag }}
       - uses: actions/download-artifact@v5
         with:
           path: dist
           merge-multiple: true
+
+      - name: Assert native CLI wheels are interpreter-agnostic
+        shell: bash
+        run: bash .github/scripts/assert_cli_wheel_tags.sh dist
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1

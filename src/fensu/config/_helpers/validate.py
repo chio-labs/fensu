@@ -222,9 +222,23 @@ def _validate_no_nested_paths(*, name: str, paths: tuple[str, ...]) -> None:
         PurePosixPath(path).parts for path in paths
     )
     for index, parent in enumerate(normalized_paths):
-        for child in normalized_paths[index + 1 :]:
+        for offset, child in enumerate(normalized_paths[index + 1 :]):
             if _path_parts_nested(first=parent, second=child):
-                raise ConfigError(f"Config key {name} must not contain nested paths.")
+                raise ConfigError(
+                    _nested_paths_message(
+                        name=name,
+                        first=paths[index],
+                        second=paths[index + 1 + offset],
+                        first_is_outer=len(parent) <= len(child),
+                    )
+                )
+
+
+def _nested_paths_message(*, name: str, first: str, second: str, first_is_outer: bool) -> str:
+    outer, inner = (first, second) if first_is_outer else (second, first)
+    if outer == inner:
+        return f"Config key {name} must not contain duplicate paths: {outer!r}."
+    return f"Config key {name} must not contain nested paths: {outer!r} contains {inner!r}."
 
 
 def _path_parts_nested(*, first: tuple[str, ...], second: tuple[str, ...]) -> bool:

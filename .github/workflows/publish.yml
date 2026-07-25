@@ -52,18 +52,23 @@ jobs:
           - name: linux-x86_64
             runner: ubuntu-latest
             target: x86_64
+            interpreter: python3.12
           - name: linux-aarch64
             runner: ubuntu-24.04-arm
             target: aarch64
+            interpreter: python3.12
           - name: macos-x86_64
             runner: macos-latest
             target: x86_64
+            interpreter: python3.12
           - name: macos-arm64
             runner: macos-latest
             target: aarch64
+            interpreter: python3.12
           - name: windows-x86_64
             runner: windows-latest
             target: x86_64
+            interpreter: python
     steps:
       - uses: actions/checkout@v5
         with:
@@ -77,18 +82,23 @@ jobs:
           args: --release --out dist --features extension-module,memory
           target: ${{ matrix.platform.target }}
           manylinux: auto
+      # --interpreter is required for the build itself, not for the wheel tag.
+      # maturin reaches pyo3 through the workspace metadata graph, so it demands
+      # an interpreter and cannot discover one inside the manylinux containers.
       - name: Build native CLI wheel
         uses: PyO3/maturin-action@v1
         with:
           command: build
-          args: --release --out ../../dist
+          args: >-
+            --release --out ../../dist
+            --interpreter ${{ matrix.platform.interpreter }}
           target: ${{ matrix.platform.target }}
           manylinux: auto
           working-directory: packages/fensu-cli
       # fensu-cli ships one standalone Rust executable and links no libpython,
-      # so it must never carry a CPython tag. maturin still infers one from the
-      # workspace metadata graph, which reaches pyo3 through optional features
-      # that this binary does not build, so the tag is corrected explicitly.
+      # so it must never carry a CPython tag. maturin derives one from the same
+      # pyo3 detection above, regardless of --interpreter, so the published tag
+      # is corrected explicitly here and asserted before release.
       - name: Retag native CLI wheel as interpreter-agnostic
         shell: bash
         run: |

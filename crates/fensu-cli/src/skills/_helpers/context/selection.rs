@@ -4,6 +4,7 @@ use std::path::Path;
 use serde_json::json;
 
 use crate::catalogue::main::rule_catalogue::rule_catalogue;
+use crate::configuration::constants::{CONTRACT_BEHAVIORS, DEFAULT_THRESHOLDS};
 use crate::hosting::main::run_skills_metadata_host::run_skills_metadata_host;
 use crate::models::{Config, RuleMetadata};
 use crate::skills::_helpers::context::option_validation::validate_rule_options;
@@ -13,9 +14,10 @@ const CORE_KIND: &str = "core";
 const CORE_PREFIX: &str = "FF";
 const CORE_RULE_CODE_LENGTH: usize = 6;
 const CUSTOM_KIND: &str = "custom";
+const CONFIGURATION_INPUTS: &[&str] = &["roots", "tests", "tooling", "test_scopes"];
 const CUSTOM_PREFIX: char = 'X';
 const MAX_CORE_SELECTOR_SUFFIX: usize = 4;
-const METADATA_PROTOCOL: u32 = 2;
+const METADATA_PROTOCOL: u32 = 3;
 
 pub(crate) fn validate_config_policy(config: &Config) -> Result<(), String> {
     for (name, selectors) in [
@@ -122,6 +124,11 @@ fn validate_host_shape(raw: &[u8]) -> Result<(), String> {
         "source",
         "cacheable",
         "options",
+        "constraints",
+        "thresholds",
+        "contract_behaviors",
+        "configuration_inputs",
+        "limits",
     ]);
     for rule in catalogue {
         let fields = rule
@@ -182,6 +189,73 @@ fn validate_host_catalogue(catalogue: &[RuleMetadata]) -> Result<(), String> {
             ));
         }
         validate_rule_options(item)?;
+        validate_rule_constraints(item)?;
+        validate_rule_inputs(item)?;
+        validate_rule_limits(item)?;
+    }
+    Ok(())
+}
+
+fn validate_rule_limits(rule: &RuleMetadata) -> Result<(), String> {
+    let mut names: HashSet<&str> = HashSet::new();
+    if rule.limits.iter().any(|limit| {
+        limit.name.is_empty() || limit.description.is_empty() || !names.insert(&limit.name)
+    }) {
+        return Err(format!(
+            "Catalogue rule {} contains an incompatible fixed limit.",
+            rule.code
+        ));
+    }
+    Ok(())
+}
+
+fn validate_rule_inputs(rule: &RuleMetadata) -> Result<(), String> {
+    let threshold_names = DEFAULT_THRESHOLDS
+        .iter()
+        .map(|(name, _)| *name)
+        .collect::<HashSet<_>>();
+    let unique_thresholds = rule.thresholds.iter().collect::<HashSet<_>>();
+    let unique_behaviors = rule.contract_behaviors.iter().collect::<HashSet<_>>();
+    let unique_configuration = rule.configuration_inputs.iter().collect::<HashSet<_>>();
+    if unique_thresholds.len() != rule.thresholds.len()
+        || rule
+            .thresholds
+            .iter()
+            .any(|name| !threshold_names.contains(name.as_str()))
+        || unique_behaviors.len() != rule.contract_behaviors.len()
+        || rule
+            .contract_behaviors
+            .iter()
+            .any(|behavior| !CONTRACT_BEHAVIORS.contains(&behavior.as_str()))
+        || unique_configuration.len() != rule.configuration_inputs.len()
+        || rule
+            .configuration_inputs
+            .iter()
+            .any(|name| !CONFIGURATION_INPUTS.contains(&name.as_str()))
+    {
+        return Err(format!(
+            "Catalogue rule {} contains incompatible effective inputs.",
+            rule.code
+        ));
+    }
+    Ok(())
+}
+
+fn validate_rule_constraints(rule: &RuleMetadata) -> Result<(), String> {
+    let mut names: HashSet<&str> = HashSet::new();
+    for constraint in &rule.constraints {
+        let unique_values = constraint.values.iter().collect::<HashSet<_>>();
+        if constraint.name.is_empty()
+            || constraint.description.is_empty()
+            || constraint.values.is_empty()
+            || unique_values.len() != constraint.values.len()
+            || !names.insert(&constraint.name)
+        {
+            return Err(format!(
+                "Catalogue rule {} contains an incompatible constraint.",
+                rule.code
+            ));
+        }
     }
     Ok(())
 }

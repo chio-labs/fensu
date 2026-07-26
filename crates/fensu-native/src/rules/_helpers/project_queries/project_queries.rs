@@ -5,6 +5,10 @@ use std::collections::HashSet;
 use fensu_facts::extension::models::ProgramHandle;
 use fensu_facts::facts::models::ImportRow;
 
+use crate::rules::_helpers::generated_policy::{
+    FFR204_FORBIDDEN_PACKAGE_NAMES, FFR705_ALLOWED_TOOLING_ROLE_DIRECTORIES,
+    FFR705_ALLOWED_TOOLING_ROLE_FILES, FFT301_EXCLUDED_TEST_SUPPORT_FILENAMES,
+};
 use crate::rules::_helpers::role_project_layout_queries;
 use crate::rules::constants::{
     BANNED_GENERIC_PACKAGE_NAME_CODE, CUSTOM_RULE_TEST_COVERAGE_CODE,
@@ -27,16 +31,6 @@ const ROOT_TEST_AREA: &str = "__root__";
 const MINIMUM_TEST_LAYOUT_PARTS: usize = 3;
 const MINIMUM_TOOLING_PACKAGE_PARTS: usize = 3;
 const MAIN_ROLE_NAME: &str = "main";
-const NON_TEST_MODULES: &[&str] = &[
-    "_test_helpers.py",
-    TEST_TYPES_FILE,
-    "helpers.py",
-    "conftest.py",
-    INIT_FILE,
-];
-const BANNED_PACKAGES: &[&str] = &[
-    "base", "common", "helpers", "lib", "misc", "shared", "util", "utils",
-];
 const TEST_LAYOUT_CODES: &[&str] = &[
     TEST_LAYOUT_CODE,
     TEST_SCOPE_CODE,
@@ -106,13 +100,13 @@ pub(crate) fn plan_project_queries(
             ));
         }
     }
-    if selected.contains(BANNED_GENERIC_PACKAGE_NAME_CODE) && context.scope != TOOLING_SCOPE {
+    if selected.contains(BANNED_GENERIC_PACKAGE_NAME_CODE) && context.scope == ROOT_SCOPE {
         for (index, part) in context.relative_parts
             [..context.relative_parts.len().saturating_sub(1)]
             .iter()
             .enumerate()
         {
-            if BANNED_PACKAGES.contains(&part.as_str()) {
+            if FFR204_FORBIDDEN_PACKAGE_NAMES.contains(&part.as_str()) {
                 let package = scope_root(context)
                     .into_iter()
                     .chain(context.relative_parts[..=index].iter().cloned())
@@ -175,7 +169,8 @@ fn file_name(context: &NativeRuleContext) -> &str {
 }
 
 fn is_test_module(context: &NativeRuleContext) -> bool {
-    context.scope == TEST_SCOPE && !NON_TEST_MODULES.contains(&file_name(context))
+    context.scope == TEST_SCOPE
+        && !FFT301_EXCLUDED_TEST_SUPPORT_FILENAMES.contains(&file_name(context))
 }
 
 fn sibling_path(context: &NativeRuleContext, name: &str) -> String {
@@ -364,17 +359,10 @@ fn invalid_tooling_package(context: &NativeRuleContext) -> Option<String> {
     {
         return None;
     }
-    let approved = [
-        "main",
-        "_helpers",
-        "classes",
-        "rules",
-        "models.py",
-        "types.py",
-        "constants.py",
-        "exceptions.py",
-    ];
-    if approved.contains(&context.relative_parts[1].as_str()) {
+    let role = context.relative_parts[1].as_str();
+    if FFR705_ALLOWED_TOOLING_ROLE_DIRECTORIES.contains(&role)
+        || FFR705_ALLOWED_TOOLING_ROLE_FILES.contains(&role)
+    {
         return None;
     }
     let mut parts = scope_root(context);

@@ -4,8 +4,8 @@ use std::sync::OnceLock;
 
 use serde_json::{json, Value};
 
-use crate::models::{RuleMetadata, ThresholdOverride};
-use crate::skills::_helpers::content::option_rendering::rule_option_lines;
+use crate::models::ThresholdOverride;
+use crate::skills::_helpers::content::rule_rendering::tier_lines;
 use crate::skills::_helpers::content::sections::{
     display_project_path, effective_config_lines, expand_repository_profile, governed_path, py_json,
 };
@@ -14,6 +14,7 @@ use crate::skills::models::SkillContext;
 const GENERATED_MARKER: &str = "<!-- generated-by: fensu skills -->";
 const CUSTOM_KIND: &str = "custom";
 const TESTS_HEADING: &str = "### Tests";
+const TEST_TYPES_LABEL: &str = "`_test_types.py`:";
 const TOOLING_HEADING: &str = "### Tooling";
 const PROFILE: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -76,12 +77,20 @@ pub(crate) fn generate(context: &SkillContext) -> Result<String, String> {
         ].into_iter().map(str::to_owned));
     }
     lines.extend(profile_lines("custom_authority")?);
-    lines.extend(profile_lines("rule_context")?);
+    lines.extend(rule_context_lines()?);
     lines.extend(profile_lines("authoring_lookup")?);
     lines.extend(custom_rule_testing_lines(context));
     lines.extend(cacheability_lines(context));
-    lines.extend(tier_lines("Blocking Rules", &context.blocking));
-    lines.extend(tier_lines("Warning Rules", &context.warnings));
+    lines.extend(tier_lines(
+        "Blocking Rules",
+        &context.blocking,
+        &context.config,
+    ));
+    lines.extend(tier_lines(
+        "Warning Rules",
+        &context.warnings,
+        &context.config,
+    ));
     Ok(format!("{}\n", lines.join("\n").trim_end()))
 }
 
@@ -113,6 +122,13 @@ fn profile_lines(name: &str) -> Result<Vec<String>, String> {
         .collect()
 }
 
+fn rule_context_lines() -> Result<Vec<String>, String> {
+    Ok(profile_lines("rule_context")?
+        .into_iter()
+        .map(|line| line.replace("scope_roots(scope)", "scope_roots(scope), test_scopes()"))
+        .collect())
+}
+
 fn repository_lines(context: &SkillContext) -> Result<Vec<String>, String> {
     let active = context
         .blocking
@@ -126,11 +142,6 @@ fn repository_lines(context: &SkillContext) -> Result<Vec<String>, String> {
     {
         return Ok(Vec::new());
     }
-    let name = if context.config.tooling.is_empty() {
-        "repository"
-    } else {
-        "repository_tooling"
-    };
     let root = display_project_path(
         context,
         context.config.roots.first().map_or(".", String::as_str),
@@ -147,14 +158,14 @@ fn repository_lines(context: &SkillContext) -> Result<Vec<String>, String> {
             .first()
             .map_or("scripts", String::as_str),
     );
-    let helper_limit = role_threshold(context, "helpers", "max_helpers_container_modules", 10);
-    let main_limit = role_threshold(context, "main", "max_main_container_modules", 20);
+    let helper_limit = role_threshold(context, "helpers", "max_helpers_container_modules")?;
+    let main_limit = role_threshold(context, "main", "max_main_container_modules")?;
     let role_depth = context
         .config
         .thresholds
         .get("max_role_depth")
         .copied()
-        .unwrap_or(1);
+        .ok_or_else(|| "Effective configuration has no max_role_depth threshold.".to_owned())?;
     let import_root = context
         .config
         .roots
@@ -162,7 +173,19 @@ fn repository_lines(context: &SkillContext) -> Result<Vec<String>, String> {
         .and_then(|path| Path::new(path).file_name())
         .and_then(|name| name.to_str())
         .unwrap_or(".");
-    let mut profile = expand_repository_profile(profile_lines(name)?, context)?;
+    let mut profile = profile_lines("repository")?;
+    if !context.config.tooling.is_empty() {
+        let test_types_index = profile
+            .iter()
+            .position(|line| line == TEST_TYPES_LABEL)
+            .ok_or_else(|| "Repository guidance has no _test_types.py section.".to_owned())?;
+        profile.splice(
+            test_types_index..test_types_index,
+            profile_lines("tooling_tests")?,
+        );
+        profile.extend(profile_lines("tooling")?);
+    }
+    let mut profile = expand_repository_profile(profile, context)?;
     if context.config.tests.is_empty() {
         if let Some(tests_index) = profile.iter().position(|line| line == TESTS_HEADING) {
             if let Some(tooling_offset) = profile[tests_index..]
@@ -174,6 +197,25 @@ fn repository_lines(context: &SkillContext) -> Result<Vec<String>, String> {
                 profile.truncate(tests_index);
             }
         }
+    }
+    let generic_package_prefix = "Generic package names are banned";
+    if active.contains("FFR204") {
+        let values = fixed_constraint_values(context, "FFR204", "forbidden_package_names")?;
+        let replacement = format!(
+            "Generic package names are banned: {}. Name the business domain or technical capability owner instead.",
+            values
+                .iter()
+                .map(|value| format!("`{value}`"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+        for line in &mut profile {
+            if line.starts_with(generic_package_prefix) {
+                line.clone_from(&replacement);
+            }
+        }
+    } else {
+        profile.retain(|line| !line.starts_with(generic_package_prefix));
     }
     Ok(profile
         .into_iter()
@@ -203,7 +245,25 @@ fn repository_lines(context: &SkillContext) -> Result<Vec<String>, String> {
         .collect())
 }
 
-fn role_threshold(context: &SkillContext, role: &str, name: &str, fallback: u32) -> u32 {
+fn fixed_constraint_values<'a>(
+    context: &'a SkillContext,
+    code: &str,
+    name: &str,
+) -> Result<&'a [String], String> {
+    context
+        .catalogue
+        .iter()
+        .find(|rule| rule.code == code)
+        .and_then(|rule| {
+            rule.constraints
+                .iter()
+                .find(|constraint| constraint.name == name)
+        })
+        .map(|constraint| constraint.values.as_slice())
+        .ok_or_else(|| format!("Rule {code} has no canonical {name} constraint."))
+}
+
+fn role_threshold(context: &SkillContext, role: &str, name: &str) -> Result<u32, String> {
     context
         .config
         .role_thresholds
@@ -211,7 +271,7 @@ fn role_threshold(context: &SkillContext, role: &str, name: &str, fallback: u32)
         .and_then(|values| values.get(name))
         .or_else(|| context.config.thresholds.get(name))
         .copied()
-        .unwrap_or(fallback)
+        .ok_or_else(|| format!("Effective configuration has no {name} threshold."))
 }
 
 fn configured_threshold_lines(context: &SkillContext) -> Result<Vec<String>, String> {
@@ -302,33 +362,4 @@ fn cacheability_lines(context: &SkillContext) -> Vec<String> {
     }
     text.push_str("Verify cache behavior with separate commands so a deliberate baseline fault does not prevent later observations:\n\n```bash\nfensu check --no-cache\nfensu check --cache-stats\nfensu check --cache-stats\n```\n\nFor a cacheable ruleset, the second cached run must report all hits, zero misses, `non_cacheable=0`, and diagnostics byte-identical to the uncached run.\n");
     text.split('\n').map(str::to_owned).collect()
-}
-
-fn tier_lines(heading: &str, rules: &[RuleMetadata]) -> Vec<String> {
-    let mut lines = vec![format!("## {heading}"), String::new()];
-    if rules.is_empty() {
-        lines.extend(["None.".to_owned(), String::new()]);
-        return lines;
-    }
-    let mut rules = rules.iter().collect::<Vec<_>>();
-    rules.sort_by(|left, right| left.code.cmp(&right.code));
-    for rule in rules {
-        lines.extend([
-            format!("### {}: {}", rule.code, rule.slug),
-            String::new(),
-            format!("Family: `{}`", rule.family),
-            String::new(),
-            rule.message.clone(),
-            String::new(),
-            format!(
-                "Remediation: {}",
-                rule.remediation
-                    .as_deref()
-                    .unwrap_or("No remediation provided.")
-            ),
-            String::new(),
-        ]);
-        lines.extend(rule_option_lines(rule));
-    }
-    lines
 }

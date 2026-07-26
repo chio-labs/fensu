@@ -2,17 +2,14 @@
 
 import ast
 
-from fensu import Family, Fault, RuleContext, Threshold, rule
+from fensu import Fault, RuleContext, Threshold
+from fensu.rules.exemplars._helpers.equivalent_rule import equivalent_rule
 
 
-@rule(
+@equivalent_rule(
+    core_code="FFS120",
     code="XCS120",
-    family=Family.CUSTOM,
     slug="keyword-only-arguments-equivalent",
-    message="functions beyond the parameter threshold must be entirely keyword-only",
-    remediation=(
-        "Insert * before the first non-receiver parameter so every call argument names its meaning."
-    ),
 )
 def keyword_only_arguments_equivalent(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Express FFS120 through public function facts and threshold policy."""

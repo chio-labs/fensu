@@ -113,12 +113,7 @@ impl ProgramHandle {
     }
 
     pub fn owner_symbol_at(&self, line: u32, column: u32) -> Option<String> {
-        crate::extension::_helpers::queries::owner_symbols::owner_symbol_at(
-            self.module(),
-            self.index(),
-            line,
-            column,
-        )
+        super::owner_symbols::owner_symbol_at(self.module(), self.index(), line, column)
     }
 
     pub(crate) fn module(&self) -> &ModModule {

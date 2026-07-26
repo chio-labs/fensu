@@ -277,6 +277,8 @@ fn rules_value(rules: &[RuleMetadata]) -> Value {
             .map(|rule| {
                 let mut options = rule.options.iter().collect::<Vec<_>>();
                 options.sort_by(|left, right| left.name.cmp(&right.name));
+                let mut constraints = rule.constraints.iter().collect::<Vec<_>>();
+                constraints.sort_by(|left, right| left.name.cmp(&right.name));
                 json!({
                     "code": rule.code,
                     "family": rule.family,
@@ -290,6 +292,19 @@ fn rules_value(rules: &[RuleMetadata]) -> Value {
                     "cacheable": rule.cacheable,
                     "execution_owner": rule.execution_owner,
                     "options": options,
+                    "constraints": constraints.iter().map(|constraint| json!({
+                        "name": constraint.name,
+                        "description": constraint.description,
+                        "values": constraint.values,
+                    })).collect::<Vec<_>>(),
+                    "thresholds": rule.thresholds,
+                    "contract_behaviors": rule.contract_behaviors,
+                    "configuration_inputs": rule.configuration_inputs,
+                    "limits": rule.limits.iter().map(|limit| json!({
+                        "name": limit.name,
+                        "description": limit.description,
+                        "value": limit.value,
+                    })).collect::<Vec<_>>(),
                 })
             })
             .collect(),

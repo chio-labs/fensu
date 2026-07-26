@@ -3,31 +3,31 @@
 import ast
 from pathlib import Path
 
-from fensu import Family, Fault, RuleContext, ScopeName, rule
+from fensu import Fault, RuleContext, ScopeName
+from fensu.rules.catalog.main._get_rule_constraint import get_rule_constraint
+from fensu.rules.exemplars._helpers.equivalent_rule import equivalent_rule
 from fensu.rules.exemplars._helpers.package_anchors import is_package_anchor
-from fensu.rules.exemplars.types import ExemplarBannedPackageName
 
 
-@rule(
+@equivalent_rule(
+    core_code="FFR204",
     code="XCR204",
-    family=Family.CUSTOM,
     slug="banned-generic-package-name-equivalent",
-    message="runtime package directories must identify an owner",
-    remediation="Rename the package after the business domain or technical capability it owns.",
 )
 def banned_generic_package_name_equivalent(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Express FFR204 through public path and project APIs."""
 
     del module
-    if ctx.scope() is ScopeName.TOOLING:
+    if ctx.scope() is not ScopeName.ROOT:
         return []
     faults: list[Fault] = []
     parts: tuple[str, ...] = ctx.relative_parts()
+    forbidden_names: tuple[str, ...] = get_rule_constraint(
+        code="FFR204", name="forbidden_package_names"
+    )
     for index, name in enumerate(parts[:-1]):
         package_dir: Path = ctx.scope_root().joinpath(*parts[: index + 1])
-        if name in set(ExemplarBannedPackageName) and is_package_anchor(
-            ctx=ctx, package_dir=package_dir
-        ):
+        if name in forbidden_names and is_package_anchor(ctx=ctx, package_dir=package_dir):
             faults.append(
                 ctx.path_fault(
                     message=(

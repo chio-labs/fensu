@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: benchmark benchmark-budget benchmark-profile check check-rust develop-memory develop-native self-check skills test test-e2e test-integration test-memory test-rust test-unit verify
+.PHONY: benchmark benchmark-budget benchmark-profile catalogue-check catalogue-generate check check-rust develop-memory develop-native self-check skills test test-e2e test-integration test-memory test-rust test-unit verify
 
 BENCHMARK_PROJECT ?= ../sqlbuild
 BENCHMARK_RUNS ?= 5
@@ -14,7 +14,13 @@ benchmark-budget:
 benchmark-profile:
 	uv run python -m scripts.benchmark_check --project "$(BENCHMARK_PROJECT)" --profile
 
-check:
+catalogue-check:
+	uv run python -m scripts.catalogue_generate --check
+
+catalogue-generate:
+	uv run python -m scripts.catalogue_generate
+
+check: catalogue-check
 	uv run ruff format .
 	uv run ruff check --fix .
 	uv run ty check src tests scripts

@@ -3,6 +3,11 @@
 use fensu_facts::extension::models::ProgramHandle;
 use fensu_facts::facts::models::{ModuleDeclarationRows, ModuleStatementRow};
 
+use crate::rules::_helpers::generated_policy::{
+    FFR401_MAXIMUM_PRIVATE_FUNCTIONS, FFR401_REQUIRED_PUBLIC_FUNCTIONS,
+    FFR701_ALLOWED_COMMAND_FUNCTIONS, FFR701_ALLOWED_TOP_LEVEL_STATEMENT_KINDS,
+    FFR701_REQUIRED_MAIN_FUNCTIONS, FFR702_ALLOWED_MAIN_CALL_TARGETS,
+};
 use crate::rules::constants::{
     CLASSES_ONE_CLASS_PER_MODULE_CODE, ENTRY_MODULE_SHAPE_CODE, INIT_MODULE_EMPTY_CODE,
     NO_REEXPORT_SHIM_CODE, PUBLIC_SURFACE_SHAPE_CODE, SOURCE_FILE_LINE_COUNT_CODE,
@@ -13,17 +18,17 @@ use crate::rules::models::{NativeFaultRow, NativeRuleContext};
 
 use crate::rules::_helpers::roles::{location_fault, path_fault, path_name};
 
-const BUILD_PARSER_FUNCTION: &str = "_build_parser";
 const CLASSES_ROLE: &str = "classes";
 const EXCEPTIONS_ROLE: &str = "exceptions";
 const INIT_FILE_NAME: &str = "__init__.py";
 const MAIN_FUNCTION: &str = "main";
+const COMMAND_FUNCTION_STATEMENT: &str = "command function";
+const IMPORT_STATEMENT: &str = "import statement";
 const MAX_FILE_LINES_THRESHOLD: &str = "max_file_lines";
 const MAX_SCRIPT_ENTRYPOINT_LINES_THRESHOLD: &str = "max_script_entrypoint_lines";
-const MAXIMUM_ENTRY_PRIVATE_FUNCTIONS: usize = 2;
-const PARSE_ARGS_FUNCTION: &str = "_parse_args";
 const PYTHON_SUFFIX: &str = ".py";
 const TOOLING_SCOPE: &str = "tooling";
+const NONEXECUTING_IMPORT_GUARD_STATEMENT: &str = "nonexecuting import guard";
 
 struct LineCountPolicy<'a> {
     program: &'a ProgramHandle,
@@ -100,13 +105,13 @@ fn entry_module_shape_faults(
         })
         .collect();
     let mut faults: Vec<NativeFaultRow> = Vec::new();
-    if public_functions.len() != 1 {
+    if public_functions.len() != FFR401_REQUIRED_PUBLIC_FUNCTIONS {
         faults.push(path_fault(
             code,
             Some("entry modules need one public function"),
         ));
     }
-    if let Some(row) = private_functions.get(MAXIMUM_ENTRY_PRIVATE_FUNCTIONS) {
+    if let Some(row) = private_functions.get(FFR401_MAXIMUM_PRIVATE_FUNCTIONS) {
         faults.push(location_fault(
             code,
             row.line,
@@ -251,21 +256,22 @@ fn tooling_entrypoint_shape_faults(
         .filter(|row| row.function_name.as_deref() == Some(MAIN_FUNCTION))
         .count();
     let mut faults: Vec<NativeFaultRow> = Vec::new();
-    if public_functions.is_empty() || main_count > 1 {
+    if main_count != FFR701_REQUIRED_MAIN_FUNCTIONS {
         faults.push(path_fault(
             code,
             Some("direct scripts must define exactly one public main() function"),
         ));
     }
     for row in &declarations.statements {
-        if row.import_statement {
+        if row.import_statement
+            && FFR701_ALLOWED_TOP_LEVEL_STATEMENT_KINDS.contains(&IMPORT_STATEMENT)
+        {
             continue;
         }
         if let Some(name) = row.function_name.as_deref() {
-            if matches!(
-                name,
-                MAIN_FUNCTION | PARSE_ARGS_FUNCTION | BUILD_PARSER_FUNCTION
-            ) {
+            if FFR701_ALLOWED_TOP_LEVEL_STATEMENT_KINDS.contains(&COMMAND_FUNCTION_STATEMENT)
+                && FFR701_ALLOWED_COMMAND_FUNCTIONS.contains(&name)
+            {
                 continue;
             }
             faults.push(location_fault(
@@ -274,7 +280,10 @@ fn tooling_entrypoint_shape_faults(
                 row.column,
                 Some("direct scripts may define only main(), _parse_args(), and _build_parser()"),
             ));
-        } else if !row.nonexecuting_import_guard {
+        } else if !row.nonexecuting_import_guard
+            || !FFR701_ALLOWED_TOP_LEVEL_STATEMENT_KINDS
+                .contains(&NONEXECUTING_IMPORT_GUARD_STATEMENT)
+        {
             faults.push(location_fault(
                 code,
                 row.line,
@@ -316,7 +325,10 @@ fn tooling_entrypoint_delegation_faults(
         ));
     }
     for call in &declarations.main_calls {
-        let allowed = call.name.as_deref() == Some(PARSE_ARGS_FUNCTION)
+        let allowed = call
+            .name
+            .as_deref()
+            .is_some_and(|name| FFR702_ALLOWED_MAIN_CALL_TARGETS.contains(&name))
             || imported_main_call(call.name.as_deref(), declarations);
         if !allowed {
             faults.push(location_fault(

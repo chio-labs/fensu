@@ -9,6 +9,13 @@ use crate::rules::constants::{
 };
 use crate::rules::models::{NativeFaultRow, NativeProjectQuery, NativeRuleContext};
 
+use crate::rules::_helpers::generated_policy::{
+    FFR201_FORBIDDEN_MODULE_FILENAMES, FFR204_FORBIDDEN_PACKAGE_NAMES,
+    FFR303_RESERVED_ROLE_FILENAMES, FFR304_RECOGNIZED_ROLE_DIRECTORIES,
+    FFR304_RECOGNIZED_ROLE_FILENAMES, FFR305_RECOGNIZED_ROLE_DIRECTORIES,
+    FFR307_RECOGNIZED_ROLE_FILENAMES, FFR705_ALLOWED_TOOLING_ROLE_DIRECTORIES,
+    FFR705_ALLOWED_TOOLING_ROLE_FILES,
+};
 use crate::rules::_helpers::roles::{is_rule_code, path_fault, path_name};
 
 const CLASSES_FILE_NAME: &str = "classes.py";
@@ -19,45 +26,17 @@ const MAIN_DIRECTORY_NAME: &str = "main";
 const MAIN_FILE_NAME: &str = "main.py";
 const MINIMUM_NESTED_MODULE_PARTS: usize = 3;
 const MINIMUM_NESTED_SUBPACKAGE_PARTS: usize = 4;
-const MISC_FILE_NAME: &str = "misc.py";
 const PYTHON_SUFFIX: &str = ".py";
 const RULES_ROLE: &str = "rules";
+const ROOT_SCOPE: &str = "root";
+const TEST_SCOPE: &str = "test";
 const TOOLING_SCOPE: &str = "tooling";
 const TOP_LEVEL_MODULE_PARTS: usize = 2;
-const ROLE_NAMES: &[&str] = &[
-    MAIN_DIRECTORY_NAME,
-    HELPERS_DIRECTORY_NAME,
-    "classes",
-    "models",
-    "types",
-    "constants",
-    "exceptions",
-];
-const ROLE_FILE_NAMES: &[&str] = &[
-    MAIN_FILE_NAME,
-    HELPERS_FILE_NAME,
-    CLASSES_FILE_NAME,
-    "models.py",
-    "types.py",
-    "constants.py",
-    "exceptions.py",
-];
-const BANNED_PACKAGE_NAMES: &[&str] = &[
-    "base", "common", "helpers", "lib", "misc", "shared", "util", "utils",
-];
-const TOOLING_ROLE_NAMES: &[&str] = &["main", "_helpers", "classes", "rules"];
 const MIN_CUSTOM_RULE_TEST_CASES: &str = "min_custom_rule_test_cases";
-const RESERVED_ROLE_FILE_NAMES: &[&str] =
-    &["models.py", "types.py", "constants.py", "exceptions.py"];
 
 pub(crate) fn path_faults(code: &str, context: &NativeRuleContext) -> Option<Vec<NativeFaultRow>> {
     let faults = match code {
-        BANNED_GENERIC_FILENAME_CODE => named_file_faults(
-            code,
-            context,
-            MISC_FILE_NAME,
-            "misc.py hides the module's purpose",
-        ),
+        BANNED_GENERIC_FILENAME_CODE => forbidden_filename_faults(code, context),
         HELPERS_MODULE_NAME_CODE => {
             named_file_faults(code, context, HELPERS_FILE_NAME, "use an _helpers/ package")
         }
@@ -80,14 +59,14 @@ pub(crate) fn path_faults(code: &str, context: &NativeRuleContext) -> Option<Vec
 }
 
 fn banned_package_faults(code: &str, context: &NativeRuleContext) -> Vec<NativeFaultRow> {
-    if context.scope == TOOLING_SCOPE {
+    if context.scope != ROOT_SCOPE {
         return Vec::new();
     }
     let directories = directories(context);
     let root = scope_root_parts(context);
     let mut faults: Vec<NativeFaultRow> = Vec::new();
     for (index, name) in directories.iter().enumerate() {
-        if !BANNED_PACKAGE_NAMES.contains(&name.as_str()) {
+        if !FFR204_FORBIDDEN_PACKAGE_NAMES.contains(&name.as_str()) {
             continue;
         }
         let package = root
@@ -113,6 +92,19 @@ fn banned_package_faults(code: &str, context: &NativeRuleContext) -> Vec<NativeF
     faults
 }
 
+fn forbidden_filename_faults(code: &str, context: &NativeRuleContext) -> Vec<NativeFaultRow> {
+    let Some(name) = path_name(context) else {
+        return Vec::new();
+    };
+    if context.scope == TEST_SCOPE || !FFR201_FORBIDDEN_MODULE_FILENAMES.contains(&name) {
+        return Vec::new();
+    }
+    vec![path_fault(
+        code,
+        Some(&format!("{name} hides the module's purpose")),
+    )]
+}
+
 fn main_entry_collision_faults(code: &str, context: &NativeRuleContext) -> Vec<NativeFaultRow> {
     let path = context
         .repository_path
@@ -134,7 +126,7 @@ fn tooling_package_layout_faults(code: &str, context: &NativeRuleContext) -> Vec
     }
     if context.relative_parts.len() == TOP_LEVEL_MODULE_PARTS {
         let name = path_name(context).unwrap_or_default();
-        if name == INIT_FILE_NAME || ROLE_FILE_NAMES.contains(&name) {
+        if name == INIT_FILE_NAME || FFR705_ALLOWED_TOOLING_ROLE_FILES.contains(&name) {
             return Vec::new();
         }
         return vec![path_fault(
@@ -143,7 +135,7 @@ fn tooling_package_layout_faults(code: &str, context: &NativeRuleContext) -> Vec
         )];
     }
     let role = &context.relative_parts[1];
-    if TOOLING_ROLE_NAMES.contains(&role.as_str()) {
+    if FFR705_ALLOWED_TOOLING_ROLE_DIRECTORIES.contains(&role.as_str()) {
         return Vec::new();
     }
     let mut package_parts = scope_root_parts(context);
@@ -268,7 +260,7 @@ fn helpers_reserved_filename_faults(
     if !directories(context)
         .iter()
         .any(|part| part == HELPERS_DIRECTORY_NAME)
-        || !RESERVED_ROLE_FILE_NAMES.contains(&name)
+        || !FFR303_RESERVED_ROLE_FILENAMES.contains(&name)
     {
         return Vec::new();
     }
@@ -292,9 +284,9 @@ fn nested_direct_module_faults(code: &str, context: &NativeRuleContext) -> Vec<N
             .any(|part| part == MAIN_DIRECTORY_NAME)
         || directories(context)
             .iter()
-            .any(|part| ROLE_NAMES.contains(&part.as_str()))
+            .any(|part| FFR304_RECOGNIZED_ROLE_DIRECTORIES.contains(&part.as_str()))
         || name == INIT_FILE_NAME
-        || ROLE_FILE_NAMES.contains(&name)
+        || FFR304_RECOGNIZED_ROLE_FILENAMES.contains(&name)
     {
         return Vec::new();
     }
@@ -318,7 +310,9 @@ fn nested_direct_subpackage_faults(code: &str, context: &NativeRuleContext) -> V
     for index in TOP_LEVEL_MODULE_PARTS..package_parts.len() {
         let parent = package_parts[index - 1].as_str();
         let child = package_parts[index].as_str();
-        if ROLE_NAMES.contains(&parent) || ROLE_NAMES.contains(&child) {
+        if FFR305_RECOGNIZED_ROLE_DIRECTORIES.contains(&parent)
+            || FFR305_RECOGNIZED_ROLE_DIRECTORIES.contains(&child)
+        {
             continue;
         }
         return vec![path_fault(
@@ -336,7 +330,7 @@ fn top_level_direct_module_faults(code: &str, context: &NativeRuleContext) -> Ve
     if context.scope == TOOLING_SCOPE
         || context.relative_parts.len() != TOP_LEVEL_MODULE_PARTS
         || name == INIT_FILE_NAME
-        || ROLE_FILE_NAMES.contains(&name)
+        || FFR307_RECOGNIZED_ROLE_FILENAMES.contains(&name)
     {
         return Vec::new();
     }

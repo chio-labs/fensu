@@ -12,8 +12,8 @@ pub(crate) const HELPERS: &str = "_helpers";
 pub(crate) const INIT_FILE: &str = "__init__.py";
 pub(crate) const PYTHON_CACHE: &str = "__pycache__";
 pub(crate) const ROOT_SCOPE: &str = "root";
-const LEGACY_HELPERS: &str = "helpers";
 const MAIN_ROLE: &str = "main";
+const LEGACY_HELPERS: &str = "helpers";
 const MINIMUM_DOMAIN_PARTS: usize = 2;
 const MINIMUM_SUBDOMAIN_PARTS: usize = 3;
 const PYTHON_EXTENSION: &str = "py";
@@ -207,8 +207,8 @@ pub(crate) fn role_name(path: &Path) -> bool {
     ROLE_NAMES.contains(&file_name(path))
 }
 
-pub(crate) fn forbidden_bucket(path: &Path) -> bool {
-    role_name(path) || file_name(path) == LEGACY_HELPERS
+pub(crate) fn forbidden_bucket(path: &Path, names: &[&str]) -> bool {
+    names.contains(&file_name(path))
 }
 
 pub(crate) fn file_name(path: &Path) -> &str {

@@ -3,9 +3,8 @@ use std::collections::HashSet;
 use crate::configuration::_helpers::exceptions;
 use crate::configuration::_helpers::roots::validate_nested_roots;
 use crate::configuration::_helpers::scopes::validate_test_scopes;
-use crate::constants::{
-    CONFIG_ROLE_NAMES, CONTRACT_BEHAVIORS, DEFAULT_THRESHOLDS, MAX_CORE_SELECTOR_SUFFIX,
-};
+use crate::configuration::constants::{CONFIG_ROLE_NAMES, CONTRACT_BEHAVIORS, DEFAULT_THRESHOLDS};
+use crate::constants::MAX_CORE_SELECTOR_SUFFIX;
 
 const RECURSIVE_GLOB: &str = "**";
 

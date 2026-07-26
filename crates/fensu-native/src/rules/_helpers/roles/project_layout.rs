@@ -2,6 +2,9 @@
 
 use std::path::Path;
 
+use crate::rules::_helpers::generated_policy::{
+    FFR301_FORBIDDEN_BUCKET_NAMES, FFR302_FORBIDDEN_BUCKET_NAMES,
+};
 use crate::rules::_helpers::role_project_layout_paths::{
     direct_modules, domain_dir, file_name, forbidden_bucket, leaf_dir, main_entries, mixed_domain,
     named_subdomains, natural_list, prefix_groups, python_anchor, recursive_python,
@@ -126,6 +129,11 @@ fn append_depth_faults(
     mut faults: Vec<NativeFaultRow>,
     owner: DepthContext<'_>,
 ) -> Vec<NativeFaultRow> {
+    let forbidden_names = if owner.code == HELPERS_PACKAGE_LAYOUT_CODE {
+        FFR301_FORBIDDEN_BUCKET_NAMES
+    } else {
+        FFR302_FORBIDDEN_BUCKET_NAMES
+    };
     let depth_limit = owner
         .context
         .thresholds
@@ -148,13 +156,13 @@ fn append_depth_faults(
         if path == owner.package || python_anchor(path).as_deref() != Some(owner.anchor) {
             break;
         }
-        if forbidden_bucket(path) {
+        if forbidden_bucket(path, forbidden_names) {
             delegated.push(file_name(path).to_owned());
         }
         ancestor = path.parent();
     }
     delegated.reverse();
-    if forbidden_bucket(owner.container) {
+    if forbidden_bucket(owner.container, forbidden_names) {
         delegated.push(file_name(owner.container).to_owned());
     }
     for name in delegated {

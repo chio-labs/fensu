@@ -10,6 +10,8 @@ mod hygiene;
 mod layers;
 #[path = "rules/test_naming.rs"]
 mod naming;
+#[path = "rules/test_ownership.rs"]
+mod ownership;
 #[path = "rules/test_role_files.rs"]
 mod role_files;
 #[path = "rules/test_roles.rs"]

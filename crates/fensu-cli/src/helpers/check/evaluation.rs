@@ -76,6 +76,7 @@ pub(crate) fn evaluate_and_render(
                     .map(|name| name.to_string_lossy().into_owned())
                     .collect(),
                 scope_roots: scope_roots(config),
+                test_scopes: config.test_scopes.clone(),
                 observations: HashMap::new(),
                 custom_registrations: Vec::new(),
                 repo_root: root.to_string_lossy().into_owned(),

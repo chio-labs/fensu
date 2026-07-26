@@ -68,6 +68,7 @@ fn evaluate_fixture(test_case: &CoreRuleFixture) -> Vec<ExpectedFault> {
         package_name: test_case.context.package_name.clone(),
         tooling_packages: test_case.context.tooling_packages.clone(),
         scope_roots: test_case.context.scope_roots.clone(),
+        test_scopes: test_case.context.test_scopes.clone(),
         observations: rewritten_observations(&test_case.context.observations, &repo_root),
         custom_registrations: test_case
             .context

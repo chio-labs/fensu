@@ -100,11 +100,11 @@ def test_rule_details(code: FftCode) -> tuple[str, str]:
         ),
         FftCode.TEST_LAYOUT: (
             "tests must live under a configured test root and supported scope",
-            "Move the test beneath a configured test root and unit, integration, or e2e scope.",
+            "Move the test beneath a configured test root and one of the configured test_scopes.",
         ),
         FftCode.TEST_SCOPE: (
-            "test scope must be unit, integration, or e2e",
-            "Move the test under tests/unit, tests/integration, or tests/e2e.",
+            "test scope must be one of the configured test scopes",
+            "Move the test beneath a configured test root and one of the configured test_scopes.",
         ),
         FftCode.TEST_MIRRORED_ROOT: (
             "test directories must mirror a configured runtime or tooling root",

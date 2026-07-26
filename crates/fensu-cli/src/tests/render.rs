@@ -4,8 +4,9 @@ use std::fs;
 
 use tempfile::tempdir;
 
-use crate::helpers::reporting::render::{report, ReportRequest};
 use crate::models::Fault;
+use crate::reporting::main::report::report;
+use crate::reporting::models::ReportRequest;
 use crate::tests::test_types::RenderColorTestCase;
 
 #[test]

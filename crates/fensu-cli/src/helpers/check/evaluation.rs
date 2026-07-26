@@ -16,8 +16,9 @@ use crate::helpers::check::policy::{
     scope_roots, source_module_name,
 };
 use crate::helpers::check::project::{observe, project_plane};
-use crate::helpers::reporting::render;
 use crate::models::{Config, Fault, RuleMetadata, ScopedSource};
+use crate::reporting::main::report::report;
+use crate::reporting::models::ReportRequest;
 
 pub(crate) fn evaluate_and_render(
     root: &Path,
@@ -151,7 +152,7 @@ pub(crate) fn evaluate_and_render(
             excluded
         )
     });
-    let output = render::report(render::ReportRequest {
+    let output = report(ReportRequest {
         faults: &blocking_faults,
         warnings: &warnings,
         root,

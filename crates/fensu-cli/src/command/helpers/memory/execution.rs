@@ -22,8 +22,9 @@ use crate::command::helpers::memory::{
 };
 use crate::command::models::{ColorMode, MemoryCommand, MemoryProject};
 use crate::configuration::main::load;
-use crate::helpers::reporting::render;
 use crate::models::{CliOutput, Fault};
+use crate::reporting::main::report::report;
+use crate::reporting::models::ReportRequest;
 
 pub(crate) fn execute_memory(arguments: &[String]) -> Result<CliOutput, String> {
     let arguments = parsing::normalize_options(arguments);
@@ -122,7 +123,7 @@ fn check(project: &MemoryProject, color: bool) -> Result<CliOutput, String> {
             warning: false,
         })
         .collect::<Vec<_>>();
-    let stdout = render::report(render::ReportRequest {
+    let stdout = report(ReportRequest {
         faults: &faults,
         warnings: &[],
         root: &project.repository_root,

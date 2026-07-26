@@ -8,6 +8,7 @@ mod constants;
 mod helpers;
 mod mapping;
 mod models;
+mod reporting;
 mod skills;
 
 #[cfg(test)]

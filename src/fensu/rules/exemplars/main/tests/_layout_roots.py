@@ -23,7 +23,7 @@ def _faults(*, ctx: RuleContext, code: str) -> list[Fault]:
     slug="test-layout-equivalent",
     message="tests must live under a configured test root and supported scope",
     remediation=(
-        "Move the test beneath a configured test root and unit, integration, or e2e scope."
+        "Move the test beneath a configured test root and one of the configured test_scopes."
     ),
 )
 def test_layout_equivalent(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
@@ -37,8 +37,10 @@ def test_layout_equivalent(*, module: ast.Module, ctx: RuleContext) -> list[Faul
     code="XCT002",
     family=Family.CUSTOM,
     slug="test-scope-equivalent",
-    message="test scope must be unit, integration, or e2e",
-    remediation="Move the test under tests/unit, tests/integration, or tests/e2e.",
+    message="test scope must be one of the configured test scopes",
+    remediation=(
+        "Move the test beneath a configured test root and one of the configured test_scopes."
+    ),
 )
 def _test_scope_equivalent(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     del module

@@ -51,6 +51,8 @@ pub(crate) struct RuleContextFixture {
     pub(crate) package_name: String,
     pub(crate) tooling_packages: Vec<String>,
     pub(crate) scope_roots: Vec<(String, String)>,
+    #[serde(default = "default_test_scopes")]
+    pub(crate) test_scopes: Vec<String>,
     pub(crate) observations: HashMap<String, Vec<String>>,
     pub(crate) custom_registrations: Vec<(String, String, String, String, u32, u32)>,
 }
@@ -85,4 +87,11 @@ impl From<NativeFaultRow> for ExpectedFault {
             remediation: row.remediation,
         }
     }
+}
+
+pub(crate) fn default_test_scopes() -> Vec<String> {
+    ["unit", "integration", "e2e"]
+        .into_iter()
+        .map(str::to_owned)
+        .collect()
 }

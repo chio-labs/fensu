@@ -139,6 +139,15 @@ class ConfigListFieldTestCase:
 
 
 @dataclass(frozen=True)
+class ConfiguredTestScopesTestCase:
+    """A test-scope vocabulary declaration and its expected resolved value."""
+
+    description: str
+    config_text: str
+    expected_test_scopes: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class ConfigThresholdTestCase:
     """Threshold override expectations."""
 

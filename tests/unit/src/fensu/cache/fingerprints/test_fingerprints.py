@@ -47,6 +47,7 @@ from tests.unit.src.fensu.cache.fingerprints._test_types import (
     CanonicalFingerprintTestCase,
     ConfigFingerprintTestCase,
     ConfigLayoutFingerprintTestCase,
+    ConfiguredTestScopesFingerprintTestCase,
     ContractFingerprintTestCase,
     CustomRulesFingerprintTestCase,
     EvaluationFingerprintTestCase,
@@ -484,6 +485,49 @@ def test_given_configured_layout_when_fingerprinting_then_captures_every_scope(
             tests=test_case.second_tests,
             tooling=test_case.second_tooling,
         )
+    )
+
+    assert (first == second) is test_case.expected_equal
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ConfiguredTestScopesFingerprintTestCase(
+            description="added test scope invalidates config identity",
+            first_test_scopes=("unit", "integration", "e2e"),
+            second_test_scopes=("unit", "integration", "e2e", "real"),
+            expected_equal=False,
+        ),
+        ConfiguredTestScopesFingerprintTestCase(
+            description="removed test scope invalidates config identity",
+            first_test_scopes=("unit", "integration", "e2e"),
+            second_test_scopes=("unit", "integration"),
+            expected_equal=False,
+        ),
+        ConfiguredTestScopesFingerprintTestCase(
+            description="test scope order change invalidates config identity",
+            first_test_scopes=("unit", "integration", "e2e"),
+            second_test_scopes=("integration", "unit", "e2e"),
+            expected_equal=False,
+        ),
+        ConfiguredTestScopesFingerprintTestCase(
+            description="identical test scope vocabulary preserves config identity",
+            first_test_scopes=("unit", "integration", "e2e"),
+            second_test_scopes=("unit", "integration", "e2e"),
+            expected_equal=True,
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_configured_test_scopes_when_fingerprinting_then_captures_scope_vocabulary(
+    test_case: ConfiguredTestScopesFingerprintTestCase,
+) -> None:
+    first: CacheFingerprint = config_fingerprint(
+        Config(roots=("src/pkg",), test_scopes=test_case.first_test_scopes)
+    )
+    second: CacheFingerprint = config_fingerprint(
+        Config(roots=("src/pkg",), test_scopes=test_case.second_test_scopes)
     )
 
     assert (first == second) is test_case.expected_equal

@@ -6,7 +6,6 @@ from fensu import RuleContext, ScopeName
 from fensu.rules.exemplars.types import (
     ExemplarTestAreaName,
     ExemplarTestLimit,
-    ExemplarTestScopeName,
     LayoutIssue,
 )
 
@@ -17,8 +16,9 @@ def layout_issue(*, ctx: RuleContext) -> LayoutIssue | None:
     directories: tuple[str, ...] = ctx.relative_parts()[:-1]
     if len(directories) < int(ExemplarTestLimit.MINIMUM_PATH_PARTS):
         return "FFT001", "test directories must live under <configured-tests>/<scope>/..."
-    if directories[0] not in set(ExemplarTestScopeName):
-        return "FFT002", "test scope must be unit, integration, or e2e"
+    scopes: tuple[str, ...] = ctx.test_scopes()
+    if directories[0] not in scopes:
+        return "FFT002", _scope_message(scopes=scopes)
     mirrored: tuple[str, ...] = directories[1:]
     root_items: list[tuple[ScopeName, Path]] = []
     for candidate_scope in (ScopeName.ROOT, ScopeName.TOOLING):
@@ -60,3 +60,11 @@ def layout_issue(*, ctx: RuleContext) -> LayoutIssue | None:
                 return "FFT004", "runtime tests must mirror a configured package and area"
             return "FFT005", "runtime tests must mirror a configured source package"
     return "FFT003", "test directories must mirror a configured runtime or tooling root"
+
+
+def _scope_message(*, scopes: tuple[str, ...]) -> str:
+    if not scopes:
+        return "test scope must be one of the configured test scopes"
+    if len(scopes) == 1:
+        return f"test scope must be {scopes[0]}"
+    return f"test scope must be {', '.join(scopes[:-1])}, or {scopes[-1]}"

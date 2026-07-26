@@ -26,6 +26,7 @@ from fensu.config.constants import (
     RULE_IGNORE_KEYS,
     SKILLS_CONFIG_KEYS,
     SKILLS_NAME_CONFIG_KEY,
+    TEST_SCOPE_PATTERN,
     THRESHOLD_OVERRIDE_KEYS,
 )
 from fensu.config.exceptions import ConfigError, ConfigValidationError
@@ -50,6 +51,7 @@ def validate_config(raw: Mapping[str, object]) -> None:
         raise ConfigError("Config must define at least one root in roots.")
     _validate_no_nested_paths(name="roots", paths=roots)
     _validate_optional_string_sequence(name="tests", value=raw.get("tests"))
+    _validate_test_scopes(value=raw.get("test_scopes"))
     _validate_optional_string_sequence(name="tooling", value=raw.get("tooling"))
     _validate_optional_string_sequence(name="rule_paths", value=raw.get("rule_paths"))
     _validate_optional_string_sequence(name="rule_modules", value=raw.get("rule_modules"))
@@ -209,6 +211,21 @@ def _validate_string_sequence(*, name: str, value: object) -> tuple[str, ...]:
             raise ConfigValidationError(f"Config key {name} must contain non-empty strings.")
         result.append(item)
     return tuple(result)
+
+
+def _validate_test_scopes(*, value: object) -> None:
+    if value is None:
+        return
+    scopes: tuple[str, ...] = _validate_string_sequence(name="test_scopes", value=value)
+    if not scopes:
+        raise ConfigValidationError("Config key test_scopes must not be empty.")
+    if len(set(scopes)) != len(scopes):
+        raise ConfigValidationError("Config key test_scopes must not contain duplicates.")
+    for scope in scopes:
+        if not TEST_SCOPE_PATTERN.fullmatch(scope):
+            raise ConfigValidationError(
+                f"Config key test_scopes must contain single lowercase path segments: {scope!r}."
+            )
 
 
 def _validate_optional_string_sequence(*, name: str, value: object) -> None:

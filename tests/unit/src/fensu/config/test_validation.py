@@ -538,6 +538,73 @@ def test_given_invalid_roots_or_top_level_key_when_loading_then_raises_expected_
     "test_case",
     [
         InvalidConfigTestCase(
+            description="test scopes must be a list",
+            config_text='roots = ["src/pkg"]\ntest_scopes = "unit"\n',
+            expected_error_type=ConfigError,
+            expected_error_fragment="Config key test_scopes must be a list of strings.",
+        ),
+        InvalidConfigTestCase(
+            description="test scopes must contain non-empty strings",
+            config_text='roots = ["src/pkg"]\ntest_scopes = ["unit", ""]\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="Config key test_scopes must contain non-empty strings.",
+        ),
+        InvalidConfigTestCase(
+            description="empty test scope vocabulary is rejected",
+            config_text='roots = ["src/pkg"]\ntest_scopes = []\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="Config key test_scopes must not be empty.",
+        ),
+        InvalidConfigTestCase(
+            description="duplicate test scopes are rejected",
+            config_text='roots = ["src/pkg"]\ntest_scopes = ["unit", "e2e", "unit"]\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="Config key test_scopes must not contain duplicates.",
+        ),
+        InvalidConfigTestCase(
+            description="uppercase test scope segment is rejected",
+            config_text='roots = ["src/pkg"]\ntest_scopes = ["Unit"]\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment=(
+                "Config key test_scopes must contain single lowercase path segments: 'Unit'."
+            ),
+        ),
+        InvalidConfigTestCase(
+            description="posix nested test scope segment is rejected",
+            config_text='roots = ["src/pkg"]\ntest_scopes = ["unit/fast"]\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment=(
+                "Config key test_scopes must contain single lowercase path segments: 'unit/fast'."
+            ),
+        ),
+        InvalidConfigTestCase(
+            description="windows nested test scope segment is rejected",
+            config_text='roots = ["src/pkg"]\ntest_scopes = ["unit\\\\fast"]\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment=(
+                "Config key test_scopes must contain single lowercase path segments: "
+                "'unit\\\\fast'."
+            ),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_invalid_test_scopes_when_loading_then_raises_expected_error(
+    tmp_path: Path,
+    test_case: InvalidConfigTestCase,
+) -> None:
+    write_fensu_toml(root=tmp_path, contents=test_case.config_text)
+
+    with pytest.raises(test_case.expected_error_type) as error:
+        load_config(tmp_path)
+
+    assert test_case.expected_error_fragment in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        InvalidConfigTestCase(
             description="cache preference must be a table",
             config_text='roots = ["src/pkg"]\ncache = false\n',
             expected_error_type=ConfigValidationError,

@@ -146,6 +146,7 @@ def prepare_native_execution_request(
             ],
             str(repo_root),
             _native_rule_options(config=config, codes=codes),
+            list(config.test_scopes),
         ),
     )
     return request, tuple(uses)

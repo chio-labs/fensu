@@ -32,6 +32,7 @@ type NativeProjectContextTuple = (
     Vec<(String, String, String, String, u32, u32)>,
     String,
     HashMap<String, HashMap<String, String>>,
+    Vec<String>,
 );
 
 type NativeProjectQueryTuple = (String, String, String, String);
@@ -106,6 +107,7 @@ pub(crate) fn plan_native_execution_batch(
                         custom_registrations: request.11 .3,
                         repo_root: request.11 .4,
                         rule_options: request.11 .5,
+                        test_scopes: request.11 .6,
                     },
                 })
             })

@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.8.0](https://github.com/chio-labs/fensu/compare/v0.7.0...v0.8.0) (2026-07-26)
+
+
+### Features
+
+* derive rule surfaces from canonical metadata ([d81e13d](https://github.com/chio-labs/fensu/commit/d81e13d00095477e0c158b0c1efac5c02a1e26b1))
+* enforce rust function shape parity ([9942937](https://github.com/chio-labs/fensu/commit/99429374914f11bedc9ebfc885fa078b979034cd))
+* enforce rust hygiene and binding clarity ([e7608ff](https://github.com/chio-labs/fensu/commit/e7608ffceea59a76d3400dab052f68b0db9b0e5a))
+* enforce rust test conventions ([623f208](https://github.com/chio-labs/fensu/commit/623f208aae57303d67bfbd4072808cf5bf60983b))
+* enforce rust tooling role boundaries ([bba862e](https://github.com/chio-labs/fensu/commit/bba862ebda789257281e5c858a78c1931c5e4592))
+* enforce rust visibility and entry boundaries ([2013050](https://github.com/chio-labs/fensu/commit/2013050a75f7abd87670e966ee8a6b7b20306f3d))
+* enforce transitive helper ownership ([c1fc7df](https://github.com/chio-labs/fensu/commit/c1fc7dfa513a751cbc86e847b8ea88f1df274cb8))
+* report domain shape, role boundaries, and missing main entries ([c5cb6d1](https://github.com/chio-labs/fensu/commit/c5cb6d161228420fe8de4dcc88b13a3401644a82))
+* report test modules that no harness declares ([33a552d](https://github.com/chio-labs/fensu/commit/33a552dbb543adda93850a004c951a976ba714ef))
+* report ungrouped helper prefix families and reserved role names ([3d04780](https://github.com/chio-labs/fensu/commit/3d047809ebc11036a22281d266c24efbdfd57ae9))
+
+
+### Bug Fixes
+
+* align rule lookup fault color ([54fafa5](https://github.com/chio-labs/fensu/commit/54fafa5f7b02b7e8042f669c88351169c0df2da5))
+* stabilize empty mapping test module ([8be98df](https://github.com/chio-labs/fensu/commit/8be98df7266e36039bb1c6c760fb167c0d0fd3c4))
+
 ## [0.7.0](https://github.com/chio-labs/fensu/compare/v0.6.0...v0.7.0) (2026-07-26)
 
 

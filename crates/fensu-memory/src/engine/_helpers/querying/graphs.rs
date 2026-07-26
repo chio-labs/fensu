@@ -353,7 +353,7 @@ fn mark_cycles(mut edges: Vec<MemoryGraphEdge>) -> Vec<MemoryGraphEdge> {
 
 fn has_path(start: &str, goal: &str, adjacency: &HashMap<String, Vec<String>>) -> bool {
     let mut pending = vec![start];
-    let mut visited = HashSet::new();
+    let mut visited: HashSet<&str> = HashSet::new();
     while let Some(current) = pending.pop() {
         if current == goal {
             return true;

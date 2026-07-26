@@ -41,7 +41,7 @@ pub(crate) fn read_records(
     if !database_identity_is_current(&connection) {
         return Some((empty_records(reads.len()), metrics));
     }
-    let records = reads
+    let records: Vec<Option<DecodedRecord>> = reads
         .iter()
         .map(|(key, expected_kind)| {
             let (kind, data) = rows.get(key)?;
@@ -100,7 +100,7 @@ where
         return None;
     };
     metrics = updated_metrics;
-    let records = reads
+    let records: Vec<Option<DecodedRecord>> = reads
         .iter()
         .map(|(key, expected_kind)| {
             let (kind, data) = rows.get(key)?;
@@ -138,20 +138,24 @@ fn fetch_rows(
     keys: &[String],
     mut metrics: CacheMetrics,
 ) -> Option<(StoredRecordMap, CacheMetrics)> {
-    let mut rows_by_key = HashMap::new();
+    let mut rows_by_key: StoredRecordMap = HashMap::new();
     for chunk in keys.chunks(READ_CHUNK_SIZE) {
         let placeholders = std::iter::repeat_n("?", chunk.len())
             .collect::<Vec<_>>()
             .join(",");
         let sql = format!("SELECT key, kind, data FROM records WHERE key IN ({placeholders})");
-        let mut statement = connection.prepare(&sql).ok()?;
-        let rows = statement
-            .query_map(params_from_iter(chunk.iter()), |row| {
-                Ok((row.get::<_, String>(0)?, row.get(1)?, row.get(2)?))
-            })
-            .ok()?;
+        let Ok(mut statement) = connection.prepare(&sql) else {
+            return None;
+        };
+        let Ok(rows) = statement.query_map(params_from_iter(chunk.iter()), |row| {
+            Ok((row.get::<_, String>(0)?, row.get(1)?, row.get(2)?))
+        }) else {
+            return None;
+        };
         for row in rows {
-            let (key, kind, data): (String, String, Vec<u8>) = row.ok()?;
+            let Ok((key, kind, data)): Result<(String, String, Vec<u8>), _> = row else {
+                return None;
+            };
             metrics.record_read(data.len());
             rows_by_key.insert(key, (kind, data));
         }
@@ -170,9 +174,9 @@ fn publish_writes(
         } else {
             UPSERT_RECORD_SQL
         };
-        connection
-            .execute(sql, params![write.key, write.kind, write.data])
-            .ok()?;
+        let Ok(_) = connection.execute(sql, params![write.key, write.kind, write.data]) else {
+            return None;
+        };
     }
     metrics.record_writes(writes);
     Some(metrics)
@@ -210,14 +214,16 @@ fn apply_mutation(
             .chain(written.iter().copied())
             .collect::<HashSet<_>>();
         let pattern = format!("{prefix}/%");
-        let mut statement = connection
-            .prepare("SELECT key FROM records WHERE key LIKE ?")
-            .ok()?;
-        let keys = statement
-            .query_map([pattern], |row| row.get::<_, String>(0))
-            .ok()?
-            .collect::<Result<Vec<_>, _>>()
-            .ok()?;
+        let Ok(mut statement) = connection.prepare("SELECT key FROM records WHERE key LIKE ?")
+        else {
+            return None;
+        };
+        let Ok(rows) = statement.query_map([pattern], |row| row.get::<_, String>(0)) else {
+            return None;
+        };
+        let Ok(keys) = rows.collect::<Result<Vec<_>, _>>() else {
+            return None;
+        };
         metrics.record_scan(keys.len());
         let doomed = keys
             .into_iter()
@@ -246,18 +252,18 @@ fn delete_keys(
         let placeholders = std::iter::repeat_n("?", chunk.len())
             .collect::<Vec<_>>()
             .join(",");
-        connection
-            .execute(
-                &format!("DELETE FROM records WHERE key IN ({placeholders})"),
-                params_from_iter(chunk.iter()),
-            )
-            .ok()?;
+        let Ok(_) = connection.execute(
+            &format!("DELETE FROM records WHERE key IN ({placeholders})"),
+            params_from_iter(chunk.iter()),
+        ) else {
+            return None;
+        };
     }
     Some(metrics)
 }
 
 fn valid_writes(writes: &[EncodedWrite]) -> bool {
-    let mut keys = HashSet::new();
+    let mut keys: HashSet<&str> = HashSet::new();
     writes
         .iter()
         .all(|write| valid_key(&write.key) && keys.insert(write.key.as_str()))

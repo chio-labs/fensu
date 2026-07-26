@@ -125,7 +125,7 @@ fn update_gitignore(file: &mut File, path: &Path) -> Result<(), String> {
             path.display()
         )
     })?;
-    let mut content = Vec::new();
+    let mut content: Vec<u8> = Vec::new();
     file.read_to_end(&mut content).map_err(|error| {
         format!(
             "Memory bootstrap could not update {}: {error}",

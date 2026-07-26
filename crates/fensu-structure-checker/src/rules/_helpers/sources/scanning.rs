@@ -165,7 +165,10 @@ pub(crate) fn check_source_file(
     }
     let kind = source_file_kind(file, repo_root, src_root);
     let syntax = syn::parse_file(&file.source);
-    let mut violations = hygiene::check_source(file, syntax.as_ref().ok(), kind);
+    let mut violations: Vec<models::Violation> = match syntax.as_ref() {
+        Ok(syntax) => hygiene::check_source(file, Some(syntax), kind),
+        Err(_) => hygiene::check_source(file, None, kind),
+    };
     violations.extend(placement::check_common(file));
     match syntax.as_ref() {
         Ok(syntax) => {
@@ -192,7 +195,10 @@ pub(crate) fn check_test_file(
 
 fn check_test_syntax(file: &models::SourceFile, kind: FileKind) -> Vec<models::Violation> {
     let syntax = syn::parse_file(&file.source);
-    let mut violations = hygiene::check_test_file(file, syntax.as_ref().ok());
+    let mut violations: Vec<models::Violation> = match syntax.as_ref() {
+        Ok(syntax) => hygiene::check_test_file(file, Some(syntax)),
+        Err(_) => hygiene::check_test_file(file, None),
+    };
     violations.extend(placement::check_common(file));
     match syntax.as_ref() {
         Ok(syntax) => {

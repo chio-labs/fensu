@@ -85,7 +85,7 @@ fn banned_package_faults(code: &str, context: &NativeRuleContext) -> Vec<NativeF
     }
     let directories = directories(context);
     let root = scope_root_parts(context);
-    let mut faults = Vec::new();
+    let mut faults: Vec<NativeFaultRow> = Vec::new();
     for (index, name) in directories.iter().enumerate() {
         if !BANNED_PACKAGE_NAMES.contains(&name.as_str()) {
             continue;
@@ -181,7 +181,7 @@ fn custom_rule_coverage_faults(code: &str, context: &NativeRuleContext) -> Vec<N
         argument: String::new(),
     };
     let answers = context.observation(&query);
-    let mut faults = Vec::new();
+    let mut faults: Vec<NativeFaultRow> = Vec::new();
     for (rule_code, _, _, source_path, line, column) in &context.custom_registrations {
         let matching = answers.iter().find_map(|answer| {
             let mut parts = answer.split('\0');
@@ -191,7 +191,7 @@ fn custom_rule_coverage_faults(code: &str, context: &NativeRuleContext) -> Vec<N
                         .next()
                         .unwrap_or("0")
                         .parse::<u32>()
-                        .unwrap_or_default(),
+                        .map_or(0, |count| count),
                     parts.next() == Some("true"),
                 )
             })

@@ -77,7 +77,7 @@ fn targets_tooling(imported_parts: &[String], tooling_packages: &[String]) -> bo
 
 fn private_helper_reference_faults(program: &ProgramHandle, code: &str) -> Vec<NativeFaultRow> {
     let rows = program.reference_rows();
-    let mut faults = Vec::new();
+    let mut faults: Vec<NativeFaultRow> = Vec::new();
     let mut helper_module_aliases: HashSet<String> = HashSet::new();
     for event in &rows.events {
         match event {

@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::Path;
 
+use fensu_facts::extension::models::ProgramHandle;
 use fensu_native::rules::main::evaluate_core_rules::evaluate_core_rules;
 use fensu_native::rules::main::plan_core_rule_queries::plan_core_rule_queries;
 use fensu_native::rules::models::NativeRuleContext;
@@ -18,7 +19,7 @@ use crate::check::models::EvaluationRequest;
 use crate::constants::{
     OWNER_FILE, OWNER_PACKAGE, ROLE_HELPERS, ROLE_MAIN, SCOPE_TEST, SUFFIX_INIT,
 };
-use crate::models::{Config, Fault, RuleMetadata, ScopedSource};
+use crate::models::{Config, Fault, RuleMetadata, ScopedSource, ThresholdUse};
 use crate::reporting::main::report::report;
 use crate::reporting::models::ReportRequest;
 
@@ -49,7 +50,7 @@ pub(crate) fn evaluate_and_render(request: EvaluationRequest<'_>) -> Result<(Str
         .iter()
         .map(|source| (source.repository_path.as_str(), program(source)))
         .collect::<HashMap<_, _>>();
-    let mut program_by_module = HashMap::new();
+    let mut program_by_module: HashMap<String, &ProgramHandle> = HashMap::new();
     for source in sources.iter().filter(|source| source.scope != SCOPE_TEST) {
         program_by_module.insert(source_module_name(source, root), program(source));
     }
@@ -57,7 +58,7 @@ pub(crate) fn evaluate_and_render(request: EvaluationRequest<'_>) -> Result<(Str
         .iter()
         .map(|rule| rule.code.as_str())
         .collect::<HashSet<_>>();
-    let mut uses = Vec::new();
+    let mut uses: Vec<ThresholdUse> = Vec::new();
     let batches = sources
         .par_iter()
         .zip(codes_by_source.par_iter())
@@ -84,7 +85,7 @@ pub(crate) fn evaluate_and_render(request: EvaluationRequest<'_>) -> Result<(Str
             let plans = plan_core_rule_queries(program(source), codes, &context);
             context.observations = observe(root, &plans, &program_by_path, &program_by_module);
             let rows = evaluate_core_rules(program(source), codes, &context, &project)?;
-            let mut faults = Vec::new();
+            let mut faults: Vec<Fault> = Vec::new();
             for row in rows {
                 let metadata = rule_metadata(&row.code)
                     .ok_or_else(|| format!("Unknown native rule code: {}", row.code))?;
@@ -102,7 +103,7 @@ pub(crate) fn evaluate_and_render(request: EvaluationRequest<'_>) -> Result<(Str
             Ok((faults, source_uses))
         })
         .collect::<Result<Vec<_>, String>>()?;
-    let mut faults = Vec::new();
+    let mut faults: Vec<Fault> = Vec::new();
     for (batch, batch_uses) in batches {
         faults.extend(batch);
         uses.extend(batch_uses);
@@ -165,11 +166,11 @@ pub(crate) fn evaluate_and_render(request: EvaluationRequest<'_>) -> Result<(Str
 fn native_rule_options(
     codes: &[String],
 ) -> Result<HashMap<String, HashMap<String, String>>, String> {
-    let mut by_code = HashMap::new();
+    let mut by_code: HashMap<String, HashMap<String, String>> = HashMap::new();
     for code in codes {
         let rule =
             rule_metadata(code).ok_or_else(|| format!("Unknown native rule code: {code}"))?;
-        let mut values = HashMap::new();
+        let mut values: HashMap<String, String> = HashMap::new();
         for option in &rule.options {
             values.insert(
                 option.name.clone(),
@@ -184,7 +185,7 @@ fn native_rule_options(
 }
 
 pub(crate) fn selected_rules(select: &[String], ignore: &[String]) -> Vec<&'static RuleMetadata> {
-    let mut rules = Vec::new();
+    let mut rules: Vec<&'static RuleMetadata> = Vec::new();
     for rule in rule_catalogue() {
         let selected = select
             .iter()
@@ -201,7 +202,7 @@ pub(crate) fn selected_rules(select: &[String], ignore: &[String]) -> Vec<&'stat
 }
 
 fn tooling_packages(config: &Config) -> Vec<String> {
-    let mut packages = Vec::new();
+    let mut packages: Vec<String> = Vec::new();
     for path in &config.tooling {
         if let Some(name) = Path::new(path).file_name() {
             packages.push(name.to_string_lossy().into_owned());

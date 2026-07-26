@@ -153,11 +153,10 @@ impl SkillScanner<'_> {
         let Some((metadata, repository_relative)) = self.loaded_file(path) else {
             return;
         };
-        let slug = identity
-            .0
-            .strip_prefix("skill:")
-            .unwrap_or_default()
-            .to_owned();
+        let slug = match identity.0.strip_prefix("skill:") {
+            Some(slug) => slug.to_owned(),
+            None => String::new(),
+        };
         self.result.documents.push(DiscoveredDocument {
             identity: identity.clone(),
             artifact_kind: ArtifactKind::Skill,

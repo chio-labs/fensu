@@ -145,8 +145,9 @@ fn plan_execution_batch(
                 },
             }));
         }
-        let plans = prepared.par_iter().map(plan_request_queries).collect();
-        let failures = prepared
+        let plans: Vec<Vec<NativeProjectQueryTuple>> =
+            prepared.par_iter().map(plan_request_queries).collect();
+        let failures: Vec<usize> = prepared
             .iter()
             .enumerate()
             .filter_map(|(index, request)| request.is_none().then_some(index))
@@ -169,7 +170,7 @@ fn plan_execution_batch(
                     .unwrap_or_else(|| parsed_missing.next().flatten())
             })
             .collect();
-        let mut modules = Vec::new();
+        let mut modules: Vec<NativeProjectModule> = Vec::new();
         for ((path, scope, module_parts, _), program) in
             project_files.into_iter().zip(project_programs)
         {

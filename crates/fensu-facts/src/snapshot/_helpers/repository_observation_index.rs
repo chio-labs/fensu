@@ -19,7 +19,9 @@ use crate::snapshot::models::{
 impl RepositoryObservationIndex {
     /// Build one shared index while visiting every relevant lexical entry at most once.
     pub fn build(repo_root: &Path, queries: &[RepositoryObservationQuery]) -> Option<Self> {
-        let repo_root = dunce::canonicalize(repo_root).ok()?;
+        let Ok(repo_root) = dunce::canonicalize(repo_root) else {
+            return None;
+        };
         let roots = traversal_roots(&repo_root, queries);
         let mut index = Self {
             repo_root,
@@ -49,11 +51,12 @@ impl RepositoryObservationIndex {
             "exists" => RepositoryObservationAnswer::Bool(resolved_path.exists()),
             "is_file" => RepositoryObservationAnswer::Bool(resolved_path.is_file()),
             "is_dir" => RepositoryObservationAnswer::Bool(resolved_path.is_dir()),
-            "source" => fs::read(lexical_path)
-                .ok()
-                .map_or(RepositoryObservationAnswer::None, |content| {
+            "source" => match fs::read(lexical_path) {
+                Ok(content) => {
                     RepositoryObservationAnswer::String(hex::encode(Sha256::digest(content)))
-                }),
+                }
+                Err(_) => RepositoryObservationAnswer::None,
+            },
             "directory_entries" => RepositoryObservationAnswer::Paths(
                 self.direct_entries
                     .get(&query.relative_path)
@@ -84,7 +87,7 @@ impl RepositoryObservationIndex {
             let Ok(entries) = fs::read_dir(directory) else {
                 continue;
             };
-            let mut children = Vec::new();
+            let mut children: Vec<std::path::PathBuf> = Vec::new();
             for entry in entries.flatten() {
                 if entry.file_type().is_ok_and(|kind| kind.is_dir()) {
                     children.push(entry.path());
@@ -137,8 +140,8 @@ impl RepositoryObservationIndex {
         if !pattern.contains('/') {
             return Some(self.basename_glob(&starting_points, &matcher));
         }
-        let mut matches = Vec::new();
-        let mut seen = HashSet::new();
+        let mut matches: Vec<String> = Vec::new();
+        let mut seen: HashSet<&String> = HashSet::new();
         for starting_point in starting_points {
             for path in &self.entries {
                 let Some(relative) = relative_below(path, starting_point) else {
@@ -157,7 +160,7 @@ impl RepositoryObservationIndex {
         starting_points: &[&str],
         matcher: &globset::GlobMatcher,
     ) -> Vec<String> {
-        let mut matches = Vec::new();
+        let mut matches: Vec<String> = Vec::new();
         for directory in starting_points {
             let Some(entries) = self.direct_entries.get(*directory) else {
                 continue;
@@ -180,7 +183,7 @@ impl RepositoryObservationIndex {
             self.directory_order.push(relative_root.clone());
             let mut pending = vec![relative_root];
             while let Some(directory) = pending.pop() {
-                let mut children = Vec::new();
+                let mut children: Vec<String> = Vec::new();
                 if let Some(entries) = self.direct_entries.get(&directory) {
                     for path in entries {
                         if self.directory_paths.contains(path) {
@@ -205,7 +208,7 @@ impl RepositoryObservationIndex {
         if self.file_paths.contains(&init) {
             return Some(init);
         }
-        let mut direct = Vec::new();
+        let mut direct: Vec<String> = Vec::new();
         if let Some(entries) = self.direct_entries.get(root) {
             for path in entries {
                 if self.file_paths.contains(path) && path.ends_with(".py") {
@@ -218,7 +221,7 @@ impl RepositoryObservationIndex {
             return Some(path);
         }
         let prefix = (root != REPOSITORY_ROOT_PATH).then(|| format!("{root}/"));
-        let mut descendants = Vec::new();
+        let mut descendants: Vec<String> = Vec::new();
         for path in &self.file_paths {
             let below_root = prefix
                 .as_ref()

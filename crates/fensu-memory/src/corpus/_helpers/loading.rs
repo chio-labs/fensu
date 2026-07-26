@@ -30,7 +30,7 @@ pub(crate) fn load(mut discovery: DiscoveryResult) -> MemoryCorpus {
         .map(load_document)
         .collect();
     let mut documents = Vec::with_capacity(loaded_documents.len());
-    let mut diagnostics = Vec::new();
+    let mut diagnostics: Vec<CorpusDiagnostic> = Vec::new();
     for (document, mut document_diagnostics) in loaded_documents {
         documents.push(document);
         diagnostics.append(&mut document_diagnostics);
@@ -91,7 +91,7 @@ fn load_document(source: DiscoveredDocument) -> (CorpusDocument, Vec<CorpusDiagn
 }
 
 fn title_diagnostics(path: &str, parsed: &ParsedMarkdown) -> Vec<CorpusDiagnostic> {
-    let mut diagnostics = Vec::new();
+    let mut diagnostics: Vec<CorpusDiagnostic> = Vec::new();
     if parsed.title.is_none() {
         diagnostics.push(diagnostic(
             path,

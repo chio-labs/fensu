@@ -12,7 +12,7 @@ pub(crate) fn validate(value: Option<&toml::Value>) -> Result<(), String> {
     let entries = value
         .as_array()
         .ok_or_else(|| "Config key rule_exceptions must be an array of tables.".to_owned())?;
-    let mut seen = HashSet::new();
+    let mut seen: HashSet<(String, String, Option<String>)> = HashSet::new();
     for entry in entries {
         let table = entry
             .as_table()

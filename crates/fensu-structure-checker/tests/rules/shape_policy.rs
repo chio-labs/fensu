@@ -123,3 +123,33 @@ fn given_rust_shape_policy_fixtures_when_checking_then_reports_expected_codes() 
         );
     }
 }
+
+#[test]
+fn given_nested_iterator_in_checker_when_checking_then_reports_tooling_code() {
+    let test_cases = [test_types::CheckRepoTestCase {
+        description: "nested iterator closure in checker tooling",
+        repo_files: vec![
+            test_types::RepoFile {
+                path: "crates/fensu-structure-checker/src/checking/main/check.rs".to_owned(),
+                contents: "pub fn check() -> usize {\n    1\n}\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/fensu-structure-checker/src/checking/_helpers/flattening.rs".to_owned(),
+                contents: "pub(crate) fn flatten(values: &[Vec<usize>]) -> Vec<usize> {\n    values.iter().flat_map(|items| items.iter().map(|item| *item)).collect()\n}\n"
+                    .to_owned(),
+            },
+        ],
+        expected_violation_codes: vec!["RSH006"],
+    }];
+
+    for test_case in &test_cases {
+        let repo_root = helpers::write_tooling_temp_repo(test_case);
+        let actual_codes = helpers::collect_violation_codes(&repo_root);
+        helpers::remove_temp_repo(&repo_root);
+        assert_eq!(
+            actual_codes, test_case.expected_violation_codes,
+            "case failed: {}",
+            test_case.description
+        );
+    }
+}

@@ -130,7 +130,7 @@ pub(crate) fn decode_exceptions(value: &CanonicalValue, owner: &str) -> Option<(
 }
 
 pub(crate) fn decode_threshold_uses(value: &CanonicalValue) -> Option<()> {
-    let mut identities = HashSet::new();
+    let mut identities: HashSet<String> = HashSet::new();
     for item in value.as_list()? {
         if !exact_fields(
             item,

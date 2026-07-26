@@ -1,7 +1,7 @@
 //! Render a rule's metadata, options, exceptions, and ignores.
 
 use crate::catalogue::_helpers::options::option_lines;
-use crate::models::{Config, RuleMetadata};
+use crate::models::{Config, RuleIgnore, RuleMetadata};
 
 pub(crate) fn render(metadata: &RuleMetadata, config: &Config, color: bool) -> String {
     let header = if color {
@@ -91,7 +91,7 @@ pub(crate) fn render_rule_ignores(
     metadata: &RuleMetadata,
     config: &Config,
 ) -> String {
-    let mut ignores = Vec::new();
+    let mut ignores: Vec<&RuleIgnore> = Vec::new();
     for entry in &config.rule_ignores {
         if entry
             .rules

@@ -58,7 +58,9 @@ pub(crate) fn manifest_hit(root: &Path, generation: &CacheGeneration) -> bool {
 pub(crate) fn read_file(root: &Path, identity: &str) -> Option<ProjectIndex> {
     let key = file_key(identity);
     let bytes = read_record(root, &key, FILE_KIND)?;
-    let record = serde_json::from_slice::<CacheRecord<ProjectIndex>>(&bytes).ok()?;
+    let Ok(record) = serde_json::from_slice::<CacheRecord<ProjectIndex>>(&bytes) else {
+        return None;
+    };
     if record.identity != identity
         || fingerprint(&record.identity, &record.payload).as_deref()
             != Some(record.payload_fingerprint.as_str())
@@ -145,7 +147,10 @@ pub(crate) fn publish(
             return false;
         }
     }
-    transaction.commit().is_ok()
+    match transaction.commit() {
+        Ok(()) => true,
+        Err(_) => false,
+    }
 }
 
 pub(crate) fn stats_text(stats: MapCacheStats) -> String {
@@ -178,35 +183,43 @@ fn file_key(identity: &str) -> String {
 }
 
 fn read_record(root: &Path, key: &str, kind: &str) -> Option<Vec<u8>> {
-    let connection = Connection::open_with_flags(
+    let Ok(connection) = Connection::open_with_flags(
         root.join(DATABASE),
         rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
-    )
-    .ok()?;
+    ) else {
+        return None;
+    };
     if !valid_database(&connection) {
         return None;
     }
-    connection
+    let Ok(data) = connection
         .query_row(
             "SELECT data FROM records WHERE key = ? AND kind = ?",
             params![key, kind],
             |row| row.get::<_, Vec<u8>>(0),
         )
         .optional()
-        .ok()?
+    else {
+        return None;
+    };
+    data
 }
 
 fn encode_record<T: Serialize>(identity: &str, payload: &T) -> Option<Vec<u8>> {
-    serde_json::to_vec(&CacheRecord {
+    let Ok(encoded) = serde_json::to_vec(&CacheRecord {
         identity: identity.to_owned(),
         payload,
         payload_fingerprint: fingerprint(identity, payload)?,
-    })
-    .ok()
+    }) else {
+        return None;
+    };
+    Some(encoded)
 }
 
 fn fingerprint<T: Serialize>(identity: &str, payload: &T) -> Option<String> {
-    let encoded = serde_json::to_vec(&(identity, payload)).ok()?;
+    let Ok(encoded) = serde_json::to_vec(&(identity, payload)) else {
+        return None;
+    };
     Some(format!("{:x}", Sha256::digest(encoded)))
 }
 
@@ -217,8 +230,8 @@ fn initialize(connection: &Connection) -> rusqlite::Result<()> {
 }
 
 fn valid_database(connection: &Connection) -> bool {
-    connection
-        .query_row("PRAGMA application_id", [], |row| row.get::<_, i32>(0))
-        .ok()
-        == Some(APPLICATION_ID)
+    match connection.query_row("PRAGMA application_id", [], |row| row.get::<_, i32>(0)) {
+        Ok(application_id) => application_id == APPLICATION_ID,
+        Err(_) => false,
+    }
 }

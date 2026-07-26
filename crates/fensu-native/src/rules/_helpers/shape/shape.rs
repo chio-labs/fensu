@@ -153,7 +153,7 @@ fn meaningful_project_result_faults(
         return Vec::new();
     }
     let (functions, calls) = program.project_rows();
-    let mut faults = Vec::new();
+    let mut faults: Vec<NativeFaultRow> = Vec::new();
     for call in calls {
         let meaningful = if let Some(module_name) = &call.module_name {
             let observation = NativeProjectQuery {

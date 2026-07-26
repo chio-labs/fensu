@@ -29,11 +29,11 @@ pub(crate) fn resolve(explicit_roots: &[String]) -> Result<MappingProject, Strin
         .map_err(|error| error.to_string())?;
     if !explicit_roots.is_empty() {
         let repo_root = find_project_root(&cwd);
-        let cache_enabled = load_optional::load_optional(&cwd)
-            .ok()
-            .flatten()
-            .is_none_or(|(_, config)| config.cache_enabled);
-        let mut sources = Vec::new();
+        let cache_enabled = match load_optional::load_optional(&cwd) {
+            Ok(Some((_, config))) => config.cache_enabled,
+            Ok(None) | Err(_) => true,
+        };
+        let mut sources: Vec<MappingSource> = Vec::new();
         for value in explicit_roots {
             let candidate = Path::new(value);
             let joined = if candidate.is_absolute() {
@@ -238,7 +238,7 @@ pub(crate) fn discover(
                 .or_insert_with(|| source.import_root.clone());
         }
     }
-    let mut snapshots = Vec::new();
+    let mut snapshots: Vec<SourceSnapshot> = Vec::new();
     for (path, import_root) in discovered {
         let source = fs::read(&path)
             .map_err(|error| format!("Could not read {}: {error}", path.display()))?;

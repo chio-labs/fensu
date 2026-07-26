@@ -73,7 +73,7 @@ pub(crate) fn parameter_mutation_occurrence_rows(
             current = parents[parent_position];
         }
     }
-    let mut rows = Vec::new();
+    let mut rows: Vec<ParameterMutationOccurrenceRow> = Vec::new();
     for position in positions {
         let Some(function) = function_at(&nodes, position) else {
             continue;
@@ -81,7 +81,7 @@ pub(crate) fn parameter_mutation_occurrence_rows(
         let Some(entries) = mutations_by_position.get(&position) else {
             continue;
         };
-        let empty = HashSet::new();
+        let empty: HashSet<String> = HashSet::new();
         let returned_names = returned_by_position.get(&position).unwrap_or(&empty);
         let setter = function.decorator_list.iter().any(|decorator| {
             decorator_name(&decorator.expression).ends_with(constants::SETTER_DECORATOR_SUFFIX)
@@ -105,7 +105,7 @@ pub(crate) fn parameter_mutation_occurrence_rows(
 
 fn nonreceiver_parameter_kinds(function: &StmtFunctionDef) -> HashMap<&str, &'static str> {
     let parameters = &function.parameters;
-    let mut kinds = HashMap::new();
+    let mut kinds: HashMap<&str, &'static str> = HashMap::new();
     for parameter in &parameters.posonlyargs {
         kinds.insert(parameter.parameter.name.id.as_str(), "positional_only");
     }
@@ -141,7 +141,7 @@ fn mutation_root_names<'a>(node: &ShapeNode<'a>) -> Vec<&'a str> {
         },
         _ => return Vec::new(),
     };
-    let mut names = Vec::new();
+    let mut names: Vec<&str> = Vec::new();
     for target in targets {
         if matches!(target, Expr::Name(_)) && !is_call {
             continue;
@@ -154,7 +154,7 @@ fn mutation_root_names<'a>(node: &ShapeNode<'a>) -> Vec<&'a str> {
 }
 
 fn name_identifiers(value: &Expr) -> HashSet<String> {
-    let mut names = HashSet::new();
+    let mut names: HashSet<String> = HashSet::new();
     for node in breadth_first_from(ShapeNode::Expr(value)) {
         if let ShapeNode::Expr(Expr::Name(name)) = node {
             names.insert(name.id.as_str().to_owned());

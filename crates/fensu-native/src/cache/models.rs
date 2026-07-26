@@ -103,7 +103,10 @@ impl CanonicalValue {
 
     pub(crate) fn as_nonnegative_i64(&self) -> Option<i64> {
         match self {
-            Self::Integer(value) => value.parse::<i64>().ok().filter(|value| *value >= 0),
+            Self::Integer(value) => match value.parse::<i64>() {
+                Ok(value) if value >= 0 => Some(value),
+                Ok(_) | Err(_) => None,
+            },
             _ => None,
         }
     }

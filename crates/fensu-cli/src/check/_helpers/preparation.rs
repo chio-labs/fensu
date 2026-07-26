@@ -54,7 +54,7 @@ fn configured_paths(
     invocation: &Path,
     root: &Path,
 ) -> Result<Vec<String>, String> {
-    let mut configured = Vec::new();
+    let mut configured: Vec<String> = Vec::new();
     for path in &options.paths {
         let absolute = invocation
             .join(path)
@@ -69,7 +69,7 @@ fn configured_paths(
 }
 
 fn discover(root: &Path, config: &Config) -> Result<Vec<ScopedSource>, String> {
-    let mut sources = Vec::new();
+    let mut sources: Vec<ScopedSource> = Vec::new();
     for (scope, configured_root) in config
         .roots
         .iter()
@@ -98,7 +98,7 @@ fn discover(root: &Path, config: &Config) -> Result<Vec<ScopedSource>, String> {
                 .map_err(|error| error.to_string())?
                 .to_string_lossy()
                 .replace('\\', "/");
-            let relative_parts = path
+            let relative_parts: Vec<String> = path
                 .strip_prefix(&source_root)
                 .map_err(|error| error.to_string())?
                 .components()
@@ -134,7 +134,7 @@ fn discover(root: &Path, config: &Config) -> Result<Vec<ScopedSource>, String> {
 
 fn select_sources(sources: Vec<ScopedSource>, config: &Config) -> (Vec<ScopedSource>, usize) {
     let discovered = sources.len();
-    let mut selected = Vec::new();
+    let mut selected: Vec<ScopedSource> = Vec::new();
     for source in sources {
         let included = config.evaluation_include.is_empty()
             || config

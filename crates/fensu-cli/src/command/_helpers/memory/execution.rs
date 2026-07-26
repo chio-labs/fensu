@@ -125,10 +125,12 @@ fn check(project: &MemoryProject, color: bool) -> Result<CliOutput, String> {
                 .join(&diagnostic.repository_relative_path)
                 .to_string_lossy()
                 .into_owned(),
-            line: diagnostic.line.and_then(|value| u32::try_from(value).ok()),
+            line: diagnostic
+                .line
+                .and_then(|value| u32::try_from(value).into_iter().next()),
             column: diagnostic
                 .column
-                .and_then(|value| u32::try_from(value).ok()),
+                .and_then(|value| u32::try_from(value).into_iter().next()),
             message: diagnostic.message.clone(),
             remediation: Some(diagnostic.remediation.to_owned()),
             warning: false,

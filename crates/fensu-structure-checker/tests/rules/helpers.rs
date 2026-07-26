@@ -16,6 +16,24 @@ pub(crate) fn write_temp_repo(test_case: &test_types::CheckRepoTestCase) -> path
     root
 }
 
+/// Write a fixture whose member is the structure-checker tooling crate.
+pub(crate) fn write_tooling_temp_repo(test_case: &test_types::CheckRepoTestCase) -> path::PathBuf {
+    let root = write_repo(test_case);
+    fs::write(
+        root.join("Cargo.toml"),
+        "[workspace]\nmembers = [\"crates/fensu-structure-checker\"]\nresolver = \"2\"\n\n[workspace.package]\nedition = \"2021\"\nlicense = \"Apache-2.0\"\npublish = false\n\n[workspace.dependencies]\nfensu-structure-checker = { path = \"crates/fensu-structure-checker\" }\n\n[workspace.lints.rust]\nunsafe_code = \"forbid\"\nunreachable_pub = \"deny\"\nunused_must_use = \"deny\"\n\n[workspace.lints.clippy]\nawait_holding_lock = \"deny\"\n",
+    )
+    .expect("temporary tooling workspace manifest is writable");
+    let crate_root = root.join("crates/fensu-structure-checker");
+    fs::create_dir_all(&crate_root).expect("temporary tooling crate is writable");
+    fs::write(
+        crate_root.join("Cargo.toml"),
+        "[package]\nname = \"fensu-structure-checker\"\nversion = \"0.1.0\"\nedition.workspace = true\nlicense.workspace = true\npublish.workspace = true\n\n[lints]\nworkspace = true\n",
+    )
+    .expect("temporary tooling crate manifest is writable");
+    root
+}
+
 /// Write a fixture repository exactly as declared, for domain-shape rules.
 pub(crate) fn write_temp_repo_verbatim(test_case: &test_types::CheckRepoTestCase) -> path::PathBuf {
     write_repo(test_case)

@@ -12,7 +12,8 @@ pub(crate) fn find(start: &Path) -> Result<(PathBuf, bool), String> {
         }
         let pyproject = directory.join(CONFIG_PYPROJECT_FILE);
         if pyproject.is_file() {
-            let text = fs::read_to_string(&pyproject).unwrap_or_default();
+            let text = fs::read_to_string(&pyproject)
+                .map_err(|error| format!("Cannot read {}: {error}", pyproject.display()))?;
             if text.contains(CONFIG_PYPROJECT_HEADER) {
                 return Ok((pyproject, true));
             }

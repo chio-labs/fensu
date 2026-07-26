@@ -9,7 +9,7 @@ pub(crate) const HELP: &str = "usage: fensu skills [-h] [--global] [--target {op
 pub(crate) fn parse_options(arguments: &[String]) -> Result<SkillOptions, String> {
     let mut options = SkillOptions::default();
     let mut index = 0;
-    let mut positional = Vec::new();
+    let mut positional: Vec<String> = Vec::new();
     let mut terminated = false;
     while index < arguments.len() {
         let argument = &arguments[index];

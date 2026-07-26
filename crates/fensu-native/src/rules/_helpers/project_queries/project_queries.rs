@@ -54,7 +54,7 @@ pub(crate) fn plan_project_queries(
     context: &NativeRuleContext,
 ) -> Vec<NativeProjectQuery> {
     let selected: HashSet<&str> = codes.iter().map(String::as_str).collect();
-    let mut queries = Vec::new();
+    let mut queries: Vec<NativeProjectQuery> = Vec::new();
     if selected.contains(MEANINGFUL_PROJECT_RESULT_DISCARDED_CODE) && context.is_main_module {
         for call in &program.project_rows().1 {
             if let Some(module_name) = &call.module_name {
@@ -155,7 +155,7 @@ pub(crate) fn plan_project_queries(
             queries.extend(layout_queries);
         }
     }
-    let mut seen = HashSet::new();
+    let mut seen: HashSet<NativeProjectQuery> = HashSet::new();
     queries
         .into_iter()
         .filter(|item| seen.insert(item.clone()))
@@ -253,7 +253,7 @@ fn normalized_targets(program: &ProgramHandle, context: &NativeRuleContext) -> V
 }
 
 fn module_targets(program: &ProgramHandle, context: &NativeRuleContext) -> Vec<Vec<String>> {
-    let mut targets = Vec::new();
+    let mut targets: Vec<Vec<String>> = Vec::new();
     for row in &program.reference_rows().imports {
         for base in normalized_import_targets(row, context) {
             targets.push(base.clone());

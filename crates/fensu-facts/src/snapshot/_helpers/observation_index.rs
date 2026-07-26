@@ -35,12 +35,14 @@ pub(crate) fn traversal_roots(
 }
 
 pub(crate) fn glob_matcher(pattern: &str) -> Option<GlobMatcher> {
-    GlobBuilder::new(pattern)
+    let Ok(glob) = GlobBuilder::new(pattern)
         .literal_separator(true)
         .backslash_escape(false)
         .build()
-        .ok()
-        .map(|glob| glob.compile_matcher())
+    else {
+        return None;
+    };
+    Some(glob.compile_matcher())
 }
 
 pub(crate) fn join_relative(root: &str, name: &str) -> String {

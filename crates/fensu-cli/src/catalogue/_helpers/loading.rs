@@ -9,8 +9,12 @@ static CATALOGUE: OnceLock<Vec<RuleMetadata>> = OnceLock::new();
 pub(crate) fn rule_catalogue() -> &'static [RuleMetadata] {
     CATALOGUE
         .get_or_init(|| {
-            serde_json::from_slice(include_bytes!(concat!(env!("OUT_DIR"), "/catalogue.json")))
-                .unwrap_or_default()
+            let Ok(catalogue) =
+                serde_json::from_slice(include_bytes!(concat!(env!("OUT_DIR"), "/catalogue.json")))
+            else {
+                return Vec::new();
+            };
+            catalogue
         })
         .as_slice()
 }

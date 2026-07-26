@@ -20,19 +20,19 @@ pub(crate) struct FileIdentity {
 
 pub(crate) fn capture_bundle(root: &Path) -> Result<Vec<Snapshot>, String> {
     if !root.exists() {
-        if fs::symlink_metadata(root).is_ok() {
-            return Err(format!(
-                "refusing to write unsafe skill target: {}",
-                root.display()
-            ));
+        if fs::symlink_metadata(root).is_err() {
+            ensure_safe_ancestors(root)?;
+            return Ok(Vec::new());
         }
-        ensure_safe_ancestors(root)?;
-        return Ok(Vec::new());
+        return Err(format!(
+            "refusing to write unsafe skill target: {}",
+            root.display()
+        ));
     }
     ensure_safe_directory(root)?;
     let mut pending = vec![root.to_path_buf()];
     let mut normalized = HashMap::<String, PathBuf>::new();
-    let mut snapshots = Vec::new();
+    let mut snapshots: Vec<Snapshot> = Vec::new();
     while let Some(directory) = pending.pop() {
         let mut entries = sorted_entries(&directory)?;
         entries.reverse();
@@ -158,7 +158,7 @@ pub(crate) fn create_safe_parents(
     mut created: Vec<PathBuf>,
 ) -> Result<Vec<PathBuf>, String> {
     ensure_safe_ancestors(path)?;
-    let mut missing = Vec::new();
+    let mut missing: Vec<PathBuf> = Vec::new();
     for candidate in path.ancestors() {
         if candidate.exists() {
             break;
@@ -198,7 +198,7 @@ pub(crate) fn normalization_collision(path: &Path) -> Result<Option<PathBuf>, St
 }
 
 pub(crate) fn sorted_entries(path: &Path) -> Result<Vec<PathBuf>, String> {
-    let mut entries = Vec::new();
+    let mut entries: Vec<PathBuf> = Vec::new();
     for entry in fs::read_dir(path).map_err(|error| error.to_string())? {
         entries.push(entry.map_err(|error| error.to_string())?.path());
     }
@@ -213,7 +213,7 @@ fn file_identity(metadata: &fs::Metadata) -> FileIdentity {
         device: metadata.dev(),
         inode: metadata.ino(),
         length: metadata.len(),
-        modified: metadata.modified().ok(),
+        modified: metadata.modified().into_iter().next(),
     }
 }
 
@@ -223,7 +223,7 @@ fn file_identity(metadata: &fs::Metadata) -> FileIdentity {
         device: 0,
         inode: 0,
         length: metadata.len(),
-        modified: metadata.modified().ok(),
+        modified: metadata.modified().into_iter().next(),
     }
 }
 

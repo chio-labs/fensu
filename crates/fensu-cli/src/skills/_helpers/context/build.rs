@@ -31,11 +31,10 @@ pub(crate) fn build(invocation: &Path, options: &SkillOptions) -> Result<SkillCo
         &invocation,
         git_root.as_deref(),
     )?;
-    let project_prefix = project_root
-        .strip_prefix(&install_root)
-        .ok()
-        .map(|path| path.to_string_lossy().replace('\\', "/"))
-        .unwrap_or_default();
+    let project_prefix = match project_root.strip_prefix(&install_root) {
+        Ok(path) => path.to_string_lossy().replace('\\', "/"),
+        Err(_) => String::new(),
+    };
     let identity =
         identity::resolve_identity(&config, &config_path, &project_root, git_root.as_deref())?;
     let selection = selection::selection(&config, &project_root)?;
@@ -62,9 +61,9 @@ fn validate_layout(config: &Config, project_root: &Path) -> Result<(), String> {
         ("tests", &config.tests),
         ("tooling", &config.tooling),
     ];
-    let mut resolved_scopes = Vec::new();
+    let mut resolved_scopes: Vec<(&str, Vec<PathBuf>)> = Vec::new();
     for (name, values) in scopes {
-        let mut resolved = Vec::new();
+        let mut resolved: Vec<PathBuf> = Vec::new();
         for value in values {
             let path = identity::normalize_absolute(if Path::new(value).is_absolute() {
                 PathBuf::from(value)

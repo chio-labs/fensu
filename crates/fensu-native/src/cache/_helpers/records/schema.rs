@@ -44,7 +44,7 @@ pub(crate) fn decode_index(
     }
     let dependencies = optional_fingerprint(payload.field("dependencies_fingerprint")?)?;
     let collection = optional_fingerprint(payload.field("collection_fingerprint")?)?;
-    let mut entries = Vec::new();
+    let mut entries: Vec<NativeIndexEntry> = Vec::new();
     let mut previous: Option<String> = None;
     for value in payload.field("entries")?.as_list()? {
         let entry = decode_index_entry(value)?;
@@ -78,7 +78,7 @@ pub(crate) fn decode_collection(record: &DecodedRecord) -> Option<Vec<CanonicalV
         return None;
     }
     let mut previous: Option<String> = None;
-    let mut decoded = Vec::new();
+    let mut decoded: Vec<CanonicalValue> = Vec::new();
     for value in record.payload.field("contributions")?.as_list()? {
         let path = valid_contribution(value)?;
         if previous.as_deref().is_some_and(|prior| prior >= path) {
@@ -122,8 +122,8 @@ pub(crate) fn decode_file_result_dependencies(
     decode_faults(payload.field("warnings")?, &entry.path)?;
     decode_exceptions(payload.field("applied_exception_keys")?, &entry.path)?;
     decode_threshold_uses(payload.field("threshold_override_uses")?)?;
-    let mut seen = HashSet::new();
-    let mut dependencies = Vec::new();
+    let mut seen: HashSet<NativeDependencyKey> = HashSet::new();
+    let mut dependencies: Vec<NativeDependencyKey> = Vec::new();
     for value in payload.field(DEPENDENCIES_FIELD)?.as_list()? {
         let key = decode_reference(value)?;
         let _observation = observations.get(&key)?;
@@ -137,7 +137,7 @@ pub(crate) fn decode_file_result_dependencies(
 pub(crate) fn observation_map(
     observations: &[NativeDependencyObservation],
 ) -> Option<HashMap<NativeDependencyKey, NativeDependencyObservation>> {
-    let mut indexed = HashMap::new();
+    let mut indexed: HashMap<NativeDependencyKey, NativeDependencyObservation> = HashMap::new();
     for observation in observations {
         if let Some(existing) = indexed.insert(observation.key.clone(), observation.clone()) {
             if existing.dependency_path != observation.dependency_path
@@ -206,14 +206,14 @@ pub(crate) fn prepare_publication_candidate(
     {
         return None;
     }
-    let mut seen = HashSet::new();
+    let mut seen: HashSet<NativeDependencyKey> = HashSet::new();
     if observations
         .iter()
         .any(|observation| !seen.insert(observation.key.clone()))
     {
         return None;
     }
-    let references = observations
+    let references: Vec<CanonicalValue> = observations
         .iter()
         .map(|observation| dependency_reference_value(&observation.key))
         .collect();

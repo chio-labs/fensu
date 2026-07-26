@@ -99,7 +99,12 @@ impl ProgramHandle {
     pub fn parse_many(sources: Vec<String>, version: PythonVersion) -> Vec<Option<Self>> {
         sources
             .into_par_iter()
-            .map(|source| Self::parse(&source, version).ok())
+            .map(|source| {
+                let Ok(program) = Self::parse(&source, version) else {
+                    return None;
+                };
+                Some(program)
+            })
             .collect()
     }
 

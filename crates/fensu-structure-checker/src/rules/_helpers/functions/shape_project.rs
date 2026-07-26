@@ -40,7 +40,7 @@ pub(crate) fn check_workspace(
         .iter()
         .flat_map(must_use_functions)
         .collect::<BTreeSet<_>>();
-    let mut violations = Vec::new();
+    let mut violations: Vec<models::Violation> = Vec::new();
     for crate_sources in &crates {
         for call in discarded_calls(crate_sources) {
             if meaningful.contains(&call.target) {
@@ -62,8 +62,14 @@ pub(crate) fn check_workspace(
 }
 
 fn crate_sources(repo_root: &path::Path, crate_dir: &path::Path) -> Option<CrateSources> {
-    let manifest = fs::read_to_string(crate_dir.join(constants::CARGO_MANIFEST_FILE)).ok()?;
-    let document = toml::from_str::<toml::Value>(&manifest).ok()?;
+    let manifest = match fs::read_to_string(crate_dir.join(constants::CARGO_MANIFEST_FILE)) {
+        Ok(manifest) => manifest,
+        Err(_) => return None,
+    };
+    let document = match toml::from_str::<toml::Value>(&manifest) {
+        Ok(document) => document,
+        Err(_) => return None,
+    };
     let package = document
         .get(constants::PACKAGE_KEY)?
         .get(constants::NAME_KEY)?
@@ -77,7 +83,7 @@ fn crate_sources(repo_root: &path::Path, crate_dir: &path::Path) -> Option<Crate
 }
 
 fn must_use_functions(crate_sources: &CrateSources) -> Vec<Vec<String>> {
-    let mut functions = Vec::new();
+    let mut functions: Vec<Vec<String>> = Vec::new();
     for file in &crate_sources.files {
         let Ok(syntax) = syn::parse_file(&file.source) else {
             continue;
@@ -103,7 +109,7 @@ fn must_use_functions(crate_sources: &CrateSources) -> Vec<Vec<String>> {
 }
 
 fn discarded_calls(crate_sources: &CrateSources) -> Vec<DiscardedCall> {
-    let mut calls = Vec::new();
+    let mut calls: Vec<DiscardedCall> = Vec::new();
     for file in &crate_sources.files {
         if !file.has_directory(constants::MAIN_DIRECTORY) || file.file_name() == constants::MOD_FILE
         {

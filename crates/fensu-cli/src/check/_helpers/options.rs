@@ -45,12 +45,10 @@ pub(crate) fn parse_options(arguments: &[String]) -> Result<CheckOptions, String
                 let jobs = arguments
                     .get(index)
                     .ok_or_else(|| "argument --jobs: expected one argument".to_owned())?;
-                if jobs
-                    .parse::<usize>()
-                    .ok()
-                    .filter(|jobs| *jobs > 0)
-                    .is_none()
-                {
+                let Ok(jobs) = jobs.parse::<usize>() else {
+                    return Err("argument --jobs: jobs must be at least 1".to_owned());
+                };
+                if jobs == 0 {
                     return Err("argument --jobs: jobs must be at least 1".to_owned());
                 }
             }

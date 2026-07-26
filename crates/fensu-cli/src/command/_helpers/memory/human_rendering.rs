@@ -168,7 +168,7 @@ pub(crate) fn query_long(result: &MemoryQueryResult, color: bool) -> String {
         .map(|column| column.chars().count())
         .max()
         .unwrap_or(0);
-    let mut lines = Vec::new();
+    let mut lines: Vec<String> = Vec::new();
     for (index, row) in result.rows.iter().enumerate() {
         lines.push(heading(&format!("-[ RECORD {} ]-", index + 1), color));
         for (column, value) in result.columns.iter().zip(row) {

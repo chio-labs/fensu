@@ -117,7 +117,13 @@ fn inspect(database_path: &Path) -> DatabaseInspection {
         [],
         |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
     );
-    let snapshot = read_snapshot(&connection).ok();
+    let Ok(snapshot) = read_snapshot(&connection) else {
+        return DatabaseInspection {
+            snapshot: None,
+            current: false,
+        };
+    };
+    let snapshot = Some(snapshot);
     let relations_valid = relations_are_valid(&connection);
     let current = matches!(
         versions,
@@ -160,7 +166,7 @@ fn read_documents(connection: &Connection) -> Result<Vec<SourceFact>, rusqlite::
     let mut statement = connection.prepare(
         "SELECT identity, repository_relative_path, content_sha256 FROM documents ORDER BY identity, repository_relative_path",
     )?;
-    let rows = statement
+    let rows: Result<Vec<SourceFact>, rusqlite::Error> = statement
         .query_map([], |row| {
             let identity = row.get::<_, String>(0)?;
             Ok(SourceFact {
@@ -178,7 +184,7 @@ fn read_skill_files(connection: &Connection) -> Result<Vec<SourceFact>, rusqlite
     let mut statement = connection.prepare(
         "SELECT skill_identity, bundle_relative_path, repository_relative_path, content_sha256 FROM skill_files ORDER BY skill_identity, bundle_relative_path, repository_relative_path",
     )?;
-    let rows = statement
+    let rows: Result<Vec<SourceFact>, rusqlite::Error> = statement
         .query_map([], |row| {
             let owner = row.get::<_, String>(0)?;
             let bundle_relative_path = row.get::<_, String>(1)?;
@@ -236,7 +242,7 @@ fn classify(current: &[SourceFact], stored: &[SourceFact], match_moved_hash: boo
         .cloned()
         .map(|fact| (fact.key.clone(), fact))
         .collect();
-    let mut additions = Vec::new();
+    let mut additions: Vec<&SourceFact> = Vec::new();
     for fact in current {
         match remaining.remove(&fact.key) {
             Some(previous) if previous.content_sha256 != fact.content_sha256 => counts.changed += 1,

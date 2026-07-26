@@ -25,7 +25,9 @@ pub(crate) fn resolve_allow_missing(path: &Path) -> Option<PathBuf> {
 }
 
 pub(crate) fn repository_relative_value(repo_root: &Path, path: &Path) -> Option<String> {
-    let relative = path.strip_prefix(repo_root).ok()?;
+    let Ok(relative) = path.strip_prefix(repo_root) else {
+        return None;
+    };
     if relative.as_os_str().is_empty() {
         return Some(".".to_owned());
     }

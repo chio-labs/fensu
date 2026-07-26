@@ -138,7 +138,7 @@ fn validate_host_shape(raw: &[u8]) -> Result<(), String> {
 }
 
 fn validate_host_catalogue(catalogue: &[RuleMetadata]) -> Result<(), String> {
-    let mut seen = HashSet::new();
+    let mut seen: HashSet<String> = HashSet::new();
     for item in catalogue {
         if !valid_code(&item.code) {
             return Err(format!(
@@ -191,8 +191,8 @@ fn tier_from_codes(
     catalogue: &HashMap<&str, RuleMetadata>,
     tier: &str,
 ) -> Result<Vec<RuleMetadata>, String> {
-    let mut seen = HashSet::new();
-    let mut result = Vec::new();
+    let mut seen: HashSet<&String> = HashSet::new();
+    let mut result: Vec<RuleMetadata> = Vec::new();
     for code in codes {
         if !seen.insert(code) {
             return Err(format!("Duplicate {tier} tier member: {code}."));
@@ -208,7 +208,7 @@ fn tier_from_codes(
 }
 
 fn selected(catalogue: &[RuleMetadata], selectors: &[String]) -> Vec<RuleMetadata> {
-    let mut selected = Vec::new();
+    let mut selected: Vec<RuleMetadata> = Vec::new();
     for item in catalogue {
         let enabled =
             item.enabled_by_default && selectors.iter().any(|value| item.code.starts_with(value));
@@ -223,7 +223,7 @@ fn selected(catalogue: &[RuleMetadata], selectors: &[String]) -> Vec<RuleMetadat
 }
 
 fn matching(catalogue: &[RuleMetadata], selectors: &[String]) -> Vec<RuleMetadata> {
-    let mut matching = Vec::new();
+    let mut matching: Vec<RuleMetadata> = Vec::new();
     for item in catalogue {
         if selectors.iter().any(|value| item.code.starts_with(value)) {
             matching.push(item.clone());

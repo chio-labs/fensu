@@ -214,7 +214,9 @@ fn changed_at(_metadata: &fs::Metadata) -> Option<SystemTime> {
 
 #[cfg(unix)]
 fn signed_unix_time(seconds: i64, nanoseconds: i64) -> Option<SystemTime> {
-    let nanos = u64::try_from(nanoseconds).ok()?;
+    let Ok(nanos) = u64::try_from(nanoseconds) else {
+        return None;
+    };
     if seconds >= 0 {
         return UNIX_EPOCH
             .checked_add(Duration::from_secs(seconds as u64))?

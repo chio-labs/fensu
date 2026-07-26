@@ -19,7 +19,7 @@ struct ActiveLink {
 
 pub(crate) fn extract(source: &str, index: &LineIndex) -> Vec<MarkdownLink> {
     let parser = Parser::new_ext(source, text::parser_options()).into_offset_iter();
-    let mut links = Vec::new();
+    let mut links: Vec<MarkdownLink> = Vec::new();
     let mut active: Option<ActiveLink> = None;
     for (event, range) in parser {
         match event {

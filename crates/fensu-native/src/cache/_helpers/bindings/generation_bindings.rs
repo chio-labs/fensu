@@ -117,7 +117,7 @@ pub(super) fn plan_generation_request(
         .into_iter()
         .map(|value| value_to_python(py, value))
         .collect::<PyResult<Vec<_>>>()?;
-    let entries = plan
+    let entries: Vec<(String, String, String, String)> = plan
         .entries
         .into_iter()
         .map(|entry| {

@@ -79,7 +79,7 @@ fn collect_owned_calls(
             line,
         });
     }
-    let mut child_buffer = Vec::new();
+    let mut child_buffer: Vec<ShapeNode<'_>> = Vec::new();
     children(&node, &mut child_buffer);
     for child in child_buffer {
         calls = collect_owned_calls(child, index, source, calls);
@@ -116,7 +116,7 @@ fn collect_assigned_names(
         }
         _ => {}
     }
-    let mut child_buffer = Vec::new();
+    let mut child_buffer: Vec<ShapeNode<'_>> = Vec::new();
     children(&node, &mut child_buffer);
     for child in child_buffer {
         names = collect_assigned_names(child, true, names);

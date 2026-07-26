@@ -18,7 +18,7 @@ pub(crate) fn parse(arguments: &[String]) -> Result<Option<MapOptions>, String> 
     let mut symbol = None;
     let mut direction = MapDirection::Downstream;
     let mut depth = 3;
-    let mut roots = Vec::new();
+    let mut roots: Vec<String> = Vec::new();
     let mut path_mode = PathMode::Relative;
     let mut color = "auto".to_owned();
     let mut cache_enabled = None;

@@ -31,7 +31,7 @@ pub(crate) fn apply_exceptions(
         .map(|source| (source.repository_path.as_str(), source))
         .collect::<HashMap<_, _>>();
     let mut applied: HashSet<ExceptionKey> = HashSet::new();
-    let mut retained = Vec::new();
+    let mut retained: Vec<Fault> = Vec::new();
     for fault in faults {
         let reported = repository_path(&fault.path, root);
         let mut owner: Option<String> = None;

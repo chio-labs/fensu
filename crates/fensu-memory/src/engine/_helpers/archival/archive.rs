@@ -96,7 +96,7 @@ fn automatic_moves(
     if archive_after_days == 0 {
         return Ok(Vec::new());
     }
-    let mut moves = Vec::new();
+    let mut moves: Vec<PlannedMove> = Vec::new();
     for document in documents {
         if document.canonical_path.archive_state == ArchiveState::Active
             && terminal_lifecycle(document.lifecycle)
@@ -132,7 +132,7 @@ fn explicit_moves(
 }
 
 fn explicit_index(documents: &[DiscoveredDocument]) -> BTreeMap<PathBuf, &DiscoveredDocument> {
-    let mut indexed = BTreeMap::new();
+    let mut indexed: BTreeMap<PathBuf, &DiscoveredDocument> = BTreeMap::new();
     for document in documents {
         let path = PathBuf::from(&document.canonical_path.repository_relative);
         indexed.insert(path.clone(), document);
@@ -263,7 +263,7 @@ fn validate_moves(moves: &[PlannedMove]) -> Result<(), MemoryIndexError> {
 }
 
 fn publish_moves(moves: &[PlannedMove]) -> Result<(), MemoryIndexError> {
-    let mut published = Vec::new();
+    let mut published: Vec<PlannedMove> = Vec::new();
     for planned in moves {
         if let Some(parent) = planned.destination_path.parent() {
             fs::create_dir_all(parent).map_err(|source| {

@@ -19,7 +19,7 @@ struct ActiveCodeBlock {
 
 pub(crate) fn extract(source: &str, index: &LineIndex) -> Vec<MarkdownCodeBlock> {
     let parser = Parser::new_ext(source, text::parser_options()).into_offset_iter();
-    let mut blocks = Vec::new();
+    let mut blocks: Vec<MarkdownCodeBlock> = Vec::new();
     let mut active: Option<ActiveCodeBlock> = None;
     for (event, range) in parser {
         match event {

@@ -5,7 +5,7 @@ use crate::reporting::constants::{DIM, GREEN, ORANGE, RESET};
 use crate::reporting::models::ReportRequest;
 
 pub(crate) fn report(request: ReportRequest<'_>) -> String {
-    let mut sections = Vec::new();
+    let mut sections: Vec<String> = Vec::new();
     for fault in request.faults.iter().chain(request.warnings) {
         sections.push(format_fault(fault, request.root, request.color));
     }

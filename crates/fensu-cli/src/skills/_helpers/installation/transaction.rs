@@ -38,9 +38,9 @@ pub(crate) fn publish(
     for deletion in &deletions {
         ensure_snapshot(deletion)?;
     }
-    let mut staged = Vec::new();
-    let mut staged_deletions = Vec::new();
-    let mut created_directories = Vec::new();
+    let mut staged: Vec<StagedPublication> = Vec::new();
+    let mut staged_deletions: Vec<StagedDeletion> = Vec::new();
+    let mut created_directories: Vec<PathBuf> = Vec::new();
     let result = (|| {
         for publication in publications {
             let parent = publication

@@ -68,7 +68,7 @@ fn container_faults(code: &str, context: &NativeRuleContext, role: &str) -> Vec<
     {
         return Vec::new();
     }
-    let mut faults = Vec::new();
+    let mut faults: Vec<NativeFaultRow> = Vec::new();
     if !direct.is_empty()
         && recursive_python(container)
             .iter()
@@ -142,7 +142,7 @@ fn append_depth_faults(
             ),
         ));
     }
-    let mut delegated = Vec::new();
+    let mut delegated: Vec<String> = Vec::new();
     let mut ancestor = owner.container.parent();
     while let Some(path) = ancestor {
         if path == owner.package || python_anchor(path).as_deref() != Some(owner.anchor) {
@@ -215,7 +215,7 @@ fn shared_prefix_faults(code: &str, context: &NativeRuleContext) -> Vec<NativeFa
     if minimum == 0 {
         return Vec::new();
     }
-    let mut faults = Vec::new();
+    let mut faults: Vec<NativeFaultRow> = Vec::new();
     for (prefix, names) in prefix_groups(&root) {
         if names.len() < minimum {
             continue;
@@ -291,10 +291,9 @@ fn reported_fault(fault: ReportedFault<'_>) -> NativeFaultRow {
         column: 0,
         message: Some(fault.message),
         remediation: fault.remediation,
-        path: fault
-            .path
-            .strip_prefix(&fault.context.repo_root)
-            .ok()
-            .map(|relative| relative.to_string_lossy().replace('\\', "/")),
+        path: match fault.path.strip_prefix(&fault.context.repo_root) {
+            Ok(relative) => Some(relative.to_string_lossy().replace('\\', "/")),
+            Err(_) => None,
+        },
     }
 }

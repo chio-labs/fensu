@@ -16,7 +16,7 @@ pub(crate) fn wrapped_help(remediation: &str, label: &str, color: bool) -> Vec<S
 }
 
 fn wrap_text(text: &str, initial_indent: &str, subsequent_indent: &str) -> Vec<String> {
-    let mut lines = Vec::new();
+    let mut lines: Vec<String> = Vec::new();
     let mut line = initial_indent.to_owned();
     let mut line_len = initial_indent.chars().count();
     let mut has_content = false;
@@ -65,8 +65,10 @@ fn wrap_text(text: &str, initial_indent: &str, subsequent_indent: &str) -> Vec<S
 }
 
 pub(crate) fn source_line(path: &Path, line: u32) -> Option<String> {
-    fs::read_to_string(path)
-        .ok()?
+    let Ok(source) = fs::read_to_string(path) else {
+        return None;
+    };
+    source
         .lines()
         .nth(line.saturating_sub(1) as usize)
         .map(str::to_owned)

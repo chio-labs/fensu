@@ -8,7 +8,7 @@ const STRING_KIND: &str = "string";
 const STRING_LIST_KIND: &str = "string_list";
 
 pub(crate) fn validate_rule_options(rule: &RuleMetadata) -> Result<(), String> {
-    let mut names = HashSet::new();
+    let mut names: HashSet<&str> = HashSet::new();
     for option in &rule.options {
         if !valid_option_name(&option.name)
             || !names.insert(option.name.as_str())

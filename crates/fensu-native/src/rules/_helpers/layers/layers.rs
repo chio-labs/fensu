@@ -76,7 +76,7 @@ fn ownership_faults(
 ) -> Vec<NativeFaultRow> {
     let current_parts = current_module_parts(context);
     let current = classify(&current_parts, file_name(context) == INIT_FILE_NAME);
-    let mut faults = Vec::new();
+    let mut faults: Vec<NativeFaultRow> = Vec::new();
     for row in imports {
         for target_parts in
             normalized_targets(row, &current_parts, file_name(context) == INIT_FILE_NAME)
@@ -117,7 +117,7 @@ fn private_main_import_faults(
 ) -> Vec<NativeFaultRow> {
     let current_parts = current_module_parts(context);
     let current = classify(&current_parts, file_name(context) == INIT_FILE_NAME);
-    let mut faults = Vec::new();
+    let mut faults: Vec<NativeFaultRow> = Vec::new();
     for row in imports {
         let bases = normalized_targets(row, &current_parts, file_name(context) == INIT_FILE_NAME);
         let mut targets = bases.clone();

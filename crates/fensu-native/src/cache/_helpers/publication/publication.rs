@@ -254,7 +254,7 @@ fn build_generation_mutation(
     observations: Vec<NativeDependencyObservation>,
     contributions: Vec<CanonicalValue>,
 ) -> Option<CacheMutation> {
-    let mut writes = Vec::new();
+    let mut writes: Vec<EncodedWrite> = Vec::new();
     let mut entries = request.retained_entries.clone();
     let existing_result_fingerprints = existing.map(result_fingerprints).unwrap_or_default();
     for candidate in &request.preparation.candidates {
@@ -348,7 +348,7 @@ fn build_generation_mutation(
         .iter()
         .map(|entry| entry.result_fingerprint.as_str())
         .collect::<HashSet<_>>();
-    let deleted_paths = existing
+    let deleted_paths: Vec<String> = existing
         .into_iter()
         .flat_map(|(entries, _, _)| entries)
         .filter(|entry| !retained_fingerprints.contains(entry.result_fingerprint.as_str()))

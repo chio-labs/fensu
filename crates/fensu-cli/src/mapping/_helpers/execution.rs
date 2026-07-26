@@ -51,8 +51,8 @@ fn cached_index(
 ) -> Result<(ProjectIndex, MapCacheStats), String> {
     let generation = cache::generation(snapshots);
     let requested_manifest_hit = cache::manifest_hit(repo_root, &generation);
-    let mut indexes = Vec::new();
-    let mut missing = Vec::new();
+    let mut indexes: Vec<ProjectIndex> = Vec::new();
+    let mut missing: Vec<(String, ProjectIndex)> = Vec::new();
     let mut reused = 0;
     for (snapshot, identity) in snapshots.iter().zip(&generation.file_identities) {
         if let Some(cached) = cache::read_file(repo_root, identity) {

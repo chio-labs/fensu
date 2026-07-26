@@ -69,7 +69,11 @@ fn top_level_domains(tree: &BTreeMap<String, DirectoryContents>) -> Vec<String> 
     };
     root.directories
         .iter()
-        .filter(|name| !is_role_container(name) && *name != constants::TESTS_DIRECTORY)
+        .filter(|name| {
+            !is_role_container(name)
+                && *name != constants::TESTS_DIRECTORY
+                && *name != constants::BIN_DIRECTORY
+        })
         .cloned()
         .collect()
 }

@@ -5,3 +5,4 @@ pub(crate) mod domains;
 pub(crate) mod placement;
 pub(crate) mod role_files;
 pub(crate) mod surfaces;
+pub(crate) mod tooling;

@@ -331,6 +331,13 @@ fn source_file_kind(
     if file.relative == bin_adapter {
         return FileKind::BinAdapter;
     }
+    if file
+        .path
+        .strip_prefix(src_root)
+        .is_ok_and(|relative| relative.starts_with(constants::BIN_DIRECTORY))
+    {
+        return FileKind::BinAdapter;
+    }
     if file.file_name() == constants::MOD_FILE {
         return FileKind::ModRoot;
     }

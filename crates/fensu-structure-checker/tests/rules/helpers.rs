@@ -127,6 +127,13 @@ pub(crate) fn main_module(domain: &str, contents: &str) -> test_types::RepoFile 
     }
 }
 
+pub(crate) fn tooling_entry(domain: &str, module: &str) -> test_types::RepoFile {
+    test_types::RepoFile {
+        path: format!("crates/fensu-structure-checker/src/{domain}/main/{module}.rs"),
+        contents: format!("pub(super) fn {module}() -> usize {{\n    1\n}}\n"),
+    }
+}
+
 pub(crate) fn entry(domain: &str, module: &str, function: &str) -> test_types::RepoFile {
     test_types::RepoFile {
         path: format!("crates/example/src/{domain}/main/{module}.rs"),

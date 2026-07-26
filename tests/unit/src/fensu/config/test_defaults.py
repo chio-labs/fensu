@@ -22,6 +22,7 @@ from tests.unit.src.fensu.config._test_types import (
     ConfigDefaultsTestCase,
     ConfigListFieldTestCase,
     ConfigThresholdTestCase,
+    ConfiguredTestScopesTestCase,
     EvaluationConfigTestCase,
     MemoryConfigTestCase,
     RuleExceptionConfigTestCase,
@@ -365,6 +366,45 @@ def test_given_list_field_overrides_when_loading_then_normalizes_to_tuple(
     config: Config = load_config(tmp_path)
 
     assert getattr(config, test_case.expected_field_name) == test_case.expected_value
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        ConfiguredTestScopesTestCase(
+            description="omitted test scopes keep the shipped vocabulary",
+            config_text='roots = ["src/pkg"]\n',
+            expected_test_scopes=("unit", "integration", "e2e"),
+        ),
+        ConfiguredTestScopesTestCase(
+            description="declared test scopes replace the shipped vocabulary",
+            config_text='roots = ["src/pkg"]\ntest_scopes = ["fast", "slow"]\n',
+            expected_test_scopes=("fast", "slow"),
+        ),
+        ConfiguredTestScopesTestCase(
+            description="declared test scopes preserve declaration order",
+            config_text=(
+                'roots = ["src/pkg"]\ntest_scopes = ["real", "e2e", "integration", "unit"]\n'
+            ),
+            expected_test_scopes=("real", "e2e", "integration", "unit"),
+        ),
+        ConfiguredTestScopesTestCase(
+            description="a single declared test scope narrows the vocabulary",
+            config_text='roots = ["src/pkg"]\ntest_scopes = ["unit"]\n',
+            expected_test_scopes=("unit",),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_test_scope_vocabulary_when_loading_then_resolves_configured_scopes(
+    tmp_path: Path,
+    test_case: ConfiguredTestScopesTestCase,
+) -> None:
+    write_fensu_toml(root=tmp_path, contents=test_case.config_text)
+
+    config: Config = load_config(tmp_path)
+
+    assert config.test_scopes == test_case.expected_test_scopes
 
 
 @pytest.mark.parametrize(

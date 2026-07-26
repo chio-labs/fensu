@@ -65,6 +65,7 @@ pub struct NativeRuleContext {
     pub package_name: String,
     pub tooling_packages: Vec<String>,
     pub scope_roots: Vec<(String, String)>,
+    pub test_scopes: Vec<String>,
     pub observations: HashMap<String, Vec<String>>,
     pub custom_registrations: Vec<(String, String, String, String, u32, u32)>,
     pub repo_root: String,

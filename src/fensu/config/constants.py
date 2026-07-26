@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from fensu.config.types import ContractBehavior, RuleSelector
 from fensu.discovery.types import RoleName
 from fensu.rules.authoring.types import Threshold
@@ -27,6 +29,8 @@ DEFAULT_ROLE_FILE_NAMES: frozenset[str] = frozenset(
 )
 
 DEFAULT_TEST_PATHS: tuple[str, ...] = ("tests",)
+DEFAULT_TEST_SCOPES: tuple[str, ...] = ("unit", "integration", "e2e")
+TEST_SCOPE_PATTERN: re.Pattern[str] = re.compile(r"^[a-z][a-z0-9]*(?:[_-][a-z0-9]+)*$")
 DEFAULT_TOOLING_PATHS: tuple[str, ...] = ()
 DEFAULT_SELECT: tuple[str, ...] = (RuleSelector.ALL,)
 DEFAULT_WARN: tuple[str, ...] = ()
@@ -46,6 +50,7 @@ CONFIG_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
     {
         "roots",
         "tests",
+        "test_scopes",
         "tooling",
         "select",
         "warn",

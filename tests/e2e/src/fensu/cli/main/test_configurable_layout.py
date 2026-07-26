@@ -105,6 +105,84 @@ from tests.e2e.src.fensu.cli.main.helpers import run_configurable_layout_case
             expected_stderr_fragments=(),
         ),
         ConfigurableLayoutCliTestCase(
+            description="default scope vocabulary rejects an unlisted test scope directory",
+            config=(
+                'roots = ["src/mypkg"]\ntests = ["tests"]\ntooling = []\nselect = ["FFT002"]\n'
+            ),
+            files=(
+                CliProjectFile(
+                    relative_path="src/mypkg/domain/__init__.py",
+                    source="",
+                ),
+                CliProjectFile(
+                    relative_path="tests/real/src/mypkg/domain/test_example.py",
+                    source="",
+                ),
+            ),
+            working_directory=".",
+            expected_exit_code=1,
+            expected_stdout_fragments=(
+                "FFT002",
+                "test scope must be unit, integration, or e2e",
+                "tests/real/src/mypkg/domain/test_example.py",
+                "Found 1 fault",
+            ),
+            expected_stderr_fragments=(),
+        ),
+        ConfigurableLayoutCliTestCase(
+            description="configured scope vocabulary accepts an added test scope directory",
+            config=(
+                'roots = ["src/mypkg"]\n'
+                'tests = ["tests"]\n'
+                "tooling = []\n"
+                'test_scopes = ["unit", "integration", "e2e", "real"]\n'
+                'select = ["FFT002"]\n'
+            ),
+            files=(
+                CliProjectFile(
+                    relative_path="src/mypkg/domain/__init__.py",
+                    source="",
+                ),
+                CliProjectFile(
+                    relative_path="tests/real/src/mypkg/domain/test_example.py",
+                    source="",
+                ),
+            ),
+            working_directory=".",
+            expected_exit_code=0,
+            expected_stdout_fragments=("Found 0 faults",),
+            expected_stderr_fragments=(),
+        ),
+        ConfigurableLayoutCliTestCase(
+            description="configured scope vocabulary drives the reported scope guidance",
+            config=(
+                'roots = ["src/mypkg"]\n'
+                'tests = ["tests"]\n'
+                "tooling = []\n"
+                'test_scopes = ["unit", "integration", "e2e", "real"]\n'
+                'select = ["FFT002"]\n'
+            ),
+            files=(
+                CliProjectFile(
+                    relative_path="src/mypkg/domain/__init__.py",
+                    source="",
+                ),
+                CliProjectFile(
+                    relative_path="tests/slow/src/mypkg/domain/test_example.py",
+                    source="",
+                ),
+            ),
+            working_directory=".",
+            expected_exit_code=1,
+            expected_stdout_fragments=(
+                "FFT002",
+                "test scope must be unit, integration, e2e, or real",
+                "tests/slow/src/mypkg/domain/test_example.py",
+                "Found 1 fault",
+            ),
+            expected_stderr_fragments=(),
+        ),
+        ConfigurableLayoutCliTestCase(
             description="narrow test root wins over broad runtime root",
             config=('roots = ["."]\ntests = ["qa"]\ntooling = []\nselect = ["FFT301"]\n'),
             files=(CliProjectFile(relative_path="qa/unit/bad.py", source=""),),

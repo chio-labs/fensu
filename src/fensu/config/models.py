@@ -12,6 +12,7 @@ from fensu.config.constants import (
     DEFAULT_CONTRACTS,
     DEFAULT_EXPERIMENTAL_MEMORY,
     DEFAULT_MEMORY_TASKS_ARCHIVE_AFTER_DAYS,
+    DEFAULT_TEST_SCOPES,
     DEFAULT_THRESHOLDS,
 )
 from fensu.config.types import ConfigSourceKind
@@ -131,6 +132,7 @@ class Config:
 
     roots: tuple[str, ...]
     tests: tuple[str, ...] = ("tests",)
+    test_scopes: tuple[str, ...] = DEFAULT_TEST_SCOPES
     tooling: tuple[str, ...] = ()
     select: tuple[str, ...] = ("FF",)
     warn: tuple[str, ...] = ()

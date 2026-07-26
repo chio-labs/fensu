@@ -24,6 +24,7 @@ pub(crate) fn build(
     Ok(Config {
         roots,
         tests: strings_or(table.get("tests"), &["tests"]),
+        test_scopes: strings_or(table.get("test_scopes"), &["unit", "integration", "e2e"]),
         tooling: strings(table.get("tooling")),
         select: strings_or(table.get("select"), &["FF"]),
         warn: strings(table.get("warn")),

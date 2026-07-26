@@ -286,6 +286,10 @@ class RuleContext(Protocol):
         """The configured function-name behavior contracts."""
         ...
 
+    def test_scopes(self) -> tuple[str, ...]:
+        """The configured test scope vocabulary in declaration order."""
+        ...
+
 
 class RuleCheck(Protocol):
     """A rule implementation invoked with explicit module and context names."""

@@ -389,6 +389,11 @@ class EvaluationRuleContext:
             value = self.path.relative_to(self.repo_root).as_posix()
         return (value, self.role_of())
 
+    def test_scopes(self) -> tuple[str, ...]:
+        """Return the configured test scope vocabulary in declaration order."""
+
+        return self._config.test_scopes
+
     def contracts(self) -> Mapping[str, str]:
         """Return configured function-name behavior contracts."""
 

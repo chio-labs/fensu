@@ -2,10 +2,11 @@
 
 use crate::catalogue::_helpers::options::option_lines;
 use crate::models::{Config, RuleIgnore, RuleMetadata};
+use crate::reporting::constants::{ORANGE, RESET};
 
 pub(crate) fn render(metadata: &RuleMetadata, config: &Config, color: bool) -> String {
     let header = if color {
-        format!("\x1b[1;36m{}\x1b[0m {}", metadata.code, metadata.slug)
+        format!("{ORANGE}{}{RESET} {}", metadata.code, metadata.slug)
     } else {
         format!("{} {}", metadata.code, metadata.slug)
     };

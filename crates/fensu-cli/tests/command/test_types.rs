@@ -74,6 +74,11 @@ pub(crate) struct RuleRemediationTestCase {
     pub(crate) expected_fragment: &'static str,
 }
 
+pub(crate) struct RuleColorTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_fragment: &'static str,
+}
+
 pub(crate) struct PreExecutionCleanupTestCase {
     pub(crate) description: &'static str,
     pub(crate) config: &'static str,

@@ -2,7 +2,7 @@ use std::process::Command;
 
 use crate::helpers::{run_check, run_check_colored, write};
 use crate::test_types::{
-    CheckPolicyTestCase, ColoredCheckTestCase, InvalidCheckConfigTestCase,
+    CheckPolicyTestCase, ColoredCheckTestCase, InvalidCheckConfigTestCase, RuleColorTestCase,
     RuleOptionsCheckRoutingTestCase, RuleRemediationTestCase,
 };
 
@@ -131,6 +131,32 @@ fn given_forced_color_when_checking_then_faults_render_in_historical_orange() {
             "{}",
             test_case.description
         );
+        assert!(
+            stdout.contains(test_case.expected_fragment),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_forced_color_when_inspecting_rule_then_fault_code_renders_in_orange() {
+    let test_cases = [RuleColorTestCase {
+        description: "rule lookup uses the same bold orange code as fault output",
+        expected_fragment: "\x1b[1;38;5;208mFFA001\x1b[0m parameter-annotation",
+    }];
+
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(repository.path().join("fensu.toml"), CONFIG);
+        let output = Command::new(env!("CARGO_BIN_EXE_fensu"))
+            .args(["rule", "FFA001", "--color", "always"])
+            .current_dir(repository.path())
+            .output()
+            .expect("native rule process runs");
+        let stdout = String::from_utf8(output.stdout).expect("rule stdout is UTF-8");
+
+        assert_eq!(output.status.code(), Some(0), "{}", test_case.description);
         assert!(
             stdout.contains(test_case.expected_fragment),
             "{}",

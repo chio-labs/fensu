@@ -8,6 +8,7 @@ mod catalogue;
 mod configuration;
 mod constants;
 mod hosting;
+mod init;
 mod mapping;
 mod models;
 mod reporting;

@@ -1,3 +1,5 @@
+//! Detect implicit namespace packages and report them.
+
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;

@@ -9,3 +9,6 @@ mod helpers;
 mod mapping;
 mod models;
 mod skills;
+
+#[cfg(test)]
+mod tests;

@@ -339,8 +339,8 @@ where
 }
 
 #[cfg(test)]
+#[path = "../../../../tests/extension/test_memory_conversion.rs"]
+mod test_memory_conversion;
+#[cfg(test)]
 #[path = "../../../../tests/extension/test_types.rs"]
 mod test_types;
-#[cfg(test)]
-#[path = "../../../../tests/extension/memory_conversion.rs"]
-mod tests;

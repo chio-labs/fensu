@@ -1,10 +1,10 @@
-#[path = "snapshot/hashing.rs"]
-mod hashing;
 #[path = "snapshot/helpers.rs"]
 mod helpers;
-#[path = "snapshot/observations.rs"]
-mod observations;
+#[path = "snapshot/test_hashing.rs"]
+mod test_hashing;
+#[path = "snapshot/test_observations.rs"]
+mod test_observations;
 #[path = "snapshot/test_types.rs"]
 mod test_types;
-#[path = "snapshot/walk.rs"]
-mod walk;
+#[path = "snapshot/test_walk.rs"]
+mod test_walk;

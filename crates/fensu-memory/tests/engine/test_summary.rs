@@ -4,7 +4,7 @@ use std::fs;
 
 use fensu_memory::engine::main::summarize_memory::summarize_memory;
 
-use crate::dependencies::helpers;
+use crate::test_dependencies::helpers;
 use crate::test_types::{FixtureFile, MemorySummaryTestCase};
 
 #[test]

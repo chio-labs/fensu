@@ -4,7 +4,7 @@ use std::fs;
 
 use fensu_memory::source::main::bootstrap_memory::bootstrap_memory;
 
-use crate::dependencies::helpers;
+use crate::test_dependencies::helpers;
 use crate::test_types::{FixtureFile, MemoryBootstrapTestCase};
 
 #[test]

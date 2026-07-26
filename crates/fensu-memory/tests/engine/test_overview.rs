@@ -5,7 +5,7 @@ use std::fs;
 use fensu_memory::engine::main::memory_overview::memory_overview;
 use fensu_memory::engine::main::sync_memory_index::sync_memory_index;
 
-use crate::dependencies::helpers;
+use crate::test_dependencies::helpers;
 use crate::test_types::{FixtureFile, MemoryOverviewTestCase};
 
 #[test]

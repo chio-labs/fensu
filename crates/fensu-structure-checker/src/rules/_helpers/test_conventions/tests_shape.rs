@@ -4,6 +4,7 @@ use syn::visit::Visit;
 
 use crate::constants;
 use crate::models;
+use crate::rules::_helpers::test_conventions::test_case_arrays;
 use crate::types::FileKind;
 
 /// Check function-level test shape rules for one test file.
@@ -21,46 +22,21 @@ pub(crate) fn check(
             violations.extend(check_control_flow(file, item_fn));
         }
         if kind == FileKind::TestTopic && has_test_attribute(item_fn) {
-            violations.extend(check_test_function(file, item_fn));
+            violations.extend(check_test_function(file, syntax, item_fn));
         }
     }
     violations
 }
 
-fn check_test_function(file: &models::SourceFile, item_fn: &syn::ItemFn) -> Vec<models::Violation> {
+fn check_test_function(
+    file: &models::SourceFile,
+    syntax: &syn::File,
+    item_fn: &syn::ItemFn,
+) -> Vec<models::Violation> {
     let mut violations = check_test_name(file, item_fn);
     violations.extend(check_control_flow(file, item_fn));
     let body = collect_body(item_fn);
-    let line = Some(item_fn.sig.ident.span().start().line);
-    if body.case_binding_line.is_none() {
-        violations.push(models::Violation::new(models::ViolationRequest {
-            code: "RST401",
-            path: file.relative_path(),
-            line,
-            message: "test declares no test_cases binding",
-            remediation: "declare let test_cases = [ ... ]; of test_types structs first",
-        }));
-    }
-    if body.case_binding_line.is_some() && body.case_array_length.unwrap_or(0) == 0 {
-        violations.push(models::Violation::new(models::ViolationRequest {
-            code: "RST411",
-            path: file.relative_path(),
-            line: body.case_binding_line,
-            message: "test_cases must be a visible non-empty array literal",
-            remediation: "inline at least one test_types case in the array",
-        }));
-    }
-    for (pattern, over_cases, loop_line) in &body.for_loops {
-        if *over_cases && pattern != constants::TEST_CASE_LOOP_VARIABLE {
-            violations.push(models::Violation::new(models::ViolationRequest {
-                code: "RST402",
-                path: file.relative_path(),
-                line: Some(*loop_line),
-                message: format!("case loop binds {pattern}"),
-                remediation: "name the loop variable test_case",
-            }));
-        }
-    }
+    violations.extend(test_case_arrays::check(file, syntax, item_fn));
     violations.extend(check_assertions(file, item_fn, &body));
     violations.extend(check_executor(file, item_fn, &body));
     violations
@@ -141,6 +117,13 @@ fn check_assertions(
             message: "assertion messages never include the case description",
             remediation: "add \"{}\", test_case.description to each assertion",
         }));
+        violations.push(models::Violation::new(models::ViolationRequest {
+            code: "RST414",
+            path: file.relative_path(),
+            line,
+            message: "case identity does not come from test_case.description",
+            remediation: "include test_case.description in assertion failure messages",
+        }));
     }
     violations
 }
@@ -169,8 +152,6 @@ fn check_executor(
 }
 
 struct TestBody {
-    case_binding_line: Option<usize>,
-    case_array_length: Option<usize>,
     for_loops: Vec<(String, bool, usize)>,
     assert_tokens: Vec<proc_macro2::TokenStream>,
     run_cases_calls: usize,
@@ -181,15 +162,6 @@ struct BodyVisitor {
 }
 
 impl<'ast> Visit<'ast> for BodyVisitor {
-    fn visit_local(&mut self, node: &'ast syn::Local) {
-        if pattern_name(&node.pat).as_deref() == Some(constants::TEST_CASES_BINDING) {
-            self.body.case_binding_line = Some(node.let_token.span.start().line);
-            self.body.case_array_length =
-                node.init.as_ref().and_then(|init| array_length(&init.expr));
-        }
-        syn::visit::visit_local(self, node);
-    }
-
     fn visit_expr_for_loop(&mut self, node: &'ast syn::ExprForLoop) {
         let pattern = pattern_name(&node.pat).unwrap_or_default();
         let over_cases = expression_mentions(&node.expr, constants::TEST_CASES_BINDING);
@@ -305,8 +277,6 @@ impl<'ast> Visit<'ast> for MentionVisitor {
 fn collect_body(item_fn: &syn::ItemFn) -> TestBody {
     let mut visitor = BodyVisitor {
         body: TestBody {
-            case_binding_line: None,
-            case_array_length: None,
             for_loops: Vec::new(),
             assert_tokens: Vec::new(),
             run_cases_calls: 0,
@@ -320,14 +290,6 @@ fn pattern_name(pattern: &syn::Pat) -> Option<String> {
     match pattern {
         syn::Pat::Ident(pat_ident) => Some(pat_ident.ident.to_string()),
         syn::Pat::Type(pat_type) => pattern_name(&pat_type.pat),
-        _ => None,
-    }
-}
-
-fn array_length(expression: &syn::Expr) -> Option<usize> {
-    match expression {
-        syn::Expr::Array(array) => Some(array.elems.len()),
-        syn::Expr::Reference(reference) => array_length(&reference.expr),
         _ => None,
     }
 }

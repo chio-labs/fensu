@@ -115,8 +115,8 @@ fn insert_sql(row_count: usize) -> String {
 }
 
 #[cfg(test)]
+#[path = "../../../../tests/engine/list_batch/test_list_batches.rs"]
+mod test_list_batches;
+#[cfg(test)]
 #[path = "../../../../tests/engine/list_batch/test_types.rs"]
 mod test_types;
-#[cfg(test)]
-#[path = "../../../../tests/engine/list_batch/list_batches.rs"]
-mod tests;

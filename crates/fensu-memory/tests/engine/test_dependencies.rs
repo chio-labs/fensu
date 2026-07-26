@@ -6,32 +6,32 @@ use fensu_memory::engine::main::probe_dependencies::probe_dependencies;
 
 use crate::test_types;
 
-#[path = "archive.rs"]
-mod archive;
-#[path = "bootstrap.rs"]
-mod bootstrap;
-#[path = "check.rs"]
-mod check;
-#[path = "graph_query.rs"]
-mod graph_query;
 #[path = "helpers.rs"]
 mod helpers;
-#[path = "overview.rs"]
-mod overview;
-#[path = "performance.rs"]
-mod performance;
-#[path = "query.rs"]
-mod query;
-#[path = "schema.rs"]
-mod schema;
-#[path = "streaming.rs"]
-mod streaming;
 #[path = "streaming/helpers.rs"]
 mod streaming_helpers;
-#[path = "summary.rs"]
-mod summary;
-#[path = "sync.rs"]
-mod sync;
+#[path = "test_archive.rs"]
+mod test_archive;
+#[path = "test_bootstrap.rs"]
+mod test_bootstrap;
+#[path = "test_check.rs"]
+mod test_check;
+#[path = "test_graph_query.rs"]
+mod test_graph_query;
+#[path = "test_overview.rs"]
+mod test_overview;
+#[path = "test_performance.rs"]
+mod test_performance;
+#[path = "test_query.rs"]
+mod test_query;
+#[path = "test_schema.rs"]
+mod test_schema;
+#[path = "test_streaming.rs"]
+mod test_streaming;
+#[path = "test_summary.rs"]
+mod test_summary;
+#[path = "test_sync.rs"]
+mod test_sync;
 
 #[test]
 fn given_workspace_when_probing_dependencies_then_sqlite_and_git_are_available() {

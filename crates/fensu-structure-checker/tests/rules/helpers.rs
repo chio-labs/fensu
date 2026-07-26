@@ -6,14 +6,61 @@ use std::path;
 use std::sync::atomic;
 
 use crate::test_types;
+use fensu_structure_checker::constants;
 
 static REPO_COUNTER: atomic::AtomicUsize = atomic::AtomicUsize::new(0);
 
 /// Write a fixture repository, completing each leaf domain with a `main/` entry.
 pub(crate) fn write_temp_repo(test_case: &test_types::CheckRepoTestCase) -> path::PathBuf {
     let root = write_repo(test_case);
+    write_default_library_root(&root, test_case);
+    write_missing_test_types(&root, test_case);
     write_missing_entries(&root, test_case);
     root
+}
+
+fn write_default_library_root(root: &path::Path, test_case: &test_types::CheckRepoTestCase) {
+    let has_test_topic = test_case
+        .repo_files
+        .iter()
+        .any(|file| is_test_topic(&file.path));
+    let library = root.join("crates/example/src/lib.rs");
+    let _ = (has_test_topic && !library.is_file()).then(|| {
+        fs::create_dir_all(library.parent().expect("library root has a parent"))
+            .expect("fixture source directory is writable");
+        fs::write(&library, "#![forbid(unsafe_code)]\n").expect("fixture library root is writable");
+    });
+}
+
+fn write_missing_test_types(root: &path::Path, test_case: &test_types::CheckRepoTestCase) {
+    let paths = test_case
+        .repo_files
+        .iter()
+        .filter(|file| {
+            is_test_topic(&file.path)
+                && !matches!(
+                    file.path.rsplit('/').next(),
+                    Some("helpers.rs" | "test_types.rs")
+                )
+        })
+        .map(|file| {
+            root.join(&file.path)
+                .with_file_name(constants::TEST_TYPES_FILE)
+        })
+        .filter(|path| !path.is_file())
+        .collect::<Vec<_>>();
+    for path in paths {
+        fs::write(
+            path,
+            "pub(crate) struct ValueTestCase {\n    pub(crate) description: &'static str,\n    pub(crate) expected_value: usize,\n}\n",
+        )
+        .expect("fixture test types are writable");
+    }
+}
+
+fn is_test_topic(path: &str) -> bool {
+    path.split_once("/tests/")
+        .is_some_and(|(_, inside)| inside.contains('/'))
 }
 
 /// Write a fixture whose member is the structure-checker tooling crate.

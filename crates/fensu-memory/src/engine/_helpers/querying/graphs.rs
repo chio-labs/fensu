@@ -5,15 +5,14 @@ use std::path::Path;
 
 use rusqlite::{Connection, OpenFlags};
 
-use crate::engine::_helpers::querying::graph_loading::{
-    load_documents, load_links, DocumentRow, LinkRow,
-};
+use crate::engine::_helpers::querying::graph_loading::{load_documents, load_links};
 use crate::engine::constants::{
     ARCHIVE_STATE_ACTIVE, ARCHIVE_STATE_ARCHIVED, RESOLUTION_STATUS_RESOLVED,
 };
 use crate::engine::errors::MemoryIndexError;
 use crate::engine::models::{
-    MemoryGraphDirection, MemoryGraphEdge, MemoryGraphNode, MemoryGraphQuery, MemoryGraphResult,
+    GraphDocumentRow, GraphLinkRow, MemoryGraphDirection, MemoryGraphEdge, MemoryGraphNode,
+    MemoryGraphQuery, MemoryGraphResult,
 };
 
 const MIN_DEPTH: usize = 1;
@@ -79,7 +78,7 @@ fn traverse(
     let by_identity = documents
         .into_iter()
         .map(|document| (document.identity.clone(), document))
-        .collect::<HashMap<String, DocumentRow>>();
+        .collect::<HashMap<String, GraphDocumentRow>>();
     let mut state = TraversalState::new(&roots, &by_identity);
     walk(&mut state, &by_identity, &links, query);
     mark_cycles(&mut state.edges);
@@ -111,7 +110,7 @@ struct TraversalState {
 }
 
 impl TraversalState {
-    fn new(roots: &[String], documents: &HashMap<String, DocumentRow>) -> Self {
+    fn new(roots: &[String], documents: &HashMap<String, GraphDocumentRow>) -> Self {
         let root_set = roots.iter().cloned().collect::<HashSet<String>>();
         let nodes = roots
             .iter()
@@ -137,8 +136,8 @@ impl TraversalState {
 
 fn walk(
     state: &mut TraversalState,
-    documents: &HashMap<String, DocumentRow>,
-    links: &[LinkRow],
+    documents: &HashMap<String, GraphDocumentRow>,
+    links: &[GraphLinkRow],
     query: &MemoryGraphQuery,
 ) {
     while let Some((identity, depth)) = state.queue.pop_front() {
@@ -181,7 +180,7 @@ fn walk(
 
 fn can_expand(
     identity: &str,
-    documents: &HashMap<String, DocumentRow>,
+    documents: &HashMap<String, GraphDocumentRow>,
     include_archived: bool,
 ) -> bool {
     include_archived
@@ -192,9 +191,9 @@ fn can_expand(
 
 fn candidate_links<'a>(
     identity: &str,
-    links: &'a [LinkRow],
+    links: &'a [GraphLinkRow],
     direction: MemoryGraphDirection,
-) -> Vec<&'a LinkRow> {
+) -> Vec<&'a GraphLinkRow> {
     let mut selected = links
         .iter()
         .filter(|link| match direction {
@@ -209,7 +208,7 @@ fn candidate_links<'a>(
                         && link.target_identity.as_deref() == Some(identity))
             }
         })
-        .collect::<Vec<&LinkRow>>();
+        .collect::<Vec<&GraphLinkRow>>();
     selected
         .sort_by(|left, right| (&left.source, left.ordinal).cmp(&(&right.source, right.ordinal)));
     selected
@@ -217,7 +216,7 @@ fn candidate_links<'a>(
 
 fn neighbor_identity<'a>(
     current: &str,
-    link: &'a LinkRow,
+    link: &'a GraphLinkRow,
     direction: MemoryGraphDirection,
 ) -> Option<&'a str> {
     if link.status != RESOLUTION_STATUS_RESOLVED {
@@ -235,13 +234,13 @@ fn neighbor_identity<'a>(
 }
 
 fn resolve_roots(
-    documents: &[DocumentRow],
+    documents: &[GraphDocumentRow],
     query: &MemoryGraphQuery,
 ) -> Result<(String, Vec<String>), MemoryIndexError> {
     let eligible = documents
         .iter()
         .filter(|document| query.include_archived || document.archive_state == ARCHIVE_STATE_ACTIVE)
-        .collect::<Vec<&DocumentRow>>();
+        .collect::<Vec<&GraphDocumentRow>>();
     let exact = eligible
         .iter()
         .filter(|document| fields(document).iter().any(|value| *value == query.pattern))
@@ -287,7 +286,7 @@ fn resolve_roots(
     )))
 }
 
-fn fields(document: &DocumentRow) -> [&str; 5] {
+fn fields(document: &GraphDocumentRow) -> [&str; 5] {
     [
         document.identity.as_str(),
         document.repository_relative_path.as_str(),
@@ -297,7 +296,7 @@ fn fields(document: &DocumentRow) -> [&str; 5] {
     ]
 }
 
-fn graph_node(document: &DocumentRow, depth: usize, root: bool) -> MemoryGraphNode {
+fn graph_node(document: &GraphDocumentRow, depth: usize, root: bool) -> MemoryGraphNode {
     MemoryGraphNode {
         identity: document.identity.clone(),
         artifact_kind: document.artifact_kind.clone(),
@@ -311,7 +310,7 @@ fn graph_node(document: &DocumentRow, depth: usize, root: bool) -> MemoryGraphNo
     }
 }
 
-fn graph_edge(link: &LinkRow) -> MemoryGraphEdge {
+fn graph_edge(link: &GraphLinkRow) -> MemoryGraphEdge {
     MemoryGraphEdge {
         source_document_identity: link.source.clone(),
         source_link_ordinal: link.ordinal,

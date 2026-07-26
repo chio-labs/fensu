@@ -156,6 +156,17 @@ fn check_use_visibility(
     item_use: &syn::ItemUse,
     kind: FileKind,
 ) -> Vec<models::Violation> {
+    if file.has_directory(constants::HELPERS_DIRECTORY)
+        && !matches!(item_use.vis, syn::Visibility::Inherited)
+    {
+        return vec![models::Violation::new(
+            "RSR404",
+            file.relative_path(),
+            Some(item_use.use_token.span.start().line),
+            "_helpers module publishes a re-export",
+            "keep _helpers internal and expose behavior through a main entry or role file",
+        )];
+    }
     match &item_use.vis {
         syn::Visibility::Public(_) if kind != FileKind::LibraryRoot => {
             vec![models::Violation::new(

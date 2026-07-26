@@ -1,7 +1,7 @@
 use crate::catalogue::main::rule_output::rule_output;
 use crate::models::CliOutput;
 
-pub(crate) fn rule(arguments: &[String]) -> Result<CliOutput, String> {
+pub(super) fn rule(arguments: &[String]) -> Result<CliOutput, String> {
     if arguments
         .iter()
         .any(|value| matches!(value.as_str(), "--help" | "-h"))

@@ -5,32 +5,11 @@ use std::collections::HashSet;
 use rusqlite::Connection;
 
 use crate::engine::errors::MemoryIndexError;
-use crate::engine::models::MemoryGraphRelationship;
-
-#[derive(Clone, Debug)]
-pub(super) struct DocumentRow {
-    pub(super) identity: String,
-    pub(super) artifact_kind: String,
-    pub(super) archive_state: String,
-    pub(super) repository_relative_path: String,
-    pub(super) basename: String,
-    pub(super) slug: String,
-    pub(super) title: Option<String>,
-}
-
-#[derive(Clone, Debug)]
-pub(super) struct LinkRow {
-    pub(super) source: String,
-    pub(super) ordinal: usize,
-    pub(super) target: String,
-    pub(super) status: String,
-    pub(super) target_identity: Option<String>,
-    pub(super) relationship: String,
-}
+use crate::engine::models::{GraphDocumentRow, GraphLinkRow, MemoryGraphRelationship};
 
 pub(super) fn load_documents(
     connection: &Connection,
-) -> Result<Vec<DocumentRow>, MemoryIndexError> {
+) -> Result<Vec<GraphDocumentRow>, MemoryIndexError> {
     let mut statement = connection
         .prepare(
             "SELECT identity, artifact_kind, archive_state, repository_relative_path, basename, slug, title FROM documents ORDER BY identity",
@@ -38,7 +17,7 @@ pub(super) fn load_documents(
         .map_err(|error| MemoryIndexError::sqlite("prepare memory graph documents", error))?;
     let rows = statement
         .query_map([], |row| {
-            Ok(DocumentRow {
+            Ok(GraphDocumentRow {
                 identity: row.get(0)?,
                 artifact_kind: row.get(1)?,
                 archive_state: row.get(2)?,
@@ -49,14 +28,14 @@ pub(super) fn load_documents(
             })
         })
         .map_err(|error| MemoryIndexError::sqlite("query memory graph documents", error))?;
-    rows.collect::<Result<Vec<DocumentRow>, _>>()
+    rows.collect::<Result<Vec<GraphDocumentRow>, _>>()
         .map_err(|error| MemoryIndexError::sqlite("decode memory graph document", error))
 }
 
 pub(super) fn load_links(
     connection: &Connection,
     relationships: &[MemoryGraphRelationship],
-) -> Result<Vec<LinkRow>, MemoryIndexError> {
+) -> Result<Vec<GraphLinkRow>, MemoryIndexError> {
     let selected = relationships
         .iter()
         .map(|value| value.as_str())
@@ -68,7 +47,7 @@ pub(super) fn load_links(
         .map_err(|error| MemoryIndexError::sqlite("prepare memory graph links", error))?;
     let rows = statement
         .query_map([], |row| {
-            Ok(LinkRow {
+            Ok(GraphLinkRow {
                 source: row.get(0)?,
                 ordinal: row.get::<_, i64>(1)? as usize,
                 target: row.get(2)?,
@@ -79,7 +58,7 @@ pub(super) fn load_links(
         })
         .map_err(|error| MemoryIndexError::sqlite("query memory graph links", error))?;
     let decoded = rows
-        .collect::<Result<Vec<LinkRow>, _>>()
+        .collect::<Result<Vec<GraphLinkRow>, _>>()
         .map_err(|error| MemoryIndexError::sqlite("decode memory graph link", error))?;
     if selected.is_empty() {
         return Ok(decoded);

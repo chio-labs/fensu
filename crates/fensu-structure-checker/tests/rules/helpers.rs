@@ -102,6 +102,29 @@ pub(crate) fn numbered_module_files(
     files
 }
 
+pub(crate) fn main_module(domain: &str, contents: &str) -> test_types::RepoFile {
+    test_types::RepoFile {
+        path: format!("crates/example/src/{domain}/main/mod.rs"),
+        contents: contents.to_owned(),
+    }
+}
+
+pub(crate) fn entry(domain: &str, module: &str, function: &str) -> test_types::RepoFile {
+    test_types::RepoFile {
+        path: format!("crates/example/src/{domain}/main/{module}.rs"),
+        contents: format!("pub(crate) fn {function}() -> usize {{\n    1\n}}\n"),
+    }
+}
+
+pub(crate) fn entry_with_import(domain: &str, module: &str, import: &str) -> test_types::RepoFile {
+    test_types::RepoFile {
+        path: format!("crates/example/src/{domain}/main/{module}.rs"),
+        contents: format!(
+            "{import}\n\npub(crate) fn {module}() -> usize {{\n    read_value()\n}}\n"
+        ),
+    }
+}
+
 pub(crate) fn remove_temp_repo(repo_root: &path::Path) {
     let _ = fs::remove_dir_all(repo_root);
 }

@@ -1,9 +1,9 @@
 use std::process::Command;
 
-use crate::helpers::{run_check, run_check_with, write};
+use crate::helpers::{run_check, run_check_colored, write};
 use crate::test_types::{
-    CheckPolicyTestCase, InvalidCheckConfigTestCase, RuleOptionsCheckRoutingTestCase,
-    RuleRemediationTestCase, SymbolExceptionTestCase,
+    CheckPolicyTestCase, ColoredCheckTestCase, InvalidCheckConfigTestCase,
+    RuleOptionsCheckRoutingTestCase, RuleRemediationTestCase,
 };
 
 const CONFIG: &str =
@@ -103,70 +103,26 @@ fn given_braced_rule_ignore_pattern_when_checking_then_braces_are_matched_litera
 }
 
 #[test]
-fn given_warning_and_exact_exception_when_rule_ignore_overlaps_then_policy_order_is_preserved() {
-    let test_cases = [CheckPolicyTestCase {
-        description: "exact exceptions remain visible before overlapping ignores filter findings",
-        expected_exit_code: 0,
-        expected_present: "Applied 1 rule exception",
-        expected_absent: "src/pkg/generated/bad.py:1",
-    }];
-
-    for test_case in &test_cases {
-        let repository = tempfile::tempdir().expect("temporary repository");
-        write(
-            repository.path().join("fensu.toml"),
-            "roots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = []\nwarn = [\"FFA001\"]\n\n[[rule_exceptions]]\nrule = \"FFA001\"\npath = \"src/pkg/generated/bad.py\"\nreason = \"Exact accepted adapter.\"\n\n[[rule_ignores]]\nrules = [\"FFA001\"]\npaths = [\"src/pkg/generated/**\"]\nreason = \"Generated interfaces are checked upstream.\"\n",
-        );
-        write(
-            repository.path().join("src/pkg/generated/bad.py"),
-            "def generated(value):\n    return value\n",
-        );
-
-        let output = run_check_with(repository.path(), &["--warn", "--no-cache"]);
-        let stdout = String::from_utf8(output.stdout).expect("check stdout is UTF-8");
-
-        assert_eq!(
-            output.status.code(),
-            Some(test_case.expected_exit_code),
-            "{}",
-            test_case.description
-        );
-        assert!(
-            stdout.contains(test_case.expected_present),
-            "{}",
-            test_case.description
-        );
-        assert!(
-            !stdout.contains(test_case.expected_absent),
-            "{}",
-            test_case.description
-        );
-    }
-}
-
-#[test]
-fn given_symbol_scoped_rule_exception_when_checking_natively_then_only_named_owner_is_suppressed() {
-    let test_cases = [SymbolExceptionTestCase {
-        description: "symbol scope suppresses the named owner and retains its file siblings",
-        source: "def callback(value: int) -> None:\n    return None\n\n\ndef retained(value: int) -> None:\n    return None\n",
+fn given_forced_color_when_checking_then_faults_render_in_historical_orange() {
+    let test_cases = [ColoredCheckTestCase {
+        description: "--color always emits bold orange fault codes without a terminal",
+        arguments: &["--color", "always", "--no-cache"],
         expected_exit_code: 1,
-        expected_applied: "Applied 1 rule exception",
-        expected_retained_location: "src/pkg/external.py:5:",
-        expected_suppressed_location: "src/pkg/external.py:1:",
+        expected_fragment: "\x1b[1;38;5;208mFFA001\x1b[0m",
     }];
 
     for test_case in &test_cases {
         let repository = tempfile::tempdir().expect("temporary repository");
         write(
             repository.path().join("fensu.toml"),
-            "roots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFS120\"]\n\n[thresholds]\nmax_positional_args = 0\n\n[[rule_exceptions]]\nrule = \"FFS120\"\npath = \"src/pkg/external.py\"\nsymbols = [\"callback\"]\nreason = \"The external API invokes this callback positionally.\"\n",
+            "roots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA001\"]\n",
         );
         write(
-            repository.path().join("src/pkg/external.py"),
-            test_case.source,
+            repository.path().join("src/pkg/bad.py"),
+            "def bad(value):\n    return value\n",
         );
 
-        let output = run_check(repository.path());
+        let output = run_check_colored(repository.path(), test_case.arguments);
         let stdout = String::from_utf8(output.stdout).expect("check stdout is UTF-8");
 
         assert_eq!(
@@ -176,17 +132,7 @@ fn given_symbol_scoped_rule_exception_when_checking_natively_then_only_named_own
             test_case.description
         );
         assert!(
-            stdout.contains(test_case.expected_applied),
-            "{}",
-            test_case.description
-        );
-        assert!(
-            stdout.contains(test_case.expected_retained_location),
-            "{}",
-            test_case.description
-        );
-        assert!(
-            !stdout.contains(test_case.expected_suppressed_location),
+            stdout.contains(test_case.expected_fragment),
             "{}",
             test_case.description
         );

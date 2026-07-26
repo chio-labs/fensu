@@ -12,6 +12,8 @@ mod naming;
 mod role_files;
 #[path = "rules/roles.rs"]
 mod roles;
+#[path = "rules/shape.rs"]
+mod shape;
 #[path = "rules/test_types.rs"]
 mod test_types;
 #[path = "rules/tests_layout.rs"]

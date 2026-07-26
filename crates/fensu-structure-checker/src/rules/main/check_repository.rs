@@ -36,6 +36,7 @@ fn check_crate(repo_root: &path::Path, crate_dir: &path::Path) -> Vec<models::Vi
     }
     violations.extend(containers::check_containers(&src_scan.files));
     violations.extend(tests_layout::check_test_mirroring(repo_root, crate_dir));
+    violations.extend(tests_layout::check_harness_coverage(repo_root, crate_dir));
     violations.extend(layers::check_manifest(repo_root, crate_dir));
     violations
 }

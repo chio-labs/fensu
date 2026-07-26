@@ -150,3 +150,66 @@ fn given_test_layout_fixtures_when_checking_then_reports_expected_codes() {
         );
     }
 }
+
+#[test]
+fn given_harness_area_modules_when_checking_then_reports_undeclared_modules() {
+    let test_cases = [
+        test_types::CheckRepoTestCase {
+            description: "a module never declared by any area file is reported",
+            repo_files: vec![
+                test_types::RepoFile {
+                    path: "crates/example/tests/rules.rs".to_owned(),
+                    contents: "#[path = \"rules/declared.rs\"]\nmod declared;\n".to_owned(),
+                },
+                test_types::RepoFile {
+                    path: "crates/example/tests/rules/declared.rs".to_owned(),
+                    contents: String::new(),
+                },
+                test_types::RepoFile {
+                    path: "crates/example/tests/rules/orphaned.rs".to_owned(),
+                    contents: String::new(),
+                },
+                test_types::RepoFile {
+                    path: "crates/example/src/rules/mod.rs".to_owned(),
+                    contents: String::new(),
+                },
+            ],
+            expected_violation_codes: vec!["RST110"],
+        },
+        test_types::CheckRepoTestCase {
+            description: "a module declared by a sibling area file is accepted",
+            repo_files: vec![
+                test_types::RepoFile {
+                    path: "crates/example/tests/rules.rs".to_owned(),
+                    contents: "#[path = \"rules/declared.rs\"]\nmod declared;\n".to_owned(),
+                },
+                test_types::RepoFile {
+                    path: "crates/example/tests/rules/declared.rs".to_owned(),
+                    contents: "#[path = \"nested.rs\"]\nmod nested;\n".to_owned(),
+                },
+                test_types::RepoFile {
+                    path: "crates/example/tests/rules/nested.rs".to_owned(),
+                    contents: String::new(),
+                },
+                test_types::RepoFile {
+                    path: "crates/example/src/rules/mod.rs".to_owned(),
+                    contents: String::new(),
+                },
+            ],
+            expected_violation_codes: vec![],
+        },
+    ];
+
+    for test_case in &test_cases {
+        let repo_root = helpers::write_temp_repo(test_case);
+
+        let actual_codes = helpers::collect_violation_codes(&repo_root);
+
+        helpers::remove_temp_repo(&repo_root);
+        assert_eq!(
+            actual_codes, test_case.expected_violation_codes,
+            "{}",
+            test_case.description
+        );
+    }
+}

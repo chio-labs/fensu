@@ -1,5 +1,26 @@
 //! Public results returned by memory engine operations.
 
+#[derive(Clone, Debug)]
+pub(crate) struct GraphDocumentRow {
+    pub(crate) identity: String,
+    pub(crate) artifact_kind: String,
+    pub(crate) archive_state: String,
+    pub(crate) repository_relative_path: String,
+    pub(crate) basename: String,
+    pub(crate) slug: String,
+    pub(crate) title: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct GraphLinkRow {
+    pub(crate) source: String,
+    pub(crate) ordinal: usize,
+    pub(crate) target: String,
+    pub(crate) status: String,
+    pub(crate) target_identity: Option<String>,
+    pub(crate) relationship: String,
+}
+
 /// Counts for one complete memory index publication.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct IndexSummary {

@@ -22,3 +22,5 @@ mod test_types;
 mod tests_layout;
 #[path = "rules/tests_shape.rs"]
 mod tests_shape;
+#[path = "rules/visibility.rs"]
+mod visibility;

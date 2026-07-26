@@ -5,8 +5,10 @@ use std::path;
 use crate::constants;
 use crate::models;
 use crate::rules::_helpers::imports::layers;
+use crate::rules::_helpers::imports::visibility;
 use crate::rules::_helpers::roles::containers;
 use crate::rules::_helpers::roles::domains;
+use crate::rules::_helpers::roles::surfaces;
 use crate::rules::_helpers::sources::scanning;
 use crate::rules::_helpers::test_conventions::tests_layout;
 
@@ -14,6 +16,10 @@ use crate::rules::_helpers::test_conventions::tests_layout;
 pub fn check_repository(repo_root: &path::Path) -> Vec<models::Violation> {
     let workspace = scanning::scan_workspace(repo_root);
     let mut violations = workspace.violations;
+    violations.extend(visibility::check_workspace(
+        repo_root,
+        &workspace.crate_directories,
+    ));
     for crate_dir in workspace.crate_directories {
         violations.extend(check_crate(repo_root, &crate_dir));
     }
@@ -37,6 +43,7 @@ fn check_crate(repo_root: &path::Path, crate_dir: &path::Path) -> Vec<models::Vi
     }
     violations.extend(containers::check_containers(&src_scan.files));
     violations.extend(domains::check_domains(&src_scan.files));
+    violations.extend(surfaces::check(&src_scan.files));
     violations.extend(tests_layout::check_test_mirroring(repo_root, crate_dir));
     violations.extend(tests_layout::check_harness_coverage(repo_root, crate_dir));
     violations.extend(layers::check_manifest(repo_root, crate_dir));

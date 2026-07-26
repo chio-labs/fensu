@@ -8,9 +8,9 @@ use walkdir::WalkDir;
 
 use crate::configuration::main::load;
 use crate::constants::PYTHON_CACHE_DIRECTORY;
-use crate::helpers::cache;
-use crate::helpers::check_evaluation::evaluate_and_render;
-use crate::helpers::check_policy::{
+use crate::helpers::check::cache;
+use crate::helpers::check::evaluation::evaluate_and_render;
+use crate::helpers::check::policy::{
     check_identity, hex_digest, path_matches, python_version, validate_package_names,
 };
 use crate::models::{CachedOutput, CheckOptions, CliOutput, Config, ScopedSource};

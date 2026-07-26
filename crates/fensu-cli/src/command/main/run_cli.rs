@@ -3,7 +3,8 @@ use std::path::Path;
 
 use crate::command::main::{check, help, init, map, memory, rule, skills};
 use crate::configuration::main::custom_rules;
-use crate::helpers::{check_cleanup, process};
+use crate::helpers::check::cleanup;
+use crate::helpers::hosting::process;
 use crate::models::CliOutput;
 
 pub fn run_cli() -> CliOutput {
@@ -40,7 +41,7 @@ fn dispatch(arguments: &[String]) -> Result<CliOutput, String> {
 }
 
 fn dispatch_check(arguments: &[String]) -> Result<CliOutput, String> {
-    let cleanup = check_cleanup::prepare(Path::new("."));
+    let cleanup = cleanup::prepare(Path::new("."));
     let result = if custom_rules::custom_rules_are_configured(Path::new("."))? {
         let exit_code = process::run_custom_check_host(arguments)?;
         Ok(CliOutput {

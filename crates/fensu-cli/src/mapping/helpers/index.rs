@@ -7,7 +7,7 @@ use fensu_facts::facts::mapping::models::{
 use fensu_facts::parsing::main::parse_strict::parse_strict;
 use fensu_facts::positions::main::index_lines::index_lines;
 
-use crate::helpers::check_policy::python_version;
+use crate::helpers::check::policy::python_version;
 use crate::mapping::constants::{
     EXPRESSION_ATTRIBUTE, EXPRESSION_NAME, EXPRESSION_SUBSCRIPT, INIT_MODULE_FILE,
 };

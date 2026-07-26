@@ -6,6 +6,9 @@ use std::path::{Path, PathBuf};
 
 use walkdir::WalkDir;
 
+use crate::configuration::main::load;
+use crate::configuration::main::validate_document::validate_document;
+use crate::helpers::init::packages;
 use crate::models::{CliOutput, InitOptions};
 use crate::skills::main::execute;
 use crate::skills::models::SkillOptions;
@@ -19,10 +22,7 @@ pub(crate) fn run_init(arguments: &[String]) -> Result<CliOutput, String> {
     }
     let repository = env::current_dir().map_err(|error| error.to_string())?;
     if let Some(path) = local_config(&repository) {
-        return Ok(CliOutput::success(format!(
-            "Fensu configuration already exists: {} (nothing to do)\n",
-            path.display()
-        )));
+        return existing_configuration(&repository, &path, &options);
     }
     let python_files = repository_python_files(&repository);
     let package_roots = detected_roots(&repository);
@@ -81,6 +81,10 @@ pub(crate) fn run_init(arguments: &[String]) -> Result<CliOutput, String> {
             .sum::<usize>();
         output.push_str(&format!("-> Existing codebase - {runtime_count} Python files\n\n    Enabling the full Fensu ruleset: FF\n    Wrote fensu.toml\n"));
     }
+    output.push_str(&packages::report(&packages::implicit_namespace_packages(
+        &repository,
+        &roots,
+    )));
     let drift = native_drift(&repository)?;
     if drift.0 == 0 {
         output.push_str("\n-> Found 0 faults\n");
@@ -160,6 +164,39 @@ fn required_value(arguments: &[String], index: usize, option: &str) -> Result<St
         .ok_or_else(|| format!("fensu init: error: argument {option}: expected one argument"))
 }
 
+fn existing_configuration(
+    repository: &Path,
+    path: &Path,
+    options: &InitOptions,
+) -> Result<CliOutput, String> {
+    if let Err(error) = load::load(repository) {
+        return Err(format!(
+            "Fensu configuration already exists but is not usable: {}\n{error}\nEdit that file, \
+             or delete it and rerun fensu init.",
+            path.display()
+        ));
+    }
+    if requests_scopes(options) {
+        return Err(format!(
+            "Fensu configuration already exists: {}\nRefusing to overwrite it, so --root, \
+             --tests, --tooling, and --name were not applied. Edit that file, or delete it and \
+             rerun fensu init.",
+            path.display()
+        ));
+    }
+    Ok(CliOutput::success(format!(
+        "Fensu configuration already exists: {} (nothing to do)\n",
+        path.display()
+    )))
+}
+
+fn requests_scopes(options: &InitOptions) -> bool {
+    !options.roots.is_empty()
+        || !options.tests.is_empty()
+        || !options.tooling.is_empty()
+        || options.name.is_some()
+}
+
 fn local_config(repository: &Path) -> Option<PathBuf> {
     let fensu = repository.join("fensu.toml");
     if fensu.is_file() {
@@ -191,7 +228,7 @@ fn repository_python_files(repository: &Path) -> Vec<PathBuf> {
 }
 
 fn detected_roots(repository: &Path) -> Vec<String> {
-    let mut roots = BTreeSet::new();
+    let mut candidates = BTreeSet::new();
     for path in repository_python_files(repository) {
         if path.file_name().and_then(|value| value.to_str()) != Some("__init__.py") {
             continue;
@@ -204,11 +241,24 @@ fn detected_roots(repository: &Path) -> Vec<String> {
             .is_some_and(|candidate| candidate.join("__init__.py").is_file());
         if !parent_parent_is_package {
             if let Ok(relative) = parent.strip_prefix(repository) {
-                roots.insert(relative.to_string_lossy().replace('\\', "/"));
+                candidates.insert(relative.to_string_lossy().replace('\\', "/"));
             }
         }
     }
-    roots.into_iter().collect()
+    let detected = candidates.into_iter().collect::<Vec<_>>();
+    detected
+        .iter()
+        .filter(|candidate| {
+            !detected
+                .iter()
+                .any(|ancestor| is_nested_within(candidate, ancestor))
+        })
+        .cloned()
+        .collect()
+}
+
+fn is_nested_within(candidate: &str, ancestor: &str) -> bool {
+    candidate.len() > ancestor.len() && candidate.starts_with(&format!("{ancestor}/"))
 }
 
 fn normalize_name(value: &str) -> Result<String, String> {
@@ -241,6 +291,12 @@ fn write_config(
     tests: &[String],
     tooling: &[String],
 ) -> Result<(), String> {
+    let text = config_text(roots, tests, tooling)?;
+    validate_config_text(&text)?;
+    fs::write(repository.join("fensu.toml"), text).map_err(|error| error.to_string())
+}
+
+fn config_text(roots: &[String], tests: &[String], tooling: &[String]) -> Result<String, String> {
     let mut text = format!(
         "roots = {}\ntests = {}\n",
         serde_json::to_string(roots).map_err(|error| error.to_string())?,
@@ -253,7 +309,16 @@ fn write_config(
         ));
     }
     text.push_str("select = [\"FF\"]\n");
-    fs::write(repository.join("fensu.toml"), text).map_err(|error| error.to_string())
+    Ok(text)
+}
+
+fn validate_config_text(text: &str) -> Result<(), String> {
+    validate_document(text).map_err(|error| {
+        format!(
+            "{error}\nRefusing to write fensu.toml. Choose the scopes explicitly, for example: \
+             fensu init --yes --root src/<package>"
+        )
+    })
 }
 
 fn write_gitignore(repository: &Path, empty: bool) -> Result<(), String> {
@@ -288,7 +353,7 @@ fn python_count(path: &Path) -> usize {
 fn native_drift(repository: &Path) -> Result<(usize, usize), String> {
     let invocation = env::current_dir().map_err(|error| error.to_string())?;
     env::set_current_dir(repository).map_err(|error| error.to_string())?;
-    let result = crate::helpers::check_execution::execute_check(&[
+    let result = crate::helpers::check::execution::execute_check(&[
         "--no-color".to_owned(),
         "--cache".to_owned(),
     ]);

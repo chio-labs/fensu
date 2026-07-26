@@ -177,7 +177,7 @@ pub(crate) struct CachedOutput {
 
 #[derive(Clone, Debug)]
 pub(crate) struct CheckOptions {
-    pub(crate) no_color: bool,
+    pub(crate) color: String,
     pub(crate) warn: bool,
     pub(crate) cache_enabled: Option<bool>,
     pub(crate) cache_stats: bool,

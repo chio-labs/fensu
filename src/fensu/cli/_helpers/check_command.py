@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, TextIO
@@ -12,6 +13,12 @@ from fensu.cli._helpers.check_evaluation import evaluated_check
 from fensu.cli._helpers.check_output import write_memory_check_result
 from fensu.cli._helpers.check_reporting import write_check_diagnostics
 from fensu.cli._helpers.check_setup import prepare_check_inputs
+from fensu.cli.constants import (
+    COLOR_ALWAYS,
+    COLOR_AUTO,
+    COLOR_NEVER,
+    NO_COLOR_ENVIRONMENT_VARIABLE,
+)
 from fensu.cli.exceptions import CliCommandError
 from fensu.config.exceptions import ConfigError
 
@@ -34,7 +41,7 @@ def execute_check(
 
     args: argparse.Namespace = _parser().parse_args(() if argv is None else argv)
     invocation_dir: Path = Path.cwd().resolve()
-    use_color: bool = not args.no_color and stdout.isatty()
+    use_color: bool = _use_color(color=args.color, no_color=args.no_color, stdout=stdout)
     _ = resolve_native_backend_version()
     try:
         inputs: CheckInputs = prepare_check_inputs(args=args, invocation_dir=invocation_dir)
@@ -114,8 +121,20 @@ def execute_check(
     return 1 if fault_count or memory_fault_count else 0
 
 
+def _use_color(*, color: str, no_color: bool, stdout: TextIO) -> bool:
+    if no_color or color == COLOR_NEVER or os.environ.get(NO_COLOR_ENVIRONMENT_VARIABLE):
+        return False
+    return color == COLOR_ALWAYS or stdout.isatty()
+
+
 def _parser() -> argparse.ArgumentParser:
     parser: argparse.ArgumentParser = argparse.ArgumentParser(prog="fensu check")
+    parser.add_argument(
+        "--color",
+        choices=(COLOR_AUTO, COLOR_ALWAYS, COLOR_NEVER),
+        default=COLOR_AUTO,
+        help="ANSI color behavior",
+    )
     parser.add_argument("--no-color", action="store_true", help="disable ANSI color output")
     parser.add_argument(
         "--warn",

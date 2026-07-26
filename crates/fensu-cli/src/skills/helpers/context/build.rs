@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use crate::configuration::main::load;
+use crate::configuration::main::validate_exception_targets::validate_exception_targets;
 use crate::models::Config;
 use crate::skills::helpers::context::{exceptions, identity, selection};
 use crate::skills::models::{SkillContext, SkillOptions};
@@ -38,7 +39,8 @@ pub(crate) fn build(invocation: &Path, options: &SkillOptions) -> Result<SkillCo
     let identity =
         identity::resolve_identity(&config, &config_path, &project_root, git_root.as_deref())?;
     let selection = selection::selection(&config, &project_root)?;
-    exceptions::validate(&config, &selection.catalogue, &project_root)?;
+    exceptions::validate(&config, &selection.catalogue)?;
+    validate_exception_targets(&config, &project_root)?;
     Ok(SkillContext {
         config_path,
         project_root,

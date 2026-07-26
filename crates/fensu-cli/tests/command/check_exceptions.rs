@@ -171,3 +171,44 @@ fn given_exception_for_unevaluated_rule_when_checking_without_warnings_then_it_i
         );
     }
 }
+
+#[test]
+fn given_unresolvable_exception_targets_when_checking_then_configuration_fails_loudly() {
+    let test_cases = [
+        InvalidCheckConfigTestCase {
+            description: "an exception path that does not exist is rejected",
+            config: "roots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA001\"]\n\n[[rule_exceptions]]\nrule = \"FFA001\"\npath = \"src/pkg/missing.py\"\nreason = \"Points at a file that is absent.\"\n",
+            expected_exit_code: 2,
+            expected_error: "Rule exception path does not exist: src/pkg/missing.py.",
+        },
+        InvalidCheckConfigTestCase {
+            description: "an exception symbol that does not exist is rejected",
+            config: "roots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA001\"]\n\n[[rule_exceptions]]\nrule = \"FFA001\"\npath = \"src/pkg/external.py\"\nsymbols = [\"absent\"]\nreason = \"Names a function that was renamed.\"\n",
+            expected_exit_code: 2,
+            expected_error: "Rule exception symbol does not exist in src/pkg/external.py: absent.",
+        },
+    ];
+
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(repository.path().join("fensu.toml"), test_case.config);
+        write(
+            repository.path().join("src/pkg/external.py"),
+            "def callback(value):\n    return value\n",
+        );
+
+        let output = run_check(repository.path());
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains(test_case.expected_error),
+            "{}",
+            test_case.description
+        );
+    }
+}

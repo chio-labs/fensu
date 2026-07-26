@@ -1,4 +1,5 @@
 pub(crate) mod discovery;
+pub(crate) mod exception_targets;
 pub(crate) mod exceptions;
 pub(crate) mod loading;
 pub(crate) mod parsing;

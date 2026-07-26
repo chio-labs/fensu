@@ -4,6 +4,7 @@
 pub mod command;
 
 mod _helpers;
+mod catalogue;
 mod configuration;
 mod constants;
 mod hosting;

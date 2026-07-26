@@ -1,4 +1,4 @@
-use crate::_helpers::catalogue::metadata::rule_output;
+use crate::catalogue::main::rule_output::rule_output;
 use crate::models::CliOutput;
 
 pub(crate) fn rule(arguments: &[String]) -> Result<CliOutput, String> {

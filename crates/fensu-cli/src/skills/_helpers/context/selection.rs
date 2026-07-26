@@ -3,7 +3,7 @@ use std::path::Path;
 
 use serde_json::json;
 
-use crate::_helpers::catalogue::metadata;
+use crate::catalogue::main::rule_catalogue::rule_catalogue;
 use crate::hosting::main::run_skills_metadata_host::run_skills_metadata_host;
 use crate::models::{Config, RuleMetadata};
 use crate::skills::_helpers::context::option_validation::validate_rule_options;
@@ -41,7 +41,7 @@ pub(crate) fn selection(config: &Config, project_root: &Path) -> Result<RuleSele
     {
         return hosted_selection(project_root);
     }
-    let catalogue = metadata::catalogue().to_vec();
+    let catalogue = rule_catalogue().to_vec();
     let ignored = matching(&catalogue, &config.ignore);
     let ignored_codes = ignored
         .iter()

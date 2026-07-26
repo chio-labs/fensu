@@ -2,8 +2,8 @@
 
 use std::path::Path;
 
+use crate::engine::_helpers::querying::graphs;
 use crate::engine::errors::MemoryIndexError;
-use crate::engine::helpers::querying::graphs;
 use crate::engine::models::{MemoryGraphQuery, MemoryGraphResult};
 
 /// Resolve roots and return one deterministic bounded graph.

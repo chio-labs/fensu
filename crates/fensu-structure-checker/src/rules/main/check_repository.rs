@@ -4,15 +4,29 @@ use std::path;
 
 use crate::constants;
 use crate::models;
-use crate::rules::helpers::containers;
-use crate::rules::helpers::layers;
-use crate::rules::helpers::scanning;
-use crate::rules::helpers::tests_layout;
+use crate::rules::_helpers::functions::shape_project;
+use crate::rules::_helpers::imports::layers;
+use crate::rules::_helpers::imports::visibility;
+use crate::rules::_helpers::roles::containers;
+use crate::rules::_helpers::roles::domains;
+use crate::rules::_helpers::roles::ownership;
+use crate::rules::_helpers::roles::surfaces;
+use crate::rules::_helpers::roles::tooling;
+use crate::rules::_helpers::sources::scanning;
+use crate::rules::_helpers::test_conventions::test_mirroring;
 
 /// Check the workspace under repo_root and return deterministic violations.
 pub fn check_repository(repo_root: &path::Path) -> Vec<models::Violation> {
     let workspace = scanning::scan_workspace(repo_root);
     let mut violations = workspace.violations;
+    violations.extend(visibility::check_workspace(
+        repo_root,
+        &workspace.crate_directories,
+    ));
+    violations.extend(shape_project::check_workspace(
+        repo_root,
+        &workspace.crate_directories,
+    ));
     for crate_dir in workspace.crate_directories {
         violations.extend(check_crate(repo_root, &crate_dir));
     }
@@ -35,7 +49,17 @@ fn check_crate(repo_root: &path::Path, crate_dir: &path::Path) -> Vec<models::Vi
         violations.extend(scanning::check_test_file(repo_root, &tests_root, file));
     }
     violations.extend(containers::check_containers(&src_scan.files));
-    violations.extend(tests_layout::check_test_mirroring(repo_root, crate_dir));
+    violations.extend(domains::check_domains(&src_scan.files));
+    violations.extend(ownership::check(crate_dir, &src_scan.files));
+    violations.extend(surfaces::check(&src_scan.files));
+    if crate_dir
+        .file_name()
+        .is_some_and(|name| name == constants::TOOLING_CRATE_NAME)
+    {
+        violations.extend(tooling::check(&src_scan.files));
+    }
+    violations.extend(test_mirroring::check_test_mirroring(repo_root, crate_dir));
+    violations.extend(test_mirroring::check_harness_coverage(repo_root, crate_dir));
     violations.extend(layers::check_manifest(repo_root, crate_dir));
     violations
 }

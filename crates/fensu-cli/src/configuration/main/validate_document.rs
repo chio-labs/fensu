@@ -1,4 +1,4 @@
-use crate::configuration::helpers::validation;
+use crate::configuration::_helpers::validation;
 
 pub(crate) fn validate_document(text: &str) -> Result<(), String> {
     let document = toml::from_slice::<toml::Value>(text.as_bytes())

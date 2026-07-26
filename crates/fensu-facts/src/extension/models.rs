@@ -99,7 +99,12 @@ impl ProgramHandle {
     pub fn parse_many(sources: Vec<String>, version: PythonVersion) -> Vec<Option<Self>> {
         sources
             .into_par_iter()
-            .map(|source| Self::parse(&source, version).ok())
+            .map(|source| {
+                let Ok(program) = Self::parse(&source, version) else {
+                    return None;
+                };
+                Some(program)
+            })
             .collect()
     }
 
@@ -108,12 +113,7 @@ impl ProgramHandle {
     }
 
     pub fn owner_symbol_at(&self, line: u32, column: u32) -> Option<String> {
-        crate::facts::helpers::naming::owner_symbols::owner_symbol_at(
-            self.module(),
-            self.index(),
-            line,
-            column,
-        )
+        super::owner_symbols::owner_symbol_at(self.module(), self.index(), line, column)
     }
 
     pub(crate) fn module(&self) -> &ModModule {

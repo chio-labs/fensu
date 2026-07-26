@@ -2,15 +2,15 @@
 
 import ast
 
-from fensu import ExecutionOwner, Family, Fault, RuleContext, rule
+from fensu import ExecutionOwner, Fault, RuleContext
+from fensu.rules.exemplars._helpers.equivalent_rule import equivalent_rule
 from fensu.rules.exemplars._helpers.non_file_rules import leaf_main_boundary_impl
 
 
-@rule(
+@equivalent_rule(
+    core_code="FFR309",
     code="XCR309",
-    family=Family.CUSTOM,
     slug="leaf-main-boundary-equivalent",
-    message="leaf runtime domains and subdomains must expose meaningful behavior through main/",
     execution_owner=ExecutionOwner.LEAF,
 )
 def leaf_main_boundary_equivalent(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:

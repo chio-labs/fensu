@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from fensu.rules.authoring.models import RuleSpec
-from fensu.rules.authoring.types import Family
+from fensu.rules.authoring.types import Family, Threshold
 from fensu.rules.shape.types import ShapeCode
 
 
@@ -17,6 +17,7 @@ def shape_rules() -> tuple[RuleSpec, ...]:
             slug="too-many-statements",
             message="main functions must stay phase-shaped and below the statement limit",
             remediation="Extract cohesive phases into helpers that return explicit result models.",
+            thresholds=(Threshold.MAX_STATEMENTS,),
         ),
         RuleSpec(
             code=ShapeCode.TOO_MANY_DISTINCT_CALLS,
@@ -27,6 +28,7 @@ def shape_rules() -> tuple[RuleSpec, ...]:
                 "Group related work into named phase helpers and keep main/ as a short ordered "
                 "flow."
             ),
+            thresholds=(Threshold.MAX_DISTINCT_CALLS,),
         ),
         RuleSpec(
             code=ShapeCode.TOO_MANY_LOCALS,
@@ -36,6 +38,7 @@ def shape_rules() -> tuple[RuleSpec, ...]:
             remediation=(
                 "Let each extracted phase own its intermediates and return one structured result."
             ),
+            thresholds=(Threshold.MAX_LOCALS,),
         ),
         RuleSpec(
             code=ShapeCode.MAX_ARGUMENTS,
@@ -45,6 +48,7 @@ def shape_rules() -> tuple[RuleSpec, ...]:
             remediation=(
                 "Reduce the function's responsibility or group cohesive inputs into a typed model."
             ),
+            thresholds=(Threshold.MAX_ARGUMENTS,),
         ),
         RuleSpec(
             code=ShapeCode.MAX_STATEMENTS_GLOBAL,
@@ -53,8 +57,9 @@ def shape_rules() -> tuple[RuleSpec, ...]:
             message="functions must stay below the global statement limit",
             remediation=(
                 "Split the function at a meaningful phase boundary with explicit inputs and "
-                "outputs."
+                "outputs. Top-level main functions are governed by FFS001 instead."
             ),
+            thresholds=(Threshold.MAX_STATEMENTS_GLOBAL,),
         ),
         RuleSpec(
             code=ShapeCode.MEANINGFUL_PROJECT_RESULT_DISCARDED,
@@ -90,8 +95,9 @@ def shape_rules() -> tuple[RuleSpec, ...]:
             message="functions beyond the parameter threshold must be entirely keyword-only",
             remediation=(
                 "Insert * before the first non-receiver parameter so every call argument names "
-                "its meaning."
+                "its meaning. Dunder methods are exempt."
             ),
+            thresholds=(Threshold.MAX_POSITIONAL_ARGS,),
         ),
         RuleSpec(
             code=ShapeCode.NO_OUTER_STATE_MUTATION,

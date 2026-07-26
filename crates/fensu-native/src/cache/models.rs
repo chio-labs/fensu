@@ -103,7 +103,10 @@ impl CanonicalValue {
 
     pub(crate) fn as_nonnegative_i64(&self) -> Option<i64> {
         match self {
-            Self::Integer(value) => value.parse::<i64>().ok().filter(|value| *value >= 0),
+            Self::Integer(value) => match value.parse::<i64>() {
+                Ok(value) if value >= 0 => Some(value),
+                Ok(_) | Err(_) => None,
+            },
             _ => None,
         }
     }
@@ -142,7 +145,7 @@ pub(crate) struct CacheMutation {
     pub deleted_paths: Vec<String>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct CacheMetrics {
     pub reads: usize,
     pub bytes_read: usize,
@@ -150,6 +153,34 @@ pub(crate) struct CacheMetrics {
     pub bytes_written: usize,
     pub scans: usize,
     pub deletes: usize,
+}
+
+impl CacheMetrics {
+    pub(crate) fn merge(&mut self, source: &Self) {
+        self.reads += source.reads;
+        self.bytes_read += source.bytes_read;
+        self.writes += source.writes;
+        self.bytes_written += source.bytes_written;
+        self.scans += source.scans;
+        self.deletes += source.deletes;
+    }
+
+    pub(crate) fn record_read(&mut self, bytes: usize) {
+        self.bytes_read += bytes;
+    }
+
+    pub(crate) fn record_writes(&mut self, writes: &[EncodedWrite]) {
+        self.writes += writes.len();
+        self.bytes_written += writes.iter().map(|write| write.data.len()).sum::<usize>();
+    }
+
+    pub(crate) fn record_scan(&mut self, count: usize) {
+        self.scans += count;
+    }
+
+    pub(crate) fn record_deletes(&mut self, count: usize) {
+        self.deletes += count;
+    }
 }
 
 #[derive(Debug)]

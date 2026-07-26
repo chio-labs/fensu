@@ -3,18 +3,14 @@
 import ast
 from fnmatch import fnmatchcase
 
-from fensu import ContractBehavior, Family, Fault, ReturnAnnotationCategory, RuleContext, rule
+from fensu import ContractBehavior, Fault, ReturnAnnotationCategory, RuleContext
+from fensu.rules.exemplars._helpers.equivalent_rule import equivalent_rule
 
 
-@rule(
+@equivalent_rule(
+    core_code="FFN004",
     code="XCN004",
-    family=Family.CUSTOM,
     slug="iterator-name-must-produce-iterator-equivalent",
-    message="iterator names must produce an iterator or generator",
-    remediation=(
-        "Return an iterator or generator, or rename an eager collection function with a name "
-        "such as collect_items."
-    ),
 )
 def iterator_name_must_produce_iterator_equivalent(
     *, module: ast.Module, ctx: RuleContext

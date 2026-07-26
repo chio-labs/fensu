@@ -1,7 +1,7 @@
 //! Resolve corpus links and derive task dependency graph data.
 
 use crate::corpus::models::MemoryCorpus;
-use crate::graph::helpers::{dependencies, link_resolution};
+use crate::graph::_helpers::{dependencies, link_resolution};
 use crate::graph::models::MemoryGraph;
 
 /// Return deterministic resolved links, dependency edges, and graph diagnostics.

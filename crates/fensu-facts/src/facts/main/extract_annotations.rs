@@ -2,7 +2,7 @@
 
 use ruff_python_ast::ModModule;
 
-use crate::facts::helpers::annotations::visitor::{
+use crate::facts::_helpers::annotations::visitor::{
     class_attribute_rows, module_variable_rows, AnnotationVisitor,
 };
 use crate::facts::models::AnnotationRows;

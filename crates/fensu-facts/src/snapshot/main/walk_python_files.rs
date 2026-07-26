@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use walkdir::WalkDir;
 
-use crate::snapshot::helpers::matching::{has_python_suffix, root_relative_parts};
+use crate::snapshot::_helpers::matching::{has_python_suffix, root_relative_parts};
 use crate::snapshot::models::WalkedEntry;
 
 /// Return every Python-suffixed entry beneath each root without following directory links.
@@ -20,10 +20,13 @@ fn walked_root(root: &Path) -> Vec<WalkedEntry> {
             continue;
         }
         let entry_path = item.into_path();
-        let canonical_path = dunce::canonicalize(&entry_path).ok();
-        let root_relative_parts = canonical_path
-            .as_deref()
-            .and_then(|canonical| root_relative_parts(canonical, root));
+        let (canonical_path, root_relative_parts) = match dunce::canonicalize(&entry_path) {
+            Ok(canonical_path) => {
+                let relative_parts = root_relative_parts(&canonical_path, root);
+                (Some(canonical_path), relative_parts)
+            }
+            Err(_) => (None, None),
+        };
         entries.push(WalkedEntry {
             entry_path,
             canonical_path,

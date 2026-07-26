@@ -1,5 +1,30 @@
 //! Public results returned by memory engine operations.
 
+use std::path::{Path, PathBuf};
+
+#[derive(Clone, Debug)]
+#[cfg(feature = "sqlite-engine")]
+pub(crate) struct GraphDocumentRow {
+    pub(crate) identity: String,
+    pub(crate) artifact_kind: String,
+    pub(crate) archive_state: String,
+    pub(crate) repository_relative_path: String,
+    pub(crate) basename: String,
+    pub(crate) slug: String,
+    pub(crate) title: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+#[cfg(feature = "sqlite-engine")]
+pub(crate) struct GraphLinkRow {
+    pub(crate) source: String,
+    pub(crate) ordinal: usize,
+    pub(crate) target: String,
+    pub(crate) status: String,
+    pub(crate) target_identity: Option<String>,
+    pub(crate) relationship: String,
+}
+
 /// Counts for one complete memory index publication.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct IndexSummary {
@@ -111,6 +136,16 @@ pub struct MemoryCheckResult {
 pub struct MemoryArchiveMove {
     pub source: String,
     pub destination: String,
+}
+
+/// Inputs for one explicit or age-based memory archive operation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct MemoryArchiveRequest<'a> {
+    pub repository_root: &'a Path,
+    pub database_path: &'a Path,
+    pub requested_paths: &'a [PathBuf],
+    pub archive_after_days: u64,
+    pub confirmed: bool,
 }
 
 /// Published archive moves and resulting synchronized index state.

@@ -2,15 +2,15 @@
 
 import ast
 
-from fensu import ExecutionOwner, Family, Fault, RuleContext, Threshold, rule
+from fensu import ExecutionOwner, Fault, RuleContext, Threshold
+from fensu.rules.exemplars._helpers.equivalent_rule import equivalent_rule
 from fensu.rules.exemplars._helpers.non_file_rules import package_layout_impl
 
 
-@rule(
+@equivalent_rule(
+    core_code="FFR301",
     code="XCR301",
-    family=Family.CUSTOM,
     slug="helpers-package-layout-equivalent",
-    message="_helpers/ packages must use bounded flat-or-grouped containers",
     execution_owner=ExecutionOwner.PACKAGE,
 )
 def helpers_package_layout_equivalent(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:

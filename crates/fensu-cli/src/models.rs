@@ -5,14 +5,14 @@ use fensu_facts::extension::models::ProgramHandle;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
-pub struct CliOutput {
-    pub stdout: String,
-    pub stderr: String,
-    pub exit_code: i32,
+pub(crate) struct CliOutput {
+    pub(crate) stdout: String,
+    pub(crate) stderr: String,
+    pub(crate) exit_code: i32,
 }
 
 impl CliOutput {
-    pub fn success(stdout: String) -> Self {
+    pub(crate) fn success(stdout: String) -> Self {
         Self {
             stdout,
             stderr: String::new(),
@@ -20,7 +20,7 @@ impl CliOutput {
         }
     }
 
-    pub fn error(stderr: String) -> Self {
+    pub(crate) fn error(stderr: String) -> Self {
         Self {
             stdout: String::new(),
             stderr: format!("{stderr}\n"),
@@ -51,14 +51,40 @@ pub(crate) struct RuleMetadata {
     pub(crate) severity: String,
     pub(crate) enabled_by_default: bool,
     pub(crate) execution_owner: String,
-    #[serde(default = "crate::helpers::catalogue::metadata::core_kind")]
+    #[serde(default = "crate::catalogue::main::core_kind::core_kind")]
     pub(crate) kind: String,
     #[serde(default)]
     pub(crate) source: Option<String>,
-    #[serde(default = "crate::helpers::catalogue::metadata::cacheable_default")]
+    #[serde(default = "crate::catalogue::main::cacheable_default::cacheable_default")]
     pub(crate) cacheable: bool,
     #[serde(default)]
     pub(crate) options: Vec<RuleOptionMetadata>,
+    #[serde(default)]
+    pub(crate) constraints: Vec<RuleConstraintMetadata>,
+    #[serde(default)]
+    pub(crate) thresholds: Vec<String>,
+    #[serde(default)]
+    pub(crate) contract_behaviors: Vec<String>,
+    #[serde(default)]
+    pub(crate) configuration_inputs: Vec<String>,
+    #[serde(default)]
+    pub(crate) limits: Vec<RuleLimitMetadata>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct RuleConstraintMetadata {
+    pub(crate) name: String,
+    pub(crate) description: String,
+    pub(crate) values: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct RuleLimitMetadata {
+    pub(crate) name: String,
+    pub(crate) description: String,
+    pub(crate) value: u32,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

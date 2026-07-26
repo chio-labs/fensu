@@ -1,10 +1,9 @@
 //! Register Fensu's private native extension.
 
 use crate::cache::main::register_cache;
-use crate::extension::helpers::core_rule_bindings;
-use crate::extension::helpers::execution_planning;
+use crate::extension::_helpers::evaluation::{execution_planning, rule_bindings};
 #[cfg(feature = "memory")]
-use crate::extension::helpers::memory_registration;
+use crate::extension::_helpers::memory::registration;
 use pyo3::prelude::{pymodule, Bound, PyModule, PyModuleMethods, PyResult};
 use pyo3::wrap_pyfunction;
 
@@ -12,21 +11,21 @@ use pyo3::wrap_pyfunction;
 #[pymodule]
 pub fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     fensu_facts::extension::main::register_module::register_fact_functions(module)?;
-    module.add_class::<core_rule_bindings::NativeExecutionBatch>()?;
+    module.add_class::<rule_bindings::NativeExecutionBatch>()?;
     module.add_function(wrap_pyfunction!(
-        core_rule_bindings::plan_native_execution_batch,
+        rule_bindings::plan_native_execution_batch,
         module
     )?)?;
     module.add_function(wrap_pyfunction!(
-        core_rule_bindings::evaluate_native_execution_batch,
+        rule_bindings::evaluate_native_execution_batch,
         module
     )?)?;
     module.add_function(wrap_pyfunction!(
-        core_rule_bindings::native_execution_programs,
+        rule_bindings::native_execution_programs,
         module
     )?)?;
     module.add_function(wrap_pyfunction!(
-        core_rule_bindings::native_rule_fact_families,
+        rule_bindings::native_rule_fact_families,
         module
     )?)?;
     module.add_function(wrap_pyfunction!(
@@ -43,6 +42,6 @@ pub fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     )?)?;
     register_cache::register_cache_functions(module)?;
     #[cfg(feature = "memory")]
-    memory_registration::register_memory_functions(module)?;
+    registration::register_memory_functions(module)?;
     Ok(())
 }

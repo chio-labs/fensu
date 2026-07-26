@@ -156,6 +156,19 @@ fn given_built_in_rules_when_updating_and_checking_then_runs_without_python() {
         assert_eq!(text(&update.stdout).matches("SKILL.md").count(), 2);
         assert!(target(repository.path(), ".agents", "fensu-fixture").is_file());
         assert!(target(repository.path(), ".opencode", "fensu-fixture").is_file());
+        let skill = fs::read_to_string(target(repository.path(), ".agents", "fensu-fixture"))
+            .expect("generated built-in skill");
+        assert!(skill.contains(
+            "- Forbidden package names: `base`, `common`, `helpers`, `lib`, `misc`, `shared`, `util`, `utils`"
+        ));
+        assert!(skill.contains(
+            "Generic package names are banned: `base`, `common`, `helpers`, `lib`, `misc`, `shared`, `util`, `utils`."
+        ));
+        assert!(skill.contains(
+            "- `max_statements`: `40` (base value; role or path overrides may apply)"
+        ));
+        assert!(skill.contains("- `validate_*`: `no-return`"));
+        assert!(skill.contains("- Required public entry functions: `1`"));
 
         let check = native(
             repository.path(),

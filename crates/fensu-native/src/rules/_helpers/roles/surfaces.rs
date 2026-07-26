@@ -1,0 +1,360 @@
+//! File-local role surface, source-size, and direct-tooling policy.
+
+use fensu_facts::extension::models::ProgramHandle;
+use fensu_facts::facts::models::{ModuleDeclarationRows, ModuleStatementRow};
+
+use crate::rules::_helpers::generated_policy::{
+    FFR401_MAXIMUM_PRIVATE_FUNCTIONS, FFR401_REQUIRED_PUBLIC_FUNCTIONS,
+    FFR701_ALLOWED_COMMAND_FUNCTIONS, FFR701_ALLOWED_TOP_LEVEL_STATEMENT_KINDS,
+    FFR701_REQUIRED_MAIN_FUNCTIONS, FFR702_ALLOWED_MAIN_CALL_TARGETS,
+};
+use crate::rules::constants::{
+    CLASSES_ONE_CLASS_PER_MODULE_CODE, ENTRY_MODULE_SHAPE_CODE, INIT_MODULE_EMPTY_CODE,
+    NO_REEXPORT_SHIM_CODE, PUBLIC_SURFACE_SHAPE_CODE, SOURCE_FILE_LINE_COUNT_CODE,
+    TOOLING_ENTRYPOINT_DELEGATION_CODE, TOOLING_ENTRYPOINT_LINE_COUNT_CODE,
+    TOOLING_ENTRYPOINT_SHAPE_CODE,
+};
+use crate::rules::models::{NativeFaultRow, NativeRuleContext};
+
+use crate::rules::_helpers::roles::{location_fault, path_fault, path_name};
+
+const CLASSES_ROLE: &str = "classes";
+const EXCEPTIONS_ROLE: &str = "exceptions";
+const INIT_FILE_NAME: &str = "__init__.py";
+const MAIN_FUNCTION: &str = "main";
+const COMMAND_FUNCTION_STATEMENT: &str = "command function";
+const IMPORT_STATEMENT: &str = "import statement";
+const MAX_FILE_LINES_THRESHOLD: &str = "max_file_lines";
+const MAX_SCRIPT_ENTRYPOINT_LINES_THRESHOLD: &str = "max_script_entrypoint_lines";
+const PYTHON_SUFFIX: &str = ".py";
+const TOOLING_SCOPE: &str = "tooling";
+const NONEXECUTING_IMPORT_GUARD_STATEMENT: &str = "nonexecuting import guard";
+
+struct LineCountPolicy<'a> {
+    program: &'a ProgramHandle,
+    code: &'a str,
+    context: &'a NativeRuleContext,
+    threshold: &'a str,
+    message_prefix: &'a str,
+    direct_tooling_only: bool,
+}
+
+pub(crate) fn surface_faults(
+    program: &ProgramHandle,
+    code: &str,
+    context: &NativeRuleContext,
+) -> Option<Vec<NativeFaultRow>> {
+    let declarations = program.declaration_rows();
+    let faults = match code {
+        ENTRY_MODULE_SHAPE_CODE => entry_module_shape_faults(code, context, declarations),
+        INIT_MODULE_EMPTY_CODE => init_module_faults(code, context, declarations),
+        NO_REEXPORT_SHIM_CODE => reexport_faults(code, context, declarations),
+        PUBLIC_SURFACE_SHAPE_CODE => public_surface_faults(code, context, declarations),
+        CLASSES_ONE_CLASS_PER_MODULE_CODE => classes_shape_faults(code, context, declarations),
+        SOURCE_FILE_LINE_COUNT_CODE => line_count_faults(LineCountPolicy {
+            program,
+            code,
+            context,
+            threshold: MAX_FILE_LINES_THRESHOLD,
+            message_prefix: "source file has",
+            direct_tooling_only: false,
+        }),
+        TOOLING_ENTRYPOINT_SHAPE_CODE => {
+            tooling_entrypoint_shape_faults(code, context, declarations)
+        }
+        TOOLING_ENTRYPOINT_DELEGATION_CODE => {
+            tooling_entrypoint_delegation_faults(code, context, declarations)
+        }
+        TOOLING_ENTRYPOINT_LINE_COUNT_CODE => line_count_faults(LineCountPolicy {
+            program,
+            code,
+            context,
+            threshold: MAX_SCRIPT_ENTRYPOINT_LINES_THRESHOLD,
+            message_prefix: "direct script has",
+            direct_tooling_only: true,
+        }),
+        _ => return None,
+    };
+    Some(faults)
+}
+
+fn entry_module_shape_faults(
+    code: &str,
+    context: &NativeRuleContext,
+    declarations: &ModuleDeclarationRows,
+) -> Vec<NativeFaultRow> {
+    if !context.is_entry_module {
+        return Vec::new();
+    }
+    let public_functions: Vec<&ModuleStatementRow> = declarations
+        .statements
+        .iter()
+        .filter(|row| {
+            row.function_name
+                .as_ref()
+                .is_some_and(|name| !name.starts_with('_'))
+        })
+        .collect();
+    let private_functions: Vec<&ModuleStatementRow> = declarations
+        .statements
+        .iter()
+        .filter(|row| {
+            row.function_name
+                .as_ref()
+                .is_some_and(|name| name.starts_with('_'))
+        })
+        .collect();
+    let mut faults: Vec<NativeFaultRow> = Vec::new();
+    if public_functions.len() != FFR401_REQUIRED_PUBLIC_FUNCTIONS {
+        faults.push(path_fault(
+            code,
+            Some("entry modules need one public function"),
+        ));
+    }
+    if let Some(row) = private_functions.get(FFR401_MAXIMUM_PRIVATE_FUNCTIONS) {
+        faults.push(location_fault(
+            code,
+            row.line,
+            row.column,
+            Some("main/ entry modules may define at most two private glue functions"),
+        ));
+    }
+    faults.extend(
+        declarations
+            .statements
+            .iter()
+            .filter(|row| !row.import_statement && row.function_name.is_none())
+            .map(|row| {
+                location_fault(
+                    code,
+                    row.line,
+                    row.column,
+                    Some("main/ entry modules may contain only imports and top-level functions"),
+                )
+            }),
+    );
+    faults
+}
+
+fn init_module_faults(
+    code: &str,
+    context: &NativeRuleContext,
+    declarations: &ModuleDeclarationRows,
+) -> Vec<NativeFaultRow> {
+    if path_name(context) != Some(INIT_FILE_NAME)
+        || context.relative_parts.len() == 1
+        || declarations.empty_or_docstring_only
+    {
+        return Vec::new();
+    }
+    vec![path_fault(code, Some("nested __init__.py must be empty"))]
+}
+
+fn reexport_faults(
+    code: &str,
+    context: &NativeRuleContext,
+    declarations: &ModuleDeclarationRows,
+) -> Vec<NativeFaultRow> {
+    if path_name(context) == Some(INIT_FILE_NAME)
+        || context.role.as_deref() == Some(EXCEPTIONS_ROLE)
+        || !declarations.pure_reexport
+    {
+        return Vec::new();
+    }
+    vec![path_fault(
+        code,
+        Some("internal modules must not be re-export shims"),
+    )]
+}
+
+fn public_surface_faults(
+    code: &str,
+    context: &NativeRuleContext,
+    declarations: &ModuleDeclarationRows,
+) -> Vec<NativeFaultRow> {
+    if path_name(context) != Some(INIT_FILE_NAME) || context.relative_parts.len() != 1 {
+        return Vec::new();
+    }
+    let mut faults: Vec<NativeFaultRow> = Vec::new();
+    let mut saw_all = false;
+    for row in &declarations.statements {
+        if row.docstring_statement || row.import_statement {
+            continue;
+        }
+        if row.all_assignment {
+            if saw_all {
+                faults.push(location_fault(
+                    code,
+                    row.line,
+                    row.column,
+                    Some("public surface may define __all__ once"),
+                ));
+            }
+            saw_all = true;
+        } else {
+            faults.push(location_fault(code, row.line, row.column, None));
+        }
+    }
+    faults
+}
+
+fn classes_shape_faults(
+    code: &str,
+    context: &NativeRuleContext,
+    declarations: &ModuleDeclarationRows,
+) -> Vec<NativeFaultRow> {
+    if context.role.as_deref() != Some(CLASSES_ROLE)
+        || path_name(context) == Some(INIT_FILE_NAME)
+        || declarations.top_level_class_count == 1
+    {
+        return Vec::new();
+    }
+    vec![path_fault(
+        code,
+        Some("classes modules must define one class"),
+    )]
+}
+
+fn line_count_faults(policy: LineCountPolicy<'_>) -> Vec<NativeFaultRow> {
+    if policy.direct_tooling_only && !is_direct_tooling_entrypoint(policy.context) {
+        return Vec::new();
+    }
+    let Some(limit) = policy.context.thresholds.get(policy.threshold).copied() else {
+        return Vec::new();
+    };
+    let count = u32::try_from(policy.program.source_line_count()).unwrap_or(u32::MAX);
+    if count <= limit {
+        return Vec::new();
+    }
+    let message = if policy.direct_tooling_only {
+        format!("{} {count} lines (limit: {limit})", policy.message_prefix)
+    } else {
+        format!("{} {count} lines", policy.message_prefix)
+    };
+    vec![path_fault(policy.code, Some(&message))]
+}
+
+fn tooling_entrypoint_shape_faults(
+    code: &str,
+    context: &NativeRuleContext,
+    declarations: &ModuleDeclarationRows,
+) -> Vec<NativeFaultRow> {
+    if !is_direct_tooling_entrypoint(context) {
+        return Vec::new();
+    }
+    let public_functions: Vec<&ModuleStatementRow> = declarations
+        .statements
+        .iter()
+        .filter(|row| {
+            row.function_name
+                .as_ref()
+                .is_some_and(|name| !name.starts_with('_'))
+        })
+        .collect();
+    let main_count = public_functions
+        .iter()
+        .filter(|row| row.function_name.as_deref() == Some(MAIN_FUNCTION))
+        .count();
+    let mut faults: Vec<NativeFaultRow> = Vec::new();
+    if main_count != FFR701_REQUIRED_MAIN_FUNCTIONS {
+        faults.push(path_fault(
+            code,
+            Some("direct scripts must define exactly one public main() function"),
+        ));
+    }
+    for row in &declarations.statements {
+        if row.import_statement
+            && FFR701_ALLOWED_TOP_LEVEL_STATEMENT_KINDS.contains(&IMPORT_STATEMENT)
+        {
+            continue;
+        }
+        if let Some(name) = row.function_name.as_deref() {
+            if FFR701_ALLOWED_TOP_LEVEL_STATEMENT_KINDS.contains(&COMMAND_FUNCTION_STATEMENT)
+                && FFR701_ALLOWED_COMMAND_FUNCTIONS.contains(&name)
+            {
+                continue;
+            }
+            faults.push(location_fault(
+                code,
+                row.line,
+                row.column,
+                Some("direct scripts may define only main(), _parse_args(), and _build_parser()"),
+            ));
+        } else if !row.nonexecuting_import_guard
+            || !FFR701_ALLOWED_TOP_LEVEL_STATEMENT_KINDS
+                .contains(&NONEXECUTING_IMPORT_GUARD_STATEMENT)
+        {
+            faults.push(location_fault(
+                code,
+                row.line,
+                row.column,
+                Some("direct scripts may contain only imports, command functions, and guards"),
+            ));
+        }
+    }
+    faults
+}
+
+fn tooling_entrypoint_delegation_faults(
+    code: &str,
+    context: &NativeRuleContext,
+    declarations: &ModuleDeclarationRows,
+) -> Vec<NativeFaultRow> {
+    if !is_direct_tooling_entrypoint(context) {
+        return Vec::new();
+    }
+    if !declarations
+        .statements
+        .iter()
+        .any(|row| row.function_name.as_deref() == Some(MAIN_FUNCTION))
+    {
+        return vec![path_fault(
+            code,
+            Some("direct scripts must import and call an entry function from a main/ module"),
+        )];
+    }
+    let delegates = declarations
+        .main_calls
+        .iter()
+        .any(|call| imported_main_call(call.name.as_deref(), declarations));
+    let mut faults: Vec<NativeFaultRow> = Vec::new();
+    if !delegates {
+        faults.push(path_fault(
+            code,
+            Some("direct scripts must import and call an entry function from a main/ module"),
+        ));
+    }
+    for call in &declarations.main_calls {
+        let allowed = call
+            .name
+            .as_deref()
+            .is_some_and(|name| FFR702_ALLOWED_MAIN_CALL_TARGETS.contains(&name))
+            || imported_main_call(call.name.as_deref(), declarations);
+        if !allowed {
+            faults.push(location_fault(
+                code,
+                call.line,
+                call.column,
+                Some("direct script main() may call only _parse_args() and imported main/ entries"),
+            ));
+        }
+    }
+    faults
+}
+
+fn imported_main_call(name: Option<&str>, declarations: &ModuleDeclarationRows) -> bool {
+    let Some(name) = name else {
+        return false;
+    };
+    declarations
+        .imported_main_entry_names
+        .iter()
+        .any(|entry| entry == name)
+}
+
+fn is_direct_tooling_entrypoint(context: &NativeRuleContext) -> bool {
+    context.scope == TOOLING_SCOPE
+        && context.relative_parts.len() == 1
+        && path_name(context)
+            .is_some_and(|name| name.ends_with(PYTHON_SUFFIX) && name != INIT_FILE_NAME)
+}

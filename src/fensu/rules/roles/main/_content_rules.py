@@ -16,7 +16,11 @@ def content_rules() -> tuple[RuleSpec, ...]:
             family=Family.ROLES,
             slug="models-only-models",
             message="models role files may contain only structured runtime models",
-            remediation="Move functions and non-model declarations to their owning role module.",
+            remediation=(
+                "Keep imports and public structured models only. Accepted models are dataclasses "
+                "and Pydantic BaseModel subclasses; move functions and other declarations to "
+                "their owning role module."
+            ),
         ),
         RuleSpec(
             code=RoleCode.TYPES_ONLY_TYPES,

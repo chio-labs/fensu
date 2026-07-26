@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use crate::source::helpers::discovery;
+use crate::source::_helpers::discovery;
 use crate::source::models::DiscoveryResult;
 
 /// Return all canonical sources and recoverable diagnostics under `.ai`.

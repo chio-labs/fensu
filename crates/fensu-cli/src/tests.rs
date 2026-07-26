@@ -1,4 +1,4 @@
-#[path = "tests/render.rs"]
-mod render;
+#[path = "tests/test_render.rs"]
+mod test_render;
 #[path = "tests/test_types.rs"]
 mod test_types;

@@ -2,15 +2,15 @@
 
 import ast
 
-from fensu import ExecutionOwner, Family, Fault, RuleContext, rule
+from fensu import ExecutionOwner, Fault, RuleContext
+from fensu.rules.exemplars._helpers.equivalent_rule import equivalent_rule
 from fensu.rules.exemplars._helpers.non_file_rules import shared_domain_prefix_impl
 
 
-@rule(
+@equivalent_rule(
+    core_code="FFR308",
     code="XCR308",
-    family=Family.CUSTOM,
     slug="shared-domain-prefix-equivalent",
-    message="sibling domains must not encode one parent domain through a shared name prefix",
     execution_owner=ExecutionOwner.SCOPE,
 )
 def shared_domain_prefix_equivalent(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:

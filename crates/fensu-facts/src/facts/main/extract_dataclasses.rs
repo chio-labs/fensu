@@ -2,7 +2,7 @@
 
 use ruff_python_ast::ModModule;
 
-use crate::facts::helpers::declarations::rows::dataclass_rows;
+use crate::facts::_helpers::declarations::rows::dataclass_rows;
 use crate::facts::models::DataclassRow;
 use crate::positions::models::LineIndex;
 

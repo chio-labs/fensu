@@ -2,7 +2,7 @@
 
 use ruff_python_ast::{ModModule, PythonVersion};
 
-use crate::facts::helpers::contracts::rows::function_contract_rows;
+use crate::facts::_helpers::contracts::rows::function_contract_rows;
 use crate::facts::models::FunctionContractRow;
 use crate::positions::models::LineIndex;
 

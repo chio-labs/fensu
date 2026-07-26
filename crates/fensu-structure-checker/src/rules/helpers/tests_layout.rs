@@ -67,6 +67,133 @@ pub(crate) fn check_test_mirroring(
     violations
 }
 
+/// Check that every test module inside a harness area is declared somewhere.
+pub(crate) fn check_harness_coverage(
+    repo_root: &std::path::Path,
+    crate_dir: &std::path::Path,
+) -> Vec<models::Violation> {
+    let files = test_tree_files(crate_dir);
+    let declared = declared_targets(&files);
+    let mut violations: Vec<models::Violation> = Vec::new();
+    for candidate in area_candidates(&files) {
+        if declared.contains(&candidate) {
+            continue;
+        }
+        let relative = candidate.strip_prefix(repo_root).unwrap_or(&candidate);
+        let name = candidate
+            .file_name()
+            .and_then(|value| value.to_str())
+            .unwrap_or_default();
+        violations.push(models::Violation::new(
+            "RST110",
+            relative,
+            None,
+            format!("test module {name} is never declared and cannot run"),
+            "declare #[path = \"<file>.rs\"] mod <file>; from the harness or an area module",
+        ));
+    }
+    violations
+}
+
+fn test_tree_files(crate_dir: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let mut files: Vec<std::path::PathBuf> = Vec::new();
+    for root in [
+        crate_dir.join(constants::SOURCE_DIRECTORY),
+        crate_dir.join(constants::TESTS_DIRECTORY),
+    ] {
+        for entry in walkdir::WalkDir::new(&root)
+            .follow_links(false)
+            .into_iter()
+            .filter_map(Result::ok)
+        {
+            let path = entry.path();
+            if entry.file_type().is_file()
+                && path.extension().and_then(|value| value.to_str()) == Some("rs")
+            {
+                files.push(path.to_path_buf());
+            }
+        }
+    }
+    files.sort();
+    files
+}
+
+fn declared_targets(files: &[std::path::PathBuf]) -> std::collections::HashSet<std::path::PathBuf> {
+    let mut declared: std::collections::HashSet<std::path::PathBuf> =
+        std::collections::HashSet::new();
+    for file in files {
+        let Some(directory) = file.parent() else {
+            continue;
+        };
+        let area = file.with_extension("");
+        let Ok(source) = std::fs::read_to_string(file) else {
+            continue;
+        };
+        let Ok(syntax) = syn::parse_file(&source) else {
+            continue;
+        };
+        for item in &syntax.items {
+            let syn::Item::Mod(item_mod) = item else {
+                continue;
+            };
+            let explicit = module_path_attribute(item_mod);
+            match explicit {
+                Some(value) => {
+                    let _ = declared.insert(directory.join(value));
+                }
+                None => {
+                    let name = item_mod.ident.to_string();
+                    for base in [directory, area.as_path()] {
+                        let _ = declared.insert(base.join(format!("{name}.rs")));
+                        let _ = declared.insert(base.join(&name).join(constants::MOD_FILE));
+                    }
+                }
+            }
+        }
+    }
+    declared
+}
+
+fn module_path_attribute(item_mod: &syn::ItemMod) -> Option<String> {
+    for attribute in &item_mod.attrs {
+        if !attribute.path().is_ident("path") {
+            continue;
+        }
+        let syn::Meta::NameValue(value) = &attribute.meta else {
+            continue;
+        };
+        let syn::Expr::Lit(literal) = &value.value else {
+            continue;
+        };
+        if let syn::Lit::Str(text) = &literal.lit {
+            return Some(text.value());
+        }
+    }
+    None
+}
+
+fn area_candidates(files: &[std::path::PathBuf]) -> Vec<std::path::PathBuf> {
+    let mut candidates: Vec<std::path::PathBuf> = Vec::new();
+    for file in files {
+        let Some(directory) = file.parent() else {
+            continue;
+        };
+        if !directory.with_extension("rs").is_file() {
+            continue;
+        }
+        let inside_tests = directory.file_name().and_then(|value| value.to_str())
+            == Some(constants::TESTS_DIRECTORY)
+            || directory.ancestors().any(|path| {
+                path.file_name().and_then(|value| value.to_str())
+                    == Some(constants::TESTS_DIRECTORY)
+            });
+        if inside_tests {
+            candidates.push(file.clone());
+        }
+    }
+    candidates
+}
+
 /// Check layout rules for one test file according to its role.
 pub(crate) fn check(
     file: &models::SourceFile,

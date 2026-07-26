@@ -2,8 +2,9 @@
 
 use ruff_python_ast::{Expr, ExprContext, Stmt};
 
-use crate::facts::_helpers::shape::nodes::ShapeNode;
 use crate::facts::models::QualifiedReferenceRow;
+use crate::syntax::main::strict_reference_parts::strict_reference_parts;
+use crate::syntax::types::ShapeNode;
 
 pub(crate) fn qualified_reference(expression: &Expr) -> QualifiedReferenceRow {
     let kind = match expression {
@@ -21,23 +22,6 @@ pub(crate) fn qualified_reference(expression: &Expr) -> QualifiedReferenceRow {
             _ => None,
         },
         parts: strict_reference_parts(expression),
-    }
-}
-
-pub(crate) fn strict_reference_parts(expression: &Expr) -> Vec<String> {
-    match expression {
-        Expr::Name(name) => vec![name.id.as_str().to_owned()],
-        Expr::Attribute(attribute) => {
-            let mut parent = strict_reference_parts(&attribute.value);
-            if parent.is_empty() {
-                Vec::new()
-            } else {
-                parent.push(attribute.attr.as_str().to_owned());
-                parent
-            }
-        }
-        Expr::Subscript(subscript) => strict_reference_parts(&subscript.value),
-        _ => Vec::new(),
     }
 }
 

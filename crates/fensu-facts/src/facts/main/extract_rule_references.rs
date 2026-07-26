@@ -3,14 +3,16 @@
 use ruff_python_ast::{Expr, ModModule};
 
 use crate::facts::_helpers::rule_authoring::ownership::{enclosing_classes, enclosing_functions};
-use crate::facts::_helpers::rule_authoring::references::{
-    assignment_parts, qualified_reference, stored_target_names, strict_reference_parts,
-};
-use crate::facts::_helpers::shape::breadth::{breadth_first_nodes, breadth_first_with_parents};
-use crate::facts::_helpers::shape::nodes::ShapeNode;
-use crate::facts::_helpers::shape::spans::start_of;
+use crate::facts::_helpers::rule_authoring::references::assignment_parts;
+use crate::facts::_helpers::rule_authoring::references::qualified_reference;
+use crate::facts::_helpers::rule_authoring::references::stored_target_names;
 use crate::facts::models::{AssignmentReferenceRow, ComparisonRow};
 use crate::positions::models::LineIndex;
+use crate::syntax::main::breadth_first_nodes::breadth_first_nodes;
+use crate::syntax::main::breadth_first_with_parents::breadth_first_with_parents;
+use crate::syntax::main::start_of::start_of;
+use crate::syntax::main::strict_reference_parts::strict_reference_parts;
+use crate::syntax::types::ShapeNode;
 
 /// Return assignment and comparison references from independent shared-tree traversals.
 pub fn extract_rule_references(

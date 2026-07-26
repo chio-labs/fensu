@@ -27,8 +27,8 @@ use crate::extension::_helpers::conversion::state::outer_state_mutation_facts_ob
 use crate::extension::_helpers::gateway::model_types::model_type;
 use crate::extension::models::ProgramHandle;
 use crate::facts::main::enumerate_nodes::enumerate_nodes;
-use crate::facts::mapping::main::extract_mapping_declarations::extract_mapping_declarations;
-use crate::facts::mapping::main::extract_mapping_facts::extract_mapping_facts;
+use crate::mapping::main::extract_mapping_declarations::extract_mapping_declarations;
+use crate::mapping::main::extract_mapping_facts::extract_mapping_facts;
 use crate::parsing::main::parse_strict::parse_strict;
 use crate::positions::main::locate_offset::locate_offset;
 

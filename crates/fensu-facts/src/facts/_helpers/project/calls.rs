@@ -5,13 +5,13 @@ use std::collections::HashSet;
 use ruff_python_ast::{Expr, ModModule, Stmt, StmtFunctionDef};
 
 use crate::constants;
-use crate::facts::_helpers::shape::breadth::breadth_first_from;
-use crate::facts::_helpers::shape::children::children;
-use crate::facts::_helpers::shape::nodes::ShapeNode;
-use crate::facts::_helpers::shape::spans::start_of;
 use crate::facts::_helpers::state::scopes::argument_names;
 use crate::facts::models::DiscardedCallRow;
 use crate::positions::models::LineIndex;
+use crate::syntax::main::breadth_first_from::breadth_first_from;
+use crate::syntax::main::children::children;
+use crate::syntax::main::start_of::start_of;
+use crate::syntax::types::ShapeNode;
 
 pub(crate) fn discarded_call_rows(
     module: &ModModule,

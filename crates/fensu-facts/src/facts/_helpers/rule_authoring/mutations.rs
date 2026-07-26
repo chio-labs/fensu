@@ -8,11 +8,12 @@ use crate::constants;
 use crate::facts::_helpers::metrics::lookups::{function_at, function_positions, is_dunder_name};
 use crate::facts::_helpers::metrics::mutations::{attribute_root_name, is_mutator_call};
 use crate::facts::_helpers::naming::names::decorator_name;
-use crate::facts::_helpers::shape::breadth::{breadth_first_from, breadth_first_with_parents};
-use crate::facts::_helpers::shape::nodes::ShapeNode;
-use crate::facts::_helpers::shape::spans::start_of;
 use crate::facts::models::ParameterMutationOccurrenceRow;
 use crate::positions::models::LineIndex;
+use crate::syntax::main::breadth_first_from::breadth_first_from;
+use crate::syntax::main::breadth_first_with_parents::breadth_first_with_parents;
+use crate::syntax::main::start_of::start_of;
+use crate::syntax::types::ShapeNode;
 
 pub(crate) fn parameter_mutation_occurrence_rows(
     module: &ModModule,

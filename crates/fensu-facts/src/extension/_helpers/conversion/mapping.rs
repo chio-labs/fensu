@@ -4,7 +4,7 @@ use pyo3::types::PyTuple;
 use pyo3::{Py, PyAny, PyResult, Python};
 
 use crate::extension::_helpers::conversion::declarations::to_object;
-use crate::facts::mapping::models::{
+use crate::mapping::models::{
     MappingAttributeRow, MappingCallRow, MappingClassRow, MappingExpressionRow, MappingFunctionRow,
     MappingImportRow, MappingParameterRow, MappingRows, MappingStatementRow,
 };

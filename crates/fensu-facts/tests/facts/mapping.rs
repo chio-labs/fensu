@@ -1,7 +1,7 @@
 //! Native mapping-substrate extraction tests.
 
-use fensu_facts::facts::mapping::main::extract_mapping_declarations::extract_mapping_declarations;
-use fensu_facts::facts::mapping::main::extract_mapping_facts::extract_mapping_facts;
+use fensu_facts::mapping::main::extract_mapping_declarations::extract_mapping_declarations;
+use fensu_facts::mapping::main::extract_mapping_facts::extract_mapping_facts;
 use fensu_facts::parsing::main::parse_strict::parse_strict;
 use fensu_facts::positions::main::index_lines::index_lines;
 use ruff_python_ast::PythonVersion;

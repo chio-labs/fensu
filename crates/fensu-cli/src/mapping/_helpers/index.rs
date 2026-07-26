@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use fensu_facts::facts::mapping::main::extract_mapping_facts::extract_mapping_facts;
-use fensu_facts::facts::mapping::models::{
+use fensu_facts::mapping::main::extract_mapping_facts::extract_mapping_facts;
+use fensu_facts::mapping::models::{
     MappingAttributeRow, MappingExpressionRow, MappingImportRow, MappingRows,
 };
 use fensu_facts::parsing::main::parse_strict::parse_strict;

@@ -40,7 +40,7 @@ fn given_role_fixtures_when_checking_then_reports_expected_codes() {
                 path: "crates/example/src/reading/helpers.rs".to_owned(),
                 contents: "fn support() -> usize {\n    1\n}\n".to_owned(),
             }],
-            expected_violation_codes: vec!["RSR202", "RSR304"],
+            expected_violation_codes: vec!["RSR202", "RSR307"],
         },
         test_types::CheckRepoTestCase {
             description: "banned generic directory is reported",

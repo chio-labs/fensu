@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use ruff_python_ast::{Expr, Stmt, StmtFunctionDef};
 
 use crate::constants;
-use crate::facts::_helpers::shape::nodes::ShapeNode;
+use crate::syntax::types::ShapeNode;
 
 pub(crate) fn function_positions(nodes: &[ShapeNode<'_>]) -> Vec<usize> {
     let mut positions: Vec<usize> = Vec::new();

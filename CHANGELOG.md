@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.6.0](https://github.com/chio-labs/fensu/compare/v0.5.2...v0.6.0) (2026-07-26)
+
+
+### Features
+
+* report implicit namespace packages during init ([d456178](https://github.com/chio-labs/fensu/commit/d45617831bf3ab616f02d8750076d2ad9ec1a295))
+
+
+### Bug Fixes
+
+* keep init from writing nested detected roots ([ee34db3](https://github.com/chio-labs/fensu/commit/ee34db38d78d600e92aef16fe39ecab2bbe23ad3))
+
 ## [0.5.2](https://github.com/chio-labs/fensu/compare/v0.5.1...v0.5.2) (2026-07-25)
 
 

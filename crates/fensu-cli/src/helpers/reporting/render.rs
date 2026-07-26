@@ -3,7 +3,7 @@ use std::path::Path;
 
 use crate::models::{Fault, ThresholdUse};
 
-const RED: &str = "\x1b[1;31m";
+const ORANGE: &str = "\x1b[1;38;5;208m";
 const GREEN: &str = "\x1b[1;32m";
 const DIM: &str = "\x1b[2m";
 const RESET: &str = "\x1b[0m";
@@ -44,7 +44,7 @@ pub(crate) fn report(request: ReportRequest<'_>) -> String {
         let style = if request.faults.is_empty() {
             GREEN
         } else {
-            RED
+            ORANGE
         };
         summary = format!("{style}{summary}{RESET}");
     }
@@ -115,7 +115,7 @@ fn format_fault(fault: &Fault, root: &Path, color: bool) -> String {
         .map_or_else(|| "-".to_owned(), |value| value.to_string());
     let mut lines = if color {
         vec![
-            format!("{RED}{}{RESET}  {}", fault.code, fault.message),
+            format!("{ORANGE}{}{RESET}  {}", fault.code, fault.message),
             format!("{DIM} --> {path}:{line}:{column}{RESET}"),
         ]
     } else {
@@ -131,7 +131,7 @@ fn format_fault(fault: &Fault, root: &Path, color: bool) -> String {
                 lines.extend([
                     format!("{DIM}  |{RESET}"),
                     format!("{DIM}{line_number} |{RESET} {source_line}"),
-                    format!("{DIM}  |{RESET} {padding}{RED}^{RESET}"),
+                    format!("{DIM}  |{RESET} {padding}{ORANGE}^{RESET}"),
                     format!("{DIM}  |{RESET}"),
                 ]);
             } else {

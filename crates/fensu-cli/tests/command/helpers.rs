@@ -28,6 +28,17 @@ pub(crate) fn run_check_with(repository: &Path, arguments: &[&str]) -> Output {
         .expect("native fensu process runs")
 }
 
+pub(crate) fn run_check_colored(repository: &Path, arguments: &[&str]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_fensu"))
+        .arg("check")
+        .args(arguments)
+        .current_dir(repository)
+        .env("FENSU_PYTHON", repository.join("python-does-not-exist"))
+        .env_remove("NO_COLOR")
+        .output()
+        .expect("native fensu process runs")
+}
+
 pub(crate) fn write(path: impl AsRef<Path>, contents: &str) {
     write_bytes(path, contents.as_bytes());
 }

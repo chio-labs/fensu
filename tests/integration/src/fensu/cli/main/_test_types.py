@@ -18,6 +18,16 @@ class CheckCommandTestCase:
 
 
 @dataclass(frozen=True)
+class CheckColorTestCase:
+    """CLI check command color mode and expected ANSI styling."""
+
+    description: str
+    argv: tuple[str, ...]
+    expected_exit_code: int
+    expected_output_fragment: str
+
+
+@dataclass(frozen=True)
 class CheckNoFaultTestCase:
     """CLI check command inputs and expected no-fault output."""
 

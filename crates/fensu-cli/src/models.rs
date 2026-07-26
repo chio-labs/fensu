@@ -5,14 +5,14 @@ use fensu_facts::extension::models::ProgramHandle;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
-pub struct CliOutput {
-    pub stdout: String,
-    pub stderr: String,
-    pub exit_code: i32,
+pub(crate) struct CliOutput {
+    pub(crate) stdout: String,
+    pub(crate) stderr: String,
+    pub(crate) exit_code: i32,
 }
 
 impl CliOutput {
-    pub fn success(stdout: String) -> Self {
+    pub(crate) fn success(stdout: String) -> Self {
         Self {
             stdout,
             stderr: String::new(),
@@ -20,7 +20,7 @@ impl CliOutput {
         }
     }
 
-    pub fn error(stderr: String) -> Self {
+    pub(crate) fn error(stderr: String) -> Self {
         Self {
             stdout: String::new(),
             stderr: format!("{stderr}\n"),

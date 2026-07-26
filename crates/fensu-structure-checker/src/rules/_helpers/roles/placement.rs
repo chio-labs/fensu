@@ -1,9 +1,11 @@
 //! Role rules: filenames, directory names, declaration files, helper privacy.
 
 use syn::spanned::Spanned;
+use syn::visit::Visit;
 
 use crate::constants;
 use crate::models;
+use crate::rules::_helpers::imports::reference_paths;
 use crate::types::FileKind;
 
 /// Check naming and size rules that apply to every checked file.
@@ -79,6 +81,7 @@ pub(crate) fn check_source(
     }
     if kind == FileKind::BinAdapter {
         violations.extend(check_bin_adapter(file, syntax));
+        violations.extend(check_bin_delegation(file, syntax));
     }
     if kind == FileKind::ModuleFile {
         violations.extend(check_declaration_order(file, syntax));
@@ -210,11 +213,16 @@ fn check_helper_visibility(file: &models::SourceFile, item: &syn::Item) -> Vec<m
 }
 
 fn check_declaration_budget(file: &models::SourceFile, kind: FileKind) -> Vec<models::Violation> {
-    if file.line_count() <= constants::MAX_DECLARATION_FILE_LINES {
+    let limit = if kind == FileKind::BinAdapter {
+        constants::MAX_BINARY_ENTRY_LINES
+    } else {
+        constants::MAX_DECLARATION_FILE_LINES
+    };
+    if file.line_count() <= limit {
         return Vec::new();
     }
     let code = match kind {
-        FileKind::BinAdapter => "RSR701",
+        FileKind::BinAdapter => "RSR703",
         _ => "RSR406",
     };
     vec![models::Violation::new(models::ViolationRequest {
@@ -224,10 +232,76 @@ fn check_declaration_budget(file: &models::SourceFile, kind: FileKind) -> Vec<mo
         message: format!(
             "declaration file has {} lines; the limit is {}",
             file.line_count(),
-            constants::MAX_DECLARATION_FILE_LINES
+            limit
         ),
         remediation: "keep crate roots as thin declaration surfaces",
     })]
+}
+
+#[derive(Default)]
+struct MainCallVisitor {
+    calls: Vec<(String, usize)>,
+    method_lines: Vec<usize>,
+}
+
+impl<'ast> Visit<'ast> for MainCallVisitor {
+    fn visit_expr_call(&mut self, node: &'ast syn::ExprCall) {
+        if let syn::Expr::Path(function) = node.func.as_ref() {
+            if let Some(segment) = function.path.segments.last() {
+                self.calls
+                    .push((segment.ident.to_string(), segment.ident.span().start().line));
+            }
+        }
+        syn::visit::visit_expr_call(self, node);
+    }
+
+    fn visit_expr_method_call(&mut self, node: &'ast syn::ExprMethodCall) {
+        self.method_lines.push(node.method.span().start().line);
+        syn::visit::visit_expr_method_call(self, node);
+    }
+}
+
+fn check_bin_delegation(file: &models::SourceFile, syntax: &syn::File) -> Vec<models::Violation> {
+    let imported_entries = syntax
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            syn::Item::Use(item_use) => Some(reference_paths::use_paths(&item_use.tree)),
+            _ => None,
+        })
+        .flatten()
+        .filter(|path| path_crosses_main(path))
+        .filter_map(|path| path.last().cloned())
+        .collect::<Vec<_>>();
+    let Some(main) = syntax.items.iter().find_map(|item| match item {
+        syn::Item::Fn(function) if function.sig.ident == constants::MAIN_FUNCTION => Some(function),
+        _ => None,
+    }) else {
+        return Vec::new();
+    };
+    let mut visitor = MainCallVisitor::default();
+    visitor.visit_block(&main.block);
+    let delegated = visitor.calls.len() == 1
+        && visitor.method_lines.is_empty()
+        && visitor
+            .calls
+            .first()
+            .is_some_and(|(name, _)| imported_entries.contains(name));
+    if delegated {
+        return Vec::new();
+    }
+    vec![models::Violation::new(models::ViolationRequest {
+        code: "RSR702",
+        path: file.relative_path(),
+        line: Some(main.sig.ident.span().start().line),
+        message: "binary main does not delegate exclusively to one imported main/ entry",
+        remediation: "move command behavior into a typed main/ entry and call only that entry",
+    })]
+}
+
+fn path_crosses_main(path: &[String]) -> bool {
+    path.iter()
+        .any(|segment| segment == constants::MAIN_DIRECTORY)
 }
 
 fn check_bin_adapter(file: &models::SourceFile, syntax: &syn::File) -> Vec<models::Violation> {

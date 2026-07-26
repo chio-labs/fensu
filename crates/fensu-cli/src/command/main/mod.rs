@@ -1,8 +1,9 @@
 pub(super) mod check;
+pub mod execute_cli;
 pub(super) mod help;
 pub(super) mod init;
 pub(super) mod map;
 pub(super) mod memory;
 pub(super) mod rule;
-pub mod run_cli;
+pub(super) mod run_cli;
 pub(super) mod skills;

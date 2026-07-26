@@ -124,7 +124,23 @@ fn given_role_fixtures_when_checking_then_reports_expected_codes() {
                 path: "crates/example/src/main.rs".to_owned(),
                 contents: "fn main() {\n    support();\n}\n\nfn support() {}\n".to_owned(),
             }],
-            expected_violation_codes: vec!["RSR701"],
+            expected_violation_codes: vec!["RSR701", "RSR702"],
+        },
+        test_types::CheckRepoTestCase {
+            description: "oversized delegating bin adapter is reported",
+            repo_files: vec![
+                test_types::RepoFile {
+                    path: "crates/example/src/main.rs".to_owned(),
+                    contents: "use example::command::main::run::run;\n\nfn main() {\n    run();\n}\n"
+                        .to_owned()
+                        + &"\n".repeat(80),
+                },
+                test_types::RepoFile {
+                    path: "crates/example/src/command/main/run.rs".to_owned(),
+                    contents: "pub fn run() {}\n".to_owned(),
+                },
+            ],
+            expected_violation_codes: vec!["RSR703"],
         },
         test_types::CheckRepoTestCase {
             description: "constant declared after functions is reported",

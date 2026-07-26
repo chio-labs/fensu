@@ -1,22 +1,9 @@
-//! Command adapter printing structure violations for the current repository.
+//! Command adapter for the structure checker.
 
-use std::process;
+use std::process::ExitCode;
 
-fn main() {
-    let Ok(repo_root) = std::env::current_dir() else {
-        process::exit(2);
-    };
-    let violations =
-        fensu_structure_checker::rules::main::check_repository::check_repository(&repo_root);
-    for violation in &violations {
-        let location = match violation.line {
-            Some(line) => format!("{}:{line}", violation.path.display()),
-            None => violation.path.display().to_string(),
-        };
-        println!("{location}: {} {}", violation.code, violation.message);
-        println!("    help: {}", violation.remediation);
-    }
-    if !violations.is_empty() {
-        process::exit(1);
-    }
+use fensu_structure_checker::command::main::run_checker::run_checker;
+
+fn main() -> ExitCode {
+    run_checker()
 }

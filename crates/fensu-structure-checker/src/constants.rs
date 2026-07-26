@@ -2,6 +2,7 @@
 
 pub const MAX_FILE_LINES: usize = 400;
 pub const MAX_DECLARATION_FILE_LINES: usize = 80;
+pub const MAX_BINARY_ENTRY_LINES: usize = 80;
 pub const MAX_HELPER_CONTAINER_MODULES: usize = 10;
 pub const MAX_MAIN_CONTAINER_MODULES: usize = 20;
 pub const MAX_ENTRY_PRIVATE_FUNCTIONS: usize = 2;
@@ -52,6 +53,7 @@ pub const RULES_DIRECTORY: &str = "rules";
 pub const MOD_FILE: &str = "mod.rs";
 pub const LIB_FILE: &str = "lib.rs";
 pub const MAIN_FILE: &str = "main.rs";
+pub const MAIN_FUNCTION: &str = "main";
 pub const HELPERS_FILE: &str = "helpers.rs";
 pub const MODELS_FILE: &str = "models.rs";
 pub const TYPES_FILE: &str = "types.rs";
@@ -61,6 +63,7 @@ pub const TEST_TYPES_FILE: &str = "test_types.rs";
 pub const INLINE_TEST_HARNESS_FILE: &str = "tests.rs";
 pub const SOURCE_DIRECTORY: &str = "src";
 pub const TESTS_DIRECTORY: &str = "tests";
+pub const BIN_DIRECTORY: &str = "bin";
 pub const CARGO_MANIFEST_FILE: &str = "Cargo.toml";
 pub const RUST_SUFFIX: &str = "rs";
 pub const SELF_MODULE: &str = "self";

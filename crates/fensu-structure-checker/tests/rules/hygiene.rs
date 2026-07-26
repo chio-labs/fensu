@@ -138,10 +138,17 @@ fn given_hygiene_fixtures_when_checking_then_reports_expected_codes() {
         },
         test_types::CheckRepoTestCase {
             description: "stdio macro inside the bin adapter is allowed",
-            repo_files: vec![test_types::RepoFile {
-                path: "crates/example/src/main.rs".to_owned(),
-                contents: "fn main() {\n    println!(\"ok\");\n}\n".to_owned(),
-            }],
+            repo_files: vec![
+                test_types::RepoFile {
+                    path: "crates/example/src/main.rs".to_owned(),
+                    contents: "use example::reading::main::run::run;\n\nfn main() {\n    println!(\"ok\");\n    run();\n}\n"
+                        .to_owned(),
+                },
+                test_types::RepoFile {
+                    path: "crates/example/src/reading/main/run.rs".to_owned(),
+                    contents: "pub fn run() {}\n".to_owned(),
+                },
+            ],
             expected_violation_codes: vec![],
         },
         test_types::CheckRepoTestCase {

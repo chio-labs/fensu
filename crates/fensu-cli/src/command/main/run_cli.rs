@@ -8,7 +8,7 @@ use crate::configuration::main::custom_rules;
 use crate::hosting::main::run_custom_check_host::run_custom_check_host;
 use crate::models::CliOutput;
 
-pub fn run_cli() -> CliOutput {
+pub(super) fn run_cli() -> CliOutput {
     let arguments = env::args().skip(1).collect::<Vec<_>>();
     dispatch(&arguments).unwrap_or_else(CliOutput::error)
 }

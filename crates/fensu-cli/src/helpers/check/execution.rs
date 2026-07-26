@@ -7,6 +7,7 @@ use fensu_facts::extension::models::ProgramHandle;
 use walkdir::WalkDir;
 
 use crate::configuration::main::load;
+use crate::configuration::main::validate_exception_targets::validate_exception_targets;
 use crate::constants::{COLOR_ALWAYS, COLOR_AUTO, COLOR_NEVER, PYTHON_CACHE_DIRECTORY};
 use crate::helpers::check::cache;
 use crate::helpers::check::evaluation::evaluate_and_render;
@@ -54,6 +55,7 @@ pub(crate) fn execute_check(arguments: &[String]) -> Result<CliOutput, String> {
             .collect::<Result<Vec<_>, String>>()?;
     }
     validate_package_names(&root, &config)?;
+    validate_exception_targets(&config, &root)?;
     let discovered = discover(&root, &config)?;
     let (mut sources, excluded) = select_sources(discovered, &config);
     let cache_enabled = options.cache_enabled.unwrap_or(config.cache_enabled);

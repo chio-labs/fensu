@@ -92,38 +92,6 @@ pub(crate) fn required_thresholds(codes: &[String]) -> HashSet<&'static str> {
     names
 }
 
-pub(crate) fn apply_exceptions(
-    faults: Vec<Fault>,
-    config: &Config,
-) -> Result<(Vec<Fault>, usize), String> {
-    let mut applied = HashSet::new();
-    let retained = faults
-        .into_iter()
-        .filter(|fault| {
-            let relative = config.exceptions.iter().find(|entry| {
-                entry.rule == fault.code
-                    && fault.path.replace('\\', "/").ends_with(&entry.path)
-                    && entry.symbols.is_empty()
-            });
-            if let Some(entry) = relative {
-                applied.insert((entry.rule.clone(), entry.path.clone()));
-                false
-            } else {
-                true
-            }
-        })
-        .collect::<Vec<_>>();
-    if let Some(stale) = config.exceptions.iter().find(|entry| {
-        entry.symbols.is_empty() && !applied.contains(&(entry.rule.clone(), entry.path.clone()))
-    }) {
-        return Err(format!(
-            "Rule exception no longer matches a fault: {} {}. Remove it or update its scope. Reason: {}",
-            stale.rule, stale.path, stale.reason
-        ));
-    }
-    Ok((retained, applied.len()))
-}
-
 pub(crate) fn role(source: &ScopedSource) -> Option<String> {
     let file = source.relative_parts.last()?;
     if let Some(value) = file.strip_suffix(".py") {

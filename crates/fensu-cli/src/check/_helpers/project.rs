@@ -7,7 +7,7 @@ use fensu_native::rules::models::{NativeProjectModule, NativeProjectPlane};
 use globset::GlobBuilder;
 use walkdir::WalkDir;
 
-use crate::_helpers::check::policy::{bool_text, program, python_version, relative};
+use crate::check::_helpers::policy::{bool_text, program, python_version, relative};
 use crate::constants::{SCOPE_TEST, STEM_INIT, VALUE_TRUE};
 use crate::models::{Config, ScopedSource};
 

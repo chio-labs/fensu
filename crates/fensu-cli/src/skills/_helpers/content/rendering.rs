@@ -221,7 +221,7 @@ fn configured_threshold_lines(context: &SkillContext) -> Result<Vec<String>, Str
         .chain(&context.warnings)
         .map(|rule| rule.code.clone())
         .collect::<Vec<_>>();
-    let required = crate::_helpers::check::policy::required_thresholds(&active);
+    let required = crate::check::main::required_thresholds::required_thresholds(&active);
     let applicable = context
         .config
         .threshold_overrides

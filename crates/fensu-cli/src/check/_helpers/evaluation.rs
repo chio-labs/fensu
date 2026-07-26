@@ -6,14 +6,14 @@ use fensu_native::rules::main::plan_core_rule_queries::plan_core_rule_queries;
 use fensu_native::rules::models::NativeRuleContext;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 
-use crate::_helpers::check::exceptions::apply_exceptions;
-use crate::_helpers::check::policy::{
+use crate::catalogue::main::rule_catalogue::rule_catalogue;
+use crate::catalogue::main::rule_metadata::rule_metadata;
+use crate::check::_helpers::exceptions::apply_exceptions;
+use crate::check::_helpers::policy::{
     apply_rule_ignores, is_entry_module, is_main_module, program, resolved_thresholds, role,
     scope_roots, source_module_name,
 };
-use crate::_helpers::check::project::{observe, project_plane};
-use crate::catalogue::main::rule_catalogue::rule_catalogue;
-use crate::catalogue::main::rule_metadata::rule_metadata;
+use crate::check::_helpers::project::{observe, project_plane};
 use crate::constants::{
     OWNER_FILE, OWNER_PACKAGE, ROLE_HELPERS, ROLE_MAIN, SCOPE_TEST, SUFFIX_INIT,
 };

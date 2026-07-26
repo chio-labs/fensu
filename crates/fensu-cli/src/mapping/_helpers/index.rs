@@ -7,7 +7,7 @@ use fensu_facts::facts::mapping::models::{
 use fensu_facts::parsing::main::parse_strict::parse_strict;
 use fensu_facts::positions::main::index_lines::index_lines;
 
-use crate::_helpers::check::policy::python_version;
+use crate::check::main::python_version::python_version;
 use crate::mapping::_helpers::decoding::decode_source;
 use crate::mapping::_helpers::identity::build_class_key;
 use crate::mapping::constants::{

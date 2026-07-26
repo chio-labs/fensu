@@ -9,7 +9,7 @@ fn given_shape_fixtures_when_checking_then_reports_expected_codes() {
         test_types::CheckRepoTestCase {
             description: "function over the parameter budget is reported",
             repo_files: vec![test_types::RepoFile {
-                path: "crates/example/src/reading/helpers/loading.rs".to_owned(),
+                path: "crates/example/src/reading/_helpers/loading.rs".to_owned(),
                 contents: "fn support(a1: usize, a2: usize, a3: usize, a4: usize, a5: usize, a6: usize, a7: usize, a8: usize, a9: usize, a10: usize, a11: usize) -> usize {\n    a1\n}\n"
                     .to_owned(),
             }],
@@ -18,7 +18,7 @@ fn given_shape_fixtures_when_checking_then_reports_expected_codes() {
         test_types::CheckRepoTestCase {
             description: "function over the global statement budget is reported",
             repo_files: vec![test_types::RepoFile {
-                path: "crates/example/src/reading/helpers/loading.rs".to_owned(),
+                path: "crates/example/src/reading/_helpers/loading.rs".to_owned(),
                 contents: "fn support() -> usize {\n".to_owned()
                     + &"    let value = 1;\n".repeat(71)
                     + "    value\n}\n",

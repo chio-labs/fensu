@@ -1,5 +1,5 @@
 #[path = "tests/helpers.rs"]
-mod helpers;
+mod _helpers;
 #[path = "tests/records.rs"]
 mod records;
 #[path = "tests/storage.rs"]

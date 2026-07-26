@@ -1,9 +1,9 @@
 //! Canonical native cache-record contracts.
 
+use crate::cache::_helpers::records::{decode_record, encode_canonical_record};
 use crate::cache::constants::COMPRESSED_PREFIX;
-use crate::cache::helpers::records::{decode_record, encode_canonical_record};
 use crate::cache::models::CanonicalValue;
-use crate::cache::tests::helpers::{maximum_record_bytes, object};
+use crate::cache::tests::_helpers::{maximum_record_bytes, object};
 use crate::cache::tests::test_types::{
     CanonicalRecordTestCase, CompressionTestCase, InvalidRecordTestCase,
 };

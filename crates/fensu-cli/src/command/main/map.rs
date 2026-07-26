@@ -1,5 +1,5 @@
+use crate::command::_helpers::map::parsing;
 use crate::command::constants::MAP_HELP;
-use crate::command::helpers::map::parsing;
 use crate::mapping::main::map;
 use crate::models::CliOutput;
 

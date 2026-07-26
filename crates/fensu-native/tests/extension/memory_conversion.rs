@@ -3,10 +3,10 @@
 use pyo3::types::PyAnyMethods;
 use pyo3::Python;
 
-use crate::extension::helpers::memory_conversion::test_types::{
+use crate::extension::_helpers::memory_conversion::test_types::{
     SchemaConversionTestCase, SummaryConversionTestCase,
 };
-use crate::extension::helpers::memory_conversion::{
+use crate::extension::_helpers::memory_conversion::{
     memory_overview_object, memory_relation_schema_object, memory_schema_object,
     sync_summary_object,
 };

@@ -2,8 +2,8 @@
 
 use std::path::Path;
 
+use crate::engine::_helpers::reporting::synchronization;
 use crate::engine::errors::MemoryIndexError;
-use crate::engine::helpers::reporting::synchronization;
 use crate::engine::models::SyncSummary;
 use crate::source::main::discover_memory::discover_memory;
 

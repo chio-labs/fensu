@@ -58,7 +58,7 @@ fn given_hygiene_fixtures_when_checking_then_reports_expected_codes() {
         test_types::CheckRepoTestCase {
             description: "safe option fallback methods are allowed",
             repo_files: vec![test_types::RepoFile {
-                path: "crates/example/src/reading/helpers/loading.rs".to_owned(),
+                path: "crates/example/src/reading/_helpers/loading.rs".to_owned(),
                 contents: "fn load(first: Option<usize>, second: Option<usize>) -> usize {\n    first.unwrap_or_default() + second.unwrap_or(1)\n}\n"
                     .to_owned(),
             }],
@@ -67,7 +67,7 @@ fn given_hygiene_fixtures_when_checking_then_reports_expected_codes() {
         test_types::CheckRepoTestCase {
             description: "associated panic extraction is reported",
             repo_files: vec![test_types::RepoFile {
-                path: "crates/example/src/reading/helpers/loading.rs".to_owned(),
+                path: "crates/example/src/reading/_helpers/loading.rs".to_owned(),
                 contents: "fn load(value: Option<usize>) -> usize {\n    Option::expect(value, \"present\")\n}\n"
                     .to_owned(),
             }],
@@ -158,7 +158,7 @@ fn given_hygiene_fixtures_when_checking_then_reports_expected_codes() {
         test_types::CheckRepoTestCase {
             description: "inline lint suppression is reported",
             repo_files: vec![test_types::RepoFile {
-                path: "crates/example/src/reading/helpers/loading.rs".to_owned(),
+                path: "crates/example/src/reading/_helpers/loading.rs".to_owned(),
                 contents: "#[allow(dead_code)]\nfn load() {}\n".to_owned(),
             }],
             expected_violation_codes: vec!["RSH013"],

@@ -43,7 +43,7 @@ fn given_role_file_fixtures_when_checking_then_reports_expected_codes() {
         test_types::CheckRepoTestCase {
             description: "public data struct outside models is reported",
             repo_files: vec![test_types::RepoFile {
-                path: "crates/example/src/reading/helpers/carrying.rs".to_owned(),
+                path: "crates/example/src/reading/_helpers/carrying.rs".to_owned(),
                 contents: "pub struct Carrier {\n    pub value: usize,\n}\n".to_owned(),
             }],
             expected_violation_codes: vec!["RSR101", "RSR205"],
@@ -51,7 +51,7 @@ fn given_role_file_fixtures_when_checking_then_reports_expected_codes() {
         test_types::CheckRepoTestCase {
             description: "public trait outside types is reported",
             repo_files: vec![test_types::RepoFile {
-                path: "crates/example/src/reading/helpers/loading.rs".to_owned(),
+                path: "crates/example/src/reading/_helpers/loading.rs".to_owned(),
                 contents: "pub trait Loadable {\n    fn load(&self) -> usize;\n}\n".to_owned(),
             }],
             expected_violation_codes: vec!["RSR102", "RSR205"],
@@ -59,7 +59,7 @@ fn given_role_file_fixtures_when_checking_then_reports_expected_codes() {
         test_types::CheckRepoTestCase {
             description: "public constant outside constants is reported",
             repo_files: vec![test_types::RepoFile {
-                path: "crates/example/src/reading/helpers/loading.rs".to_owned(),
+                path: "crates/example/src/reading/_helpers/loading.rs".to_owned(),
                 contents: "pub const LIMIT: usize = 3;\n".to_owned(),
             }],
             expected_violation_codes: vec!["RSR103", "RSR205"],
@@ -67,7 +67,7 @@ fn given_role_file_fixtures_when_checking_then_reports_expected_codes() {
         test_types::CheckRepoTestCase {
             description: "error type outside errors is reported",
             repo_files: vec![test_types::RepoFile {
-                path: "crates/example/src/reading/helpers/parsing.rs".to_owned(),
+                path: "crates/example/src/reading/_helpers/parsing.rs".to_owned(),
                 contents: "pub(crate) struct ParseError {\n    message: String,\n}\n".to_owned(),
             }],
             expected_violation_codes: vec!["RSR104"],
@@ -101,7 +101,7 @@ fn given_reserved_role_names_in_helpers_when_checking_then_reports_misplacement(
         test_types::CheckRepoTestCase {
             description: "a models role file inside helpers is reported",
             repo_files: vec![test_types::RepoFile {
-                path: "crates/example/src/alpha/helpers/models.rs".to_owned(),
+                path: "crates/example/src/alpha/_helpers/models.rs".to_owned(),
                 contents:
                     "#[derive(Debug)]\npub(crate) struct Value {\n    pub(crate) count: usize,\n}\n"
                         .to_owned(),
@@ -118,7 +118,7 @@ fn given_reserved_role_names_in_helpers_when_checking_then_reports_misplacement(
                             .to_owned(),
                 },
                 test_types::RepoFile {
-                    path: "crates/example/src/alpha/helpers/matching.rs".to_owned(),
+                    path: "crates/example/src/alpha/_helpers/matching.rs".to_owned(),
                     contents: String::new(),
                 },
             ],

@@ -2,8 +2,8 @@
 
 use std::path::Path;
 
+use crate::engine::_helpers::publication::database;
 use crate::engine::errors::MemoryIndexError;
-use crate::engine::helpers::publication::database;
 use crate::engine::models::IndexSummary;
 use crate::source::main::discover_memory::discover_memory;
 

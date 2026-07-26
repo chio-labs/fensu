@@ -1,6 +1,6 @@
 //! Load and validate an already discovered canonical corpus.
 
-use crate::corpus::helpers::loading;
+use crate::corpus::_helpers::loading;
 use crate::corpus::models::MemoryCorpus;
 use crate::source::models::DiscoveryResult;
 

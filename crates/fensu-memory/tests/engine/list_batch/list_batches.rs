@@ -2,8 +2,8 @@
 
 use rusqlite::Connection;
 
-use crate::engine::helpers::publication::lists::test_types::MemoryListBatchFailureTestCase;
-use crate::engine::helpers::publication::lists::{append_batch, ListItemRow};
+use crate::engine::_helpers::publication::lists::test_types::MemoryListBatchFailureTestCase;
+use crate::engine::_helpers::publication::lists::{append_batch, ListItemRow};
 use crate::markdown::models::{MarkdownListItem, SourceRange};
 use crate::markdown::types::ListKind;
 

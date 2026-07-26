@@ -2,7 +2,7 @@
 
 use ruff_python_ast::ModModule;
 
-use crate::facts::helpers::metrics::mutations::parameter_mutation_rows;
+use crate::facts::_helpers::metrics::mutations::parameter_mutation_rows;
 use crate::facts::models::ParameterMutationRow;
 use crate::positions::models::LineIndex;
 

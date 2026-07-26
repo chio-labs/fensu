@@ -1,10 +1,10 @@
 use std::env;
 use std::path::Path;
 
+use crate::_helpers::check::cleanup;
+use crate::_helpers::hosting::process;
 use crate::command::main::{check, help, init, map, memory, rule, skills};
 use crate::configuration::main::custom_rules;
-use crate::helpers::check::cleanup;
-use crate::helpers::hosting::process;
 use crate::models::CliOutput;
 
 pub fn run_cli() -> CliOutput {

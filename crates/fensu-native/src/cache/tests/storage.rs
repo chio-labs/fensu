@@ -2,10 +2,10 @@
 
 use rusqlite::Connection;
 
-use crate::cache::helpers::database::database_path;
-use crate::cache::helpers::storage::{mutate_records, read_records, write_records};
+use crate::cache::_helpers::database::database_path;
+use crate::cache::_helpers::storage::{mutate_records, read_records, write_records};
 use crate::cache::models::{CacheMutation, CanonicalValue};
-use crate::cache::tests::helpers::{
+use crate::cache::tests::_helpers::{
     concurrent_writes, encoded_write, maximum_record_bytes, object,
 };
 use crate::cache::tests::test_types::{

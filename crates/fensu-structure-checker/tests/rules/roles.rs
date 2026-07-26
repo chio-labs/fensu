@@ -20,7 +20,7 @@ fn given_role_fixtures_when_checking_then_reports_expected_codes() {
                         .to_owned(),
                 },
                 test_types::RepoFile {
-                    path: "crates/example/src/reading/helpers/loading.rs".to_owned(),
+                    path: "crates/example/src/reading/_helpers/loading.rs".to_owned(),
                     contents: "pub(super) fn load() -> usize {\n    1\n}\n".to_owned(),
                 },
             ],
@@ -53,7 +53,7 @@ fn given_role_fixtures_when_checking_then_reports_expected_codes() {
         test_types::CheckRepoTestCase {
             description: "fully public item in helpers is reported",
             repo_files: vec![test_types::RepoFile {
-                path: "crates/example/src/reading/helpers/loading.rs".to_owned(),
+                path: "crates/example/src/reading/_helpers/loading.rs".to_owned(),
                 contents: "pub fn load() -> usize {\n    1\n}\n".to_owned(),
             }],
             expected_violation_codes: vec!["RSR205"],
@@ -61,7 +61,7 @@ fn given_role_fixtures_when_checking_then_reports_expected_codes() {
         test_types::CheckRepoTestCase {
             description: "main module inside helpers is reported",
             repo_files: vec![test_types::RepoFile {
-                path: "crates/example/src/reading/helpers/main.rs".to_owned(),
+                path: "crates/example/src/reading/_helpers/main.rs".to_owned(),
                 contents: "fn orchestrate() -> usize {\n    1\n}\n".to_owned(),
             }],
             expected_violation_codes: vec!["RSR502"],
@@ -129,7 +129,7 @@ fn given_role_fixtures_when_checking_then_reports_expected_codes() {
         test_types::CheckRepoTestCase {
             description: "constant declared after functions is reported",
             repo_files: vec![test_types::RepoFile {
-                path: "crates/example/src/reading/helpers/loading.rs".to_owned(),
+                path: "crates/example/src/reading/_helpers/loading.rs".to_owned(),
                 contents: "fn support() -> usize {\n    1\n}\n\nconst LIMIT: usize = 2;\n"
                     .to_owned(),
             }],

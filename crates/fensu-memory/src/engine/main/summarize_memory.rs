@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use crate::corpus::main::load_memory_corpus::load_memory_corpus;
-use crate::engine::helpers::reporting::summaries;
+use crate::engine::_helpers::reporting::summaries;
 use crate::engine::models::MemorySummary;
 use crate::graph::main::resolve_memory_graph::resolve_memory_graph;
 

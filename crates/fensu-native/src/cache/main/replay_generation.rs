@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use crate::cache::helpers::replay::build_replay_generation;
+use crate::cache::_helpers::replay::build_replay_generation;
 use crate::cache::models::{CacheMetrics, NativeReplay};
 
 pub(crate) fn replay_generation(

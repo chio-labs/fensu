@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use crate::models::{Config, RuleMetadata};
-use crate::skills::helpers::context::selection;
+use crate::skills::_helpers::context::selection;
 
 pub(crate) fn load_rule_catalogue(
     config: &Config,

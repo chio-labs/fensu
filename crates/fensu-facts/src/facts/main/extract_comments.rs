@@ -3,7 +3,7 @@
 use ruff_python_ast::token::{TokenKind, Tokens};
 use ruff_text_size::Ranged;
 
-use crate::facts::helpers::wording::text;
+use crate::facts::_helpers::wording::text;
 use crate::facts::models::CommentRow;
 use crate::positions::models::LineIndex;
 

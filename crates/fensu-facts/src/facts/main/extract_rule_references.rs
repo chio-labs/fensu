@@ -2,13 +2,13 @@
 
 use ruff_python_ast::{Expr, ModModule};
 
-use crate::facts::helpers::rule_authoring::ownership::{enclosing_classes, enclosing_functions};
-use crate::facts::helpers::rule_authoring::references::{
+use crate::facts::_helpers::rule_authoring::ownership::{enclosing_classes, enclosing_functions};
+use crate::facts::_helpers::rule_authoring::references::{
     assignment_parts, qualified_reference, stored_target_names, strict_reference_parts,
 };
-use crate::facts::helpers::shape::breadth::{breadth_first_nodes, breadth_first_with_parents};
-use crate::facts::helpers::shape::nodes::ShapeNode;
-use crate::facts::helpers::shape::spans::start_of;
+use crate::facts::_helpers::shape::breadth::{breadth_first_nodes, breadth_first_with_parents};
+use crate::facts::_helpers::shape::nodes::ShapeNode;
+use crate::facts::_helpers::shape::spans::start_of;
 use crate::facts::models::{AssignmentReferenceRow, ComparisonRow};
 use crate::positions::models::LineIndex;
 

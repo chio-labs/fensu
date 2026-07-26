@@ -2,7 +2,7 @@
 
 use ruff_python_ast::ModModule;
 
-use crate::facts::helpers::rule_authoring::mutations::parameter_mutation_occurrence_rows;
+use crate::facts::_helpers::rule_authoring::mutations::parameter_mutation_occurrence_rows;
 use crate::facts::models::ParameterMutationOccurrenceRow;
 use crate::positions::models::LineIndex;
 

@@ -2,7 +2,7 @@
 
 use ruff_python_ast::ModModule;
 
-use crate::facts::helpers::metrics::functions::function_metric_rows;
+use crate::facts::_helpers::metrics::functions::function_metric_rows;
 use crate::facts::models::FunctionMetricRow;
 use crate::positions::models::LineIndex;
 

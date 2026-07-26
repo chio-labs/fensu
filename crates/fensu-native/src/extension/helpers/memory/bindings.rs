@@ -6,7 +6,7 @@ use pyo3::exceptions::PyRuntimeError;
 use pyo3::types::PyTuple;
 use pyo3::{pyfunction, Py, PyErr, PyResult, Python};
 
-use crate::extension::helpers::memory_conversion;
+use crate::extension::helpers::memory::conversion;
 use fensu_memory::engine::errors::MemoryIndexError;
 use fensu_memory::engine::main::archive_memory::archive_memory;
 use fensu_memory::engine::main::check_memory::check_memory;
@@ -36,7 +36,7 @@ pub(crate) fn memory_dependency_probe(
 #[pyfunction]
 pub(crate) fn memory_summary(py: Python<'_>, repository_root: PathBuf) -> PyResult<Py<PyTuple>> {
     let summary = py.detach(move || summarize_memory(&repository_root));
-    memory_conversion::memory_summary_object(py, summary)
+    conversion::memory_summary_object(py, summary)
 }
 
 #[pyfunction]
@@ -48,7 +48,7 @@ pub(crate) fn memory_rebuild(
     let summary = py
         .detach(move || rebuild_memory_index(&repository_root, &database_path))
         .map_err(memory_index_error)?;
-    memory_conversion::index_summary_object(py, summary)
+    conversion::index_summary_object(py, summary)
 }
 
 #[pyfunction]
@@ -60,7 +60,7 @@ pub(crate) fn memory_check(
     let result = py
         .detach(move || check_memory(&repository_root, &database_path))
         .map_err(memory_index_error)?;
-    memory_conversion::memory_check_result_object(py, result)
+    conversion::memory_check_result_object(py, result)
 }
 
 #[pyfunction]
@@ -83,7 +83,7 @@ pub(crate) fn memory_archive(
             )
         })
         .map_err(memory_index_error)?;
-    memory_conversion::memory_archive_result_object(py, result)
+    conversion::memory_archive_result_object(py, result)
 }
 
 #[pyfunction]
@@ -95,7 +95,7 @@ pub(crate) fn memory_sync(
     let summary = py
         .detach(move || sync_memory_index(&repository_root, &database_path))
         .map_err(memory_index_error)?;
-    memory_conversion::sync_summary_object(py, summary)
+    conversion::sync_summary_object(py, summary)
 }
 
 #[pyfunction]
@@ -103,7 +103,7 @@ pub(crate) fn memory_overview(py: Python<'_>, database_path: PathBuf) -> PyResul
     let result = py
         .detach(move || overview(&database_path))
         .map_err(memory_index_error)?;
-    memory_conversion::memory_overview_object(py, result)
+    conversion::memory_overview_object(py, result)
 }
 
 #[pyfunction]
@@ -113,7 +113,7 @@ pub(crate) fn memory_schema_sql() -> &'static str {
 
 #[pyfunction]
 pub(crate) fn memory_schema(py: Python<'_>) -> PyResult<Py<PyTuple>> {
-    memory_conversion::memory_schema_object(py, schema_metadata::memory_schema())
+    conversion::memory_schema_object(py, schema_metadata::memory_schema())
 }
 
 #[pyfunction]
@@ -122,7 +122,7 @@ pub(crate) fn memory_relation_schema(
     name: String,
 ) -> PyResult<Option<Py<PyTuple>>> {
     relation_schema(&name)
-        .map(|relation| memory_conversion::memory_relation_schema_object(py, relation))
+        .map(|relation| conversion::memory_relation_schema_object(py, relation))
         .transpose()
 }
 
@@ -136,7 +136,7 @@ pub(crate) fn memory_query(
     let result = py
         .detach(move || query_memory_index(&database_path, &sql, limit))
         .map_err(memory_index_error)?;
-    memory_conversion::memory_query_result_object(py, result)
+    conversion::memory_query_result_object(py, result)
 }
 
 #[pyfunction]
@@ -163,7 +163,7 @@ pub(crate) fn memory_graph(
     let result = py
         .detach(move || query_memory_graph(&database_path, &query))
         .map_err(memory_index_error)?;
-    memory_conversion::memory_graph_result_object(py, result)
+    conversion::memory_graph_result_object(py, result)
 }
 
 fn graph_direction(value: &str) -> Result<MemoryGraphDirection, MemoryIndexError> {

@@ -6,6 +6,7 @@ pub const MAX_HELPER_CONTAINER_MODULES: usize = 10;
 pub const MAX_MAIN_CONTAINER_MODULES: usize = 20;
 pub const MAX_ENTRY_PRIVATE_FUNCTIONS: usize = 2;
 pub const MAX_CONTAINER_COMPONENT_DEPTH: usize = 2;
+pub const MIN_SHARED_PREFIX_MODULES: usize = 3;
 pub const MIN_DOMAIN_SEGMENTS: usize = 2;
 pub const MAX_ARGUMENTS: usize = 10;
 pub const MAX_STATEMENTS_GLOBAL: usize = 70;

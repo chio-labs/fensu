@@ -7,7 +7,7 @@ use fensu_memory::engine::models::{
 };
 
 use crate::command::constants::{RELATION_KIND_TABLE, RELATION_KIND_VIEW};
-use crate::command::helpers::memory_values::{heading, query_value};
+use crate::command::helpers::memory::values::{heading, query_value};
 
 pub(crate) fn sync(
     summary: &SyncSummary,

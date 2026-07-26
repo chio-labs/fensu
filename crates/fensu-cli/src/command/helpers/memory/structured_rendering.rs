@@ -1,6 +1,6 @@
 use fensu_memory::engine::models::{MemoryGraphQuery, MemoryGraphResult, MemoryQueryResult};
 
-use crate::command::helpers::memory_values::{
+use crate::command::helpers::memory::values::{
     direction_name, json_string, json_value, query_value,
 };
 

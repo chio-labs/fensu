@@ -46,6 +46,13 @@ pub(crate) struct SymbolExceptionTestCase {
     pub(crate) expected_suppressed_location: &'static str,
 }
 
+pub(crate) struct ColoredCheckTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) arguments: &'static [&'static str],
+    pub(crate) expected_exit_code: i32,
+    pub(crate) expected_fragment: &'static str,
+}
+
 pub(crate) struct InvalidCheckConfigTestCase {
     pub(crate) description: &'static str,
     pub(crate) config: &'static str,

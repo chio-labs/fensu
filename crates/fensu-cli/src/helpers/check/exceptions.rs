@@ -1,12 +1,15 @@
 use std::collections::{HashMap, HashSet};
+use std::path::Path;
 
-use crate::models::{Config, Fault, ScopedSource};
+use crate::models::{Config, Fault, RuleException, ScopedSource};
 
 type ExceptionKey = (String, String, Option<String>);
 
 pub(crate) fn apply_exceptions(
     faults: Vec<Fault>,
     sources: &[ScopedSource],
+    root: &Path,
+    evaluated_codes: &HashSet<&str>,
     config: &Config,
 ) -> Result<(Vec<Fault>, usize), String> {
     if config.exceptions.is_empty() {
@@ -14,16 +17,16 @@ pub(crate) fn apply_exceptions(
     }
     let source_by_path = sources
         .iter()
-        .map(|source| (source.path.to_string_lossy().replace('\\', "/"), source))
+        .map(|source| (source.repository_path.as_str(), source))
         .collect::<HashMap<_, _>>();
     let mut applied: HashSet<ExceptionKey> = HashSet::new();
     let retained = faults
         .into_iter()
         .filter(|fault| {
-            let path = fault.path.replace('\\', "/");
+            let reported = repository_path(&fault.path, root);
             let mut owner: Option<Option<String>> = None;
             let matching = config.exceptions.iter().find(|entry| {
-                if entry.rule != fault.code || !path.ends_with(&entry.path) {
+                if entry.rule != fault.code || entry.path != reported {
                     return false;
                 }
                 if entry.symbols.is_empty() {
@@ -31,7 +34,7 @@ pub(crate) fn apply_exceptions(
                 }
                 let resolved = owner.get_or_insert_with(|| {
                     source_by_path
-                        .get(&path)
+                        .get(reported.as_str())
                         .and_then(|source| fault_owner(fault, source))
                 });
                 resolved
@@ -40,10 +43,9 @@ pub(crate) fn apply_exceptions(
             });
             match matching {
                 Some(entry) => {
-                    let symbol = if entry.symbols.is_empty() {
-                        None
-                    } else {
-                        owner.clone().flatten()
+                    let symbol = match entry.symbols.is_empty() {
+                        true => None,
+                        false => owner.clone().flatten(),
                     };
                     applied.insert((entry.rule.clone(), entry.path.clone(), symbol));
                     false
@@ -52,14 +54,32 @@ pub(crate) fn apply_exceptions(
             }
         })
         .collect::<Vec<_>>();
-    if let Some(message) = stale_exception(config, &applied) {
+    if let Some(message) = stale_exception(config, evaluated_codes, &applied) {
         return Err(message);
     }
     Ok((retained, applied.len()))
 }
 
-fn stale_exception(config: &Config, applied: &HashSet<ExceptionKey>) -> Option<String> {
+fn repository_path(reported: &str, root: &Path) -> String {
+    let candidate = Path::new(reported);
+    candidate
+        .strip_prefix(root)
+        .unwrap_or(candidate)
+        .to_string_lossy()
+        .replace('\\', "/")
+        .trim_start_matches('/')
+        .to_owned()
+}
+
+fn stale_exception(
+    config: &Config,
+    evaluated_codes: &HashSet<&str>,
+    applied: &HashSet<ExceptionKey>,
+) -> Option<String> {
     for entry in &config.exceptions {
+        if !evaluated_codes.contains(entry.rule.as_str()) {
+            continue;
+        }
         for symbol in configured_symbols(entry) {
             let key = (entry.rule.clone(), entry.path.clone(), symbol.clone());
             if applied.contains(&key) {
@@ -75,7 +95,7 @@ fn stale_exception(config: &Config, applied: &HashSet<ExceptionKey>) -> Option<S
     None
 }
 
-fn configured_symbols(entry: &crate::models::RuleException) -> Vec<Option<String>> {
+fn configured_symbols(entry: &RuleException) -> Vec<Option<String>> {
     if entry.symbols.is_empty() {
         return vec![None];
     }

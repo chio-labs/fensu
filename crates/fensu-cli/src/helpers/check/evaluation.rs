@@ -35,6 +35,10 @@ pub(crate) fn evaluate_and_render(
     };
     let mut all_rules = blocking.clone();
     all_rules.extend(warning_rules.iter().copied());
+    let evaluated_codes = all_rules
+        .iter()
+        .map(|rule| rule.code.as_str())
+        .collect::<HashSet<_>>();
     let codes_by_source = owner_plan(sources, &all_rules);
     let project = project_plane(root, config, sources)?;
     let program_by_path = sources
@@ -127,7 +131,7 @@ pub(crate) fn evaluate_and_render(
     });
     uses.sort();
     uses.dedup();
-    let (faults, applied) = apply_exceptions(faults, sources, config)?;
+    let (faults, applied) = apply_exceptions(faults, sources, root, &evaluated_codes, config)?;
     let faults = apply_rule_ignores(faults, root, config);
     let blocking_faults = faults
         .iter()

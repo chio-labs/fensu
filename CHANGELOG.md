@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.7.0](https://github.com/chio-labs/fensu/compare/v0.6.0...v0.7.0) (2026-07-26)
+
+
+### Features
+
+* add --color to check in both implementations ([205a3c2](https://github.com/chio-labs/fensu/commit/205a3c29ea744a3c821b7ea6fce270fee05c972d))
+* make the test scope vocabulary configurable ([a2f814f](https://github.com/chio-labs/fensu/commit/a2f814f6dc638d4982810baa3e0c145b280c3d30))
+* make the test scope vocabulary configurable ([f01479d](https://github.com/chio-labs/fensu/commit/f01479ded648bdb4857b28b5ebc798bb9e40bf9c))
+
+
+### Bug Fixes
+
+* honor symbol-scoped rule exceptions in native checks ([50a83b0](https://github.com/chio-labs/fensu/commit/50a83b0c8ba53bbda981922fbe9afeb8c4838261))
+* match rule exception paths exactly and skip unevaluated rules ([c30eeb2](https://github.com/chio-labs/fensu/commit/c30eeb272fab68343f2f8e2733232b99c2dc5ce7))
+* move the fault color test into a compliant harness ([52ac837](https://github.com/chio-labs/fensu/commit/52ac83736d4913cd37a01f9e7776945241e3e11e))
+* restore historical fault output color ([6870aa9](https://github.com/chio-labs/fensu/commit/6870aa90beb6c9e3f77670e176c35c7eb78bfca0))
+* restore historical fault output color ([461faf8](https://github.com/chio-labs/fensu/commit/461faf8d68a43d58ec8236267acd1fa3c7e151ea))
+* validate rule exception targets during native checks ([cde9488](https://github.com/chio-labs/fensu/commit/cde94884f7e7ad4572f54926f1937cf8315efe43))
+* validate rule exception targets during native checks ([79c51d4](https://github.com/chio-labs/fensu/commit/79c51d402b021b5d3707ed047ce8a1fe9d128ea7))
+
 ## [0.6.0](https://github.com/chio-labs/fensu/compare/v0.5.2...v0.6.0) (2026-07-26)
 
 

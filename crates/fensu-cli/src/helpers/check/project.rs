@@ -8,7 +8,7 @@ use globset::GlobBuilder;
 use walkdir::WalkDir;
 
 use crate::constants::{SCOPE_TEST, STEM_INIT, VALUE_TRUE};
-use crate::helpers::check_policy::{bool_text, program, python_version, relative};
+use crate::helpers::check::policy::{bool_text, program, python_version, relative};
 use crate::models::{Config, ScopedSource};
 
 const ENTRYPOINT_SECTIONS: [&str; 3] = ["scripts", "gui-scripts", "entry-points"];

@@ -5,7 +5,7 @@ use fensu_facts::extension::models::ProgramHandle;
 use crate::check::_helpers::cache;
 use crate::check::_helpers::evaluation::evaluate_and_render;
 use crate::check::_helpers::policy::python_version;
-use crate::check::models::CheckPlan;
+use crate::check::models::{CheckPlan, EvaluationRequest};
 use crate::models::{CachedOutput, CheckOptions, CliOutput, ScopedSource};
 use crate::skills::main::core_freshness;
 
@@ -34,14 +34,14 @@ pub(crate) fn render_check(
     options: &CheckOptions,
 ) -> Result<CliOutput, String> {
     parse_sources(&mut plan.sources)?;
-    let (output, exit_code) = evaluate_and_render(
-        &plan.root,
-        &plan.config,
-        &plan.sources,
-        plan.excluded,
-        options.warn,
-        plan.color,
-    )?;
+    let (output, exit_code) = evaluate_and_render(EvaluationRequest {
+        root: &plan.root,
+        config: &plan.config,
+        sources: &plan.sources,
+        excluded: plan.excluded,
+        show_warnings: options.warn,
+        color: plan.color,
+    })?;
     let mut stderr = String::new();
     stderr.push_str(&core_freshness::core_freshness(&plan.invocation).unwrap_or_default());
     if plan.cache_enabled {

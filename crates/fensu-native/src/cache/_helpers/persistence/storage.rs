@@ -12,6 +12,7 @@ use crate::cache::_helpers::database::{
 use crate::cache::_helpers::records::decode_record;
 use crate::cache::constants::READ_CHUNK_SIZE;
 use crate::cache::models::{CacheMetrics, CacheMutation, DecodedRecord, EncodedWrite};
+use crate::cache::types::StoredRecordMap;
 
 const UPSERT_RECORD_SQL: &str = "INSERT INTO records(key, kind, data) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET kind = excluded.kind, data = excluded.data";
 
@@ -28,14 +29,14 @@ pub(crate) fn read_records(
         return Some((empty_records(reads.len()), CacheMetrics::default()));
     }
     let connection = readable_connection(repo_root)?;
-    let mut metrics = CacheMetrics {
+    let metrics = CacheMetrics {
         reads: reads.len(),
         ..CacheMetrics::default()
     };
-    let rows = fetch_rows(
+    let (rows, metrics) = fetch_rows(
         &connection,
         &reads.iter().map(|(key, _)| key.clone()).collect::<Vec<_>>(),
-        &mut metrics,
+        metrics,
     )?;
     if !database_identity_is_current(&connection) {
         return Some((empty_records(reads.len()), metrics));
@@ -60,11 +61,10 @@ pub(crate) fn write_records(repo_root: &Path, writes: &[EncodedWrite]) -> Option
     valid_writes(writes).then_some(())?;
     let connection = writable_connection(repo_root)?;
     begin_writable_transaction(&connection)?;
-    let mut metrics = CacheMetrics::default();
-    if publish_writes(&connection, writes, &mut metrics).is_none() {
+    let Some(metrics) = publish_writes(&connection, writes, CacheMetrics::default()) else {
         let _ = connection.execute_batch("ROLLBACK");
         return None;
-    }
+    };
     if connection.execute_batch("COMMIT").is_err() {
         let _ = connection.execute_batch("ROLLBACK");
         return None;
@@ -93,12 +93,13 @@ where
     let rows = fetch_rows(
         &connection,
         &reads.iter().map(|(key, _)| key.clone()).collect::<Vec<_>>(),
-        &mut metrics,
+        metrics,
     );
-    let Some(rows) = rows else {
+    let Some((rows, updated_metrics)) = rows else {
         let _ = connection.execute_batch("ROLLBACK");
         return None;
     };
+    metrics = updated_metrics;
     let records = reads
         .iter()
         .map(|(key, expected_kind)| {
@@ -120,10 +121,11 @@ where
         let _ = connection.execute_batch("ROLLBACK");
         return Some((None, metrics));
     };
-    if apply_mutation(&connection, &mutation, &mut metrics).is_none() {
+    let Some(updated_metrics) = apply_mutation(&connection, &mutation, metrics) else {
         let _ = connection.execute_batch("ROLLBACK");
         return None;
-    }
+    };
+    metrics = updated_metrics;
     if connection.execute_batch("COMMIT").is_err() {
         let _ = connection.execute_batch("ROLLBACK");
         return None;
@@ -134,8 +136,8 @@ where
 fn fetch_rows(
     connection: &Connection,
     keys: &[String],
-    metrics: &mut CacheMetrics,
-) -> Option<HashMap<String, (String, Vec<u8>)>> {
+    mut metrics: CacheMetrics,
+) -> Option<(StoredRecordMap, CacheMetrics)> {
     let mut rows_by_key = HashMap::new();
     for chunk in keys.chunks(READ_CHUNK_SIZE) {
         let placeholders = std::iter::repeat_n("?", chunk.len())
@@ -150,18 +152,18 @@ fn fetch_rows(
             .ok()?;
         for row in rows {
             let (key, kind, data): (String, String, Vec<u8>) = row.ok()?;
-            metrics.bytes_read += data.len();
+            metrics.record_read(data.len());
             rows_by_key.insert(key, (kind, data));
         }
     }
-    Some(rows_by_key)
+    Some((rows_by_key, metrics))
 }
 
 fn publish_writes(
     connection: &Connection,
     writes: &[EncodedWrite],
-    metrics: &mut CacheMetrics,
-) -> Option<()> {
+    mut metrics: CacheMetrics,
+) -> Option<CacheMetrics> {
     for write in writes {
         let sql = if write.insert_only {
             "INSERT INTO records(key, kind, data) VALUES (?, ?, ?)"
@@ -172,16 +174,15 @@ fn publish_writes(
             .execute(sql, params![write.key, write.kind, write.data])
             .ok()?;
     }
-    metrics.writes += writes.len();
-    metrics.bytes_written += writes.iter().map(|write| write.data.len()).sum::<usize>();
-    Some(())
+    metrics.record_writes(writes);
+    Some(metrics)
 }
 
 fn apply_mutation(
     connection: &Connection,
     mutation: &CacheMutation,
-    metrics: &mut CacheMetrics,
-) -> Option<()> {
+    mut metrics: CacheMetrics,
+) -> Option<CacheMetrics> {
     valid_writes(&mutation.writes).then_some(())?;
     mutation
         .swept_prefix
@@ -195,7 +196,7 @@ fn apply_mutation(
         .chain(mutation.deleted_paths.iter())
         .all(|path| valid_key(path))
         .then_some(())?;
-    publish_writes(connection, &mutation.writes, metrics)?;
+    metrics = publish_writes(connection, &mutation.writes, metrics)?;
     let written = mutation
         .writes
         .iter()
@@ -217,12 +218,12 @@ fn apply_mutation(
             .ok()?
             .collect::<Result<Vec<_>, _>>()
             .ok()?;
-        metrics.scans += keys.len();
+        metrics.record_scan(keys.len());
         let doomed = keys
             .into_iter()
             .filter(|key| !retained.contains(key.as_str()))
             .collect::<Vec<_>>();
-        delete_keys(connection, &doomed, metrics)?;
+        metrics = delete_keys(connection, &doomed, metrics)?;
     }
     let doomed = mutation
         .deleted_paths
@@ -235,8 +236,12 @@ fn apply_mutation(
     delete_keys(connection, &doomed, metrics)
 }
 
-fn delete_keys(connection: &Connection, keys: &[String], metrics: &mut CacheMetrics) -> Option<()> {
-    metrics.deletes += keys.len();
+fn delete_keys(
+    connection: &Connection,
+    keys: &[String],
+    mut metrics: CacheMetrics,
+) -> Option<CacheMetrics> {
+    metrics.record_deletes(keys.len());
     for chunk in keys.chunks(READ_CHUNK_SIZE) {
         let placeholders = std::iter::repeat_n("?", chunk.len())
             .collect::<Vec<_>>()
@@ -248,7 +253,7 @@ fn delete_keys(connection: &Connection, keys: &[String], metrics: &mut CacheMetr
             )
             .ok()?;
     }
-    Some(())
+    Some(metrics)
 }
 
 fn valid_writes(writes: &[EncodedWrite]) -> bool {

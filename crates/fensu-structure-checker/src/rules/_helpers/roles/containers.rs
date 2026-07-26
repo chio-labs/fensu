@@ -79,16 +79,16 @@ fn check_prefix_families(files: &[models::SourceFile]) -> Vec<models::Violation>
         if members.len() < constants::MIN_SHARED_PREFIX_MODULES {
             continue;
         }
-        violations.push(models::Violation::new(
-            "RSR308",
-            std::path::Path::new(&directory),
-            None,
-            format!(
+        violations.push(models::Violation::new(models::ViolationRequest {
+            code: "RSR308",
+            path: std::path::Path::new(&directory),
+            line: None,
+            message: format!(
                 "{} sibling modules share the {prefix} prefix",
                 members.len()
             ),
-            "group the shared prefix into one bucket named after it",
-        ));
+            remediation: "group the shared prefix into one bucket named after it",
+        }));
     }
     violations
 }
@@ -119,13 +119,13 @@ pub(crate) fn check_file(
     if !inside_nested_package(&file.relative) {
         return Vec::new();
     }
-    vec![models::Violation::new(
-        "RSR304",
-        file.relative_path(),
-        None,
-        "implementation module outside a role container",
-        "move the module under the domain's helpers/ or main/ container",
-    )]
+    vec![models::Violation::new(models::ViolationRequest {
+        code: "RSR304",
+        path: file.relative_path(),
+        line: None,
+        message: "implementation module outside a role container",
+        remediation: "move the module under the domain's helpers/ or main/ container",
+    })]
 }
 
 /// Return whether the module sits inside a nested package rather than at domain position.
@@ -147,32 +147,32 @@ fn check_entry_shape(file: &models::SourceFile, syntax: &syn::File) -> Vec<model
                 syn::Visibility::Inherited => private_functions += 1,
                 _ => visible_functions += 1,
             },
-            other => violations.push(models::Violation::new(
-                "RSR401",
-                file.relative_path(),
-                Some(other.span().start().line),
-                "entry modules may contain only imports and functions",
-                "move declarations into the domain's role files",
-            )),
+            other => violations.push(models::Violation::new(models::ViolationRequest {
+                code: "RSR401",
+                path: file.relative_path(),
+                line: Some(other.span().start().line),
+                message: "entry modules may contain only imports and functions",
+                remediation: "move declarations into the domain's role files",
+            })),
         }
     }
     if visible_functions != 1 {
-        violations.push(models::Violation::new(
-            "RSR401",
-            file.relative_path(),
-            None,
-            format!("entry module exposes {visible_functions} functions"),
-            "keep exactly one visible entry function per entry module",
-        ));
+        violations.push(models::Violation::new(models::ViolationRequest {
+            code: "RSR401",
+            path: file.relative_path(),
+            line: None,
+            message: format!("entry module exposes {visible_functions} functions"),
+            remediation: "keep exactly one visible entry function per entry module",
+        }));
     }
     if private_functions > constants::MAX_ENTRY_PRIVATE_FUNCTIONS {
-        violations.push(models::Violation::new(
-            "RSR401",
-            file.relative_path(),
-            None,
-            format!("entry module defines {private_functions} private functions"),
-            "move phase logic into the domain's helpers/ container",
-        ));
+        violations.push(models::Violation::new(models::ViolationRequest {
+            code: "RSR401",
+            path: file.relative_path(),
+            line: None,
+            message: format!("entry module defines {private_functions} private functions"),
+            remediation: "move phase logic into the domain's helpers/ container",
+        }));
     }
     violations
 }
@@ -222,11 +222,11 @@ fn container_violation(container: &str, detail: &str) -> models::Violation {
         true => "RSR302",
         false => "RSR301",
     };
-    models::Violation::new(
+    models::Violation::new(models::ViolationRequest {
         code,
-        std::path::Path::new(container),
-        None,
-        format!("container {detail}"),
-        "keep containers flat and bounded, or group every module one level deep",
-    )
+        path: std::path::Path::new(container),
+        line: None,
+        message: format!("container {detail}"),
+        remediation: "keep containers flat and bounded, or group every module one level deep",
+    })
 }

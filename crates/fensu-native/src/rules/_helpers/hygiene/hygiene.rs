@@ -33,11 +33,7 @@ pub(crate) fn hygiene_faults(
         NO_STANDALONE_COMMENTS_CODE => program
             .comment_rows()
             .iter()
-            .filter(|row| {
-                !COMMENT_ALLOWED_PREFIXES
-                    .iter()
-                    .any(|prefix| row.text.starts_with(prefix))
-            })
+            .filter(|row| !allowed_comment(&row.text))
             .map(|row| location_fault(code, row.line, row.column))
             .collect(),
         NO_RAW_BUILTIN_RAISE_CODE => location_faults(code, &rows.raw_builtin_raises),
@@ -57,6 +53,12 @@ pub(crate) fn hygiene_faults(
         _ => return None,
     };
     Some(faults)
+}
+
+fn allowed_comment(text: &str) -> bool {
+    COMMENT_ALLOWED_PREFIXES
+        .iter()
+        .any(|prefix| text.starts_with(prefix))
 }
 
 fn location_faults(code: &str, locations: &[(u32, u32)]) -> Vec<NativeFaultRow> {

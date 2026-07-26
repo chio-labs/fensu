@@ -13,7 +13,7 @@ fn given_shape_fixtures_when_checking_then_reports_expected_codes() {
                 contents: "fn support(a1: usize, a2: usize, a3: usize, a4: usize, a5: usize, a6: usize, a7: usize, a8: usize, a9: usize, a10: usize, a11: usize) -> usize {\n    a1\n}\n"
                     .to_owned(),
             }],
-            expected_violation_codes: vec!["RSS010"],
+            expected_violation_codes: vec!["RSS010", "RSS120"],
         },
         test_types::CheckRepoTestCase {
             description: "function over the global statement budget is reported",

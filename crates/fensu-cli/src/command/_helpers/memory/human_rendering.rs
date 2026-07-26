@@ -9,13 +9,22 @@ use fensu_memory::engine::models::{
 use crate::command::_helpers::memory::values::{heading, query_value};
 use crate::command::constants::{RELATION_KIND_TABLE, RELATION_KIND_VIEW};
 
-pub(crate) fn sync(
-    summary: &SyncSummary,
-    repository_root: &Path,
-    database_path: &Path,
-    compact: bool,
-    color: bool,
-) -> String {
+pub(crate) struct SyncRenderRequest<'a> {
+    pub(crate) summary: &'a SyncSummary,
+    pub(crate) repository_root: &'a Path,
+    pub(crate) database_path: &'a Path,
+    pub(crate) compact: bool,
+    pub(crate) color: bool,
+}
+
+pub(crate) fn sync(request: SyncRenderRequest<'_>) -> String {
+    let SyncRenderRequest {
+        summary,
+        repository_root,
+        database_path,
+        compact,
+        color,
+    } = request;
     if compact {
         if !summary.changed {
             return String::new();

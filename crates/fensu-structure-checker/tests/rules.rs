@@ -16,6 +16,8 @@ mod role_files;
 mod roles;
 #[path = "rules/shape.rs"]
 mod shape;
+#[path = "rules/shape_policy.rs"]
+mod shape_policy;
 #[path = "rules/test_types.rs"]
 mod test_types;
 #[path = "rules/tests_layout.rs"]

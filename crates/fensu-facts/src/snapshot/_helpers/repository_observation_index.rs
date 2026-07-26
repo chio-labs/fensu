@@ -157,15 +157,19 @@ impl RepositoryObservationIndex {
         starting_points: &[&str],
         matcher: &globset::GlobMatcher,
     ) -> Vec<String> {
-        starting_points
-            .iter()
-            .flat_map(|directory| self.direct_entries.get(*directory).into_iter().flatten())
-            .filter(|path| {
+        let mut matches = Vec::new();
+        for directory in starting_points {
+            let Some(entries) = self.direct_entries.get(*directory) else {
+                continue;
+            };
+            for path in entries {
                 let name = path.rsplit_once('/').map(|(_, name)| name).unwrap_or(path);
-                matcher.is_match(name)
-            })
-            .cloned()
-            .collect()
+                if matcher.is_match(name) {
+                    matches.push(path.clone());
+                }
+            }
+        }
+        matches
     }
 
     fn finalize_order(&mut self, roots: &[std::path::PathBuf]) {
@@ -176,24 +180,24 @@ impl RepositoryObservationIndex {
             self.directory_order.push(relative_root.clone());
             let mut pending = vec![relative_root];
             while let Some(directory) = pending.pop() {
-                let children = self
-                    .direct_entries
-                    .get(&directory)
-                    .into_iter()
-                    .flatten()
-                    .filter(|path| self.directory_paths.contains(*path))
-                    .cloned()
-                    .collect::<Vec<_>>();
+                let mut children = Vec::new();
+                if let Some(entries) = self.direct_entries.get(&directory) {
+                    for path in entries {
+                        if self.directory_paths.contains(path) {
+                            children.push(path.clone());
+                        }
+                    }
+                }
                 self.directory_order.extend(children.iter().cloned());
                 pending.extend(children.into_iter().rev());
             }
         }
-        self.entries = self
-            .directory_order
-            .iter()
-            .flat_map(|directory| self.direct_entries.get(directory).into_iter().flatten())
-            .cloned()
-            .collect();
+        self.entries.clear();
+        for directory in &self.directory_order {
+            if let Some(entries) = self.direct_entries.get(directory) {
+                self.entries.extend(entries.iter().cloned());
+            }
+        }
     }
 
     fn python_anchor(&self, root: &str) -> Option<String> {
@@ -201,31 +205,29 @@ impl RepositoryObservationIndex {
         if self.file_paths.contains(&init) {
             return Some(init);
         }
-        let mut direct = self
-            .direct_entries
-            .get(root)
-            .into_iter()
-            .flatten()
-            .filter(|path| self.file_paths.contains(*path) && path.ends_with(".py"))
-            .cloned()
-            .collect::<Vec<_>>();
+        let mut direct = Vec::new();
+        if let Some(entries) = self.direct_entries.get(root) {
+            for path in entries {
+                if self.file_paths.contains(path) && path.ends_with(".py") {
+                    direct.push(path.clone());
+                }
+            }
+        }
         direct.sort();
         if let Some(path) = direct.into_iter().next() {
             return Some(path);
         }
         let prefix = (root != REPOSITORY_ROOT_PATH).then(|| format!("{root}/"));
-        let mut descendants = self
-            .file_paths
-            .iter()
-            .filter(|path| {
-                path.ends_with(".py")
-                    && prefix
-                        .as_ref()
-                        .map(|prefix| path.starts_with(prefix))
-                        .unwrap_or(true)
-            })
-            .cloned()
-            .collect::<Vec<_>>();
+        let mut descendants = Vec::new();
+        for path in &self.file_paths {
+            let below_root = prefix
+                .as_ref()
+                .map(|prefix| path.starts_with(prefix))
+                .unwrap_or(true);
+            if path.ends_with(".py") && below_root {
+                descendants.push(path.clone());
+            }
+        }
         descendants.sort();
         descendants.into_iter().next()
     }

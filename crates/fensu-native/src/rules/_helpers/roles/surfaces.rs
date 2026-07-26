@@ -25,6 +25,15 @@ const PARSE_ARGS_FUNCTION: &str = "_parse_args";
 const PYTHON_SUFFIX: &str = ".py";
 const TOOLING_SCOPE: &str = "tooling";
 
+struct LineCountPolicy<'a> {
+    program: &'a ProgramHandle,
+    code: &'a str,
+    context: &'a NativeRuleContext,
+    threshold: &'a str,
+    message_prefix: &'a str,
+    direct_tooling_only: bool,
+}
+
 pub(crate) fn surface_faults(
     program: &ProgramHandle,
     code: &str,
@@ -37,28 +46,28 @@ pub(crate) fn surface_faults(
         NO_REEXPORT_SHIM_CODE => reexport_faults(code, context, declarations),
         PUBLIC_SURFACE_SHAPE_CODE => public_surface_faults(code, context, declarations),
         CLASSES_ONE_CLASS_PER_MODULE_CODE => classes_shape_faults(code, context, declarations),
-        SOURCE_FILE_LINE_COUNT_CODE => line_count_faults(
+        SOURCE_FILE_LINE_COUNT_CODE => line_count_faults(LineCountPolicy {
             program,
             code,
             context,
-            MAX_FILE_LINES_THRESHOLD,
-            "source file has",
-            false,
-        ),
+            threshold: MAX_FILE_LINES_THRESHOLD,
+            message_prefix: "source file has",
+            direct_tooling_only: false,
+        }),
         TOOLING_ENTRYPOINT_SHAPE_CODE => {
             tooling_entrypoint_shape_faults(code, context, declarations)
         }
         TOOLING_ENTRYPOINT_DELEGATION_CODE => {
             tooling_entrypoint_delegation_faults(code, context, declarations)
         }
-        TOOLING_ENTRYPOINT_LINE_COUNT_CODE => line_count_faults(
+        TOOLING_ENTRYPOINT_LINE_COUNT_CODE => line_count_faults(LineCountPolicy {
             program,
             code,
             context,
-            MAX_SCRIPT_ENTRYPOINT_LINES_THRESHOLD,
-            "direct script has",
-            true,
-        ),
+            threshold: MAX_SCRIPT_ENTRYPOINT_LINES_THRESHOLD,
+            message_prefix: "direct script has",
+            direct_tooling_only: true,
+        }),
         _ => return None,
     };
     Some(faults)
@@ -201,30 +210,23 @@ fn classes_shape_faults(
     )]
 }
 
-fn line_count_faults(
-    program: &ProgramHandle,
-    code: &str,
-    context: &NativeRuleContext,
-    threshold: &str,
-    message_prefix: &str,
-    direct_tooling_only: bool,
-) -> Vec<NativeFaultRow> {
-    if direct_tooling_only && !is_direct_tooling_entrypoint(context) {
+fn line_count_faults(policy: LineCountPolicy<'_>) -> Vec<NativeFaultRow> {
+    if policy.direct_tooling_only && !is_direct_tooling_entrypoint(policy.context) {
         return Vec::new();
     }
-    let Some(limit) = context.thresholds.get(threshold).copied() else {
+    let Some(limit) = policy.context.thresholds.get(policy.threshold).copied() else {
         return Vec::new();
     };
-    let count = u32::try_from(program.source_line_count()).unwrap_or(u32::MAX);
+    let count = u32::try_from(policy.program.source_line_count()).unwrap_or(u32::MAX);
     if count <= limit {
         return Vec::new();
     }
-    let message = if direct_tooling_only {
-        format!("{message_prefix} {count} lines (limit: {limit})")
+    let message = if policy.direct_tooling_only {
+        format!("{} {count} lines (limit: {limit})", policy.message_prefix)
     } else {
-        format!("{message_prefix} {count} lines")
+        format!("{} {count} lines", policy.message_prefix)
     };
-    vec![path_fault(code, Some(&message))]
+    vec![path_fault(policy.code, Some(&message))]
 }
 
 fn tooling_entrypoint_shape_faults(
@@ -302,14 +304,10 @@ fn tooling_entrypoint_delegation_faults(
             Some("direct scripts must import and call an entry function from a main/ module"),
         )];
     }
-    let delegates = declarations.main_calls.iter().any(|call| {
-        call.name.as_ref().is_some_and(|name| {
-            declarations
-                .imported_main_entry_names
-                .iter()
-                .any(|entry| entry == name)
-        })
-    });
+    let delegates = declarations
+        .main_calls
+        .iter()
+        .any(|call| imported_main_call(call.name.as_deref(), declarations));
     let mut faults = Vec::new();
     if !delegates {
         faults.push(path_fault(
@@ -317,24 +315,29 @@ fn tooling_entrypoint_delegation_faults(
             Some("direct scripts must import and call an entry function from a main/ module"),
         ));
     }
-    faults.extend(declarations.main_calls.iter().filter_map(|call| {
+    for call in &declarations.main_calls {
         let allowed = call.name.as_deref() == Some(PARSE_ARGS_FUNCTION)
-            || call.name.as_ref().is_some_and(|name| {
-                declarations
-                    .imported_main_entry_names
-                    .iter()
-                    .any(|entry| entry == name)
-            });
-        (!allowed).then(|| {
-            location_fault(
+            || imported_main_call(call.name.as_deref(), declarations);
+        if !allowed {
+            faults.push(location_fault(
                 code,
                 call.line,
                 call.column,
                 Some("direct script main() may call only _parse_args() and imported main/ entries"),
-            )
-        })
-    }));
+            ));
+        }
+    }
     faults
+}
+
+fn imported_main_call(name: Option<&str>, declarations: &ModuleDeclarationRows) -> bool {
+    let Some(name) = name else {
+        return false;
+    };
+    declarations
+        .imported_main_entry_names
+        .iter()
+        .any(|entry| entry == name)
 }
 
 fn is_direct_tooling_entrypoint(context: &NativeRuleContext) -> bool {

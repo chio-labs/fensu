@@ -10,10 +10,20 @@ use crate::syntax::main::breadth_first_nodes::breadth_first_nodes;
 use crate::syntax::main::start_of::start_of;
 use crate::syntax::types::ShapeNode;
 
+struct HygieneCollector<'a> {
+    index: &'a LineIndex,
+    source: &'a str,
+    rows: HygieneRows,
+}
+
 pub(crate) fn hygiene_rows(module: &ModModule, index: &LineIndex, source: &str) -> HygieneRows {
     let nodes = breadth_first_nodes(module);
-    let mut rows = HygieneRows::default();
-    collect_docstrings(module, &nodes, index, source, &mut rows);
+    let mut collector = HygieneCollector {
+        index,
+        source,
+        rows: HygieneRows::default(),
+    };
+    collector.collect_docstrings(module, &nodes);
     for node in &nodes {
         match node {
             ShapeNode::Stmt(Stmt::Raise(inner)) => {
@@ -23,11 +33,17 @@ pub(crate) fn hygiene_rows(module: &ModModule, index: &LineIndex, source: &str) 
                     .and_then(leftmost_base_name)
                     .is_some_and(|name| constants::RAW_BUILTIN_RAISE_NAMES.contains(&name));
                 if raw {
-                    rows.raw_builtin_raises.push(start_of(node, index, source));
+                    collector
+                        .rows
+                        .raw_builtin_raises
+                        .push(start_of(node, index, source));
                 }
             }
             ShapeNode::Stmt(Stmt::Assert(_)) => {
-                rows.assertions.push(start_of(node, index, source));
+                collector
+                    .rows
+                    .assertions
+                    .push(start_of(node, index, source));
             }
             ShapeNode::ExceptHandler(handler) => {
                 let bare = handler.name.is_none()
@@ -35,115 +51,110 @@ pub(crate) fn hygiene_rows(module: &ModModule, index: &LineIndex, source: &str) 
                         handler.type_.as_deref(),
                         Some(Expr::Name(name)) if name.id.as_str() == constants::EXCEPTION_CLASS_NAME
                     );
-                if bare && body_is_single_swallow(&handler.body) {
-                    rows.swallowed_exception_probes
+                if bare && HygieneCollector::body_is_single_swallow(&handler.body) {
+                    collector
+                        .rows
+                        .swallowed_exception_probes
                         .push(start_of(node, index, source));
                 }
             }
             _ => {}
         }
     }
-    collect_decisions(&nodes, index, source, true, &mut rows);
-    collect_decisions(&nodes, index, source, false, &mut rows);
-    rows
+    collector.collect_decisions(&nodes, true);
+    collector.collect_decisions(&nodes, false);
+    collector.rows
 }
 
-fn collect_docstrings(
-    module: &ModModule,
-    nodes: &[ShapeNode<'_>],
-    index: &LineIndex,
-    source: &str,
-    rows: &mut HygieneRows,
-) {
-    let mut owners: Vec<&[Stmt]> = vec![&module.body];
-    for want_async in [false, true] {
-        for node in nodes {
-            if let ShapeNode::Stmt(Stmt::FunctionDef(inner)) = node {
-                if inner.is_async == want_async {
-                    owners.push(&inner.body);
+impl HygieneCollector<'_> {
+    fn collect_docstrings(&mut self, module: &ModModule, nodes: &[ShapeNode<'_>]) {
+        let mut owners: Vec<&[Stmt]> = vec![&module.body];
+        for want_async in [false, true] {
+            for node in nodes {
+                if let ShapeNode::Stmt(Stmt::FunctionDef(inner)) = node {
+                    if inner.is_async == want_async {
+                        owners.push(&inner.body);
+                    }
                 }
             }
         }
-    }
-    for node in nodes {
-        if let ShapeNode::Stmt(Stmt::ClassDef(inner)) = node {
-            owners.push(&inner.body);
+        for node in nodes {
+            if let ShapeNode::Stmt(Stmt::ClassDef(inner)) = node {
+                owners.push(&inner.body);
+            }
+        }
+        for body in owners {
+            let Some(first) = body.first() else {
+                continue;
+            };
+            if Self::is_multiline_docstring(first, self.index) {
+                self.rows.multiline_docstrings.push(start_of(
+                    &ShapeNode::Stmt(first),
+                    self.index,
+                    self.source,
+                ));
+            }
         }
     }
-    for body in owners {
-        let Some(first) = body.first() else {
-            continue;
+
+    fn is_multiline_docstring(statement: &Stmt, index: &LineIndex) -> bool {
+        if !is_docstring_statement(statement) {
+            return false;
+        }
+        let Stmt::Expr(inner) = statement else {
+            return false;
         };
-        if is_multiline_docstring(first, index) {
-            rows.multiline_docstrings
-                .push(start_of(&ShapeNode::Stmt(first), index, source));
+        let Expr::StringLiteral(literal) = &*inner.value else {
+            return false;
+        };
+        let start_line = index.locate(inner.range.start().to_usize()).line;
+        let end_line = index.locate(inner.range.end().to_usize()).line;
+        end_line > start_line || literal.value.to_str().contains('\n')
+    }
+
+    fn body_is_single_swallow(body: &[Stmt]) -> bool {
+        if body.len() != 1 {
+            return false;
         }
-    }
-}
-
-fn is_multiline_docstring(statement: &Stmt, index: &LineIndex) -> bool {
-    if !is_docstring_statement(statement) {
-        return false;
-    }
-    let Stmt::Expr(inner) = statement else {
-        return false;
-    };
-    let Expr::StringLiteral(literal) = &*inner.value else {
-        return false;
-    };
-    let start_line = index.locate(inner.range.start().to_usize()).line;
-    let end_line = index.locate(inner.range.end().to_usize()).line;
-    end_line > start_line || literal.value.to_str().contains('\n')
-}
-
-fn body_is_single_swallow(body: &[Stmt]) -> bool {
-    if body.len() != 1 {
-        return false;
-    }
-    match &body[0] {
-        Stmt::Continue(_) => true,
-        Stmt::Return(inner) => match inner.value.as_deref() {
-            Some(Expr::NoneLiteral(_)) => true,
-            Some(Expr::BooleanLiteral(literal)) => !literal.value,
-            Some(Expr::Dict(dict)) => dict.items.is_empty(),
-            Some(Expr::Tuple(tuple)) => tuple.elts.is_empty(),
+        match &body[0] {
+            Stmt::Continue(_) => true,
+            Stmt::Return(inner) => match inner.value.as_deref() {
+                Some(Expr::NoneLiteral(_)) => true,
+                Some(Expr::BooleanLiteral(literal)) => !literal.value,
+                Some(Expr::Dict(dict)) => dict.items.is_empty(),
+                Some(Expr::Tuple(tuple)) => tuple.elts.is_empty(),
+                _ => false,
+            },
             _ => false,
-        },
-        _ => false,
-    }
-}
-
-fn collect_decisions(
-    nodes: &[ShapeNode<'_>],
-    index: &LineIndex,
-    source: &str,
-    strings: bool,
-    rows: &mut HygieneRows,
-) {
-    for node in nodes {
-        let ShapeNode::Expr(Expr::Compare(compare)) = node else {
-            continue;
-        };
-        if strings && is_main_execution_guard(compare) {
-            continue;
         }
-        let operands = std::iter::once(&*compare.left).chain(compare.comparators.iter());
-        for operand in operands {
-            for literal in decision_literal_nodes(operand) {
-                if strings {
-                    if matches!(literal, Expr::StringLiteral(_)) {
-                        rows.unnamed_string_decisions.push(start_of(
+    }
+
+    fn collect_decisions(&mut self, nodes: &[ShapeNode<'_>], strings: bool) {
+        for node in nodes {
+            let ShapeNode::Expr(Expr::Compare(compare)) = node else {
+                continue;
+            };
+            if strings && is_main_execution_guard(compare) {
+                continue;
+            }
+            let operands = std::iter::once(&*compare.left).chain(compare.comparators.iter());
+            for operand in operands {
+                for literal in decision_literal_nodes(operand) {
+                    if strings {
+                        if matches!(literal, Expr::StringLiteral(_)) {
+                            self.rows.unnamed_string_decisions.push(start_of(
+                                &ShapeNode::Expr(literal),
+                                self.index,
+                                self.source,
+                            ));
+                        }
+                    } else if is_magic_numeric_literal(literal) {
+                        self.rows.magic_numeric_comparisons.push(start_of(
                             &ShapeNode::Expr(literal),
-                            index,
-                            source,
+                            self.index,
+                            self.source,
                         ));
                     }
-                } else if is_magic_numeric_literal(literal) {
-                    rows.magic_numeric_comparisons.push(start_of(
-                        &ShapeNode::Expr(literal),
-                        index,
-                        source,
-                    ));
                 }
             }
         }

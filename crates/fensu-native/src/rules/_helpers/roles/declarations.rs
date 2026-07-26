@@ -24,6 +24,14 @@ const RULES_ROLE: &str = "rules";
 const TOOLING_SCOPE: &str = "tooling";
 const TYPES_ROLE: &str = "types";
 
+struct RoleContentPolicy<'a, Allowed> {
+    code: &'a str,
+    context: &'a NativeRuleContext,
+    declarations: &'a ModuleDeclarationRows,
+    role: &'a str,
+    allowed: Allowed,
+}
+
 pub(crate) fn declaration_faults(
     program: &ProgramHandle,
     code: &str,
@@ -48,30 +56,40 @@ pub(crate) fn declaration_faults(
     }
     let declarations = program.declaration_rows();
     let faults = match code {
-        MODELS_ONLY_MODELS_CODE => {
-            role_content_faults(code, context, declarations, MODELS_ROLE, |row| {
-                row.import_statement || row.model_class
-            })
-        }
-        TYPES_ONLY_TYPES_CODE => {
-            role_content_faults(code, context, declarations, TYPES_ROLE, |row| {
+        MODELS_ONLY_MODELS_CODE => role_content_faults(RoleContentPolicy {
+            code,
+            context,
+            declarations,
+            role: MODELS_ROLE,
+            allowed: |row: &ModuleStatementRow| row.import_statement || row.model_class,
+        }),
+        TYPES_ONLY_TYPES_CODE => role_content_faults(RoleContentPolicy {
+            code,
+            context,
+            declarations,
+            role: TYPES_ROLE,
+            allowed: |row: &ModuleStatementRow| {
                 row.import_statement
                     || row.assignment_statement
                     || row.explicit_type_alias
                     || row.type_checking_import_block
                     || row.type_class
-            })
-        }
-        CONSTANTS_ONLY_CONSTANTS_CODE => {
-            role_content_faults(code, context, declarations, CONSTANTS_ROLE, |row| {
-                row.import_statement || row.assignment_statement
-            })
-        }
-        EXCEPTIONS_ONLY_EXCEPTIONS_CODE => {
-            role_content_faults(code, context, declarations, EXCEPTIONS_ROLE, |row| {
-                row.import_statement || row.exception_class
-            })
-        }
+            },
+        }),
+        CONSTANTS_ONLY_CONSTANTS_CODE => role_content_faults(RoleContentPolicy {
+            code,
+            context,
+            declarations,
+            role: CONSTANTS_ROLE,
+            allowed: |row: &ModuleStatementRow| row.import_statement || row.assignment_statement,
+        }),
+        EXCEPTIONS_ONLY_EXCEPTIONS_CODE => role_content_faults(RoleContentPolicy {
+            code,
+            context,
+            declarations,
+            role: EXCEPTIONS_ROLE,
+            allowed: |row: &ModuleStatementRow| row.import_statement || row.exception_class,
+        }),
         MODEL_DECLARATION_OUTSIDE_MODELS_CODE => {
             outside_role_locations(code, context, MODELS_ROLE, &declarations.model_locations)
         }
@@ -108,24 +126,19 @@ pub(crate) fn declaration_faults(
     Some(faults)
 }
 
-fn role_content_faults<Allowed>(
-    code: &str,
-    context: &NativeRuleContext,
-    declarations: &ModuleDeclarationRows,
-    role: &str,
-    allowed: Allowed,
-) -> Vec<NativeFaultRow>
+fn role_content_faults<Allowed>(policy: RoleContentPolicy<'_, Allowed>) -> Vec<NativeFaultRow>
 where
     Allowed: Fn(&ModuleStatementRow) -> bool,
 {
-    if context.role.as_deref() != Some(role) {
+    if policy.context.role.as_deref() != Some(policy.role) {
         return Vec::new();
     }
-    declarations
+    policy
+        .declarations
         .statements
         .iter()
-        .filter(|row| !allowed(row))
-        .map(|row| location_fault(code, row.line, row.column, None))
+        .filter(|row| !(policy.allowed)(row))
+        .map(|row| location_fault(policy.code, row.line, row.column, None))
         .collect()
 }
 
@@ -150,16 +163,15 @@ fn constant_outside_role_faults(
     if context.role.as_deref() == Some(CONSTANTS_ROLE) {
         return Vec::new();
     }
-    declarations
-        .statements
-        .iter()
-        .flat_map(|row| {
-            row.assignment_target_names
-                .iter()
-                .filter(|name| !name.starts_with('_') && uppercase_constant(name))
-                .map(|_| location_fault(code, row.line, row.column, None))
-        })
-        .collect()
+    let mut faults = Vec::new();
+    for row in &declarations.statements {
+        for name in &row.assignment_target_names {
+            if !name.starts_with('_') && uppercase_constant(name) {
+                faults.push(location_fault(code, row.line, row.column, None));
+            }
+        }
+    }
+    faults
 }
 
 fn helper_class_faults(

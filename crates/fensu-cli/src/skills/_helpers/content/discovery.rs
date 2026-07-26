@@ -174,14 +174,10 @@ fn discover_files(root: &Path) -> Result<Vec<ProjectSkillFile>, String> {
 }
 
 fn read_sorted(path: &Path) -> Result<Vec<PathBuf>, String> {
-    let mut entries = fs::read_dir(path)
-        .map_err(|error| error.to_string())?
-        .map(|entry| {
-            entry
-                .map(|item| item.path())
-                .map_err(|error| error.to_string())
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+    let mut entries = Vec::new();
+    for entry in fs::read_dir(path).map_err(|error| error.to_string())? {
+        entries.push(entry.map_err(|error| error.to_string())?.path());
+    }
     entries.sort();
     Ok(entries)
 }

@@ -169,84 +169,75 @@ fn strings_or(value: Option<&toml::Value>, default: &[&str]) -> Vec<String> {
 }
 
 fn numbers(value: Option<&toml::Value>) -> HashMap<String, u32> {
-    value
-        .and_then(toml::Value::as_table)
-        .map(|values| {
-            values
-                .iter()
-                .filter_map(|(name, value)| {
-                    value
-                        .as_integer()
-                        .and_then(|number| u32::try_from(number).ok())
-                        .map(|number| (name.clone(), number))
-                })
-                .collect()
-        })
-        .unwrap_or_default()
+    let mut numbers = HashMap::new();
+    let Some(values) = value.and_then(toml::Value::as_table) else {
+        return numbers;
+    };
+    for (name, value) in values {
+        if let Some(number) = value
+            .as_integer()
+            .and_then(|number| u32::try_from(number).ok())
+        {
+            numbers.insert(name.clone(), number);
+        }
+    }
+    numbers
 }
 
 fn role_thresholds(value: Option<&toml::Value>) -> HashMap<String, HashMap<String, u32>> {
-    value
-        .and_then(toml::Value::as_table)
-        .map(|values| {
-            values
-                .iter()
-                .map(|(name, value)| (name.clone(), numbers(Some(value))))
-                .collect()
-        })
-        .unwrap_or_default()
+    let mut thresholds = HashMap::new();
+    if let Some(values) = value.and_then(toml::Value::as_table) {
+        for (name, value) in values {
+            thresholds.insert(name.clone(), numbers(Some(value)));
+        }
+    }
+    thresholds
 }
 
 fn threshold_overrides(value: Option<&toml::Value>) -> Vec<ThresholdOverride> {
-    value
-        .and_then(toml::Value::as_array)
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(toml::Value::as_table)
-                .map(|table| ThresholdOverride {
-                    paths: strings(table.get("paths")),
-                    thresholds: numbers(table.get("thresholds")),
-                    reason: text(table, "reason"),
-                })
-                .collect()
-        })
-        .unwrap_or_default()
+    let mut overrides = Vec::new();
+    let Some(items) = value.and_then(toml::Value::as_array) else {
+        return overrides;
+    };
+    for table in items.iter().filter_map(toml::Value::as_table) {
+        overrides.push(ThresholdOverride {
+            paths: strings(table.get("paths")),
+            thresholds: numbers(table.get("thresholds")),
+            reason: text(table, "reason"),
+        });
+    }
+    overrides
 }
 
 fn exceptions(value: Option<&toml::Value>) -> Vec<RuleException> {
-    value
-        .and_then(toml::Value::as_array)
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(toml::Value::as_table)
-                .map(|table| RuleException {
-                    rule: text(table, "rule"),
-                    path: text(table, "path"),
-                    reason: text(table, "reason"),
-                    symbols: strings(table.get("symbols")),
-                })
-                .collect()
-        })
-        .unwrap_or_default()
+    let mut exceptions = Vec::new();
+    let Some(items) = value.and_then(toml::Value::as_array) else {
+        return exceptions;
+    };
+    for table in items.iter().filter_map(toml::Value::as_table) {
+        exceptions.push(RuleException {
+            rule: text(table, "rule"),
+            path: text(table, "path"),
+            reason: text(table, "reason"),
+            symbols: strings(table.get("symbols")),
+        });
+    }
+    exceptions
 }
 
 fn rule_ignores(value: Option<&toml::Value>) -> Vec<RuleIgnore> {
-    value
-        .and_then(toml::Value::as_array)
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(toml::Value::as_table)
-                .map(|table| RuleIgnore {
-                    rules: strings(table.get("rules")),
-                    paths: strings(table.get("paths")),
-                    reason: text(table, "reason"),
-                })
-                .collect()
-        })
-        .unwrap_or_default()
+    let mut ignores = Vec::new();
+    let Some(items) = value.and_then(toml::Value::as_array) else {
+        return ignores;
+    };
+    for table in items.iter().filter_map(toml::Value::as_table) {
+        ignores.push(RuleIgnore {
+            rules: strings(table.get("rules")),
+            paths: strings(table.get("paths")),
+            reason: text(table, "reason"),
+        });
+    }
+    ignores
 }
 
 fn text(table: &toml::map::Map<String, toml::Value>, name: &str) -> String {

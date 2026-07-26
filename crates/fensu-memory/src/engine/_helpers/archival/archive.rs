@@ -6,7 +6,7 @@ use std::path::{Component, Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
 use crate::engine::errors::MemoryIndexError;
-use crate::engine::models::{MemoryArchiveMove, MemoryArchiveResult};
+use crate::engine::models::{MemoryArchiveMove, MemoryArchiveRequest, MemoryArchiveResult};
 use crate::source::main::discover_memory::discover_memory;
 use crate::source::models::{DiscoveredDocument, SourceMetadata};
 use crate::source::types::{ArchiveState, ArtifactKind, TaskLifecycle};
@@ -22,12 +22,15 @@ struct PlannedMove {
 }
 
 pub(crate) fn archive(
-    repository_root: &Path,
-    database_path: &Path,
-    requested_paths: &[PathBuf],
-    archive_after_days: u64,
-    confirmed: bool,
+    request: MemoryArchiveRequest<'_>,
 ) -> Result<MemoryArchiveResult, MemoryIndexError> {
+    let MemoryArchiveRequest {
+        repository_root,
+        database_path,
+        requested_paths,
+        archive_after_days,
+        confirmed,
+    } = request;
     let discovery = discover_memory(repository_root);
     if let Some(diagnostic) = discovery.diagnostics.first() {
         return Err(MemoryIndexError::Archive(format!(

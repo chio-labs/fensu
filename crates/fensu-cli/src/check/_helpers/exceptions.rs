@@ -5,13 +5,24 @@ use crate::models::{Config, Fault, RuleException, ScopedSource};
 
 type ExceptionKey = (String, String, Option<String>);
 
+pub(crate) struct ApplyExceptionsRequest<'a> {
+    pub(crate) faults: Vec<Fault>,
+    pub(crate) sources: &'a [ScopedSource],
+    pub(crate) root: &'a Path,
+    pub(crate) evaluated_codes: &'a HashSet<&'a str>,
+    pub(crate) config: &'a Config,
+}
+
 pub(crate) fn apply_exceptions(
-    faults: Vec<Fault>,
-    sources: &[ScopedSource],
-    root: &Path,
-    evaluated_codes: &HashSet<&str>,
-    config: &Config,
+    request: ApplyExceptionsRequest<'_>,
 ) -> Result<(Vec<Fault>, usize), String> {
+    let ApplyExceptionsRequest {
+        faults,
+        sources,
+        root,
+        evaluated_codes,
+        config,
+    } = request;
     if config.exceptions.is_empty() {
         return Ok((faults, 0));
     }
@@ -20,40 +31,39 @@ pub(crate) fn apply_exceptions(
         .map(|source| (source.repository_path.as_str(), source))
         .collect::<HashMap<_, _>>();
     let mut applied: HashSet<ExceptionKey> = HashSet::new();
-    let retained = faults
-        .into_iter()
-        .filter(|fault| {
-            let reported = repository_path(&fault.path, root);
-            let mut owner: Option<Option<String>> = None;
-            let matching = config.exceptions.iter().find(|entry| {
-                if entry.rule != fault.code || entry.path != reported {
-                    return false;
-                }
-                if entry.symbols.is_empty() {
-                    return true;
-                }
-                let resolved = owner.get_or_insert_with(|| {
-                    source_by_path
-                        .get(reported.as_str())
-                        .and_then(|source| fault_owner(fault, source))
-                });
-                resolved
-                    .as_deref()
-                    .is_some_and(|symbol| entry.symbols.iter().any(|item| item == symbol))
-            });
-            match matching {
-                Some(entry) => {
-                    let symbol = match entry.symbols.is_empty() {
-                        true => None,
-                        false => owner.clone().flatten(),
-                    };
-                    applied.insert((entry.rule.clone(), entry.path.clone(), symbol));
-                    false
-                }
-                None => true,
+    let mut retained = Vec::new();
+    for fault in faults {
+        let reported = repository_path(&fault.path, root);
+        let mut owner: Option<String> = None;
+        let mut matching = None;
+        for entry in &config.exceptions {
+            if entry.rule != fault.code || entry.path != reported {
+                continue;
             }
-        })
-        .collect::<Vec<_>>();
+            if entry.symbols.is_empty() {
+                matching = Some(entry);
+                break;
+            }
+            if owner.is_none() {
+                owner = source_by_path
+                    .get(reported.as_str())
+                    .and_then(|source| fault_owner(&fault, source));
+            }
+            if owner
+                .as_ref()
+                .is_some_and(|symbol| entry.symbols.iter().any(|item| item == symbol))
+            {
+                matching = Some(entry);
+                break;
+            }
+        }
+        if let Some(entry) = matching {
+            let symbol = (!entry.symbols.is_empty()).then(|| owner.clone()).flatten();
+            applied.insert((entry.rule.clone(), entry.path.clone(), symbol));
+        } else {
+            retained.push(fault);
+        }
+    }
     if let Some(message) = stale_exception(config, evaluated_codes, &applied) {
         return Err(message);
     }

@@ -16,6 +16,22 @@ pub(crate) struct LinkResolution {
     pub(crate) diagnostics: Vec<GraphDiagnostic>,
 }
 
+struct ResolvedLinkRequest<'a> {
+    source: &'a CorpusDocument,
+    link: &'a MarkdownLink,
+    status: ResolutionStatus,
+    target_document_identity: Option<DocumentIdentity>,
+    target_section_ordinal: Option<usize>,
+}
+
+struct HeadingDiagnosticRequest<'a> {
+    source: &'a CorpusDocument,
+    link: &'a MarkdownLink,
+    target: &'a CorpusDocument,
+    kind: GraphDiagnosticKind,
+    sections: Vec<Option<usize>>,
+}
+
 pub(crate) fn resolve(corpus: &MemoryCorpus) -> LinkResolution {
     let mut links = Vec::new();
     let mut diagnostics = Vec::new();
@@ -39,7 +55,13 @@ fn resolve_link(
 ) -> (ResolvedLink, Option<GraphDiagnostic>) {
     if link.syntax_kind == LinkSyntaxKind::ExternalUrl {
         return (
-            resolved_link(source, link, ResolutionStatus::External, None, None),
+            resolved_link(ResolvedLinkRequest {
+                source,
+                link,
+                status: ResolutionStatus::External,
+                target_document_identity: None,
+                target_section_ordinal: None,
+            }),
             None,
         );
     }
@@ -49,7 +71,13 @@ fn resolve_link(
         document_targets::resolve(corpus, source, &link.target)
     };
     if candidates.rejected_traversal || candidates.documents.is_empty() {
-        let resolved = resolved_link(source, link, ResolutionStatus::Unresolved, None, None);
+        let resolved = resolved_link(ResolvedLinkRequest {
+            source,
+            link,
+            status: ResolutionStatus::Unresolved,
+            target_document_identity: None,
+            target_section_ordinal: None,
+        });
         let diagnostic = document_diagnostic(
             source,
             link,
@@ -60,7 +88,13 @@ fn resolve_link(
     }
     if candidates.documents.len() > 1 {
         let identities = document_targets::identities(&candidates.documents);
-        let resolved = resolved_link(source, link, ResolutionStatus::Ambiguous, None, None);
+        let resolved = resolved_link(ResolvedLinkRequest {
+            source,
+            link,
+            status: ResolutionStatus::Ambiguous,
+            target_document_identity: None,
+            target_section_ordinal: None,
+        });
         let diagnostic = document_diagnostic(
             source,
             link,
@@ -80,13 +114,13 @@ fn resolve_heading(
     let target_identity = Some(target.source.identity.clone());
     let Some(fragment) = link.heading_fragment.as_deref() else {
         return (
-            resolved_link(
+            resolved_link(ResolvedLinkRequest {
                 source,
                 link,
-                ResolutionStatus::Resolved,
-                target_identity,
-                None,
-            ),
+                status: ResolutionStatus::Resolved,
+                target_document_identity: target_identity,
+                target_section_ordinal: None,
+            }),
             None,
         );
     };
@@ -98,20 +132,20 @@ fn resolve_heading(
             heading_targets::resolve(markdown, fragment)
         });
     if headings.is_empty() {
-        let resolved = resolved_link(
+        let resolved = resolved_link(ResolvedLinkRequest {
             source,
             link,
-            ResolutionStatus::Unresolved,
-            target_identity,
-            None,
-        );
-        let diagnostic = heading_diagnostic(
+            status: ResolutionStatus::Unresolved,
+            target_document_identity: target_identity,
+            target_section_ordinal: None,
+        });
+        let diagnostic = heading_diagnostic(HeadingDiagnosticRequest {
             source,
             link,
             target,
-            GraphDiagnosticKind::UnresolvedHeadingTarget,
-            Vec::new(),
-        );
+            kind: GraphDiagnosticKind::UnresolvedHeadingTarget,
+            sections: Vec::new(),
+        });
         return (resolved, Some(diagnostic));
     }
     let markdown = target.parsed_markdown.as_ref();
@@ -122,41 +156,42 @@ fn resolve_heading(
         })
         .collect();
     if headings.len() > 1 {
-        let resolved = resolved_link(
+        let resolved = resolved_link(ResolvedLinkRequest {
             source,
             link,
-            ResolutionStatus::Ambiguous,
-            target_identity,
-            None,
-        );
-        let diagnostic = heading_diagnostic(
+            status: ResolutionStatus::Ambiguous,
+            target_document_identity: target_identity,
+            target_section_ordinal: None,
+        });
+        let diagnostic = heading_diagnostic(HeadingDiagnosticRequest {
             source,
             link,
             target,
-            GraphDiagnosticKind::AmbiguousHeadingTarget,
-            section_ordinals,
-        );
+            kind: GraphDiagnosticKind::AmbiguousHeadingTarget,
+            sections: section_ordinals,
+        });
         return (resolved, Some(diagnostic));
     }
     (
-        resolved_link(
+        resolved_link(ResolvedLinkRequest {
             source,
             link,
-            ResolutionStatus::Resolved,
-            target_identity,
-            section_ordinals[0],
-        ),
+            status: ResolutionStatus::Resolved,
+            target_document_identity: target_identity,
+            target_section_ordinal: section_ordinals[0],
+        }),
         None,
     )
 }
 
-fn resolved_link(
-    source: &CorpusDocument,
-    link: &MarkdownLink,
-    status: ResolutionStatus,
-    target_document_identity: Option<DocumentIdentity>,
-    target_section_ordinal: Option<usize>,
-) -> ResolvedLink {
+fn resolved_link(request: ResolvedLinkRequest<'_>) -> ResolvedLink {
+    let ResolvedLinkRequest {
+        source,
+        link,
+        status,
+        target_document_identity,
+        target_section_ordinal,
+    } = request;
     ResolvedLink {
         source_document_identity: source.source.identity.clone(),
         source_link_ordinal: link.ordinal,
@@ -187,13 +222,14 @@ fn document_diagnostic(
     }
 }
 
-fn heading_diagnostic(
-    source: &CorpusDocument,
-    link: &MarkdownLink,
-    target: &CorpusDocument,
-    kind: GraphDiagnosticKind,
-    sections: Vec<Option<usize>>,
-) -> GraphDiagnostic {
+fn heading_diagnostic(request: HeadingDiagnosticRequest<'_>) -> GraphDiagnostic {
+    let HeadingDiagnosticRequest {
+        source,
+        link,
+        target,
+        kind,
+        sections,
+    } = request;
     GraphDiagnostic {
         kind,
         source_document_identity: source.source.identity.clone(),

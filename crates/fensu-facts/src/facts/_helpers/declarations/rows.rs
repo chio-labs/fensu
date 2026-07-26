@@ -23,8 +23,8 @@ pub(crate) fn collect_class_rows(
     breadth_nodes: &[ShapeNode<'_>],
     index: &LineIndex,
     source: &str,
-    rows: &mut ModuleDeclarationRows,
-) {
+    mut rows: ModuleDeclarationRows,
+) -> ModuleDeclarationRows {
     for node in breadth_nodes {
         let ShapeNode::Stmt(Stmt::ClassDef(class)) = node else {
             continue;
@@ -47,14 +47,15 @@ pub(crate) fn collect_class_rows(
             rows.exception_locations.push(location);
         }
     }
+    rows
 }
 
 pub(crate) fn collect_statement_rows(
     module: &ModModule,
     index: &LineIndex,
     source: &str,
-    rows: &mut ModuleDeclarationRows,
-) {
+    mut rows: ModuleDeclarationRows,
+) -> ModuleDeclarationRows {
     let mut body: &[Stmt] = &module.body;
     if body.first().is_some_and(is_docstring_statement) {
         body = &body[1..];
@@ -93,14 +94,15 @@ pub(crate) fn collect_statement_rows(
             rows.all_assignment_locations.push((line, column));
         }
     }
+    rows
 }
 
 pub(crate) fn collect_alias_rows(
     breadth_nodes: &[ShapeNode<'_>],
     index: &LineIndex,
     source: &str,
-    rows: &mut ModuleDeclarationRows,
-) {
+    mut rows: ModuleDeclarationRows,
+) -> ModuleDeclarationRows {
     let matchers: [fn(&Stmt) -> bool; 3] = [
         is_assign_statement,
         is_ann_assign_statement,
@@ -124,6 +126,7 @@ pub(crate) fn collect_alias_rows(
             }
         }
     }
+    rows
 }
 
 pub(crate) fn is_assign_statement(statement: &Stmt) -> bool {
@@ -178,56 +181,67 @@ pub(crate) fn collect_import_time_calls(
     module: &ModModule,
     index: &LineIndex,
     source: &str,
-    rows: &mut ModuleDeclarationRows,
-) {
+) -> ModuleDeclarationRows {
+    let mut collector = ImportTimeCallCollector {
+        index,
+        source,
+        rows: ModuleDeclarationRows::default(),
+    };
     let mut child_buffer: Vec<ShapeNode<'_>> = Vec::new();
     children(&ShapeNode::Module(module), &mut child_buffer);
     for child in child_buffer {
-        import_time_calls_in(&child, index, source, rows);
+        collector.collect(&child);
     }
+    collector.rows
 }
 
-pub(crate) fn import_time_calls_in(
-    node: &ShapeNode<'_>,
-    index: &LineIndex,
-    source: &str,
-    rows: &mut ModuleDeclarationRows,
-) {
-    match node {
-        ShapeNode::Stmt(Stmt::FunctionDef(_)) | ShapeNode::Expr(Expr::Lambda(_)) => return,
-        ShapeNode::Stmt(Stmt::If(inner)) if is_nonexecuting_guard(&inner.test) => {
-            let mut orelse: Vec<ShapeNode<'_>> = Vec::new();
-            push_clause_orelse(&inner.elif_else_clauses, &mut orelse);
-            for child in orelse {
-                import_time_calls_in(&child, index, source, rows);
+struct ImportTimeCallCollector<'a> {
+    index: &'a LineIndex,
+    source: &'a str,
+    rows: ModuleDeclarationRows,
+}
+
+impl ImportTimeCallCollector<'_> {
+    fn collect(&mut self, node: &ShapeNode<'_>) {
+        match node {
+            ShapeNode::Stmt(Stmt::FunctionDef(_)) | ShapeNode::Expr(Expr::Lambda(_)) => return,
+            ShapeNode::Stmt(Stmt::If(inner)) if is_nonexecuting_guard(&inner.test) => {
+                let mut orelse: Vec<ShapeNode<'_>> = Vec::new();
+                push_clause_orelse(&inner.elif_else_clauses, &mut orelse);
+                for child in orelse {
+                    self.collect(&child);
+                }
+                return;
             }
-            return;
-        }
-        ShapeNode::IfTail(clauses) => {
-            if let Some(first) = clauses.first() {
-                if first.test.as_ref().is_some_and(is_nonexecuting_guard) {
-                    let mut orelse: Vec<ShapeNode<'_>> = Vec::new();
-                    push_clause_orelse(&clauses[1..], &mut orelse);
-                    for child in orelse {
-                        import_time_calls_in(&child, index, source, rows);
+            ShapeNode::IfTail(clauses) => {
+                if let Some(first) = clauses.first() {
+                    if first.test.as_ref().is_some_and(is_nonexecuting_guard) {
+                        let mut orelse: Vec<ShapeNode<'_>> = Vec::new();
+                        push_clause_orelse(&clauses[1..], &mut orelse);
+                        for child in orelse {
+                            self.collect(&child);
+                        }
+                        return;
                     }
+                }
+            }
+            ShapeNode::Stmt(Stmt::Expr(inner)) => {
+                if matches!(&*inner.value, Expr::Call(_)) {
+                    self.rows.import_time_call_locations.push(start_of(
+                        node,
+                        self.index,
+                        self.source,
+                    ));
                     return;
                 }
             }
+            _ => {}
         }
-        ShapeNode::Stmt(Stmt::Expr(inner)) => {
-            if matches!(&*inner.value, Expr::Call(_)) {
-                rows.import_time_call_locations
-                    .push(start_of(node, index, source));
-                return;
-            }
+        let mut child_buffer: Vec<ShapeNode<'_>> = Vec::new();
+        children(node, &mut child_buffer);
+        for child in child_buffer {
+            self.collect(&child);
         }
-        _ => {}
-    }
-    let mut child_buffer: Vec<ShapeNode<'_>> = Vec::new();
-    children(node, &mut child_buffer);
-    for child in child_buffer {
-        import_time_calls_in(&child, index, source, rows);
     }
 }
 

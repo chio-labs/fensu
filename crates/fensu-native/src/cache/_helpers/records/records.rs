@@ -29,15 +29,17 @@ pub(crate) fn encode_record(
     if kind.is_empty() {
         return Err(record_error());
     }
-    let mut canonical = canonical_from_python(payload)?;
-    if !payload_is_validated {
-        sort_objects(&mut canonical);
-    }
+    let canonical = canonical_from_python(payload)?;
+    let canonical = if payload_is_validated {
+        canonical
+    } else {
+        sorted_objects(canonical)
+    };
     let mut encoded = Vec::new();
     encoded.extend_from_slice(b"{\"kind\":");
-    write_string(kind, &mut encoded);
+    encoded = write_string(kind, encoded);
     encoded.extend_from_slice(b",\"payload\":");
-    write_value(&canonical, &mut encoded);
+    encoded = write_value(&canonical, encoded);
     encoded.extend_from_slice(b",\"schema_version\":4}");
     if encoded.len() > maximum_decoded_bytes {
         return Err(PyValueError::new_err(
@@ -123,8 +125,7 @@ pub(crate) fn encode_canonical_record(
     payload: &CanonicalValue,
     maximum_decoded_bytes: usize,
 ) -> Option<Vec<u8>> {
-    let mut canonical = payload.clone();
-    sort_objects(&mut canonical);
+    let canonical = sorted_objects(payload.clone());
     encode_decoded(kind, &canonical, maximum_decoded_bytes)
 }
 
@@ -139,9 +140,9 @@ fn encode_decoded(
 ) -> Option<Vec<u8>> {
     let mut encoded = Vec::new();
     encoded.extend_from_slice(b"{\"kind\":");
-    write_string(kind, &mut encoded);
+    encoded = write_string(kind, encoded);
     encoded.extend_from_slice(b",\"payload\":");
-    write_value(payload, &mut encoded);
+    encoded = write_value(payload, encoded);
     encoded.extend_from_slice(b",\"schema_version\":4}");
     if encoded.len() > maximum_decoded_bytes {
         return None;
@@ -235,33 +236,37 @@ fn canonical_from_json(value: &Value) -> Option<CanonicalValue> {
     }
 }
 
-fn sort_objects(value: &mut CanonicalValue) {
+fn sorted_objects(value: CanonicalValue) -> CanonicalValue {
     match value {
-        CanonicalValue::List(values) => values.iter_mut().for_each(sort_objects),
-        CanonicalValue::Object(entries) => {
-            entries
-                .iter_mut()
-                .for_each(|(_, value)| sort_objects(value));
-            entries.sort_by(|left, right| left.0.cmp(&right.0));
+        CanonicalValue::List(values) => {
+            CanonicalValue::List(values.into_iter().map(sorted_objects).collect())
         }
-        _ => {}
+        CanonicalValue::Object(entries) => {
+            let mut entries = entries
+                .into_iter()
+                .map(|(key, value)| (key, sorted_objects(value)))
+                .collect::<Vec<_>>();
+            entries.sort_by(|left, right| left.0.cmp(&right.0));
+            CanonicalValue::Object(entries)
+        }
+        value => value,
     }
 }
 
-fn write_value(value: &CanonicalValue, output: &mut Vec<u8>) {
+fn write_value(value: &CanonicalValue, mut output: Vec<u8>) -> Vec<u8> {
     match value {
         CanonicalValue::Null => output.extend_from_slice(b"null"),
         CanonicalValue::Bool(true) => output.extend_from_slice(b"true"),
         CanonicalValue::Bool(false) => output.extend_from_slice(b"false"),
         CanonicalValue::Integer(value) => output.extend_from_slice(value.as_bytes()),
-        CanonicalValue::String(value) => write_string(value, output),
+        CanonicalValue::String(value) => return write_string(value, output),
         CanonicalValue::List(values) => {
             output.push(b'[');
             for (index, value) in values.iter().enumerate() {
                 if index > 0 {
                     output.push(b',');
                 }
-                write_value(value, output);
+                output = write_value(value, output);
             }
             output.push(b']');
         }
@@ -271,16 +276,17 @@ fn write_value(value: &CanonicalValue, output: &mut Vec<u8>) {
                 if index > 0 {
                     output.push(b',');
                 }
-                write_string(key, output);
+                output = write_string(key, output);
                 output.push(b':');
-                write_value(value, output);
+                output = write_value(value, output);
             }
             output.push(b'}');
         }
     }
+    output
 }
 
-fn write_string(value: &str, output: &mut Vec<u8>) {
+fn write_string(value: &str, mut output: Vec<u8>) -> Vec<u8> {
     output.push(b'"');
     for character in value.chars() {
         match character {
@@ -306,6 +312,7 @@ fn write_string(value: &str, output: &mut Vec<u8>) {
         }
     }
     output.push(b'"');
+    output
 }
 
 fn hex_digest(data: &[u8]) -> String {

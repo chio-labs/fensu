@@ -56,7 +56,7 @@ fn append_batch(
     let sql = insert_sql(rows.len());
     let mut parameters = Vec::with_capacity(rows.len() * LIST_ITEM_COLUMN_COUNT);
     for row in rows {
-        append_parameters(&mut parameters, row);
+        parameters.extend(parameters_for(row));
     }
     transaction
         .prepare_cached(&sql)
@@ -65,13 +65,13 @@ fn append_batch(
     Ok(())
 }
 
-fn append_parameters(parameters: &mut Vec<Value>, row: &ListItemRow<'_>) {
+fn parameters_for(row: &ListItemRow<'_>) -> [Value; LIST_ITEM_COLUMN_COUNT] {
     let item = row.item;
     let kind = match item.kind {
         ListKind::Unordered => constants::LIST_KIND_UNORDERED_CODE,
         ListKind::Ordered => constants::LIST_KIND_ORDERED_CODE,
     };
-    parameters.extend([
+    [
         Value::Integer(row.document_key),
         Value::Integer(item.ordinal as i64),
         optional_integer(item.section_ordinal),
@@ -99,7 +99,7 @@ fn append_parameters(parameters: &mut Vec<Value>, row: &ListItemRow<'_>) {
         item.relationship_kind.map_or(Value::Null, |value| {
             Value::Text(values::relationship_kind(value).to_owned())
         }),
-    ]);
+    ]
 }
 
 fn optional_integer(value: Option<usize>) -> Value {

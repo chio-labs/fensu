@@ -2,183 +2,203 @@
 
 use ruff_python_ast::{ElifElseClause, Parameters, Stmt, TypeParams};
 
-use crate::syntax::_helpers::children::push_expressions;
-use crate::syntax::_helpers::children::push_optional;
-use crate::syntax::_helpers::children::push_statements;
+use crate::syntax::_helpers::children::ChildCollector;
 use crate::syntax::types::ShapeNode;
 
-pub(crate) fn statement_children<'a>(statement: &'a Stmt, out: &mut Vec<ShapeNode<'a>>) {
-    match statement {
-        Stmt::FunctionDef(inner) => {
-            out.push(ShapeNode::Parameters(&inner.parameters));
-            push_statements(&inner.body, out);
-            for decorator in &inner.decorator_list {
-                out.push(ShapeNode::Expr(&decorator.expression));
-            }
-            if let Some(returns) = &inner.returns {
-                out.push(ShapeNode::Expr(returns));
-            }
-            push_type_params(inner.type_params.as_deref(), out);
-        }
-        Stmt::ClassDef(inner) => {
-            if let Some(arguments) = &inner.arguments {
-                for base in &arguments.args {
-                    out.push(ShapeNode::Expr(base));
+pub(crate) struct ClauseOutput<'out, 'node> {
+    pub(crate) out: &'out mut Vec<ShapeNode<'node>>,
+}
+
+impl<'node> ClauseOutput<'_, 'node> {
+    pub(crate) fn collect(&mut self, clauses: &'node [ElifElseClause]) {
+        let current = std::mem::take(self.out);
+        *self.out = clause_orelse(clauses, current);
+    }
+}
+
+impl<'a> ChildCollector<'a> {
+    pub(crate) fn statement_children(&mut self, statement: &'a Stmt) {
+        match statement {
+            Stmt::FunctionDef(inner) => {
+                self.out.push(ShapeNode::Parameters(&inner.parameters));
+                self.push_statements(&inner.body);
+                for decorator in &inner.decorator_list {
+                    self.out.push(ShapeNode::Expr(&decorator.expression));
                 }
-                for keyword in &arguments.keywords {
-                    out.push(ShapeNode::Keyword(keyword));
+                if let Some(returns) = &inner.returns {
+                    self.out.push(ShapeNode::Expr(returns));
+                }
+                self.push_type_params(inner.type_params.as_deref());
+            }
+            Stmt::ClassDef(inner) => {
+                if let Some(arguments) = &inner.arguments {
+                    for base in &arguments.args {
+                        self.out.push(ShapeNode::Expr(base));
+                    }
+                    for keyword in &arguments.keywords {
+                        self.out.push(ShapeNode::Keyword(keyword));
+                    }
+                }
+                self.push_statements(&inner.body);
+                for decorator in &inner.decorator_list {
+                    self.out.push(ShapeNode::Expr(&decorator.expression));
+                }
+                self.push_type_params(inner.type_params.as_deref());
+            }
+            Stmt::Return(inner) => self.push_optional(inner.value.as_deref()),
+            Stmt::Delete(inner) => self.push_expressions(&inner.targets),
+            Stmt::TypeAlias(inner) => {
+                self.out.push(ShapeNode::Expr(&inner.name));
+                self.push_type_params(inner.type_params.as_deref());
+                self.out.push(ShapeNode::Expr(&inner.value));
+            }
+            Stmt::Assign(inner) => {
+                self.push_expressions(&inner.targets);
+                self.out.push(ShapeNode::Expr(&inner.value));
+            }
+            Stmt::AugAssign(inner) => {
+                self.out.push(ShapeNode::Expr(&inner.target));
+                self.out.push(ShapeNode::Expr(&inner.value));
+            }
+            Stmt::AnnAssign(inner) => {
+                self.out.push(ShapeNode::Expr(&inner.target));
+                self.out.push(ShapeNode::Expr(&inner.annotation));
+                self.push_optional(inner.value.as_deref());
+            }
+            Stmt::For(inner) => {
+                self.out.push(ShapeNode::Expr(&inner.target));
+                self.out.push(ShapeNode::Expr(&inner.iter));
+                self.push_statements(&inner.body);
+                self.push_statements(&inner.orelse);
+            }
+            Stmt::While(inner) => {
+                self.out.push(ShapeNode::Expr(&inner.test));
+                self.push_statements(&inner.body);
+                self.push_statements(&inner.orelse);
+            }
+            Stmt::If(inner) => {
+                self.out.push(ShapeNode::Expr(&inner.test));
+                self.push_statements(&inner.body);
+                self.push_clause_orelse(&inner.elif_else_clauses);
+            }
+            Stmt::With(inner) => {
+                for item in &inner.items {
+                    self.out.push(ShapeNode::WithItem(item));
+                }
+                self.push_statements(&inner.body);
+            }
+            Stmt::Match(inner) => {
+                self.out.push(ShapeNode::Expr(&inner.subject));
+                for match_case in &inner.cases {
+                    self.out.push(ShapeNode::MatchCase(match_case));
                 }
             }
-            push_statements(&inner.body, out);
-            for decorator in &inner.decorator_list {
-                out.push(ShapeNode::Expr(&decorator.expression));
+            Stmt::Raise(inner) => {
+                self.push_optional(inner.exc.as_deref());
+                self.push_optional(inner.cause.as_deref());
             }
-            push_type_params(inner.type_params.as_deref(), out);
-        }
-        Stmt::Return(inner) => push_optional(inner.value.as_deref(), out),
-        Stmt::Delete(inner) => push_expressions(&inner.targets, out),
-        Stmt::TypeAlias(inner) => {
-            out.push(ShapeNode::Expr(&inner.name));
-            push_type_params(inner.type_params.as_deref(), out);
-            out.push(ShapeNode::Expr(&inner.value));
-        }
-        Stmt::Assign(inner) => {
-            push_expressions(&inner.targets, out);
-            out.push(ShapeNode::Expr(&inner.value));
-        }
-        Stmt::AugAssign(inner) => {
-            out.push(ShapeNode::Expr(&inner.target));
-            out.push(ShapeNode::Expr(&inner.value));
-        }
-        Stmt::AnnAssign(inner) => {
-            out.push(ShapeNode::Expr(&inner.target));
-            out.push(ShapeNode::Expr(&inner.annotation));
-            push_optional(inner.value.as_deref(), out);
-        }
-        Stmt::For(inner) => {
-            out.push(ShapeNode::Expr(&inner.target));
-            out.push(ShapeNode::Expr(&inner.iter));
-            push_statements(&inner.body, out);
-            push_statements(&inner.orelse, out);
-        }
-        Stmt::While(inner) => {
-            out.push(ShapeNode::Expr(&inner.test));
-            push_statements(&inner.body, out);
-            push_statements(&inner.orelse, out);
-        }
-        Stmt::If(inner) => {
-            out.push(ShapeNode::Expr(&inner.test));
-            push_statements(&inner.body, out);
-            push_clause_orelse(&inner.elif_else_clauses, out);
-        }
-        Stmt::With(inner) => {
-            for item in &inner.items {
-                out.push(ShapeNode::WithItem(item));
+            Stmt::Try(inner) => {
+                self.push_statements(&inner.body);
+                for handler in &inner.handlers {
+                    let ruff_python_ast::ExceptHandler::ExceptHandler(except_handler) = handler;
+                    self.out.push(ShapeNode::ExceptHandler(except_handler));
+                }
+                self.push_statements(&inner.orelse);
+                self.push_statements(&inner.finalbody);
             }
-            push_statements(&inner.body, out);
-        }
-        Stmt::Match(inner) => {
-            out.push(ShapeNode::Expr(&inner.subject));
-            for match_case in &inner.cases {
-                out.push(ShapeNode::MatchCase(match_case));
+            Stmt::Assert(inner) => {
+                self.out.push(ShapeNode::Expr(&inner.test));
+                self.push_optional(inner.msg.as_deref());
             }
-        }
-        Stmt::Raise(inner) => {
-            push_optional(inner.exc.as_deref(), out);
-            push_optional(inner.cause.as_deref(), out);
-        }
-        Stmt::Try(inner) => {
-            push_statements(&inner.body, out);
-            for handler in &inner.handlers {
-                let ruff_python_ast::ExceptHandler::ExceptHandler(except_handler) = handler;
-                out.push(ShapeNode::ExceptHandler(except_handler));
+            Stmt::Import(inner) => {
+                for alias in &inner.names {
+                    self.out.push(ShapeNode::Alias(alias));
+                }
             }
-            push_statements(&inner.orelse, out);
-            push_statements(&inner.finalbody, out);
-        }
-        Stmt::Assert(inner) => {
-            out.push(ShapeNode::Expr(&inner.test));
-            push_optional(inner.msg.as_deref(), out);
-        }
-        Stmt::Import(inner) => {
-            for alias in &inner.names {
-                out.push(ShapeNode::Alias(alias));
+            Stmt::ImportFrom(inner) => {
+                for alias in &inner.names {
+                    self.out.push(ShapeNode::Alias(alias));
+                }
             }
+            Stmt::Expr(inner) => self.out.push(ShapeNode::Expr(&inner.value)),
+            Stmt::Global(_)
+            | Stmt::Nonlocal(_)
+            | Stmt::Pass(_)
+            | Stmt::Break(_)
+            | Stmt::Continue(_)
+            | Stmt::IpyEscapeCommand(_) => {}
         }
-        Stmt::ImportFrom(inner) => {
-            for alias in &inner.names {
-                out.push(ShapeNode::Alias(alias));
-            }
-        }
-        Stmt::Expr(inner) => out.push(ShapeNode::Expr(&inner.value)),
-        Stmt::Global(_)
-        | Stmt::Nonlocal(_)
-        | Stmt::Pass(_)
-        | Stmt::Break(_)
-        | Stmt::Continue(_)
-        | Stmt::IpyEscapeCommand(_) => {}
     }
-}
 
-pub(crate) fn if_tail_children<'a>(clauses: &'a [ElifElseClause], out: &mut Vec<ShapeNode<'a>>) {
-    let Some((first, rest)) = clauses.split_first() else {
-        return;
-    };
-    if let Some(test) = &first.test {
-        out.push(ShapeNode::Expr(test));
+    pub(crate) fn if_tail_children(&mut self, clauses: &'a [ElifElseClause]) {
+        let Some((first, rest)) = clauses.split_first() else {
+            return;
+        };
+        if let Some(test) = &first.test {
+            self.out.push(ShapeNode::Expr(test));
+        }
+        self.push_statements(&first.body);
+        self.push_clause_orelse(rest);
     }
-    push_statements(&first.body, out);
-    push_clause_orelse(rest, out);
-}
 
-pub(crate) fn push_clause_orelse<'a>(clauses: &'a [ElifElseClause], out: &mut Vec<ShapeNode<'a>>) {
-    let Some(first) = clauses.first() else {
-        return;
-    };
-    if first.test.is_some() {
-        out.push(ShapeNode::IfTail(clauses));
-    } else {
-        push_statements(&first.body, out);
-    }
-}
-
-pub(crate) fn parameters_children<'a>(parameters: &'a Parameters, out: &mut Vec<ShapeNode<'a>>) {
-    for parameter in &parameters.posonlyargs {
-        out.push(ShapeNode::Parameter(&parameter.parameter));
-    }
-    for parameter in &parameters.args {
-        out.push(ShapeNode::Parameter(&parameter.parameter));
-    }
-    if let Some(vararg) = &parameters.vararg {
-        out.push(ShapeNode::Parameter(vararg));
-    }
-    for parameter in &parameters.kwonlyargs {
-        out.push(ShapeNode::Parameter(&parameter.parameter));
-    }
-    for parameter in &parameters.kwonlyargs {
-        if let Some(default) = &parameter.default {
-            out.push(ShapeNode::Expr(default));
+    pub(crate) fn push_clause_orelse(&mut self, clauses: &'a [ElifElseClause]) {
+        let Some(first) = clauses.first() else {
+            return;
+        };
+        if first.test.is_some() {
+            self.out.push(ShapeNode::IfTail(clauses));
+        } else {
+            self.push_statements(&first.body);
         }
     }
-    if let Some(kwarg) = &parameters.kwarg {
-        out.push(ShapeNode::Parameter(kwarg));
-    }
-    for parameter in &parameters.posonlyargs {
-        if let Some(default) = &parameter.default {
-            out.push(ShapeNode::Expr(default));
+
+    pub(crate) fn parameters_children(&mut self, parameters: &'a Parameters) {
+        for parameter in &parameters.posonlyargs {
+            self.out.push(ShapeNode::Parameter(&parameter.parameter));
+        }
+        for parameter in &parameters.args {
+            self.out.push(ShapeNode::Parameter(&parameter.parameter));
+        }
+        if let Some(vararg) = &parameters.vararg {
+            self.out.push(ShapeNode::Parameter(vararg));
+        }
+        for parameter in &parameters.kwonlyargs {
+            self.out.push(ShapeNode::Parameter(&parameter.parameter));
+        }
+        for parameter in &parameters.kwonlyargs {
+            if let Some(default) = &parameter.default {
+                self.out.push(ShapeNode::Expr(default));
+            }
+        }
+        if let Some(kwarg) = &parameters.kwarg {
+            self.out.push(ShapeNode::Parameter(kwarg));
+        }
+        for parameter in &parameters.posonlyargs {
+            if let Some(default) = &parameter.default {
+                self.out.push(ShapeNode::Expr(default));
+            }
+        }
+        for parameter in &parameters.args {
+            if let Some(default) = &parameter.default {
+                self.out.push(ShapeNode::Expr(default));
+            }
         }
     }
-    for parameter in &parameters.args {
-        if let Some(default) = &parameter.default {
-            out.push(ShapeNode::Expr(default));
+
+    fn push_type_params(&mut self, type_params: Option<&'a TypeParams>) {
+        if let Some(inner) = type_params {
+            for type_param in &inner.type_params {
+                self.out.push(ShapeNode::TypeParam(type_param));
+            }
         }
     }
 }
 
-fn push_type_params<'a>(type_params: Option<&'a TypeParams>, out: &mut Vec<ShapeNode<'a>>) {
-    if let Some(inner) = type_params {
-        for type_param in &inner.type_params {
-            out.push(ShapeNode::TypeParam(type_param));
-        }
-    }
+pub(crate) fn clause_orelse<'a>(
+    clauses: &'a [ElifElseClause],
+    out: Vec<ShapeNode<'a>>,
+) -> Vec<ShapeNode<'a>> {
+    let mut collector = ChildCollector { out };
+    collector.push_clause_orelse(clauses);
+    collector.out
 }

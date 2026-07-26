@@ -1,13 +1,10 @@
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::skills::_helpers::installation::filesystem::{
     capture, create_safe_parents, ensure_snapshot, set_mode, Snapshot,
 };
-
-static TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone, Debug)]
 pub(crate) struct Publication {
@@ -51,7 +48,8 @@ pub(crate) fn publish(
                 .path
                 .parent()
                 .ok_or_else(|| "Publication target has no parent.".to_owned())?;
-            create_safe_parents(parent, &mut created_directories)?;
+            created_directories =
+                create_safe_parents(parent, std::mem::take(&mut created_directories))?;
             let path = stage_file(
                 &publication.snapshot.path,
                 &publication.content,
@@ -177,11 +175,11 @@ fn temporary_path(destination: &Path, purpose: &str) -> Result<PathBuf, String> 
     let parent = destination
         .parent()
         .ok_or_else(|| "Skill target has no parent.".to_owned())?;
-    for _ in 0..1000 {
-        let sequence = TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    for sequence in 0..1000 {
         let path = parent.join(format!(
-            ".fensu-{purpose}-{}-{sequence}",
-            std::process::id()
+            ".fensu-{purpose}-{}-{:?}-{sequence}",
+            std::process::id(),
+            std::thread::current().id()
         ));
         if !path.exists() {
             return Ok(path);

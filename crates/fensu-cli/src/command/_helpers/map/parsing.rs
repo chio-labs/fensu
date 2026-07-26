@@ -50,7 +50,8 @@ pub(crate) fn parse(arguments: &[String]) -> Result<Option<MapOptions>, String> 
         match resolved {
             "-h" | "--help" => return Ok(None),
             "--direction" => {
-                let value = option_value(arguments, &mut position, resolved, inline)?;
+                let (value, next_position) = option_value(arguments, position, resolved, inline)?;
+                position = next_position;
                 choice(
                     resolved,
                     value,
@@ -63,7 +64,8 @@ pub(crate) fn parse(arguments: &[String]) -> Result<Option<MapOptions>, String> 
                 };
             }
             "--depth" => {
-                let value = option_value(arguments, &mut position, resolved, inline)?;
+                let (value, next_position) = option_value(arguments, position, resolved, inline)?;
+                position = next_position;
                 let parsed = value.parse::<i64>().map_err(|_| {
                     parser_error(&format!(
                         "argument --depth: invalid _nonnegative_int value: '{value}'"
@@ -78,10 +80,13 @@ pub(crate) fn parse(arguments: &[String]) -> Result<Option<MapOptions>, String> 
                     usize::try_from(parsed).map_err(|error| parser_error(&error.to_string()))?;
             }
             "--root" => {
-                roots.push(option_value(arguments, &mut position, resolved, inline)?.to_owned())
+                let (value, next_position) = option_value(arguments, position, resolved, inline)?;
+                position = next_position;
+                roots.push(value.to_owned());
             }
             "--paths" => {
-                let value = option_value(arguments, &mut position, resolved, inline)?;
+                let (value, next_position) = option_value(arguments, position, resolved, inline)?;
+                position = next_position;
                 choice(
                     resolved,
                     value,
@@ -95,7 +100,8 @@ pub(crate) fn parse(arguments: &[String]) -> Result<Option<MapOptions>, String> 
                 };
             }
             "--color" => {
-                let value = option_value(arguments, &mut position, resolved, inline)?;
+                let (value, next_position) = option_value(arguments, position, resolved, inline)?;
+                position = next_position;
                 choice(resolved, value, &["auto", "always", "never"])?;
                 color = value.to_owned();
             }
@@ -162,17 +168,18 @@ fn resolve_option(name: &str) -> Result<&str, String> {
 
 fn option_value<'a>(
     arguments: &'a [String],
-    position: &mut usize,
+    position: usize,
     name: &str,
     inline: Option<&'a str>,
-) -> Result<&'a str, String> {
+) -> Result<(&'a str, usize), String> {
     if let Some(value) = inline {
-        return Ok(value);
+        return Ok((value, position));
     }
-    *position += 1;
+    let position = position + 1;
     arguments
-        .get(*position)
+        .get(position)
         .map(String::as_str)
+        .map(|value| (value, position))
         .ok_or_else(|| parser_error(&format!("argument {name}: expected one argument")))
 }
 

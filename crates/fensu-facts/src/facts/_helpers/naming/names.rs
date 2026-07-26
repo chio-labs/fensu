@@ -118,10 +118,14 @@ pub(crate) fn is_exception_class(class: &StmtClassDef) -> bool {
     name_matches
         || class_base_expressions(class).any(|base| {
             let base_name = subscript_base_name(base).unwrap_or_default();
-            constants::ERROR_CLASS_SUFFIXES
-                .iter()
-                .any(|suffix| base_name.ends_with(suffix))
+            has_error_class_suffix(base_name)
         })
+}
+
+fn has_error_class_suffix(name: &str) -> bool {
+    constants::ERROR_CLASS_SUFFIXES
+        .iter()
+        .any(|suffix| name.ends_with(suffix))
 }
 
 pub(crate) fn is_type_checking_import_block(statement: &Stmt) -> bool {

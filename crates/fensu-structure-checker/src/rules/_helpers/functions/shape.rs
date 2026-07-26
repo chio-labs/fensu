@@ -7,6 +7,7 @@ use syn::visit::Visit;
 
 use crate::constants;
 use crate::models;
+use crate::rules::_helpers::functions::shape_policy;
 use crate::types::FileKind;
 
 pub(crate) fn check(
@@ -23,6 +24,7 @@ pub(crate) fn check(
     for function in &visitor.functions {
         violations.extend(budget_violations(file, function, entry));
     }
+    violations.extend(shape_policy::check(file, syntax));
     violations
 }
 
@@ -36,6 +38,14 @@ struct FunctionShape {
 
 struct ShapeVisitor {
     functions: Vec<FunctionShape>,
+}
+
+struct BudgetViolationRequest<'a> {
+    file: &'a models::SourceFile,
+    function: &'a FunctionShape,
+    code: &'static str,
+    detail: &'a str,
+    remediation: &'static str,
 }
 
 impl<'ast> Visit<'ast> for ShapeVisitor {
@@ -110,68 +120,62 @@ fn budget_violations(
 ) -> Vec<models::Violation> {
     let mut violations: Vec<models::Violation> = Vec::new();
     if function.arguments > constants::MAX_ARGUMENTS {
-        violations.push(budget_violation(
+        violations.push(budget_violation(BudgetViolationRequest {
             file,
             function,
-            "RSS010",
-            "declares too many parameters",
-            "group cohesive inputs into a typed model",
-        ));
+            code: "RSS010",
+            detail: "declares too many parameters",
+            remediation: "group cohesive inputs into a typed model",
+        }));
     }
     if function.statements > constants::MAX_STATEMENTS_GLOBAL {
-        violations.push(budget_violation(
+        violations.push(budget_violation(BudgetViolationRequest {
             file,
             function,
-            "RSS011",
-            "exceeds the global statement budget",
-            "split the function at a meaningful phase boundary",
-        ));
+            code: "RSS011",
+            detail: "exceeds the global statement budget",
+            remediation: "split the function at a meaningful phase boundary",
+        }));
     }
     if !entry {
         return violations;
     }
     if function.statements > constants::MAX_STATEMENTS_ENTRY {
-        violations.push(budget_violation(
+        violations.push(budget_violation(BudgetViolationRequest {
             file,
             function,
-            "RSS001",
-            "exceeds the entry statement budget",
-            "extract cohesive phases into helpers returning explicit results",
-        ));
+            code: "RSS001",
+            detail: "exceeds the entry statement budget",
+            remediation: "extract cohesive phases into helpers returning explicit results",
+        }));
     }
     if function.distinct_calls > constants::MAX_DISTINCT_CALLS_ENTRY {
-        violations.push(budget_violation(
+        violations.push(budget_violation(BudgetViolationRequest {
             file,
             function,
-            "RSS002",
-            "coordinates too many distinct callees",
-            "group related work into named phase helpers",
-        ));
+            code: "RSS002",
+            detail: "coordinates too many distinct callees",
+            remediation: "group related work into named phase helpers",
+        }));
     }
     if function.locals > constants::MAX_LOCALS_ENTRY {
-        violations.push(budget_violation(
+        violations.push(budget_violation(BudgetViolationRequest {
             file,
             function,
-            "RSS003",
-            "juggles too many local variables",
-            "let each extracted phase own its intermediates",
-        ));
+            code: "RSS003",
+            detail: "juggles too many local variables",
+            remediation: "let each extracted phase own its intermediates",
+        }));
     }
     violations
 }
 
-fn budget_violation(
-    file: &models::SourceFile,
-    function: &FunctionShape,
-    code: &'static str,
-    detail: &str,
-    remediation: &'static str,
-) -> models::Violation {
-    models::Violation::new(
-        code,
-        file.relative_path(),
-        Some(function.line),
-        format!("function {detail}"),
-        remediation,
-    )
+fn budget_violation(request: BudgetViolationRequest<'_>) -> models::Violation {
+    models::Violation::new(models::ViolationRequest {
+        code: request.code,
+        path: request.file.relative_path(),
+        line: Some(request.function.line),
+        message: format!("function {}", request.detail),
+        remediation: request.remediation,
+    })
 }

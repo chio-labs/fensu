@@ -59,6 +59,15 @@ struct NativeExecutionRequest {
     context: NativeRuleContext,
 }
 
+struct ExecutionBatchPlanRequest<'py> {
+    py: Python<'py>,
+    requests: Vec<NativeRuleContextTuple>,
+    project_files: Vec<NativeProjectFileTuple>,
+    entrypoint_modules: Vec<String>,
+    major: u8,
+    minor: u8,
+}
+
 #[pyclass(frozen, module = "fensu._native")]
 pub(crate) struct NativeExecutionBatch {
     requests: Vec<Option<NativeExecutionRequest>>,
@@ -71,74 +80,79 @@ type NativeExecutionPlanTuple = (
     Vec<usize>,
 );
 
-#[pyfunction]
-pub(crate) fn plan_native_execution_batch(
-    py: Python<'_>,
-    requests: Vec<NativeRuleContextTuple>,
-    project_files: Vec<NativeProjectFileTuple>,
-    entrypoint_modules: Vec<String>,
-    major: u8,
-    minor: u8,
+macro_rules! define_execution_plan_binding {
+    () => {
+        #[pyfunction]
+        pub(crate) fn plan_native_execution_batch(
+            py: Python<'_>,
+            requests: Vec<NativeRuleContextTuple>,
+            project_files: Vec<NativeProjectFileTuple>,
+            entrypoint_modules: Vec<String>,
+            major: u8,
+            minor: u8,
+        ) -> PyResult<NativeExecutionPlanTuple> {
+            plan_execution_batch(ExecutionBatchPlanRequest {
+                py,
+                requests,
+                project_files,
+                entrypoint_modules,
+                major,
+                minor,
+            })
+        }
+    };
+}
+
+define_execution_plan_binding!();
+
+fn plan_execution_batch(
+    request: ExecutionBatchPlanRequest<'_>,
 ) -> PyResult<NativeExecutionPlanTuple> {
+    let ExecutionBatchPlanRequest {
+        py,
+        requests,
+        project_files,
+        entrypoint_modules,
+        major,
+        minor,
+    } = request;
     let version = PythonVersion { major, minor };
     let (batch, plans, failures) = py.detach(move || {
         let sources: Vec<String> = requests.iter().map(|request| request.0.clone()).collect();
         let programs = ProgramHandle::parse_many(sources, version);
-        let prepared: Vec<Option<NativeExecutionRequest>> = programs
-            .into_iter()
-            .zip(requests)
-            .map(|(program, request)| {
-                program.map(|program| NativeExecutionRequest {
-                    program,
-                    codes: request.1,
-                    context: NativeRuleContext {
-                        scope: request.2,
-                        role: request.3,
-                        is_main_module: request.4,
-                        thresholds: request.5,
-                        repository_path: request.6,
-                        contracts: request.7,
-                        relative_parts: request.8,
-                        is_entry_module: request.9,
-                        package_name: request.10,
-                        tooling_packages: request.11 .0,
-                        scope_roots: request.11 .1,
-                        observations: request.11 .2,
-                        custom_registrations: request.11 .3,
-                        repo_root: request.11 .4,
-                        rule_options: request.11 .5,
-                        test_scopes: request.11 .6,
-                    },
-                })
-            })
-            .collect();
-        let plans = prepared
-            .par_iter()
-            .map(|request| {
-                request.as_ref().map_or_else(Vec::new, |request| {
-                    plan_core_rule_queries(&request.program, &request.codes, &request.context)
-                        .into_iter()
-                        .map(|query| (query.key(), query.kind, query.path, query.argument))
-                        .collect()
-                })
-            })
-            .collect();
+        let mut prepared = Vec::with_capacity(requests.len());
+        for (program, request) in programs.into_iter().zip(requests) {
+            prepared.push(program.map(|program| NativeExecutionRequest {
+                program,
+                codes: request.1,
+                context: NativeRuleContext {
+                    scope: request.2,
+                    role: request.3,
+                    is_main_module: request.4,
+                    thresholds: request.5,
+                    repository_path: request.6,
+                    contracts: request.7,
+                    relative_parts: request.8,
+                    is_entry_module: request.9,
+                    package_name: request.10,
+                    tooling_packages: request.11 .0,
+                    scope_roots: request.11 .1,
+                    observations: request.11 .2,
+                    custom_registrations: request.11 .3,
+                    repo_root: request.11 .4,
+                    rule_options: request.11 .5,
+                    test_scopes: request.11 .6,
+                },
+            }));
+        }
+        let plans = prepared.par_iter().map(plan_request_queries).collect();
         let failures = prepared
             .iter()
             .enumerate()
             .filter_map(|(index, request)| request.is_none().then_some(index))
             .collect();
-        let request_programs: HashMap<String, ProgramHandle> = prepared
-            .iter()
-            .filter_map(|request| {
-                request.as_ref().map(|request| {
-                    (
-                        request.context.repository_path.clone(),
-                        request.program.clone(),
-                    )
-                })
-            })
-            .collect();
+        let request_programs: HashMap<String, ProgramHandle> =
+            prepared.iter().filter_map(request_program).collect();
         let missing_sources: Vec<String> = project_files
             .iter()
             .filter(|(path, _, _, _)| !request_programs.contains_key(path))
@@ -155,18 +169,19 @@ pub(crate) fn plan_native_execution_batch(
                     .unwrap_or_else(|| parsed_missing.next().flatten())
             })
             .collect();
-        let modules = project_files
-            .into_iter()
-            .zip(project_programs)
-            .filter_map(|((path, scope, module_parts, _), program)| {
-                program.map(|program| NativeProjectModule {
+        let mut modules = Vec::new();
+        for ((path, scope, module_parts, _), program) in
+            project_files.into_iter().zip(project_programs)
+        {
+            if let Some(program) = program {
+                modules.push(NativeProjectModule {
                     path,
                     scope,
                     module_parts,
                     program,
-                })
-            })
-            .collect();
+                });
+            }
+        }
         (
             NativeExecutionBatch {
                 requests: prepared,
@@ -194,16 +209,7 @@ pub(crate) fn evaluate_native_execution_batch(
             .requests
             .par_iter()
             .zip(observations.into_par_iter())
-            .map(|(request, observations)| {
-                let Some(request) = request else {
-                    return Ok(Vec::new());
-                };
-                let mut context = request.context.clone();
-                context.observations = observations;
-                extract_required_rows(&request.program, &request.codes);
-                evaluate_core_rules(&request.program, &request.codes, &context, &batch.project)
-                    .map(|rows| rows.into_iter().map(as_tuple).collect())
-            })
+            .map(|(request, observations)| evaluate_request(request, observations, &batch.project))
             .collect::<Result<Vec<_>, String>>()
             .map_err(PyValueError::new_err)
     })
@@ -218,12 +224,7 @@ pub(crate) fn native_execution_programs(
         .get()
         .requests
         .iter()
-        .map(|request| {
-            request
-                .as_ref()
-                .map(|request| Py::new(py, request.program.clone()))
-                .transpose()
-        })
+        .map(|request| execution_program(py, request))
         .collect()
 }
 
@@ -271,13 +272,56 @@ fn fact_family(name: &str) -> Option<FactFamily> {
 pub(crate) fn native_rule_fact_families() -> Vec<(String, Vec<String>)> {
     NATIVE_RULE_FACT_FAMILIES
         .iter()
-        .map(|(code, families)| {
-            (
-                (*code).to_owned(),
-                families.iter().map(|family| (*family).to_owned()).collect(),
-            )
-        })
+        .map(|(code, families)| ((*code).to_owned(), owned_families(families)))
         .collect()
+}
+
+fn plan_request_queries(request: &Option<NativeExecutionRequest>) -> Vec<NativeProjectQueryTuple> {
+    let Some(request) = request else {
+        return Vec::new();
+    };
+    plan_core_rule_queries(&request.program, &request.codes, &request.context)
+        .into_iter()
+        .map(|query| (query.key(), query.kind, query.path, query.argument))
+        .collect()
+}
+
+fn request_program(request: &Option<NativeExecutionRequest>) -> Option<(String, ProgramHandle)> {
+    request.as_ref().map(|request| {
+        (
+            request.context.repository_path.clone(),
+            request.program.clone(),
+        )
+    })
+}
+
+fn evaluate_request(
+    request: &Option<NativeExecutionRequest>,
+    observations: HashMap<String, Vec<String>>,
+    project: &NativeProjectPlane,
+) -> Result<Vec<NativeFaultTuple>, String> {
+    let Some(request) = request else {
+        return Ok(Vec::new());
+    };
+    let mut context = request.context.clone();
+    context.observations = observations;
+    extract_required_rows(&request.program, &request.codes);
+    let rows = evaluate_core_rules(&request.program, &request.codes, &context, project)?;
+    Ok(rows.into_iter().map(as_tuple).collect())
+}
+
+fn execution_program(
+    py: Python<'_>,
+    request: &Option<NativeExecutionRequest>,
+) -> PyResult<Option<Py<ProgramHandle>>> {
+    request
+        .as_ref()
+        .map(|request| Py::new(py, request.program.clone()))
+        .transpose()
+}
+
+fn owned_families(families: &[&str]) -> Vec<String> {
+    families.iter().map(|family| (*family).to_owned()).collect()
 }
 
 fn as_tuple(row: NativeFaultRow) -> NativeFaultTuple {

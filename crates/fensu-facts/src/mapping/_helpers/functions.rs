@@ -20,13 +20,7 @@ pub(crate) fn function_row(
     let (line, _) = start_of(&node, index, source);
     let parameters = ordered_parameters(function)
         .into_iter()
-        .map(|parameter| MappingParameterRow {
-            name: parameter.name.id.as_str().to_owned(),
-            annotation: parameter
-                .annotation
-                .as_deref()
-                .map(|expression| expression_row(expression, source)),
-        })
+        .map(|parameter| parameter_row(parameter, source))
         .collect();
     MappingFunctionRow {
         name: function.name.as_str().to_owned(),
@@ -42,6 +36,16 @@ pub(crate) fn function_row(
             .iter()
             .map(|statement| statement_row(statement, index, source))
             .collect(),
+    }
+}
+
+fn parameter_row(parameter: &Parameter, source: &str) -> MappingParameterRow {
+    MappingParameterRow {
+        name: parameter.name.id.as_str().to_owned(),
+        annotation: parameter
+            .annotation
+            .as_deref()
+            .map(|expression| expression_row(expression, source)),
     }
 }
 

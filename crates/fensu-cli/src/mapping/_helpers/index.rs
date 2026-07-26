@@ -2,7 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use fensu_facts::mapping::main::extract_mapping_facts::extract_mapping_facts;
 use fensu_facts::mapping::models::{
-    MappingAttributeRow, MappingExpressionRow, MappingImportRow, MappingRows,
+    MappingAttributeRow, MappingCallRow, MappingExpressionRow, MappingImportRow, MappingRows,
+    MappingStatementRow,
 };
 use fensu_facts::parsing::main::parse_strict::parse_strict;
 use fensu_facts::positions::main::index_lines::index_lines;
@@ -32,7 +33,7 @@ pub(crate) fn build(snapshots: &[SourceSnapshot]) -> Result<ProjectIndex, String
         })?;
         let lines = index_lines(&text);
         let rows = extract_mapping_facts(parsed.syntax(), &lines, &text);
-        merge_rows(&mut index, snapshot, rows);
+        index = merge_rows(index, snapshot, rows);
     }
     index.protocol_implementations = protocol_implementations(&index.classes);
     Ok(index)
@@ -110,7 +111,11 @@ pub(crate) fn select(
     ))
 }
 
-fn merge_rows(index: &mut ProjectIndex, snapshot: &SourceSnapshot, rows: MappingRows) {
+fn merge_rows(
+    mut index: ProjectIndex,
+    snapshot: &SourceSnapshot,
+    rows: MappingRows,
+) -> ProjectIndex {
     let package_module = snapshot
         .path
         .file_name()
@@ -139,25 +144,7 @@ fn merge_rows(index: &mut ProjectIndex, snapshot: &SourceSnapshot, rows: Mapping
                     })
                     .collect(),
                 returns: row.returns.map(expression),
-                statements: row
-                    .statements
-                    .into_iter()
-                    .map(|statement| MappingStatement {
-                        control_flow: statement.control_flow,
-                        assigned_names: statement.assigned_names.into_iter().collect(),
-                        binding_name: statement.binding_name,
-                        binding_annotation: statement.binding_annotation.map(expression),
-                        binding_value: statement.binding_value.map(expression),
-                        calls: statement
-                            .calls
-                            .into_iter()
-                            .map(|call| MappingCall {
-                                callee: expression(call.callee),
-                                line: call.line,
-                            })
-                            .collect(),
-                    })
-                    .collect(),
+                statements: row.statements.into_iter().map(mapping_statement).collect(),
             },
             imports: imports.clone(),
             owning_class: row.owning_class,
@@ -181,6 +168,25 @@ fn merge_rows(index: &mut ProjectIndex, snapshot: &SourceSnapshot, rows: Mapping
             instance_attributes: attributes(row.instance_attributes),
         };
         index.classes.insert(definition.key(), definition);
+    }
+    index
+}
+
+fn mapping_statement(statement: MappingStatementRow) -> MappingStatement {
+    MappingStatement {
+        control_flow: statement.control_flow,
+        assigned_names: statement.assigned_names.into_iter().collect(),
+        binding_name: statement.binding_name,
+        binding_annotation: statement.binding_annotation.map(expression),
+        binding_value: statement.binding_value.map(expression),
+        calls: statement.calls.into_iter().map(mapping_call).collect(),
+    }
+}
+
+fn mapping_call(call: MappingCallRow) -> MappingCall {
+    MappingCall {
+        callee: expression(call.callee),
+        line: call.line,
     }
 }
 
@@ -330,38 +336,41 @@ fn protocol_implementations(
         .map(|key| (key.clone(), Vec::new()))
         .collect::<BTreeMap<_, _>>();
     for key in classes.keys().filter(|key| !protocols.contains(*key)) {
-        let mut ancestors = BTreeSet::new();
-        collect_protocols(
-            key,
+        let collector = ProtocolCollector {
             classes,
-            &protocols,
-            &mut BTreeSet::new(),
-            &mut ancestors,
-        );
-        for protocol in ancestors {
+            protocols: &protocols,
+            active: BTreeSet::new(),
+            result: BTreeSet::new(),
+        }
+        .collect(key);
+        for protocol in collector.result {
             result.entry(protocol).or_default().push(key.clone());
         }
     }
     result
 }
 
-fn collect_protocols(
-    key: &str,
-    classes: &BTreeMap<String, ClassDefinition>,
-    protocols: &BTreeSet<String>,
-    active: &mut BTreeSet<String>,
-    result: &mut BTreeSet<String>,
-) {
-    if !active.insert(key.to_owned()) {
-        return;
-    }
-    if let Some(class) = classes.get(key) {
-        for base in &class.base_keys {
-            if protocols.contains(base) {
-                result.insert(base.clone());
-            }
-            collect_protocols(base, classes, protocols, active, result);
+struct ProtocolCollector<'a> {
+    classes: &'a BTreeMap<String, ClassDefinition>,
+    protocols: &'a BTreeSet<String>,
+    active: BTreeSet<String>,
+    result: BTreeSet<String>,
+}
+
+impl<'a> ProtocolCollector<'a> {
+    fn collect(mut self, key: &str) -> Self {
+        if !self.active.insert(key.to_owned()) {
+            return self;
         }
+        if let Some(class) = self.classes.get(key) {
+            for base in &class.base_keys {
+                if self.protocols.contains(base) {
+                    self.result.insert(base.clone());
+                }
+                self = self.collect(base);
+            }
+        }
+        self.active.remove(key);
+        self
     }
-    active.remove(key);
 }

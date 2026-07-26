@@ -21,7 +21,7 @@ pub(crate) fn build(
     temporary_path: &Path,
     require_valid: bool,
 ) -> Result<PublicationResult, MemoryIndexError> {
-    prepare_discovery(&mut discovery);
+    discovery = prepare_discovery(discovery);
     let mut connection = open_database(temporary_path)?;
     let transaction = connection
         .transaction()
@@ -47,7 +47,7 @@ pub(crate) fn build(
         };
         let mut chunk = load_discovered_memory_corpus(chunk_discovery);
         counts.publish_chunk(&transaction, &corpus, &chunk, corpus.documents.len())?;
-        compact(&mut chunk);
+        chunk = compact(chunk);
         corpus.documents.append(&mut chunk.documents);
         corpus.diagnostics.append(&mut chunk.diagnostics);
     }
@@ -133,23 +133,29 @@ fn retained_publication_documents(corpus: &MemoryCorpus) -> usize {
         .documents
         .iter()
         .filter(|document| {
-            document.parsed_markdown.as_ref().is_some_and(|parsed| {
-                !parsed.plain_text.is_empty()
-                    || !parsed.preamble_raw_markdown.is_empty()
-                    || !parsed.preamble_plain_text.is_empty()
-                    || parsed
-                        .headings
-                        .iter()
-                        .any(|heading| !heading.raw_source.is_empty())
-                    || parsed.sections.iter().any(|section| {
-                        !section.raw_markdown.is_empty() || !section.plain_text.is_empty()
-                    })
-                    || !parsed.list_items.is_empty()
-                    || !parsed.code_blocks.is_empty()
-                    || !parsed.tags.is_empty()
-            })
+            document
+                .parsed_markdown
+                .as_ref()
+                .is_some_and(has_publication_content)
         })
         .count()
+}
+
+fn has_publication_content(parsed: &crate::markdown::models::ParsedMarkdown) -> bool {
+    !parsed.plain_text.is_empty()
+        || !parsed.preamble_raw_markdown.is_empty()
+        || !parsed.preamble_plain_text.is_empty()
+        || parsed
+            .headings
+            .iter()
+            .any(|heading| !heading.raw_source.is_empty())
+        || parsed
+            .sections
+            .iter()
+            .any(|section| !section.raw_markdown.is_empty() || !section.plain_text.is_empty())
+        || !parsed.list_items.is_empty()
+        || !parsed.code_blocks.is_empty()
+        || !parsed.tags.is_empty()
 }
 
 fn open_database(path: &Path) -> Result<Connection, MemoryIndexError> {
@@ -163,7 +169,7 @@ fn open_database(path: &Path) -> Result<Connection, MemoryIndexError> {
     Ok(connection)
 }
 
-fn prepare_discovery(discovery: &mut DiscoveryResult) {
+fn prepare_discovery(mut discovery: DiscoveryResult) -> DiscoveryResult {
     discovery.documents.sort_by(|left, right| {
         left.canonical_path
             .repository_relative
@@ -178,9 +184,10 @@ fn prepare_discovery(discovery: &mut DiscoveryResult) {
         (&left.repository_relative_path, left.kind)
             .cmp(&(&right.repository_relative_path, right.kind))
     });
+    discovery
 }
 
-fn compact(corpus: &mut MemoryCorpus) {
+fn compact(mut corpus: MemoryCorpus) -> MemoryCorpus {
     for document in &mut corpus.documents {
         let Some(parsed) = &mut document.parsed_markdown else {
             continue;
@@ -206,4 +213,5 @@ fn compact(corpus: &mut MemoryCorpus) {
         parsed.tags.clear();
         parsed.tags.shrink_to_fit();
     }
+    corpus
 }

@@ -10,6 +10,7 @@ pub const MAX_CONTAINER_COMPONENT_DEPTH: usize = 2;
 pub const MIN_SHARED_PREFIX_MODULES: usize = 3;
 pub const MIN_DOMAIN_SEGMENTS: usize = 2;
 pub const MAX_ARGUMENTS: usize = 10;
+pub const MAX_POSITIONAL_PARAMETERS: usize = 4;
 pub const MAX_STATEMENTS_GLOBAL: usize = 70;
 pub const MAX_STATEMENTS_ENTRY: usize = 40;
 pub const MAX_DISTINCT_CALLS_ENTRY: usize = 20;

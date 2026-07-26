@@ -11,9 +11,12 @@ use fensu_memory::engine::main::query_memory_graph::query_memory_graph;
 use fensu_memory::engine::main::query_memory_index::query_memory_index;
 use fensu_memory::engine::main::rebuild_memory_index::rebuild_memory_index;
 use fensu_memory::engine::main::sync_memory_index::sync_memory_index;
-use fensu_memory::engine::models::{MemoryGraphQuery, MemoryQueryResult, SyncSummary};
+use fensu_memory::engine::models::{
+    MemoryArchiveRequest, MemoryGraphQuery, MemoryQueryResult, SyncSummary,
+};
 use fensu_memory::source::main::bootstrap_memory::bootstrap_memory;
 
+use crate::command::_helpers::memory::human_rendering::SyncRenderRequest;
 use crate::command::_helpers::memory::{
     graph_rendering, help, human_rendering, parsing, structured_rendering,
 };
@@ -45,13 +48,13 @@ fn execute(
     match command {
         MemoryCommand::Summary => summarize(project, color),
         MemoryCommand::Archive { paths, confirmed } => {
-            let result = archive_memory(
-                &project.repository_root,
-                &project.database_path,
-                &paths,
-                project.archive_after_days,
+            let result = archive_memory(MemoryArchiveRequest {
+                repository_root: &project.repository_root,
+                database_path: &project.database_path,
+                requested_paths: &paths,
+                archive_after_days: project.archive_after_days,
                 confirmed,
-            )
+            })
             .map_err(|error| format!("Memory archive failed: {error}"))?;
             Ok(CliOutput::success(human_rendering::archive(&result, color)))
         }
@@ -59,11 +62,13 @@ fn execute(
         MemoryCommand::Sync => {
             let summary = sync(project)?;
             Ok(CliOutput::success(human_rendering::sync(
-                &summary,
-                &project.repository_root,
-                &project.database_path,
-                false,
-                color,
+                SyncRenderRequest {
+                    summary: &summary,
+                    repository_root: &project.repository_root,
+                    database_path: &project.database_path,
+                    compact: false,
+                    color,
+                },
             )))
         }
         MemoryCommand::Rebuild => {
@@ -82,7 +87,13 @@ fn execute(
             query,
             limit,
             format,
-        } => sql(project, &query, limit, &format, color),
+        } => sql(SqlRequest {
+            project,
+            query: &query,
+            limit,
+            format: &format,
+            color,
+        }),
     }
 }
 
@@ -90,13 +101,13 @@ fn summarize(project: &MemoryProject, color: bool) -> Result<CliOutput, String> 
     let summary = sync(project)?;
     let overview = memory_overview(&project.database_path)
         .map_err(|error| format!("Memory overview failed: {error}"))?;
-    let mut output = human_rendering::sync(
-        &summary,
-        &project.repository_root,
-        &project.database_path,
-        true,
+    let mut output = human_rendering::sync(SyncRenderRequest {
+        summary: &summary,
+        repository_root: &project.repository_root,
+        database_path: &project.database_path,
+        compact: true,
         color,
-    );
+    });
     output.push_str(&human_rendering::overview(&overview, color));
     Ok(CliOutput::success(output))
 }
@@ -176,37 +187,46 @@ fn graph(
     };
     Ok(CliOutput {
         stdout,
-        stderr: human_rendering::sync(
-            &summary,
-            &project.repository_root,
-            &project.database_path,
-            true,
-            color && !machine,
-        ),
+        stderr: human_rendering::sync(SyncRenderRequest {
+            summary: &summary,
+            repository_root: &project.repository_root,
+            database_path: &project.database_path,
+            compact: true,
+            color: color && !machine,
+        }),
         exit_code: 0,
     })
 }
 
-fn sql(
-    project: &MemoryProject,
-    query: &str,
+struct SqlRequest<'a> {
+    project: &'a MemoryProject,
+    query: &'a str,
     limit: usize,
-    format: &str,
+    format: &'a str,
     color: bool,
-) -> Result<CliOutput, String> {
+}
+
+fn sql(request: SqlRequest<'_>) -> Result<CliOutput, String> {
+    let SqlRequest {
+        project,
+        query,
+        limit,
+        format,
+        color,
+    } = request;
     let summary = sync(project)?;
     let result = query_memory_index(&project.database_path, query, limit)
         .map_err(|error| format!("Memory query failed: {error}"))?;
     let human = format != QUERY_FORMAT_JSON && format != QUERY_FORMAT_CSV;
     Ok(CliOutput {
         stdout: render_query(&result, format, color && human),
-        stderr: human_rendering::sync(
-            &summary,
-            &project.repository_root,
-            &project.database_path,
-            true,
-            color && human,
-        ),
+        stderr: human_rendering::sync(SyncRenderRequest {
+            summary: &summary,
+            repository_root: &project.repository_root,
+            database_path: &project.database_path,
+            compact: true,
+            color: color && human,
+        }),
         exit_code: 0,
     })
 }

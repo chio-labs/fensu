@@ -19,36 +19,36 @@ pub(crate) fn check_source(
         return violations;
     };
     if kind == FileKind::LibraryRoot && !forbids_unsafe_code(syntax) {
-        violations.push(models::Violation::new(
-            "RSH012",
-            file.relative_path(),
-            Some(1),
-            "crate root does not forbid unsafe code",
-            "add #![forbid(unsafe_code)] to lib.rs",
-        ));
+        violations.push(models::Violation::new(models::ViolationRequest {
+            code: "RSH012",
+            path: file.relative_path(),
+            line: Some(1),
+            message: "crate root does not forbid unsafe code",
+            remediation: "add #![forbid(unsafe_code)] to lib.rs",
+        }));
     }
     let invocations = collect_invocations(syntax);
     for line in &invocations.suppressions {
-        violations.push(models::Violation::new(
-            "RSH013",
-            file.relative_path(),
-            Some(*line),
-            "inline lint suppression weakens workspace policy",
-            "remove the attribute and fix the underlying fault",
-        ));
+        violations.push(models::Violation::new(models::ViolationRequest {
+            code: "RSH013",
+            path: file.relative_path(),
+            line: Some(*line),
+            message: "inline lint suppression weakens workspace policy",
+            remediation: "remove the attribute and fix the underlying fault",
+        }));
     }
     for (name, line) in &invocations.macros {
         violations.extend(macro_violation(file, name, *line, kind));
     }
     for (name, line) in &invocations.method_calls {
         if constants::PANIC_EXTRACTION_METHODS.contains(&name.as_str()) {
-            violations.push(models::Violation::new(
-                "RSH010",
-                file.relative_path(),
-                Some(*line),
-                format!("library code calls {name}()"),
-                "propagate with ? or handle the failure and return a crate error",
-            ));
+            violations.push(models::Violation::new(models::ViolationRequest {
+                code: "RSH010",
+                path: file.relative_path(),
+                line: Some(*line),
+                message: format!("library code calls {name}()"),
+                remediation: "propagate with ? or handle the failure and return a crate error",
+            }));
         }
     }
     violations.extend(check_comparisons(file, syntax));
@@ -67,13 +67,13 @@ pub(crate) fn check_test_file(
     let invocations = collect_invocations(syntax);
     for (name, line) in &invocations.method_calls {
         if constants::TEST_PANIC_EXTRACTION_METHODS.contains(&name.as_str()) {
-            violations.push(models::Violation::new(
-                "RSH010",
-                file.relative_path(),
-                Some(*line),
-                "test code calls unwrap()",
-                "use expect with a message naming the assumption",
-            ));
+            violations.push(models::Violation::new(models::ViolationRequest {
+                code: "RSH010",
+                path: file.relative_path(),
+                line: Some(*line),
+                message: "test code calls unwrap()",
+                remediation: "use expect with a message naming the assumption",
+            }));
         }
     }
     violations
@@ -137,12 +137,14 @@ fn forbids_unsafe_code(syntax: &syn::File) -> bool {
             .parse_args_with(
                 syn::punctuated::Punctuated::<syn::Path, syn::Token![,]>::parse_terminated,
             )
-            .is_ok_and(|paths| {
-                paths
-                    .iter()
-                    .any(|path| path.is_ident(constants::UNSAFE_CODE_LINT))
-            })
+            .is_ok_and(paths_forbid_unsafe_code)
     })
+}
+
+fn paths_forbid_unsafe_code(paths: syn::punctuated::Punctuated<syn::Path, syn::Token![,]>) -> bool {
+    paths
+        .iter()
+        .any(|path| path.is_ident(constants::UNSAFE_CODE_LINT))
 }
 
 fn collect_invocations(syntax: &syn::File) -> Invocations {
@@ -166,31 +168,31 @@ fn macro_violation(
     kind: FileKind,
 ) -> Vec<models::Violation> {
     if constants::PANIC_MACROS.contains(&name) {
-        return vec![models::Violation::new(
-            "RSH003",
-            file.relative_path(),
-            Some(line),
-            format!("library code invokes {name}!"),
-            "return a Result with a crate error type from errors.rs",
-        )];
+        return vec![models::Violation::new(models::ViolationRequest {
+            code: "RSH003",
+            path: file.relative_path(),
+            line: Some(line),
+            message: format!("library code invokes {name}!"),
+            remediation: "return a Result with a crate error type from errors.rs",
+        })];
     }
     if constants::ASSERT_MACROS.contains(&name) {
-        return vec![models::Violation::new(
-            "RSH004",
-            file.relative_path(),
-            Some(line),
-            format!("library code invokes {name}!"),
-            "replace the assertion with an explicit guard returning a crate error",
-        )];
+        return vec![models::Violation::new(models::ViolationRequest {
+            code: "RSH004",
+            path: file.relative_path(),
+            line: Some(line),
+            message: format!("library code invokes {name}!"),
+            remediation: "replace the assertion with an explicit guard returning a crate error",
+        })];
     }
     if constants::STDIO_MACROS.contains(&name) && kind != FileKind::BinAdapter {
-        return vec![models::Violation::new(
-            "RSH011",
-            file.relative_path(),
-            Some(line),
-            format!("library code writes to stdio via {name}!"),
-            "return data to the caller; only the bin adapter may print",
-        )];
+        return vec![models::Violation::new(models::ViolationRequest {
+            code: "RSH011",
+            path: file.relative_path(),
+            line: Some(line),
+            message: format!("library code writes to stdio via {name}!"),
+            remediation: "return data to the caller; only the bin adapter may print",
+        })];
     }
     Vec::new()
 }
@@ -275,22 +277,23 @@ fn check_comparisons(file: &models::SourceFile, syntax: &syn::File) -> Vec<model
     visitor.visit_file(syntax);
     let mut violations: Vec<models::Violation> = Vec::new();
     for line in &visitor.string_lines {
-        violations.push(models::Violation::new(
-            "RSH007",
-            file.relative_path(),
-            Some(*line),
-            "string literal directly controls a comparison",
-            "name the decision value in constants.rs and compare against the name",
-        ));
+        violations.push(models::Violation::new(models::ViolationRequest {
+            code: "RSH007",
+            path: file.relative_path(),
+            line: Some(*line),
+            message: "string literal directly controls a comparison",
+            remediation: "name the decision value in constants.rs and compare against the name",
+        }));
     }
     for line in &visitor.number_lines {
-        violations.push(models::Violation::new(
-            "RSH008",
-            file.relative_path(),
-            Some(*line),
-            "non-canonical numeric literal directly controls a comparison",
-            "name the threshold in constants.rs; only -1, 0, and 1 are self-explanatory",
-        ));
+        violations.push(models::Violation::new(models::ViolationRequest {
+            code: "RSH008",
+            path: file.relative_path(),
+            line: Some(*line),
+            message: "non-canonical numeric literal directly controls a comparison",
+            remediation:
+                "name the threshold in constants.rs; only -1, 0, and 1 are self-explanatory",
+        }));
     }
     violations
 }
@@ -302,13 +305,13 @@ fn check_comment_lines(file: &models::SourceFile) -> Vec<models::Violation> {
         let is_plain_comment =
             trimmed.starts_with("//") && !trimmed.starts_with("///") && !trimmed.starts_with("//!");
         if is_plain_comment {
-            violations.push(models::Violation::new(
-                "RSH002",
-                file.relative_path(),
-                Some(index + 1),
-                "standalone comments are not allowed",
-                "use clear names or move lasting explanation into docs or tests",
-            ));
+            violations.push(models::Violation::new(models::ViolationRequest {
+                code: "RSH002",
+                path: file.relative_path(),
+                line: Some(index + 1),
+                message: "standalone comments are not allowed",
+                remediation: "use clear names or move lasting explanation into docs or tests",
+            }));
         }
     }
     violations
@@ -347,11 +350,11 @@ fn doc_run_violation(
     if run_length <= 1 {
         return Vec::new();
     }
-    vec![models::Violation::new(
-        "RSH001",
-        file.relative_path(),
-        Some(start),
-        format!("doc comment spans {run_length} lines"),
-        "keep one summary line and move extended rationale into docs or tests",
-    )]
+    vec![models::Violation::new(models::ViolationRequest {
+        code: "RSH001",
+        path: file.relative_path(),
+        line: Some(start),
+        message: format!("doc comment spans {run_length} lines"),
+        remediation: "keep one summary line and move extended rationale into docs or tests",
+    })]
 }

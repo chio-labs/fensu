@@ -75,26 +75,7 @@ fn import_row(statement: &Stmt, line: u32, column: u32, top_level: bool) -> Impo
                         .collect()
                 })
                 .unwrap_or_default(),
-            aliases: inner
-                .names
-                .iter()
-                .map(|alias| ImportAliasRow {
-                    imported_name: alias.name.as_str().to_owned(),
-                    bound_name: alias
-                        .asname
-                        .as_ref()
-                        .map(|asname| asname.as_str())
-                        .unwrap_or_else(|| {
-                            alias
-                                .name
-                                .as_str()
-                                .rsplit(constants::MODULE_SEPARATOR)
-                                .next()
-                                .unwrap_or_default()
-                        })
-                        .to_owned(),
-                })
-                .collect(),
+            aliases: inner.names.iter().map(import_alias_row).collect(),
             relative_level: inner.level,
             from_import: true,
             top_level,
@@ -103,26 +84,7 @@ fn import_row(statement: &Stmt, line: u32, column: u32, top_level: bool) -> Impo
             line,
             column,
             module_parts: Vec::new(),
-            aliases: inner
-                .names
-                .iter()
-                .map(|alias| ImportAliasRow {
-                    imported_name: alias.name.as_str().to_owned(),
-                    bound_name: alias
-                        .asname
-                        .as_ref()
-                        .map(|asname| asname.as_str())
-                        .unwrap_or_else(|| {
-                            alias
-                                .name
-                                .as_str()
-                                .rsplit(constants::MODULE_SEPARATOR)
-                                .next()
-                                .unwrap_or_default()
-                        })
-                        .to_owned(),
-                })
-                .collect(),
+            aliases: inner.names.iter().map(import_alias_row).collect(),
             relative_level: 0,
             from_import: false,
             top_level,
@@ -136,6 +98,22 @@ fn import_row(statement: &Stmt, line: u32, column: u32, top_level: bool) -> Impo
             from_import: false,
             top_level,
         },
+    }
+}
+
+fn import_alias_row(alias: &ruff_python_ast::Alias) -> ImportAliasRow {
+    let bound_name = match &alias.asname {
+        Some(asname) => asname.as_str(),
+        None => alias
+            .name
+            .as_str()
+            .rsplit(constants::MODULE_SEPARATOR)
+            .next()
+            .unwrap_or_default(),
+    };
+    ImportAliasRow {
+        imported_name: alias.name.as_str().to_owned(),
+        bound_name: bound_name.to_owned(),
     }
 }
 

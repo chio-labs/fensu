@@ -43,6 +43,14 @@ struct CrateSources {
     files: Vec<models::SourceFile>,
 }
 
+#[derive(Debug, Default)]
+struct VisibilityIndex {
+    references: Vec<Reference>,
+    entries: Vec<Entry>,
+    helper_types: Vec<HelperType>,
+    violations: Vec<models::Violation>,
+}
+
 pub(crate) fn check_workspace(
     repo_root: &path::Path,
     crate_directories: &[path::PathBuf],
@@ -51,25 +59,29 @@ pub(crate) fn check_workspace(
         .iter()
         .filter_map(|crate_dir| crate_sources(repo_root, crate_dir))
         .collect::<Vec<_>>();
-    let mut references = Vec::new();
-    let mut entries = Vec::new();
-    let mut helper_types = Vec::new();
-    let mut violations = Vec::new();
+    let mut index = VisibilityIndex::default();
     for crate_sources in &crates {
-        collect_crate(
-            crate_sources,
-            &mut references,
-            &mut entries,
-            &mut helper_types,
-            &mut violations,
-        );
+        index.collect_crate(crate_sources);
     }
-    violations.extend(private_entry_import_violations(&references, &entries));
-    violations.extend(unused_public_entry_violations(&references, &entries));
-    violations.extend(private_helper_type_violations(&references, &helper_types));
-    violations.sort_by(|left, right| left.sort_key().cmp(&right.sort_key()));
-    violations.dedup_by(|left, right| left.sort_key() == right.sort_key());
-    violations
+    index.violations.extend(private_entry_import_violations(
+        &index.references,
+        &index.entries,
+    ));
+    index.violations.extend(unused_public_entry_violations(
+        &index.references,
+        &index.entries,
+    ));
+    index.violations.extend(private_helper_type_violations(
+        &index.references,
+        &index.helper_types,
+    ));
+    index
+        .violations
+        .sort_by(|left, right| left.sort_key().cmp(&right.sort_key()));
+    index
+        .violations
+        .dedup_by(|left, right| left.sort_key() == right.sort_key());
+    index.violations
 }
 
 fn crate_sources(repo_root: &path::Path, crate_dir: &path::Path) -> Option<CrateSources> {
@@ -87,47 +99,49 @@ fn crate_sources(repo_root: &path::Path, crate_dir: &path::Path) -> Option<Crate
     })
 }
 
-fn collect_crate(
-    crate_sources: &CrateSources,
-    references: &mut Vec<Reference>,
-    entries: &mut Vec<Entry>,
-    helper_types: &mut Vec<HelperType>,
-    violations: &mut Vec<models::Violation>,
-) {
-    let module_visibility = module_visibility(crate_sources);
-    for file in &crate_sources.files {
-        if is_test_source(file) {
-            continue;
-        }
-        let Ok(syntax) = syn::parse_file(&file.source) else {
-            continue;
-        };
-        let current_module = reference_paths::module_path(&crate_sources.package, &file.relative);
-        let source_domain = current_module.get(1).cloned();
-        for (target, line) in
-            reference_paths::collect(&syntax, &file.source, &crate_sources.package)
-        {
-            if targets_bare_crate_surface(&target, &crate_sources.package, &module_visibility)
-                && !is_crate_root(file)
-            {
-                violations.push(models::Violation::new(
-                    "RSL103",
-                    file.relative_path(),
-                    Some(line),
-                    "internal module imports from the crate's bare public surface",
-                    "import from the concrete owning module below the crate root",
-                ));
+impl VisibilityIndex {
+    fn collect_crate(&mut self, crate_sources: &CrateSources) {
+        let module_visibility = module_visibility(crate_sources);
+        for file in &crate_sources.files {
+            if is_test_source(file) {
+                continue;
             }
-            references.push(Reference {
-                source_package: crate_sources.package.clone(),
-                source_domain: source_domain.clone(),
-                source_file: file.relative.clone(),
-                target,
-                line,
-            });
+            let Ok(syntax) = syn::parse_file(&file.source) else {
+                continue;
+            };
+            let current_module =
+                reference_paths::module_path(&crate_sources.package, &file.relative);
+            let source_domain = current_module.get(1).cloned();
+            for (target, line) in
+                reference_paths::collect(&syntax, &file.source, &crate_sources.package)
+            {
+                if targets_bare_crate_surface(&target, &crate_sources.package, &module_visibility)
+                    && !is_crate_root(file)
+                {
+                    self.violations
+                        .push(models::Violation::new(models::ViolationRequest {
+                            code: "RSL103",
+                            path: file.relative_path(),
+                            line: Some(line),
+                            message: "internal module imports from the crate's bare public surface",
+                            remediation:
+                                "import from the concrete owning module below the crate root",
+                        }));
+                }
+                self.references.push(Reference {
+                    source_package: crate_sources.package.clone(),
+                    source_domain: source_domain.clone(),
+                    source_file: file.relative.clone(),
+                    target,
+                    line,
+                });
+            }
+            if let Some(entry) = collect_entry(file, &current_module, &module_visibility, &syntax) {
+                self.entries.push(entry);
+            }
+            self.helper_types
+                .extend(collect_helper_types(file, &current_module, &syntax));
         }
-        collect_entry(file, &current_module, &module_visibility, &syntax, entries);
-        collect_helper_types(file, &current_module, &syntax, helper_types);
     }
 }
 
@@ -155,24 +169,21 @@ fn collect_entry(
     module: &[String],
     visibility: &BTreeMap<Vec<String>, bool>,
     syntax: &syn::File,
-    entries: &mut Vec<Entry>,
-) {
+) -> Option<Entry> {
     if !file.has_directory(constants::MAIN_DIRECTORY)
         || file.file_name() == constants::MOD_FILE
         || file.file_name() == constants::INLINE_TEST_HARNESS_FILE
     {
-        return;
+        return None;
     }
-    let Some(public_to_crate) = visibility.get(module).copied() else {
-        return;
-    };
-    entries.push(Entry {
+    let public_to_crate = visibility.get(module).copied()?;
+    Some(Entry {
         domain: module.get(1).cloned(),
         file: file.relative.clone(),
         module: module.to_vec(),
         public_to_crate,
         externally_declared: syntax.items.iter().any(externally_declared_item),
-    });
+    })
 }
 
 fn externally_declared_item(item: &syn::Item) -> bool {
@@ -189,11 +200,11 @@ fn collect_helper_types(
     file: &models::SourceFile,
     module: &[String],
     syntax: &syn::File,
-    helper_types: &mut Vec<HelperType>,
-) {
+) -> Vec<HelperType> {
     if !file.has_directory(constants::HELPERS_DIRECTORY) {
-        return;
+        return Vec::new();
     }
+    let mut helper_types = Vec::new();
     for item in &syntax.items {
         let declaration = match item {
             syn::Item::Enum(inner) => Some((&inner.ident, &inner.vis)),
@@ -215,6 +226,7 @@ fn collect_helper_types(
             symbol,
         });
     }
+    helper_types
 }
 
 fn private_entry_import_violations(
@@ -225,84 +237,90 @@ fn private_entry_import_violations(
         .iter()
         .filter(|entry| !entry.public_to_crate)
         .collect::<Vec<_>>();
-    references
-        .iter()
-        .filter_map(|reference| {
-            let entry = private
-                .iter()
-                .find(|entry| starts_with(&reference.target, &entry.module))?;
+    let mut violations = Vec::new();
+    for reference in references {
+        for entry in &private {
+            if !starts_with(&reference.target, &entry.module) {
+                continue;
+            }
             let same_package = entry
                 .module
                 .first()
                 .is_some_and(|package| package == &reference.source_package);
             let same_domain = same_package && reference.source_domain == entry.domain;
-            (!same_domain).then(|| {
-                models::Violation::new(
-                    "RSL104",
-                    path::Path::new(&reference.source_file),
-                    Some(reference.line),
-                    format!(
+            if !same_domain {
+                violations.push(models::Violation::new(models::ViolationRequest {
+                    code: "RSL104",
+                    path: path::Path::new(&reference.source_file),
+                    line: Some(reference.line),
+                    message: format!(
                         "import reaches domain-private main entry {}",
                         entry.module.join("::")
                     ),
-                    "publish the main module to the crate or route through a public entry",
-                )
-            })
-        })
-        .collect()
+                    remediation:
+                        "publish the main module to the crate or route through a public entry",
+                }));
+            }
+            break;
+        }
+    }
+    violations
 }
 
 fn unused_public_entry_violations(
     references: &[Reference],
     entries: &[Entry],
 ) -> Vec<models::Violation> {
-    entries
-        .iter()
-        .filter(|entry| entry.public_to_crate && !entry.externally_declared)
-        .filter(|entry| {
-            !references.iter().any(|reference| {
-                reference.source_file != entry.file
-                    && starts_with(&reference.target, &entry.module)
-                    && (entry.module.first() != Some(&reference.source_package)
-                        || reference.source_domain != entry.domain)
-            })
-        })
-        .map(|entry| {
-            models::Violation::new(
-                "RSL105",
-                path::Path::new(&entry.file),
-                None,
-                "crate-visible main entry has no importer outside its owning domain",
-                "restrict the module to its domain until an external importer exists",
-            )
-        })
-        .collect()
+    let mut violations = Vec::new();
+    for entry in entries {
+        if !entry.public_to_crate || entry.externally_declared {
+            continue;
+        }
+        let used_externally = references.iter().any(|reference| {
+            reference.source_file != entry.file
+                && starts_with(&reference.target, &entry.module)
+                && (entry.module.first() != Some(&reference.source_package)
+                    || reference.source_domain != entry.domain)
+        });
+        if !used_externally {
+            violations.push(models::Violation::new(models::ViolationRequest {
+                code: "RSL105",
+                path: path::Path::new(&entry.file),
+                line: None,
+                message: "crate-visible main entry has no importer outside its owning domain",
+                remediation: "restrict the module to its domain until an external importer exists",
+            }));
+        }
+    }
+    violations
 }
 
 fn private_helper_type_violations(
     references: &[Reference],
     helper_types: &[HelperType],
 ) -> Vec<models::Violation> {
-    references
-        .iter()
-        .filter_map(|reference| {
-            let declaration = helper_types
-                .iter()
-                .find(|item| reference.target == item.symbol)?;
-            (reference.source_file != declaration.file).then(|| {
-                models::Violation::new(
-                    "RSL110",
-                    path::Path::new(&reference.source_file),
-                    Some(reference.line),
-                    format!(
+    let mut violations = Vec::new();
+    for reference in references {
+        for declaration in helper_types {
+            if reference.target != declaration.symbol {
+                continue;
+            }
+            if reference.source_file != declaration.file {
+                violations.push(models::Violation::new(models::ViolationRequest {
+                    code: "RSL110",
+                    path: path::Path::new(&reference.source_file),
+                    line: Some(reference.line),
+                    message: format!(
                         "references file-private helper type {}",
                         declaration.symbol.join("::")
                     ),
-                    "move a shared type to the owning models.rs or types.rs role",
-                )
-            })
-        })
-        .collect()
+                    remediation: "move a shared type to the owning models.rs or types.rs role",
+                }));
+            }
+            break;
+        }
+    }
+    violations
 }
 
 fn public_to_crate(visibility: &syn::Visibility) -> bool {

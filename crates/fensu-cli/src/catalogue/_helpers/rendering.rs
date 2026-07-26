@@ -10,16 +10,16 @@ pub(crate) fn render(metadata: &RuleMetadata, config: &Config, color: bool) -> S
         format!("{} {}", metadata.code, metadata.slug)
     };
     let mut output = format!("{header}\n");
-    render_metadata(&mut output, metadata, color);
-    render_options(&mut output, metadata);
-    render_exceptions(&mut output, metadata, config);
-    render_rule_ignores(&mut output, metadata, config);
+    output = render_metadata(output, metadata, color);
+    output = render_options(output, metadata);
+    output = render_exceptions(output, metadata, config);
+    output = render_rule_ignores(output, metadata, config);
     output
 }
 
-pub(crate) fn render_options(output: &mut String, metadata: &RuleMetadata) {
+pub(crate) fn render_options(mut output: String, metadata: &RuleMetadata) -> String {
     if metadata.options.is_empty() {
-        return;
+        return output;
     }
     let mut options = metadata.options.iter().collect::<Vec<_>>();
     options.sort_by(|left, right| left.name.cmp(&right.name));
@@ -30,9 +30,10 @@ pub(crate) fn render_options(output: &mut String, metadata: &RuleMetadata) {
             output.push_str(&format!("    {label}: {value}\n"));
         }
     }
+    output
 }
 
-pub(crate) fn render_metadata(output: &mut String, metadata: &RuleMetadata, color: bool) {
+pub(crate) fn render_metadata(mut output: String, metadata: &RuleMetadata, color: bool) -> String {
     let enabled = if metadata.enabled_by_default {
         "yes"
     } else {
@@ -56,16 +57,21 @@ pub(crate) fn render_metadata(output: &mut String, metadata: &RuleMetadata, colo
             output.push_str(&format!("{label}: {value}\n"));
         }
     }
+    output
 }
 
-pub(crate) fn render_exceptions(output: &mut String, metadata: &RuleMetadata, config: &Config) {
+pub(crate) fn render_exceptions(
+    mut output: String,
+    metadata: &RuleMetadata,
+    config: &Config,
+) -> String {
     let exceptions = config
         .exceptions
         .iter()
         .filter(|entry| entry.rule == metadata.code)
         .collect::<Vec<_>>();
     if exceptions.is_empty() {
-        return;
+        return output;
     }
     output.push_str("\nActive exceptions:\n");
     for exception in exceptions {
@@ -77,25 +83,31 @@ pub(crate) fn render_exceptions(output: &mut String, metadata: &RuleMetadata, co
         output.push_str(&format!("  {}: {scope}\n", exception.path));
         output.push_str(&format!("    Reason: {}\n", exception.reason));
     }
+    output
 }
 
-pub(crate) fn render_rule_ignores(output: &mut String, metadata: &RuleMetadata, config: &Config) {
-    let ignores = config
-        .rule_ignores
-        .iter()
-        .filter(|entry| {
-            entry
-                .rules
-                .iter()
-                .any(|selector| metadata.code.starts_with(selector))
-        })
-        .collect::<Vec<_>>();
+pub(crate) fn render_rule_ignores(
+    mut output: String,
+    metadata: &RuleMetadata,
+    config: &Config,
+) -> String {
+    let mut ignores = Vec::new();
+    for entry in &config.rule_ignores {
+        if entry
+            .rules
+            .iter()
+            .any(|selector| metadata.code.starts_with(selector))
+        {
+            ignores.push(entry);
+        }
+    }
     if ignores.is_empty() {
-        return;
+        return output;
     }
     output.push_str("\nActive path-scoped rule ignores:\n");
     for entry in ignores {
         output.push_str(&format!("  {}\n", entry.paths.join(", ")));
         output.push_str(&format!("    Reason: {}\n", entry.reason));
     }
+    output
 }

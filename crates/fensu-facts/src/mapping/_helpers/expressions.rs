@@ -51,14 +51,11 @@ pub(crate) fn owned_calls(
     index: &LineIndex,
     source: &str,
 ) -> Vec<MappingCallRow> {
-    let mut calls = Vec::new();
-    collect_owned_calls(root, index, source, &mut calls);
-    calls
+    collect_owned_calls(root, index, source, Vec::new())
 }
 
 pub(crate) fn assigned_names(statement: &Stmt) -> Vec<String> {
-    let mut names = BTreeSet::new();
-    collect_assigned_names(ShapeNode::Stmt(statement), false, &mut names);
+    let names = collect_assigned_names(ShapeNode::Stmt(statement), false, BTreeSet::new());
     names.into_iter().collect()
 }
 
@@ -66,14 +63,14 @@ fn collect_owned_calls(
     node: ShapeNode<'_>,
     index: &LineIndex,
     source: &str,
-    calls: &mut Vec<MappingCallRow>,
-) {
+    mut calls: Vec<MappingCallRow>,
+) -> Vec<MappingCallRow> {
     if matches!(
         node,
         ShapeNode::Stmt(Stmt::FunctionDef(_) | Stmt::ClassDef(_))
             | ShapeNode::Expr(Expr::Lambda(_))
     ) {
-        return;
+        return calls;
     }
     if let ShapeNode::Expr(Expr::Call(call)) = node {
         let (line, _) = start_of(&node, index, source);
@@ -85,21 +82,26 @@ fn collect_owned_calls(
     let mut child_buffer = Vec::new();
     children(&node, &mut child_buffer);
     for child in child_buffer {
-        collect_owned_calls(child, index, source, calls);
+        calls = collect_owned_calls(child, index, source, calls);
     }
+    calls
 }
 
-fn collect_assigned_names(node: ShapeNode<'_>, nested: bool, names: &mut BTreeSet<String>) {
+fn collect_assigned_names(
+    node: ShapeNode<'_>,
+    nested: bool,
+    mut names: BTreeSet<String>,
+) -> BTreeSet<String> {
     match node {
         ShapeNode::Stmt(Stmt::FunctionDef(function)) if nested => {
             names.insert(function.name.as_str().to_owned());
-            return;
+            return names;
         }
         ShapeNode::Stmt(Stmt::ClassDef(class)) if nested => {
             names.insert(class.name.as_str().to_owned());
-            return;
+            return names;
         }
-        ShapeNode::Expr(Expr::Lambda(_)) => return,
+        ShapeNode::Expr(Expr::Lambda(_)) => return names,
         ShapeNode::Expr(Expr::Name(name))
             if matches!(name.ctx, ExprContext::Store | ExprContext::Del) =>
         {
@@ -117,6 +119,7 @@ fn collect_assigned_names(node: ShapeNode<'_>, nested: bool, names: &mut BTreeSe
     let mut child_buffer = Vec::new();
     children(&node, &mut child_buffer);
     for child in child_buffer {
-        collect_assigned_names(child, true, names);
+        names = collect_assigned_names(child, true, names);
     }
+    names
 }

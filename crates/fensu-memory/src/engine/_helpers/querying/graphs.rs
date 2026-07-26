@@ -80,8 +80,8 @@ fn traverse(
         .map(|document| (document.identity.clone(), document))
         .collect::<HashMap<String, GraphDocumentRow>>();
     let mut state = TraversalState::new(&roots, &by_identity);
-    walk(&mut state, &by_identity, &links, query);
-    mark_cycles(&mut state.edges);
+    state.walk(&by_identity, &links, query);
+    state.edges = mark_cycles(state.edges);
     state
         .nodes
         .sort_by(|left, right| left.identity.cmp(&right.identity));
@@ -132,47 +132,47 @@ impl TraversalState {
             edge_budget_exhausted: false,
         }
     }
-}
 
-fn walk(
-    state: &mut TraversalState,
-    documents: &HashMap<String, GraphDocumentRow>,
-    links: &[GraphLinkRow],
-    query: &MemoryGraphQuery,
-) {
-    while let Some((identity, depth)) = state.queue.pop_front() {
-        if depth >= query.depth || !can_expand(&identity, documents, query.include_archived) {
-            continue;
-        }
-        let candidates = candidate_links(&identity, links, query.direction);
-        for link in candidates {
-            let edge_key = (link.source.clone(), link.ordinal);
-            if state.emitted_edges.contains(&edge_key) {
+    fn walk(
+        &mut self,
+        documents: &HashMap<String, GraphDocumentRow>,
+        links: &[GraphLinkRow],
+        query: &MemoryGraphQuery,
+    ) {
+        while let Some((identity, depth)) = self.queue.pop_front() {
+            if depth >= query.depth || !can_expand(&identity, documents, query.include_archived) {
                 continue;
             }
-            if state.edges.len() == query.max_edges {
-                state.edge_budget_exhausted = true;
-                continue;
-            }
-            state.emitted_edges.insert(edge_key);
-            state.edges.push(graph_edge(link));
-            let Some(neighbor) = neighbor_identity(&identity, link, query.direction) else {
-                continue;
-            };
-            if state.discovered.contains(neighbor) {
-                continue;
-            }
-            if state.nodes.len() == query.max_nodes {
-                state.node_budget_exhausted = true;
-                continue;
-            }
-            let Some(document) = documents.get(neighbor) else {
-                continue;
-            };
-            state.discovered.insert(neighbor.to_owned());
-            state.nodes.push(graph_node(document, depth + 1, false));
-            if query.include_archived || document.archive_state == ARCHIVE_STATE_ACTIVE {
-                state.queue.push_back((neighbor.to_owned(), depth + 1));
+            let candidates = candidate_links(&identity, links, query.direction);
+            for link in candidates {
+                let edge_key = (link.source.clone(), link.ordinal);
+                if self.emitted_edges.contains(&edge_key) {
+                    continue;
+                }
+                if self.edges.len() == query.max_edges {
+                    self.edge_budget_exhausted = true;
+                    continue;
+                }
+                self.emitted_edges.insert(edge_key);
+                self.edges.push(graph_edge(link));
+                let Some(neighbor) = neighbor_identity(&identity, link, query.direction) else {
+                    continue;
+                };
+                if self.discovered.contains(neighbor) {
+                    continue;
+                }
+                if self.nodes.len() == query.max_nodes {
+                    self.node_budget_exhausted = true;
+                    continue;
+                }
+                let Some(document) = documents.get(neighbor) else {
+                    continue;
+                };
+                self.discovered.insert(neighbor.to_owned());
+                self.nodes.push(graph_node(document, depth + 1, false));
+                if query.include_archived || document.archive_state == ARCHIVE_STATE_ACTIVE {
+                    self.queue.push_back((neighbor.to_owned(), depth + 1));
+                }
             }
         }
     }
@@ -243,7 +243,7 @@ fn resolve_roots(
         .collect::<Vec<&GraphDocumentRow>>();
     let exact = eligible
         .iter()
-        .filter(|document| fields(document).iter().any(|value| *value == query.pattern))
+        .filter(|document| has_exact_field(document, &query.pattern))
         .map(|document| document.identity.clone())
         .collect::<Vec<String>>();
     if exact.len() > 1 {
@@ -259,22 +259,15 @@ fn resolve_roots(
     let needle = query.pattern.to_lowercase();
     let substring = eligible
         .iter()
-        .filter(|document| {
-            fields(document)
-                .iter()
-                .any(|value| value.to_lowercase().contains(&needle))
-        })
+        .filter(|document| has_matching_field(document, &needle))
         .map(|document| document.identity.clone())
         .collect::<Vec<String>>();
     if !substring.is_empty() {
         return Ok(("substring".to_owned(), substring));
     }
-    let archived_match = documents.iter().any(|document| {
-        document.archive_state == ARCHIVE_STATE_ARCHIVED
-            && fields(document)
-                .iter()
-                .any(|value| value.to_lowercase().contains(&needle))
-    });
+    let archived_match = documents
+        .iter()
+        .any(|document| has_archived_matching_field(document, &needle));
     let suffix = if archived_match && !query.include_archived {
         "; matching documents are archived, use --include-archived"
     } else {
@@ -284,6 +277,20 @@ fn resolve_roots(
         "no memory documents match {:?}{suffix}",
         query.pattern
     )))
+}
+
+fn has_exact_field(document: &GraphDocumentRow, pattern: &str) -> bool {
+    fields(document).contains(&pattern)
+}
+
+fn has_matching_field(document: &GraphDocumentRow, needle: &str) -> bool {
+    fields(document)
+        .iter()
+        .any(|value| value.to_lowercase().contains(needle))
+}
+
+fn has_archived_matching_field(document: &GraphDocumentRow, needle: &str) -> bool {
+    document.archive_state == ARCHIVE_STATE_ARCHIVED && has_matching_field(document, needle)
 }
 
 fn fields(document: &GraphDocumentRow) -> [&str; 5] {
@@ -322,28 +329,26 @@ fn graph_edge(link: &GraphLinkRow) -> MemoryGraphEdge {
     }
 }
 
-fn mark_cycles(edges: &mut [MemoryGraphEdge]) {
-    let adjacency = edges
-        .iter()
-        .filter_map(|edge| {
-            edge.target_document_identity
-                .as_ref()
-                .filter(|_| edge.resolution_status == RESOLUTION_STATUS_RESOLVED)
-                .map(|target| (edge.source_document_identity.clone(), target.clone()))
-        })
-        .fold(
-            HashMap::<String, Vec<String>>::new(),
-            |mut values, (source, target)| {
-                values.entry(source).or_default().push(target);
-                values
-            },
-        );
-    for edge in edges {
+fn mark_cycles(mut edges: Vec<MemoryGraphEdge>) -> Vec<MemoryGraphEdge> {
+    let mut adjacency = HashMap::<String, Vec<String>>::new();
+    for edge in &edges {
+        if edge.resolution_status != RESOLUTION_STATUS_RESOLVED {
+            continue;
+        }
+        if let Some(target) = &edge.target_document_identity {
+            adjacency
+                .entry(edge.source_document_identity.clone())
+                .or_default()
+                .push(target.clone());
+        }
+    }
+    for edge in &mut edges {
         let Some(target) = edge.target_document_identity.as_deref() else {
             continue;
         };
         edge.cycle = has_path(target, &edge.source_document_identity, &adjacency);
     }
+    edges
 }
 
 fn has_path(start: &str, goal: &str, adjacency: &HashMap<String, Vec<String>>) -> bool {

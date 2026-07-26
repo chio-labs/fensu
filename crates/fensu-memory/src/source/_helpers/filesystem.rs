@@ -11,68 +11,113 @@ use sha2::{Digest, Sha256};
 use crate::source::models::{DiscoveryDiagnostic, SourceMetadata};
 use crate::source::types::DiagnosticKind;
 
+struct DiagnosticFilesystem<'a> {
+    repository_root: &'a Path,
+    diagnostics: &'a mut Vec<DiscoveryDiagnostic>,
+}
+
 pub(crate) fn sorted_directory_entries(
     repository_root: &Path,
     directory: &Path,
     diagnostics: &mut Vec<DiscoveryDiagnostic>,
 ) -> Vec<DirEntry> {
-    let metadata = match fs::symlink_metadata(directory) {
-        Ok(metadata) => metadata,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Vec::new(),
-        Err(error) => {
-            diagnostics.push(diagnostic(
-                repository_root,
+    DiagnosticFilesystem {
+        repository_root,
+        diagnostics,
+    }
+    .sorted_directory_entries(directory)
+}
+
+impl DiagnosticFilesystem<'_> {
+    fn sorted_directory_entries(&mut self, directory: &Path) -> Vec<DirEntry> {
+        let metadata = match fs::symlink_metadata(directory) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Vec::new(),
+            Err(error) => {
+                self.diagnostics.push(diagnostic(
+                    self.repository_root,
+                    directory,
+                    DiagnosticKind::Io,
+                    format!("cannot inspect directory: {error}"),
+                ));
+                return Vec::new();
+            }
+        };
+        if metadata.file_type().is_symlink() {
+            self.diagnostics.push(diagnostic(
+                self.repository_root,
                 directory,
-                DiagnosticKind::Io,
-                format!("cannot inspect directory: {error}"),
+                DiagnosticKind::SymlinkRejected,
+                "canonical directory is a symlink".to_owned(),
             ));
             return Vec::new();
         }
-    };
-    if metadata.file_type().is_symlink() {
-        diagnostics.push(diagnostic(
-            repository_root,
-            directory,
-            DiagnosticKind::SymlinkRejected,
-            "canonical directory is a symlink".to_owned(),
-        ));
-        return Vec::new();
-    }
-    if !metadata.is_dir() {
-        diagnostics.push(diagnostic(
-            repository_root,
-            directory,
-            DiagnosticKind::UnsupportedFileType,
-            "canonical directory path is not a directory".to_owned(),
-        ));
-        return Vec::new();
-    }
-    let reader = match fs::read_dir(directory) {
-        Ok(reader) => reader,
-        Err(error) => {
-            diagnostics.push(diagnostic(
-                repository_root,
+        if !metadata.is_dir() {
+            self.diagnostics.push(diagnostic(
+                self.repository_root,
                 directory,
-                DiagnosticKind::Io,
-                format!("cannot read directory: {error}"),
+                DiagnosticKind::UnsupportedFileType,
+                "canonical directory path is not a directory".to_owned(),
             ));
             return Vec::new();
         }
-    };
-    let mut entries: Vec<DirEntry> = Vec::new();
-    for result in reader {
-        match result {
-            Ok(entry) => entries.push(entry),
-            Err(error) => diagnostics.push(diagnostic(
-                repository_root,
-                directory,
-                DiagnosticKind::Io,
-                format!("cannot inspect directory entry: {error}"),
-            )),
+        let reader = match fs::read_dir(directory) {
+            Ok(reader) => reader,
+            Err(error) => {
+                self.diagnostics.push(diagnostic(
+                    self.repository_root,
+                    directory,
+                    DiagnosticKind::Io,
+                    format!("cannot read directory: {error}"),
+                ));
+                return Vec::new();
+            }
+        };
+        let mut entries: Vec<DirEntry> = Vec::new();
+        for result in reader {
+            match result {
+                Ok(entry) => entries.push(entry),
+                Err(error) => self.diagnostics.push(diagnostic(
+                    self.repository_root,
+                    directory,
+                    DiagnosticKind::Io,
+                    format!("cannot inspect directory entry: {error}"),
+                )),
+            }
+        }
+        entries.sort_by_key(|entry| entry.file_name().to_string_lossy().into_owned());
+        entries
+    }
+
+    fn entry_type(&mut self, entry: &DirEntry) -> Option<FileType> {
+        match entry.file_type() {
+            Ok(file_type) => Some(file_type),
+            Err(error) => {
+                self.diagnostics.push(diagnostic(
+                    self.repository_root,
+                    &entry.path(),
+                    DiagnosticKind::Io,
+                    format!("cannot classify directory entry: {error}"),
+                ));
+                None
+            }
         }
     }
-    entries.sort_by_key(|entry| entry.file_name().to_string_lossy().into_owned());
-    entries
+
+    fn entry_name(&mut self, entry: &DirEntry) -> Option<String> {
+        match entry.file_name().into_string() {
+            Ok(name) => Some(name),
+            Err(_) => {
+                self.diagnostics.push(diagnostic(
+                    self.repository_root,
+                    &entry.path(),
+                    DiagnosticKind::InvalidPathEncoding,
+                    "canonical path component is not UTF-8".to_owned(),
+                ));
+                None
+            }
+        }
+    }
 }
 
 pub(crate) fn entry_type(
@@ -80,18 +125,11 @@ pub(crate) fn entry_type(
     entry: &DirEntry,
     diagnostics: &mut Vec<DiscoveryDiagnostic>,
 ) -> Option<FileType> {
-    match entry.file_type() {
-        Ok(file_type) => Some(file_type),
-        Err(error) => {
-            diagnostics.push(diagnostic(
-                repository_root,
-                &entry.path(),
-                DiagnosticKind::Io,
-                format!("cannot classify directory entry: {error}"),
-            ));
-            None
-        }
+    DiagnosticFilesystem {
+        repository_root,
+        diagnostics,
     }
+    .entry_type(entry)
 }
 
 pub(crate) fn entry_name(
@@ -99,18 +137,11 @@ pub(crate) fn entry_name(
     entry: &DirEntry,
     diagnostics: &mut Vec<DiscoveryDiagnostic>,
 ) -> Option<String> {
-    match entry.file_name().into_string() {
-        Ok(name) => Some(name),
-        Err(_) => {
-            diagnostics.push(diagnostic(
-                repository_root,
-                &entry.path(),
-                DiagnosticKind::InvalidPathEncoding,
-                "canonical path component is not UTF-8".to_owned(),
-            ));
-            None
-        }
+    DiagnosticFilesystem {
+        repository_root,
+        diagnostics,
     }
+    .entry_name(entry)
 }
 
 pub(crate) fn source_metadata(path: &Path) -> Result<SourceMetadata, String> {

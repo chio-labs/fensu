@@ -48,15 +48,17 @@ pub(crate) fn parse_options(arguments: &[String]) -> Result<SkillOptions, String
                 options.check = true;
             }
             "target" => {
-                let value = option_value(arguments, &mut index, inline, "--target")?;
+                let (value, next_index) = option_value(arguments, index, inline, "--target")?;
+                index = next_index;
                 let target = SkillTarget::parse(value).ok_or_else(|| {
                     format!("usage: fensu skills ...\nfensu skills: error: argument --target: invalid choice: '{value}' (choose from 'opencode', 'claude', 'agents')")
                 })?;
                 options.targets.push(target);
             }
             "install-root" => {
-                options.install_root =
-                    Some(option_value(arguments, &mut index, inline, "--install-root")?.to_owned());
+                let (value, next_index) = option_value(arguments, index, inline, "--install-root")?;
+                index = next_index;
+                options.install_root = Some(value.to_owned());
             }
             "positional" => positional.push(argument.clone()),
             _ => {}
@@ -120,16 +122,17 @@ fn reject_inline(value: Option<&str>, option: &str) -> Result<bool, String> {
 
 fn option_value<'a>(
     arguments: &'a [String],
-    index: &mut usize,
+    index: usize,
     inline: Option<&'a str>,
     option: &str,
-) -> Result<&'a str, String> {
+) -> Result<(&'a str, usize), String> {
     if let Some(value) = inline {
-        return Ok(value);
+        return Ok((value, index));
     }
-    *index += 1;
+    let index = index + 1;
     arguments
-        .get(*index)
+        .get(index)
         .map(String::as_str)
+        .map(|value| (value, index))
         .ok_or_else(|| format!("fensu skills: error: argument {option}: expected one argument"))
 }

@@ -3,11 +3,7 @@
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
-use fensu_facts::snapshot::main::build_repository_observation_index::build_repository_observation_index;
-use fensu_facts::snapshot::models::{
-    RepositoryObservationAnswer, RepositoryObservationQuery, RepositoryObservationState,
-};
-
+use crate::cache::_helpers::replay::observe_dependencies;
 use crate::cache::_helpers::schema::{
     decode_collection, decode_file_result_dependencies, decode_index, decode_observations,
     metadata_is_current, observation_map, resolved_file_payload,
@@ -40,13 +36,32 @@ struct ResultPlanInputs<'a> {
     index_fingerprint: String,
 }
 
+pub(crate) struct GenerationRequest<'a> {
+    pub repo_root: &'a Path,
+    pub global_fingerprint: &'a str,
+    pub targets: &'a [(String, Option<String>)],
+    pub allow_edit: bool,
+    pub maximum_decoded_bytes: usize,
+}
+
+struct EditPlanInputs<'a> {
+    targets: &'a [(String, Option<String>)],
+    index_entries: &'a [NativeIndexEntry],
+    source_equal: &'a [NativeIndexEntry],
+    collection: Vec<CanonicalValue>,
+    index_fingerprint: String,
+}
+
 pub(crate) fn plan_generation(
-    repo_root: &Path,
-    global_fingerprint: &str,
-    targets: &[(String, Option<String>)],
-    allow_edit: bool,
-    maximum_decoded_bytes: usize,
+    request: GenerationRequest<'_>,
 ) -> Option<(NativeGenerationPlan, CacheMetrics)> {
+    let GenerationRequest {
+        repo_root,
+        global_fingerprint,
+        targets,
+        allow_edit,
+        maximum_decoded_bytes,
+    } = request;
     let reads = GENERATION_READS
         .iter()
         .map(|(path, kind)| ((*path).to_owned(), (*kind).to_owned()))
@@ -103,13 +118,13 @@ pub(crate) fn plan_generation(
         && collection.is_some()
     {
         return Some((
-            edit_plan(
+            edit_plan(EditPlanInputs {
                 targets,
-                &index_entries,
-                &source_equal,
-                collection.unwrap_or_default(),
-                index_record.fingerprint,
-            ),
+                index_entries: &index_entries,
+                source_equal: &source_equal,
+                collection: collection.unwrap_or_default(),
+                index_fingerprint: index_record.fingerprint,
+            }),
             metrics,
         ));
     }
@@ -127,7 +142,7 @@ pub(crate) fn plan_generation(
     } else {
         let (records, result_metrics) =
             read_records(repo_root, &result_reads, maximum_decoded_bytes)?;
-        merge_metrics(&mut metrics, &result_metrics);
+        metrics.merge(&result_metrics);
         records
     };
     let plan = result_plan(ResultPlanInputs {
@@ -229,13 +244,14 @@ fn result_plan(inputs: ResultPlanInputs<'_>) -> NativeGenerationPlan {
     }
 }
 
-fn edit_plan(
-    targets: &[(String, Option<String>)],
-    index_entries: &[NativeIndexEntry],
-    source_equal: &[NativeIndexEntry],
-    collection: Vec<CanonicalValue>,
-    index_fingerprint: String,
-) -> NativeGenerationPlan {
+fn edit_plan(inputs: EditPlanInputs<'_>) -> NativeGenerationPlan {
+    let EditPlanInputs {
+        targets,
+        index_entries,
+        source_equal,
+        collection,
+        index_fingerprint,
+    } = inputs;
     let retained_paths = source_equal
         .iter()
         .map(|entry| entry.path.as_str())
@@ -315,80 +331,6 @@ fn matching_collection(
         .then(|| decode_collection(record))?
 }
 
-pub(crate) fn observations_are_current(
-    repo_root: &Path,
-    observations: &HashMap<NativeDependencyKey, NativeDependencyObservation>,
-) -> bool {
-    let current = observe_dependencies(repo_root, observations);
-    current.len() == observations.len() && current.values().all(|value| *value)
-}
-
-fn observe_dependencies(
-    repo_root: &Path,
-    observations: &HashMap<NativeDependencyKey, NativeDependencyObservation>,
-) -> HashMap<NativeDependencyKey, bool> {
-    let queries = observations
-        .keys()
-        .map(|key| RepositoryObservationQuery {
-            relative_path: key.query_path.clone(),
-            kind: key.kind.clone(),
-            pattern: key.pattern.clone(),
-            recursive: key.recursive,
-        })
-        .collect::<Vec<_>>();
-    let Some(index) = build_repository_observation_index(repo_root, &queries) else {
-        return HashMap::new();
-    };
-    queries
-        .into_iter()
-        .filter_map(|query| {
-            let key = NativeDependencyKey {
-                query_path: query.relative_path.clone(),
-                kind: query.kind.clone(),
-                pattern: query.pattern.clone(),
-                recursive: query.recursive,
-            };
-            let expected = observations.get(&key)?;
-            let current = query.observe(&index);
-            Some((key, state_matches(current, expected)))
-        })
-        .collect()
-}
-
-fn state_matches(
-    state: Option<RepositoryObservationState>,
-    expected: &NativeDependencyObservation,
-) -> bool {
-    let Some(state) = state else {
-        return false;
-    };
-    state.dependency_path == expected.dependency_path
-        && match state.answer {
-            RepositoryObservationAnswer::None => expected.answer.is_null(),
-            RepositoryObservationAnswer::Bool(value) => expected.answer.as_bool() == Some(value),
-            RepositoryObservationAnswer::String(value) => {
-                expected.answer.as_str() == Some(value.as_str())
-            }
-            RepositoryObservationAnswer::Paths(paths) => {
-                expected.answer.as_list().is_some_and(|items| {
-                    items
-                        .iter()
-                        .map(CanonicalValue::as_str)
-                        .eq(paths.iter().map(|path| Some(path.as_str())))
-                })
-            }
-        }
-}
-
 fn result_path(fingerprint: &str) -> String {
     format!("results/{}/{}.json", &fingerprint[..2], fingerprint)
-}
-
-fn merge_metrics(target: &mut CacheMetrics, source: &CacheMetrics) {
-    target.reads += source.reads;
-    target.bytes_read += source.bytes_read;
-    target.writes += source.writes;
-    target.bytes_written += source.bytes_written;
-    target.scans += source.scans;
-    target.deletes += source.deletes;
 }

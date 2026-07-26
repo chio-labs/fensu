@@ -62,7 +62,7 @@ pub(crate) fn project_layout_queries(
                 return Some(queries);
             };
             queries.push(query("directory_entries", &domain, ""));
-            append_subdomain_queries(&mut queries, &domain);
+            queries = append_subdomain_queries(queries, &domain);
             if mixed_domain(&domain) {
                 queries.push(query("is_file", &domain.join(INIT_FILE), ""));
                 if !domain.join(INIT_FILE).is_file() {
@@ -105,7 +105,7 @@ pub(crate) fn project_layout_queries(
             let domain = scope_root(context).join(&context.relative_parts[0]);
             if leaf == domain {
                 queries.push(query("directory_entries", &domain, ""));
-                append_subdomain_queries(&mut queries, &domain);
+                queries = append_subdomain_queries(queries, &domain);
                 if !named_subdomains(&domain).is_empty() {
                     return Some(queries);
                 }
@@ -120,7 +120,10 @@ pub(crate) fn project_layout_queries(
     Some(queries)
 }
 
-fn append_subdomain_queries(queries: &mut Vec<NativeProjectQuery>, domain: &Path) {
+fn append_subdomain_queries(
+    mut queries: Vec<NativeProjectQuery>,
+    domain: &Path,
+) -> Vec<NativeProjectQuery> {
     for entry in directory_entries(domain) {
         if role_name(&entry) || file_name(&entry) == PYTHON_CACHE {
             continue;
@@ -130,6 +133,7 @@ fn append_subdomain_queries(queries: &mut Vec<NativeProjectQuery>, domain: &Path
             queries.push(glob_query(&entry, true));
         }
     }
+    queries
 }
 
 fn query(kind: &str, path: &Path, argument: &str) -> NativeProjectQuery {

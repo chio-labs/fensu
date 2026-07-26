@@ -17,41 +17,41 @@ const TREE_FENCE_CLOSE: &str = "```";
 const TREE_FENCE_OPEN: &str = "```text";
 
 pub(crate) fn expand_repository_profile(
-    mut lines: Vec<String>,
+    lines: Vec<String>,
     context: &SkillContext,
 ) -> Result<Vec<String>, String> {
-    expand_runtime_trees(&mut lines, context)?;
-    expand_test_trees(&mut lines, context)?;
-    expand_tooling_test_lines(&mut lines, context);
-    expand_tooling_trees(&mut lines, context)?;
+    let lines = expand_runtime_trees(lines, context)?;
+    let lines = expand_test_trees(lines, context)?;
+    let lines = expand_tooling_test_lines(lines, context);
+    let lines = expand_tooling_trees(lines, context)?;
     Ok(lines)
 }
 
-fn expand_runtime_trees(lines: &mut Vec<String>, context: &SkillContext) -> Result<(), String> {
-    let heading = marker_index(lines, RUNTIME_HEADING)?;
-    let end = marker_index(lines, DOMAIN_SHAPE_HEADING)?;
+fn expand_runtime_trees(
+    mut lines: Vec<String>,
+    context: &SkillContext,
+) -> Result<Vec<String>, String> {
+    let heading = marker_index(&lines, RUNTIME_HEADING)?;
+    let end = marker_index(&lines, DOMAIN_SHAPE_HEADING)?;
     let start = heading + 2;
     let template = lines[start..end].to_vec();
-    let expanded = context
-        .config
-        .roots
-        .iter()
-        .flat_map(|root| {
-            let root = display_project_path(context, root);
-            template
-                .iter()
-                .map(move |line| line.replace("__ROOT__", &root))
-        })
-        .collect::<Vec<_>>();
+    let mut expanded = Vec::new();
+    for root in &context.config.roots {
+        let root = display_project_path(context, root);
+        expanded.extend(template.iter().map(|line| line.replace("__ROOT__", &root)));
+    }
     lines.splice(start..end, expanded);
-    Ok(())
+    Ok(lines)
 }
 
-fn expand_test_trees(lines: &mut Vec<String>, context: &SkillContext) -> Result<(), String> {
+fn expand_test_trees(
+    mut lines: Vec<String>,
+    context: &SkillContext,
+) -> Result<Vec<String>, String> {
     if context.config.tests.is_empty() {
-        return Ok(());
+        return Ok(lines);
     }
-    let heading = marker_index(lines, TESTS_HEADING)?;
+    let heading = marker_index(&lines, TESTS_HEADING)?;
     let start = lines[heading..]
         .iter()
         .position(|line| line == TREE_FENCE_OPEN)
@@ -77,15 +77,15 @@ fn expand_test_trees(lines: &mut Vec<String>, context: &SkillContext) -> Result<
         }
     }
     lines.splice(start..end, expanded);
-    Ok(())
+    Ok(lines)
 }
 
-fn expand_tooling_test_lines(lines: &mut Vec<String>, context: &SkillContext) {
+fn expand_tooling_test_lines(mut lines: Vec<String>, context: &SkillContext) -> Vec<String> {
     let Some(start) = lines
         .iter()
         .position(|line| line.starts_with(TOOLING_TEST_PREFIX))
     else {
-        return;
+        return lines;
     };
     let template = lines[start].clone();
     let mut expanded = Vec::new();
@@ -100,13 +100,17 @@ fn expand_tooling_test_lines(lines: &mut Vec<String>, context: &SkillContext) {
         }
     }
     lines.splice(start..start + 2, expanded);
+    lines
 }
 
-fn expand_tooling_trees(lines: &mut Vec<String>, context: &SkillContext) -> Result<(), String> {
+fn expand_tooling_trees(
+    mut lines: Vec<String>,
+    context: &SkillContext,
+) -> Result<Vec<String>, String> {
     if context.config.tooling.is_empty() {
-        return Ok(());
+        return Ok(lines);
     }
-    let heading = marker_index(lines, TOOLING_HEADING)?;
+    let heading = marker_index(&lines, TOOLING_HEADING)?;
     let start = heading + 2;
     let close = lines[start..]
         .iter()
@@ -117,19 +121,17 @@ fn expand_tooling_trees(lines: &mut Vec<String>, context: &SkillContext) -> Resu
         })?;
     let end = close + 2;
     let template = lines[start..end].to_vec();
-    let expanded = context
-        .config
-        .tooling
-        .iter()
-        .flat_map(|tooling| {
-            let tooling = display_project_path(context, tooling);
+    let mut expanded = Vec::new();
+    for tooling in &context.config.tooling {
+        let tooling = display_project_path(context, tooling);
+        expanded.extend(
             template
                 .iter()
-                .map(move |line| line.replace("__TOOL__", &tooling))
-        })
-        .collect::<Vec<_>>();
+                .map(|line| line.replace("__TOOL__", &tooling)),
+        );
+    }
     lines.splice(start..end, expanded);
-    Ok(())
+    Ok(lines)
 }
 
 fn marker_index(lines: &[String], marker: &str) -> Result<usize, String> {

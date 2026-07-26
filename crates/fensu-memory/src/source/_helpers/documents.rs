@@ -19,14 +19,38 @@ struct DocumentClassification {
     archive_state: ArchiveState,
 }
 
-pub(crate) fn scan_document_directory(
-    repository_root: &Path,
-    directory: &Path,
-    artifact_kind: ArtifactKind,
-    lifecycle: Option<TaskLifecycle>,
-    archive_state: ArchiveState,
-    result: &mut DiscoveryResult,
-) {
+pub(crate) struct DocumentDirectoryRequest<'a> {
+    pub(crate) repository_root: &'a Path,
+    pub(crate) directory: &'a Path,
+    pub(crate) artifact_kind: ArtifactKind,
+    pub(crate) lifecycle: Option<TaskLifecycle>,
+    pub(crate) archive_state: ArchiveState,
+    pub(crate) result: &'a mut DiscoveryResult,
+}
+
+struct DocumentAppendRequest<'a> {
+    repository_root: &'a Path,
+    path: &'a Path,
+    basename: String,
+    classification: DocumentClassification,
+    parsed: ParsedDocumentName,
+    result: &'a mut DiscoveryResult,
+}
+
+struct DiagnosticAppender<'a> {
+    repository_root: &'a Path,
+    diagnostics: &'a mut Vec<DiscoveryDiagnostic>,
+}
+
+pub(crate) fn scan_document_directory(request: DocumentDirectoryRequest<'_>) {
+    let DocumentDirectoryRequest {
+        repository_root,
+        directory,
+        artifact_kind,
+        lifecycle,
+        archive_state,
+        result,
+    } = request;
     let classification = DocumentClassification {
         artifact_kind,
         lifecycle,
@@ -68,14 +92,14 @@ pub(crate) fn scan_document_directory(
             continue;
         };
         match validation::parse_document_name(&basename, artifact_kind) {
-            Ok(parsed) => append_document(
+            Ok(parsed) => append_document(DocumentAppendRequest {
                 repository_root,
-                &entry.path(),
+                path: &entry.path(),
                 basename,
                 classification,
                 parsed,
                 result,
-            ),
+            }),
             Err(kind) => result.diagnostics.push(filesystem::diagnostic(
                 repository_root,
                 &entry.path(),
@@ -86,14 +110,15 @@ pub(crate) fn scan_document_directory(
     }
 }
 
-fn append_document(
-    repository_root: &Path,
-    path: &Path,
-    basename: String,
-    classification: DocumentClassification,
-    parsed: ParsedDocumentName,
-    result: &mut DiscoveryResult,
-) {
+fn append_document(request: DocumentAppendRequest<'_>) {
+    let DocumentAppendRequest {
+        repository_root,
+        path,
+        basename,
+        classification,
+        parsed,
+        result,
+    } = request;
     let metadata = match filesystem::source_metadata(path) {
         Ok(metadata) => metadata,
         Err(error) => {
@@ -156,10 +181,20 @@ pub(crate) fn unknown_entry(
     path: &Path,
     diagnostics: &mut Vec<DiscoveryDiagnostic>,
 ) {
-    diagnostics.push(filesystem::diagnostic(
+    DiagnosticAppender {
         repository_root,
-        path,
-        DiagnosticKind::UnknownStructuralEntry,
-        "entry is not part of the canonical memory tree".to_owned(),
-    ));
+        diagnostics,
+    }
+    .unknown_entry(path);
+}
+
+impl DiagnosticAppender<'_> {
+    fn unknown_entry(&mut self, path: &Path) {
+        self.diagnostics.push(filesystem::diagnostic(
+            self.repository_root,
+            path,
+            DiagnosticKind::UnknownStructuralEntry,
+            "entry is not part of the canonical memory tree".to_owned(),
+        ));
+    }
 }

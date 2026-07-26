@@ -153,7 +153,10 @@ pub(crate) fn ensure_safe_directory(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
-pub(crate) fn create_safe_parents(path: &Path, created: &mut Vec<PathBuf>) -> Result<(), String> {
+pub(crate) fn create_safe_parents(
+    path: &Path,
+    mut created: Vec<PathBuf>,
+) -> Result<Vec<PathBuf>, String> {
     ensure_safe_ancestors(path)?;
     let mut missing = Vec::new();
     for candidate in path.ancestors() {
@@ -167,7 +170,8 @@ pub(crate) fn create_safe_parents(path: &Path, created: &mut Vec<PathBuf>) -> Re
             .map_err(|error| format!("failed to install skill files: {error}"))?;
         created.push(directory);
     }
-    ensure_safe_directory(path)
+    ensure_safe_directory(path)?;
+    Ok(created)
 }
 
 pub(crate) fn normalization_collision(path: &Path) -> Result<Option<PathBuf>, String> {
@@ -194,14 +198,10 @@ pub(crate) fn normalization_collision(path: &Path) -> Result<Option<PathBuf>, St
 }
 
 pub(crate) fn sorted_entries(path: &Path) -> Result<Vec<PathBuf>, String> {
-    let mut entries = fs::read_dir(path)
-        .map_err(|error| error.to_string())?
-        .map(|entry| {
-            entry
-                .map(|item| item.path())
-                .map_err(|error| error.to_string())
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+    let mut entries = Vec::new();
+    for entry in fs::read_dir(path).map_err(|error| error.to_string())? {
+        entries.push(entry.map_err(|error| error.to_string())?.path());
+    }
     entries.sort();
     Ok(entries)
 }

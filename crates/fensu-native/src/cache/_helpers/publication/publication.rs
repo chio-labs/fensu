@@ -209,12 +209,7 @@ fn build_mutation(
     }
     let existing_entries = existing
         .as_ref()
-        .map(|(entries, _, _)| {
-            entries
-                .iter()
-                .map(|entry| (entry.path.as_str(), entry))
-                .collect::<HashMap<_, _>>()
-        })
+        .map(index_entries_by_path)
         .unwrap_or_default();
     if request
         .retained_entries
@@ -261,14 +256,7 @@ fn build_generation_mutation(
 ) -> Option<CacheMutation> {
     let mut writes = Vec::new();
     let mut entries = request.retained_entries.clone();
-    let existing_result_fingerprints = existing
-        .map(|(entries, _, _)| {
-            entries
-                .iter()
-                .map(|entry| entry.result_fingerprint.as_str())
-                .collect::<HashSet<_>>()
-        })
-        .unwrap_or_default();
+    let existing_result_fingerprints = existing.map(result_fingerprints).unwrap_or_default();
     for candidate in &request.preparation.candidates {
         let encoded = encode_canonical_record(
             RESULT_KIND,
@@ -385,4 +373,24 @@ fn encoded_write(path: &str, kind: &str, data: Vec<u8>) -> EncodedWrite {
 
 fn result_path(fingerprint: &str) -> String {
     format!("results/{}/{}.json", &fingerprint[..2], fingerprint)
+}
+
+fn index_entries_by_path(
+    state: &(Vec<NativeIndexEntry>, Option<String>, Option<String>),
+) -> HashMap<&str, &NativeIndexEntry> {
+    state
+        .0
+        .iter()
+        .map(|entry| (entry.path.as_str(), entry))
+        .collect()
+}
+
+fn result_fingerprints(
+    state: &(Vec<NativeIndexEntry>, Option<String>, Option<String>),
+) -> HashSet<&str> {
+    state
+        .0
+        .iter()
+        .map(|entry| entry.result_fingerprint.as_str())
+        .collect()
 }

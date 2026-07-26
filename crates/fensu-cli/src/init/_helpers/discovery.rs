@@ -96,15 +96,16 @@ fn detected_roots(repository: &Path) -> Vec<String> {
         }
     }
     let detected = candidates.into_iter().collect::<Vec<_>>();
-    detected
-        .iter()
-        .filter(|candidate| {
-            !detected
-                .iter()
-                .any(|ancestor| is_nested_within(candidate, ancestor))
-        })
-        .cloned()
-        .collect()
+    let mut roots = Vec::new();
+    for candidate in &detected {
+        if !detected
+            .iter()
+            .any(|ancestor| is_nested_within(candidate, ancestor))
+        {
+            roots.push(candidate.clone());
+        }
+    }
+    roots
 }
 
 fn is_nested_within(candidate: &str, ancestor: &str) -> bool {

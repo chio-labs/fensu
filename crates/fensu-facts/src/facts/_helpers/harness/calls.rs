@@ -23,6 +23,11 @@ struct CallContext<'context, 'module> {
     source: &'context str,
 }
 
+struct CallExtractor<'context, 'module> {
+    dimension_cache: HashMap<usize, Vec<DimensionRow>>,
+    context: CallContext<'context, 'module>,
+}
+
 pub(crate) fn evaluate_rule_call_rows(
     module: &ModModule,
     index: &LineIndex,
@@ -30,14 +35,16 @@ pub(crate) fn evaluate_rule_call_rows(
 ) -> Vec<EvaluateRuleCallRow> {
     let bindings = index_module_bindings(module);
     let (nodes, parents) = breadth_first_with_parents(module);
-    let mut dimension_cache: HashMap<usize, Vec<DimensionRow>> = HashMap::new();
     let mut shadow_cache: HashMap<usize, HashSet<&str>> = HashMap::new();
     let mut rows: Vec<EvaluateRuleCallRow> = Vec::new();
-    let context = CallContext {
-        nodes: &nodes,
-        bindings: &bindings,
-        index,
-        source,
+    let mut extractor = CallExtractor {
+        dimension_cache: HashMap::new(),
+        context: CallContext {
+            nodes: &nodes,
+            bindings: &bindings,
+            index,
+            source,
+        },
     };
     for (position, node) in nodes.iter().enumerate() {
         let ShapeNode::Expr(Expr::Call(call)) = node else {
@@ -60,14 +67,7 @@ pub(crate) fn evaluate_rule_call_rows(
         if !is_harness_call {
             continue;
         }
-        rows.push(call_row(
-            call,
-            node,
-            owner_position,
-            shadowed,
-            &mut dimension_cache,
-            &context,
-        ));
+        rows.push(extractor.call_row(call, node, owner_position, shadowed));
     }
     rows
 }
@@ -115,102 +115,99 @@ fn owner_function<'a>(nodes: &[ShapeNode<'a>], owner: usize) -> Option<&'a StmtF
     }
 }
 
-fn call_row<'module>(
-    call: &ExprCall,
-    node: &ShapeNode<'module>,
-    owner_position: Option<usize>,
-    shadowed: &HashSet<&str>,
-    dimension_cache: &mut HashMap<usize, Vec<DimensionRow>>,
-    context: &CallContext<'_, 'module>,
-) -> EvaluateRuleCallRow {
-    let rule_expression = keyword_value(call, constants::RULE_KEYWORD_NAME);
-    let test_case_expression = keyword_value(call, constants::TEST_CASE_KEYWORD_NAME);
-    let (form, case_locations, unknown) = test_case_fact(
-        test_case_expression,
-        owner_position,
-        shadowed,
-        dimension_cache,
-        context,
-    );
-    let (line, column) = start_of(node, context.index, context.source);
-    let owner = owner_position.and_then(|position| owner_function(context.nodes, position));
-    EvaluateRuleCallRow {
-        line,
-        column,
-        test_function_name: owner.map(|function| function.name.as_str().to_owned()),
-        test_function_location: owner_position
-            .map(|position| start_of(&context.nodes[position], context.index, context.source)),
-        rule_expression: rule_expression.and_then(owned_expression_parts),
-        rule_location: rule_expression.map(|expression| {
-            start_of(&ShapeNode::Expr(expression), context.index, context.source)
-        }),
-        rule_reference: rule_expression
-            .and_then(|expression| context.bindings.resolve_expression(expression, shadowed)),
-        test_case_expression: test_case_expression.and_then(owned_expression_parts),
-        test_case_location: test_case_expression.map(|expression| {
-            start_of(&ShapeNode::Expr(expression), context.index, context.source)
-        }),
-        test_case_form: form.to_owned(),
-        case_locations,
-        unknown_case_count: unknown,
+impl<'module> CallExtractor<'_, 'module> {
+    fn call_row(
+        &mut self,
+        call: &ExprCall,
+        node: &ShapeNode<'module>,
+        owner_position: Option<usize>,
+        shadowed: &HashSet<&str>,
+    ) -> EvaluateRuleCallRow {
+        let rule_expression = keyword_value(call, constants::RULE_KEYWORD_NAME);
+        let test_case_expression = keyword_value(call, constants::TEST_CASE_KEYWORD_NAME);
+        let (form, case_locations, unknown) =
+            self.test_case_fact(test_case_expression, owner_position, shadowed);
+        let context = &self.context;
+        let (line, column) = start_of(node, context.index, context.source);
+        let owner = owner_position.and_then(|position| owner_function(context.nodes, position));
+        EvaluateRuleCallRow {
+            line,
+            column,
+            test_function_name: owner.map(|function| function.name.as_str().to_owned()),
+            test_function_location: owner_position
+                .map(|position| start_of(&context.nodes[position], context.index, context.source)),
+            rule_expression: rule_expression.and_then(owned_expression_parts),
+            rule_location: rule_expression.map(|expression| {
+                start_of(&ShapeNode::Expr(expression), context.index, context.source)
+            }),
+            rule_reference: rule_expression
+                .and_then(|expression| context.bindings.resolve_expression(expression, shadowed)),
+            test_case_expression: test_case_expression.and_then(owned_expression_parts),
+            test_case_location: test_case_expression.map(|expression| {
+                start_of(&ShapeNode::Expr(expression), context.index, context.source)
+            }),
+            test_case_form: form.to_owned(),
+            case_locations,
+            unknown_case_count: unknown,
+        }
     }
-}
 
-fn test_case_fact<'module>(
-    expression: Option<&Expr>,
-    owner_position: Option<usize>,
-    shadowed: &HashSet<&str>,
-    dimension_cache: &mut HashMap<usize, Vec<DimensionRow>>,
-    context: &CallContext<'_, 'module>,
-) -> (&'static str, Vec<(u32, u32)>, bool) {
-    let Some(inner) = expression else {
-        return (constants::MISSING_CASE_FORM, Vec::new(), true);
-    };
-    if context.bindings.is_rule_case_call(inner, shadowed) {
-        return (
-            constants::LITERAL_CASE_FORM,
-            vec![start_of(
-                &ShapeNode::Expr(inner),
-                context.index,
-                context.source,
-            )],
-            false,
-        );
-    }
-    let Expr::Name(name) = inner else {
-        return (constants::DYNAMIC_CASE_FORM, Vec::new(), true);
-    };
-    let owner = owner_position.and_then(|position| owner_function(context.nodes, position));
-    let named_parameter =
-        owner.is_some_and(|function| all_parameter_names(function).contains(&name.id.as_str()));
-    if !named_parameter {
-        let form = match shadowed.contains(name.id.as_str()) {
-            true => constants::LOCAL_CASE_FORM,
-            false => constants::DYNAMIC_CASE_FORM,
+    fn test_case_fact(
+        &mut self,
+        expression: Option<&Expr>,
+        owner_position: Option<usize>,
+        shadowed: &HashSet<&str>,
+    ) -> (&'static str, Vec<(u32, u32)>, bool) {
+        let context = &self.context;
+        let Some(inner) = expression else {
+            return (constants::MISSING_CASE_FORM, Vec::new(), true);
         };
-        return (form, Vec::new(), true);
+        if context.bindings.is_rule_case_call(inner, shadowed) {
+            return (
+                constants::LITERAL_CASE_FORM,
+                vec![start_of(
+                    &ShapeNode::Expr(inner),
+                    context.index,
+                    context.source,
+                )],
+                false,
+            );
+        }
+        let Expr::Name(name) = inner else {
+            return (constants::DYNAMIC_CASE_FORM, Vec::new(), true);
+        };
+        let owner = owner_position.and_then(|position| owner_function(context.nodes, position));
+        let named_parameter =
+            owner.is_some_and(|function| all_parameter_names(function).contains(&name.id.as_str()));
+        if !named_parameter {
+            let form = match shadowed.contains(name.id.as_str()) {
+                true => constants::LOCAL_CASE_FORM,
+                false => constants::DYNAMIC_CASE_FORM,
+            };
+            return (form, Vec::new(), true);
+        }
+        let Some(owner_index) = owner_position else {
+            return (constants::DYNAMIC_CASE_FORM, Vec::new(), true);
+        };
+        let Some(function) = owner else {
+            return (constants::DYNAMIC_CASE_FORM, Vec::new(), true);
+        };
+        let dimensions = self.dimension_cache.entry(owner_index).or_insert_with(|| {
+            dimension_rows(function, context.bindings, context.index, context.source)
+        });
+        let matching: Vec<&DimensionRow> = dimensions
+            .iter()
+            .filter(|dimension| dimension.parameter_names == [name.id.as_str()])
+            .collect();
+        if matching.len() != 1 {
+            return (constants::PARAMETER_CASE_FORM, Vec::new(), true);
+        }
+        (
+            constants::PARAMETER_CASE_FORM,
+            matching[0].rule_case_locations.clone(),
+            matching[0].unknown_rule_case_count,
+        )
     }
-    let Some(owner_index) = owner_position else {
-        return (constants::DYNAMIC_CASE_FORM, Vec::new(), true);
-    };
-    let Some(function) = owner else {
-        return (constants::DYNAMIC_CASE_FORM, Vec::new(), true);
-    };
-    let dimensions = dimension_cache.entry(owner_index).or_insert_with(|| {
-        dimension_rows(function, context.bindings, context.index, context.source)
-    });
-    let matching: Vec<&DimensionRow> = dimensions
-        .iter()
-        .filter(|dimension| dimension.parameter_names == [name.id.as_str()])
-        .collect();
-    if matching.len() != 1 {
-        return (constants::PARAMETER_CASE_FORM, Vec::new(), true);
-    }
-    (
-        constants::PARAMETER_CASE_FORM,
-        matching[0].rule_case_locations.clone(),
-        matching[0].unknown_rule_case_count,
-    )
 }
 
 fn keyword_value<'a>(call: &'a ExprCall, name: &str) -> Option<&'a Expr> {

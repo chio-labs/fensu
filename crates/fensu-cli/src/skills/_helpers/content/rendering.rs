@@ -222,16 +222,16 @@ fn configured_threshold_lines(context: &SkillContext) -> Result<Vec<String>, Str
         .map(|rule| rule.code.clone())
         .collect::<Vec<_>>();
     let required = crate::check::main::required_thresholds::required_thresholds(&active);
-    let applicable = context
-        .config
-        .threshold_overrides
-        .iter()
-        .filter(|item| {
-            item.thresholds
-                .keys()
-                .any(|name| required.contains(name.as_str()))
-        })
-        .collect::<Vec<_>>();
+    let mut applicable = Vec::new();
+    for item in &context.config.threshold_overrides {
+        if item
+            .thresholds
+            .keys()
+            .any(|name| required.contains(name.as_str()))
+        {
+            applicable.push(item);
+        }
+    }
     if applicable.is_empty() {
         return Ok(Vec::new());
     }

@@ -13,6 +13,14 @@ use crate::syntax::main::children::children;
 use crate::syntax::main::start_of::start_of;
 use crate::syntax::types::ShapeNode;
 
+struct BareCallCollector<'a, 'module> {
+    module: &'a ModModule,
+    shadowed: &'a HashSet<&'module str>,
+    index: &'a LineIndex,
+    source: &'a str,
+    rows: Vec<DiscardedCallRow>,
+}
+
 pub(crate) fn discarded_call_rows(
     module: &ModModule,
     index: &LineIndex,
@@ -31,59 +39,57 @@ pub(crate) fn discarded_call_rows(
                 }
             }
         }
+        let mut collector = BareCallCollector {
+            module,
+            shadowed: &shadowed,
+            index,
+            source,
+            rows: Vec::new(),
+        };
         for body_statement in &function.body {
-            collect_bare_calls(
-                &ShapeNode::Stmt(body_statement),
-                module,
-                &shadowed,
-                index,
-                source,
-                &mut rows,
-            );
+            collector.collect(&ShapeNode::Stmt(body_statement));
         }
+        rows.extend(collector.rows);
     }
     rows
 }
 
-fn collect_bare_calls(
-    node: &ShapeNode<'_>,
-    module: &ModModule,
-    shadowed: &HashSet<&str>,
-    index: &LineIndex,
-    source: &str,
-    rows: &mut Vec<DiscardedCallRow>,
-) {
-    match node {
-        ShapeNode::Stmt(Stmt::FunctionDef(_) | Stmt::ClassDef(_))
-        | ShapeNode::Expr(Expr::Lambda(_)) => return,
-        ShapeNode::Stmt(Stmt::Expr(inner)) => {
-            let call = match &*inner.value {
-                Expr::Call(call) => Some(call),
-                Expr::Await(awaited) => match &*awaited.value {
+impl BareCallCollector<'_, '_> {
+    fn collect(&mut self, node: &ShapeNode<'_>) {
+        match node {
+            ShapeNode::Stmt(Stmt::FunctionDef(_) | Stmt::ClassDef(_))
+            | ShapeNode::Expr(Expr::Lambda(_)) => return,
+            ShapeNode::Stmt(Stmt::Expr(inner)) => {
+                let call = match &*inner.value {
                     Expr::Call(call) => Some(call),
+                    Expr::Await(awaited) => match &*awaited.value {
+                        Expr::Call(call) => Some(call),
+                        _ => None,
+                    },
                     _ => None,
-                },
-                _ => None,
-            };
-            if let Some(call) = call {
-                if let Some((module_name, function_name)) = call_target(call, module, shadowed) {
-                    let (line, column) = start_of(node, index, source);
-                    rows.push(DiscardedCallRow {
-                        line,
-                        column,
-                        module_name,
-                        function_name,
-                    });
+                };
+                if let Some(call) = call {
+                    if let Some((module_name, function_name)) =
+                        call_target(call, self.module, self.shadowed)
+                    {
+                        let (line, column) = start_of(node, self.index, self.source);
+                        self.rows.push(DiscardedCallRow {
+                            line,
+                            column,
+                            module_name,
+                            function_name,
+                        });
+                    }
+                    return;
                 }
-                return;
             }
+            _ => {}
         }
-        _ => {}
-    }
-    let mut child_buffer: Vec<ShapeNode<'_>> = Vec::new();
-    children(node, &mut child_buffer);
-    for child in child_buffer {
-        collect_bare_calls(&child, module, shadowed, index, source, rows);
+        let mut child_buffer: Vec<ShapeNode<'_>> = Vec::new();
+        children(node, &mut child_buffer);
+        for child in child_buffer {
+            self.collect(&child);
+        }
     }
 }
 

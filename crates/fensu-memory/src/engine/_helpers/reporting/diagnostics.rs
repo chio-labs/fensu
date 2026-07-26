@@ -166,13 +166,7 @@ fn document_locations(
             let links = document
                 .parsed_markdown
                 .as_ref()
-                .map(|parsed| {
-                    parsed
-                        .links
-                        .iter()
-                        .map(|link| (link.ordinal, link.source_line))
-                        .collect()
-                })
+                .map(link_locations)
                 .unwrap_or_default();
             (
                 document.source.identity.clone(),
@@ -182,5 +176,13 @@ fn document_locations(
                 ),
             )
         })
+        .collect()
+}
+
+fn link_locations(parsed: &crate::markdown::models::ParsedMarkdown) -> BTreeMap<usize, usize> {
+    parsed
+        .links
+        .iter()
+        .map(|link| (link.ordinal, link.source_line))
         .collect()
 }

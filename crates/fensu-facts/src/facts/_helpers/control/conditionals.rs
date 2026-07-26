@@ -14,6 +14,14 @@ use crate::syntax::main::span::span;
 use crate::syntax::main::start_of::start_of;
 use crate::syntax::types::ShapeNode;
 
+struct ConditionalRowParams<'a, 'node> {
+    function_name: &'a str,
+    decorator_names: &'a [String],
+    node: &'a ShapeNode<'node>,
+    index: &'a LineIndex,
+    source: &'a str,
+}
+
 pub(crate) fn function_conditional_rows(
     module: &ModModule,
     index: &LineIndex,
@@ -42,23 +50,23 @@ pub(crate) fn function_conditional_rows(
                     ShapeNode::Stmt(Stmt::If(_) | Stmt::While(_) | Stmt::Match(_))
                     | ShapeNode::IfTail(_)
                     | ShapeNode::Expr(Expr::If(_)) => {
-                        rows.push(conditional_row(
-                            function.name.as_str(),
-                            &decorator_names,
-                            &descendant,
+                        rows.push(conditional_row(ConditionalRowParams {
+                            function_name: function.name.as_str(),
+                            decorator_names: &decorator_names,
+                            node: &descendant,
                             index,
                             source,
-                        ));
+                        }));
                     }
                     ShapeNode::Comprehension(comprehension) => {
                         for condition in &comprehension.ifs {
-                            rows.push(conditional_row(
-                                function.name.as_str(),
-                                &decorator_names,
-                                &ShapeNode::Expr(condition),
+                            rows.push(conditional_row(ConditionalRowParams {
+                                function_name: function.name.as_str(),
+                                decorator_names: &decorator_names,
+                                node: &ShapeNode::Expr(condition),
                                 index,
                                 source,
-                            ));
+                            }));
                         }
                     }
                     _ => {}
@@ -69,17 +77,11 @@ pub(crate) fn function_conditional_rows(
     rows
 }
 
-fn conditional_row(
-    function_name: &str,
-    decorator_names: &[String],
-    node: &ShapeNode<'_>,
-    index: &LineIndex,
-    source: &str,
-) -> FunctionConditionalRow {
+fn conditional_row(params: ConditionalRowParams<'_, '_>) -> FunctionConditionalRow {
     FunctionConditionalRow {
-        function_name: function_name.to_owned(),
-        decorator_names: decorator_names.to_vec(),
-        range: range_row(node, index, source),
+        function_name: params.function_name.to_owned(),
+        decorator_names: params.decorator_names.to_vec(),
+        range: range_row(params.node, params.index, params.source),
     }
 }
 

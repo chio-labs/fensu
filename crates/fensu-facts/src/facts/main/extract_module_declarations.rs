@@ -18,10 +18,14 @@ pub fn extract_module_declarations(
     source: &str,
 ) -> ModuleDeclarationRows {
     let breadth_nodes = breadth_first_nodes(module);
-    let mut rows = ModuleDeclarationRows::default();
-    collect_class_rows(&breadth_nodes, index, source, &mut rows);
-    collect_statement_rows(module, index, source, &mut rows);
-    collect_alias_rows(&breadth_nodes, index, source, &mut rows);
+    let mut rows = collect_class_rows(
+        &breadth_nodes,
+        index,
+        source,
+        ModuleDeclarationRows::default(),
+    );
+    rows = collect_statement_rows(module, index, source, rows);
+    rows = collect_alias_rows(&breadth_nodes, index, source, rows);
     rows.empty_or_docstring_only = module.body.is_empty()
         || (module.body.len() == 1 && is_docstring_statement(&module.body[0]));
     rows.pure_reexport = crate::facts::_helpers::declarations::rows::is_pure_reexport(module);
@@ -33,7 +37,8 @@ pub fn extract_module_declarations(
             .count(),
     )
     .unwrap_or(u32::MAX);
-    collect_import_time_calls(module, index, source, &mut rows);
+    let import_time_rows = collect_import_time_calls(module, index, source);
+    rows.import_time_call_locations = import_time_rows.import_time_call_locations;
     rows.imported_main_entry_names = imported_main_entry_names(module);
     rows.main_calls = main_call_rows(module, index, source);
     rows

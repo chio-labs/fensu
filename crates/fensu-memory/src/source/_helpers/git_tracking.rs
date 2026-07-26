@@ -8,6 +8,14 @@ use crate::source::constants::GIT_IGNORE_FILE_NAME;
 use crate::source::models::DiscoveryResult;
 use crate::source::types::GitTracking;
 
+struct ClassifyPathRequest<'a, 'attributes> {
+    repository: &'a gix::Repository,
+    worktree_root: &'a Path,
+    index: &'a gix::worktree::Index,
+    excludes: &'a mut gix::AttributeStack<'attributes>,
+    path: &'a Path,
+}
+
 pub(crate) fn classify(repository_root: &Path, result: &mut DiscoveryResult) {
     let Ok(repository) = gix::discover(repository_root) else {
         return;
@@ -26,32 +34,33 @@ pub(crate) fn classify(repository_root: &Path, result: &mut DiscoveryResult) {
         return;
     };
     for document in &mut result.documents {
-        document.git_tracking = classify_path(
-            &repository,
+        document.git_tracking = classify_path(ClassifyPathRequest {
+            repository: &repository,
             worktree_root,
-            &index,
-            &mut excludes,
-            &document.canonical_path.filesystem_path,
-        );
+            index: &index,
+            excludes: &mut excludes,
+            path: &document.canonical_path.filesystem_path,
+        });
     }
     for file in &mut result.skill_files {
-        file.git_tracking = classify_path(
-            &repository,
+        file.git_tracking = classify_path(ClassifyPathRequest {
+            repository: &repository,
             worktree_root,
-            &index,
-            &mut excludes,
-            &file.canonical_path.filesystem_path,
-        );
+            index: &index,
+            excludes: &mut excludes,
+            path: &file.canonical_path.filesystem_path,
+        });
     }
 }
 
-fn classify_path(
-    repository: &gix::Repository,
-    worktree_root: &Path,
-    index: &gix::worktree::Index,
-    excludes: &mut gix::AttributeStack<'_>,
-    path: &Path,
-) -> GitTracking {
+fn classify_path(request: ClassifyPathRequest<'_, '_>) -> GitTracking {
+    let ClassifyPathRequest {
+        repository,
+        worktree_root,
+        index,
+        excludes,
+        path,
+    } = request;
     let Ok(relative) = path.strip_prefix(worktree_root) else {
         return GitTracking::Unavailable;
     };

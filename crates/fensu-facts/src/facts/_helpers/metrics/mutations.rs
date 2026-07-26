@@ -26,13 +26,12 @@ pub(crate) fn parameter_mutation_rows(
     if positions.is_empty() {
         return Vec::new();
     }
-    let parameters_by_position: HashMap<usize, HashSet<&str>> = positions
-        .iter()
-        .filter_map(|position| {
-            function_at(&nodes, *position)
-                .map(|function| (*position, nonreceiver_parameter_names(function)))
-        })
-        .collect();
+    let mut parameters_by_position: HashMap<usize, HashSet<&str>> = HashMap::new();
+    for position in &positions {
+        if let Some(function) = function_at(&nodes, *position) {
+            parameters_by_position.insert(*position, nonreceiver_parameter_names(function));
+        }
+    }
     let mut mutations_by_position: HashMap<usize, Vec<(&str, usize)>> = HashMap::new();
     for (position, node) in nodes.iter().enumerate() {
         let root_names = mutation_root_names(node);

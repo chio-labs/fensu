@@ -8,12 +8,13 @@ use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIter
 
 use crate::catalogue::main::rule_catalogue::rule_catalogue;
 use crate::catalogue::main::rule_metadata::rule_metadata;
-use crate::check::_helpers::exceptions::apply_exceptions;
+use crate::check::_helpers::exceptions::{apply_exceptions, ApplyExceptionsRequest};
 use crate::check::_helpers::policy::{
     apply_rule_ignores, is_entry_module, is_main_module, program, resolved_thresholds, role,
     scope_roots, source_module_name,
 };
 use crate::check::_helpers::project::{observe, project_plane};
+use crate::check::models::EvaluationRequest;
 use crate::constants::{
     OWNER_FILE, OWNER_PACKAGE, ROLE_HELPERS, ROLE_MAIN, SCOPE_TEST, SUFFIX_INIT,
 };
@@ -21,14 +22,15 @@ use crate::models::{Config, Fault, RuleMetadata, ScopedSource};
 use crate::reporting::main::report::report;
 use crate::reporting::models::ReportRequest;
 
-pub(crate) fn evaluate_and_render(
-    root: &Path,
-    config: &Config,
-    sources: &[ScopedSource],
-    excluded: usize,
-    show_warnings: bool,
-    color: bool,
-) -> Result<(String, i32), String> {
+pub(crate) fn evaluate_and_render(request: EvaluationRequest<'_>) -> Result<(String, i32), String> {
+    let EvaluationRequest {
+        root,
+        config,
+        sources,
+        excluded,
+        show_warnings,
+        color,
+    } = request;
     let blocking = selected_rules(&config.select, &config.ignore);
     let warning_rules = if show_warnings {
         selected_rules(&config.warn, &config.ignore)
@@ -47,11 +49,10 @@ pub(crate) fn evaluate_and_render(
         .iter()
         .map(|source| (source.repository_path.as_str(), program(source)))
         .collect::<HashMap<_, _>>();
-    let program_by_module = sources
-        .iter()
-        .filter(|source| source.scope != SCOPE_TEST)
-        .map(|source| (source_module_name(source, root), program(source)))
-        .collect::<HashMap<_, _>>();
+    let mut program_by_module = HashMap::new();
+    for source in sources.iter().filter(|source| source.scope != SCOPE_TEST) {
+        program_by_module.insert(source_module_name(source, root), program(source));
+    }
     let warning_codes = warning_rules
         .iter()
         .map(|rule| rule.code.as_str())
@@ -71,17 +72,8 @@ pub(crate) fn evaluate_and_render(
                 contracts: config.contracts.clone(),
                 relative_parts: source.relative_parts.clone(),
                 is_entry_module: is_entry_module(source),
-                package_name: source
-                    .root
-                    .file_name()
-                    .map(|value| value.to_string_lossy().into_owned())
-                    .unwrap_or_else(|| source.root_text.clone()),
-                tooling_packages: config
-                    .tooling
-                    .iter()
-                    .filter_map(|path| Path::new(path).file_name())
-                    .map(|name| name.to_string_lossy().into_owned())
-                    .collect(),
+                package_name: package_name(source),
+                tooling_packages: tooling_packages(config),
                 scope_roots: scope_roots(config),
                 test_scopes: config.test_scopes.clone(),
                 observations: HashMap::new(),
@@ -92,23 +84,21 @@ pub(crate) fn evaluate_and_render(
             let plans = plan_core_rule_queries(program(source), codes, &context);
             context.observations = observe(root, &plans, &program_by_path, &program_by_module);
             let rows = evaluate_core_rules(program(source), codes, &context, &project)?;
-            let faults = rows
-                .into_iter()
-                .map(|row| {
-                    let metadata = rule_metadata(&row.code)
-                        .ok_or_else(|| format!("Unknown native rule code: {}", row.code))?;
-                    let path = row.path.unwrap_or_else(|| source.repository_path.clone());
-                    Ok(Fault {
-                        warning: warning_codes.contains(row.code.as_str()),
-                        code: row.code,
-                        path: root.join(path).to_string_lossy().into_owned(),
-                        line: Some(row.line),
-                        column: Some(row.column),
-                        message: row.message.unwrap_or_else(|| metadata.message.clone()),
-                        remediation: row.remediation.or_else(|| metadata.remediation.clone()),
-                    })
-                })
-                .collect::<Result<Vec<_>, String>>()?;
+            let mut faults = Vec::new();
+            for row in rows {
+                let metadata = rule_metadata(&row.code)
+                    .ok_or_else(|| format!("Unknown native rule code: {}", row.code))?;
+                let path = row.path.unwrap_or_else(|| source.repository_path.clone());
+                faults.push(Fault {
+                    warning: warning_codes.contains(row.code.as_str()),
+                    code: row.code,
+                    path: root.join(path).to_string_lossy().into_owned(),
+                    line: Some(row.line),
+                    column: Some(row.column),
+                    message: row.message.unwrap_or_else(|| metadata.message.clone()),
+                    remediation: row.remediation.or_else(|| metadata.remediation.clone()),
+                });
+            }
             Ok((faults, source_uses))
         })
         .collect::<Result<Vec<_>, String>>()?;
@@ -133,7 +123,13 @@ pub(crate) fn evaluate_and_render(
     });
     uses.sort();
     uses.dedup();
-    let (faults, applied) = apply_exceptions(faults, sources, root, &evaluated_codes, config)?;
+    let (faults, applied) = apply_exceptions(ApplyExceptionsRequest {
+        faults,
+        sources,
+        root,
+        evaluated_codes: &evaluated_codes,
+        config,
+    })?;
     let faults = apply_rule_ignores(faults, root, config);
     let blocking_faults = faults
         .iter()
@@ -188,19 +184,38 @@ fn native_rule_options(
 }
 
 pub(crate) fn selected_rules(select: &[String], ignore: &[String]) -> Vec<&'static RuleMetadata> {
-    rule_catalogue()
-        .iter()
-        .filter(|rule| {
-            let selected = select
-                .iter()
-                .any(|selector| rule.code.starts_with(selector));
-            let explicit = select.iter().any(|selector| selector == &rule.code);
-            (rule.enabled_by_default && selected || explicit)
-                && !ignore
-                    .iter()
-                    .any(|selector| rule.code.starts_with(selector))
-        })
-        .collect()
+    let mut rules = Vec::new();
+    for rule in rule_catalogue() {
+        let selected = select
+            .iter()
+            .any(|selector| rule.code.starts_with(selector));
+        let explicit = select.iter().any(|selector| selector == &rule.code);
+        let ignored = ignore
+            .iter()
+            .any(|selector| rule.code.starts_with(selector));
+        if (rule.enabled_by_default && selected || explicit) && !ignored {
+            rules.push(rule);
+        }
+    }
+    rules
+}
+
+fn tooling_packages(config: &Config) -> Vec<String> {
+    let mut packages = Vec::new();
+    for path in &config.tooling {
+        if let Some(name) = Path::new(path).file_name() {
+            packages.push(name.to_string_lossy().into_owned());
+        }
+    }
+    packages
+}
+
+fn package_name(source: &ScopedSource) -> String {
+    source
+        .root
+        .file_name()
+        .map(|value| value.to_string_lossy().into_owned())
+        .unwrap_or_else(|| source.root_text.clone())
 }
 
 pub(crate) fn owner_plan(sources: &[ScopedSource], rules: &[&RuleMetadata]) -> Vec<Vec<String>> {

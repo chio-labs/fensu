@@ -253,13 +253,13 @@ pub(crate) fn module_variable_rows(
 ) -> Vec<NamedLocationRow> {
     let mut rows: Vec<NamedLocationRow> = Vec::new();
     for statement in &module.body {
-        variable_rows(
+        rows = variable_rows(VariableRowsParams {
             statement,
-            &constants::MODULE_EXEMPT_NAMES,
+            exempt_names: &constants::MODULE_EXEMPT_NAMES,
             index,
             source,
-            &mut rows,
-        );
+            rows,
+        });
     }
     rows
 }
@@ -278,42 +278,45 @@ pub(crate) fn class_attribute_rows(
             continue;
         }
         for statement in &class.body {
-            variable_rows(
+            rows = variable_rows(VariableRowsParams {
                 statement,
-                &constants::CLASS_EXEMPT_NAMES,
+                exempt_names: &constants::CLASS_EXEMPT_NAMES,
                 index,
                 source,
-                &mut rows,
-            );
+                rows,
+            });
         }
     }
     rows
 }
 
-fn variable_rows(
-    statement: &Stmt,
-    exempt_names: &[&str],
-    index: &LineIndex,
-    source: &str,
-    rows: &mut Vec<NamedLocationRow>,
-) {
-    let targets: Vec<&Expr> = match statement {
+struct VariableRowsParams<'a> {
+    statement: &'a Stmt,
+    exempt_names: &'a [&'a str],
+    index: &'a LineIndex,
+    source: &'a str,
+    rows: Vec<NamedLocationRow>,
+}
+
+fn variable_rows(mut params: VariableRowsParams<'_>) -> Vec<NamedLocationRow> {
+    let targets: Vec<&Expr> = match params.statement {
         Stmt::Assign(inner) => inner.targets.iter().collect(),
         Stmt::AugAssign(inner) => vec![&inner.target],
-        _ => return,
+        _ => return params.rows,
     };
     for target in targets {
         let Expr::Name(name) = target else {
             continue;
         };
-        if exempt_names.contains(&name.id.as_str()) {
+        if params.exempt_names.contains(&name.id.as_str()) {
             continue;
         }
-        let (line, column) = start_of(&ShapeNode::Expr(target), index, source);
-        rows.push(NamedLocationRow {
+        let (line, column) = start_of(&ShapeNode::Expr(target), params.index, params.source);
+        params.rows.push(NamedLocationRow {
             name: name.id.as_str().to_owned(),
             line,
             column,
         });
     }
+    params.rows
 }

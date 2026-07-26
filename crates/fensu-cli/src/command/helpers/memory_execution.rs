@@ -23,7 +23,7 @@ use crate::command::helpers::{
 };
 use crate::command::models::{ColorMode, MemoryCommand, MemoryProject};
 use crate::configuration::main::load;
-use crate::helpers::render;
+use crate::helpers::reporting::render;
 use crate::models::{CliOutput, Fault};
 
 pub(crate) fn execute_memory(arguments: &[String]) -> Result<CliOutput, String> {

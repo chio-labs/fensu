@@ -9,12 +9,13 @@ use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIter
 use crate::constants::{
     OWNER_FILE, OWNER_PACKAGE, ROLE_HELPERS, ROLE_MAIN, SCOPE_TEST, SUFFIX_INIT,
 };
-use crate::helpers::check_policy::{
+use crate::helpers::catalogue::metadata;
+use crate::helpers::check::policy::{
     apply_exceptions, apply_rule_ignores, is_entry_module, is_main_module, program,
     resolved_thresholds, role, scope_roots, source_module_name,
 };
-use crate::helpers::check_project::{observe, project_plane};
-use crate::helpers::{render, rule};
+use crate::helpers::check::project::{observe, project_plane};
+use crate::helpers::reporting::render;
 use crate::models::{Config, Fault, RuleMetadata, ScopedSource};
 
 pub(crate) fn evaluate_and_render(
@@ -86,7 +87,7 @@ pub(crate) fn evaluate_and_render(
             let faults = rows
                 .into_iter()
                 .map(|row| {
-                    let metadata = rule::rule(&row.code)
+                    let metadata = metadata::rule(&row.code)
                         .ok_or_else(|| format!("Unknown native rule code: {}", row.code))?;
                     let path = row.path.unwrap_or_else(|| source.repository_path.clone());
                     Ok(Fault {
@@ -162,7 +163,8 @@ fn native_rule_options(
 ) -> Result<HashMap<String, HashMap<String, String>>, String> {
     let mut by_code = HashMap::new();
     for code in codes {
-        let rule = rule::rule(code).ok_or_else(|| format!("Unknown native rule code: {code}"))?;
+        let rule =
+            metadata::rule(code).ok_or_else(|| format!("Unknown native rule code: {code}"))?;
         let mut values = HashMap::new();
         for option in &rule.options {
             values.insert(
@@ -178,7 +180,7 @@ fn native_rule_options(
 }
 
 pub(crate) fn selected_rules(select: &[String], ignore: &[String]) -> Vec<&'static RuleMetadata> {
-    rule::catalogue()
+    metadata::catalogue()
         .iter()
         .filter(|rule| {
             let selected = select

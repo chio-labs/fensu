@@ -37,6 +37,22 @@ pub(crate) struct CheckPolicyTestCase {
     pub(crate) expected_absent: &'static str,
 }
 
+pub(crate) struct SymbolExceptionTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) source: &'static str,
+    pub(crate) expected_exit_code: i32,
+    pub(crate) expected_applied: &'static str,
+    pub(crate) expected_retained_location: &'static str,
+    pub(crate) expected_suppressed_location: &'static str,
+}
+
+pub(crate) struct ColoredCheckTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) arguments: &'static [&'static str],
+    pub(crate) expected_exit_code: i32,
+    pub(crate) expected_fragment: &'static str,
+}
+
 pub(crate) struct InvalidCheckConfigTestCase {
     pub(crate) description: &'static str,
     pub(crate) config: &'static str,

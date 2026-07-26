@@ -7,7 +7,7 @@ use fensu_facts::extension::models::ProgramHandle;
 use walkdir::WalkDir;
 
 use crate::configuration::main::load;
-use crate::constants::PYTHON_CACHE_DIRECTORY;
+use crate::constants::{COLOR_ALWAYS, COLOR_AUTO, COLOR_NEVER, PYTHON_CACHE_DIRECTORY};
 use crate::helpers::check::cache;
 use crate::helpers::check::evaluation::evaluate_and_render;
 use crate::helpers::check::policy::{
@@ -16,7 +16,7 @@ use crate::helpers::check::policy::{
 use crate::models::{CachedOutput, CheckOptions, CliOutput, Config, ScopedSource};
 use crate::skills::main::core_freshness;
 
-const CHECK_HELP: &str = "usage: fensu check [-h] [--no-color] [--warn] [--cache | --no-cache] [--cache-stats] [--jobs JOBS] [paths ...]\n";
+const CHECK_HELP: &str = "usage: fensu check [-h] [--color {auto,always,never}] [--no-color] [--warn] [--cache | --no-cache] [--cache-stats] [--jobs JOBS] [paths ...]\n";
 
 pub(crate) fn execute_check(arguments: &[String]) -> Result<CliOutput, String> {
     if arguments
@@ -57,8 +57,7 @@ pub(crate) fn execute_check(arguments: &[String]) -> Result<CliOutput, String> {
     let discovered = discover(&root, &config)?;
     let (mut sources, excluded) = select_sources(discovered, &config);
     let cache_enabled = options.cache_enabled.unwrap_or(config.cache_enabled);
-    let color =
-        !options.no_color && env::var_os("NO_COLOR").is_none() && io::stdout().is_terminal();
+    let color = use_color(&options.color);
     let identity = check_identity(&root, &config, &sources, options.warn);
     if cache_enabled {
         if let Some(cached) = cache::read(&root, &identity, &sources, color) {
@@ -104,9 +103,14 @@ pub(crate) fn execute_check(arguments: &[String]) -> Result<CliOutput, String> {
     })
 }
 
+fn use_color(mode: &str) -> bool {
+    env::var_os("NO_COLOR").is_none()
+        && (mode == COLOR_ALWAYS || mode == COLOR_AUTO && io::stdout().is_terminal())
+}
+
 fn parse_options(arguments: &[String]) -> Result<CheckOptions, String> {
     let mut options = CheckOptions {
-        no_color: false,
+        color: COLOR_AUTO.to_owned(),
         warn: false,
         cache_enabled: None,
         cache_stats: false,
@@ -115,7 +119,19 @@ fn parse_options(arguments: &[String]) -> Result<CheckOptions, String> {
     let mut index = 0;
     while index < arguments.len() {
         match arguments[index].as_str() {
-            "--no-color" => options.no_color = true,
+            "--no-color" => options.color = COLOR_NEVER.to_owned(),
+            "--color" => {
+                index += 1;
+                let value = arguments
+                    .get(index)
+                    .ok_or_else(|| "argument --color: expected one argument".to_owned())?;
+                if !matches!(value.as_str(), COLOR_AUTO | COLOR_ALWAYS | COLOR_NEVER) {
+                    return Err(format!(
+                        "argument --color: invalid choice: '{value}' (choose from 'auto', 'always', 'never')"
+                    ));
+                }
+                options.color = value.clone();
+            }
             "--warn" => options.warn = true,
             "--cache" => options.cache_enabled = Some(true),
             "--no-cache" => options.cache_enabled = Some(false),

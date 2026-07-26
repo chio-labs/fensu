@@ -21,6 +21,7 @@ from tests.integration.src.fensu.cli.main._test_types import (
     CheckCacheModeTestCase,
     CheckCachePreferenceTestCase,
     CheckCacheWarningTestCase,
+    CheckColorTestCase,
     CheckCommandTestCase,
     CheckErrorTestCase,
     CheckNoFaultTestCase,
@@ -505,6 +506,35 @@ def test_given_nested_working_directory_when_running_check_then_uses_config_dire
     assert exit_code == test_case.expected_exit_code
     assert test_case.expected_output_fragment in stdout.getvalue()
     assert test_case.expected_no_output_fragment not in stderr.getvalue()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CheckColorTestCase(
+            description="forced color renders faults in bold orange without a terminal",
+            argv=("--color", "always", "--no-cache"),
+            expected_exit_code=1,
+            expected_output_fragment="\033[1;38;5;208mFFA101\033[0m",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_forced_color_when_running_check_then_renders_bold_orange_faults(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: CheckColorTestCase,
+) -> None:
+    write_cli_core_fault_project(tmp_path)
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.chdir(tmp_path)
+    stdout: CaptureOutput = CaptureOutput()
+    stderr: CaptureOutput = CaptureOutput()
+
+    exit_code: int = run_check(argv=test_case.argv, stdout=stdout, stderr=stderr)
+
+    assert exit_code == test_case.expected_exit_code
+    assert test_case.expected_output_fragment in stdout.getvalue()
 
 
 @pytest.mark.parametrize(

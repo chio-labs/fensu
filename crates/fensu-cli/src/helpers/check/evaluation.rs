@@ -10,9 +10,10 @@ use crate::constants::{
     OWNER_FILE, OWNER_PACKAGE, ROLE_HELPERS, ROLE_MAIN, SCOPE_TEST, SUFFIX_INIT,
 };
 use crate::helpers::catalogue::metadata;
+use crate::helpers::check::exceptions::apply_exceptions;
 use crate::helpers::check::policy::{
-    apply_exceptions, apply_rule_ignores, is_entry_module, is_main_module, program,
-    resolved_thresholds, role, scope_roots, source_module_name,
+    apply_rule_ignores, is_entry_module, is_main_module, program, resolved_thresholds, role,
+    scope_roots, source_module_name,
 };
 use crate::helpers::check::project::{observe, project_plane};
 use crate::helpers::reporting::render;
@@ -34,6 +35,10 @@ pub(crate) fn evaluate_and_render(
     };
     let mut all_rules = blocking.clone();
     all_rules.extend(warning_rules.iter().copied());
+    let evaluated_codes = all_rules
+        .iter()
+        .map(|rule| rule.code.as_str())
+        .collect::<HashSet<_>>();
     let codes_by_source = owner_plan(sources, &all_rules);
     let project = project_plane(root, config, sources)?;
     let program_by_path = sources
@@ -126,7 +131,7 @@ pub(crate) fn evaluate_and_render(
     });
     uses.sort();
     uses.dedup();
-    let (faults, applied) = apply_exceptions(faults, config)?;
+    let (faults, applied) = apply_exceptions(faults, sources, root, &evaluated_codes, config)?;
     let faults = apply_rule_ignores(faults, root, config);
     let blocking_faults = faults
         .iter()

@@ -71,30 +71,31 @@ pub(crate) fn project_layout_queries(
             }
         }
         SHARED_DOMAIN_PREFIX_CODE => {
-            let root = scope_root(context);
-            queries.push(query("is_file", &root.join(INIT_FILE), ""));
-            if !root.join(INIT_FILE).is_file() {
-                queries.push(glob_query(&root, true));
-            }
             if context
                 .thresholds
                 .get(MINIMUM_SHARED_PREFIX_THRESHOLD)
                 .copied()
                 .unwrap_or_default()
-                > 0
+                == 0
             {
-                queries.push(query("directory_entries", &root, ""));
-                for entry in prefix_candidates(&root) {
-                    queries.push(query("is_dir", &entry, ""));
-                    if entry.is_dir() {
-                        queries.push(glob_query(&entry, true));
-                    }
+                return Some(queries);
+            }
+            let root = scope_root(context);
+            queries.push(query("is_file", &root.join(INIT_FILE), ""));
+            if !root.join(INIT_FILE).is_file() {
+                queries.push(glob_query(&root, true));
+            }
+            queries.push(query("directory_entries", &root, ""));
+            for entry in prefix_candidates(&root) {
+                queries.push(query("is_dir", &entry, ""));
+                if entry.is_dir() {
+                    queries.push(glob_query(&entry, true));
                 }
-                for (prefix, names) in prefix_groups(&root) {
-                    let minimum = context.thresholds[MINIMUM_SHARED_PREFIX_THRESHOLD] as usize;
-                    if names.len() >= minimum {
-                        queries.push(query("is_dir", &root.join(prefix), ""));
-                    }
+            }
+            for (prefix, names) in prefix_groups(&root) {
+                let minimum = context.thresholds[MINIMUM_SHARED_PREFIX_THRESHOLD] as usize;
+                if names.len() >= minimum {
+                    queries.push(query("is_dir", &root.join(prefix), ""));
                 }
             }
         }

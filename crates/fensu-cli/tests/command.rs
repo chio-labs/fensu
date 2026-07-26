@@ -8,5 +8,7 @@ mod test_check_exceptions;
 mod test_check_policy;
 #[path = "command/test_commands.rs"]
 mod test_commands;
+#[path = "command/test_rule.rs"]
+mod test_rule;
 #[path = "command/test_types.rs"]
 mod test_types;

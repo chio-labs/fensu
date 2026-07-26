@@ -2,17 +2,14 @@
 
 import ast
 
-from fensu import Family, Fault, RuleContext, Threshold, rule
+from fensu import Fault, RuleContext, Threshold
+from fensu.rules.exemplars._helpers.equivalent_rule import equivalent_rule
 
 
-@rule(
+@equivalent_rule(
+    core_code="FFS011",
     code="XCS011",
-    family=Family.CUSTOM,
     slug="max-statements-global-equivalent",
-    message="functions must stay below the global statement limit",
-    remediation=(
-        "Split the function at a meaningful phase boundary with explicit inputs and outputs."
-    ),
 )
 def max_statements_global_equivalent(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     """Express FFS011 through public function facts and threshold policy."""

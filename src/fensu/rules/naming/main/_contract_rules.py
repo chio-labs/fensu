@@ -20,6 +20,7 @@ def contract_rules() -> tuple[RuleSpec, ...]:
                 "Remove the meaningful return and raise on invalid input, or rename a "
                 "value-producing function as a query such as is_valid or get_validation_result."
             ),
+            contract_behaviors=("no-return",),
         ),
         RuleSpec(
             code=NamingCode.PREDICATE_MUST_RETURN_BOOL,
@@ -30,6 +31,7 @@ def contract_rules() -> tuple[RuleSpec, ...]:
                 "Return bool (or TypeGuard/TypeIs), or rename the function to describe the value "
                 "it returns, such as read_status or current_status."
             ),
+            contract_behaviors=("returns-bool",),
         ),
         RuleSpec(
             code=NamingCode.VALUE_NAME_MUST_RETURN_VALUE,
@@ -40,6 +42,7 @@ def contract_rules() -> tuple[RuleSpec, ...]:
                 "Return the queried or converted value, or rename the function to describe its "
                 "side effect, such as initialize_cache or export_json."
             ),
+            contract_behaviors=("returns-value",),
         ),
         RuleSpec(
             code=NamingCode.ITERATOR_NAME_MUST_PRODUCE_ITERATOR,
@@ -47,8 +50,9 @@ def contract_rules() -> tuple[RuleSpec, ...]:
             slug="iterator-name-must-produce-iterator",
             message="iterator names must produce an iterator or generator",
             remediation=(
-                "Return an iterator or generator, or rename an eager collection function with a "
-                "name such as collect_items."
+                "Return an iterator, generator, async iterator, or async generator; otherwise "
+                "rename an eager collection function with a name such as collect_items."
             ),
+            contract_behaviors=("returns-iterator",),
         ),
     )

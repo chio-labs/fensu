@@ -2,13 +2,22 @@
 
 from __future__ import annotations
 
-from fensu.rules.authoring.models import RuleSpec
+from fensu.rules.authoring.models import RuleConstraint, RuleSpec
 from fensu.rules.authoring.types import Family
+from fensu.rules.roles._helpers.naming_policy import (
+    get_forbidden_module_filenames,
+    get_forbidden_package_names,
+)
 from fensu.rules.roles.types import RoleCode
 
 
 def naming_rules() -> tuple[RuleSpec, ...]:
     """Build naming and helper-content role rules."""
+
+    forbidden_module_filenames: tuple[str, ...] = get_forbidden_module_filenames()
+    forbidden_package_names: tuple[str, ...] = get_forbidden_package_names()
+    forbidden_module_filename_text: str = ", ".join(forbidden_module_filenames)
+    forbidden_package_name_text: str = ", ".join(forbidden_package_names)
 
     return (
         RuleSpec(
@@ -16,7 +25,17 @@ def naming_rules() -> tuple[RuleSpec, ...]:
             family=Family.ROLES,
             slug="banned-generic-filename",
             message="generic filenames hide module ownership",
-            remediation="Rename the module after the domain concept or operation it owns.",
+            remediation=(
+                "Rename the module after the domain concept or operation it owns. Forbidden "
+                f"module filenames: {forbidden_module_filename_text}."
+            ),
+            constraints=(
+                RuleConstraint(
+                    name="forbidden_module_filenames",
+                    description="Forbidden module filenames",
+                    values=forbidden_module_filenames,
+                ),
+            ),
         ),
         RuleSpec(
             code=RoleCode.HELPERS_MODULE_NAME,
@@ -42,7 +61,16 @@ def naming_rules() -> tuple[RuleSpec, ...]:
             slug="banned-generic-package-name",
             message="runtime package directories must identify an owner",
             remediation=(
-                "Rename the package after the business domain or technical capability it owns."
+                "Rename the package after the business domain or technical capability it owns. "
+                f"Forbidden package names: {forbidden_package_name_text}. This rule owns generic "
+                "bucket names; container-layout rules do not emit a duplicate fault."
+            ),
+            constraints=(
+                RuleConstraint(
+                    name="forbidden_package_names",
+                    description="Forbidden package names",
+                    values=forbidden_package_names,
+                ),
             ),
         ),
         RuleSpec(

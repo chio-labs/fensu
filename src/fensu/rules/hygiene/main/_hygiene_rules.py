@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
-from fensu.rules.authoring.models import RuleSpec
+from fensu.rules.authoring.models import RuleConstraint, RuleSpec
 from fensu.rules.authoring.types import Family
+from fensu.rules.hygiene._helpers.comment_policy import (
+    get_allowed_standalone_comment_prefixes,
+)
 from fensu.rules.hygiene.types import HygieneCode
 
 
 def hygiene_rules() -> tuple[RuleSpec, ...]:
     """Build hygiene family rules."""
+
+    allowed_comment_prefixes: tuple[str, ...] = get_allowed_standalone_comment_prefixes()
+    allowed_comment_prefix_text: str = ", ".join(allowed_comment_prefixes)
 
     return (
         RuleSpec(
@@ -30,7 +36,15 @@ def hygiene_rules() -> tuple[RuleSpec, ...]:
             message="standalone comments are not allowed; prefer clear names or docs/tests",
             remediation=(
                 "Replace the comment with clearer names or move lasting explanation into "
-                "documentation or tests."
+                "documentation or tests. Tooling directives beginning with these prefixes are "
+                f"allowed: {allowed_comment_prefix_text}."
+            ),
+            constraints=(
+                RuleConstraint(
+                    name="allowed_standalone_comment_prefixes",
+                    description="Allowed standalone comment prefixes",
+                    values=allowed_comment_prefixes,
+                ),
             ),
         ),
         RuleSpec(

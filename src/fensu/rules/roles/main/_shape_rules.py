@@ -5,6 +5,7 @@ from __future__ import annotations
 from fensu.rules.authoring.models import RuleSpec
 from fensu.rules.authoring.types import Family
 from fensu.rules.roles._helpers.metadata import role_rule_details
+from fensu.rules.roles._helpers.thresholds import get_role_rule_thresholds
 from fensu.rules.roles.types import RoleCode
 
 
@@ -39,4 +40,5 @@ def _rule(*, code: RoleCode, slug: str) -> RuleSpec:
         slug=slug,
         message=message,
         remediation=remediation,
+        thresholds=get_role_rule_thresholds(code),
     )

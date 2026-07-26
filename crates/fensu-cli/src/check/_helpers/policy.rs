@@ -8,6 +8,7 @@ use ruff_python_ast::PythonVersion;
 use sha2::{Digest, Sha256};
 use walkdir::WalkDir;
 
+use crate::catalogue::main::rule_metadata::rule_metadata;
 use crate::constants::{
     GLOB_ALL, PYTHON_CACHE_DIRECTORY, ROLE_HELPERS, ROLE_MAIN, ROLE_RULES, SCOPE_TOOLING,
     SUFFIX_INIT,
@@ -95,40 +96,8 @@ pub(crate) fn resolved_thresholds(
 pub(crate) fn required_thresholds(codes: &[String]) -> HashSet<&'static str> {
     let mut names: HashSet<&'static str> = HashSet::new();
     for code in codes {
-        match code.as_str() {
-            "FFR301" => names.extend(["max_helpers_container_modules", "max_role_depth"]),
-            "FFR302" => names.extend(["max_main_container_modules", "max_role_depth"]),
-            "FFR308" => {
-                names.insert("min_shared_domain_prefix_packages");
-            }
-            "FFR601" => {
-                names.insert("max_file_lines");
-            }
-            "FFR703" => {
-                names.insert("max_script_entrypoint_lines");
-            }
-            "FFS001" => {
-                names.insert("max_statements");
-            }
-            "FFS002" => {
-                names.insert("max_distinct_calls");
-            }
-            "FFS003" => {
-                names.insert("max_locals");
-            }
-            "FFS010" => {
-                names.insert("max_arguments");
-            }
-            "FFS011" => {
-                names.insert("max_statements_global");
-            }
-            "FFS120" => {
-                names.insert("max_positional_args");
-            }
-            "FFR707" => {
-                names.insert("min_custom_rule_test_cases");
-            }
-            _ => {}
+        if let Some(metadata) = rule_metadata(code) {
+            names.extend(metadata.thresholds.iter().map(String::as_str));
         }
     }
     names

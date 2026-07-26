@@ -2,6 +2,7 @@
 
 use fensu_facts::extension::models::ProgramHandle;
 
+use crate::rules::_helpers::generated_policy::FFT301_EXCLUDED_TEST_SUPPORT_FILENAMES;
 use crate::rules::_helpers::test_function_conventions::{
     local_test_case_types, test_function_faults,
 };
@@ -26,13 +27,6 @@ const TEST_SCOPE: &str = "test";
 const TEST_TYPES_FILE: &str = "_test_types.py";
 const SCENARIO_MODELS_FILE: &str = "scenario_models.py";
 const HELPER_MODULES: &[&str] = &["_test_helpers.py", "helpers.py"];
-const NON_TEST_MODULES: &[&str] = &[
-    "_test_helpers.py",
-    TEST_TYPES_FILE,
-    "helpers.py",
-    "conftest.py",
-    "__init__.py",
-];
 
 pub(crate) fn test_faults(
     program: &ProgramHandle,
@@ -50,7 +44,7 @@ pub(crate) fn test_faults(
         .rsplit('/')
         .next()
         .unwrap_or_default();
-    let test_module = !NON_TEST_MODULES.contains(&file_name);
+    let test_module = !FFT301_EXCLUDED_TEST_SUPPORT_FILENAMES.contains(&file_name);
     if file_name == SCENARIO_MODELS_FILE && code == TEST_LAYOUT_CODE {
         return Some(location_faults(
             code,

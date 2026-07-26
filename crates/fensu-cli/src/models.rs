@@ -59,6 +59,32 @@ pub(crate) struct RuleMetadata {
     pub(crate) cacheable: bool,
     #[serde(default)]
     pub(crate) options: Vec<RuleOptionMetadata>,
+    #[serde(default)]
+    pub(crate) constraints: Vec<RuleConstraintMetadata>,
+    #[serde(default)]
+    pub(crate) thresholds: Vec<String>,
+    #[serde(default)]
+    pub(crate) contract_behaviors: Vec<String>,
+    #[serde(default)]
+    pub(crate) configuration_inputs: Vec<String>,
+    #[serde(default)]
+    pub(crate) limits: Vec<RuleLimitMetadata>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct RuleConstraintMetadata {
+    pub(crate) name: String,
+    pub(crate) description: String,
+    pub(crate) values: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct RuleLimitMetadata {
+    pub(crate) name: String,
+    pub(crate) description: String,
+    pub(crate) value: u32,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

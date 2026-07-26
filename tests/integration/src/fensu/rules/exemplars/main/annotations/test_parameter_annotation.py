@@ -714,6 +714,15 @@ _PYTHON_OWNED_SFR_CODES: frozenset[str] = frozenset()
             scope_root="scripts",
         ),
         NativeCustomRuleParityTestCase(
+            description="FFR701 matches unsupported functions and a missing main",
+            native_code="FFR701",
+            source="def run() -> int:\n    return 0\n",
+            expected_fault_count=2,
+            path="scripts/report.py",
+            scope="tooling",
+            scope_root="scripts",
+        ),
+        NativeCustomRuleParityTestCase(
             description="FFR702 matches direct scripts without imported main delegation",
             native_code="FFR702",
             source="def main() -> int:\n    return 0\n",

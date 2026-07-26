@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from fensu.rules.authoring.models import RuleSpec
 from fensu.rules.authoring.types import Family
+from fensu.rules.roles._helpers.constraints import get_role_rule_constraints
+from fensu.rules.roles._helpers.limits import get_role_rule_limits
+from fensu.rules.roles._helpers.thresholds import get_role_rule_thresholds
 from fensu.rules.roles.types import RoleCode
 
 
@@ -20,6 +23,8 @@ def tooling_rules() -> tuple[RuleSpec, ...]:
                 "Keep one public main(), optional private _parse_args() and _build_parser(), and "
                 "move implementation into a scripts/<tool>/main/ entry."
             ),
+            constraints=get_role_rule_constraints(RoleCode.TOOLING_ENTRYPOINT_SHAPE),
+            limits=get_role_rule_limits(RoleCode.TOOLING_ENTRYPOINT_SHAPE),
         ),
         RuleSpec(
             code=RoleCode.TOOLING_ENTRYPOINT_DELEGATION,
@@ -30,6 +35,7 @@ def tooling_rules() -> tuple[RuleSpec, ...]:
                 "Import a typed entry function from a runtime or scripts/<tool>/main/ module and "
                 "return its result from main()."
             ),
+            constraints=get_role_rule_constraints(RoleCode.TOOLING_ENTRYPOINT_DELEGATION),
         ),
         RuleSpec(
             code=RoleCode.TOOLING_ENTRYPOINT_LINE_COUNT,
@@ -37,6 +43,7 @@ def tooling_rules() -> tuple[RuleSpec, ...]:
             slug="tooling-entrypoint-line-count",
             message="direct scripts must stay below the configured line limit",
             remediation="Move command implementation into a named tooling or runtime package.",
+            thresholds=get_role_rule_thresholds(RoleCode.TOOLING_ENTRYPOINT_LINE_COUNT),
         ),
         RuleSpec(
             code=RoleCode.RULES_ROLE_CONTENT,
@@ -57,6 +64,7 @@ def tooling_rules() -> tuple[RuleSpec, ...]:
                 "Use main/, _helpers/, classes/, rules/, models.py, types.py, constants.py, or "
                 "exceptions.py directly beneath scripts/<tool>/."
             ),
+            constraints=get_role_rule_constraints(RoleCode.TOOLING_PACKAGE_LAYOUT),
         ),
         RuleSpec(
             code=RoleCode.DESCRIPTIVE_RULE_MODULE_NAMES,
@@ -78,7 +86,9 @@ def tooling_rules() -> tuple[RuleSpec, ...]:
             remediation=(
                 "Add statically visible RuleCase construction passed to evaluate_rule for each "
                 "custom rule. When FFT413 is active, parametrize with a local _test_types.py "
-                "dataclass and convert it to RuleCase inside the test."
+                "dataclass and convert it to RuleCase inside the test. Setting "
+                "min_custom_rule_test_cases to 0 disables this rule."
             ),
+            thresholds=get_role_rule_thresholds(RoleCode.CUSTOM_RULE_TEST_COVERAGE),
         ),
     )

@@ -2,6 +2,7 @@
 
 use fensu_facts::extension::models::ProgramHandle;
 
+use crate::rules::_helpers::generated_policy::FFH002_ALLOWED_STANDALONE_COMMENT_PREFIXES;
 use crate::rules::constants::{
     NO_ASSERT_IN_RUNTIME_CODE, NO_COMPLEX_COMPREHENSIONS_IN_TOOLING_CODE,
     NO_IMPORT_TIME_SIDE_EFFECTS_CODE, NO_MAGIC_NUMERIC_COMPARISONS_CODE, NO_RAW_BUILTIN_RAISE_CODE,
@@ -11,16 +12,6 @@ use crate::rules::constants::{
 use crate::rules::models::NativeFaultRow;
 
 const TOOLING_SCOPE: &str = "tooling";
-const COMMENT_ALLOWED_PREFIXES: &[&str] = &[
-    "#!",
-    "# -*-",
-    "# coding:",
-    "# noqa",
-    "# type:",
-    "# pyright:",
-    "# pylint:",
-    "# pragma:",
-];
 
 pub(crate) fn hygiene_faults(
     program: &ProgramHandle,
@@ -56,7 +47,7 @@ pub(crate) fn hygiene_faults(
 }
 
 fn allowed_comment(text: &str) -> bool {
-    COMMENT_ALLOWED_PREFIXES
+    FFH002_ALLOWED_STANDALONE_COMMENT_PREFIXES
         .iter()
         .any(|prefix| text.starts_with(prefix))
 }

@@ -1,13 +1,8 @@
-use std::process::Command;
-
 use crate::helpers::{run_check, run_check_colored, write};
 use crate::test_types::{
-    CheckPolicyTestCase, ColoredCheckTestCase, InvalidCheckConfigTestCase, RuleColorTestCase,
-    RuleOptionsCheckRoutingTestCase, RuleRemediationTestCase,
+    CheckPolicyTestCase, ColoredCheckTestCase, InvalidCheckConfigTestCase,
+    RuleOptionsCheckRoutingTestCase,
 };
-
-const CONFIG: &str =
-    "roots = [\"src\"]\ntests = [\"tests\"]\ntooling = [\"scripts\"]\nselect = [\"FFA\"]\n";
 
 #[test]
 fn given_path_scoped_rule_ignore_when_checking_then_only_matching_reported_paths_are_filtered() {
@@ -140,32 +135,6 @@ fn given_forced_color_when_checking_then_faults_render_in_historical_orange() {
 }
 
 #[test]
-fn given_forced_color_when_inspecting_rule_then_fault_code_renders_in_orange() {
-    let test_cases = [RuleColorTestCase {
-        description: "rule lookup uses the same bold orange code as fault output",
-        expected_fragment: "\x1b[1;38;5;208mFFA001\x1b[0m parameter-annotation",
-    }];
-
-    for test_case in &test_cases {
-        let repository = tempfile::tempdir().expect("temporary repository");
-        write(repository.path().join("fensu.toml"), CONFIG);
-        let output = Command::new(env!("CARGO_BIN_EXE_fensu"))
-            .args(["rule", "FFA001", "--color", "always"])
-            .current_dir(repository.path())
-            .output()
-            .expect("native rule process runs");
-        let stdout = String::from_utf8(output.stdout).expect("rule stdout is UTF-8");
-
-        assert_eq!(output.status.code(), Some(0), "{}", test_case.description);
-        assert!(
-            stdout.contains(test_case.expected_fragment),
-            "{}",
-            test_case.description
-        );
-    }
-}
-
-#[test]
 fn given_malformed_rule_ignore_when_checking_natively_then_configuration_fails_loudly() {
     let test_cases = [InvalidCheckConfigTestCase {
         description: "empty rule ignore selectors are rejected",
@@ -283,48 +252,6 @@ fn given_rule_options_table_when_checking_then_empty_stays_native_and_nonempty_r
         assert_eq!(
             String::from_utf8_lossy(&output.stderr),
             test_case.expected_stderr,
-            "{}",
-            test_case.description
-        );
-    }
-}
-
-#[test]
-fn given_composable_custom_rule_policies_when_inspecting_rules_then_remediations_explain_wrapper() {
-    let repository = tempfile::tempdir().expect("temporary repository");
-    write(repository.path().join("fensu.toml"), CONFIG);
-    let test_cases = [
-        RuleRemediationTestCase {
-            description: "FFR707 recommends converting wrappers inside the test",
-            code: "FFR707",
-            expected_fragment: "convert it to RuleCase inside the test",
-        },
-        RuleRemediationTestCase {
-            description: "FFT204 recommends local wrapper dataclasses",
-            code: "FFT204",
-            expected_fragment: "local wrapper dataclass",
-        },
-        RuleRemediationTestCase {
-            description: "FFT413 recommends constructing framework objects inside tests",
-            code: "FFT413",
-            expected_fragment: "construct the framework object inside the test",
-        },
-    ];
-
-    for test_case in &test_cases {
-        let output = Command::new(env!("CARGO_BIN_EXE_fensu"))
-            .args(["rule", test_case.code, "--color", "never"])
-            .current_dir(repository.path())
-            .env(
-                "FENSU_PYTHON",
-                repository.path().join("python-does-not-exist"),
-            )
-            .output()
-            .expect("native rule process runs");
-
-        assert_eq!(output.status.code(), Some(0), "{}", test_case.description);
-        assert!(
-            String::from_utf8_lossy(&output.stdout).contains(test_case.expected_fragment),
             "{}",
             test_case.description
         );

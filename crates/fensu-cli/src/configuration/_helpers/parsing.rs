@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 
 use crate::configuration::_helpers::validation::{required_strings, validate_keys};
-use crate::constants::{DEFAULT_MEMORY_ARCHIVE_DAYS, DEFAULT_THRESHOLDS};
+use crate::configuration::constants::{
+    DEFAULT_CONTRACTS, DEFAULT_SELECT, DEFAULT_TEST_PATHS, DEFAULT_TEST_SCOPES, DEFAULT_THRESHOLDS,
+};
+use crate::constants::DEFAULT_MEMORY_ARCHIVE_DAYS;
 use crate::models::{Config, RuleException, RuleIgnore, ThresholdOverride};
 
 pub(crate) fn build(
@@ -23,10 +26,10 @@ pub(crate) fn build(
     let evaluation = table.get("evaluation").and_then(toml::Value::as_table);
     Ok(Config {
         roots,
-        tests: strings_or(table.get("tests"), &["tests"]),
-        test_scopes: strings_or(table.get("test_scopes"), &["unit", "integration", "e2e"]),
+        tests: strings_or(table.get("tests"), DEFAULT_TEST_PATHS),
+        test_scopes: strings_or(table.get("test_scopes"), DEFAULT_TEST_SCOPES),
         tooling: strings(table.get("tooling")),
-        select: strings_or(table.get("select"), &["FF"]),
+        select: strings_or(table.get("select"), DEFAULT_SELECT),
         warn: strings(table.get("warn")),
         ignore: strings(table.get("ignore")),
         rule_paths: strings(table.get("rule_paths")),
@@ -65,18 +68,10 @@ pub(crate) fn build(
 }
 
 fn contracts(value: Option<&toml::Value>) -> Vec<(String, String)> {
-    let mut contracts = vec![
-        ("validate_*".to_owned(), "no-return".to_owned()),
-        ("enforce_*".to_owned(), "no-return".to_owned()),
-        ("is_*".to_owned(), "returns-bool".to_owned()),
-        ("has_*".to_owned(), "returns-bool".to_owned()),
-        ("can_*".to_owned(), "returns-bool".to_owned()),
-        ("supports_*".to_owned(), "returns-bool".to_owned()),
-        ("get_*".to_owned(), "returns-value".to_owned()),
-        ("to_*".to_owned(), "returns-value".to_owned()),
-        ("as_*".to_owned(), "returns-value".to_owned()),
-        ("iter_*".to_owned(), "returns-iterator".to_owned()),
-    ];
+    let mut contracts = DEFAULT_CONTRACTS
+        .iter()
+        .map(|(pattern, behavior)| ((*pattern).to_owned(), (*behavior).to_owned()))
+        .collect::<Vec<_>>();
     if let Some(values) = value.and_then(toml::Value::as_table) {
         for (name, value) in values {
             if let Some(text) = value.as_str() {

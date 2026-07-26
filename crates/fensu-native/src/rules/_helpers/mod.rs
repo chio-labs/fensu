@@ -2,6 +2,8 @@
 
 #[path = "annotations/annotations.rs"]
 pub(crate) mod annotations;
+#[path = "policy/generated_policy.rs"]
+pub(crate) mod generated_policy;
 #[path = "hygiene/hygiene.rs"]
 pub(crate) mod hygiene;
 #[path = "layers/local.rs"]

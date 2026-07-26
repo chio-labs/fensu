@@ -15,6 +15,9 @@ from fensu import (
     Threshold,
     rule,
 )
+from fensu.rules.catalog.main._get_rule_constraint import get_rule_constraint
+from fensu.rules.catalog.main._get_rule_limit import get_rule_limit
+from fensu.rules.exemplars._helpers.equivalent_rule import equivalent_rule
 
 _CLASSES: str = "classes"
 _CLASSES_FILE: str = "classes.py"
@@ -23,35 +26,17 @@ _EXCEPTIONS: str = "exceptions"
 _HELPERS: str = "_helpers"
 _HELPERS_FILE: str = "helpers.py"
 _INIT: str = "__init__.py"
+_IMPORT_STATEMENT_KIND: str = "import statement"
 _MAIN: str = "main"
 _MAIN_FILE: str = "main.py"
-_MAXIMUM_ENTRY_PRIVATE_FUNCTIONS: int = 2
 _MINIMUM_NESTED_MODULE_PARTS: int = 3
 _MINIMUM_NESTED_SUBPACKAGE_PARTS: int = 4
-_MISC_FILE: str = "misc.py"
 _MODELS: str = "models"
-_PARSE_ARGS: str = "_parse_args"
+_NONEXECUTING_IMPORT_GUARD_KIND: str = "nonexecuting import guard"
 _PYTHON_SUFFIX: str = ".py"
+_COMMAND_FUNCTION_KIND: str = "command function"
 _TOP_LEVEL_ROLE_PARTS: int = 2
 _TYPES: str = "types"
-_TOOLING_FUNCTIONS: frozenset[str] = frozenset({_MAIN, "_build_parser", _PARSE_ARGS})
-_ROLE_NAMES: frozenset[str] = frozenset(
-    {_HELPERS, _CLASSES, _CONSTANTS, _EXCEPTIONS, _MAIN, _MODELS, _TYPES}
-)
-_ROLE_FILES: frozenset[str] = frozenset(
-    {
-        _CLASSES_FILE,
-        "constants.py",
-        "exceptions.py",
-        _HELPERS_FILE,
-        _MAIN_FILE,
-        "models.py",
-        "types.py",
-    }
-)
-_RESERVED_ROLE_FILES: frozenset[str] = frozenset(
-    {"constants.py", "exceptions.py", "models.py", "types.py"}
-)
 _RULE_CODE: re.Pattern[str] = re.compile(r"(?:FF[A-Z][0-9]{3}|X[A-Z]*[0-9]+)")
 
 
@@ -68,12 +53,10 @@ def _direct_tooling_entrypoint(ctx: RuleContext) -> bool:
     )
 
 
-@rule(
+@equivalent_rule(
+    core_code="FFR001",
     code="XCR001",
-    family=Family.CUSTOM,
     slug="models-only-models-equivalent",
-    message="models role files may contain only structured runtime models",
-    remediation="Move functions and non-model declarations to their owning role module.",
 )
 def models_only_models_equivalent(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     del module
@@ -221,18 +204,19 @@ def exception_declaration_outside_exceptions_equivalent(
     ]
 
 
-@rule(
+@equivalent_rule(
+    core_code="FFR201",
     code="XCR201",
-    family=Family.CUSTOM,
     slug="banned-generic-filename-equivalent",
-    message="generic filenames hide module ownership",
-    remediation="Rename the module after the domain concept or operation it owns.",
 )
 def banned_generic_filename_equivalent(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     del module
-    if _excluded_scope(ctx) or ctx.path.name != _MISC_FILE:
+    forbidden_names: tuple[str, ...] = get_rule_constraint(
+        code="FFR201", name="forbidden_module_filenames"
+    )
+    if _excluded_scope(ctx) or ctx.path.name not in forbidden_names:
         return []
-    return [ctx.path_fault(message="misc.py hides the module's purpose")]
+    return [ctx.path_fault(message=f"{ctx.path.name} hides the module's purpose")]
 
 
 @rule(
@@ -284,24 +268,22 @@ def helpers_classes_file_private_equivalent(*, module: ast.Module, ctx: RuleCont
     ]
 
 
-@rule(
+@equivalent_rule(
+    core_code="FFR303",
     code="XCR303",
-    family=Family.CUSTOM,
     slug="helpers-reserved-role-filenames-equivalent",
-    message="_helpers/ packages must not contain reserved role filenames",
-    remediation=(
-        "Rename the helper module after its specific operation, or move role-owned declarations "
-        "to the corresponding sibling models, types, constants, or exceptions role."
-    ),
 )
 def helpers_reserved_role_filenames_equivalent(
     *, module: ast.Module, ctx: RuleContext
 ) -> list[Fault]:
     del module
+    reserved_role_filenames: tuple[str, ...] = get_rule_constraint(
+        code="FFR303", name="reserved_role_filenames"
+    )
     if (
         _excluded_scope(ctx)
         or _HELPERS not in ctx.relative_parts()[:-1]
-        or ctx.path.name not in _RESERVED_ROLE_FILES
+        or ctx.path.name not in reserved_role_filenames
     ):
         return []
     return [
@@ -311,43 +293,45 @@ def helpers_reserved_role_filenames_equivalent(
     ]
 
 
-@rule(
+@equivalent_rule(
+    core_code="FFR304",
     code="XCR304",
-    family=Family.CUSTOM,
     slug="nested-direct-modules-equivalent",
-    message="nested runtime packages may contain only role-oriented direct modules",
-    remediation="Move additional implementation modules under the package's _helpers/ boundary.",
 )
 def nested_direct_modules_equivalent(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     del module
     parts: tuple[str, ...] = ctx.relative_parts()
+    role_directories: tuple[str, ...] = get_rule_constraint(
+        code="FFR304", name="recognized_role_directories"
+    )
+    role_filenames: tuple[str, ...] = get_rule_constraint(
+        code="FFR304", name="recognized_role_filenames"
+    )
     if (
         _excluded_scope(ctx)
         or ctx.scope() is ScopeName.TOOLING
         or len(parts) < _MINIMUM_NESTED_MODULE_PARTS
         or _MAIN in parts[:-1]
-        or any(part in _ROLE_NAMES for part in parts[:-1])
+        or any(part in role_directories for part in parts[:-1])
         or parts[-1] == _INIT
-        or parts[-1] in _ROLE_FILES
+        or parts[-1] in role_filenames
     ):
         return []
     return [ctx.path_fault(message="nested packages must move support code under _helpers/")]
 
 
-@rule(
+@equivalent_rule(
+    core_code="FFR305",
     code="XCR305",
-    family=Family.CUSTOM,
     slug="nested-direct-subpackages-equivalent",
-    message="nested runtime packages must use explicit role boundaries",
-    remediation=(
-        "Move feature subpackages under _helpers/ or use a supported role such as main/ or "
-        "classes/."
-    ),
 )
 def nested_direct_subpackages_equivalent(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     del module
     parts: tuple[str, ...] = ctx.relative_parts()
     package_parts: tuple[str, ...] = parts[:-1]
+    role_directories: tuple[str, ...] = get_rule_constraint(
+        code="FFR305", name="recognized_role_directories"
+    )
     if (
         _excluded_scope(ctx)
         or ctx.scope() is ScopeName.TOOLING
@@ -357,42 +341,38 @@ def nested_direct_subpackages_equivalent(*, module: ast.Module, ctx: RuleContext
     ):
         return []
     for index in range(2, len(package_parts)):
-        if package_parts[index - 1] in _ROLE_NAMES or package_parts[index] in _ROLE_NAMES:
+        if package_parts[index - 1] in role_directories or package_parts[index] in role_directories:
             continue
         return [ctx.path_fault(message="nested packages must use explicit role boundaries")]
     return []
 
 
-@rule(
+@equivalent_rule(
+    core_code="FFR307",
     code="XCR307",
-    family=Family.CUSTOM,
     slug="top-level-direct-modules-equivalent",
-    message="top-level domains must not contain ad hoc direct modules",
-    remediation="Move the module under a direct role boundary or into an owning named subdomain.",
 )
 def top_level_direct_modules_equivalent(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     del module
     parts: tuple[str, ...] = ctx.relative_parts()
+    role_filenames: tuple[str, ...] = get_rule_constraint(
+        code="FFR307", name="recognized_role_filenames"
+    )
     if (
         _excluded_scope(ctx)
         or ctx.scope() is ScopeName.TOOLING
         or len(parts) != _TOP_LEVEL_ROLE_PARTS
         or parts[-1] == _INIT
-        or parts[-1] in _ROLE_FILES
+        or parts[-1] in role_filenames
     ):
         return []
     return [ctx.path_fault(message="top-level domains must not contain ad hoc direct modules")]
 
 
-@rule(
+@equivalent_rule(
+    core_code="FFR401",
     code="XCR401",
-    family=Family.CUSTOM,
     slug="entry-module-shape-equivalent",
-    message="main/ entry modules must expose one focused public function",
-    remediation=(
-        "Keep only imports, one public entry function, and at most two small private glue "
-        "functions; move phase logic to _helpers/."
-    ),
 )
 def entry_module_shape_equivalent(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     del module
@@ -405,13 +385,15 @@ def entry_module_shape_equivalent(*, module: ast.Module, ctx: RuleContext) -> li
     private_functions: tuple[ModuleStatementFact, ...] = tuple(
         fact for fact in statements if fact.function_name and fact.function_name.startswith("_")
     )
+    required_public_functions: int = get_rule_limit(code="FFR401", name="required_public_functions")
+    maximum_private_functions: int = get_rule_limit(code="FFR401", name="maximum_private_functions")
     faults: list[Fault] = []
-    if len(public_functions) != 1:
+    if len(public_functions) != required_public_functions:
         faults.append(ctx.path_fault(message="entry modules need one public function"))
-    if len(private_functions) > _MAXIMUM_ENTRY_PRIVATE_FUNCTIONS:
+    if len(private_functions) > maximum_private_functions:
         faults.append(
             ctx.fault_at(
-                location=private_functions[_MAXIMUM_ENTRY_PRIVATE_FUNCTIONS].location,
+                location=private_functions[maximum_private_functions].location,
                 message="main/ entry modules may define at most two private glue functions",
             )
         )
@@ -579,37 +561,39 @@ def source_file_line_count_equivalent(*, module: ast.Module, ctx: RuleContext) -
     return [ctx.path_fault(message=f"source file has {line_count} lines")]
 
 
-@rule(
+@equivalent_rule(
+    core_code="FFR701",
     code="XCR701",
-    family=Family.CUSTOM,
     slug="tooling-entrypoint-shape-equivalent",
-    message="direct scripts must remain focused command adapters",
-    remediation=(
-        "Keep one public main(), optional private _parse_args() and _build_parser(), and move "
-        "implementation into a scripts/<tool>/main/ entry."
-    ),
 )
 def tooling_entrypoint_shape_equivalent(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     del module
     if not _direct_tooling_entrypoint(ctx):
         return []
     statements: tuple[ModuleStatementFact, ...] = ctx.facts.module_declarations().statements
-    public_functions: tuple[ModuleStatementFact, ...] = tuple(
-        fact for fact in statements if fact.function_name and not fact.function_name.startswith("_")
+    allowed_functions: tuple[str, ...] = get_rule_constraint(
+        code="FFR701", name="allowed_command_functions"
+    )
+    allowed_statement_kinds: tuple[str, ...] = get_rule_constraint(
+        code="FFR701", name="allowed_top_level_statement_kinds"
     )
     main_functions: tuple[ModuleStatementFact, ...] = tuple(
-        fact for fact in public_functions if fact.function_name == _MAIN
+        fact for fact in statements if fact.function_name == _MAIN
     )
+    required_main_functions: int = get_rule_limit(code="FFR701", name="required_main_functions")
     faults: list[Fault] = []
-    if not public_functions or len(main_functions) > 1:
+    if len(main_functions) != required_main_functions:
         faults.append(
             ctx.path_fault(message="direct scripts must define exactly one public main() function")
         )
     for fact in statements:
-        if fact.import_statement:
+        if fact.import_statement and _IMPORT_STATEMENT_KIND in allowed_statement_kinds:
             continue
         if fact.function_name is not None:
-            if fact.function_name in _TOOLING_FUNCTIONS:
+            if (
+                _COMMAND_FUNCTION_KIND in allowed_statement_kinds
+                and fact.function_name in allowed_functions
+            ):
                 continue
             faults.append(
                 ctx.fault_at(
@@ -620,7 +604,9 @@ def tooling_entrypoint_shape_equivalent(*, module: ast.Module, ctx: RuleContext)
                 )
             )
             continue
-        if not fact.nonexecuting_import_guard:
+        if not fact.nonexecuting_import_guard or (
+            _NONEXECUTING_IMPORT_GUARD_KIND not in allowed_statement_kinds
+        ):
             faults.append(
                 ctx.fault_at(
                     location=fact.location,
@@ -632,15 +618,10 @@ def tooling_entrypoint_shape_equivalent(*, module: ast.Module, ctx: RuleContext)
     return faults
 
 
-@rule(
+@equivalent_rule(
+    core_code="FFR702",
     code="XCR702",
-    family=Family.CUSTOM,
     slug="tooling-entrypoint-delegation-equivalent",
-    message="direct scripts must delegate to an imported main/ entrypoint",
-    remediation=(
-        "Import a typed entry function from a runtime or scripts/<tool>/main/ module and return "
-        "its result from main()."
-    ),
 )
 def tooling_entrypoint_delegation_equivalent(
     *, module: ast.Module, ctx: RuleContext
@@ -662,7 +643,15 @@ def tooling_entrypoint_delegation_equivalent(
                 message="direct scripts must import and call an entry function from a main/ module"
             )
         )
-    allowed_calls: frozenset[str] = frozenset({_PARSE_ARGS, *facts.imported_main_entry_names})
+    allowed_targets: tuple[str, ...] = get_rule_constraint(
+        code="FFR702", name="allowed_main_call_targets"
+    )
+    allowed_calls: frozenset[str] = frozenset(
+        {
+            *facts.imported_main_entry_names,
+            *(name for name in allowed_targets if name.startswith("_")),
+        }
+    )
     faults.extend(
         ctx.fault_at(
             location=call.location,

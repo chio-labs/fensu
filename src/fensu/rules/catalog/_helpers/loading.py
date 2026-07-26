@@ -15,16 +15,20 @@ from types import ModuleType
 from fensu.analysis.models import SourceLocation
 from fensu.config.exceptions import ConfigError
 from fensu.config.models import Config
+from fensu.config.types import ContractBehavior
 from fensu.discovery.constants import INIT_MODULE_FILE_NAME
 from fensu.rules.authoring.main._inspect import rule_specs_in_module
 from fensu.rules.authoring.main.is_rule_code import is_rule_code
 from fensu.rules.authoring.main.matches_rule_selector import matches_rule_selector
 from fensu.rules.authoring.models import CustomRuleRegistration, RuleSpec
-from fensu.rules.authoring.types import Family, RuleKind
+from fensu.rules.authoring.types import Family, RuleKind, Threshold
 from fensu.rules.catalog._helpers.hermeticity import validate_cacheable_rules
 from fensu.rules.catalog.constants import CORE_RULES
 from fensu.rules.catalog.main._check_module_use import check_uses_module
 from fensu.rules.catalog.models import RuleSelection
+
+_CONFIGURATION_INPUTS: frozenset[str] = frozenset({"roots", "tests", "tooling", "test_scopes"})
+_CONTRACT_BEHAVIORS: frozenset[str] = frozenset(ContractBehavior)
 
 
 def build_ruleset_from_config(
@@ -96,9 +100,53 @@ def build_catalogue_from_config(
     all_rules: tuple[RuleSpec, ...] = (*CORE_RULES, *custom_rules)
     _validate_rule_identities(rules=all_rules)
     _validate_unique_codes(rules=all_rules)
+    _validate_rule_constraints(rules=all_rules)
+    _validate_rule_limits(rules=all_rules)
+    _validate_rule_inputs(rules=all_rules)
     _validate_native_rule_options(rules=all_rules)
     _validate_exception_codes(config=config, rules=all_rules)
     return all_rules
+
+
+def _validate_rule_constraints(*, rules: tuple[RuleSpec, ...]) -> None:
+    for rule in rules:
+        names: tuple[str, ...] = tuple(constraint.name for constraint in rule.constraints)
+        if len(names) != len(set(names)):
+            raise ConfigError(f"rule {rule.code} declares duplicate constraint names")
+        for constraint in rule.constraints:
+            if (
+                not constraint.name
+                or not constraint.description
+                or not constraint.values
+                or len(constraint.values) != len(set(constraint.values))
+            ):
+                raise ConfigError(f"rule {rule.code} declares an invalid fixed constraint")
+
+
+def _validate_rule_inputs(*, rules: tuple[RuleSpec, ...]) -> None:
+    for rule in rules:
+        if len(rule.thresholds) != len(set(rule.thresholds)) or any(
+            not isinstance(threshold, Threshold) for threshold in rule.thresholds
+        ):
+            raise ConfigError(f"rule {rule.code} declares invalid threshold inputs")
+        if len(rule.contract_behaviors) != len(set(rule.contract_behaviors)) or any(
+            behavior not in _CONTRACT_BEHAVIORS for behavior in rule.contract_behaviors
+        ):
+            raise ConfigError(f"rule {rule.code} declares invalid naming contract inputs")
+        if len(rule.configuration_inputs) != len(set(rule.configuration_inputs)) or any(
+            name not in _CONFIGURATION_INPUTS for name in rule.configuration_inputs
+        ):
+            raise ConfigError(f"rule {rule.code} declares invalid configuration inputs")
+
+
+def _validate_rule_limits(*, rules: tuple[RuleSpec, ...]) -> None:
+    for rule in rules:
+        names: tuple[str, ...] = tuple(limit.name for limit in rule.limits)
+        if len(names) != len(set(names)) or any(
+            not limit.name or not limit.description or limit.value < 0 or limit.value > 2**32 - 1
+            for limit in rule.limits
+        ):
+            raise ConfigError(f"rule {rule.code} declares an invalid fixed limit")
 
 
 def _validate_native_rule_options(*, rules: tuple[RuleSpec, ...]) -> None:

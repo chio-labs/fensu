@@ -80,5 +80,6 @@ def import_rules() -> tuple[RuleSpec, ...]:
                 "Move reusable logic into the runtime package or keep the dependency inside "
                 "tooling."
             ),
+            configuration_inputs=("tooling",),
         ),
     )

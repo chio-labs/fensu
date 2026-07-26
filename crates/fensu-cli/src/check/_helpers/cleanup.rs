@@ -12,19 +12,31 @@ use crate::constants::PYTHON_CACHE_DIRECTORY;
 use crate::models::Config;
 
 pub(crate) fn prepare(invocation: &Path) -> Option<CleanupPlan> {
-    let invocation_directory = Dir::open_ambient_dir(invocation, ambient_authority()).ok()?;
-    let invocation_path = invocation.canonicalize().ok()?;
+    let Ok(invocation_directory) = Dir::open_ambient_dir(invocation, ambient_authority()) else {
+        return None;
+    };
+    let Ok(invocation_path) = invocation.canonicalize() else {
+        return None;
+    };
     let Ok((config_path, config)) = load::load(invocation) else {
         return None;
     };
     let repository_path = config_path.parent()?;
-    let relative = invocation_path.strip_prefix(repository_path).ok()?;
+    let Ok(relative) = invocation_path.strip_prefix(repository_path) else {
+        return None;
+    };
     let mut repository = invocation_directory;
     for _ in relative.components() {
-        repository = repository.open_parent_dir(ambient_authority()).ok()?;
+        let Ok(parent) = repository.open_parent_dir(ambient_authority()) else {
+            return None;
+        };
+        repository = parent;
     }
     let config_name = config_path.file_name()?;
-    (repository.read(config_name).ok()? == config.raw).then_some(CleanupPlan { repository, config })
+    let Ok(raw) = repository.read(config_name) else {
+        return None;
+    };
+    (raw == config.raw).then_some(CleanupPlan { repository, config })
 }
 
 pub(crate) fn cleanup_configured_roots(repository: &Dir, config: &Config) {
@@ -63,12 +75,17 @@ fn resolve_configured_root(configured: &str) -> Option<PathBuf> {
 }
 
 fn open_directory(repository: &Dir, path: &Path) -> Option<Dir> {
-    let mut directory = repository.try_clone().ok()?;
+    let Ok(mut directory) = repository.try_clone() else {
+        return None;
+    };
     for component in path.components() {
         let Component::Normal(name) = component else {
             return None;
         };
-        directory = directory.open_dir_nofollow(name).ok()?;
+        let Ok(child) = directory.open_dir_nofollow(name) else {
+            return None;
+        };
+        directory = child;
     }
     Some(directory)
 }
@@ -105,7 +122,7 @@ fn clean_directory(directory: &Dir, relative: &Path, protected_roots: &BTreeSet<
         return;
     }
 
-    let mut cache_directories = Vec::new();
+    let mut cache_directories: Vec<(OsString, Dir)> = Vec::new();
     let mut blocked = false;
     for entry in entries {
         let name = entry.file_name();

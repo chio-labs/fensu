@@ -31,7 +31,7 @@ pub(crate) fn extract(source: &str, index: &LineIndex) -> Vec<MarkdownListItem> 
     let parser = Parser::new_ext(source, text::parser_options()).into_offset_iter();
     let mut list_stack: Vec<ListContext> = Vec::new();
     let mut item_stack: Vec<ActiveItem> = Vec::new();
-    let mut items = Vec::new();
+    let mut items: Vec<MarkdownListItem> = Vec::new();
     let mut next_ordinal = 1;
     for (event, range) in parser {
         match event {

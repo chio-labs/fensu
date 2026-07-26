@@ -178,12 +178,14 @@ pub(crate) fn python_anchor(path: &Path) -> Option<PathBuf> {
 }
 
 pub(crate) fn directory_entries(path: &Path) -> Vec<PathBuf> {
-    fs::read_dir(path)
-        .ok()
-        .into_iter()
-        .flatten()
-        .filter_map(Result::ok)
-        .map(|entry| entry.path())
+    let Ok(entries) = fs::read_dir(path) else {
+        return Vec::new();
+    };
+    entries
+        .filter_map(|entry| match entry {
+            Ok(entry) => Some(entry.path()),
+            Err(_) => None,
+        })
         .collect()
 }
 

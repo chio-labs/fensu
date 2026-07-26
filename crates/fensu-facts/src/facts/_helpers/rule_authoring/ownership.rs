@@ -16,7 +16,7 @@ pub(crate) struct EnclosingDefinitionsParams<'a, 'node> {
 }
 
 pub(crate) fn ancestor_positions(parents: &[Option<usize>], position: usize) -> Vec<usize> {
-    let mut ancestors = Vec::new();
+    let mut ancestors: Vec<usize> = Vec::new();
     let mut current = parents[position];
     while let Some(parent) = current {
         ancestors.push(parent);

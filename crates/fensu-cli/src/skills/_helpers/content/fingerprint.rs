@@ -20,7 +20,7 @@ pub(crate) fn input_fingerprint(context: &SkillContext) -> Result<String, String
 }
 
 pub(crate) fn input_value(context: &SkillContext) -> BTreeMap<&'static str, Value> {
-    let mut payload = BTreeMap::new();
+    let mut payload: BTreeMap<&'static str, Value> = BTreeMap::new();
     payload.insert("schema", json!(1));
     payload.insert(
         "config_source",
@@ -152,7 +152,9 @@ pub(crate) fn parse_ownership(content: &[u8]) -> Option<Ownership> {
         return None;
     }
     let raw = &line[OWNER_PREFIX.len()..line.len() - OWNER_SUFFIX.len()];
-    let value: Value = serde_json::from_slice(raw).ok()?;
+    let Ok(value) = serde_json::from_slice::<Value>(raw) else {
+        return None;
+    };
     let object = value.as_object()?;
     let expected = [
         "schema",
@@ -164,7 +166,9 @@ pub(crate) fn parse_ownership(content: &[u8]) -> Option<Ownership> {
     if object.len() != expected.len() || expected.iter().any(|key| !object.contains_key(*key)) {
         return None;
     }
-    let ownership: Ownership = serde_json::from_value(value).ok()?;
+    let Ok(ownership) = serde_json::from_value::<Ownership>(value) else {
+        return None;
+    };
     (ownership.schema == 1).then_some(ownership)
 }
 
@@ -225,7 +229,7 @@ fn config_value(config: &Config) -> Value {
         .iter()
         .map(|(key, value)| (key.clone(), json!(value)))
         .collect::<BTreeMap<_, _>>();
-    let mut role_thresholds = BTreeMap::new();
+    let mut role_thresholds: BTreeMap<String, Value> = BTreeMap::new();
     for (role, configured) in &config.role_thresholds {
         let values = configured
             .iter()

@@ -17,8 +17,8 @@ pub(crate) struct DependencyGraph {
 }
 
 pub(crate) fn analyze(corpus: &MemoryCorpus, links: &[ResolvedLink]) -> DependencyGraph {
-    let mut edges = Vec::new();
-    let mut diagnostics = Vec::new();
+    let mut edges: Vec<DependencyEdge> = Vec::new();
+    let mut diagnostics: Vec<GraphDiagnostic> = Vec::new();
     let mut adjacency: BTreeMap<DocumentIdentity, BTreeSet<DocumentIdentity>> = BTreeMap::new();
     for link in links {
         if link.relationship_kind != Some(RelationshipKind::DependsOn) {

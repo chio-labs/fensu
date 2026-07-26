@@ -11,6 +11,8 @@ pub fn hash_files(paths: &[PathBuf]) -> Vec<Option<String>> {
 }
 
 fn hashed_file(path: &Path) -> Option<String> {
-    let bytes = std::fs::read(path).ok()?;
+    let Ok(bytes) = std::fs::read(path) else {
+        return None;
+    };
     Some(hex::encode(Sha256::digest(bytes)))
 }

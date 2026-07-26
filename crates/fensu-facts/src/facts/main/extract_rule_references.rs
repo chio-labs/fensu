@@ -8,7 +8,7 @@ use crate::facts::_helpers::rule_authoring::ownership::{
 use crate::facts::_helpers::rule_authoring::references::assignment_parts;
 use crate::facts::_helpers::rule_authoring::references::qualified_reference;
 use crate::facts::_helpers::rule_authoring::references::stored_target_names;
-use crate::facts::models::{AssignmentReferenceRow, ComparisonRow};
+use crate::facts::models::{AssignmentReferenceRow, ComparisonRow, QualifiedReferenceRow};
 use crate::positions::models::LineIndex;
 use crate::syntax::main::breadth_first_nodes::breadth_first_nodes;
 use crate::syntax::main::breadth_first_with_parents::breadth_first_with_parents;
@@ -34,12 +34,12 @@ fn extract_assignment_references(
     source: &str,
 ) -> Vec<AssignmentReferenceRow> {
     let (nodes, parents) = breadth_first_with_parents(module);
-    let mut rows = Vec::new();
+    let mut rows: Vec<AssignmentReferenceRow> = Vec::new();
     for (position, node) in nodes.iter().enumerate() {
         let Some((targets, value)) = assignment_parts(node) else {
             continue;
         };
-        let mut target_names = Vec::new();
+        let mut target_names: Vec<String> = Vec::new();
         for target in targets {
             target_names = stored_target_names(target, target_names);
         }
@@ -80,13 +80,13 @@ fn extract_assignment_references(
 }
 
 fn extract_comparisons(module: &ModModule, index: &LineIndex, source: &str) -> Vec<ComparisonRow> {
-    let mut rows = Vec::new();
+    let mut rows: Vec<ComparisonRow> = Vec::new();
     for node in breadth_first_nodes(module) {
         let ShapeNode::Expr(Expr::Compare(compare)) = node else {
             continue;
         };
         let operands = std::iter::once(&*compare.left).chain(compare.comparators.iter());
-        let operand_references = operands
+        let operand_references: Vec<Option<QualifiedReferenceRow>> = operands
             .map(|operand| match operand {
                 Expr::Name(_) | Expr::Attribute(_) | Expr::Subscript(_) => {
                     Some(qualified_reference(operand))

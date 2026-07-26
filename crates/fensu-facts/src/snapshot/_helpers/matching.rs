@@ -10,7 +10,9 @@ pub(crate) fn has_python_suffix(name: &OsStr) -> bool {
 }
 
 pub(crate) fn root_relative_parts(canonical: &Path, root: &Path) -> Option<Vec<OsString>> {
-    let relative = canonical.strip_prefix(root).ok()?;
+    let Ok(relative) = canonical.strip_prefix(root) else {
+        return None;
+    };
     Some(
         relative
             .components()

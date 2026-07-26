@@ -22,7 +22,7 @@ pub(crate) fn build(
     } else {
         options.targets.clone()
     };
-    let mut seen_targets = HashSet::new();
+    let mut seen_targets: HashSet<SkillTarget> = HashSet::new();
     requested.retain(|target| seen_targets.insert(*target));
     let home = if options.global_install {
         Some(home_dir()?)
@@ -43,7 +43,7 @@ pub(crate) fn build(
             );
         }
     }
-    let mut project_targets = Vec::new();
+    let mut project_targets: Vec<ProjectInstallTarget> = Vec::new();
     for target in &targets {
         let skills = skills_directory(&target.path)?;
         for bundle in bundles {
@@ -59,7 +59,7 @@ pub(crate) fn build(
     }
     roots.sort();
     roots.dedup();
-    let mut legacy_paths = Vec::new();
+    let mut legacy_paths: Vec<PathBuf> = Vec::new();
     if options.global_install {
         for target in &targets {
             legacy_paths.push(skills_directory(&target.path)?.join("fensu/SKILL.md"));

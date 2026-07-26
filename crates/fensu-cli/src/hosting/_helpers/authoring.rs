@@ -20,12 +20,16 @@ pub(crate) fn verify_authoring_version() -> Result<(), String> {
 }
 
 fn installed_authoring_version() -> Option<String> {
-    let executable = env::current_exe().ok()?;
+    let Ok(executable) = env::current_exe() else {
+        return None;
+    };
     let prefix = executable.parent()?.parent()?;
     let candidates = [prefix.join("Lib/site-packages"), prefix.join("lib")];
     for candidate in candidates {
         if candidate.ends_with("lib") {
-            let entries = candidate.read_dir().ok()?;
+            let Ok(entries) = candidate.read_dir() else {
+                return None;
+            };
             for entry in entries.flatten() {
                 let site = entry.path().join("site-packages");
                 if let Some(version) = metadata_version(&site) {
@@ -40,13 +44,18 @@ fn installed_authoring_version() -> Option<String> {
 }
 
 fn metadata_version(site_packages: &Path) -> Option<String> {
-    for entry in site_packages.read_dir().ok()?.flatten() {
+    let Ok(entries) = site_packages.read_dir() else {
+        return None;
+    };
+    for entry in entries.flatten() {
         let path = entry.path();
         let name = path.file_name()?.to_str()?;
         if !name.starts_with("fensu-") || !name.ends_with(".dist-info") {
             continue;
         }
-        let metadata = std::fs::read_to_string(path.join("METADATA")).ok()?;
+        let Ok(metadata) = std::fs::read_to_string(path.join("METADATA")) else {
+            return None;
+        };
         return metadata
             .lines()
             .find_map(|line| line.strip_prefix("Version: ").map(str::to_owned));

@@ -27,10 +27,10 @@ pub(crate) fn local_config(repository: &Path) -> Option<PathBuf> {
         return Some(fensu);
     }
     let pyproject = repository.join("pyproject.toml");
-    fs::read_to_string(&pyproject)
-        .ok()
-        .filter(|text| text.contains("[tool.fensu]"))
-        .map(|_| pyproject)
+    let Ok(text) = fs::read_to_string(&pyproject) else {
+        return None;
+    };
+    text.contains("[tool.fensu]").then_some(pyproject)
 }
 
 pub(crate) fn existing_configuration(
@@ -78,7 +78,7 @@ fn repository_python_files(repository: &Path) -> Vec<PathBuf> {
 }
 
 fn detected_roots(repository: &Path) -> Vec<String> {
-    let mut candidates = BTreeSet::new();
+    let mut candidates: BTreeSet<String> = BTreeSet::new();
     for path in repository_python_files(repository) {
         if path.file_name().and_then(|value| value.to_str()) != Some("__init__.py") {
             continue;
@@ -96,7 +96,7 @@ fn detected_roots(repository: &Path) -> Vec<String> {
         }
     }
     let detected = candidates.into_iter().collect::<Vec<_>>();
-    let mut roots = Vec::new();
+    let mut roots: Vec<String> = Vec::new();
     for candidate in &detected {
         if !detected
             .iter()

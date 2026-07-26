@@ -85,8 +85,14 @@ pub(crate) fn check_workspace(
 }
 
 fn crate_sources(repo_root: &path::Path, crate_dir: &path::Path) -> Option<CrateSources> {
-    let manifest = fs::read_to_string(crate_dir.join(constants::CARGO_MANIFEST_FILE)).ok()?;
-    let document = toml::from_str::<toml::Value>(&manifest).ok()?;
+    let manifest = match fs::read_to_string(crate_dir.join(constants::CARGO_MANIFEST_FILE)) {
+        Ok(manifest) => manifest,
+        Err(_) => return None,
+    };
+    let document = match toml::from_str::<toml::Value>(&manifest) {
+        Ok(document) => document,
+        Err(_) => return None,
+    };
     let package = document
         .get(constants::PACKAGE_KEY)?
         .get(constants::NAME_KEY)?
@@ -146,7 +152,7 @@ impl VisibilityIndex {
 }
 
 fn module_visibility(crate_sources: &CrateSources) -> BTreeMap<Vec<String>, bool> {
-    let mut result = BTreeMap::new();
+    let mut result: BTreeMap<Vec<String>, bool> = BTreeMap::new();
     for file in &crate_sources.files {
         let Ok(syntax) = syn::parse_file(&file.source) else {
             continue;
@@ -204,7 +210,7 @@ fn collect_helper_types(
     if !file.has_directory(constants::HELPERS_DIRECTORY) {
         return Vec::new();
     }
-    let mut helper_types = Vec::new();
+    let mut helper_types: Vec<HelperType> = Vec::new();
     for item in &syntax.items {
         let declaration = match item {
             syn::Item::Enum(inner) => Some((&inner.ident, &inner.vis)),
@@ -237,7 +243,7 @@ fn private_entry_import_violations(
         .iter()
         .filter(|entry| !entry.public_to_crate)
         .collect::<Vec<_>>();
-    let mut violations = Vec::new();
+    let mut violations: Vec<models::Violation> = Vec::new();
     for reference in references {
         for entry in &private {
             if !starts_with(&reference.target, &entry.module) {
@@ -271,7 +277,7 @@ fn unused_public_entry_violations(
     references: &[Reference],
     entries: &[Entry],
 ) -> Vec<models::Violation> {
-    let mut violations = Vec::new();
+    let mut violations: Vec<models::Violation> = Vec::new();
     for entry in entries {
         if !entry.public_to_crate || entry.externally_declared {
             continue;
@@ -299,7 +305,7 @@ fn private_helper_type_violations(
     references: &[Reference],
     helper_types: &[HelperType],
 ) -> Vec<models::Violation> {
-    let mut violations = Vec::new();
+    let mut violations: Vec<models::Violation> = Vec::new();
     for reference in references {
         for declaration in helper_types {
             if reference.target != declaration.symbol {

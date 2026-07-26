@@ -18,7 +18,7 @@ const SKIPPED_DIRECTORIES: [&str; 7] = [
 ];
 
 pub(crate) fn implicit_namespace_packages(repository: &Path, roots: &[String]) -> Vec<String> {
-    let mut found = BTreeSet::new();
+    let mut found: BTreeSet<String> = BTreeSet::new();
     for root in roots {
         for entry in WalkDir::new(repository.join(root))
             .into_iter()

@@ -26,10 +26,10 @@ pub(crate) fn install(
     generated: &[u8],
     force: bool,
 ) -> Result<Vec<PathBuf>, String> {
-    let mut publications = Vec::new();
+    let mut publications: Vec<Publication> = Vec::new();
     let mut deletions = HashMap::<PathBuf, Snapshot>::new();
-    let mut stale_roots = Vec::new();
-    let mut written = Vec::new();
+    let mut stale_roots: Vec<PathBuf> = Vec::new();
+    let mut written: Vec<PathBuf> = Vec::new();
     for target in &plan.targets {
         let root = target
             .path
@@ -75,7 +75,7 @@ pub(crate) fn install(
             .map(|item| (item.path.clone(), item.clone()))
             .collect::<HashMap<_, _>>();
         let document = owned_project_content(&plan.context, &target.bundle)?;
-        let mut desired = HashSet::new();
+        let mut desired: HashSet<PathBuf> = HashSet::new();
         for source in &target.bundle.files {
             let path = target.path.join(&source.relative_path);
             desired.insert(path.clone());
@@ -171,7 +171,7 @@ fn capture_stale_bundles(
     plan: &InstallPlan,
     mut deletions: HashMap<PathBuf, Snapshot>,
 ) -> Result<(Vec<PathBuf>, HashMap<PathBuf, Snapshot>), String> {
-    let mut stale_roots = Vec::new();
+    let mut stale_roots: Vec<PathBuf> = Vec::new();
     let desired = plan
         .project_targets
         .iter()
@@ -252,7 +252,7 @@ fn cleanup_empty_roots(plan: &InstallPlan, stale_roots: Vec<PathBuf>) {
         .chain(stale_roots)
         .collect::<HashSet<_>>();
     for root in roots {
-        let mut directories = Vec::new();
+        let mut directories: Vec<PathBuf> = Vec::new();
         if root.is_dir() {
             for entry in walkdir::WalkDir::new(&root)
                 .min_depth(1)

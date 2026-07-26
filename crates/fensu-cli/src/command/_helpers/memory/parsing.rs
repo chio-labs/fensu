@@ -40,7 +40,7 @@ pub(crate) fn parse(arguments: &[String]) -> Result<ParsedMemory, String> {
 }
 
 pub(crate) fn normalize_options(arguments: &[String]) -> Vec<String> {
-    let mut normalized = Vec::new();
+    let mut normalized: Vec<String> = Vec::new();
     let mut options = true;
     for argument in arguments {
         if argument == OPTION_TERMINATOR {
@@ -102,7 +102,7 @@ fn parse_archive(
     mut color: ColorMode,
 ) -> Result<(MemoryCommand, ColorMode), String> {
     let (arguments, trailing) = split_terminator(arguments);
-    let mut paths = Vec::new();
+    let mut paths: Vec<PathBuf> = Vec::new();
     let mut confirmed = false;
     let mut index = 0;
     while index < arguments.len() {
@@ -156,7 +156,7 @@ fn parse_graph(
     let (arguments, trailing) = split_terminator(arguments);
     let mut pattern = None;
     let mut direction = MemoryGraphDirection::Outbound;
-    let mut relationships = Vec::new();
+    let mut relationships: Vec<MemoryGraphRelationship> = Vec::new();
     let mut depth = DEFAULT_GRAPH_DEPTH;
     let mut max_nodes = DEFAULT_GRAPH_NODES;
     let mut max_edges = DEFAULT_GRAPH_EDGES;

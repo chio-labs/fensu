@@ -25,8 +25,8 @@ pub(crate) fn discover_project_skills(
         }
     }
     let mut entries = read_sorted(&root)?;
-    let mut identities = HashMap::new();
-    let mut bundles = Vec::new();
+    let mut identities: HashMap<String, PathBuf> = HashMap::new();
+    let mut bundles: Vec<ProjectSkillBundle> = Vec::new();
     for entry in entries.drain(..) {
         let metadata = fs::symlink_metadata(&entry).map_err(|error| error.to_string())?;
         if metadata.file_type().is_symlink() || !metadata.is_dir() {
@@ -117,7 +117,7 @@ fn validate_identity(identity: &str, path: &Path) -> Result<(), String> {
 fn discover_files(root: &Path) -> Result<Vec<ProjectSkillFile>, String> {
     let mut pending = vec![root.to_path_buf()];
     let mut normalized = HashMap::<String, PathBuf>::new();
-    let mut files = Vec::new();
+    let mut files: Vec<ProjectSkillFile> = Vec::new();
     while let Some(directory) = pending.pop() {
         let mut entries = read_sorted(&directory)?;
         entries.reverse();
@@ -174,7 +174,7 @@ fn discover_files(root: &Path) -> Result<Vec<ProjectSkillFile>, String> {
 }
 
 fn read_sorted(path: &Path) -> Result<Vec<PathBuf>, String> {
-    let mut entries = Vec::new();
+    let mut entries: Vec<PathBuf> = Vec::new();
     for entry in fs::read_dir(path).map_err(|error| error.to_string())? {
         entries.push(entry.map_err(|error| error.to_string())?.path());
     }
@@ -219,7 +219,17 @@ fn same_file_state(left: &fs::Metadata, right: &fs::Metadata) -> bool {
 
 #[cfg(not(unix))]
 fn same_file_state(left: &fs::Metadata, right: &fs::Metadata) -> bool {
-    left.len() == right.len()
-        && left.modified().ok() == right.modified().ok()
+    if left.len() != right.len() {
+        return false;
+    }
+    let left_modified = match left.modified() {
+        Ok(modified) => Some(modified),
+        Err(_) => None,
+    };
+    let right_modified = match right.modified() {
+        Ok(modified) => Some(modified),
+        Err(_) => None,
+    };
+    left_modified == right_modified
         && left.permissions().readonly() == right.permissions().readonly()
 }

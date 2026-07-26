@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::ffi::OsString;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use fensu_facts::extension::models::ProgramHandle;
 use ruff_python_ast::PythonVersion;
@@ -64,7 +65,7 @@ pub(crate) fn resolved_thresholds(
         values.extend(role.clone());
     }
     let required = required_thresholds(codes);
-    let mut uses = Vec::new();
+    let mut uses: Vec<ThresholdUse> = Vec::new();
     for (order, override_) in config.threshold_overrides.iter().enumerate() {
         let Some(pattern) = override_
             .paths
@@ -92,7 +93,7 @@ pub(crate) fn resolved_thresholds(
 }
 
 pub(crate) fn required_thresholds(codes: &[String]) -> HashSet<&'static str> {
-    let mut names = HashSet::new();
+    let mut names: HashSet<&'static str> = HashSet::new();
     for code in codes {
         match code.as_str() {
             "FFR301" => names.extend(["max_helpers_container_modules", "max_role_depth"]),
@@ -209,13 +210,13 @@ pub(crate) fn source_module_name(source: &ScopedSource, root: &Path) -> String {
 }
 
 pub(crate) fn validate_package_names(root: &Path, config: &Config) -> Result<(), String> {
-    let mut runtime = HashSet::new();
+    let mut runtime: HashSet<OsString> = HashSet::new();
     for path in &config.roots {
         if let Some(name) = root.join(path).file_name() {
             runtime.insert(name.to_owned());
         }
     }
-    let mut tooling = HashSet::new();
+    let mut tooling: HashSet<OsString> = HashSet::new();
     for path in &config.tooling {
         if let Some(name) = root.join(path).file_name() {
             tooling.insert(name.to_owned());
@@ -264,7 +265,7 @@ pub(crate) fn check_identity(
 }
 
 fn digest_project_observations(digest: &mut Sha256, root: &Path, config: &Config) {
-    let mut entries = BTreeMap::new();
+    let mut entries: BTreeMap<String, (u8, PathBuf)> = BTreeMap::new();
     for configured_root in config
         .roots
         .iter()
@@ -327,7 +328,7 @@ pub(crate) fn hex_digest(bytes: &[u8]) -> String {
 }
 
 pub(crate) fn apply_rule_ignores(faults: Vec<Fault>, root: &Path, config: &Config) -> Vec<Fault> {
-    let mut retained = Vec::new();
+    let mut retained: Vec<Fault> = Vec::new();
     for fault in faults {
         let Ok(path) = Path::new(&fault.path).strip_prefix(root) else {
             retained.push(fault);
@@ -361,9 +362,10 @@ pub(crate) fn bool_text(value: bool) -> String {
 }
 
 pub(crate) fn relative(path: &Path, root: &Path) -> Option<String> {
-    path.strip_prefix(root)
-        .ok()
-        .map(|path| path.to_string_lossy().replace('\\', "/"))
+    let Ok(relative) = path.strip_prefix(root) else {
+        return None;
+    };
+    Some(relative.to_string_lossy().replace('\\', "/"))
 }
 
 pub(crate) fn python_version() -> PythonVersion {

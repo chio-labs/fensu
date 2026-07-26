@@ -103,7 +103,7 @@ pub(super) fn local_test_case_types(
         .map(String::as_str)
         .collect();
     let expected_module = sibling_path(&context.repository_path, "_test_types").replace('/', ".");
-    let mut imported = HashSet::new();
+    let mut imported: HashSet<String> = HashSet::new();
     for row in &program.reference_rows().imports {
         if row.top_level && row.from_import && row.module_parts.join(".") == expected_module {
             for alias in &row.aliases {

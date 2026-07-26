@@ -169,10 +169,10 @@ fn result_plan(inputs: ResultPlanInputs<'_>) -> NativeGenerationPlan {
         .iter()
         .map(|entry| (entry.path.as_str(), entry))
         .collect::<HashMap<_, _>>();
-    let mut valid_entries = Vec::new();
-    let mut cached_results = Vec::new();
-    let mut invalid_dependency_paths = HashSet::new();
-    let mut corrupt_paths = HashSet::new();
+    let mut valid_entries: Vec<NativeIndexEntry> = Vec::new();
+    let mut cached_results: Vec<CanonicalValue> = Vec::new();
+    let mut invalid_dependency_paths: HashSet<String> = HashSet::new();
+    let mut corrupt_paths: HashSet<String> = HashSet::new();
     for (entry, record) in inputs.source_equal.into_iter().zip(inputs.records) {
         let Some(record) = record else {
             corrupt_paths.insert(entry.path.clone());
@@ -264,7 +264,7 @@ fn edit_plan(inputs: EditPlanInputs<'_>) -> NativeGenerationPlan {
         .iter()
         .map(|(path, _)| path.as_str())
         .collect::<HashSet<_>>();
-    let contributions = collection
+    let contributions: Vec<CanonicalValue> = collection
         .into_iter()
         .filter(|value| {
             value

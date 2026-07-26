@@ -21,7 +21,7 @@ pub(crate) fn project_layout_queries(
     code: &str,
     context: &NativeRuleContext,
 ) -> Option<Vec<NativeProjectQuery>> {
-    let mut queries = Vec::new();
+    let mut queries: Vec<NativeProjectQuery> = Vec::new();
     match code {
         HELPERS_PACKAGE_LAYOUT_CODE | MAIN_PACKAGE_LAYOUT_CODE => {
             let role = if code == HELPERS_PACKAGE_LAYOUT_CODE {

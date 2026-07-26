@@ -99,7 +99,7 @@ fn entry_module_shape_faults(
                 .is_some_and(|name| name.starts_with('_'))
         })
         .collect();
-    let mut faults = Vec::new();
+    let mut faults: Vec<NativeFaultRow> = Vec::new();
     if public_functions.len() != 1 {
         faults.push(path_fault(
             code,
@@ -170,7 +170,7 @@ fn public_surface_faults(
     if path_name(context) != Some(INIT_FILE_NAME) || context.relative_parts.len() != 1 {
         return Vec::new();
     }
-    let mut faults = Vec::new();
+    let mut faults: Vec<NativeFaultRow> = Vec::new();
     let mut saw_all = false;
     for row in &declarations.statements {
         if row.docstring_statement || row.import_statement {
@@ -250,7 +250,7 @@ fn tooling_entrypoint_shape_faults(
         .iter()
         .filter(|row| row.function_name.as_deref() == Some(MAIN_FUNCTION))
         .count();
-    let mut faults = Vec::new();
+    let mut faults: Vec<NativeFaultRow> = Vec::new();
     if public_functions.is_empty() || main_count > 1 {
         faults.push(path_fault(
             code,
@@ -308,7 +308,7 @@ fn tooling_entrypoint_delegation_faults(
         .main_calls
         .iter()
         .any(|call| imported_main_call(call.name.as_deref(), declarations));
-    let mut faults = Vec::new();
+    let mut faults: Vec<NativeFaultRow> = Vec::new();
     if !delegates {
         faults.push(path_fault(
             code,

@@ -163,7 +163,7 @@ fn constant_outside_role_faults(
     if context.role.as_deref() == Some(CONSTANTS_ROLE) {
         return Vec::new();
     }
-    let mut faults = Vec::new();
+    let mut faults: Vec<NativeFaultRow> = Vec::new();
     for row in &declarations.statements {
         for name in &row.assignment_target_names {
             if !name.starts_with('_') && uppercase_constant(name) {
@@ -200,7 +200,7 @@ fn private_definition_faults(
     code: &str,
     declarations: &ModuleDeclarationRows,
 ) -> Vec<NativeFaultRow> {
-    let mut faults = Vec::new();
+    let mut faults: Vec<NativeFaultRow> = Vec::new();
     let mut saw_function = false;
     for row in &declarations.statements {
         if row.function_name.is_some() {

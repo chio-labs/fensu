@@ -169,15 +169,15 @@ fn strings_or(value: Option<&toml::Value>, default: &[&str]) -> Vec<String> {
 }
 
 fn numbers(value: Option<&toml::Value>) -> HashMap<String, u32> {
-    let mut numbers = HashMap::new();
+    let mut numbers: HashMap<String, u32> = HashMap::new();
     let Some(values) = value.and_then(toml::Value::as_table) else {
         return numbers;
     };
     for (name, value) in values {
-        if let Some(number) = value
-            .as_integer()
-            .and_then(|number| u32::try_from(number).ok())
-        {
+        let Some(number) = value.as_integer() else {
+            continue;
+        };
+        if let Ok(number) = u32::try_from(number) {
             numbers.insert(name.clone(), number);
         }
     }
@@ -185,7 +185,7 @@ fn numbers(value: Option<&toml::Value>) -> HashMap<String, u32> {
 }
 
 fn role_thresholds(value: Option<&toml::Value>) -> HashMap<String, HashMap<String, u32>> {
-    let mut thresholds = HashMap::new();
+    let mut thresholds: HashMap<String, HashMap<String, u32>> = HashMap::new();
     if let Some(values) = value.and_then(toml::Value::as_table) {
         for (name, value) in values {
             thresholds.insert(name.clone(), numbers(Some(value)));
@@ -195,7 +195,7 @@ fn role_thresholds(value: Option<&toml::Value>) -> HashMap<String, HashMap<Strin
 }
 
 fn threshold_overrides(value: Option<&toml::Value>) -> Vec<ThresholdOverride> {
-    let mut overrides = Vec::new();
+    let mut overrides: Vec<ThresholdOverride> = Vec::new();
     let Some(items) = value.and_then(toml::Value::as_array) else {
         return overrides;
     };
@@ -210,7 +210,7 @@ fn threshold_overrides(value: Option<&toml::Value>) -> Vec<ThresholdOverride> {
 }
 
 fn exceptions(value: Option<&toml::Value>) -> Vec<RuleException> {
-    let mut exceptions = Vec::new();
+    let mut exceptions: Vec<RuleException> = Vec::new();
     let Some(items) = value.and_then(toml::Value::as_array) else {
         return exceptions;
     };
@@ -226,7 +226,7 @@ fn exceptions(value: Option<&toml::Value>) -> Vec<RuleException> {
 }
 
 fn rule_ignores(value: Option<&toml::Value>) -> Vec<RuleIgnore> {
-    let mut ignores = Vec::new();
+    let mut ignores: Vec<RuleIgnore> = Vec::new();
     let Some(items) = value.and_then(toml::Value::as_array) else {
         return ignores;
     };

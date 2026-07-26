@@ -18,7 +18,7 @@ pub(crate) fn function_row(
 ) -> MappingFunctionRow {
     let node = ShapeNode::Stmt(&Stmt::FunctionDef(function.clone()));
     let (line, _) = start_of(&node, index, source);
-    let parameters = ordered_parameters(function)
+    let parameters: Vec<MappingParameterRow> = ordered_parameters(function)
         .into_iter()
         .map(|parameter| parameter_row(parameter, source))
         .collect();
@@ -51,7 +51,7 @@ fn parameter_row(parameter: &Parameter, source: &str) -> MappingParameterRow {
 
 fn ordered_parameters(function: &StmtFunctionDef) -> Vec<&Parameter> {
     let parameters = &function.parameters;
-    let mut ordered = Vec::new();
+    let mut ordered: Vec<&Parameter> = Vec::new();
     for parameter in parameters.posonlyargs.iter().chain(&parameters.args) {
         ordered.push(&parameter.parameter);
     }

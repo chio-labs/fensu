@@ -8,8 +8,8 @@ use crate::mapping::models::{MappingImportAliasRow, MappingImportRow};
 pub(crate) fn mapping_imports(
     module: &ModModule,
 ) -> (Vec<MappingImportRow>, Vec<MappingImportRow>) {
-    let mut runtime = Vec::new();
-    let mut annotation = Vec::new();
+    let mut runtime: Vec<MappingImportRow> = Vec::new();
+    let mut annotation: Vec<MappingImportRow> = Vec::new();
     for statement in &module.body {
         if let Some(row) = import_row(statement) {
             runtime.push(row.clone());

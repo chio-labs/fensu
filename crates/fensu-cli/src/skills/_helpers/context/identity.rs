@@ -94,11 +94,14 @@ pub(crate) fn resolve_identity(
             return Ok(format!("fensu-{normalized}"));
         }
     }
-    let fallback = git_root
-        .and_then(|root| project_root.strip_prefix(root).ok())
-        .filter(|path| !path.as_os_str().is_empty())
-        .unwrap_or(project_root)
-        .to_string_lossy();
+    let relative = match git_root {
+        Some(root) => match project_root.strip_prefix(root) {
+            Ok(path) if !path.as_os_str().is_empty() => Some(path),
+            Ok(_) | Err(_) => None,
+        },
+        None => None,
+    };
+    let fallback = relative.unwrap_or(project_root).to_string_lossy();
     Ok(format!("fensu-{}", normalize_identity(&fallback)?))
 }
 

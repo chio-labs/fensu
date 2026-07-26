@@ -32,7 +32,7 @@ fn extract_named_calls(
     source: &str,
 ) -> Vec<RuleNamedCallRow> {
     let (nodes, parents) = breadth_first_with_parents(module);
-    let mut rows = Vec::new();
+    let mut rows: Vec<RuleNamedCallRow> = Vec::new();
     for (position, node) in nodes.iter().enumerate() {
         let ShapeNode::Expr(Expr::Call(call)) = node else {
             continue;
@@ -80,7 +80,7 @@ fn extract_local_call_edges(
     source: &str,
 ) -> Vec<LocalCallEdgeRow> {
     let (nodes, parents) = breadth_first_with_parents(module);
-    let mut rows = Vec::new();
+    let mut rows: Vec<LocalCallEdgeRow> = Vec::new();
     for (position, node) in nodes.iter().enumerate() {
         let ShapeNode::Expr(Expr::Call(call)) = node else {
             continue;

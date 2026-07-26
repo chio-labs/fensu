@@ -260,7 +260,9 @@ fn import_from_module(
     if !package {
         parts.pop();
     }
-    let parent_count = usize::try_from(level - 1).ok()?;
+    let Ok(parent_count) = usize::try_from(level - 1) else {
+        return None;
+    };
     if parent_count > parts.len() {
         return None;
     }
@@ -336,7 +338,7 @@ fn protocol_implementations(
         .map(|key| (key.clone(), Vec::new()))
         .collect::<BTreeMap<_, _>>();
     for key in classes.keys().filter(|key| !protocols.contains(*key)) {
-        let collector = ProtocolCollector {
+        let collector: ProtocolCollector<'_> = ProtocolCollector {
             classes,
             protocols: &protocols,
             active: BTreeSet::new(),

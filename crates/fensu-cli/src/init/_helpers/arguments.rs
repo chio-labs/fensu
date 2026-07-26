@@ -17,7 +17,7 @@ pub(crate) fn parse_init(arguments: &[String]) -> Result<InitOptions, String> {
             }
             "--root" | "--tests" | "--tooling" => {
                 let option = arguments[index].clone();
-                let mut values = Vec::new();
+                let mut values: Vec<String> = Vec::new();
                 while index + 1 < arguments.len() && !arguments[index + 1].starts_with('-') {
                     index += 1;
                     values.push(arguments[index].clone());

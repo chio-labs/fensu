@@ -29,7 +29,7 @@ struct HeadingBuild<'a> {
 
 pub(crate) fn extract(source: &str, index: &LineIndex) -> Vec<MarkdownHeading> {
     let parser = Parser::new_ext(source, text::parser_options()).into_offset_iter();
-    let mut headings = Vec::new();
+    let mut headings: Vec<MarkdownHeading> = Vec::new();
     let mut path: Vec<(u8, String)> = Vec::new();
     let mut active: Option<ActiveHeading> = None;
     for (event, range) in parser {
@@ -108,7 +108,7 @@ pub(crate) fn sections(
         .iter()
         .find(|heading| heading.level == 1)
         .map(|h| h.ordinal);
-    let mut sections = Vec::new();
+    let mut sections: Vec<MarkdownSection> = Vec::new();
     for (position, heading) in headings.iter().enumerate() {
         if Some(heading.ordinal) == title_ordinal {
             continue;

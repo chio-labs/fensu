@@ -5,6 +5,7 @@ use syn::visit::Visit;
 
 use crate::constants;
 use crate::models;
+use crate::rules::_helpers::functions::{binding_clarity, discarded_errors};
 use crate::types::FileKind;
 
 /// Check one library source file for hygiene violations.
@@ -52,6 +53,8 @@ pub(crate) fn check_source(
         }
     }
     violations.extend(check_comparisons(file, syntax));
+    violations.extend(discarded_errors::check(file, syntax));
+    violations.extend(binding_clarity::check(file, syntax));
     violations
 }
 

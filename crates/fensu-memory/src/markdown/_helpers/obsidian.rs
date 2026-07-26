@@ -118,7 +118,7 @@ fn mask_comments(source: &str, mask: &mut ExclusionMask) {
 
 fn wikilinks(source: &str, index: &LineIndex, mask: &mut ExclusionMask) -> Vec<MarkdownLink> {
     let bytes = source.as_bytes();
-    let mut links = Vec::new();
+    let mut links: Vec<MarkdownLink> = Vec::new();
     let mut cursor = 0;
     while cursor + 1 < bytes.len() {
         let embedded = bytes[cursor] == b'!'
@@ -194,7 +194,7 @@ fn build_wikilink(build: WikilinkBuild<'_>) -> Option<MarkdownLink> {
 }
 
 fn bare_urls(source: &str, index: &LineIndex, mask: &[bool]) -> Vec<MarkdownLink> {
-    let mut links = Vec::new();
+    let mut links: Vec<MarkdownLink> = Vec::new();
     for (start, _) in source.char_indices() {
         if mask[start] || !starts_url(source.get(start..).unwrap_or_default()) {
             continue;
@@ -243,7 +243,7 @@ fn bare_urls(source: &str, index: &LineIndex, mask: &[bool]) -> Vec<MarkdownLink
 }
 
 fn tags(source: &str, index: &LineIndex, mask: &[bool]) -> Vec<MarkdownTag> {
-    let mut tags = Vec::new();
+    let mut tags: Vec<MarkdownTag> = Vec::new();
     for (start, character) in source.char_indices() {
         if character != '#' || mask[start] || !tag_boundary(source, start) {
             continue;

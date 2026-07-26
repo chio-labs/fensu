@@ -33,8 +33,8 @@ struct HeadingDiagnosticRequest<'a> {
 }
 
 pub(crate) fn resolve(corpus: &MemoryCorpus) -> LinkResolution {
-    let mut links = Vec::new();
-    let mut diagnostics = Vec::new();
+    let mut links: Vec<ResolvedLink> = Vec::new();
+    let mut diagnostics: Vec<GraphDiagnostic> = Vec::new();
     for source in &corpus.documents {
         let Some(markdown) = &source.parsed_markdown else {
             continue;

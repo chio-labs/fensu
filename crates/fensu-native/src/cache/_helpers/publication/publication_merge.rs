@@ -37,7 +37,7 @@ pub(crate) fn retained_dependency_keys(
     observations: &[NativeDependencyObservation],
 ) -> Option<HashSet<NativeDependencyKey>> {
     let indexed = observation_map(observations)?;
-    let mut retained = HashSet::new();
+    let mut retained: HashSet<NativeDependencyKey> = HashSet::new();
     for (entry, record) in entries.iter().zip(records) {
         let record = record.as_ref()?;
         let keys = decode_file_result_dependencies(record, entry, global_fingerprint, &indexed)?;
@@ -51,7 +51,7 @@ pub(crate) fn merged_observations(
     retained_keys: Option<&HashSet<NativeDependencyKey>>,
     preparation: &NativePublicationPreparation,
 ) -> Option<Vec<NativeDependencyObservation>> {
-    let mut merged = HashMap::new();
+    let mut merged: HashMap<NativeDependencyKey, NativeDependencyObservation> = HashMap::new();
     for observation in old {
         if retained_keys.is_some_and(|keys| !keys.contains(&observation.key)) {
             continue;

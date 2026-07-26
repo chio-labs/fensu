@@ -18,42 +18,53 @@ pub(crate) fn read(
     sources: &[ScopedSource],
     color: bool,
 ) -> Option<CachedOutput> {
-    let connection = Connection::open_with_flags(
+    let Ok(connection) = Connection::open_with_flags(
         root.join(DATABASE),
         rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
-    )
-    .ok()?;
+    ) else {
+        return None;
+    };
     if !valid_database(&connection) {
         return None;
     }
-    let data = connection
+    let Ok(data) = connection
         .query_row(
             "SELECT data FROM records WHERE key = ? AND kind = 'check_output'",
             [output_key(color)],
             |row| row.get::<_, Vec<u8>>(0),
         )
         .optional()
-        .ok()??;
-    let output: CachedOutput = serde_json::from_slice(&data).ok()?;
+    else {
+        return None;
+    };
+    let data = data?;
+    let Ok(output) = serde_json::from_slice::<CachedOutput>(&data) else {
+        return None;
+    };
     if output.identity != identity || output.file_count != sources.len() {
         return None;
     }
-    let mut statement = connection
-        .prepare("SELECT key,data FROM records WHERE key LIKE 'native/file/%'")
-        .ok()?;
-    let stored = statement
-        .query_map([], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?))
-        })
-        .ok()?
-        .collect::<Result<HashMap<_, _>, _>>()
-        .ok()?;
+    let Ok(mut statement) =
+        connection.prepare("SELECT key,data FROM records WHERE key LIKE 'native/file/%'")
+    else {
+        return None;
+    };
+    let Ok(rows) = statement.query_map([], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?))
+    }) else {
+        return None;
+    };
+    let Ok(stored) = rows.collect::<Result<HashMap<_, _>, _>>() else {
+        return None;
+    };
     if stored.len() != sources.len() {
         return None;
     }
     for source in sources {
         let key = format!("native/file/{}", source.repository_path);
-        let value: serde_json::Value = serde_json::from_slice(stored.get(&key)?).ok()?;
+        let Ok(value) = serde_json::from_slice::<serde_json::Value>(stored.get(&key)?) else {
+            return None;
+        };
         if value.get("fingerprint")?.as_str()? != source.fingerprint {
             return None;
         }
@@ -85,7 +96,7 @@ pub(crate) fn write(
     {
         return false;
     }
-    let mut current = Vec::new();
+    let mut current: Vec<String> = Vec::new();
     for source in sources {
         let key = format!("native/file/{}", source.repository_path);
         let Ok(data) = serde_json::to_vec(&serde_json::json!({"fingerprint": source.fingerprint}))
@@ -120,19 +131,21 @@ pub(crate) fn write(
     if let Ok(mut statement) =
         connection.prepare("SELECT key FROM records WHERE key LIKE 'native/file/%'")
     {
-        let stale = statement
-            .query_map([], |row| row.get::<_, String>(0))
-            .ok()
-            .into_iter()
-            .flatten()
-            .filter_map(Result::ok)
-            .filter(|key| !current.contains(key))
-            .collect::<Vec<_>>();
+        let stale = match statement.query_map([], |row| row.get::<_, String>(0)) {
+            Ok(rows) => rows
+                .filter_map(Result::ok)
+                .filter(|key| !current.contains(key))
+                .collect::<Vec<_>>(),
+            Err(_) => Vec::new(),
+        };
         for key in stale {
             let _ = connection.execute("DELETE FROM records WHERE key = ?", [key]);
         }
     }
-    connection.execute_batch("COMMIT").is_ok()
+    match connection.execute_batch("COMMIT") {
+        Ok(()) => true,
+        Err(_) => false,
+    }
 }
 
 fn initialize(connection: &Connection) -> rusqlite::Result<()> {
@@ -142,10 +155,10 @@ fn initialize(connection: &Connection) -> rusqlite::Result<()> {
 }
 
 fn valid_database(connection: &Connection) -> bool {
-    connection
-        .query_row("PRAGMA application_id", [], |row| row.get::<_, i32>(0))
-        .ok()
-        == Some(APPLICATION_ID)
+    match connection.query_row("PRAGMA application_id", [], |row| row.get::<_, i32>(0)) {
+        Ok(application_id) => application_id == APPLICATION_ID,
+        Err(_) => false,
+    }
 }
 
 fn output_key(color: bool) -> &'static str {

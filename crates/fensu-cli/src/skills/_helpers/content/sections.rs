@@ -35,7 +35,7 @@ fn expand_runtime_trees(
     let end = marker_index(&lines, DOMAIN_SHAPE_HEADING)?;
     let start = heading + 2;
     let template = lines[start..end].to_vec();
-    let mut expanded = Vec::new();
+    let mut expanded: Vec<String> = Vec::new();
     for root in &context.config.roots {
         let root = display_project_path(context, root);
         expanded.extend(template.iter().map(|line| line.replace("__ROOT__", &root)));
@@ -64,7 +64,7 @@ fn expand_test_trees(
         .ok_or_else(|| "Compiled repository guidance has an unterminated test tree.".to_owned())?;
     let end = close + 2;
     let template = lines[start..end].to_vec();
-    let mut expanded = Vec::new();
+    let mut expanded: Vec<String> = Vec::new();
     for test in &context.config.tests {
         for root in &context.config.roots {
             let test = display_project_path(context, test);
@@ -88,7 +88,7 @@ fn expand_tooling_test_lines(mut lines: Vec<String>, context: &SkillContext) -> 
         return lines;
     };
     let template = lines[start].clone();
-    let mut expanded = Vec::new();
+    let mut expanded: Vec<String> = Vec::new();
     for test in &context.config.tests {
         for tooling in &context.config.tooling {
             expanded.push(
@@ -121,7 +121,7 @@ fn expand_tooling_trees(
         })?;
     let end = close + 2;
     let template = lines[start..end].to_vec();
-    let mut expanded = Vec::new();
+    let mut expanded: Vec<String> = Vec::new();
     for tooling in &context.config.tooling {
         let tooling = display_project_path(context, tooling);
         expanded.extend(

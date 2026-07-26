@@ -21,14 +21,16 @@ pub(crate) fn readable_connection(repo_root: &Path) -> Option<Connection> {
     if !database_is_readable(repo_root, &database) {
         return None;
     }
-    let connection =
-        Connection::open_with_flags(&database, OpenFlags::SQLITE_OPEN_READ_ONLY).ok()?;
-    connection
-        .busy_timeout(Duration::from_millis(BUSY_TIMEOUT_MS))
-        .ok()?;
-    connection
-        .execute_batch("PRAGMA query_only = ON; BEGIN")
-        .ok()?;
+    let Ok(connection) = Connection::open_with_flags(&database, OpenFlags::SQLITE_OPEN_READ_ONLY)
+    else {
+        return None;
+    };
+    let Ok(()) = connection.busy_timeout(Duration::from_millis(BUSY_TIMEOUT_MS)) else {
+        return None;
+    };
+    let Ok(()) = connection.execute_batch("PRAGMA query_only = ON; BEGIN") else {
+        return None;
+    };
     Some(connection)
 }
 
@@ -38,74 +40,88 @@ pub(crate) fn writable_connection(repo_root: &Path) -> Option<Connection> {
     if database.exists() && !database_is_readable(repo_root, &database) {
         return None;
     }
-    let connection = Connection::open(&database).ok()?;
-    connection
-        .busy_timeout(Duration::from_millis(BUSY_TIMEOUT_MS))
-        .ok()?;
-    let journal_mode: String = connection
-        .query_row("PRAGMA journal_mode", [], |row| row.get(0))
-        .ok()?;
+    let Ok(connection) = Connection::open(&database) else {
+        return None;
+    };
+    let Ok(()) = connection.busy_timeout(Duration::from_millis(BUSY_TIMEOUT_MS)) else {
+        return None;
+    };
+    let Ok(journal_mode): Result<String, _> =
+        connection.query_row("PRAGMA journal_mode", [], |row| row.get(0))
+    else {
+        return None;
+    };
     let active_mode = if journal_mode.eq_ignore_ascii_case("wal") {
         journal_mode
     } else {
-        connection
-            .query_row("PRAGMA journal_mode = WAL", [], |row| row.get(0))
-            .ok()?
+        let Ok(mode) = connection.query_row("PRAGMA journal_mode = WAL", [], |row| row.get(0))
+        else {
+            return None;
+        };
+        mode
     };
     if !active_mode.eq_ignore_ascii_case("wal") {
         return None;
     }
-    connection
-        .execute_batch("PRAGMA synchronous = NORMAL")
-        .ok()?;
+    let Ok(()) = connection.execute_batch("PRAGMA synchronous = NORMAL") else {
+        return None;
+    };
     Some(connection)
 }
 
 pub(crate) fn begin_writable_transaction(connection: &Connection) -> Option<()> {
-    connection.execute_batch("BEGIN IMMEDIATE").ok()?;
+    let Ok(()) = connection.execute_batch("BEGIN IMMEDIATE") else {
+        return None;
+    };
     if database_is_uninitialized(connection) {
-        connection.execute(CREATE_RECORDS_SQL, []).ok()?;
-        connection
-            .execute_batch(&format!(
-                "PRAGMA application_id = {APPLICATION_ID}; PRAGMA user_version = {STORAGE_SCHEMA_VERSION}"
-            ))
-            .ok()?;
+        let Ok(_) = connection.execute(CREATE_RECORDS_SQL, []) else {
+            return None;
+        };
+        let Ok(()) = connection.execute_batch(&format!(
+            "PRAGMA application_id = {APPLICATION_ID}; PRAGMA user_version = {STORAGE_SCHEMA_VERSION}"
+        )) else {
+            return None;
+        };
         return Some(());
     }
     database_identity_is_current(connection).then_some(())
 }
 
 pub(crate) fn database_identity_is_current(connection: &Connection) -> bool {
-    let application_id = connection
-        .query_row("PRAGMA application_id", [], |row| row.get::<_, i32>(0))
-        .ok();
-    let user_version = connection
-        .query_row("PRAGMA user_version", [], |row| row.get::<_, i32>(0))
-        .ok();
-    let columns = (|| {
-        let mut statement = connection.prepare("PRAGMA table_info(records)").ok()?;
-        let result = statement
-            .query_map([], |row| {
-                Ok((
-                    row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?,
-                    row.get::<_, i32>(3)?,
-                    row.get::<_, i32>(5)?,
-                ))
-            })
-            .ok()?
-            .collect::<Result<Vec<_>, _>>()
-            .ok();
-        result
-    })();
-    application_id == Some(APPLICATION_ID)
-        && user_version == Some(STORAGE_SCHEMA_VERSION)
+    let Ok(application_id) =
+        connection.query_row("PRAGMA application_id", [], |row| row.get::<_, i32>(0))
+    else {
+        return false;
+    };
+    let Ok(user_version) =
+        connection.query_row("PRAGMA user_version", [], |row| row.get::<_, i32>(0))
+    else {
+        return false;
+    };
+    let Ok(mut statement) = connection.prepare("PRAGMA table_info(records)") else {
+        return false;
+    };
+    let Ok(rows) = statement.query_map([], |row| {
+        Ok((
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+            row.get::<_, i32>(3)?,
+            row.get::<_, i32>(5)?,
+        ))
+    }) else {
+        return false;
+    };
+    let Ok(columns) = rows.collect::<Result<Vec<_>, _>>() else {
+        return false;
+    };
+    application_id == APPLICATION_ID
+        && user_version == STORAGE_SCHEMA_VERSION
         && columns
-            == Some(vec![
+            == vec![
                 ("key".to_owned(), "TEXT".to_owned(), 1, 1),
                 ("kind".to_owned(), "TEXT".to_owned(), 1, 0),
                 ("data".to_owned(), "BLOB".to_owned(), 1, 0),
-            ])
+            ]
 }
 
 fn prepare_database_parent(repo_root: &Path, database: &Path) -> Option<()> {
@@ -121,7 +137,9 @@ fn prepare_database_parent(repo_root: &Path, database: &Path) -> Option<()> {
             Ok(_) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                 if fs::create_dir(&current).is_err() {
-                    let metadata = fs::symlink_metadata(&current).ok()?;
+                    let Ok(metadata) = fs::symlink_metadata(&current) else {
+                        return None;
+                    };
                     if metadata.file_type().is_symlink() || !metadata.is_dir() {
                         return None;
                     }
@@ -160,20 +178,26 @@ pub(crate) fn database_is_readable(repo_root: &Path, database: &Path) -> bool {
 }
 
 fn database_is_uninitialized(connection: &Connection) -> bool {
-    let application_id = connection
-        .query_row("PRAGMA application_id", [], |row| row.get::<_, i32>(0))
-        .ok();
-    let user_version = connection
-        .query_row("PRAGMA user_version", [], |row| row.get::<_, i32>(0))
-        .ok();
-    let table = connection
+    let Ok(application_id) =
+        connection.query_row("PRAGMA application_id", [], |row| row.get::<_, i32>(0))
+    else {
+        return false;
+    };
+    let Ok(user_version) =
+        connection.query_row("PRAGMA user_version", [], |row| row.get::<_, i32>(0))
+    else {
+        return false;
+    };
+    let table = match connection
         .query_row(
             "SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%' LIMIT 1",
             [],
             |row| row.get::<_, String>(0),
         )
         .optional()
-        .ok()
-        .flatten();
-    application_id == Some(0) && user_version == Some(0) && table.is_none()
+    {
+        Ok(value) => value,
+        Err(_) => return false,
+    };
+    application_id == 0 && user_version == 0 && table.is_none()
 }

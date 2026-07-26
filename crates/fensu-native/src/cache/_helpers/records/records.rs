@@ -35,7 +35,7 @@ pub(crate) fn encode_record(
     } else {
         sorted_objects(canonical)
     };
-    let mut encoded = Vec::new();
+    let mut encoded: Vec<u8> = Vec::new();
     encoded.extend_from_slice(b"{\"kind\":");
     encoded = write_string(kind, encoded);
     encoded.extend_from_slice(b",\"payload\":");
@@ -68,7 +68,9 @@ pub(crate) fn decode_record(
     maximum_decoded_bytes: usize,
 ) -> Option<DecodedRecord> {
     let encoded = decompressed(data, maximum_decoded_bytes)?;
-    let value: Value = serde_json::from_slice(&encoded).ok()?;
+    let Ok(value): Result<Value, _> = serde_json::from_slice(&encoded) else {
+        return None;
+    };
     let envelope = value.as_object()?;
     if envelope.len() != ENVELOPE_KEY_COUNT {
         return None;
@@ -138,7 +140,7 @@ fn encode_decoded(
     payload: &CanonicalValue,
     maximum_decoded_bytes: usize,
 ) -> Option<Vec<u8>> {
-    let mut encoded = Vec::new();
+    let mut encoded: Vec<u8> = Vec::new();
     encoded.extend_from_slice(b"{\"kind\":");
     encoded = write_string(kind, encoded);
     encoded.extend_from_slice(b",\"payload\":");
@@ -151,8 +153,12 @@ fn encode_decoded(
         return Some(encoded);
     }
     let mut compressor = ZlibEncoder::new(Vec::new(), Compression::new(COMPRESSION_LEVEL));
-    compressor.write_all(&encoded).ok()?;
-    let compressed = compressor.finish().ok()?;
+    let Ok(()) = compressor.write_all(&encoded) else {
+        return None;
+    };
+    let Ok(compressed) = compressor.finish() else {
+        return None;
+    };
     let mut framed = Vec::with_capacity(COMPRESSED_PREFIX.len() + compressed.len());
     framed.extend_from_slice(COMPRESSED_PREFIX);
     framed.extend_from_slice(&compressed);
@@ -165,12 +171,14 @@ fn decompressed(data: &[u8], maximum_decoded_bytes: usize) -> Option<Vec<u8>> {
     }
     let compressed = &data[COMPRESSED_PREFIX.len()..];
     let mut decoder = ZlibDecoder::new(compressed);
-    let mut decoded = Vec::new();
-    decoder
+    let mut decoded: Vec<u8> = Vec::new();
+    let Ok(_) = decoder
         .by_ref()
         .take(maximum_decoded_bytes.saturating_add(1) as u64)
         .read_to_end(&mut decoded)
-        .ok()?;
+    else {
+        return None;
+    };
     if decoded.len() > maximum_decoded_bytes || decoder.total_in() as usize != compressed.len() {
         return None;
     }
@@ -184,7 +192,7 @@ pub(crate) fn canonical_from_python(value: &Bound<'_, PyAny>) -> PyResult<Canoni
     if let Ok(boolean) = value.cast::<PyBool>() {
         return Ok(CanonicalValue::Bool(boolean.is_true()));
     }
-    if value.cast::<PyInt>().is_ok() {
+    if let Ok(_integer) = value.cast::<PyInt>() {
         return Ok(CanonicalValue::Integer(value.str()?.to_str()?.to_owned()));
     }
     if let Ok(string) = value.cast::<PyString>() {

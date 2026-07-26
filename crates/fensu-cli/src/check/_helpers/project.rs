@@ -18,7 +18,7 @@ pub(crate) fn project_plane(
     config: &Config,
     sources: &[ScopedSource],
 ) -> Result<NativeProjectPlane, String> {
-    let mut modules = Vec::new();
+    let mut modules: Vec<NativeProjectModule> = Vec::new();
     for source in sources.iter().filter(|source| source.scope != SCOPE_TEST) {
         let mut parts = source
             .path
@@ -103,7 +103,7 @@ pub(crate) fn entrypoint_modules(root: &Path, _config_raw: &[u8]) -> Vec<String>
     let Some(project) = value.get("project") else {
         return Vec::new();
     };
-    let mut values = Vec::new();
+    let mut values: Vec<&str> = Vec::new();
     for section in ENTRYPOINT_SECTIONS {
         if let Some(value) = project.get(section) {
             values = collect_entrypoint_values(value, values);
@@ -138,7 +138,7 @@ pub(crate) fn observe(
     programs: &HashMap<&str, &ProgramHandle>,
     modules: &HashMap<String, &ProgramHandle>,
 ) -> HashMap<String, Vec<String>> {
-    let mut answers = HashMap::new();
+    let mut answers: HashMap<String, Vec<String>> = HashMap::new();
     for query in plans {
         let path = root.join(&query.path);
         let value = match query.kind.as_str() {
@@ -186,7 +186,7 @@ pub(crate) fn observe(
 }
 
 pub(crate) fn directory_entries(path: &Path, root: &Path) -> Vec<String> {
-    let mut entries = Vec::new();
+    let mut entries: Vec<String> = Vec::new();
     let Ok(directory) = path.read_dir() else {
         return entries;
     };
@@ -205,15 +205,11 @@ pub(crate) fn glob_answers(path: &Path, root: &Path, argument: &str) -> Vec<Stri
     } else {
         1
     };
-    let matcher = GlobBuilder::new(pattern)
-        .literal_separator(true)
-        .build()
-        .ok()
-        .map(|glob| glob.compile_matcher());
-    let Some(matcher) = matcher else {
+    let Ok(glob) = GlobBuilder::new(pattern).literal_separator(true).build() else {
         return Vec::new();
     };
-    let mut answers = Vec::new();
+    let matcher = glob.compile_matcher();
+    let mut answers: Vec<String> = Vec::new();
     for entry in WalkDir::new(path)
         .min_depth(1)
         .max_depth(depth)

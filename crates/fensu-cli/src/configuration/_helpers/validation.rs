@@ -371,7 +371,7 @@ pub(crate) fn required_strings(
     let items = value
         .as_array()
         .ok_or_else(|| format!("Config key {name} must be a list of strings."))?;
-    let mut result = Vec::new();
+    let mut result: Vec<String> = Vec::new();
     for item in items {
         let text = item
             .as_str()

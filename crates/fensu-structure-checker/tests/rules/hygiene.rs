@@ -65,6 +65,60 @@ fn given_hygiene_fixtures_when_checking_then_reports_expected_codes() {
             expected_violation_codes: vec![],
         },
         test_types::CheckRepoTestCase {
+            description: "result conversion into an option is reported",
+            repo_files: vec![test_types::RepoFile {
+                path: "crates/example/src/reading/_helpers/loading.rs".to_owned(),
+                contents: "fn load(value: &str) -> Option<usize> {\n    value.parse::<usize>().ok()\n}\n"
+                    .to_owned(),
+            }],
+            expected_violation_codes: vec!["RSH005"],
+        },
+        test_types::CheckRepoTestCase {
+            description: "result success probe is reported",
+            repo_files: vec![test_types::RepoFile {
+                path: "crates/example/src/reading/_helpers/loading.rs".to_owned(),
+                contents: "fn load(value: &str) -> bool {\n    value.parse::<usize>().is_ok()\n}\n"
+                    .to_owned(),
+            }],
+            expected_violation_codes: vec!["RSH005"],
+        },
+        test_types::CheckRepoTestCase {
+            description: "fallible operation default is reported",
+            repo_files: vec![test_types::RepoFile {
+                path: "crates/example/src/reading/_helpers/loading.rs".to_owned(),
+                contents: "fn load(value: &str) -> usize {\n    value.parse::<usize>().unwrap_or_default()\n}\n"
+                    .to_owned(),
+            }],
+            expected_violation_codes: vec!["RSH005"],
+        },
+        test_types::CheckRepoTestCase {
+            description: "explicit expected error handling is allowed",
+            repo_files: vec![test_types::RepoFile {
+                path: "crates/example/src/reading/_helpers/loading.rs".to_owned(),
+                contents: "fn load(value: &str) -> Option<usize> {\n    match value.parse::<usize>() {\n        Ok(parsed) => Some(parsed),\n        Err(_) => None,\n    }\n}\n"
+                    .to_owned(),
+            }],
+            expected_violation_codes: vec![],
+        },
+        test_types::CheckRepoTestCase {
+            description: "generic local binding without a type is reported",
+            repo_files: vec![test_types::RepoFile {
+                path: "crates/example/src/reading/_helpers/loading.rs".to_owned(),
+                contents: "fn load(values: &[usize]) -> Vec<usize> {\n    let copied = values.iter().copied().collect();\n    copied\n}\n"
+                    .to_owned(),
+            }],
+            expected_violation_codes: vec!["RSA103"],
+        },
+        test_types::CheckRepoTestCase {
+            description: "generic local binding with an explicit type is allowed",
+            repo_files: vec![test_types::RepoFile {
+                path: "crates/example/src/reading/_helpers/loading.rs".to_owned(),
+                contents: "fn load(values: &[usize]) -> Vec<usize> {\n    let copied: Vec<usize> = values.iter().copied().collect();\n    copied\n}\n"
+                    .to_owned(),
+            }],
+            expected_violation_codes: vec![],
+        },
+        test_types::CheckRepoTestCase {
             description: "associated panic extraction is reported",
             repo_files: vec![test_types::RepoFile {
                 path: "crates/example/src/reading/_helpers/loading.rs".to_owned(),

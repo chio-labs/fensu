@@ -20,8 +20,8 @@ pub(crate) fn check(plan: &InstallPlan, authoritative: bool) -> Result<Freshness
     } else {
         None
     };
-    let mut issues = Vec::new();
-    let mut inspected = Vec::new();
+    let mut issues: Vec<FreshnessIssue> = Vec::new();
+    let mut inspected: Vec<PathBuf> = Vec::new();
     let mut targets = plan.targets.clone();
     targets.sort_by(|left, right| left.path.cmp(&right.path));
     for target in targets {
@@ -143,7 +143,7 @@ fn inspect_project_targets(
         }
         let expected_document = owned_project_content(&plan.context, &target.bundle)?;
         let input = project_input_fingerprint(&plan.context, &target.bundle)?;
-        let mut expected_paths = HashSet::new();
+        let mut expected_paths: HashSet<PathBuf> = HashSet::new();
         for source in &target.bundle.files {
             let path = target.path.join(&source.relative_path);
             expected_paths.insert(path.clone());
@@ -216,7 +216,10 @@ fn inspect_stale_targets(
                 continue;
             }
             let document = entry.join("SKILL.md");
-            let Some(content) = safe_read(&document).ok().flatten() else {
+            let Ok(content) = safe_read(&document) else {
+                continue;
+            };
+            let Some(content) = content else {
                 continue;
             };
             let Some(ownership) = parse_ownership(&content) else {

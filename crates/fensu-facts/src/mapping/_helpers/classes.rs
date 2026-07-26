@@ -40,8 +40,8 @@ pub(crate) fn mapping_bases(
 }
 
 fn class_attributes(class: &StmtClassDef, source: &str) -> Vec<MappingAttributeRow> {
-    let mut attributes = BTreeMap::new();
-    let mut invalid = BTreeSet::new();
+    let mut attributes: BTreeMap<String, MappingAttributeRow> = BTreeMap::new();
+    let mut invalid: BTreeSet<String> = BTreeSet::new();
     for statement in &class.body {
         if let Stmt::AnnAssign(inner) = statement {
             if let Expr::Name(name) = &*inner.target {
@@ -68,8 +68,8 @@ fn class_attributes(class: &StmtClassDef, source: &str) -> Vec<MappingAttributeR
 }
 
 fn instance_attributes(class: &StmtClassDef, source: &str) -> Vec<MappingAttributeRow> {
-    let mut attributes = BTreeMap::new();
-    let mut invalid = BTreeSet::new();
+    let mut attributes: BTreeMap<String, MappingAttributeRow> = BTreeMap::new();
+    let mut invalid: BTreeSet<String> = BTreeSet::new();
     for statement in &class.body {
         let Stmt::FunctionDef(function) = statement else {
             continue;
@@ -153,7 +153,7 @@ fn collect_self_attribute_targets(
             }
         }
     }
-    let mut child_buffer = Vec::new();
+    let mut child_buffer: Vec<ShapeNode<'_>> = Vec::new();
     children(&node, &mut child_buffer);
     for child in child_buffer {
         names = collect_self_attribute_targets(child, names);

@@ -4,7 +4,7 @@ use std::sync::OnceLock;
 
 use serde_json::{json, Value};
 
-use crate::models::RuleMetadata;
+use crate::models::{RuleMetadata, ThresholdOverride};
 use crate::skills::_helpers::content::option_rendering::rule_option_lines;
 use crate::skills::_helpers::content::sections::{
     display_project_path, effective_config_lines, expand_repository_profile, governed_path, py_json,
@@ -222,7 +222,7 @@ fn configured_threshold_lines(context: &SkillContext) -> Result<Vec<String>, Str
         .map(|rule| rule.code.clone())
         .collect::<Vec<_>>();
     let required = crate::check::main::required_thresholds::required_thresholds(&active);
-    let mut applicable = Vec::new();
+    let mut applicable: Vec<&ThresholdOverride> = Vec::new();
     for item in &context.config.threshold_overrides {
         if item
             .thresholds

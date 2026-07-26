@@ -68,6 +68,7 @@ const ITERATOR_CLOSURE_METHODS: &[&str] = &[
     "try_fold",
     "try_for_each",
 ];
+const TOOLING_CRATE_SOURCE_PREFIX: &str = "crates/fensu-structure-checker/src/";
 
 pub(crate) fn check(file: &models::SourceFile, syntax: &syn::File) -> Vec<models::Violation> {
     let statics = syntax
@@ -232,11 +233,16 @@ impl<'ast> Visit<'ast> for BodyPolicyVisitor<'_, '_> {
 impl BodyPolicyVisitor<'_, '_> {
     fn visit_iterator_closure(&mut self, closure: &syn::ExprClosure) {
         if self.iterator_closure_depth > 0 {
+            let code = if self.file.relative.starts_with(TOOLING_CRATE_SOURCE_PREFIX) {
+                "RSH006"
+            } else {
+                "RSS131"
+            };
             self.violations
                 .push(policy_violation(PolicyViolationRequest {
                     file: self.file,
                     line: closure.span().start().line,
-                    code: "RSS131",
+                    code,
                     message: "nested iterator closure hides control flow",
                     remediation: "extract the nested iterator transformation into a named function",
                 }));

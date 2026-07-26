@@ -2,8 +2,8 @@
 
 use std::path::Path;
 
+use crate::engine::_helpers::querying::overviews;
 use crate::engine::errors::MemoryIndexError;
-use crate::engine::helpers::querying::overviews;
 use crate::engine::models::MemoryOverview;
 
 /// Return a read-only overview from one synchronized memory index.

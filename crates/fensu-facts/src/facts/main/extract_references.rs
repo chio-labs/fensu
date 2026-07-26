@@ -2,7 +2,7 @@
 
 use ruff_python_ast::ModModule;
 
-use crate::facts::helpers::references::events::reference_rows;
+use crate::facts::_helpers::references::events::reference_rows;
 use crate::facts::models::ReferenceRows;
 use crate::positions::models::LineIndex;
 

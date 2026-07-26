@@ -2,7 +2,7 @@
 
 use ruff_python_ast::ModModule;
 
-use crate::facts::helpers::state::resolution::outer_mutation_ranges;
+use crate::facts::_helpers::state::resolution::outer_mutation_ranges;
 use crate::facts::models::SourceRangeRow;
 use crate::positions::models::LineIndex;
 

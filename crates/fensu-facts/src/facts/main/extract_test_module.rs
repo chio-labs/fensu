@@ -2,7 +2,7 @@
 
 use ruff_python_ast::ModModule;
 
-use crate::facts::helpers::references::test_shape::test_module_rows;
+use crate::facts::_helpers::references::test_shape::test_module_rows;
 use crate::facts::models::TestModuleRows;
 use crate::positions::models::LineIndex;
 

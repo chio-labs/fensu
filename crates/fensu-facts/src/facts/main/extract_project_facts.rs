@@ -2,7 +2,7 @@
 
 use ruff_python_ast::{ModModule, Stmt};
 
-use crate::facts::helpers::project::calls::{
+use crate::facts::_helpers::project::calls::{
     discarded_call_rows, project_function_meaningful_result,
 };
 use crate::facts::models::{DiscardedCallRow, ProjectFunctionRow};

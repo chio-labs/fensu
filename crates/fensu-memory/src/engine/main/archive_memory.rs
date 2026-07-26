@@ -2,8 +2,8 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::engine::_helpers::archival::archive;
 use crate::engine::errors::MemoryIndexError;
-use crate::engine::helpers::archival::archive;
 use crate::engine::models::MemoryArchiveResult;
 
 /// Plan, publish, and synchronize one explicit or age-based archive operation.

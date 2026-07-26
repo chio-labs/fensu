@@ -1,9 +1,9 @@
 //! Register Fensu's private native extension.
 
 use crate::cache::main::register_cache;
-use crate::extension::helpers::evaluation::{execution_planning, rule_bindings};
+use crate::extension::_helpers::evaluation::{execution_planning, rule_bindings};
 #[cfg(feature = "memory")]
-use crate::extension::helpers::memory::registration;
+use crate::extension::_helpers::memory::registration;
 use pyo3::prelude::{pymodule, Bound, PyModule, PyModuleMethods, PyResult};
 use pyo3::wrap_pyfunction;
 

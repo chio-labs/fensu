@@ -2,7 +2,7 @@
 
 use ruff_python_ast::ModModule;
 
-use crate::facts::mapping::helpers::extraction::build_mapping_rows;
+use crate::facts::mapping::_helpers::extraction::build_mapping_rows;
 use crate::facts::mapping::models::MappingRows;
 use crate::positions::models::LineIndex;
 

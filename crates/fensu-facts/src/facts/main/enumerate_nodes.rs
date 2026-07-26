@@ -4,9 +4,9 @@ use std::collections::VecDeque;
 
 use ruff_python_ast::{ModModule, PythonVersion};
 
-use crate::facts::helpers::shape::children::children;
-use crate::facts::helpers::shape::nodes::{kind_name, ShapeNode};
-use crate::facts::helpers::shape::spans::span;
+use crate::facts::_helpers::shape::children::children;
+use crate::facts::_helpers::shape::nodes::{kind_name, ShapeNode};
+use crate::facts::_helpers::shape::spans::span;
 use crate::facts::models::LocatedNode;
 use crate::parsing::main::parse_strict::parse_strict;
 use crate::parsing::models::ParseFailure;

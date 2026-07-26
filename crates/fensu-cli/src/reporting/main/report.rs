@@ -1,7 +1,7 @@
 //! Render one complete check or memory report.
 
+use crate::reporting::_helpers::faults::format_fault;
 use crate::reporting::constants::{DIM, GREEN, ORANGE, RESET};
-use crate::reporting::helpers::faults::format_fault;
 use crate::reporting::models::ReportRequest;
 
 pub(crate) fn report(request: ReportRequest<'_>) -> String {

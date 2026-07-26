@@ -9,7 +9,7 @@ fn given_container_fixtures_when_checking_then_reports_expected_codes() {
         test_types::CheckRepoTestCase {
             description: "helpers container over the module budget is reported",
             repo_files: helpers::numbered_module_files(
-                "crates/example/src/reading/helpers",
+                "crates/example/src/reading/_helpers",
                 11,
                 "fn support() -> usize {\n    1\n}\n",
             ),
@@ -19,11 +19,11 @@ fn given_container_fixtures_when_checking_then_reports_expected_codes() {
             description: "helpers container mixing modules and buckets is reported",
             repo_files: vec![
                 test_types::RepoFile {
-                    path: "crates/example/src/reading/helpers/direct.rs".to_owned(),
+                    path: "crates/example/src/reading/_helpers/direct.rs".to_owned(),
                     contents: "fn support() -> usize {\n    1\n}\n".to_owned(),
                 },
                 test_types::RepoFile {
-                    path: "crates/example/src/reading/helpers/grouping/inner.rs".to_owned(),
+                    path: "crates/example/src/reading/_helpers/grouping/inner.rs".to_owned(),
                     contents: "fn support() -> usize {\n    1\n}\n".to_owned(),
                 },
             ],
@@ -32,7 +32,7 @@ fn given_container_fixtures_when_checking_then_reports_expected_codes() {
         test_types::CheckRepoTestCase {
             description: "helpers bucket nesting beyond one level is reported",
             repo_files: vec![test_types::RepoFile {
-                path: "crates/example/src/reading/helpers/grouping/inner/deep.rs".to_owned(),
+                path: "crates/example/src/reading/_helpers/grouping/inner/deep.rs".to_owned(),
                 contents: "fn support() -> usize {\n    1\n}\n".to_owned(),
             }],
             expected_violation_codes: vec!["RSR301"],
@@ -94,15 +94,15 @@ fn given_helper_prefix_families_when_checking_then_reports_ungrouped_families() 
             description: "a helper prefix cluster at the threshold is reported",
             repo_files: vec![
                 test_types::RepoFile {
-                    path: "crates/example/src/alpha/helpers/memory_parsing.rs".to_owned(),
+                    path: "crates/example/src/alpha/_helpers/memory_parsing.rs".to_owned(),
                     contents: String::new(),
                 },
                 test_types::RepoFile {
-                    path: "crates/example/src/alpha/helpers/memory_values.rs".to_owned(),
+                    path: "crates/example/src/alpha/_helpers/memory_values.rs".to_owned(),
                     contents: String::new(),
                 },
                 test_types::RepoFile {
-                    path: "crates/example/src/alpha/helpers/memory_rendering.rs".to_owned(),
+                    path: "crates/example/src/alpha/_helpers/memory_rendering.rs".to_owned(),
                     contents: String::new(),
                 },
             ],
@@ -112,11 +112,11 @@ fn given_helper_prefix_families_when_checking_then_reports_ungrouped_families() 
             description: "a prefix pair below the cluster threshold is accepted",
             repo_files: vec![
                 test_types::RepoFile {
-                    path: "crates/example/src/alpha/helpers/load.rs".to_owned(),
+                    path: "crates/example/src/alpha/_helpers/load.rs".to_owned(),
                     contents: String::new(),
                 },
                 test_types::RepoFile {
-                    path: "crates/example/src/alpha/helpers/load_optional.rs".to_owned(),
+                    path: "crates/example/src/alpha/_helpers/load_optional.rs".to_owned(),
                     contents: String::new(),
                 },
             ],
@@ -126,11 +126,11 @@ fn given_helper_prefix_families_when_checking_then_reports_ungrouped_families() 
             description: "a prefix family already grouped into a bucket is accepted",
             repo_files: vec![
                 test_types::RepoFile {
-                    path: "crates/example/src/alpha/helpers/memory/parsing.rs".to_owned(),
+                    path: "crates/example/src/alpha/_helpers/memory/parsing.rs".to_owned(),
                     contents: String::new(),
                 },
                 test_types::RepoFile {
-                    path: "crates/example/src/alpha/helpers/memory/values.rs".to_owned(),
+                    path: "crates/example/src/alpha/_helpers/memory/values.rs".to_owned(),
                     contents: String::new(),
                 },
             ],

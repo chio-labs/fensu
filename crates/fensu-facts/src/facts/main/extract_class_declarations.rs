@@ -2,10 +2,10 @@
 
 use ruff_python_ast::{ModModule, Stmt};
 
-use crate::facts::helpers::naming::names::{class_base_expressions, decorator_name};
-use crate::facts::helpers::shape::breadth::breadth_first_with_parents;
-use crate::facts::helpers::shape::nodes::ShapeNode;
-use crate::facts::helpers::shape::spans::start_of;
+use crate::facts::_helpers::naming::names::{class_base_expressions, decorator_name};
+use crate::facts::_helpers::shape::breadth::breadth_first_with_parents;
+use crate::facts::_helpers::shape::nodes::ShapeNode;
+use crate::facts::_helpers::shape::spans::start_of;
 use crate::facts::models::{ClassDeclarationRow, ClassMethodRow, DefinitionIdentityRow};
 use crate::positions::models::LineIndex;
 
@@ -28,7 +28,7 @@ pub fn extract_class_declarations(
             column,
         };
         let base_names = class_base_expressions(class)
-            .filter_map(crate::facts::helpers::naming::names::subscript_base_name)
+            .filter_map(crate::facts::_helpers::naming::names::subscript_base_name)
             .map(str::to_owned)
             .collect();
         let methods = direct_methods(class, &identity, index, source);

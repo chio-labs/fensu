@@ -2,7 +2,7 @@
 
 use ruff_python_ast::ModModule;
 
-use crate::facts::helpers::harness::calls::evaluate_rule_call_rows;
+use crate::facts::_helpers::harness::calls::evaluate_rule_call_rows;
 use crate::facts::models::EvaluateRuleCallRow;
 use crate::positions::models::LineIndex;
 

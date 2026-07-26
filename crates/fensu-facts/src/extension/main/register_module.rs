@@ -4,9 +4,9 @@ use pyo3::types::{PyModule, PyModuleMethods};
 use pyo3::wrap_pyfunction;
 use pyo3::{Bound, PyResult};
 
-use crate::extension::helpers::gateway::bindings;
-use crate::extension::helpers::gateway::repository_bindings;
-use crate::extension::helpers::gateway::rule_authoring_bindings;
+use crate::extension::_helpers::gateway::bindings;
+use crate::extension::_helpers::gateway::repository_bindings;
+use crate::extension::_helpers::gateway::rule_authoring_bindings;
 use crate::extension::models::ProgramHandle;
 
 /// Expose the native fact-extraction functions to Python.

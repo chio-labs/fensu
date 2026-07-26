@@ -2,8 +2,8 @@
 
 use std::path::Path;
 
+use crate::engine::_helpers::querying::queries;
 use crate::engine::errors::MemoryIndexError;
-use crate::engine::helpers::querying::queries;
 use crate::engine::models::MemoryQueryResult;
 
 /// Return bounded rows from one caller-supplied read-only SQLite query.

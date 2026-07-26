@@ -2,12 +2,12 @@
 
 use ruff_python_ast::{ModModule, Stmt};
 
-use crate::facts::helpers::declarations::rows::{
+use crate::facts::_helpers::declarations::rows::{
     collect_alias_rows, collect_class_rows, collect_import_time_calls, collect_statement_rows,
     imported_main_entry_names, main_call_rows,
 };
-use crate::facts::helpers::naming::names::is_docstring_statement;
-use crate::facts::helpers::shape::breadth::breadth_first_nodes;
+use crate::facts::_helpers::naming::names::is_docstring_statement;
+use crate::facts::_helpers::shape::breadth::breadth_first_nodes;
 use crate::facts::models::ModuleDeclarationRows;
 use crate::positions::models::LineIndex;
 
@@ -24,7 +24,7 @@ pub fn extract_module_declarations(
     collect_alias_rows(&breadth_nodes, index, source, &mut rows);
     rows.empty_or_docstring_only = module.body.is_empty()
         || (module.body.len() == 1 && is_docstring_statement(&module.body[0]));
-    rows.pure_reexport = crate::facts::helpers::declarations::rows::is_pure_reexport(module);
+    rows.pure_reexport = crate::facts::_helpers::declarations::rows::is_pure_reexport(module);
     rows.top_level_class_count = u32::try_from(
         module
             .body

@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use walkdir::WalkDir;
 
-use crate::snapshot::helpers::matching::{has_python_suffix, root_relative_parts};
+use crate::snapshot::_helpers::matching::{has_python_suffix, root_relative_parts};
 use crate::snapshot::models::WalkedEntry;
 
 /// Return every Python-suffixed entry beneath each root without following directory links.

@@ -118,7 +118,7 @@ fn given_layer_fixtures_when_checking_then_reports_expected_codes() {
             description: "importing another domain's helpers is reported",
             repo_files: vec![test_types::RepoFile {
                 path: "crates/example/src/writing/main/write_value.rs".to_owned(),
-                contents: "use crate::reading::helpers::loading::load;\n\npub fn write_value() -> usize {\n    load()\n}\n"
+                contents: "use crate::reading::_helpers::loading::load;\n\npub fn write_value() -> usize {\n    load()\n}\n"
                     .to_owned(),
             }],
             expected_violation_codes: vec!["RSL101"],
@@ -127,7 +127,7 @@ fn given_layer_fixtures_when_checking_then_reports_expected_codes() {
             description: "importing own domain helpers is allowed",
             repo_files: vec![test_types::RepoFile {
                 path: "crates/example/src/reading/main/read_value.rs".to_owned(),
-                contents: "use crate::reading::helpers::loading::load;\n\npub fn read_value() -> usize {\n    load()\n}\n"
+                contents: "use crate::reading::_helpers::loading::load;\n\npub fn read_value() -> usize {\n    load()\n}\n"
                     .to_owned(),
             }],
             expected_violation_codes: vec![],
@@ -135,7 +135,7 @@ fn given_layer_fixtures_when_checking_then_reports_expected_codes() {
         test_types::CheckRepoTestCase {
             description: "native rule importing raw AST types is reported",
             repo_files: vec![test_types::RepoFile {
-                path: "crates/example/src/rules/helpers/annotations.rs".to_owned(),
+                path: "crates/example/src/rules/_helpers/annotations.rs".to_owned(),
                 contents: "use ruff_python_ast::ModModule;\n".to_owned(),
             }],
             expected_violation_codes: vec!["RSL102"],
@@ -143,7 +143,7 @@ fn given_layer_fixtures_when_checking_then_reports_expected_codes() {
         test_types::CheckRepoTestCase {
             description: "native rule importing the raw parser is reported",
             repo_files: vec![test_types::RepoFile {
-                path: "crates/example/src/rules/helpers/annotations.rs".to_owned(),
+                path: "crates/example/src/rules/_helpers/annotations.rs".to_owned(),
                 contents: "use {ruff_python_parser, fensu_facts};\n".to_owned(),
             }],
             expected_violation_codes: vec!["RSL102"],
@@ -151,7 +151,7 @@ fn given_layer_fixtures_when_checking_then_reports_expected_codes() {
         test_types::CheckRepoTestCase {
             description: "native rule consuming shared fact rows is allowed",
             repo_files: vec![test_types::RepoFile {
-                path: "crates/example/src/rules/helpers/annotations.rs".to_owned(),
+                path: "crates/example/src/rules/_helpers/annotations.rs".to_owned(),
                 contents: "use fensu_facts::facts::models::AnnotationRows;\n".to_owned(),
             }],
             expected_violation_codes: vec![],

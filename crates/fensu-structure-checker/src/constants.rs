@@ -43,8 +43,8 @@ pub const ROLE_FILE_NAMES: &[&str] = &[
     "models.rs",
     "types.rs",
 ];
-pub const CONTAINER_DIRECTORY_NAMES: &[&str] = &["helpers", "main"];
-pub const HELPERS_DIRECTORY: &str = "helpers";
+pub const CONTAINER_DIRECTORY_NAMES: &[&str] = &["_helpers", "main"];
+pub const HELPERS_DIRECTORY: &str = "_helpers";
 pub const MAIN_DIRECTORY: &str = "main";
 pub const RULES_DIRECTORY: &str = "rules";
 pub const MOD_FILE: &str = "mod.rs";

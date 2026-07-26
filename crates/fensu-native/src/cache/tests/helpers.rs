@@ -3,8 +3,8 @@
 use std::sync::Arc;
 use std::thread;
 
-use crate::cache::helpers::records::encode_canonical_record;
-use crate::cache::helpers::storage::write_records;
+use crate::cache::_helpers::records::encode_canonical_record;
+use crate::cache::_helpers::storage::write_records;
 use crate::cache::models::{CanonicalValue, EncodedWrite};
 
 const MAXIMUM_RECORD_BYTES: usize = 1_000_000;

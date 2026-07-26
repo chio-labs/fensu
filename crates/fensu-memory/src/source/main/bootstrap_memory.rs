@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use crate::source::helpers::bootstrap;
+use crate::source::_helpers::bootstrap;
 
 /// Validate existing sources and create missing canonical memory state once.
 pub fn bootstrap_memory(repository_root: &Path) -> Result<(), String> {

@@ -1,6 +1,6 @@
 //! Return focused compiled metadata for one memory relation.
 
-use crate::engine::helpers::reporting::schema_metadata;
+use crate::engine::_helpers::reporting::schema_metadata;
 use crate::engine::models::MemorySchemaRelation;
 
 /// Return focused metadata for one `memory.*` relation name.

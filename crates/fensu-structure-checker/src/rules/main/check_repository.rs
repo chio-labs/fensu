@@ -4,10 +4,10 @@ use std::path;
 
 use crate::constants;
 use crate::models;
-use crate::rules::helpers::containers;
-use crate::rules::helpers::layers;
-use crate::rules::helpers::scanning;
-use crate::rules::helpers::tests_layout;
+use crate::rules::_helpers::containers;
+use crate::rules::_helpers::layers;
+use crate::rules::_helpers::scanning;
+use crate::rules::_helpers::tests_layout;
 
 /// Check the workspace under repo_root and return deterministic violations.
 pub fn check_repository(repo_root: &path::Path) -> Vec<models::Violation> {

@@ -6,6 +6,7 @@ pub mod command;
 mod _helpers;
 mod configuration;
 mod constants;
+mod hosting;
 mod mapping;
 mod models;
 mod reporting;

@@ -68,7 +68,7 @@ fn drift_text(repository: &Path) -> Result<String, String> {
 fn native_drift(repository: &Path) -> Result<(usize, usize), String> {
     let invocation = env::current_dir().map_err(|error| error.to_string())?;
     env::set_current_dir(repository).map_err(|error| error.to_string())?;
-    let result = crate::_helpers::check::execution::execute_check(&[
+    let result = crate::check::main::execute_check::execute_check(&[
         "--no-color".to_owned(),
         "--cache".to_owned(),
     ]);

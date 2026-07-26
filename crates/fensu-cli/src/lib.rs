@@ -3,8 +3,8 @@
 
 pub mod command;
 
-mod _helpers;
 mod catalogue;
+mod check;
 mod configuration;
 mod constants;
 mod hosting;

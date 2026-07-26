@@ -1,4 +1,4 @@
-use crate::_helpers::check::execution::execute_check;
+use crate::check::main::execute_check::execute_check;
 use crate::models::CliOutput;
 
 pub(crate) fn run(arguments: &[String]) -> Result<CliOutput, String> {

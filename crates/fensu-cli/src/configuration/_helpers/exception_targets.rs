@@ -6,7 +6,7 @@ use fensu_facts::parsing::main::parse_strict::parse_strict;
 use ruff_python_ast::visitor::{walk_stmt, Visitor};
 use ruff_python_ast::Stmt;
 
-use crate::_helpers::check::policy::python_version;
+use crate::check::main::python_version::python_version;
 use crate::models::Config;
 
 pub(crate) fn validate_targets(config: &Config, project_root: &Path) -> Result<(), String> {

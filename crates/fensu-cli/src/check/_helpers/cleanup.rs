@@ -6,20 +6,10 @@ use cap_fs_ext::DirExt;
 use cap_std::ambient_authority;
 use cap_std::fs::{Dir, DirEntry};
 
+use crate::check::models::CleanupPlan;
 use crate::configuration::main::load;
 use crate::constants::PYTHON_CACHE_DIRECTORY;
 use crate::models::Config;
-
-pub(crate) struct CleanupPlan {
-    repository: Dir,
-    config: Config,
-}
-
-impl CleanupPlan {
-    pub(crate) fn run(&self) {
-        cleanup_configured_roots(&self.repository, &self.config);
-    }
-}
 
 pub(crate) fn prepare(invocation: &Path) -> Option<CleanupPlan> {
     let invocation_directory = Dir::open_ambient_dir(invocation, ambient_authority()).ok()?;
@@ -37,7 +27,7 @@ pub(crate) fn prepare(invocation: &Path) -> Option<CleanupPlan> {
     (repository.read(config_name).ok()? == config.raw).then_some(CleanupPlan { repository, config })
 }
 
-fn cleanup_configured_roots(repository: &Dir, config: &Config) {
+pub(crate) fn cleanup_configured_roots(repository: &Dir, config: &Config) {
     let protected_roots = configured_roots(config);
     for configured_root in &protected_roots {
         let Some(directory) = open_directory(repository, configured_root) else {

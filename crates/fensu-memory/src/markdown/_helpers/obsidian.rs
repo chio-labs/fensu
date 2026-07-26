@@ -15,25 +15,61 @@ pub(crate) fn extract(source: &str, index: &LineIndex) -> (Vec<MarkdownLink>, Ve
     mask_frontmatter(source, &mut mask);
     mask_comments(source, &mut mask);
     let mut links = wikilinks(source, index, &mut mask);
-    links.extend(bare_urls(source, index, &mask));
-    let tags = tags(source, index, &mask);
+    links.extend(bare_urls(source, index, &mask.values));
+    let tags = tags(source, index, &mask.values);
     (links, tags)
 }
 
-fn exclusion_mask(source: &str) -> Vec<bool> {
+struct ExclusionMask {
+    values: Vec<bool>,
+}
+
+impl ExclusionMask {
+    fn mark(&mut self, range: Range<usize>) {
+        let end = range.end.min(self.values.len());
+        for value in self.values.iter_mut().take(end).skip(range.start.min(end)) {
+            *value = true;
+        }
+    }
+
+    fn wikilink_end(&self, bytes: &[u8], mut cursor: usize) -> Option<usize> {
+        while cursor + 1 < bytes.len() {
+            if bytes[cursor] == b'\n' || bytes[cursor] == b'\r' || self.values[cursor] {
+                return None;
+            }
+            if bytes[cursor] == b']' && bytes[cursor + 1] == b']' {
+                return Some(cursor);
+            }
+            cursor += 1;
+        }
+        None
+    }
+}
+
+struct WikilinkBuild<'a> {
+    source: &'a str,
+    index: &'a LineIndex,
+    range: Range<usize>,
+    body_range: Range<usize>,
+    embedded: bool,
+}
+
+fn exclusion_mask(source: &str) -> ExclusionMask {
     let parser = Parser::new_ext(source, text::parser_options()).into_offset_iter();
-    let mut mask = vec![false; source.len()];
+    let mut mask = ExclusionMask {
+        values: vec![false; source.len()],
+    };
     for (event, range) in parser {
         if matches!(event, Event::Start(Tag::CodeBlock(_)) | Event::Code(_))
             || matches!(event, Event::Start(Tag::Link { .. }))
         {
-            mark(&mut mask, range);
+            mask.mark(range);
         }
     }
     mask
 }
 
-fn mask_frontmatter(source: &str, mask: &mut [bool]) {
+fn mask_frontmatter(source: &str, mask: &mut ExclusionMask) {
     let first_end = source.find('\n').map_or(source.len(), |offset| offset + 1);
     let first = source
         .get(..first_end)
@@ -53,34 +89,34 @@ fn mask_frontmatter(source: &str, mask: &mut [bool]) {
             .unwrap_or_default()
             .trim_end_matches(['\r', '\n']);
         if matches!(line, "---" | "...") {
-            mark(mask, 0..next);
+            mask.mark(0..next);
             return;
         }
         cursor = next;
     }
 }
 
-fn mask_comments(source: &str, mask: &mut [bool]) {
+fn mask_comments(source: &str, mask: &mut ExclusionMask) {
     let bytes = source.as_bytes();
     let mut cursor = 0;
     while cursor + 1 < bytes.len() {
-        if !mask[cursor] && bytes[cursor] == b'%' && bytes[cursor + 1] == b'%' {
+        if !mask.values[cursor] && bytes[cursor] == b'%' && bytes[cursor + 1] == b'%' {
             let start = cursor;
             cursor += 2;
             while cursor + 1 < bytes.len()
-                && (mask[cursor] || bytes[cursor] != b'%' || bytes[cursor + 1] != b'%')
+                && (mask.values[cursor] || bytes[cursor] != b'%' || bytes[cursor + 1] != b'%')
             {
                 cursor += 1;
             }
             cursor = (cursor + 2).min(bytes.len());
-            mark(mask, start..cursor);
+            mask.mark(start..cursor);
         } else {
             cursor += 1;
         }
     }
 }
 
-fn wikilinks(source: &str, index: &LineIndex, mask: &mut [bool]) -> Vec<MarkdownLink> {
+fn wikilinks(source: &str, index: &LineIndex, mask: &mut ExclusionMask) -> Vec<MarkdownLink> {
     let bytes = source.as_bytes();
     let mut links = Vec::new();
     let mut cursor = 0;
@@ -89,48 +125,41 @@ fn wikilinks(source: &str, index: &LineIndex, mask: &mut [bool]) -> Vec<Markdown
             && cursor + 2 < bytes.len()
             && bytes[cursor + 1] == b'['
             && bytes[cursor + 2] == b'[';
-        let opening =
-            !mask[cursor] && ((bytes[cursor] == b'[' && bytes[cursor + 1] == b'[') || embedded);
+        let opening = !mask.values[cursor]
+            && ((bytes[cursor] == b'[' && bytes[cursor + 1] == b'[') || embedded);
         if !opening {
             cursor += 1;
             continue;
         }
         let body_start = cursor + if embedded { 3 } else { 2 };
-        let Some(end) = wikilink_end(bytes, mask, body_start) else {
+        let Some(end) = mask.wikilink_end(bytes, body_start) else {
             cursor += 1;
             continue;
         };
         let range = cursor..end + 2;
-        if let Some(link) = build_wikilink(source, index, range.clone(), body_start..end, embedded)
-        {
+        if let Some(link) = build_wikilink(WikilinkBuild {
+            source,
+            index,
+            range: range.clone(),
+            body_range: body_start..end,
+            embedded,
+        }) {
             links.push(link);
-            mark(mask, range.clone());
+            mask.mark(range.clone());
         }
         cursor = range.end;
     }
     links
 }
 
-fn wikilink_end(bytes: &[u8], mask: &[bool], mut cursor: usize) -> Option<usize> {
-    while cursor + 1 < bytes.len() {
-        if bytes[cursor] == b'\n' || bytes[cursor] == b'\r' || mask[cursor] {
-            return None;
-        }
-        if bytes[cursor] == b']' && bytes[cursor + 1] == b']' {
-            return Some(cursor);
-        }
-        cursor += 1;
-    }
-    None
-}
-
-fn build_wikilink(
-    source: &str,
-    index: &LineIndex,
-    range: Range<usize>,
-    body_range: Range<usize>,
-    embedded: bool,
-) -> Option<MarkdownLink> {
+fn build_wikilink(build: WikilinkBuild<'_>) -> Option<MarkdownLink> {
+    let WikilinkBuild {
+        source,
+        index,
+        range,
+        body_range,
+        embedded,
+    } = build;
     let body = source.get(body_range)?.trim();
     let (destination, alias) = body
         .split_once('|')
@@ -239,13 +268,6 @@ fn tags(source: &str, index: &LineIndex, mask: &[bool]) -> Vec<MarkdownTag> {
         });
     }
     tags
-}
-
-fn mark(mask: &mut [bool], range: Range<usize>) {
-    let end = range.end.min(mask.len());
-    for value in mask.iter_mut().take(end).skip(range.start.min(end)) {
-        *value = true;
-    }
 }
 
 fn nonempty(value: &str) -> Option<&str> {

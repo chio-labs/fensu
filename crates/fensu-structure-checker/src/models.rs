@@ -12,21 +12,25 @@ pub struct Violation {
     pub remediation: &'static str,
 }
 
+/// Named inputs for one structure violation.
+#[derive(Debug)]
+pub struct ViolationRequest<'a, Message> {
+    pub code: &'static str,
+    pub path: &'a path::Path,
+    pub line: Option<usize>,
+    pub message: Message,
+    pub remediation: &'static str,
+}
+
 impl Violation {
     /// Build one violation record for a checked file.
-    pub fn new(
-        code: &'static str,
-        path: &path::Path,
-        line: Option<usize>,
-        message: impl Into<String>,
-        remediation: &'static str,
-    ) -> Self {
+    pub fn new<Message: Into<String>>(request: ViolationRequest<'_, Message>) -> Self {
         Self {
-            code,
-            path: path.to_path_buf(),
-            line,
-            message: message.into(),
-            remediation,
+            code: request.code,
+            path: request.path.to_path_buf(),
+            line: request.line,
+            message: request.message.into(),
+            remediation: request.remediation,
         }
     }
 

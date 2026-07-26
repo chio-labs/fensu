@@ -4,6 +4,7 @@ use std::path;
 
 use crate::constants;
 use crate::models;
+use crate::rules::_helpers::functions::shape_project;
 use crate::rules::_helpers::imports::layers;
 use crate::rules::_helpers::imports::visibility;
 use crate::rules::_helpers::roles::containers;
@@ -17,6 +18,10 @@ pub fn check_repository(repo_root: &path::Path) -> Vec<models::Violation> {
     let workspace = scanning::scan_workspace(repo_root);
     let mut violations = workspace.violations;
     violations.extend(visibility::check_workspace(
+        repo_root,
+        &workspace.crate_directories,
+    ));
+    violations.extend(shape_project::check_workspace(
         repo_root,
         &workspace.crate_directories,
     ));

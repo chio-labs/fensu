@@ -68,11 +68,13 @@ pub(crate) fn naming_faults(
         _ => return None,
     };
     Some(matched_contracts(rows, context).map(|matches| {
-        matches
-            .into_iter()
-            .filter(|matched| matched.behavior == wanted_behavior)
-            .filter_map(|matched| fault_for(code, matched.row))
-            .collect()
+        let mut faults = Vec::new();
+        for matched in matches {
+            if matched.behavior == wanted_behavior {
+                faults.extend(fault_for(code, matched.row));
+            }
+        }
+        faults
     }))
 }
 

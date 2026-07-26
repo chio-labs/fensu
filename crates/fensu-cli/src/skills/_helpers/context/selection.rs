@@ -208,24 +208,28 @@ fn tier_from_codes(
 }
 
 fn selected(catalogue: &[RuleMetadata], selectors: &[String]) -> Vec<RuleMetadata> {
-    catalogue
-        .iter()
-        .filter(|item| {
-            (item.enabled_by_default && selectors.iter().any(|value| item.code.starts_with(value)))
-                || selectors
-                    .iter()
-                    .any(|value| valid_code(value) && value == &item.code)
-        })
-        .cloned()
-        .collect()
+    let mut selected = Vec::new();
+    for item in catalogue {
+        let enabled =
+            item.enabled_by_default && selectors.iter().any(|value| item.code.starts_with(value));
+        let explicit = selectors
+            .iter()
+            .any(|value| valid_code(value) && value == &item.code);
+        if enabled || explicit {
+            selected.push(item.clone());
+        }
+    }
+    selected
 }
 
 fn matching(catalogue: &[RuleMetadata], selectors: &[String]) -> Vec<RuleMetadata> {
-    catalogue
-        .iter()
-        .filter(|item| selectors.iter().any(|value| item.code.starts_with(value)))
-        .cloned()
-        .collect()
+    let mut matching = Vec::new();
+    for item in catalogue {
+        if selectors.iter().any(|value| item.code.starts_with(value)) {
+            matching.push(item.clone());
+        }
+    }
+    matching
 }
 
 fn validate_tiers(

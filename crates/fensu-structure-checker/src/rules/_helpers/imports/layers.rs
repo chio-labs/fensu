@@ -7,6 +7,7 @@ use syn::visit::Visit;
 
 use crate::constants;
 use crate::models;
+use crate::rules::_helpers::imports::reference_paths;
 use crate::rules::_helpers::sources::scanning;
 
 /// Check every use declaration in one file for layer violations.
@@ -82,13 +83,13 @@ fn crate_manifest_violations(
         .and_then(toml::Value::as_bool)
         == Some(true);
     if !inherits_lints {
-        violations.push(models::Violation::new(
-            "RSL302",
-            relative,
-            None,
-            "crate does not inherit the workspace lint policy",
-            "add [lints] workspace = true to the crate manifest",
-        ));
+        violations.push(models::Violation::new(models::ViolationRequest {
+            code: "RSL302",
+            path: relative,
+            line: None,
+            message: "crate does not inherit the workspace lint policy",
+            remediation: "add [lints] workspace = true to the crate manifest",
+        }));
     }
     violations.extend(dependency_policy_violations(relative, manifest));
     violations
@@ -106,13 +107,13 @@ fn dependency_policy_violations(
                 .and_then(toml::Value::as_bool)
                 == Some(true);
             if !inherits {
-                violations.push(models::Violation::new(
-                    "RSL307",
-                    relative,
-                    None,
-                    format!("dependency {name} does not inherit workspace policy"),
-                    "declare the dependency under [workspace.dependencies] and use workspace = true",
-                ));
+                violations.push(models::Violation::new(models::ViolationRequest {
+code: "RSL307",
+path: relative,
+line: None,
+message: format!("dependency {name} does not inherit workspace policy"),
+remediation: "declare the dependency under [workspace.dependencies] and use workspace = true",
+}));
             }
             violations.extend(dependency_declaration_violations(
                 relative,
@@ -153,24 +154,24 @@ fn dependency_declaration_violations(
 ) -> Vec<models::Violation> {
     let mut violations: Vec<models::Violation> = Vec::new();
     if specification_version(specification) == Some(constants::WILDCARD_VERSION) {
-        violations.push(models::Violation::new(
-            "RSL304",
-            relative,
-            None,
-            format!("dependency {name} uses a wildcard version"),
-            "pin the dependency in [workspace.dependencies]",
-        ));
+        violations.push(models::Violation::new(models::ViolationRequest {
+            code: "RSL304",
+            path: relative,
+            line: None,
+            message: format!("dependency {name} uses a wildcard version"),
+            remediation: "pin the dependency in [workspace.dependencies]",
+        }));
     }
     let unpinned_git = specification.get(constants::GIT_KEY).is_some()
         && specification.get(constants::REV_KEY).is_none();
     if unpinned_git {
-        violations.push(models::Violation::new(
-            "RSL305",
-            relative,
-            None,
-            format!("Git dependency {name} is not pinned to a revision"),
-            "set an immutable rev in the workspace dependency declaration",
-        ));
+        violations.push(models::Violation::new(models::ViolationRequest {
+            code: "RSL305",
+            path: relative,
+            line: None,
+            message: format!("Git dependency {name} is not pinned to a revision"),
+            remediation: "set an immutable rev in the workspace dependency declaration",
+        }));
     }
     let escaping_path = specification
         .get(constants::PATH_KEY)
@@ -184,13 +185,13 @@ fn dependency_declaration_violations(
             })
         });
     if escaping_path {
-        violations.push(models::Violation::new(
-            "RSL306",
-            relative,
-            None,
-            format!("path dependency {name} escapes its manifest directory"),
-            "own workspace paths at the repository root without parent traversal",
-        ));
+        violations.push(models::Violation::new(models::ViolationRequest {
+            code: "RSL306",
+            path: relative,
+            line: None,
+            message: format!("path dependency {name} escapes its manifest directory"),
+            remediation: "own workspace paths at the repository root without parent traversal",
+        }));
     }
     violations
 }
@@ -227,13 +228,14 @@ fn tooling_dependency_violations(
             name == constants::TOOLING_CRATE_NAME || package == Some(constants::TOOLING_CRATE_NAME)
         });
         if contains_tooling {
-            return vec![models::Violation::new(
-                "RSL301",
-                relative,
-                None,
-                format!("crate depends on {}", constants::TOOLING_CRATE_NAME),
-                "the structure checker is tooling; runtime crates must not depend on it",
-            )];
+            return vec![models::Violation::new(models::ViolationRequest {
+                code: "RSL301",
+                path: relative,
+                line: None,
+                message: format!("crate depends on {}", constants::TOOLING_CRATE_NAME),
+                remediation:
+                    "the structure checker is tooling; runtime crates must not depend on it",
+            })];
         }
     }
     Vec::new()
@@ -263,23 +265,25 @@ impl<'ast, 'files> Visit<'ast> for UseVisitor<'files> {
         if let syn::UseTree::Path(use_path) = &node.tree {
             let root = use_path.ident.to_string();
             if root == constants::SELF_MODULE || root == constants::SUPER_MODULE {
-                self.violations.push(models::Violation::new(
-                    "RSL001",
-                    self.file.relative_path(),
-                    Some(line),
-                    format!("use path starts with {root}"),
-                    "import through crate::, std::, or an external crate name",
-                ));
+                self.violations
+                    .push(models::Violation::new(models::ViolationRequest {
+                        code: "RSL001",
+                        path: self.file.relative_path(),
+                        line: Some(line),
+                        message: format!("use path starts with {root}"),
+                        remediation: "import through crate::, std::, or an external crate name",
+                    }));
             }
         }
         if contains_glob(&node.tree) {
-            self.violations.push(models::Violation::new(
-                "RSL002",
-                self.file.relative_path(),
-                Some(line),
-                "wildcard import hides the names a module depends on",
-                "import each required name explicitly",
-            ));
+            self.violations
+                .push(models::Violation::new(models::ViolationRequest {
+                    code: "RSL002",
+                    path: self.file.relative_path(),
+                    line: Some(line),
+                    message: "wildcard import hides the names a module depends on",
+                    remediation: "import each required name explicitly",
+                }));
         }
         if self.library_source {
             self.violations
@@ -294,20 +298,18 @@ fn raw_parser_access_violations(
     tree: &syn::UseTree,
     line: usize,
 ) -> Vec<models::Violation> {
-    let mut paths: Vec<Vec<String>> = Vec::new();
-    flatten_use_tree(tree, &mut Vec::new(), &mut paths);
-    paths
+    reference_paths::use_paths(tree)
         .into_iter()
         .filter_map(|path| path.first().cloned())
         .filter(|root| constants::RAW_PARSER_CRATES.contains(&root.as_str()))
         .map(|root| {
-            models::Violation::new(
-                "RSL102",
-                file.relative_path(),
-                Some(line),
-                format!("native rule module imports raw parser crate {root}"),
-                "consume shared fensu-facts row models instead of parser or AST types",
-            )
+            models::Violation::new(models::ViolationRequest {
+                code: "RSL102",
+                path: file.relative_path(),
+                line: Some(line),
+                message: format!("native rule module imports raw parser crate {root}"),
+                remediation: "consume shared fensu-facts row models instead of parser or AST types",
+            })
         })
         .collect()
 }
@@ -318,8 +320,7 @@ fn helper_boundary_violations(
     line: usize,
 ) -> Vec<models::Violation> {
     let mut violations: Vec<models::Violation> = Vec::new();
-    let mut paths: Vec<Vec<String>> = Vec::new();
-    flatten_use_tree(&node.tree, &mut Vec::new(), &mut paths);
+    let paths = reference_paths::use_paths(&node.tree);
     for segments in &paths {
         if segments.first().map(String::as_str) != Some("crate") {
             continue;
@@ -342,41 +343,15 @@ fn helper_boundary_violations(
         if inside.starts_with(&format!("{owner}/")) {
             continue;
         }
-        violations.push(models::Violation::new(
-            "RSL101",
-            file.relative_path(),
-            Some(line),
-            format!("imports helper internals of the {owner} domain"),
-            "use the owning domain's entry modules or role files instead",
-        ));
+        violations.push(models::Violation::new(models::ViolationRequest {
+            code: "RSL101",
+            path: file.relative_path(),
+            line: Some(line),
+            message: format!("imports helper internals of the {owner} domain"),
+            remediation: "use the owning domain's entry modules or role files instead",
+        }));
     }
     violations
-}
-
-fn flatten_use_tree(tree: &syn::UseTree, prefix: &mut Vec<String>, out: &mut Vec<Vec<String>>) {
-    match tree {
-        syn::UseTree::Path(use_path) => {
-            prefix.push(use_path.ident.to_string());
-            flatten_use_tree(&use_path.tree, prefix, out);
-            let _ = prefix.pop();
-        }
-        syn::UseTree::Name(name) => {
-            prefix.push(name.ident.to_string());
-            out.push(prefix.to_vec());
-            let _ = prefix.pop();
-        }
-        syn::UseTree::Rename(rename) => {
-            prefix.push(rename.ident.to_string());
-            out.push(prefix.to_vec());
-            let _ = prefix.pop();
-        }
-        syn::UseTree::Glob(_) => out.push(prefix.to_vec()),
-        syn::UseTree::Group(group) => {
-            for item in &group.items {
-                flatten_use_tree(item, prefix, out);
-            }
-        }
-    }
 }
 
 fn contains_glob(tree: &syn::UseTree) -> bool {

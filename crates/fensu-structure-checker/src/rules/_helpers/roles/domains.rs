@@ -120,13 +120,14 @@ fn direct_module_violations(
         })
         .map(|name| {
             let relative = format!("{source_root}/{domain}/{name}");
-            models::Violation::new(
-                "RSR307",
-                path::Path::new(&relative),
-                None,
-                "top-level domain holds an ad hoc direct module",
-                "move the module under a role boundary or into an owning named subdomain",
-            )
+            models::Violation::new(models::ViolationRequest {
+                code: "RSR307",
+                path: path::Path::new(&relative),
+                line: None,
+                message: "top-level domain holds an ad hoc direct module",
+                remediation:
+                    "move the module under a role boundary or into an owning named subdomain",
+            })
         })
         .collect()
 }
@@ -144,16 +145,16 @@ fn domain_shape_violations(
         return Vec::new();
     }
     let relative = format!("{source_root}/{domain}");
-    vec![models::Violation::new(
-        "RSR306",
-        path::Path::new(&relative),
-        None,
-        format!(
+    vec![models::Violation::new(models::ViolationRequest {
+        code: "RSR306",
+        path: path::Path::new(&relative),
+        line: None,
+        message: format!(
             "top-level domain mixes direct role content with subdomains {}",
             nested.join(", ")
         ),
-        "keep direct role content in a leaf domain, or move it into a named subdomain",
-    )]
+        remediation: "keep direct role content in a leaf domain, or move it into a named subdomain",
+    })]
 }
 
 fn role_boundary_violations(
@@ -174,13 +175,13 @@ fn role_boundary_violations(
         .iter()
         .map(|name| {
             let relative = format!("{source_root}/{directory}/{name}");
-            models::Violation::new(
-                "RSR305",
-                path::Path::new(&relative),
-                None,
-                "nested package holds a feature subpackage outside a role boundary",
-                "move the subpackage under _helpers/ or expose it through main/",
-            )
+            models::Violation::new(models::ViolationRequest {
+                code: "RSR305",
+                path: path::Path::new(&relative),
+                line: None,
+                message: "nested package holds a feature subpackage outside a role boundary",
+                remediation: "move the subpackage under _helpers/ or expose it through main/",
+            })
         })
         .collect()
 }
@@ -203,13 +204,14 @@ fn main_boundary_violations(
         return Vec::new();
     }
     let relative = format!("{source_root}/{directory}");
-    vec![models::Violation::new(
-        "RSR309",
-        path::Path::new(&relative),
-        None,
-        "leaf domain exposes no main/ entry module",
-        "add a focused main/ entry, or move passive declarations to the domain that owns them",
-    )]
+    vec![models::Violation::new(models::ViolationRequest {
+        code: "RSR309",
+        path: path::Path::new(&relative),
+        line: None,
+        message: "leaf domain exposes no main/ entry module",
+        remediation:
+            "add a focused main/ entry, or move passive declarations to the domain that owns them",
+    })]
 }
 
 fn holds_entry_module(tree: &BTreeMap<String, DirectoryContents>, directory: &str) -> bool {
@@ -218,12 +220,14 @@ fn holds_entry_module(tree: &BTreeMap<String, DirectoryContents>, directory: &st
         .filter(|(key, _)| {
             **key == main_directory || key.starts_with(&format!("{main_directory}/"))
         })
-        .any(|(_, contents)| {
-            contents
-                .modules
-                .iter()
-                .any(|name| name != constants::MOD_FILE)
-        })
+        .any(|(_, contents)| holds_non_mod_module(contents))
+}
+
+fn holds_non_mod_module(contents: &DirectoryContents) -> bool {
+    contents
+        .modules
+        .iter()
+        .any(|name| name != constants::MOD_FILE)
 }
 
 fn inside_role_container(directory: &str) -> bool {

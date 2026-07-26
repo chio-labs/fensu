@@ -33,32 +33,32 @@ fn check_test_function(file: &models::SourceFile, item_fn: &syn::ItemFn) -> Vec<
     let body = collect_body(item_fn);
     let line = Some(item_fn.sig.ident.span().start().line);
     if body.case_binding_line.is_none() {
-        violations.push(models::Violation::new(
-            "RST401",
-            file.relative_path(),
+        violations.push(models::Violation::new(models::ViolationRequest {
+            code: "RST401",
+            path: file.relative_path(),
             line,
-            "test declares no test_cases binding",
-            "declare let test_cases = [ ... ]; of test_types structs first",
-        ));
+            message: "test declares no test_cases binding",
+            remediation: "declare let test_cases = [ ... ]; of test_types structs first",
+        }));
     }
     if body.case_binding_line.is_some() && body.case_array_length.unwrap_or(0) == 0 {
-        violations.push(models::Violation::new(
-            "RST411",
-            file.relative_path(),
-            body.case_binding_line,
-            "test_cases must be a visible non-empty array literal",
-            "inline at least one test_types case in the array",
-        ));
+        violations.push(models::Violation::new(models::ViolationRequest {
+            code: "RST411",
+            path: file.relative_path(),
+            line: body.case_binding_line,
+            message: "test_cases must be a visible non-empty array literal",
+            remediation: "inline at least one test_types case in the array",
+        }));
     }
     for (pattern, over_cases, loop_line) in &body.for_loops {
         if *over_cases && pattern != constants::TEST_CASE_LOOP_VARIABLE {
-            violations.push(models::Violation::new(
-                "RST402",
-                file.relative_path(),
-                Some(*loop_line),
-                format!("case loop binds {pattern}"),
-                "name the loop variable test_case",
-            ));
+            violations.push(models::Violation::new(models::ViolationRequest {
+                code: "RST402",
+                path: file.relative_path(),
+                line: Some(*loop_line),
+                message: format!("case loop binds {pattern}"),
+                remediation: "name the loop variable test_case",
+            }));
         }
     }
     violations.extend(check_assertions(file, item_fn, &body));
@@ -73,13 +73,13 @@ fn check_test_name(file: &models::SourceFile, item_fn: &syn::ItemFn) -> Vec<mode
     if well_formed {
         return Vec::new();
     }
-    vec![models::Violation::new(
-        "RST302",
-        file.relative_path(),
-        Some(item_fn.sig.ident.span().start().line),
-        format!("test name {name} does not follow the naming contract"),
-        "use given_<state>_when_<action>_then_<outcome>",
-    )]
+    vec![models::Violation::new(models::ViolationRequest {
+        code: "RST302",
+        path: file.relative_path(),
+        line: Some(item_fn.sig.ident.span().start().line),
+        message: format!("test name {name} does not follow the naming contract"),
+        remediation: "use given_<state>_when_<action>_then_<outcome>",
+    })]
 }
 
 fn check_control_flow(file: &models::SourceFile, item_fn: &syn::ItemFn) -> Vec<models::Violation> {
@@ -89,13 +89,13 @@ fn check_control_flow(file: &models::SourceFile, item_fn: &syn::ItemFn) -> Vec<m
         .found
         .iter()
         .map(|(construct, line)| {
-            models::Violation::new(
-                "RST104",
-                file.relative_path(),
-                Some(*line),
-                format!("test code contains {construct}"),
-                "keep tests and their helpers branch-free; split variants into cases",
-            )
+            models::Violation::new(models::ViolationRequest {
+                code: "RST104",
+                path: file.relative_path(),
+                line: Some(*line),
+                message: format!("test code contains {construct}"),
+                remediation: "keep tests and their helpers branch-free; split variants into cases",
+            })
         })
         .collect()
 }
@@ -107,13 +107,13 @@ fn check_assertions(
 ) -> Vec<models::Violation> {
     let line = Some(item_fn.sig.ident.span().start().line);
     if body.assert_tokens.is_empty() {
-        return vec![models::Violation::new(
-            "RST404",
-            file.relative_path(),
+        return vec![models::Violation::new(models::ViolationRequest {
+            code: "RST404",
+            path: file.relative_path(),
             line,
-            "test contains no assertion against an expected_ field",
-            "assert the observed behavior against test_case.expected_*",
-        )];
+            message: "test contains no assertion against an expected_ field",
+            remediation: "assert the observed behavior against test_case.expected_*",
+        })];
     }
     let mut violations: Vec<models::Violation> = Vec::new();
     let mentions_expected = body
@@ -121,26 +121,26 @@ fn check_assertions(
         .iter()
         .any(|tokens| references_case_field(tokens, constants::EXPECTED_FIELD_PREFIX, true));
     if !mentions_expected {
-        violations.push(models::Violation::new(
-            "RST404",
-            file.relative_path(),
+        violations.push(models::Violation::new(models::ViolationRequest {
+            code: "RST404",
+            path: file.relative_path(),
             line,
-            "assertions never reference an expected_ field",
-            "assert against test_case.expected_* outcomes",
-        ));
+            message: "assertions never reference an expected_ field",
+            remediation: "assert against test_case.expected_* outcomes",
+        }));
     }
     let mentions_description = body
         .assert_tokens
         .iter()
         .any(|tokens| references_case_field(tokens, constants::DESCRIPTION_FIELD, false));
     if !mentions_description {
-        violations.push(models::Violation::new(
-            "RST407",
-            file.relative_path(),
+        violations.push(models::Violation::new(models::ViolationRequest {
+            code: "RST407",
+            path: file.relative_path(),
             line,
-            "assertion messages never include the case description",
-            "add \"{}\", test_case.description to each assertion",
-        ));
+            message: "assertion messages never include the case description",
+            remediation: "add \"{}\", test_case.description to each assertion",
+        }));
     }
     violations
 }
@@ -159,13 +159,13 @@ fn check_executor(
     if executors == 1 {
         return Vec::new();
     }
-    vec![models::Violation::new(
-        "RST420",
-        file.relative_path(),
-        Some(item_fn.sig.ident.span().start().line),
-        format!("test executes its cases through {executors} paths"),
-        "use exactly one for test_case loop or one _helpers::run_cases call",
-    )]
+    vec![models::Violation::new(models::ViolationRequest {
+        code: "RST420",
+        path: file.relative_path(),
+        line: Some(item_fn.sig.ident.span().start().line),
+        message: format!("test executes its cases through {executors} paths"),
+        remediation: "use exactly one for test_case loop or one _helpers::run_cases call",
+    })]
 }
 
 struct TestBody {

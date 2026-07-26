@@ -32,6 +32,14 @@ struct DepthContext<'a> {
     depth: usize,
 }
 
+struct ReportedFault<'a> {
+    code: &'a str,
+    context: &'a NativeRuleContext,
+    path: &'a Path,
+    message: String,
+    remediation: Option<String>,
+}
+
 pub(crate) fn project_layout_faults(
     code: &str,
     context: &NativeRuleContext,
@@ -98,8 +106,8 @@ fn container_faults(code: &str, context: &NativeRuleContext, role: &str) -> Vec<
         .map(Iterator::count)
         .unwrap_or_default();
     if depth > 0 {
-        append_depth_faults(
-            &mut faults,
+        faults = append_depth_faults(
+            faults,
             DepthContext {
                 code,
                 context,
@@ -114,7 +122,10 @@ fn container_faults(code: &str, context: &NativeRuleContext, role: &str) -> Vec<
     faults
 }
 
-fn append_depth_faults(faults: &mut Vec<NativeFaultRow>, owner: DepthContext<'_>) {
+fn append_depth_faults(
+    mut faults: Vec<NativeFaultRow>,
+    owner: DepthContext<'_>,
+) -> Vec<NativeFaultRow> {
     let depth_limit = owner
         .context
         .thresholds
@@ -153,6 +164,7 @@ fn append_depth_faults(faults: &mut Vec<NativeFaultRow>, owner: DepthContext<'_>
             format!("{}/ bucket '{name}/' uses a runtime role name", owner.role),
         ));
     }
+    faults
 }
 
 fn domain_shape_faults(code: &str, context: &NativeRuleContext) -> Vec<NativeFaultRow> {
@@ -173,13 +185,13 @@ fn domain_shape_faults(code: &str, context: &NativeRuleContext) -> Vec<NativeFau
     } else {
         return Vec::new();
     };
-    vec![reported_fault(
+    vec![reported_fault(ReportedFault {
         code,
         context,
-        &anchor,
-        "top-level domain mixes direct roles and named subdomains".to_owned(),
-        None,
-    )]
+        path: &anchor,
+        message: "top-level domain mixes direct roles and named subdomains".to_owned(),
+        remediation: None,
+    })]
 }
 
 fn shared_prefix_faults(code: &str, context: &NativeRuleContext) -> Vec<NativeFaultRow> {
@@ -203,37 +215,39 @@ fn shared_prefix_faults(code: &str, context: &NativeRuleContext) -> Vec<NativeFa
     if minimum == 0 {
         return Vec::new();
     }
-    prefix_groups(&root)
-        .into_iter()
-        .filter(|(_, names)| names.len() >= minimum)
-        .map(|(prefix, names)| {
-            let suffixes: Vec<String> = names
-                .iter()
-                .map(|name| format!("{}/", name.trim_start_matches(&format!("{prefix}_"))))
-                .collect();
-            let remediation = if root.join(&prefix).is_dir() {
-                format!(
-                    "Move them under the existing {prefix}/ domain as {} subdomains.",
-                    natural_list(&suffixes)
-                )
-            } else {
-                format!(
-                    "Create {prefix}/ and move them beneath it as {} subdomains.",
-                    natural_list(&suffixes)
-                )
-            };
-            reported_fault(
-                code,
-                context,
-                &anchor,
-                format!(
-                    "sibling domains {} share the {prefix}_ owner prefix",
-                    natural_list(&names)
-                ),
-                Some(remediation),
+    let mut faults = Vec::new();
+    for (prefix, names) in prefix_groups(&root) {
+        if names.len() < minimum {
+            continue;
+        }
+        let prefix_marker = format!("{prefix}_");
+        let suffixes = names
+            .iter()
+            .map(|name| format!("{}/", name.trim_start_matches(&prefix_marker)))
+            .collect::<Vec<_>>();
+        let remediation = if root.join(&prefix).is_dir() {
+            format!(
+                "Move them under the existing {prefix}/ domain as {} subdomains.",
+                natural_list(&suffixes)
             )
-        })
-        .collect()
+        } else {
+            format!(
+                "Create {prefix}/ and move them beneath it as {} subdomains.",
+                natural_list(&suffixes)
+            )
+        };
+        faults.push(reported_fault(ReportedFault {
+            code,
+            context,
+            path: &anchor,
+            message: format!(
+                "sibling domains {} share the {prefix}_ owner prefix",
+                natural_list(&names)
+            ),
+            remediation: Some(remediation),
+        }));
+    }
+    faults
 }
 
 fn leaf_main_faults(code: &str, context: &NativeRuleContext) -> Vec<NativeFaultRow> {
@@ -255,13 +269,13 @@ fn leaf_main_faults(code: &str, context: &NativeRuleContext) -> Vec<NativeFaultR
         .unwrap_or(&leaf)
         .to_string_lossy()
         .replace('\\', "/");
-    vec![reported_fault(
+    vec![reported_fault(ReportedFault {
         code,
         context,
-        &anchor,
-        format!("leaf runtime package '{name}/' has no meaningful main/ entry module"),
-        None,
-    )]
+        path: &anchor,
+        message: format!("leaf runtime package '{name}/' has no meaningful main/ entry module"),
+        remediation: None,
+    })]
 }
 
 fn message_fault(code: &str, context: &NativeRuleContext, message: String) -> NativeFaultRow {
@@ -270,21 +284,16 @@ fn message_fault(code: &str, context: &NativeRuleContext, message: String) -> Na
     fault
 }
 
-fn reported_fault(
-    code: &str,
-    context: &NativeRuleContext,
-    path: &Path,
-    message: String,
-    remediation: Option<String>,
-) -> NativeFaultRow {
+fn reported_fault(fault: ReportedFault<'_>) -> NativeFaultRow {
     NativeFaultRow {
-        code: code.to_owned(),
+        code: fault.code.to_owned(),
         line: 0,
         column: 0,
-        message: Some(message),
-        remediation,
-        path: path
-            .strip_prefix(&context.repo_root)
+        message: Some(fault.message),
+        remediation: fault.remediation,
+        path: fault
+            .path
+            .strip_prefix(&fault.context.repo_root)
             .ok()
             .map(|relative| relative.to_string_lossy().replace('\\', "/")),
     }

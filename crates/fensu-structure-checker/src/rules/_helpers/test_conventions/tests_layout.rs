@@ -21,13 +21,13 @@ pub(crate) fn check_test_mirroring(
         Ok(entries) => entries,
         Err(error) => {
             let relative = tests_root.strip_prefix(repo_root).unwrap_or(&tests_root);
-            return vec![models::Violation::new(
-                "RSH901",
-                relative,
-                None,
-                format!("cannot read Rust test directory: {error}"),
-                "restore a readable test directory before checking structure",
-            )];
+            return vec![models::Violation::new(models::ViolationRequest {
+                code: "RSH901",
+                path: relative,
+                line: None,
+                message: format!("cannot read Rust test directory: {error}"),
+                remediation: "restore a readable test directory before checking structure",
+            })];
         }
     };
     let mut area_names: Vec<String> = Vec::new();
@@ -38,13 +38,13 @@ pub(crate) fn check_test_mirroring(
                 area_names.push(name);
             }
             Ok(_) => {}
-            Err(error) => violations.push(models::Violation::new(
-                "RSH901",
-                tests_root.strip_prefix(repo_root).unwrap_or(&tests_root),
-                None,
-                format!("cannot inspect Rust test directory entry: {error}"),
-                "restore a readable test directory before checking structure",
-            )),
+            Err(error) => violations.push(models::Violation::new(models::ViolationRequest {
+                code: "RSH901",
+                path: tests_root.strip_prefix(repo_root).unwrap_or(&tests_root),
+                line: None,
+                message: format!("cannot inspect Rust test directory entry: {error}"),
+                remediation: "restore a readable test directory before checking structure",
+            })),
         }
     }
     area_names.sort();
@@ -56,13 +56,13 @@ pub(crate) fn check_test_mirroring(
         }
         let area = tests_root.join(name);
         let relative = area.strip_prefix(repo_root).unwrap_or(&area);
-        violations.push(models::Violation::new(
-            "RST003",
-            relative,
-            None,
-            format!("test area {name} mirrors no source area"),
-            "name test areas after the src module or domain they exercise",
-        ));
+        violations.push(models::Violation::new(models::ViolationRequest {
+            code: "RST003",
+            path: relative,
+            line: None,
+            message: format!("test area {name} mirrors no source area"),
+            remediation: "name test areas after the src module or domain they exercise",
+        }));
     }
     violations
 }
@@ -84,13 +84,14 @@ pub(crate) fn check_harness_coverage(
             .file_name()
             .and_then(|value| value.to_str())
             .unwrap_or_default();
-        violations.push(models::Violation::new(
-            "RST110",
-            relative,
-            None,
-            format!("test module {name} is never declared and cannot run"),
-            "declare #[path = \"<file>.rs\"] mod <file>; from the harness or an area module",
-        ));
+        violations.push(models::Violation::new(models::ViolationRequest {
+            code: "RST110",
+            path: relative,
+            line: None,
+            message: format!("test module {name} is never declared and cannot run"),
+            remediation:
+                "declare #[path = \"<file>.rs\"] mod <file>; from the harness or an area module",
+        }));
     }
     violations
 }
@@ -213,13 +214,13 @@ fn check_harness(file: &models::SourceFile, syntax: &syn::File) -> Vec<models::V
     let mut violations: Vec<models::Violation> = Vec::new();
     for item in &syntax.items {
         let syn::Item::Mod(item_mod) = item else {
-            violations.push(models::Violation::new(
-                "RST101",
-                file.relative_path(),
-                Some(item.span().start().line),
-                "test harness files may contain module declarations only",
-                "declare #[path] modules here and put content in the area folder",
-            ));
+            violations.push(models::Violation::new(models::ViolationRequest {
+                code: "RST101",
+                path: file.relative_path(),
+                line: Some(item.span().start().line),
+                message: "test harness files may contain module declarations only",
+                remediation: "declare #[path] modules here and put content in the area folder",
+            }));
             continue;
         };
         let has_path_attribute = item_mod
@@ -227,13 +228,13 @@ fn check_harness(file: &models::SourceFile, syntax: &syn::File) -> Vec<models::V
             .iter()
             .any(|attribute| attribute.path().is_ident("path"));
         if item_mod.content.is_some() || !has_path_attribute {
-            violations.push(models::Violation::new(
-                "RST101",
-                file.relative_path(),
-                Some(item_mod.ident.span().start().line),
-                "harness modules must be #[path] declarations without bodies",
-                "declare #[path = \"<area>/<file>.rs\"] mod <file>; only",
-            ));
+            violations.push(models::Violation::new(models::ViolationRequest {
+                code: "RST101",
+                path: file.relative_path(),
+                line: Some(item_mod.ident.span().start().line),
+                message: "harness modules must be #[path] declarations without bodies",
+                remediation: "declare #[path = \"<area>/<file>.rs\"] mod <file>; only",
+            }));
         }
     }
     violations
@@ -255,25 +256,26 @@ fn check_test_types(file: &models::SourceFile, syntax: &syn::File) -> Vec<models
             .iter()
             .any(|f| f == constants::DESCRIPTION_FIELD)
         {
-            violations.push(models::Violation::new(
-                "RST201",
-                file.relative_path(),
+            violations.push(models::Violation::new(models::ViolationRequest {
+                code: "RST201",
+                path: file.relative_path(),
                 line,
-                format!("{name} lacks a description field"),
-                "add description: &'static str so failures explain the behavior",
-            ));
+                message: format!("{name} lacks a description field"),
+                remediation: "add description: &'static str so failures explain the behavior",
+            }));
         }
         let has_expected = field_names
             .iter()
             .any(|f| f.starts_with(constants::EXPECTED_FIELD_PREFIX));
         if !has_expected {
-            violations.push(models::Violation::new(
-                "RST202",
-                file.relative_path(),
+            violations.push(models::Violation::new(models::ViolationRequest {
+                code: "RST202",
+                path: file.relative_path(),
                 line,
-                format!("{name} lacks an expected_ field"),
-                "name expected outcomes with an expected_ prefix and assert against them",
-            ));
+                message: format!("{name} lacks an expected_ field"),
+                remediation:
+                    "name expected outcomes with an expected_ prefix and assert against them",
+            }));
         }
     }
     violations
@@ -287,13 +289,13 @@ fn check_topic(file: &models::SourceFile, syntax: &syn::File) -> Vec<models::Vio
             syn::Item::Fn(item_fn) => {
                 seen_function = true;
                 if !has_test_attribute(item_fn) {
-                    violations.push(models::Violation::new(
-                        "RST103",
-                        file.relative_path(),
-                        Some(item_fn.sig.ident.span().start().line),
-                        format!("{} is not a test function", item_fn.sig.ident),
-                        "move shared functions into the area's helpers.rs",
-                    ));
+                    violations.push(models::Violation::new(models::ViolationRequest {
+                        code: "RST103",
+                        path: file.relative_path(),
+                        line: Some(item_fn.sig.ident.span().start().line),
+                        message: format!("{} is not a test function", item_fn.sig.ident),
+                        remediation: "move shared functions into the area's helpers.rs",
+                    }));
                 }
             }
             syn::Item::Const(item_const) => {
@@ -313,22 +315,22 @@ fn check_topic_const(
     let mut violations: Vec<models::Violation> = Vec::new();
     let line = Some(item_const.ident.span().start().line);
     if item_const.ident == constants::MODULE_CASES_CONSTANT {
-        violations.push(models::Violation::new(
-            "RST401",
-            file.relative_path(),
+        violations.push(models::Violation::new(models::ViolationRequest {
+            code: "RST401",
+            path: file.relative_path(),
             line,
-            "module-level TEST_CASES arrays hide cases from their test",
-            "declare let test_cases = [ ... ]; inside the test function",
-        ));
+            message: "module-level TEST_CASES arrays hide cases from their test",
+            remediation: "declare let test_cases = [ ... ]; inside the test function",
+        }));
     }
     if seen_function {
-        violations.push(models::Violation::new(
-            "RST105",
-            file.relative_path(),
+        violations.push(models::Violation::new(models::ViolationRequest {
+            code: "RST105",
+            path: file.relative_path(),
             line,
-            "constant declared after the first test function",
-            "move constants above the tests so setup is visible first",
-        ));
+            message: "constant declared after the first test function",
+            remediation: "move constants above the tests so setup is visible first",
+        }));
     }
     violations
 }
@@ -337,27 +339,27 @@ fn check_struct_placement(file: &models::SourceFile, syntax: &syn::File) -> Vec<
     let mut violations: Vec<models::Violation> = Vec::new();
     for item in &syntax.items {
         if let syn::Item::Struct(item_struct) = item {
-            violations.push(models::Violation::new(
-                "RST203",
-                file.relative_path(),
-                Some(item_struct.ident.span().start().line),
-                format!(
+            violations.push(models::Violation::new(models::ViolationRequest {
+                code: "RST203",
+                path: file.relative_path(),
+                line: Some(item_struct.ident.span().start().line),
+                message: format!(
                     "struct {} declared outside test_types.rs",
                     item_struct.ident
                 ),
-                "move test-case and fixture structs into the area's test_types.rs",
-            ));
+                remediation: "move test-case and fixture structs into the area's test_types.rs",
+            }));
         }
     }
     violations
 }
 
 fn struct_field_names(item_struct: &syn::ItemStruct) -> Vec<String> {
-    item_struct
-        .fields
-        .iter()
-        .filter_map(|field| field.ident.as_ref().map(|ident| ident.to_string()))
-        .collect()
+    item_struct.fields.iter().filter_map(field_name).collect()
+}
+
+fn field_name(field: &syn::Field) -> Option<String> {
+    field.ident.as_ref().map(|ident| ident.to_string())
 }
 
 fn has_test_attribute(item_fn: &syn::ItemFn) -> bool {

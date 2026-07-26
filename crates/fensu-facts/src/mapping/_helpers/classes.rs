@@ -15,17 +15,7 @@ use crate::syntax::types::ShapeNode;
 pub(crate) fn class_row(class: &StmtClassDef, index: &LineIndex, source: &str) -> MappingClassRow {
     let node = ShapeNode::Stmt(&Stmt::ClassDef(class.clone()));
     let (line, _) = start_of(&node, index, source);
-    let bases = class
-        .arguments
-        .as_ref()
-        .map(|arguments| {
-            arguments
-                .args
-                .iter()
-                .map(|expression| expression_row(expression, source))
-                .collect()
-        })
-        .unwrap_or_default();
+    let bases = mapping_bases(class, source);
     MappingClassRow {
         name: class.name.as_str().to_owned(),
         line,
@@ -33,6 +23,20 @@ pub(crate) fn class_row(class: &StmtClassDef, index: &LineIndex, source: &str) -
         class_attributes: class_attributes(class, source),
         instance_attributes: instance_attributes(class, source),
     }
+}
+
+pub(crate) fn mapping_bases(
+    class: &StmtClassDef,
+    source: &str,
+) -> Vec<crate::mapping::models::MappingExpressionRow> {
+    let Some(arguments) = &class.arguments else {
+        return Vec::new();
+    };
+    arguments
+        .args
+        .iter()
+        .map(|expression| expression_row(expression, source))
+        .collect()
 }
 
 fn class_attributes(class: &StmtClassDef, source: &str) -> Vec<MappingAttributeRow> {
@@ -127,18 +131,19 @@ fn self_attribute_binding(statement: &Stmt, source: &str) -> Option<MappingAttri
 }
 
 fn self_attribute_targets(statement: &Stmt) -> BTreeSet<String> {
-    let mut names = BTreeSet::new();
-    collect_self_attribute_targets(ShapeNode::Stmt(statement), &mut names);
-    names
+    collect_self_attribute_targets(ShapeNode::Stmt(statement), BTreeSet::new())
 }
 
-fn collect_self_attribute_targets(node: ShapeNode<'_>, names: &mut BTreeSet<String>) {
+fn collect_self_attribute_targets(
+    node: ShapeNode<'_>,
+    mut names: BTreeSet<String>,
+) -> BTreeSet<String> {
     if matches!(
         node,
         ShapeNode::Stmt(Stmt::FunctionDef(_) | Stmt::ClassDef(_))
             | ShapeNode::Expr(Expr::Lambda(_))
     ) {
-        return;
+        return names;
     }
     if let ShapeNode::Expr(expression) = node {
         if let Some(name) = self_attribute_name(expression) {
@@ -151,8 +156,9 @@ fn collect_self_attribute_targets(node: ShapeNode<'_>, names: &mut BTreeSet<Stri
     let mut child_buffer = Vec::new();
     children(&node, &mut child_buffer);
     for child in child_buffer {
-        collect_self_attribute_targets(child, names);
+        names = collect_self_attribute_targets(child, names);
     }
+    names
 }
 
 fn self_attribute_name(expression: &Expr) -> Option<&str> {

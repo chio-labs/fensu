@@ -13,6 +13,14 @@ use crate::skills::_helpers::installation::plan::skills_directory;
 use crate::skills::_helpers::installation::transaction::{self, Publication};
 use crate::skills::models::InstallPlan;
 
+struct PreflightRequest<'a> {
+    root: &'a Path,
+    expected_owner: &'a str,
+    identity: &'a str,
+    project: bool,
+    force: bool,
+}
+
 pub(crate) fn install(
     plan: &InstallPlan,
     generated: &[u8],
@@ -27,7 +35,13 @@ pub(crate) fn install(
             .path
             .parent()
             .ok_or_else(|| "Skill target has no parent.".to_owned())?;
-        let existing = preflight_bundle(root, &plan.owner, &plan.context.identity, false, force)?;
+        let existing = preflight_bundle(PreflightRequest {
+            root,
+            expected_owner: &plan.owner,
+            identity: &plan.context.identity,
+            project: false,
+            force,
+        })?;
         let by_path = existing
             .iter()
             .map(|item| (item.path.clone(), item.clone()))
@@ -49,13 +63,13 @@ pub(crate) fn install(
         }
     }
     for target in &plan.project_targets {
-        let existing = preflight_bundle(
-            &target.path,
-            &plan.owner,
-            &target.bundle.identity,
-            true,
+        let existing = preflight_bundle(PreflightRequest {
+            root: &target.path,
+            expected_owner: &plan.owner,
+            identity: &target.bundle.identity,
+            project: true,
             force,
-        )?;
+        })?;
         let by_path = existing
             .iter()
             .map(|item| (item.path.clone(), item.clone()))
@@ -85,7 +99,7 @@ pub(crate) fn install(
         }
     }
     if plan.synchronize_project_skills {
-        stale_roots = capture_stale_bundles(plan, &mut deletions)?;
+        (stale_roots, deletions) = capture_stale_bundles(plan, deletions)?;
     }
     for path in &plan.legacy_paths {
         if let Some(snapshot) = capture_legacy(path, &plan.owner)? {
@@ -97,13 +111,14 @@ pub(crate) fn install(
     Ok(written)
 }
 
-fn preflight_bundle(
-    root: &Path,
-    expected_owner: &str,
-    identity: &str,
-    project: bool,
-    force: bool,
-) -> Result<Vec<Snapshot>, String> {
+fn preflight_bundle(request: PreflightRequest<'_>) -> Result<Vec<Snapshot>, String> {
+    let PreflightRequest {
+        root,
+        expected_owner,
+        identity,
+        project,
+        force,
+    } = request;
     if let Some(collision) = normalization_collision(&root.join("SKILL.md"))? {
         return Err(format!(
             "skill identity normalization collides: {} and {}",
@@ -154,8 +169,8 @@ fn preflight_bundle(
 
 fn capture_stale_bundles(
     plan: &InstallPlan,
-    deletions: &mut HashMap<PathBuf, Snapshot>,
-) -> Result<Vec<PathBuf>, String> {
+    mut deletions: HashMap<PathBuf, Snapshot>,
+) -> Result<(Vec<PathBuf>, HashMap<PathBuf, Snapshot>), String> {
     let mut stale_roots = Vec::new();
     let desired = plan
         .project_targets
@@ -199,7 +214,7 @@ fn capture_stale_bundles(
             }
         }
     }
-    Ok(stale_roots)
+    Ok((stale_roots, deletions))
 }
 
 fn capture_legacy(path: &Path, expected_owner: &str) -> Result<Option<Snapshot>, String> {

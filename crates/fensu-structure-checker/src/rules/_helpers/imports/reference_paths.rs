@@ -17,11 +17,12 @@ pub(crate) fn collect(
 ) -> Vec<(Vec<String>, usize)> {
     let mut visitor = ReferenceVisitor::default();
     visitor.visit_file(syntax);
-    collect_string_paths(source, &mut visitor);
-    for (target, _) in &mut visitor.references {
-        normalize_root(target, package);
-    }
-    visitor.references
+    visitor.collect_string_paths(source);
+    visitor
+        .references
+        .into_iter()
+        .map(|(target, line)| (normalize_root(target, package), line))
+        .collect()
 }
 
 pub(crate) fn module_path(package: &str, relative: &str) -> Vec<String> {
@@ -40,23 +41,17 @@ pub(crate) fn module_path(package: &str, relative: &str) -> Vec<String> {
     module
 }
 
-fn collect_string_paths(source: &str, visitor: &mut ReferenceVisitor) {
-    for (line_index, line) in source.lines().enumerate() {
-        for value in line.split('"').skip(1).step_by(2) {
-            if value.starts_with(&format!("{CRATE_ROOT}{PATH_SEPARATOR}")) {
-                visitor.push(
-                    value.split(PATH_SEPARATOR).map(str::to_owned).collect(),
-                    line_index + 1,
-                );
-            }
-        }
-    }
-}
-
-fn normalize_root(target: &mut [String], package: &str) {
+fn normalize_root(mut target: Vec<String>, package: &str) -> Vec<String> {
     if target.first().is_some_and(|root| root == CRATE_ROOT) {
         target[0] = package.to_owned();
     }
+    target
+}
+
+pub(crate) fn use_paths(tree: &syn::UseTree) -> Vec<Vec<String>> {
+    let mut collector = UsePathCollector { paths: Vec::new() };
+    collector.collect(tree, Vec::new());
+    collector.paths
 }
 
 #[derive(Default)]
@@ -78,13 +73,24 @@ impl ReferenceVisitor {
             self.references.push((target, line));
         }
     }
+
+    fn collect_string_paths(&mut self, source: &str) {
+        for (line_index, line) in source.lines().enumerate() {
+            for value in line.split('"').skip(1).step_by(2) {
+                if value.starts_with(&format!("{CRATE_ROOT}{PATH_SEPARATOR}")) {
+                    self.push(
+                        value.split(PATH_SEPARATOR).map(str::to_owned).collect(),
+                        line_index + 1,
+                    );
+                }
+            }
+        }
+    }
 }
 
 impl<'ast> Visit<'ast> for ReferenceVisitor {
     fn visit_item_use(&mut self, node: &'ast syn::ItemUse) {
-        let mut paths = Vec::new();
-        flatten_use_tree(&node.tree, &mut Vec::new(), &mut paths);
-        for target in paths {
+        for target in use_paths(&node.tree) {
             self.push(target, node.use_token.span.start().line);
         }
     }
@@ -100,29 +106,35 @@ impl<'ast> Visit<'ast> for ReferenceVisitor {
     }
 }
 
-fn flatten_use_tree(tree: &syn::UseTree, prefix: &mut Vec<String>, out: &mut Vec<Vec<String>>) {
-    match tree {
-        syn::UseTree::Path(path) => {
-            prefix.push(path.ident.to_string());
-            flatten_use_tree(&path.tree, prefix, out);
-            prefix.pop();
-        }
-        syn::UseTree::Name(name) => {
-            let mut path = prefix.clone();
-            if name.ident != SELF_ROOT {
-                path.push(name.ident.to_string());
+struct UsePathCollector {
+    paths: Vec<Vec<String>>,
+}
+
+impl UsePathCollector {
+    fn collect(&mut self, tree: &syn::UseTree, prefix: Vec<String>) {
+        match tree {
+            syn::UseTree::Path(path) => {
+                let mut child = prefix;
+                child.push(path.ident.to_string());
+                self.collect(&path.tree, child);
             }
-            out.push(path);
-        }
-        syn::UseTree::Rename(rename) => {
-            let mut path = prefix.clone();
-            path.push(rename.ident.to_string());
-            out.push(path);
-        }
-        syn::UseTree::Glob(_) => out.push(prefix.clone()),
-        syn::UseTree::Group(group) => {
-            for item in &group.items {
-                flatten_use_tree(item, prefix, out);
+            syn::UseTree::Name(name) => {
+                let mut path = prefix;
+                if name.ident != SELF_ROOT {
+                    path.push(name.ident.to_string());
+                }
+                self.paths.push(path);
+            }
+            syn::UseTree::Rename(rename) => {
+                let mut path = prefix;
+                path.push(rename.ident.to_string());
+                self.paths.push(path);
+            }
+            syn::UseTree::Glob(_) => self.paths.push(prefix),
+            syn::UseTree::Group(group) => {
+                for item in &group.items {
+                    self.collect(item, prefix.clone());
+                }
             }
         }
     }

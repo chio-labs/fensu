@@ -1,5 +1,6 @@
 //! Prepared check state and cache cleanup plans.
 
+use std::path::Path;
 use std::path::PathBuf;
 
 use cap_std::fs::Dir;
@@ -22,4 +23,14 @@ pub(crate) struct CheckPlan {
 pub(crate) struct CleanupPlan {
     pub(crate) repository: Dir,
     pub(crate) config: Config,
+}
+
+#[derive(Debug)]
+pub(crate) struct EvaluationRequest<'a> {
+    pub(crate) root: &'a Path,
+    pub(crate) config: &'a Config,
+    pub(crate) sources: &'a [ScopedSource],
+    pub(crate) excluded: usize,
+    pub(crate) show_warnings: bool,
+    pub(crate) color: bool,
 }

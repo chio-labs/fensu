@@ -106,7 +106,7 @@ pub(crate) fn entrypoint_modules(root: &Path, _config_raw: &[u8]) -> Vec<String>
     let mut values = Vec::new();
     for section in ENTRYPOINT_SECTIONS {
         if let Some(value) = project.get(section) {
-            collect_entrypoint_values(value, &mut values);
+            values = collect_entrypoint_values(value, values);
         }
     }
     let mut modules = values
@@ -121,14 +121,15 @@ pub(crate) fn entrypoint_modules(root: &Path, _config_raw: &[u8]) -> Vec<String>
     modules
 }
 
-fn collect_entrypoint_values<'a>(value: &'a toml::Value, values: &mut Vec<&'a str>) {
+fn collect_entrypoint_values<'a>(value: &'a toml::Value, mut values: Vec<&'a str>) -> Vec<&'a str> {
     if let Some(value) = value.as_str() {
         values.push(value);
     } else if let Some(table) = value.as_table() {
         for value in table.values() {
-            collect_entrypoint_values(value, values);
+            values = collect_entrypoint_values(value, values);
         }
     }
+    values
 }
 
 pub(crate) fn observe(
@@ -144,16 +145,14 @@ pub(crate) fn observe(
             "exists" => vec![bool_text(path.exists())],
             "is_file" => vec![bool_text(path.is_file())],
             "is_dir" => vec![bool_text(path.is_dir())],
-            "dataclasses" => programs
-                .get(query.path.as_str())
-                .map(|program| {
-                    program
-                        .dataclass_rows()
-                        .iter()
-                        .map(|row| row.name.clone())
-                        .collect()
-                })
-                .unwrap_or_default(),
+            "dataclasses" => match programs.get(query.path.as_str()) {
+                Some(program) => program
+                    .dataclass_rows()
+                    .iter()
+                    .map(|row| row.name.clone())
+                    .collect(),
+                None => Vec::new(),
+            },
             "module_function" => modules
                 .get(&query.path)
                 .and_then(|program| {
@@ -187,19 +186,16 @@ pub(crate) fn observe(
 }
 
 pub(crate) fn directory_entries(path: &Path, root: &Path) -> Vec<String> {
-    path.read_dir()
-        .ok()
-        .into_iter()
-        .flatten()
-        .filter_map(Result::ok)
-        .filter_map(|entry| {
-            entry
-                .path()
-                .strip_prefix(root)
-                .ok()
-                .map(|path| path.to_string_lossy().replace('\\', "/"))
-        })
-        .collect()
+    let mut entries = Vec::new();
+    let Ok(directory) = path.read_dir() else {
+        return entries;
+    };
+    for entry in directory.flatten() {
+        if let Ok(relative) = entry.path().strip_prefix(root) {
+            entries.push(relative.to_string_lossy().replace('\\', "/"));
+        }
+    }
+    entries
 }
 
 pub(crate) fn glob_answers(path: &Path, root: &Path, argument: &str) -> Vec<String> {
@@ -217,20 +213,19 @@ pub(crate) fn glob_answers(path: &Path, root: &Path, argument: &str) -> Vec<Stri
     let Some(matcher) = matcher else {
         return Vec::new();
     };
-    WalkDir::new(path)
+    let mut answers = Vec::new();
+    for entry in WalkDir::new(path)
         .min_depth(1)
         .max_depth(depth)
         .into_iter()
         .filter_map(Result::ok)
         .filter(|entry| matcher.is_match(entry.path().strip_prefix(path).unwrap_or(entry.path())))
-        .filter_map(|entry| {
-            entry
-                .path()
-                .strip_prefix(root)
-                .ok()
-                .map(|path| path.to_string_lossy().replace('\\', "/"))
-        })
-        .collect()
+    {
+        if let Ok(relative) = entry.path().strip_prefix(root) {
+            answers.push(relative.to_string_lossy().replace('\\', "/"));
+        }
+    }
+    answers
 }
 
 pub(crate) fn python_anchor(path: &Path, root: &Path) -> Option<String> {

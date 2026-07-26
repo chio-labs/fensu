@@ -3,14 +3,21 @@
 use ruff_python_ast::{ModModule, Stmt, StmtFunctionDef};
 use ruff_text_size::Ranged;
 
-use crate::mapping::_helpers::classes::class_row;
-use crate::mapping::_helpers::expressions::expression_row;
+use crate::mapping::_helpers::classes::{class_row, mapping_bases};
 use crate::mapping::_helpers::functions::function_row;
 use crate::mapping::_helpers::imports::mapping_imports;
 use crate::mapping::models::{MappingClassRow, MappingFunctionRow, MappingRows};
 use crate::positions::models::LineIndex;
 use crate::syntax::main::start_of::start_of;
 use crate::syntax::types::ShapeNode;
+
+struct ExtractFunctionParams<'a> {
+    function: &'a StmtFunctionDef,
+    owning_class: Option<&'a str>,
+    index: &'a LineIndex,
+    source: &'a str,
+    declarations_only: bool,
+}
 
 pub(crate) fn build_mapping_rows(
     module: &ModModule,
@@ -26,29 +33,21 @@ pub(crate) fn build_mapping_rows(
     };
     for statement in &module.body {
         match statement {
-            Stmt::FunctionDef(function) => rows.functions.push(extract_function(
-                function,
-                None,
-                index,
-                source,
-                declarations_only,
-            )),
+            Stmt::FunctionDef(function) => {
+                rows.functions.push(extract_function(ExtractFunctionParams {
+                    function,
+                    owning_class: None,
+                    index,
+                    source,
+                    declarations_only,
+                }))
+            }
             Stmt::ClassDef(class) => {
                 rows.classes.push(if declarations_only {
                     MappingClassRow {
                         name: class.name.as_str().to_owned(),
                         line: start_of(&ShapeNode::Stmt(statement), index, source).0,
-                        bases: class
-                            .arguments
-                            .as_ref()
-                            .map(|arguments| {
-                                arguments
-                                    .args
-                                    .iter()
-                                    .map(|expression| expression_row(expression, source))
-                                    .collect()
-                            })
-                            .unwrap_or_default(),
+                        bases: mapping_bases(class, source),
                         class_attributes: Vec::new(),
                         instance_attributes: Vec::new(),
                     }
@@ -57,13 +56,13 @@ pub(crate) fn build_mapping_rows(
                 });
                 for child in &class.body {
                     if let Stmt::FunctionDef(function) = child {
-                        rows.functions.push(extract_function(
+                        rows.functions.push(extract_function(ExtractFunctionParams {
                             function,
-                            Some(class.name.as_str()),
+                            owning_class: Some(class.name.as_str()),
                             index,
                             source,
                             declarations_only,
-                        ));
+                        }));
                     }
                 }
             }
@@ -73,20 +72,22 @@ pub(crate) fn build_mapping_rows(
     rows
 }
 
-fn extract_function(
-    function: &StmtFunctionDef,
-    owning_class: Option<&str>,
-    index: &LineIndex,
-    source: &str,
-    declarations_only: bool,
-) -> MappingFunctionRow {
-    if !declarations_only {
-        return function_row(function, owning_class, index, source);
+fn extract_function(params: ExtractFunctionParams<'_>) -> MappingFunctionRow {
+    if !params.declarations_only {
+        return function_row(
+            params.function,
+            params.owning_class,
+            params.index,
+            params.source,
+        );
     }
     MappingFunctionRow {
-        name: function.name.as_str().to_owned(),
-        line: index.locate(function.range().start().to_usize()).line,
-        owning_class: owning_class.map(str::to_owned),
+        name: params.function.name.as_str().to_owned(),
+        line: params
+            .index
+            .locate(params.function.range().start().to_usize())
+            .line,
+        owning_class: params.owning_class.map(str::to_owned),
         parameters: Vec::new(),
         returns: None,
         statements: Vec::new(),

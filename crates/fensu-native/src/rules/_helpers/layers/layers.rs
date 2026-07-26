@@ -37,13 +37,7 @@ pub(crate) fn layer_faults(
         NO_STAR_IMPORTS_CODE => rows
             .imports
             .iter()
-            .filter(|row| {
-                row.from_import
-                    && row
-                        .aliases
-                        .iter()
-                        .any(|alias| alias.imported_name == STAR_IMPORT_NAME)
-            })
+            .filter(|row| star_import(row))
             .map(|row| location_fault(code, row.line, row.column, None))
             .collect(),
         NO_SIBLING_PACKAGE_INTERNALS_CODE | NO_CROSS_PACKAGE_INTERNALS_CODE => {
@@ -56,6 +50,14 @@ pub(crate) fn layer_faults(
         _ => return local_layer_faults(program, code, context),
     };
     Some(faults)
+}
+
+fn star_import(row: &ImportRow) -> bool {
+    row.from_import
+        && row
+            .aliases
+            .iter()
+            .any(|alias| alias.imported_name == STAR_IMPORT_NAME)
 }
 
 #[derive(Clone)]

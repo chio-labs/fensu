@@ -125,13 +125,13 @@ pub(crate) fn rust_files(repo_root: &path::Path, root: &path::Path) -> models::S
             }
             Err(error) => {
                 let failed_path = error.path().unwrap_or(root);
-                violations.push(models::Violation::new(
-                    "RSH901",
-                    path::Path::new(&relative_display(repo_root, failed_path)),
-                    None,
-                    format!("cannot traverse Rust source tree: {error}"),
-                    "restore a readable source tree before checking structure",
-                ));
+                violations.push(models::Violation::new(models::ViolationRequest {
+                    code: "RSH901",
+                    path: path::Path::new(&relative_display(repo_root, failed_path)),
+                    line: None,
+                    message: format!("cannot traverse Rust source tree: {error}"),
+                    remediation: "restore a readable source tree before checking structure",
+                }));
             }
         }
     }
@@ -143,13 +143,13 @@ pub(crate) fn rust_files(repo_root: &path::Path, root: &path::Path) -> models::S
                 path,
                 source,
             }),
-            Err(error) => violations.push(models::Violation::new(
-                "RSH901",
-                path::Path::new(&relative_display(repo_root, &path)),
-                None,
-                format!("cannot read Rust source: {error}"),
-                "restore a readable UTF-8 source file before checking structure",
-            )),
+            Err(error) => violations.push(models::Violation::new(models::ViolationRequest {
+                code: "RSH901",
+                path: path::Path::new(&relative_display(repo_root, &path)),
+                line: None,
+                message: format!("cannot read Rust source: {error}"),
+                remediation: "restore a readable UTF-8 source file before checking structure",
+            })),
         }
     }
     models::SourceScan { files, violations }
@@ -223,13 +223,13 @@ fn inline_test_file_kind(file: &models::SourceFile) -> Option<FileKind> {
 }
 
 fn parse_violation(file: &models::SourceFile, error: &syn::Error) -> models::Violation {
-    models::Violation::new(
-        "RSH902",
-        file.relative_path(),
-        Some(error.span().start().line),
-        format!("cannot parse Rust source: {error}"),
-        "fix the syntax error before checking structure",
-    )
+    models::Violation::new(models::ViolationRequest {
+        code: "RSH902",
+        path: file.relative_path(),
+        line: Some(error.span().start().line),
+        message: format!("cannot parse Rust source: {error}"),
+        remediation: "fix the syntax error before checking structure",
+    })
 }
 
 pub(crate) fn manifest_setup_violation(
@@ -240,13 +240,13 @@ pub(crate) fn manifest_setup_violation(
     let relative = manifest_path
         .strip_prefix(repo_root)
         .unwrap_or(manifest_path);
-    models::Violation::new(
-        "RSL901",
-        relative,
-        None,
+    models::Violation::new(models::ViolationRequest {
+        code: "RSL901",
+        path: relative,
+        line: None,
         message,
-        "restore a readable, valid Cargo manifest before checking structure",
-    )
+        remediation: "restore a readable, valid Cargo manifest before checking structure",
+    })
 }
 
 fn valid_member_path(member: &path::Path) -> bool {
@@ -276,13 +276,13 @@ fn workspace_lint_violations(
             .and_then(|value| value.get(*name))
             .and_then(toml::Value::as_str);
         if actual != Some(*level) {
-            violations.push(models::Violation::new(
-                "RSL303",
-                relative,
-                None,
-                format!("workspace Rust lint {name} is not set to {level}"),
-                "declare the required lint level under [workspace.lints.rust]",
-            ));
+            violations.push(models::Violation::new(models::ViolationRequest {
+                code: "RSL303",
+                path: relative,
+                line: None,
+                message: format!("workspace Rust lint {name} is not set to {level}"),
+                remediation: "declare the required lint level under [workspace.lints.rust]",
+            }));
         }
     }
     for (name, level) in constants::REQUIRED_CLIPPY_LINTS {
@@ -291,13 +291,13 @@ fn workspace_lint_violations(
             .and_then(|value| value.get(*name))
             .and_then(toml::Value::as_str);
         if actual != Some(*level) {
-            violations.push(models::Violation::new(
-                "RSL303",
-                relative,
-                None,
-                format!("workspace Clippy lint {name} is not set to {level}"),
-                "declare the required lint level under [workspace.lints.clippy]",
-            ));
+            violations.push(models::Violation::new(models::ViolationRequest {
+                code: "RSL303",
+                path: relative,
+                line: None,
+                message: format!("workspace Clippy lint {name} is not set to {level}"),
+                remediation: "declare the required lint level under [workspace.lints.clippy]",
+            }));
         }
     }
     violations

@@ -73,6 +73,28 @@ impl ChangeCounts {
     fn total_changed(&self) -> usize {
         self.added + self.changed + self.moved + self.removed
     }
+
+    fn classify_moved_additions(
+        &mut self,
+        additions: Vec<&SourceFact>,
+        mut remaining: BTreeMap<String, SourceFact>,
+    ) -> BTreeMap<String, SourceFact> {
+        for fact in additions {
+            let moved_key = remaining
+                .iter()
+                .find(|(_, previous)| {
+                    previous.owner == fact.owner && previous.content_sha256 == fact.content_sha256
+                })
+                .map(|(key, _)| key.clone());
+            if let Some(key) = moved_key {
+                remaining.remove(&key);
+                self.moved += 1;
+            } else {
+                self.added += 1;
+            }
+        }
+        remaining
+    }
 }
 
 fn inspect(database_path: &Path) -> DatabaseInspection {
@@ -224,33 +246,12 @@ fn classify(current: &[SourceFact], stored: &[SourceFact], match_moved_hash: boo
         }
     }
     if match_moved_hash {
-        classify_moved_additions(&mut counts, additions, &mut remaining);
+        remaining = counts.classify_moved_additions(additions, remaining);
     } else {
         counts.added += additions.len();
     }
     counts.removed += remaining.len();
     counts
-}
-
-fn classify_moved_additions(
-    counts: &mut ChangeCounts,
-    additions: Vec<&SourceFact>,
-    remaining: &mut BTreeMap<String, SourceFact>,
-) {
-    for fact in additions {
-        let moved_key = remaining
-            .iter()
-            .find(|(_, previous)| {
-                previous.owner == fact.owner && previous.content_sha256 == fact.content_sha256
-            })
-            .map(|(key, _)| key.clone());
-        if let Some(key) = moved_key {
-            remaining.remove(&key);
-            counts.moved += 1;
-        } else {
-            counts.added += 1;
-        }
-    }
 }
 
 fn summary(counts: ChangeCounts, rebuilt: bool, index: &StoredIndex) -> SyncSummary {

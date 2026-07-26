@@ -13,6 +13,47 @@ use crate::constants::{
 };
 use crate::models::{Config, Fault, ScopedSource, ThresholdUse};
 
+struct WildcardMatcher<'a> {
+    path: &'a [u8],
+    pattern: &'a [u8],
+    memo: HashMap<(usize, usize), bool>,
+}
+
+impl WildcardMatcher<'_> {
+    fn matches(&mut self, path_index: usize, pattern_index: usize) -> bool {
+        if let Some(result) = self.memo.get(&(path_index, pattern_index)) {
+            return *result;
+        }
+        let result = if pattern_index == self.pattern.len() {
+            path_index == self.path.len()
+        } else if self.pattern[pattern_index..].starts_with(b"**/") {
+            self.matches(path_index, pattern_index + 3)
+                || (path_index..self.path.len()).any(|index| {
+                    self.path[index] == b'/' && self.matches(index + 1, pattern_index + 3)
+                })
+        } else if self.pattern[pattern_index..].starts_with(b"**") {
+            (path_index..=self.path.len()).any(|index| self.matches(index, pattern_index + 2))
+        } else if self.pattern[pattern_index] == b'*' {
+            let mut index = path_index;
+            let mut matched = false;
+            while index <= self.path.len() && (index == self.path.len() || self.path[index] != b'/')
+            {
+                matched |= self.matches(index, pattern_index + 1);
+                if matched {
+                    break;
+                }
+                index += 1;
+            }
+            matched
+        } else {
+            self.path.get(path_index) == self.pattern.get(pattern_index)
+                && self.matches(path_index + 1, pattern_index + 1)
+        };
+        self.memo.insert((path_index, pattern_index), result);
+        result
+    }
+}
+
 pub(crate) fn resolved_thresholds(
     source: &ScopedSource,
     config: &Config,
@@ -168,16 +209,18 @@ pub(crate) fn source_module_name(source: &ScopedSource, root: &Path) -> String {
 }
 
 pub(crate) fn validate_package_names(root: &Path, config: &Config) -> Result<(), String> {
-    let runtime = config
-        .roots
-        .iter()
-        .filter_map(|path| root.join(path).file_name().map(|name| name.to_owned()))
-        .collect::<HashSet<_>>();
-    let tooling = config
-        .tooling
-        .iter()
-        .filter_map(|path| root.join(path).file_name().map(|name| name.to_owned()))
-        .collect::<HashSet<_>>();
+    let mut runtime = HashSet::new();
+    for path in &config.roots {
+        if let Some(name) = root.join(path).file_name() {
+            runtime.insert(name.to_owned());
+        }
+    }
+    let mut tooling = HashSet::new();
+    for path in &config.tooling {
+        if let Some(name) = root.join(path).file_name() {
+            tooling.insert(name.to_owned());
+        }
+    }
     if let Some(name) = runtime.intersection(&tooling).next() {
         return Err(format!(
             "Runtime and tooling roots must not claim the same import package: {}.",
@@ -193,42 +236,12 @@ pub(crate) fn path_matches(path: &str, pattern: &str) -> bool {
     } else {
         format!("**/{pattern}").into_bytes()
     };
-    wildcard_matches(path.as_bytes(), &value, 0, 0, &mut HashMap::new())
-}
-
-fn wildcard_matches(
-    path: &[u8],
-    pattern: &[u8],
-    path_index: usize,
-    pattern_index: usize,
-    memo: &mut HashMap<(usize, usize), bool>,
-) -> bool {
-    if let Some(result) = memo.get(&(path_index, pattern_index)) {
-        return *result;
+    WildcardMatcher {
+        path: path.as_bytes(),
+        pattern: &value,
+        memo: HashMap::new(),
     }
-    let result = if pattern_index == pattern.len() {
-        path_index == path.len()
-    } else if pattern[pattern_index..].starts_with(b"**/") {
-        wildcard_matches(path, pattern, path_index, pattern_index + 3, memo)
-            || (path_index..path.len()).any(|index| {
-                path[index] == b'/'
-                    && wildcard_matches(path, pattern, index + 1, pattern_index + 3, memo)
-            })
-    } else if pattern[pattern_index..].starts_with(b"**") {
-        (path_index..=path.len())
-            .any(|index| wildcard_matches(path, pattern, index, pattern_index + 2, memo))
-    } else if pattern[pattern_index] == b'*' {
-        (path_index..=path.len())
-            .take_while(|index| {
-                *index == path.len() || path.get(*index).is_some_and(|value| *value != b'/')
-            })
-            .any(|index| wildcard_matches(path, pattern, index, pattern_index + 1, memo))
-    } else {
-        path.get(path_index) == pattern.get(pattern_index)
-            && wildcard_matches(path, pattern, path_index + 1, pattern_index + 1, memo)
-    };
-    memo.insert((path_index, pattern_index), result);
-    result
+    .matches(0, 0)
 }
 
 pub(crate) fn check_identity(
@@ -314,28 +327,33 @@ pub(crate) fn hex_digest(bytes: &[u8]) -> String {
 }
 
 pub(crate) fn apply_rule_ignores(faults: Vec<Fault>, root: &Path, config: &Config) -> Vec<Fault> {
-    faults
-        .into_iter()
-        .filter(|fault| {
-            let Some(repository_path) = Path::new(&fault.path)
-                .strip_prefix(root)
-                .ok()
-                .map(|path| path.to_string_lossy().replace('\\', "/"))
-            else {
-                return true;
-            };
-            !config.rule_ignores.iter().any(|entry| {
-                entry
-                    .rules
-                    .iter()
-                    .any(|selector| fault.code.starts_with(selector))
-                    && entry
-                        .paths
-                        .iter()
-                        .any(|pattern| path_matches(&repository_path, pattern))
-            })
-        })
-        .collect()
+    let mut retained = Vec::new();
+    for fault in faults {
+        let Ok(path) = Path::new(&fault.path).strip_prefix(root) else {
+            retained.push(fault);
+            continue;
+        };
+        let repository_path = path.to_string_lossy().replace('\\', "/");
+        let mut ignored = false;
+        for entry in &config.rule_ignores {
+            let rule_matches = entry
+                .rules
+                .iter()
+                .any(|selector| fault.code.starts_with(selector));
+            let path_matches_entry = entry
+                .paths
+                .iter()
+                .any(|pattern| path_matches(&repository_path, pattern));
+            if rule_matches && path_matches_entry {
+                ignored = true;
+                break;
+            }
+        }
+        if !ignored {
+            retained.push(fault);
+        }
+    }
+    retained
 }
 
 pub(crate) fn bool_text(value: bool) -> String {

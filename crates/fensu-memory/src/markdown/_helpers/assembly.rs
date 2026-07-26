@@ -11,12 +11,12 @@ pub(crate) fn parse(source: &str) -> ParsedMarkdown {
     let sections = headings::sections(source, &headings, &index);
     let mut list_items = lists::extract(source, &index);
     let preamble_bounds = headings::preamble_bounds(source.len(), &headings);
-    attach_list_context(&mut list_items, &sections, preamble_bounds);
+    list_items = attach_list_context(list_items, &sections, preamble_bounds);
     let code_blocks = blocks::extract(source, &index);
     let mut extracted_links = links::extract(source, &index);
     let (obsidian_links, tags) = obsidian::extract(source, &index);
     extracted_links.extend(obsidian_links);
-    normalize_links(&mut extracted_links, &list_items);
+    extracted_links = normalize_links(extracted_links, &list_items);
     ParsedMarkdown {
         raw_markdown: source.to_owned(),
         plain_text: crate::markdown::_helpers::text::plain_text(source),
@@ -33,11 +33,11 @@ pub(crate) fn parse(source: &str) -> ParsedMarkdown {
 }
 
 fn attach_list_context(
-    items: &mut [MarkdownListItem],
+    mut items: Vec<MarkdownListItem>,
     sections: &[MarkdownSection],
     preamble_bounds: (usize, usize),
-) {
-    for item in items {
+) -> Vec<MarkdownListItem> {
+    for item in &mut items {
         let offset = item.source_range.start_byte;
         item.section_ordinal = sections
             .iter()
@@ -47,9 +47,10 @@ fn attach_list_context(
             .map(|section| section.ordinal)
             .or_else(|| (preamble_bounds.0 <= offset && offset < preamble_bounds.1).then_some(0));
     }
+    items
 }
 
-fn normalize_links(links: &mut Vec<MarkdownLink>, items: &[MarkdownListItem]) {
+fn normalize_links(mut links: Vec<MarkdownLink>, items: &[MarkdownListItem]) -> Vec<MarkdownLink> {
     links.sort_by_key(|link| (link.source_range.start_byte, link.source_range.end_byte));
     links.dedup_by(|right, left| {
         right.source_range.start_byte == left.source_range.start_byte
@@ -70,4 +71,5 @@ fn normalize_links(links: &mut Vec<MarkdownLink>, items: &[MarkdownListItem]) {
             link.relationship_kind = item.relationship_kind;
         }
     }
+    links
 }

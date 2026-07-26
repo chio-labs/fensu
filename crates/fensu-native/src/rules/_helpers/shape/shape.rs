@@ -18,45 +18,66 @@ const MAX_POSITIONAL_ARGS_THRESHOLD: &str = "max_positional_args";
 const MAX_STATEMENTS_THRESHOLD: &str = "max_statements";
 const MAX_STATEMENTS_GLOBAL_THRESHOLD: &str = "max_statements_global";
 
+type FunctionMetricRow = fensu_facts::facts::models::FunctionMetricRow;
+
+struct MainMetricPolicy<'a, Metric, Message> {
+    program: &'a ProgramHandle,
+    code: &'a str,
+    context: &'a NativeRuleContext,
+    threshold: &'a str,
+    metric: Metric,
+    message: Message,
+}
+
+struct AllMetricPolicy<'a, Metric, Predicate, Message> {
+    program: &'a ProgramHandle,
+    code: &'a str,
+    context: &'a NativeRuleContext,
+    threshold: &'a str,
+    metric: Metric,
+    predicate: Predicate,
+    message: Message,
+}
+
 pub(crate) fn shape_faults(
     program: &ProgramHandle,
     code: &str,
     context: &NativeRuleContext,
 ) -> Option<Vec<NativeFaultRow>> {
     let faults = match code {
-        TOO_MANY_STATEMENTS_CODE => main_metric_faults(
+        TOO_MANY_STATEMENTS_CODE => main_metric_faults(MainMetricPolicy {
             program,
             code,
             context,
-            MAX_STATEMENTS_THRESHOLD,
-            |row| row.statement_count,
-            |count| format!("function has {count} statements"),
-        ),
-        TOO_MANY_DISTINCT_CALLS_CODE => main_metric_faults(
+            threshold: MAX_STATEMENTS_THRESHOLD,
+            metric: |row: &FunctionMetricRow| row.statement_count,
+            message: |count| format!("function has {count} statements"),
+        }),
+        TOO_MANY_DISTINCT_CALLS_CODE => main_metric_faults(MainMetricPolicy {
             program,
             code,
             context,
-            MAX_DISTINCT_CALLS_THRESHOLD,
-            |row| row.distinct_call_count,
-            |count| format!("function calls {count} distinct functions"),
-        ),
-        TOO_MANY_LOCALS_CODE => main_metric_faults(
+            threshold: MAX_DISTINCT_CALLS_THRESHOLD,
+            metric: |row: &FunctionMetricRow| row.distinct_call_count,
+            message: |count| format!("function calls {count} distinct functions"),
+        }),
+        TOO_MANY_LOCALS_CODE => main_metric_faults(MainMetricPolicy {
             program,
             code,
             context,
-            MAX_LOCALS_THRESHOLD,
-            |row| row.assigned_local_count,
-            |count| format!("function defines {count} local variables"),
-        ),
-        MAX_ARGUMENTS_CODE => all_metric_faults(
+            threshold: MAX_LOCALS_THRESHOLD,
+            metric: |row: &FunctionMetricRow| row.assigned_local_count,
+            message: |count| format!("function defines {count} local variables"),
+        }),
+        MAX_ARGUMENTS_CODE => all_metric_faults(AllMetricPolicy {
             program,
             code,
             context,
-            MAX_ARGUMENTS_THRESHOLD,
-            |row| row.parameter_count,
-            |row, limit| row.parameter_count > limit,
-            |count, _| format!("function has {count} parameters"),
-        ),
+            threshold: MAX_ARGUMENTS_THRESHOLD,
+            metric: |row: &FunctionMetricRow| row.parameter_count,
+            predicate: |row: &FunctionMetricRow, limit| row.parameter_count > limit,
+            message: |count, _: &FunctionMetricRow| format!("function has {count} parameters"),
+        }),
         MAX_STATEMENTS_GLOBAL_CODE => global_statement_faults(program, code, context),
         MEANINGFUL_PROJECT_RESULT_DISCARDED_CODE => {
             meaningful_project_result_faults(program, code, context)
@@ -79,22 +100,22 @@ pub(crate) fn shape_faults(
             .filter(|row| !row.dunder && !row.setter && !row.returned)
             .map(|row| location_fault(code, row.line, row.column))
             .collect(),
-        KEYWORD_ONLY_ARGUMENTS_CODE => all_metric_faults(
+        KEYWORD_ONLY_ARGUMENTS_CODE => all_metric_faults(AllMetricPolicy {
             program,
             code,
             context,
-            MAX_POSITIONAL_ARGS_THRESHOLD,
-            |row| row.parameter_count,
-            |row, limit| {
+            threshold: MAX_POSITIONAL_ARGS_THRESHOLD,
+            metric: |row: &FunctionMetricRow| row.parameter_count,
+            predicate: |row: &FunctionMetricRow, limit| {
                 !row.dunder && row.parameter_count > limit && row.positional_parameter_count > 0
             },
-            |count, row| {
+            message: |count, row: &FunctionMetricRow| {
                 format!(
                     "function with {count} parameters has {} positional parameters",
                     row.positional_parameter_count
                 )
             },
-        ),
+        }),
         NO_OUTER_STATE_MUTATION_CODE => program
             .outer_state_mutation_rows()
             .iter()
@@ -132,78 +153,75 @@ fn meaningful_project_result_faults(
         return Vec::new();
     }
     let (functions, calls) = program.project_rows();
-    calls
-        .iter()
-        .filter(|call| {
-            if let Some(module_name) = &call.module_name {
-                let observation = NativeProjectQuery {
-                    kind: "module_function".to_owned(),
-                    path: module_name.clone(),
-                    argument: call.function_name.clone(),
-                };
-                context.observation(&observation) == ["meaningful"]
-            } else {
-                functions.iter().any(|function| {
-                    function.name == call.function_name && function.meaningful_result
-                })
-            }
-        })
-        .map(|call| location_fault(code, call.line, call.column))
-        .collect()
+    let mut faults = Vec::new();
+    for call in calls {
+        let meaningful = if let Some(module_name) = &call.module_name {
+            let observation = NativeProjectQuery {
+                kind: "module_function".to_owned(),
+                path: module_name.clone(),
+                argument: call.function_name.clone(),
+            };
+            context.observation(&observation) == ["meaningful"]
+        } else {
+            functions
+                .iter()
+                .any(|function| function.name == call.function_name && function.meaningful_result)
+        };
+        if meaningful {
+            faults.push(location_fault(code, call.line, call.column));
+        }
+    }
+    faults
 }
 
 fn main_metric_faults<Metric, Message>(
-    program: &ProgramHandle,
-    code: &str,
-    context: &NativeRuleContext,
-    threshold: &str,
-    metric: Metric,
-    message: Message,
+    policy: MainMetricPolicy<'_, Metric, Message>,
 ) -> Vec<NativeFaultRow>
 where
-    Metric: Fn(&fensu_facts::facts::models::FunctionMetricRow) -> u32,
+    Metric: Fn(&FunctionMetricRow) -> u32,
     Message: Fn(u32) -> String,
 {
-    if !context.is_main_module {
+    if !policy.context.is_main_module {
         return Vec::new();
     }
-    let Some(limit) = context.thresholds.get(threshold).copied() else {
+    let Some(limit) = policy.context.thresholds.get(policy.threshold).copied() else {
         return Vec::new();
     };
-    let (rows, top_level_slots) = program.function_rows();
+    let (rows, top_level_slots) = policy.program.function_rows();
     top_level_slots
         .iter()
         .filter_map(|slot| rows.get(*slot))
         .filter_map(|row| {
-            let count = metric(row);
-            (count > limit).then(|| metric_fault(code, row, message(count)))
+            let count = (policy.metric)(row);
+            (count > limit).then(|| metric_fault(policy.code, row, (policy.message)(count)))
         })
         .collect()
 }
 
 fn all_metric_faults<Metric, Predicate, Message>(
-    program: &ProgramHandle,
-    code: &str,
-    context: &NativeRuleContext,
-    threshold: &str,
-    metric: Metric,
-    predicate: Predicate,
-    message: Message,
+    policy: AllMetricPolicy<'_, Metric, Predicate, Message>,
 ) -> Vec<NativeFaultRow>
 where
-    Metric: Fn(&fensu_facts::facts::models::FunctionMetricRow) -> u32,
-    Predicate: Fn(&fensu_facts::facts::models::FunctionMetricRow, u32) -> bool,
-    Message: Fn(u32, &fensu_facts::facts::models::FunctionMetricRow) -> String,
+    Metric: Fn(&FunctionMetricRow) -> u32,
+    Predicate: Fn(&FunctionMetricRow, u32) -> bool,
+    Message: Fn(u32, &FunctionMetricRow) -> String,
 {
-    let Some(limit) = context.thresholds.get(threshold).copied() else {
+    let Some(limit) = policy.context.thresholds.get(policy.threshold).copied() else {
         return Vec::new();
     };
-    program
+    policy
+        .program
         .function_rows()
         .0
         .iter()
-        .filter(|row| predicate(row, limit))
-        .map(|row| metric_fault(code, row, message(metric(row), row)))
+        .filter(|row| (policy.predicate)(row, limit))
+        .map(|row| {
+            metric_fault(
+                policy.code,
+                row,
+                (policy.message)((policy.metric)(row), row),
+            )
+        })
         .collect()
 }
 

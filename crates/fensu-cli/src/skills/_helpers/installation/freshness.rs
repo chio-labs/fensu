@@ -35,15 +35,18 @@ pub(crate) fn check(plan: &InstallPlan, authoritative: bool) -> Result<Freshness
             });
         }
     }
-    if authoritative {
-        inspect_project_targets(plan, &mut inspected, &mut issues)?;
-    }
-    inspected.sort();
-    issues.sort_by(|left, right| left.path.cmp(&right.path));
-    Ok(FreshnessResult {
+    let mut result = FreshnessResult {
         inspected_paths: inspected,
         issues,
-    })
+    };
+    if authoritative {
+        result = inspect_project_targets(plan, result)?;
+    }
+    result.inspected_paths.sort();
+    result
+        .issues
+        .sort_by(|left, right| left.path.cmp(&right.path));
+    Ok(result)
 }
 
 fn inspect_generated(
@@ -83,9 +86,8 @@ fn inspect_generated(
 
 fn inspect_project_targets(
     plan: &InstallPlan,
-    inspected: &mut Vec<PathBuf>,
-    issues: &mut Vec<FreshnessIssue>,
-) -> Result<(), String> {
+    mut result: FreshnessResult,
+) -> Result<FreshnessResult, String> {
     let mut desired = HashMap::<PathBuf, HashSet<String>>::new();
     for target in &plan.targets {
         desired
@@ -97,10 +99,12 @@ fn inspect_project_targets(
     targets.sort_by(|left, right| left.path.cmp(&right.path));
     for target in &targets {
         for source in &target.bundle.files {
-            inspected.push(target.path.join(&source.relative_path));
+            result
+                .inspected_paths
+                .push(target.path.join(&source.relative_path));
         }
         if normalization_collision(&target.path.join("SKILL.md"))?.is_some() {
-            issues.push(FreshnessIssue {
+            result.issues.push(FreshnessIssue {
                 path: target.path.join("SKILL.md"),
                 reason: FreshnessReason::Collision,
             });
@@ -118,7 +122,7 @@ fn inspect_project_targets(
         let installed = match capture_bundle(&target.path) {
             Ok(value) => value,
             Err(_) => {
-                issues.push(FreshnessIssue {
+                result.issues.push(FreshnessIssue {
                     path: target.path.join("SKILL.md"),
                     reason: FreshnessReason::Collision,
                 });
@@ -131,7 +135,7 @@ fn inspect_project_targets(
             .collect::<HashMap<_, _>>();
         let document_path = target.path.join("SKILL.md");
         if target.path.exists() && !installed_by_path.contains_key(&document_path) {
-            issues.push(FreshnessIssue {
+            result.issues.push(FreshnessIssue {
                 path: document_path,
                 reason: FreshnessReason::Collision,
             });
@@ -144,7 +148,7 @@ fn inspect_project_targets(
             let path = target.path.join(&source.relative_path);
             expected_paths.insert(path.clone());
             let Some(snapshot) = installed_by_path.get(&path) else {
-                issues.push(FreshnessIssue {
+                result.issues.push(FreshnessIssue {
                     path,
                     reason: FreshnessReason::Missing,
                 });
@@ -157,7 +161,13 @@ fn inspect_project_targets(
                 &source.content
             };
             let reason = if source.relative_path == Path::new("SKILL.md") {
-                project_document_reason(plan, &target.bundle.identity, content, expected, &input)
+                project_document_reason(ProjectDocumentRequest {
+                    plan,
+                    identity: &target.bundle.identity,
+                    content,
+                    expected,
+                    input: &input,
+                })
             } else if content != expected || snapshot.mode != Some(source.mode) {
                 Some(FreshnessReason::Divergent)
             } else {
@@ -166,28 +176,29 @@ fn inspect_project_targets(
             if let Some(reason) = reason.or_else(|| {
                 (snapshot.mode != Some(source.mode)).then_some(FreshnessReason::Divergent)
             }) {
-                issues.push(FreshnessIssue { path, reason });
+                result.issues.push(FreshnessIssue { path, reason });
             }
         }
         for snapshot in installed {
             if !expected_paths.contains(&snapshot.path) {
-                issues.push(FreshnessIssue {
+                result.issues.push(FreshnessIssue {
                     path: snapshot.path,
                     reason: FreshnessReason::Divergent,
                 });
             }
         }
     }
-    inspect_stale_targets(plan, desired, issues)
+    result.issues = inspect_stale_targets(plan, desired, result.issues)?;
+    Ok(result)
 }
 
 fn inspect_stale_targets(
     plan: &InstallPlan,
     desired: HashMap<PathBuf, HashSet<String>>,
-    issues: &mut Vec<FreshnessIssue>,
-) -> Result<(), String> {
+    mut issues: Vec<FreshnessIssue>,
+) -> Result<Vec<FreshnessIssue>, String> {
     if !plan.synchronize_project_skills {
-        return Ok(());
+        return Ok(issues);
     }
     for (directory, desired_names) in desired {
         if !directory.is_dir()
@@ -222,16 +233,25 @@ fn inspect_stale_targets(
             }
         }
     }
-    Ok(())
+    Ok(issues)
 }
 
-fn project_document_reason(
-    plan: &InstallPlan,
-    identity: &str,
-    content: &[u8],
-    expected: &[u8],
-    input: &str,
-) -> Option<FreshnessReason> {
+struct ProjectDocumentRequest<'a> {
+    plan: &'a InstallPlan,
+    identity: &'a str,
+    content: &'a [u8],
+    expected: &'a [u8],
+    input: &'a str,
+}
+
+fn project_document_reason(request: ProjectDocumentRequest<'_>) -> Option<FreshnessReason> {
+    let ProjectDocumentRequest {
+        plan,
+        identity,
+        content,
+        expected,
+        input,
+    } = request;
     if !project_marker_present(content) {
         return Some(FreshnessReason::Collision);
     }

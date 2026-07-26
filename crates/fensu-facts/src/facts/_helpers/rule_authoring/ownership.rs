@@ -7,6 +7,14 @@ use crate::positions::models::LineIndex;
 use crate::syntax::main::start_of::start_of;
 use crate::syntax::types::ShapeNode;
 
+pub(crate) struct EnclosingDefinitionsParams<'a, 'node> {
+    pub(crate) nodes: &'a [ShapeNode<'node>],
+    pub(crate) parents: &'a [Option<usize>],
+    pub(crate) position: usize,
+    pub(crate) index: &'a LineIndex,
+    pub(crate) source: &'a str,
+}
+
 pub(crate) fn ancestor_positions(parents: &[Option<usize>], position: usize) -> Vec<usize> {
     let mut ancestors = Vec::new();
     let mut current = parents[position];
@@ -18,28 +26,22 @@ pub(crate) fn ancestor_positions(parents: &[Option<usize>], position: usize) -> 
 }
 
 pub(crate) fn enclosing_classes(
-    nodes: &[ShapeNode<'_>],
-    parents: &[Option<usize>],
-    position: usize,
-    index: &LineIndex,
-    source: &str,
+    params: EnclosingDefinitionsParams<'_, '_>,
 ) -> Vec<DefinitionIdentityRow> {
-    ancestor_positions(parents, position)
+    ancestor_positions(params.parents, params.position)
         .into_iter()
-        .filter_map(|ancestor| class_identity(&nodes[ancestor], index, source))
+        .filter_map(|ancestor| class_identity(&params.nodes[ancestor], params.index, params.source))
         .collect()
 }
 
 pub(crate) fn enclosing_functions(
-    nodes: &[ShapeNode<'_>],
-    parents: &[Option<usize>],
-    position: usize,
-    index: &LineIndex,
-    source: &str,
+    params: EnclosingDefinitionsParams<'_, '_>,
 ) -> Vec<DefinitionIdentityRow> {
-    ancestor_positions(parents, position)
+    ancestor_positions(params.parents, params.position)
         .into_iter()
-        .filter_map(|ancestor| function_identity(&nodes[ancestor], index, source))
+        .filter_map(|ancestor| {
+            function_identity(&params.nodes[ancestor], params.index, params.source)
+        })
         .collect()
 }
 

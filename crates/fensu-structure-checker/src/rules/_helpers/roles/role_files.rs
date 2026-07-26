@@ -32,13 +32,13 @@ fn check_reserved_helper_name(file: &models::SourceFile) -> Vec<models::Violatio
     if !inside_helpers {
         return Vec::new();
     }
-    vec![models::Violation::new(
-        "RSR303",
-        file.relative_path(),
-        None,
-        format!("helpers container declares the reserved role file {name}"),
-        "move role declarations to the sibling role file beside the container",
-    )]
+    vec![models::Violation::new(models::ViolationRequest {
+        code: "RSR303",
+        path: file.relative_path(),
+        line: None,
+        message: format!("helpers container declares the reserved role file {name}"),
+        remediation: "move role declarations to the sibling role file beside the container",
+    })]
 }
 
 fn check_role_content(file: &models::SourceFile, syntax: &syn::File) -> Vec<models::Violation> {
@@ -76,13 +76,13 @@ fn role_content_violation(file: &models::SourceFile, item: &syn::Item) -> Vec<mo
         name if name == constants::ERRORS_FILE => ("RSR004", "errors.rs"),
         _ => ("RSR001", "models.rs"),
     };
-    vec![models::Violation::new(
+    vec![models::Violation::new(models::ViolationRequest {
         code,
-        file.relative_path(),
-        Some(item.span().start().line),
-        format!("{role} contains an item outside its role"),
-        "move the item into the module role that owns it",
-    )]
+        path: file.relative_path(),
+        line: Some(item.span().start().line),
+        message: format!("{role} contains an item outside its role"),
+        remediation: "move the item into the module role that owns it",
+    })]
 }
 
 fn check_model_derives(file: &models::SourceFile, item: &syn::Item) -> Vec<models::Violation> {
@@ -92,13 +92,13 @@ fn check_model_derives(file: &models::SourceFile, item: &syn::Item) -> Vec<model
     if derives_debug(&item_struct.attrs) {
         return Vec::new();
     }
-    vec![models::Violation::new(
-        "RSS201",
-        file.relative_path(),
-        Some(item_struct.ident.span().start().line),
-        format!("model {} does not derive Debug", item_struct.ident),
-        "derive Debug on every data model for diagnosability",
-    )]
+    vec![models::Violation::new(models::ViolationRequest {
+        code: "RSS201",
+        path: file.relative_path(),
+        line: Some(item_struct.ident.span().start().line),
+        message: format!("model {} does not derive Debug", item_struct.ident),
+        remediation: "derive Debug on every data model for diagnosability",
+    })]
 }
 
 fn derives_debug(attributes: &[syn::Attribute]) -> bool {
@@ -150,13 +150,13 @@ fn data_struct_violation(
     if !has_public_field {
         return Vec::new();
     }
-    vec![models::Violation::new(
-        "RSR101",
-        file.relative_path(),
-        Some(item_struct.ident.span().start().line),
-        format!("public data struct {} outside models.rs", item_struct.ident),
-        "move shared data carriers into the owning models.rs",
-    )]
+    vec![models::Violation::new(models::ViolationRequest {
+        code: "RSR101",
+        path: file.relative_path(),
+        line: Some(item_struct.ident.span().start().line),
+        message: format!("public data struct {} outside models.rs", item_struct.ident),
+        remediation: "move shared data carriers into the owning models.rs",
+    })]
 }
 
 fn type_layer_violation(
@@ -179,13 +179,13 @@ fn type_layer_violation(
     let Some(line) = declaration else {
         return Vec::new();
     };
-    vec![models::Violation::new(
-        "RSR102",
-        file.relative_path(),
-        Some(line),
-        "public type-layer declaration outside types.rs",
-        "move public traits and type aliases into the owning types.rs",
-    )]
+    vec![models::Violation::new(models::ViolationRequest {
+        code: "RSR102",
+        path: file.relative_path(),
+        line: Some(line),
+        message: "public type-layer declaration outside types.rs",
+        remediation: "move public traits and type aliases into the owning types.rs",
+    })]
 }
 
 fn constant_violation(
@@ -202,13 +202,13 @@ fn constant_violation(
     if !matches!(item_const.vis, syn::Visibility::Public(_)) {
         return Vec::new();
     }
-    vec![models::Violation::new(
-        "RSR103",
-        file.relative_path(),
-        Some(item_const.ident.span().start().line),
-        format!("public constant {} outside constants.rs", item_const.ident),
-        "move public constants into the owning constants.rs",
-    )]
+    vec![models::Violation::new(models::ViolationRequest {
+        code: "RSR103",
+        path: file.relative_path(),
+        line: Some(item_const.ident.span().start().line),
+        message: format!("public constant {} outside constants.rs", item_const.ident),
+        remediation: "move public constants into the owning constants.rs",
+    })]
 }
 
 fn error_type_violation(
@@ -230,11 +230,11 @@ fn error_type_violation(
     if !ident.to_string().ends_with(constants::ERROR_TYPE_SUFFIX) {
         return Vec::new();
     }
-    vec![models::Violation::new(
-        "RSR104",
-        file.relative_path(),
-        Some(line),
-        format!("error type {ident} outside errors.rs"),
-        "define error types in the owning errors.rs",
-    )]
+    vec![models::Violation::new(models::ViolationRequest {
+        code: "RSR104",
+        path: file.relative_path(),
+        line: Some(line),
+        message: format!("error type {ident} outside errors.rs"),
+        remediation: "define error types in the owning errors.rs",
+    })]
 }

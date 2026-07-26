@@ -7,6 +7,7 @@ use std::time::{Duration, SystemTime};
 
 use fensu_memory::engine::main::archive_memory::archive_memory;
 use fensu_memory::engine::main::sync_memory_index::sync_memory_index;
+use fensu_memory::engine::models::MemoryArchiveRequest;
 use rusqlite::Connection;
 
 use crate::dependencies::helpers;
@@ -54,13 +55,14 @@ fn given_explicit_knowledge_when_archiving_then_moves_complete_source_and_synchr
         let root = helpers::write_repository(test_case.files);
         let database_path = root.join("memory.sqlite3");
         sync_memory_index(&root, &database_path).expect("initial sync succeeds");
-        let result = archive_memory(
-            &root,
-            &database_path,
-            &[PathBuf::from(test_case.requested_path)],
-            7,
-            test_case.confirmed,
-        )
+        let requested_paths = [PathBuf::from(test_case.requested_path)];
+        let result = archive_memory(MemoryArchiveRequest {
+            repository_root: &root,
+            database_path: &database_path,
+            requested_paths: &requested_paths,
+            archive_after_days: 7,
+            confirmed: test_case.confirmed,
+        })
         .expect("knowledge archive succeeds");
 
         assert_eq!(result.moves.len(), test_case.expected_move_count);
@@ -115,13 +117,13 @@ fn given_explicit_task_when_archiving_then_requires_terminal_lifecycle_and_confi
         let database_path = root.join("memory.sqlite3");
         let completed = PathBuf::from(test_case.completed_path);
         let active = PathBuf::from(test_case.active_path);
-        let confirmation = archive_memory(
-            &root,
-            &database_path,
-            std::slice::from_ref(&completed),
-            7,
-            false,
-        )
+        let confirmation = archive_memory(MemoryArchiveRequest {
+            repository_root: &root,
+            database_path: &database_path,
+            requested_paths: std::slice::from_ref(&completed),
+            archive_after_days: 7,
+            confirmed: false,
+        })
         .expect_err("explicit terminal task requires confirmation");
         assert!(
             confirmation
@@ -131,13 +133,13 @@ fn given_explicit_task_when_archiving_then_requires_terminal_lifecycle_and_confi
             test_case.description
         );
         assert!(root.join(&completed).exists(), "{}", test_case.description);
-        let lifecycle = archive_memory(
-            &root,
-            &database_path,
-            std::slice::from_ref(&active),
-            7,
-            true,
-        )
+        let lifecycle = archive_memory(MemoryArchiveRequest {
+            repository_root: &root,
+            database_path: &database_path,
+            requested_paths: std::slice::from_ref(&active),
+            archive_after_days: 7,
+            confirmed: true,
+        })
         .expect_err("active task cannot archive");
         assert!(
             lifecycle
@@ -147,13 +149,13 @@ fn given_explicit_task_when_archiving_then_requires_terminal_lifecycle_and_confi
             test_case.description
         );
         assert!(root.join(&active).exists(), "{}", test_case.description);
-        let result = archive_memory(
-            &root,
-            &database_path,
-            std::slice::from_ref(&completed),
-            7,
-            true,
-        )
+        let result = archive_memory(MemoryArchiveRequest {
+            repository_root: &root,
+            database_path: &database_path,
+            requested_paths: std::slice::from_ref(&completed),
+            archive_after_days: 7,
+            confirmed: true,
+        })
         .expect("confirmed terminal task archives");
         assert_eq!(
             result.moves.len(),
@@ -182,13 +184,13 @@ fn given_zero_automatic_age_when_archiving_then_moves_nothing_and_does_not_sync(
     for test_case in &test_cases {
         let root = helpers::write_repository(test_case.files);
         let database_path = root.join("memory.sqlite3");
-        let result = archive_memory(
-            &root,
-            &database_path,
-            &[],
-            test_case.archive_after_days,
-            false,
-        )
+        let result = archive_memory(MemoryArchiveRequest {
+            repository_root: &root,
+            database_path: &database_path,
+            requested_paths: &[],
+            archive_after_days: test_case.archive_after_days,
+            confirmed: false,
+        })
         .expect("disabled automatic archive succeeds");
         assert_eq!(
             result.moves.len(),
@@ -245,13 +247,13 @@ fn given_old_mtime_and_recent_ctime_when_archiving_then_terminal_task_receives_g
             .set_times(FileTimes::new().set_modified(old_mtime))
             .expect("terminal task mtime changes");
 
-        let result = archive_memory(
-            &root,
-            &database_path,
-            &[],
-            test_case.archive_after_days,
-            false,
-        )
+        let result = archive_memory(MemoryArchiveRequest {
+            repository_root: &root,
+            database_path: &database_path,
+            requested_paths: &[],
+            archive_after_days: test_case.archive_after_days,
+            confirmed: false,
+        })
         .expect("automatic archive succeeds");
 
         assert_eq!(
@@ -293,13 +295,13 @@ fn given_old_mtime_when_archiving_on_windows_then_terminal_task_is_eligible() {
             .set_times(FileTimes::new().set_modified(old_mtime))
             .expect("terminal task mtime changes");
 
-        let result = archive_memory(
-            &root,
-            &database_path,
-            &[],
-            test_case.archive_after_days,
-            false,
-        )
+        let result = archive_memory(MemoryArchiveRequest {
+            repository_root: &root,
+            database_path: &database_path,
+            requested_paths: &[],
+            archive_after_days: test_case.archive_after_days,
+            confirmed: false,
+        })
         .expect("automatic archive succeeds");
 
         assert_eq!(

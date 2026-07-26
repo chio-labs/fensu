@@ -54,19 +54,18 @@ fn configured_paths(
     invocation: &Path,
     root: &Path,
 ) -> Result<Vec<String>, String> {
-    options
-        .paths
-        .iter()
-        .map(|path| {
-            invocation
-                .join(path)
-                .canonicalize()
-                .map_err(|error| error.to_string())?
-                .strip_prefix(root)
-                .map_err(|error| error.to_string())
-                .map(|path| path.to_string_lossy().replace('\\', "/"))
-        })
-        .collect::<Result<Vec<_>, String>>()
+    let mut configured = Vec::new();
+    for path in &options.paths {
+        let absolute = invocation
+            .join(path)
+            .canonicalize()
+            .map_err(|error| error.to_string())?;
+        let relative = absolute
+            .strip_prefix(root)
+            .map_err(|error| error.to_string())?;
+        configured.push(relative.to_string_lossy().replace('\\', "/"));
+    }
+    Ok(configured)
 }
 
 fn discover(root: &Path, config: &Config) -> Result<Vec<ScopedSource>, String> {
@@ -135,20 +134,21 @@ fn discover(root: &Path, config: &Config) -> Result<Vec<ScopedSource>, String> {
 
 fn select_sources(sources: Vec<ScopedSource>, config: &Config) -> (Vec<ScopedSource>, usize) {
     let discovered = sources.len();
-    let selected = sources
-        .into_iter()
-        .filter(|source| {
-            (config.evaluation_include.is_empty()
-                || config
-                    .evaluation_include
-                    .iter()
-                    .any(|pattern| path_matches(&source.repository_path, pattern)))
-                && !config
-                    .evaluation_exclude
-                    .iter()
-                    .any(|pattern| path_matches(&source.repository_path, pattern))
-        })
-        .collect::<Vec<_>>();
+    let mut selected = Vec::new();
+    for source in sources {
+        let included = config.evaluation_include.is_empty()
+            || config
+                .evaluation_include
+                .iter()
+                .any(|pattern| path_matches(&source.repository_path, pattern));
+        let excluded = config
+            .evaluation_exclude
+            .iter()
+            .any(|pattern| path_matches(&source.repository_path, pattern));
+        if included && !excluded {
+            selected.push(source);
+        }
+    }
     let excluded = discovered - selected.len();
     (selected, excluded)
 }

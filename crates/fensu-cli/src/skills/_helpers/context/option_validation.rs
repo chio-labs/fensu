@@ -34,15 +34,16 @@ pub(crate) fn validate_rule_options(rule: &RuleMetadata) -> Result<(), String> {
 }
 
 fn valid_option_name(name: &str) -> bool {
-    !name.is_empty()
-        && name.split('_').all(|part| {
-            !part.is_empty()
-                && part.as_bytes()[0].is_ascii_lowercase()
-                && part
-                    .as_bytes()
-                    .iter()
-                    .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
-        })
+    !name.is_empty() && name.split('_').all(valid_option_name_part)
+}
+
+fn valid_option_name_part(part: &str) -> bool {
+    !part.is_empty()
+        && part.as_bytes()[0].is_ascii_lowercase()
+        && part
+            .as_bytes()
+            .iter()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
 }
 
 fn option_value_matches_kind(value: &RuleOptionValue, kind: &str) -> bool {

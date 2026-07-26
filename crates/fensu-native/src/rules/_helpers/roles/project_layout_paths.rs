@@ -150,20 +150,20 @@ pub(crate) fn direct_modules(path: &Path) -> Vec<PathBuf> {
 }
 
 pub(crate) fn recursive_python(path: &Path) -> Vec<PathBuf> {
-    let mut paths = Vec::new();
-    collect_python(path, &mut paths);
+    let mut paths = collect_python(path, Vec::new());
     paths.sort();
     paths
 }
 
-fn collect_python(path: &Path, paths: &mut Vec<PathBuf>) {
+fn collect_python(path: &Path, mut paths: Vec<PathBuf>) -> Vec<PathBuf> {
     for entry in directory_entries(path) {
         if entry.is_dir() {
-            collect_python(&entry, paths);
+            paths = collect_python(&entry, paths);
         } else if entry.extension().and_then(|value| value.to_str()) == Some(PYTHON_EXTENSION) {
             paths.push(entry);
         }
     }
+    paths
 }
 
 pub(crate) fn python_anchor(path: &Path) -> Option<PathBuf> {

@@ -19,6 +19,14 @@ struct ActiveHeading {
     range: Range<usize>,
 }
 
+struct HeadingBuild<'a> {
+    source: &'a str,
+    index: &'a LineIndex,
+    path: Vec<(u8, String)>,
+    active: ActiveHeading,
+    prior_count: usize,
+}
+
 pub(crate) fn extract(source: &str, index: &LineIndex) -> Vec<MarkdownHeading> {
     let parser = Parser::new_ext(source, text::parser_options()).into_offset_iter();
     let mut headings = Vec::new();
@@ -49,13 +57,15 @@ pub(crate) fn extract(source: &str, index: &LineIndex) -> Vec<MarkdownHeading> {
             }
             Event::End(TagEnd::Heading(_)) => {
                 if let Some(heading) = active.take() {
-                    headings.push(build_heading(
+                    let (built, updated_path) = build_heading(HeadingBuild {
                         source,
                         index,
-                        &mut path,
-                        heading,
-                        headings.len(),
-                    ));
+                        path,
+                        active: heading,
+                        prior_count: headings.len(),
+                    });
+                    path = updated_path;
+                    headings.push(built);
                 }
             }
             _ => {}
@@ -120,20 +130,21 @@ pub(crate) fn sections(
     sections
 }
 
-fn build_heading(
-    source: &str,
-    index: &LineIndex,
-    path: &mut Vec<(u8, String)>,
-    active: ActiveHeading,
-    prior_count: usize,
-) -> MarkdownHeading {
+fn build_heading(build: HeadingBuild<'_>) -> (MarkdownHeading, Vec<(u8, String)>) {
+    let HeadingBuild {
+        source,
+        index,
+        mut path,
+        active,
+        prior_count,
+    } = build;
     let heading_text = active.text.trim().to_owned();
     while path.last().is_some_and(|(level, _)| *level >= active.level) {
         let _ = path.pop();
     }
     path.push((active.level, heading_text.clone()));
     let (semantic_kind, phase_identifier, phase_title) = semantic_metadata(&heading_text);
-    MarkdownHeading {
+    let heading = MarkdownHeading {
         level: active.level,
         text: heading_text.clone(),
         ordinal: prior_count + 1,
@@ -147,7 +158,8 @@ fn build_heading(
         semantic_kind,
         phase_identifier,
         phase_title,
-    }
+    };
+    (heading, path)
 }
 
 fn semantic_metadata(

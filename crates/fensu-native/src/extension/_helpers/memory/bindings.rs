@@ -21,8 +21,42 @@ use fensu_memory::engine::main::rebuild_memory_index::rebuild_memory_index;
 use fensu_memory::engine::main::summarize_memory::summarize_memory;
 use fensu_memory::engine::main::sync_memory_index::sync_memory_index;
 use fensu_memory::engine::models::{
-    MemoryGraphDirection, MemoryGraphQuery, MemoryGraphRelationship,
+    MemoryArchiveRequest, MemoryGraphDirection, MemoryGraphQuery, MemoryGraphRelationship,
 };
+
+struct PythonMemoryArchiveRequest<'py> {
+    py: Python<'py>,
+    repository_root: PathBuf,
+    database_path: PathBuf,
+    requested_paths: Vec<PathBuf>,
+    archive_after_days: u64,
+    confirmed: bool,
+}
+
+macro_rules! define_memory_archive_binding {
+    () => {
+        #[pyfunction]
+        pub(crate) fn memory_archive(
+            py: Python<'_>,
+            repository_root: PathBuf,
+            database_path: PathBuf,
+            requested_paths: Vec<PathBuf>,
+            archive_after_days: u64,
+            confirmed: bool,
+        ) -> PyResult<Py<PyTuple>> {
+            archive_request(PythonMemoryArchiveRequest {
+                py,
+                repository_root,
+                database_path,
+                requested_paths,
+                archive_after_days,
+                confirmed,
+            })
+        }
+    };
+}
+
+define_memory_archive_binding!();
 
 #[pyfunction]
 pub(crate) fn memory_dependency_probe(
@@ -63,24 +97,24 @@ pub(crate) fn memory_check(
     conversion::memory_check_result_object(py, result)
 }
 
-#[pyfunction]
-pub(crate) fn memory_archive(
-    py: Python<'_>,
-    repository_root: PathBuf,
-    database_path: PathBuf,
-    requested_paths: Vec<PathBuf>,
-    archive_after_days: u64,
-    confirmed: bool,
-) -> PyResult<Py<PyTuple>> {
+fn archive_request(request: PythonMemoryArchiveRequest<'_>) -> PyResult<Py<PyTuple>> {
+    let PythonMemoryArchiveRequest {
+        py,
+        repository_root,
+        database_path,
+        requested_paths,
+        archive_after_days,
+        confirmed,
+    } = request;
     let result = py
         .detach(move || {
-            archive_memory(
-                &repository_root,
-                &database_path,
-                &requested_paths,
+            archive_memory(MemoryArchiveRequest {
+                repository_root: &repository_root,
+                database_path: &database_path,
+                requested_paths: &requested_paths,
                 archive_after_days,
                 confirmed,
-            )
+            })
         })
         .map_err(memory_index_error)?;
     conversion::memory_archive_result_object(py, result)

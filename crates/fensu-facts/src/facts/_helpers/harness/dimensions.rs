@@ -11,6 +11,14 @@ use crate::positions::models::LineIndex;
 use crate::syntax::main::start_of::start_of;
 use crate::syntax::types::ShapeNode;
 
+struct DimensionRowParams<'a> {
+    decorator: &'a Decorator,
+    call: &'a ruff_python_ast::ExprCall,
+    bindings: &'a BindingIndex<'a>,
+    index: &'a LineIndex,
+    source: &'a str,
+}
+
 pub(crate) fn dimension_rows(
     function: &StmtFunctionDef,
     bindings: &BindingIndex<'_>,
@@ -27,55 +35,65 @@ pub(crate) fn dimension_rows(
         if !is_parametrize {
             continue;
         }
-        rows.push(dimension_row(decorator, call, bindings, index, source));
+        rows.push(dimension_row(DimensionRowParams {
+            decorator,
+            call,
+            bindings,
+            index,
+            source,
+        }));
     }
     rows
 }
 
-fn dimension_row(
-    decorator: &Decorator,
-    call: &ruff_python_ast::ExprCall,
-    bindings: &BindingIndex<'_>,
-    index: &LineIndex,
-    source: &str,
-) -> DimensionRow {
-    let parameter_names: Vec<String> = call
+fn dimension_row(params: DimensionRowParams<'_>) -> DimensionRow {
+    let parameter_names: Vec<String> = params
+        .call
         .arguments
         .args
         .first()
         .map(split_parameter_names)
         .unwrap_or_default();
-    let values: Option<&Expr> = (call.arguments.args.len()
+    let values: Option<&Expr> = (params.call.arguments.args.len()
         >= constants::MINIMUM_PARAMETRIZE_ARGUMENTS)
-        .then(|| &call.arguments.args[1]);
-    let decorator_line = index
+        .then(|| &params.call.arguments.args[1]);
+    let decorator_line = params
+        .index
         .locate(
-            ruff_text_size::Ranged::range(&decorator.expression)
+            ruff_text_size::Ranged::range(&params.decorator.expression)
                 .start()
                 .to_usize(),
         )
         .line;
-    let sequence = resolved_sequence(values, decorator_line, bindings, index);
+    let sequence = resolved_sequence(values, decorator_line, params.bindings, params.index);
     let mut unknown = values.is_some() && sequence.is_none();
     let mut case_locations: Vec<(u32, u32)> = Vec::new();
     if let Some(sequence_expression) = sequence {
         let empty: HashSet<&str> = HashSet::new();
         for element in sequence_elements(sequence_expression) {
-            if !bindings.is_rule_case_call(element, &empty) {
+            if !params.bindings.is_rule_case_call(element, &empty) {
                 unknown = true;
                 case_locations.clear();
                 break;
             }
-            case_locations.push(start_of(&ShapeNode::Expr(element), index, source));
+            case_locations.push(start_of(
+                &ShapeNode::Expr(element),
+                params.index,
+                params.source,
+            ));
         }
     }
-    let (line, column) = start_of(&ShapeNode::Expr(&decorator.expression), index, source);
+    let (line, column) = start_of(
+        &ShapeNode::Expr(&params.decorator.expression),
+        params.index,
+        params.source,
+    );
     DimensionRow {
         line,
         column,
         parameter_names,
         values_location: values
-            .map(|expression| start_of(&ShapeNode::Expr(expression), index, source)),
+            .map(|expression| start_of(&ShapeNode::Expr(expression), params.index, params.source)),
         rule_case_locations: case_locations,
         unknown_rule_case_count: unknown,
     }

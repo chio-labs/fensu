@@ -49,6 +49,25 @@ struct Resolver<'a, 'b> {
     enclosing_cache: HashMap<usize, HashSet<&'a str>>,
 }
 
+struct OuterMutationParams<'a, 'node> {
+    node: &'a ShapeNode<'node>,
+    local_bindings: &'a HashSet<&'node str>,
+    outer_bindings: &'a HashSet<&'node str>,
+    global_names: &'a HashSet<&'node str>,
+    nonlocal_names: &'a HashSet<&'node str>,
+    shadowed_names: &'a HashSet<&'node str>,
+}
+
+struct NameResolutionParams<'a, 'node> {
+    name: &'node str,
+    direct_name: bool,
+    local_bindings: &'a HashSet<&'node str>,
+    outer_bindings: &'a HashSet<&'node str>,
+    global_names: &'a HashSet<&'node str>,
+    nonlocal_names: &'a HashSet<&'node str>,
+    shadowed_names: &'a HashSet<&'node str>,
+}
+
 impl<'a> Resolver<'a, '_> {
     fn resolve(&mut self, candidate: usize) -> Option<TextRange> {
         let owner = self.owning_function(candidate)?;
@@ -62,14 +81,14 @@ impl<'a> Resolver<'a, '_> {
         let enclosing = self.enclosing_cache.get(&owner)?;
         let mut outer: HashSet<&'a str> = self.module_bindings.clone();
         outer.extend(enclosing);
-        outer_mutation(
-            &self.nodes[candidate],
-            &scope.bindings,
-            &outer,
-            &scope.global_names,
-            &scope.nonlocal_names,
-            &shadowed,
-        )
+        outer_mutation(OuterMutationParams {
+            node: &self.nodes[candidate],
+            local_bindings: &scope.bindings,
+            outer_bindings: &outer,
+            global_names: &scope.global_names,
+            nonlocal_names: &scope.nonlocal_names,
+            shadowed_names: &shadowed,
+        })
     }
 
     fn owning_function(&self, candidate: usize) -> Option<usize> {
@@ -240,45 +259,38 @@ fn mutation_targets<'a>(node: &ShapeNode<'a>) -> Vec<&'a Expr> {
     }
 }
 
-fn outer_mutation(
-    node: &ShapeNode<'_>,
-    local_bindings: &HashSet<&str>,
-    outer_bindings: &HashSet<&str>,
-    global_names: &HashSet<&str>,
-    nonlocal_names: &HashSet<&str>,
-    shadowed_names: &HashSet<&str>,
-) -> Option<TextRange> {
-    for target in mutation_targets(node) {
+fn outer_mutation(params: OuterMutationParams<'_, '_>) -> Option<TextRange> {
+    for target in mutation_targets(params.node) {
         let name = match target {
             Expr::Name(inner) => Some(inner.id.as_str()),
             _ => attribute_root_name(target),
         };
         if let Some(name) = name {
-            if name_resolves_outer(
+            if name_resolves_outer(NameResolutionParams {
                 name,
-                matches!(target, Expr::Name(_)),
-                local_bindings,
-                outer_bindings,
-                global_names,
-                nonlocal_names,
-                shadowed_names,
-            ) {
+                direct_name: matches!(target, Expr::Name(_)),
+                local_bindings: params.local_bindings,
+                outer_bindings: params.outer_bindings,
+                global_names: params.global_names,
+                nonlocal_names: params.nonlocal_names,
+                shadowed_names: params.shadowed_names,
+            }) {
                 return Some(target.range());
             }
         }
     }
-    if let ShapeNode::Expr(Expr::Call(call)) = node {
+    if let ShapeNode::Expr(Expr::Call(call)) = params.node {
         if let Expr::Attribute(attribute) = &*call.func {
             if let Some(name) = attribute_root_name(&attribute.value) {
-                if name_resolves_outer(
+                if name_resolves_outer(NameResolutionParams {
                     name,
-                    false,
-                    local_bindings,
-                    outer_bindings,
-                    global_names,
-                    nonlocal_names,
-                    shadowed_names,
-                ) {
+                    direct_name: false,
+                    local_bindings: params.local_bindings,
+                    outer_bindings: params.outer_bindings,
+                    global_names: params.global_names,
+                    nonlocal_names: params.nonlocal_names,
+                    shadowed_names: params.shadowed_names,
+                }) {
                     return Some(call.range());
                 }
             }
@@ -287,23 +299,15 @@ fn outer_mutation(
     None
 }
 
-fn name_resolves_outer(
-    name: &str,
-    direct_name: bool,
-    local_bindings: &HashSet<&str>,
-    outer_bindings: &HashSet<&str>,
-    global_names: &HashSet<&str>,
-    nonlocal_names: &HashSet<&str>,
-    shadowed_names: &HashSet<&str>,
-) -> bool {
-    if shadowed_names.contains(name) {
+fn name_resolves_outer(params: NameResolutionParams<'_, '_>) -> bool {
+    if params.shadowed_names.contains(params.name) {
         return false;
     }
-    if global_names.contains(name) || nonlocal_names.contains(name) {
+    if params.global_names.contains(params.name) || params.nonlocal_names.contains(params.name) {
         return true;
     }
-    if direct_name || local_bindings.contains(name) {
+    if params.direct_name || params.local_bindings.contains(params.name) {
         return false;
     }
-    outer_bindings.contains(name)
+    params.outer_bindings.contains(params.name)
 }

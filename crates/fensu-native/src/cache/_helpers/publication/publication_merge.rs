@@ -52,16 +52,15 @@ pub(crate) fn merged_observations(
     preparation: &NativePublicationPreparation,
 ) -> Option<Vec<NativeDependencyObservation>> {
     let mut merged = HashMap::new();
-    for observation in old.iter().filter(|observation| {
-        retained_keys
-            .map(|keys| keys.contains(&observation.key))
-            .unwrap_or(true)
-    }) {
-        merge_observation(&mut merged, observation.clone())?;
+    for observation in old {
+        if retained_keys.is_some_and(|keys| !keys.contains(&observation.key)) {
+            continue;
+        }
+        merged = merge_observation(merged, observation.clone())?;
     }
     for candidate in &preparation.candidates {
         for observation in &candidate.observations {
-            merge_observation(&mut merged, observation.clone())?;
+            merged = merge_observation(merged, observation.clone())?;
         }
     }
     let mut values = merged.into_values().collect::<Vec<_>>();
@@ -129,9 +128,9 @@ pub(crate) fn index_payload(
 }
 
 fn merge_observation(
-    merged: &mut HashMap<NativeDependencyKey, NativeDependencyObservation>,
+    mut merged: HashMap<NativeDependencyKey, NativeDependencyObservation>,
     observation: NativeDependencyObservation,
-) -> Option<()> {
+) -> Option<HashMap<NativeDependencyKey, NativeDependencyObservation>> {
     if let Some(existing) = merged.get_mut(&observation.key) {
         if existing.dependency_path != observation.dependency_path
             || existing.answer != observation.answer
@@ -144,7 +143,7 @@ fn merge_observation(
     } else {
         merged.insert(observation.key.clone(), observation);
     }
-    Some(())
+    Some(merged)
 }
 
 fn index_entry_value(entry: &NativeIndexEntry) -> CanonicalValue {

@@ -163,10 +163,15 @@ pub(crate) fn exact_fields(value: &CanonicalValue, expected: &[&str]) -> bool {
     let Some(entries) = value.as_object() else {
         return false;
     };
-    entries.len() == expected.len()
-        && expected
-            .iter()
-            .all(|name| entries.iter().any(|(key, _)| key == name))
+    if entries.len() != expected.len() {
+        return false;
+    }
+    for name in expected {
+        if !entries.iter().any(|(key, _)| key == name) {
+            return false;
+        }
+    }
+    true
 }
 
 pub(crate) fn optional_fingerprint(value: &CanonicalValue) -> Option<Option<String>> {
@@ -208,11 +213,13 @@ fn valid_rule_code(value: &str) -> bool {
 fn valid_symbol(value: &str) -> bool {
     let parts = value.split('.').collect::<Vec<_>>();
     (1..=MAXIMUM_SYMBOL_PARTS).contains(&parts.len())
-        && parts.iter().all(|part| {
-            let mut bytes = part.bytes();
-            bytes
-                .next()
-                .is_some_and(|byte| byte == b'_' || byte.is_ascii_alphabetic())
-                && bytes.all(|byte| byte == b'_' || byte.is_ascii_alphanumeric())
-        })
+        && parts.iter().all(|part| valid_symbol_part(part))
+}
+
+fn valid_symbol_part(part: &str) -> bool {
+    let mut bytes = part.bytes();
+    bytes
+        .next()
+        .is_some_and(|byte| byte == b'_' || byte.is_ascii_alphabetic())
+        && bytes.all(|byte| byte == b'_' || byte.is_ascii_alphanumeric())
 }

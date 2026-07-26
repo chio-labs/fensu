@@ -59,13 +59,14 @@ fn import_row(statement: &Stmt) -> Option<MappingImportRow> {
     Some(MappingImportRow {
         module,
         level,
-        aliases: names
-            .iter()
-            .map(|alias| MappingImportAliasRow {
-                name: alias.name.as_str().to_owned(),
-                asname: alias.asname.as_ref().map(|name| name.as_str().to_owned()),
-            })
-            .collect(),
+        aliases: names.iter().map(mapping_import_alias).collect(),
         from_import,
     })
+}
+
+fn mapping_import_alias(alias: &ruff_python_ast::Alias) -> MappingImportAliasRow {
+    MappingImportAliasRow {
+        name: alias.name.as_str().to_owned(),
+        asname: alias.asname.as_ref().map(|name| name.as_str().to_owned()),
+    }
 }

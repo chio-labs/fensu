@@ -22,13 +22,12 @@ pub(crate) fn parameter_mutation_occurrence_rows(
 ) -> Vec<ParameterMutationOccurrenceRow> {
     let (nodes, parents) = breadth_first_with_parents(module);
     let positions = function_positions(&nodes);
-    let parameters_by_position: HashMap<usize, HashMap<&str, &'static str>> = positions
-        .iter()
-        .filter_map(|position| {
-            function_at(&nodes, *position)
-                .map(|function| (*position, nonreceiver_parameter_kinds(function)))
-        })
-        .collect();
+    let mut parameters_by_position: HashMap<usize, HashMap<&str, &'static str>> = HashMap::new();
+    for position in &positions {
+        if let Some(function) = function_at(&nodes, *position) {
+            parameters_by_position.insert(*position, nonreceiver_parameter_kinds(function));
+        }
+    }
     if parameters_by_position.is_empty() {
         return Vec::new();
     }

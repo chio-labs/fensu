@@ -32,6 +32,8 @@ mod role_surfaces;
 pub(crate) mod roles;
 #[path = "shape/shape.rs"]
 pub(crate) mod shape;
+#[path = "tests/function_conventions.rs"]
+mod test_function_conventions;
 #[path = "tests/layout.rs"]
 mod test_layout;
 #[path = "tests/names.rs"]

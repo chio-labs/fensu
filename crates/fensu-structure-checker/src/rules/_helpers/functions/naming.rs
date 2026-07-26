@@ -192,11 +192,11 @@ fn contract_case(
     code: &'static str,
     remediation: &'static str,
 ) -> Vec<models::Violation> {
-    vec![models::Violation::new(
+    vec![models::Violation::new(models::ViolationRequest {
         code,
-        file.relative_path(),
-        Some(function.line),
-        format!("{} violates its naming contract", function.name),
+        path: file.relative_path(),
+        line: Some(function.line),
+        message: format!("{} violates its naming contract", function.name),
         remediation,
-    )]
+    })]
 }

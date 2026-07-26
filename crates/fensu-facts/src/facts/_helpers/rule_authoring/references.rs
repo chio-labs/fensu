@@ -25,24 +25,25 @@ pub(crate) fn qualified_reference(expression: &Expr) -> QualifiedReferenceRow {
     }
 }
 
-pub(crate) fn stored_target_names(expression: &Expr, names: &mut Vec<String>) {
+pub(crate) fn stored_target_names(expression: &Expr, mut names: Vec<String>) -> Vec<String> {
     match expression {
         Expr::Name(name) if matches!(name.ctx, ExprContext::Store) => {
             names.push(name.id.as_str().to_owned());
         }
         Expr::List(list) => {
             for element in &list.elts {
-                stored_target_names(element, names);
+                names = stored_target_names(element, names);
             }
         }
         Expr::Tuple(tuple) => {
             for element in &tuple.elts {
-                stored_target_names(element, names);
+                names = stored_target_names(element, names);
             }
         }
-        Expr::Starred(starred) => stored_target_names(&starred.value, names),
+        Expr::Starred(starred) => names = stored_target_names(&starred.value, names),
         _ => {}
     }
+    names
 }
 
 pub(crate) fn assignment_parts<'a>(

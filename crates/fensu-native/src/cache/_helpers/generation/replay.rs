@@ -1,15 +1,21 @@
 //! Native complete-generation validation and rendered-output replay.
 
+use std::collections::HashMap;
 use std::path::Path;
 
-use crate::cache::_helpers::generation::observations_are_current;
+use fensu_facts::snapshot::main::build_repository_observation_index::build_repository_observation_index;
+use fensu_facts::snapshot::models::{
+    RepositoryObservationAnswer, RepositoryObservationQuery, RepositoryObservationState,
+};
+
 use crate::cache::_helpers::schema::{
     decode_index, decode_observations, metadata_is_current, observation_map,
 };
 use crate::cache::_helpers::schema_values::exact_fields;
 use crate::cache::_helpers::storage::read_records;
 use crate::cache::models::{
-    CacheMetrics, CanonicalValue, DecodedRecord, NativeIndexEntry, NativeReplay,
+    CacheMetrics, CanonicalValue, DecodedRecord, NativeDependencyKey, NativeDependencyObservation,
+    NativeIndexEntry, NativeReplay,
 };
 
 const REPLAY_HEADER_READS: [(&str, &str); 2] =
@@ -43,7 +49,7 @@ pub(crate) fn build_replay_generation(
         .map(|(path, kind)| ((*path).to_owned(), (*kind).to_owned()))
         .collect::<Vec<_>>();
     let (records, body_metrics) = read_records(repo_root, &reads, maximum_decoded_bytes)?;
-    merge_metrics(&mut metrics, &body_metrics);
+    metrics.merge(&body_metrics);
     let mut records = records.into_iter();
     let output = records.next()??;
     let dependencies = records.next()??;
@@ -111,19 +117,75 @@ fn current_output(
     })
 }
 
-fn merge_metrics(target: &mut CacheMetrics, source: &CacheMetrics) {
-    target.reads += source.reads;
-    target.bytes_read += source.bytes_read;
-    target.writes += source.writes;
-    target.bytes_written += source.bytes_written;
-    target.scans += source.scans;
-    target.deletes += source.deletes;
-}
-
 fn string_list(value: &CanonicalValue) -> Option<Vec<String>> {
     value
         .as_list()?
         .iter()
         .map(|item| item.as_str().map(str::to_owned))
         .collect()
+}
+
+fn observations_are_current(
+    repo_root: &Path,
+    observations: &HashMap<NativeDependencyKey, NativeDependencyObservation>,
+) -> bool {
+    let current = observe_dependencies(repo_root, observations);
+    current.len() == observations.len() && current.values().all(|value| *value)
+}
+
+pub(super) fn observe_dependencies(
+    repo_root: &Path,
+    observations: &HashMap<NativeDependencyKey, NativeDependencyObservation>,
+) -> HashMap<NativeDependencyKey, bool> {
+    let queries = observations
+        .keys()
+        .map(|key| RepositoryObservationQuery {
+            relative_path: key.query_path.clone(),
+            kind: key.kind.clone(),
+            pattern: key.pattern.clone(),
+            recursive: key.recursive,
+        })
+        .collect::<Vec<_>>();
+    let Some(index) = build_repository_observation_index(repo_root, &queries) else {
+        return HashMap::new();
+    };
+    queries
+        .into_iter()
+        .filter_map(|query| {
+            let key = NativeDependencyKey {
+                query_path: query.relative_path.clone(),
+                kind: query.kind.clone(),
+                pattern: query.pattern.clone(),
+                recursive: query.recursive,
+            };
+            let expected = observations.get(&key)?;
+            let current = query.observe(&index);
+            Some((key, state_matches(current, expected)))
+        })
+        .collect()
+}
+
+fn state_matches(
+    state: Option<RepositoryObservationState>,
+    expected: &NativeDependencyObservation,
+) -> bool {
+    let Some(state) = state else {
+        return false;
+    };
+    state.dependency_path == expected.dependency_path
+        && match state.answer {
+            RepositoryObservationAnswer::None => expected.answer.is_null(),
+            RepositoryObservationAnswer::Bool(value) => expected.answer.as_bool() == Some(value),
+            RepositoryObservationAnswer::String(value) => {
+                expected.answer.as_str() == Some(value.as_str())
+            }
+            RepositoryObservationAnswer::Paths(paths) => {
+                expected.answer.as_list().is_some_and(|items| {
+                    items
+                        .iter()
+                        .map(CanonicalValue::as_str)
+                        .eq(paths.iter().map(|path| Some(path.as_str())))
+                })
+            }
+        }
 }

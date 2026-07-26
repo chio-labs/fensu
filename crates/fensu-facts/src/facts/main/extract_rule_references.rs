@@ -2,7 +2,9 @@
 
 use ruff_python_ast::{Expr, ModModule};
 
-use crate::facts::_helpers::rule_authoring::ownership::{enclosing_classes, enclosing_functions};
+use crate::facts::_helpers::rule_authoring::ownership::{
+    enclosing_classes, enclosing_functions, EnclosingDefinitionsParams,
+};
 use crate::facts::_helpers::rule_authoring::references::assignment_parts;
 use crate::facts::_helpers::rule_authoring::references::qualified_reference;
 use crate::facts::_helpers::rule_authoring::references::stored_target_names;
@@ -39,7 +41,7 @@ fn extract_assignment_references(
         };
         let mut target_names = Vec::new();
         for target in targets {
-            stored_target_names(target, &mut target_names);
+            target_names = stored_target_names(target, target_names);
         }
         let value_reference = value.and_then(|expression| {
             if matches!(expression, Expr::Name(_) | Expr::Attribute(_))
@@ -50,8 +52,20 @@ fn extract_assignment_references(
                 None
             }
         });
-        let classes = enclosing_classes(&nodes, &parents, position, index, source);
-        let functions = enclosing_functions(&nodes, &parents, position, index, source);
+        let classes = enclosing_classes(EnclosingDefinitionsParams {
+            nodes: &nodes,
+            parents: &parents,
+            position,
+            index,
+            source,
+        });
+        let functions = enclosing_functions(EnclosingDefinitionsParams {
+            nodes: &nodes,
+            parents: &parents,
+            position,
+            index,
+            source,
+        });
         let (line, column) = start_of(node, index, source);
         rows.push(AssignmentReferenceRow {
             line,

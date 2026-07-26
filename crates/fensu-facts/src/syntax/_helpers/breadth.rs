@@ -18,7 +18,7 @@ pub(crate) fn breadth_first_from(root: ShapeNode<'_>) -> Vec<ShapeNode<'_>> {
     let mut child_buffer: Vec<ShapeNode<'_>> = Vec::new();
     while let Some(node) = pending.pop_front() {
         child_buffer.clear();
-        children(&node, &mut child_buffer);
+        child_buffer = children(&node, child_buffer);
         for child in &child_buffer {
             pending.push_back(*child);
         }
@@ -40,7 +40,7 @@ pub(crate) fn breadth_first_with_parents(
         nodes.push(node);
         parents.push(parent);
         child_buffer.clear();
-        children(&node, &mut child_buffer);
+        child_buffer = children(&node, child_buffer);
         for child in &child_buffer {
             pending.push_back((*child, Some(position)));
         }

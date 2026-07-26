@@ -49,16 +49,7 @@ fn internal_public_surface_faults(
     }
     imports
         .iter()
-        .filter(|row| {
-            if row.from_import {
-                row.relative_level == 0
-                    && row.module_parts.as_slice() == [context.package_name.as_str()]
-            } else {
-                row.aliases
-                    .iter()
-                    .any(|alias| alias.imported_name == context.package_name)
-            }
-        })
+        .filter(|row| imports_public_surface(row, &context.package_name))
         .map(|row| location_fault(code, row.line, row.column))
         .collect()
 }
@@ -73,18 +64,7 @@ fn runtime_tooling_import_faults(
     }
     imports
         .iter()
-        .filter(|row| {
-            if row.from_import {
-                row.relative_level == 0
-                    && targets_tooling(&row.module_parts, &context.tooling_packages)
-            } else {
-                row.aliases.iter().any(|alias| {
-                    alias.imported_name.split('.').next().is_some_and(|part| {
-                        context.tooling_packages.iter().any(|item| item == part)
-                    })
-                })
-            }
-        })
+        .filter(|row| imports_tooling(row, &context.tooling_packages))
         .map(|row| location_fault(code, row.line, row.column))
         .collect()
 }
@@ -103,7 +83,8 @@ fn private_helper_reference_faults(program: &ProgramHandle, code: &str) -> Vec<N
         match event {
             ReferenceEventRow::Import(slot) => {
                 if let Some(row) = rows.imports.get(*slot) {
-                    collect_import_faults(row, code, &mut helper_module_aliases, &mut faults);
+                    (helper_module_aliases, faults) =
+                        collect_import_faults(row, code, helper_module_aliases, faults);
                 }
             }
             ReferenceEventRow::Attribute {
@@ -127,12 +108,12 @@ fn private_helper_reference_faults(program: &ProgramHandle, code: &str) -> Vec<N
 fn collect_import_faults(
     row: &ImportRow,
     code: &str,
-    helper_module_aliases: &mut HashSet<String>,
-    faults: &mut Vec<NativeFaultRow>,
-) {
+    mut helper_module_aliases: HashSet<String>,
+    mut faults: Vec<NativeFaultRow>,
+) -> (HashSet<String>, Vec<NativeFaultRow>) {
     if row.from_import {
         if !row.module_parts.iter().any(|part| part == HELPERS_PART) {
-            return;
+            return (helper_module_aliases, faults);
         }
         for alias in &row.aliases {
             if is_private_class_name(&alias.imported_name) {
@@ -141,7 +122,7 @@ fn collect_import_faults(
                 helper_module_aliases.insert(alias.bound_name.clone());
             }
         }
-        return;
+        return (helper_module_aliases, faults);
     }
     for alias in &row.aliases {
         let parts: Vec<&str> = alias.imported_name.split('.').collect();
@@ -154,6 +135,32 @@ fn collect_import_faults(
             helper_module_aliases.insert(alias.bound_name.clone());
         }
     }
+    (helper_module_aliases, faults)
+}
+
+fn imports_public_surface(row: &ImportRow, package_name: &str) -> bool {
+    if row.from_import {
+        row.relative_level == 0 && row.module_parts.as_slice() == [package_name]
+    } else {
+        row.aliases
+            .iter()
+            .any(|alias| alias.imported_name == package_name)
+    }
+}
+
+fn imports_tooling(row: &ImportRow, tooling_packages: &[String]) -> bool {
+    if row.from_import {
+        return row.relative_level == 0 && targets_tooling(&row.module_parts, tooling_packages);
+    }
+    for alias in &row.aliases {
+        let Some(part) = alias.imported_name.split('.').next() else {
+            continue;
+        };
+        if tooling_packages.iter().any(|item| item == part) {
+            return true;
+        }
+    }
+    false
 }
 
 fn is_private_class_name(name: &str) -> bool {

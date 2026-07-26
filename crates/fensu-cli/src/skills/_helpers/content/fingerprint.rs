@@ -225,17 +225,14 @@ fn config_value(config: &Config) -> Value {
         .iter()
         .map(|(key, value)| (key.clone(), json!(value)))
         .collect::<BTreeMap<_, _>>();
-    let role_thresholds = config
-        .role_thresholds
-        .iter()
-        .map(|(role, values)| {
-            let values = values
-                .iter()
-                .map(|(key, value)| (key.clone(), json!(value)))
-                .collect::<BTreeMap<_, _>>();
-            (role.clone(), json!(values))
-        })
-        .collect::<BTreeMap<_, _>>();
+    let mut role_thresholds = BTreeMap::new();
+    for (role, configured) in &config.role_thresholds {
+        let values = configured
+            .iter()
+            .map(|(key, value)| (key.clone(), json!(value)))
+            .collect::<BTreeMap<_, _>>();
+        role_thresholds.insert(role.clone(), json!(values));
+    }
     let contracts = config.contracts.iter().cloned().collect::<BTreeMap<_, _>>();
     json!({
         "roots": config.roots,

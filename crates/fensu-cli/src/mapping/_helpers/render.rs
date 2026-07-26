@@ -9,54 +9,70 @@ const FUNCTION: &str = "\x1b[1;36m";
 const UNRESOLVED: &str = "\x1b[33m";
 const CYCLE: &str = "\x1b[35m";
 
+struct CallMapRenderer<'a> {
+    repo_root: &'a Path,
+    path_mode: PathMode,
+    use_color: bool,
+    lines: Vec<String>,
+}
+
+impl CallMapRenderer<'_> {
+    fn child_lines(mut self, node: &CallMapNode, prefix: &str) -> Self {
+        for (position, entry) in node.entries.iter().enumerate() {
+            let last = position + 1 == node.entries.len();
+            let connector = if last { "└── " } else { "├── " };
+            let rendered_connector = color(&format!("{prefix}{connector}"), DIM, self.use_color);
+            match entry {
+                CallMapEntry::Unresolved(unresolved) => {
+                    let location = location(
+                        &node.definition.path,
+                        unresolved.line,
+                        self.repo_root,
+                        self.path_mode,
+                    );
+                    let function = color(
+                        &format!("{}(...)", unresolved.name),
+                        FUNCTION,
+                        self.use_color,
+                    );
+                    let rendered_location = color(&location, DIM, self.use_color);
+                    let marker = color(
+                        &format!("(unresolved {})", unresolved.reason),
+                        UNRESOLVED,
+                        self.use_color,
+                    );
+                    self.lines.push(format!(
+                        "{rendered_connector}{function}{rendered_location}  {marker}"
+                    ));
+                }
+                CallMapEntry::Node(child) => {
+                    self.lines.push(format!(
+                        "{rendered_connector}{}",
+                        label(child, self.repo_root, self.path_mode, self.use_color)
+                    ));
+                    let child_prefix = format!("{prefix}{}", if last { "    " } else { "│   " });
+                    self = self.child_lines(child, &child_prefix);
+                }
+            }
+        }
+        self
+    }
+}
+
 pub(crate) fn render(
     root: &CallMapNode,
     repo_root: &Path,
     path_mode: PathMode,
     use_color: bool,
 ) -> String {
-    let mut lines = vec![label(root, repo_root, path_mode, use_color)];
-    child_lines(root, repo_root, path_mode, "", use_color, &mut lines);
-    format!("{}\n", lines.join("\n"))
-}
-
-fn child_lines(
-    node: &CallMapNode,
-    repo_root: &Path,
-    path_mode: PathMode,
-    prefix: &str,
-    use_color: bool,
-    lines: &mut Vec<String>,
-) {
-    for (position, entry) in node.entries.iter().enumerate() {
-        let last = position + 1 == node.entries.len();
-        let connector = if last { "└── " } else { "├── " };
-        let rendered_connector = color(&format!("{prefix}{connector}"), DIM, use_color);
-        match entry {
-            CallMapEntry::Unresolved(unresolved) => {
-                let location =
-                    location(&node.definition.path, unresolved.line, repo_root, path_mode);
-                let function = color(&format!("{}(...)", unresolved.name), FUNCTION, use_color);
-                let rendered_location = color(&location, DIM, use_color);
-                let marker = color(
-                    &format!("(unresolved {})", unresolved.reason),
-                    UNRESOLVED,
-                    use_color,
-                );
-                lines.push(format!(
-                    "{rendered_connector}{function}{rendered_location}  {marker}"
-                ));
-            }
-            CallMapEntry::Node(child) => {
-                lines.push(format!(
-                    "{rendered_connector}{}",
-                    label(child, repo_root, path_mode, use_color)
-                ));
-                let child_prefix = format!("{prefix}{}", if last { "    " } else { "│   " });
-                child_lines(child, repo_root, path_mode, &child_prefix, use_color, lines);
-            }
-        }
+    let renderer = CallMapRenderer {
+        repo_root,
+        path_mode,
+        use_color,
+        lines: vec![label(root, repo_root, path_mode, use_color)],
     }
+    .child_lines(root, "");
+    format!("{}\n", renderer.lines.join("\n"))
 }
 
 fn label(node: &CallMapNode, repo_root: &Path, path_mode: PathMode, use_color: bool) -> String {

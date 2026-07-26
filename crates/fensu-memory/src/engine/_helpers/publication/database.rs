@@ -1,19 +1,15 @@
 //! Transactional temporary-database construction and atomic replacement.
 
-use std::ffi::OsString;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
 
-use tempfile::TempPath;
+use tempfile::{NamedTempFile, TempPath};
 
 use crate::engine::_helpers::publication::streaming;
 use crate::engine::errors::MemoryIndexError;
 use crate::engine::models::{IndexSummary, MemoryDiagnostic};
 use crate::source::models::DiscoveryResult;
-
-static TEMPORARY_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 pub(crate) struct PublicationResult {
     pub(crate) summary: IndexSummary,
@@ -30,7 +26,8 @@ pub(crate) fn publish_discovery(
     fs::create_dir_all(&parent).map_err(|error| {
         MemoryIndexError::filesystem("create database directory", parent.clone(), error)
     })?;
-    let temporary_path = temporary_path(database_path, &parent)?;
+    let temporary = temporary_path(&parent)?;
+    let temporary_path = temporary.to_path_buf();
     let journal_path = sidecar_path(&temporary_path, "-journal");
     let wal_path = sidecar_path(&temporary_path, "-wal");
     let shm_path = sidecar_path(&temporary_path, "-shm");
@@ -60,13 +57,6 @@ pub(crate) fn publish_discovery(
             return Err(cleanup_files(failure, &temporary_files));
         }
     }
-    let temporary = TempPath::try_from_path(&temporary_path).map_err(|error| {
-        MemoryIndexError::filesystem(
-            "prepare atomic memory index publication",
-            temporary_path.clone(),
-            error,
-        )
-    })?;
     if let Err(error) = temporary.persist(database_path) {
         let failure = MemoryIndexError::filesystem(
             "publish memory index",
@@ -92,18 +82,16 @@ fn database_parent(database_path: &Path) -> Result<PathBuf, MemoryIndexError> {
     }
 }
 
-fn temporary_path(database_path: &Path, parent: &Path) -> Result<PathBuf, MemoryIndexError> {
-    let file_name = database_path
-        .file_name()
-        .ok_or_else(|| MemoryIndexError::InvalidDatabasePath(database_path.to_path_buf()))?;
-    let sequence = TEMPORARY_COUNTER.fetch_add(1, Ordering::Relaxed);
-    let mut temporary_name = OsString::from(".");
-    temporary_name.push(file_name);
-    temporary_name.push(format!(
-        ".fensu-memory-{}-{sequence}.tmp",
-        std::process::id()
-    ));
-    Ok(parent.join(temporary_name))
+fn temporary_path(parent: &Path) -> Result<TempPath, MemoryIndexError> {
+    NamedTempFile::new_in(parent)
+        .map(NamedTempFile::into_temp_path)
+        .map_err(|error| {
+            MemoryIndexError::filesystem(
+                "create temporary memory index",
+                parent.to_path_buf(),
+                error,
+            )
+        })
 }
 
 fn sidecar_path(database_path: &Path, suffix: &str) -> PathBuf {

@@ -3,7 +3,7 @@ use std::path::Path;
 
 use crate::models::{Fault, ThresholdUse};
 
-const RED: &str = "\x1b[1;31m";
+const ORANGE: &str = "\x1b[1;38;5;208m";
 const GREEN: &str = "\x1b[1;32m";
 const DIM: &str = "\x1b[2m";
 const RESET: &str = "\x1b[0m";
@@ -44,7 +44,7 @@ pub(crate) fn report(request: ReportRequest<'_>) -> String {
         let style = if request.faults.is_empty() {
             GREEN
         } else {
-            RED
+            ORANGE
         };
         summary = format!("{style}{summary}{RESET}");
     }
@@ -115,7 +115,7 @@ fn format_fault(fault: &Fault, root: &Path, color: bool) -> String {
         .map_or_else(|| "-".to_owned(), |value| value.to_string());
     let mut lines = if color {
         vec![
-            format!("{RED}{}{RESET}  {}", fault.code, fault.message),
+            format!("{ORANGE}{}{RESET}  {}", fault.code, fault.message),
             format!("{DIM} --> {path}:{line}:{column}{RESET}"),
         ]
     } else {
@@ -131,7 +131,7 @@ fn format_fault(fault: &Fault, root: &Path, color: bool) -> String {
                 lines.extend([
                     format!("{DIM}  |{RESET}"),
                     format!("{DIM}{line_number} |{RESET} {source_line}"),
-                    format!("{DIM}  |{RESET} {padding}{RED}^{RESET}"),
+                    format!("{DIM}  |{RESET} {padding}{ORANGE}^{RESET}"),
                     format!("{DIM}  |{RESET}"),
                 ]);
             } else {
@@ -222,4 +222,55 @@ fn source_line(path: &Path, line: u32) -> Option<String> {
         .lines()
         .nth(line.saturating_sub(1) as usize)
         .map(str::to_owned)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use tempfile::tempdir;
+
+    use super::{report, ReportRequest};
+    use crate::models::Fault;
+
+    #[test]
+    fn given_colored_faults_when_rendering_then_uses_historical_orange_styles() {
+        let directory = tempdir().expect("create tempdir");
+        let source_path = directory.path().join("src/pkg/a.py");
+        fs::create_dir_all(source_path.parent().expect("source parent exists"))
+            .expect("create source parent");
+        fs::write(&source_path, "alpha = 1\nbeta = 2\n").expect("write source file");
+        let faults = [Fault {
+            code: "XRP001".to_owned(),
+            path: source_path.to_string_lossy().into_owned(),
+            line: Some(2),
+            column: Some(4),
+            message: "first".to_owned(),
+            remediation: None,
+            warning: false,
+        }];
+
+        let rendered = report(ReportRequest {
+            faults: &faults,
+            warnings: &[],
+            root: directory.path(),
+            color: true,
+            show_warnings: false,
+            evaluation_summary: None,
+            applied_exceptions: 0,
+            threshold_uses: &[],
+        });
+
+        assert_eq!(
+            rendered,
+            "\x1b[1;38;5;208mXRP001\x1b[0m  first\n\
+\x1b[2m --> src/pkg/a.py:2:4\x1b[0m\n\
+\x1b[2m  |\x1b[0m\n\
+\x1b[2m2 |\x1b[0m beta = 2\n\
+\x1b[2m  |\x1b[0m     \x1b[1;38;5;208m^\x1b[0m\n\
+\x1b[2m  |\x1b[0m\n\
+\n\
+\x1b[1;38;5;208mFound 1 fault\x1b[0m\n"
+        );
+    }
 }

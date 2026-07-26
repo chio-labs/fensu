@@ -3,7 +3,7 @@ use std::process::Command;
 use crate::helpers::{run_check, run_check_with, write};
 use crate::test_types::{
     CheckPolicyTestCase, InvalidCheckConfigTestCase, RuleOptionsCheckRoutingTestCase,
-    RuleRemediationTestCase,
+    RuleRemediationTestCase, SymbolExceptionTestCase,
 };
 
 const CONFIG: &str =
@@ -138,6 +138,55 @@ fn given_warning_and_exact_exception_when_rule_ignore_overlaps_then_policy_order
         );
         assert!(
             !stdout.contains(test_case.expected_absent),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_symbol_scoped_rule_exception_when_checking_natively_then_only_named_owner_is_suppressed() {
+    let test_cases = [SymbolExceptionTestCase {
+        description: "symbol scope suppresses the named owner and retains its file siblings",
+        source: "def callback(value: int) -> None:\n    return None\n\n\ndef retained(value: int) -> None:\n    return None\n",
+        expected_exit_code: 1,
+        expected_applied: "Applied 1 rule exception",
+        expected_retained_location: "src/pkg/external.py:5:",
+        expected_suppressed_location: "src/pkg/external.py:1:",
+    }];
+
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(
+            repository.path().join("fensu.toml"),
+            "roots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFS120\"]\n\n[thresholds]\nmax_positional_args = 0\n\n[[rule_exceptions]]\nrule = \"FFS120\"\npath = \"src/pkg/external.py\"\nsymbols = [\"callback\"]\nreason = \"The external API invokes this callback positionally.\"\n",
+        );
+        write(
+            repository.path().join("src/pkg/external.py"),
+            test_case.source,
+        );
+
+        let output = run_check(repository.path());
+        let stdout = String::from_utf8(output.stdout).expect("check stdout is UTF-8");
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            stdout.contains(test_case.expected_applied),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            stdout.contains(test_case.expected_retained_location),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            !stdout.contains(test_case.expected_suppressed_location),
             "{}",
             test_case.description
         );

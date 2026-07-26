@@ -10,9 +10,10 @@ use crate::constants::{
     OWNER_FILE, OWNER_PACKAGE, ROLE_HELPERS, ROLE_MAIN, SCOPE_TEST, SUFFIX_INIT,
 };
 use crate::helpers::catalogue::metadata;
+use crate::helpers::check::exceptions::apply_exceptions;
 use crate::helpers::check::policy::{
-    apply_exceptions, apply_rule_ignores, is_entry_module, is_main_module, program,
-    resolved_thresholds, role, scope_roots, source_module_name,
+    apply_rule_ignores, is_entry_module, is_main_module, program, resolved_thresholds, role,
+    scope_roots, source_module_name,
 };
 use crate::helpers::check::project::{observe, project_plane};
 use crate::helpers::reporting::render;
@@ -126,7 +127,7 @@ pub(crate) fn evaluate_and_render(
     });
     uses.sort();
     uses.dedup();
-    let (faults, applied) = apply_exceptions(faults, config)?;
+    let (faults, applied) = apply_exceptions(faults, sources, config)?;
     let faults = apply_rule_ignores(faults, root, config);
     let blocking_faults = faults
         .iter()

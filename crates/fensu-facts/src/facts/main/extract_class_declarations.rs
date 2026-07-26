@@ -2,12 +2,12 @@
 
 use ruff_python_ast::{ModModule, Stmt};
 
-use crate::facts::helpers::naming::names::{class_base_expressions, decorator_name};
-use crate::facts::helpers::shape::breadth::breadth_first_with_parents;
-use crate::facts::helpers::shape::nodes::ShapeNode;
-use crate::facts::helpers::shape::spans::start_of;
+use crate::facts::_helpers::naming::names::{class_base_expressions, decorator_name};
 use crate::facts::models::{ClassDeclarationRow, ClassMethodRow, DefinitionIdentityRow};
 use crate::positions::models::LineIndex;
+use crate::syntax::main::breadth_first_with_parents::breadth_first_with_parents;
+use crate::syntax::main::start_of::start_of;
+use crate::syntax::types::ShapeNode;
 
 /// Return classes in CPython-compatible breadth-first order.
 pub fn extract_class_declarations(
@@ -16,7 +16,7 @@ pub fn extract_class_declarations(
     source: &str,
 ) -> Vec<ClassDeclarationRow> {
     let (nodes, parents) = breadth_first_with_parents(module);
-    let mut rows = Vec::new();
+    let mut rows: Vec<ClassDeclarationRow> = Vec::new();
     for (position, node) in nodes.iter().enumerate() {
         let ShapeNode::Stmt(Stmt::ClassDef(class)) = node else {
             continue;
@@ -27,12 +27,12 @@ pub fn extract_class_declarations(
             line,
             column,
         };
-        let base_names = class_base_expressions(class)
-            .filter_map(crate::facts::helpers::naming::names::subscript_base_name)
+        let base_names: Vec<String> = class_base_expressions(class)
+            .filter_map(crate::facts::_helpers::naming::names::subscript_base_name)
             .map(str::to_owned)
             .collect();
         let methods = direct_methods(class, &identity, index, source);
-        let decorator_names = class
+        let decorator_names: Vec<String> = class
             .decorator_list
             .iter()
             .map(|decorator| decorator_name(&decorator.expression))
@@ -59,14 +59,14 @@ fn direct_methods(
     index: &LineIndex,
     source: &str,
 ) -> Vec<ClassMethodRow> {
-    let mut methods = Vec::new();
+    let mut methods: Vec<ClassMethodRow> = Vec::new();
     for statement in &class.body {
         let Stmt::FunctionDef(function) = statement else {
             continue;
         };
         let node = ShapeNode::Stmt(statement);
         let (line, column) = start_of(&node, index, source);
-        let decorator_names = function
+        let decorator_names: Vec<String> = function
             .decorator_list
             .iter()
             .map(|decorator| decorator_name(&decorator.expression))

@@ -1,0 +1,1 @@
+"""Core catalogue generation entries."""

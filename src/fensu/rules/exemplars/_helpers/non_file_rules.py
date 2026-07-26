@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from fensu import Fault, ImportFact, RuleContext, ScopeName, Threshold
+from fensu.rules.catalog.main._get_rule_constraint import get_rule_constraint
 
 _INIT: str = "__init__.py"
 _INIT_STEM: str = "__init__"
@@ -124,6 +125,10 @@ def package_layout_impl(
     del module
     parts: tuple[str, ...] = ctx.relative_parts()
     physical: str = role
+    core_code: str = "FFR301" if role == _HELPERS else "FFR302"
+    forbidden_bucket_names: tuple[str, ...] = get_rule_constraint(
+        code=core_code, name="forbidden_bucket_names"
+    )
     role_index: int | None = next(
         (index for index, part in enumerate(parts[:-1]) if part == physical), None
     )
@@ -180,12 +185,12 @@ def package_layout_impl(
     while ancestor != package:
         if ctx.project.python_anchor(requester=ctx.path, path=ancestor) != ctx.path:
             break
-        if _forbidden_bucket(ancestor.name):
+        if ancestor.name in forbidden_bucket_names:
             delegated.append(ancestor.name)
         ancestor = ancestor.parent
     names: tuple[str, ...] = (
         *reversed(delegated),
-        *((container.name,) if _forbidden_bucket(container.name) else ()),
+        *((container.name,) if container.name in forbidden_bucket_names else ()),
     )
     for name in names:
         faults.append(
@@ -379,10 +384,6 @@ def _named_subdomains(*, ctx: RuleContext, entries: tuple[Path, ...]) -> tuple[P
         and ctx.project.is_dir(requester=ctx.path, path=entry)
         and ctx.project.glob(requester=ctx.path, path=entry, pattern="*.py", recursive=True)
     )
-
-
-def _forbidden_bucket(name: str) -> bool:
-    return name in _ROLE_NAMES or name == _LEGACY_HELPERS
 
 
 def _natural_list(values: tuple[str, ...]) -> str:

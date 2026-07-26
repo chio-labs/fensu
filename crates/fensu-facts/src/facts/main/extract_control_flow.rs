@@ -2,7 +2,7 @@
 
 use ruff_python_ast::{ModModule, Stmt};
 
-use crate::facts::helpers::control::conditionals::{
+use crate::facts::_helpers::control::conditionals::{
     complex_comprehension_rows, function_conditional_rows, test_conditional_rows,
 };
 use crate::facts::models::ControlFlowRows;

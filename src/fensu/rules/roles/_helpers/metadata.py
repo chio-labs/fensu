@@ -12,12 +12,18 @@ def role_rule_details(code: RoleCode) -> tuple[str, str]:
         RoleCode.HELPERS_PACKAGE_LAYOUT: (
             "_helpers/ packages must use bounded flat-or-grouped containers",
             "Keep _helpers/ flat or group every module into bounded shallow buckets; do not mix "
-            "modules and Python-containing buckets in one container.",
+            "direct Python modules and Python-containing buckets in one container. Only direct "
+            ".py files other than __init__.py count toward the module limit; empty and asset-only "
+            "directories do not count as buckets. Runtime role names are not valid buckets. "
+            "Container depth and entry-module shape are evaluated independently.",
         ),
         RoleCode.MAIN_PACKAGE_LAYOUT: (
             "main/ packages must use bounded flat-or-grouped orchestration containers",
             "Keep main/ flat or group every entry into bounded shallow buckets; do not mix "
-            "modules and Python-containing buckets in one container.",
+            "direct Python modules and Python-containing buckets in one container. Only direct "
+            ".py files other than __init__.py count toward the module limit; empty and asset-only "
+            "directories do not count as buckets. Runtime role names are not valid buckets. "
+            "Container depth and entry-module shape are evaluated independently.",
         ),
         RoleCode.HELPERS_RESERVED_ROLE_FILENAMES: (
             "_helpers/ packages must not contain reserved role filenames",
@@ -46,18 +52,21 @@ def role_rule_details(code: RoleCode) -> tuple[str, str]:
         RoleCode.SHARED_DOMAIN_PREFIX: (
             "sibling domains must not encode one parent domain through a shared name prefix",
             "Create one parent domain from the shared prefix and move each remaining suffix "
-            "beneath it as a named subdomain.",
+            "beneath it as a named subdomain. Setting min_shared_domain_prefix_packages to 0 "
+            "disables this rule.",
         ),
         RoleCode.LEAF_MAIN_BOUNDARY: (
             "leaf runtime domains and subdomains must expose meaningful behavior through main/",
-            "Add a focused main/ entry module only when the leaf owns behavior; otherwise move "
-            "passive declarations into the closest domain or subdomain whose main/ behavior "
-            "owns and uses them.",
+            "Every leaf requires a direct main/ boundary with at least one non-__init__.py Python "
+            "entry; branch-domain parents are exempt. Add a focused entry only when the leaf owns "
+            "behavior; otherwise move passive declarations into the closest behavioral owner.",
         ),
         RoleCode.ENTRY_MODULE_SHAPE: (
             "main/ entry modules must expose one focused public function",
-            "Keep only imports, one public entry function, and at most two small private glue "
-            "functions; move phase logic to _helpers/.",
+            "Every non-__init__.py module whose first structural role is main is an entry, "
+            "including grouped main modules. Keep only imports, one public entry function, and at "
+            "most two small private glue functions; move phase logic to _helpers/. A main bucket "
+            "below another role is not an entry boundary.",
         ),
         RoleCode.INIT_MODULE_EMPTY: (
             "nested __init__.py files must be empty or docstring-only",
@@ -111,7 +120,8 @@ def role_rule_details(code: RoleCode) -> tuple[str, str]:
             "configured custom rules must have statically declared public-harness cases",
             "Add statically visible RuleCase construction passed to evaluate_rule for each custom "
             "rule. When FFT413 is active, parametrize with a local _test_types.py dataclass and "
-            "convert it to RuleCase inside the test.",
+            "convert it to RuleCase inside the test. Setting min_custom_rule_test_cases to 0 "
+            "disables this rule.",
         ),
     }
     return details[code]

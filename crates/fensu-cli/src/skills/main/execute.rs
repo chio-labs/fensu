@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use crate::models::CliOutput;
-use crate::skills::helpers::command::execution;
+use crate::skills::_helpers::command::execution;
 use crate::skills::models::SkillOptions;
 
 pub(crate) fn execute(

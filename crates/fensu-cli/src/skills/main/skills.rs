@@ -1,7 +1,7 @@
 use std::env;
 
 use crate::models::CliOutput;
-use crate::skills::helpers::context::options;
+use crate::skills::_helpers::context::options;
 use crate::skills::main::execute;
 
 pub(crate) fn run(arguments: &[String]) -> Result<CliOutput, String> {

@@ -1,6 +1,6 @@
 //! Convert a byte offset into a CPython-convention source position.
 
-use crate::positions::helpers::line_index;
+use crate::positions::_helpers::line_index;
 use crate::positions::models::OffsetLocation;
 
 /// Return the 1-based line and 0-based UTF-8 byte column for a byte offset.

@@ -2,7 +2,7 @@
 
 use ruff_python_ast::ModModule;
 
-use crate::facts::helpers::hygiene::checks::hygiene_rows;
+use crate::facts::_helpers::hygiene::checks::hygiene_rows;
 use crate::facts::models::HygieneRows;
 use crate::positions::models::LineIndex;
 

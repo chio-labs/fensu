@@ -1,6 +1,6 @@
 //! Parse one UTF-8 Markdown source without imposing an artifact template.
 
-use crate::markdown::helpers::assembly;
+use crate::markdown::_helpers::assembly;
 use crate::markdown::models::ParsedMarkdown;
 
 /// Return generic Markdown structure and optional Obsidian semantics.

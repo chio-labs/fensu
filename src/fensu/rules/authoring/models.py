@@ -14,6 +14,7 @@ from fensu.rules.authoring.types import (
     RuleKind,
     RuleOptionKind,
     Severity,
+    Threshold,
 )
 
 
@@ -145,6 +146,24 @@ class RuleOption[T]:
 
 
 @dataclass(frozen=True, slots=True)
+class RuleConstraint:
+    """One immutable exhaustive value set enforced by a rule."""
+
+    name: str
+    description: str
+    values: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class RuleLimit:
+    """One immutable numeric cardinality enforced by a rule."""
+
+    name: str
+    description: str
+    value: int
+
+
+@dataclass(frozen=True, slots=True)
 class Fault:
     """A single rule finding against a file."""
 
@@ -185,6 +204,11 @@ class RuleSpec:
     uses_module: bool = False
     execution_owner: ExecutionOwner = ExecutionOwner.FILE
     options: tuple[RuleOption[object], ...] = ()
+    constraints: tuple[RuleConstraint, ...] = ()
+    thresholds: tuple[Threshold, ...] = ()
+    contract_behaviors: tuple[str, ...] = ()
+    configuration_inputs: tuple[str, ...] = ()
+    limits: tuple[RuleLimit, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

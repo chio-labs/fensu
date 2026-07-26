@@ -34,22 +34,12 @@ from fensu.evaluation.types import (
 from fensu.instrumentation.constants import NATIVE_PARSE_OPERATION, OPERATION_COUNTERS
 from fensu.rules.authoring.models import CustomRuleRegistration
 from fensu.rules.authoring.types import RuleOptionValue, Threshold
+from fensu.rules.catalog.constants import CORE_RULES
 from fensu.rules.layers.types import LayerCode
 from fensu.rules.roles.types import RoleCode
 
 _thresholds_by_code: dict[str, tuple[Threshold, ...]] = {
-    "FFR301": (Threshold.MAX_HELPERS_CONTAINER_MODULES, Threshold.MAX_ROLE_DEPTH),
-    "FFR302": (Threshold.MAX_MAIN_CONTAINER_MODULES, Threshold.MAX_ROLE_DEPTH),
-    "FFR308": (Threshold.MIN_SHARED_DOMAIN_PREFIX_PACKAGES,),
-    "FFR601": (Threshold.MAX_FILE_LINES,),
-    "FFR703": (Threshold.MAX_SCRIPT_ENTRYPOINT_LINES,),
-    "FFS001": (Threshold.MAX_STATEMENTS,),
-    "FFS002": (Threshold.MAX_DISTINCT_CALLS,),
-    "FFS003": (Threshold.MAX_LOCALS,),
-    "FFS010": (Threshold.MAX_ARGUMENTS,),
-    "FFS011": (Threshold.MAX_STATEMENTS_GLOBAL,),
-    "FFS120": (Threshold.MAX_POSITIONAL_ARGS,),
-    "FFR707": (Threshold.MIN_CUSTOM_RULE_TEST_CASES,),
+    rule.code: rule.thresholds for rule in CORE_RULES if rule.thresholds
 }
 _main_only_threshold_codes: frozenset[str] = frozenset({"FFS001", "FFS002", "FFS003"})
 _maximum_native_metric: int = 2**32 - 1

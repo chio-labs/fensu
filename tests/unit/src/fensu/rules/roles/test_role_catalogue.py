@@ -48,7 +48,8 @@ from tests.unit.src.fensu.rules.roles._test_types import FfrCatalogueTestCase
             ),
             expected_sfr308_remediation=(
                 "Create one parent domain from the shared prefix and move each remaining suffix "
-                "beneath it as a named subdomain."
+                "beneath it as a named subdomain. Setting "
+                "min_shared_domain_prefix_packages to 0 disables this rule."
             ),
             expected_sfr308_owner=ExecutionOwner.SCOPE,
             expected_sfr309_slug="leaf-main-boundary",
@@ -56,9 +57,10 @@ from tests.unit.src.fensu.rules.roles._test_types import FfrCatalogueTestCase
                 "leaf runtime domains and subdomains must expose meaningful behavior through main/"
             ),
             expected_sfr309_remediation=(
-                "Add a focused main/ entry module only when the leaf owns behavior; otherwise "
-                "move passive declarations into the closest domain or subdomain whose main/ "
-                "behavior owns and uses them."
+                "Every leaf requires a direct main/ boundary with at least one non-__init__.py "
+                "Python entry; branch-domain parents are exempt. Add a focused entry only when "
+                "the leaf owns behavior; otherwise move passive declarations into the closest "
+                "behavioral owner."
             ),
             expected_sfr309_owner=ExecutionOwner.LEAF,
             expected_sfr706_slug="descriptive-rule-module-names",

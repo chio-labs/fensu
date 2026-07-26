@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::configuration::helpers::exception_targets;
+use crate::configuration::_helpers::exception_targets;
 use crate::models::Config;
 
 pub(crate) fn validate_exception_targets(

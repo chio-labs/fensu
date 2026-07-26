@@ -1,0 +1,93 @@
+//! Lexical ownership over the shared breadth-first arena.
+
+use ruff_python_ast::Stmt;
+
+use crate::facts::models::DefinitionIdentityRow;
+use crate::positions::models::LineIndex;
+use crate::syntax::main::start_of::start_of;
+use crate::syntax::types::ShapeNode;
+
+pub(crate) struct EnclosingDefinitionsParams<'a, 'node> {
+    pub(crate) nodes: &'a [ShapeNode<'node>],
+    pub(crate) parents: &'a [Option<usize>],
+    pub(crate) position: usize,
+    pub(crate) index: &'a LineIndex,
+    pub(crate) source: &'a str,
+}
+
+pub(crate) fn ancestor_positions(parents: &[Option<usize>], position: usize) -> Vec<usize> {
+    let mut ancestors: Vec<usize> = Vec::new();
+    let mut current = parents[position];
+    while let Some(parent) = current {
+        ancestors.push(parent);
+        current = parents[parent];
+    }
+    ancestors
+}
+
+pub(crate) fn enclosing_classes(
+    params: EnclosingDefinitionsParams<'_, '_>,
+) -> Vec<DefinitionIdentityRow> {
+    ancestor_positions(params.parents, params.position)
+        .into_iter()
+        .filter_map(|ancestor| class_identity(&params.nodes[ancestor], params.index, params.source))
+        .collect()
+}
+
+pub(crate) fn enclosing_functions(
+    params: EnclosingDefinitionsParams<'_, '_>,
+) -> Vec<DefinitionIdentityRow> {
+    ancestor_positions(params.parents, params.position)
+        .into_iter()
+        .filter_map(|ancestor| {
+            function_identity(&params.nodes[ancestor], params.index, params.source)
+        })
+        .collect()
+}
+
+pub(crate) fn class_identity(
+    node: &ShapeNode<'_>,
+    index: &LineIndex,
+    source: &str,
+) -> Option<DefinitionIdentityRow> {
+    let ShapeNode::Stmt(Stmt::ClassDef(class)) = node else {
+        return None;
+    };
+    let (line, column) = start_of(node, index, source);
+    Some(DefinitionIdentityRow {
+        name: class.name.as_str().to_owned(),
+        line,
+        column,
+    })
+}
+
+pub(crate) fn function_identity(
+    node: &ShapeNode<'_>,
+    index: &LineIndex,
+    source: &str,
+) -> Option<DefinitionIdentityRow> {
+    let ShapeNode::Stmt(Stmt::FunctionDef(function)) = node else {
+        return None;
+    };
+    let (line, column) = start_of(node, index, source);
+    Some(DefinitionIdentityRow {
+        name: function.name.as_str().to_owned(),
+        line,
+        column,
+    })
+}
+
+pub(crate) fn has_loop_ancestor(
+    nodes: &[ShapeNode<'_>],
+    parents: &[Option<usize>],
+    position: usize,
+) -> bool {
+    ancestor_positions(parents, position)
+        .into_iter()
+        .any(|ancestor| {
+            matches!(
+                nodes[ancestor],
+                ShapeNode::Stmt(Stmt::For(_) | Stmt::While(_))
+            )
+        })
+}

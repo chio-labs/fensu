@@ -3,7 +3,7 @@
 use ruff_python_ast::{ModExpression, PythonVersion};
 use ruff_python_parser::{parse_unchecked, Mode, ParseOptions, Parsed};
 
-use crate::parsing::helpers::failures;
+use crate::parsing::_helpers::failures;
 use crate::parsing::models::ParseFailure;
 
 /// Return the parsed expression or the earliest failure CPython would report.

@@ -1,0 +1,369 @@
+//! Root resolution and bounded deterministic graph traversal.
+
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::path::Path;
+
+use rusqlite::{Connection, OpenFlags};
+
+use crate::engine::_helpers::querying::graph_loading::{load_documents, load_links};
+use crate::engine::constants::{
+    ARCHIVE_STATE_ACTIVE, ARCHIVE_STATE_ARCHIVED, RESOLUTION_STATUS_RESOLVED,
+};
+use crate::engine::errors::MemoryIndexError;
+use crate::engine::models::{
+    GraphDocumentRow, GraphLinkRow, MemoryGraphDirection, MemoryGraphEdge, MemoryGraphNode,
+    MemoryGraphQuery, MemoryGraphResult,
+};
+
+const MIN_DEPTH: usize = 1;
+const MAX_DEPTH: usize = 5;
+const MIN_NODES: usize = 1;
+const MAX_NODES: usize = 200;
+const MIN_EDGES: usize = 1;
+const MAX_EDGES: usize = 500;
+
+pub(crate) fn run(
+    database_path: &Path,
+    query: &MemoryGraphQuery,
+) -> Result<MemoryGraphResult, MemoryIndexError> {
+    validate(query)?;
+    if !database_path.is_file() {
+        return Err(MemoryIndexError::DatabaseNotFound(
+            database_path.to_path_buf(),
+        ));
+    }
+    let connection =
+        Connection::open_with_flags(database_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .map_err(|error| MemoryIndexError::sqlite("open read-only memory index", error))?;
+    traverse(&connection, query)
+}
+
+fn validate(query: &MemoryGraphQuery) -> Result<(), MemoryIndexError> {
+    if query.pattern.trim().is_empty() {
+        return Err(MemoryIndexError::GraphQuery(
+            "document or pattern must not be empty".to_owned(),
+        ));
+    }
+    validate_range("depth", query.depth, MIN_DEPTH, MAX_DEPTH)?;
+    validate_range("max nodes", query.max_nodes, MIN_NODES, MAX_NODES)?;
+    validate_range("max edges", query.max_edges, MIN_EDGES, MAX_EDGES)
+}
+
+fn validate_range(
+    name: &str,
+    value: usize,
+    minimum: usize,
+    maximum: usize,
+) -> Result<(), MemoryIndexError> {
+    if (minimum..=maximum).contains(&value) {
+        return Ok(());
+    }
+    Err(MemoryIndexError::GraphQuery(format!(
+        "{name} {value} is invalid; expected {minimum}..={maximum}"
+    )))
+}
+
+fn traverse(
+    connection: &Connection,
+    query: &MemoryGraphQuery,
+) -> Result<MemoryGraphResult, MemoryIndexError> {
+    let documents = load_documents(connection)?;
+    let links = load_links(connection, &query.relationships)?;
+    let (selection, matched_roots) = resolve_roots(&documents, query)?;
+    let node_budget_exhausted = matched_roots.len() > query.max_nodes;
+    let roots = matched_roots
+        .into_iter()
+        .take(query.max_nodes)
+        .collect::<Vec<String>>();
+    let by_identity = documents
+        .into_iter()
+        .map(|document| (document.identity.clone(), document))
+        .collect::<HashMap<String, GraphDocumentRow>>();
+    let mut state = TraversalState::new(&roots, &by_identity);
+    state.walk(&by_identity, &links, query);
+    state.edges = mark_cycles(state.edges);
+    state
+        .nodes
+        .sort_by(|left, right| left.identity.cmp(&right.identity));
+    state.edges.sort_by(|left, right| {
+        (&left.source_document_identity, left.source_link_ordinal)
+            .cmp(&(&right.source_document_identity, right.source_link_ordinal))
+    });
+    Ok(MemoryGraphResult {
+        selection,
+        roots,
+        nodes: state.nodes,
+        edges: state.edges,
+        node_budget_exhausted: node_budget_exhausted || state.node_budget_exhausted,
+        edge_budget_exhausted: state.edge_budget_exhausted,
+    })
+}
+
+struct TraversalState {
+    queue: VecDeque<(String, usize)>,
+    discovered: HashSet<String>,
+    emitted_edges: HashSet<(String, usize)>,
+    nodes: Vec<MemoryGraphNode>,
+    edges: Vec<MemoryGraphEdge>,
+    node_budget_exhausted: bool,
+    edge_budget_exhausted: bool,
+}
+
+impl TraversalState {
+    fn new(roots: &[String], documents: &HashMap<String, GraphDocumentRow>) -> Self {
+        let root_set = roots.iter().cloned().collect::<HashSet<String>>();
+        let nodes = roots
+            .iter()
+            .filter_map(|identity| documents.get(identity))
+            .map(|document| graph_node(document, 0, true))
+            .collect::<Vec<MemoryGraphNode>>();
+        let queue = roots
+            .iter()
+            .cloned()
+            .map(|identity| (identity, 0))
+            .collect::<VecDeque<(String, usize)>>();
+        Self {
+            queue,
+            discovered: root_set,
+            emitted_edges: HashSet::new(),
+            nodes,
+            edges: Vec::new(),
+            node_budget_exhausted: false,
+            edge_budget_exhausted: false,
+        }
+    }
+
+    fn walk(
+        &mut self,
+        documents: &HashMap<String, GraphDocumentRow>,
+        links: &[GraphLinkRow],
+        query: &MemoryGraphQuery,
+    ) {
+        while let Some((identity, depth)) = self.queue.pop_front() {
+            if depth >= query.depth || !can_expand(&identity, documents, query.include_archived) {
+                continue;
+            }
+            let candidates = candidate_links(&identity, links, query.direction);
+            for link in candidates {
+                let edge_key = (link.source.clone(), link.ordinal);
+                if self.emitted_edges.contains(&edge_key) {
+                    continue;
+                }
+                if self.edges.len() == query.max_edges {
+                    self.edge_budget_exhausted = true;
+                    continue;
+                }
+                self.emitted_edges.insert(edge_key);
+                self.edges.push(graph_edge(link));
+                let Some(neighbor) = neighbor_identity(&identity, link, query.direction) else {
+                    continue;
+                };
+                if self.discovered.contains(neighbor) {
+                    continue;
+                }
+                if self.nodes.len() == query.max_nodes {
+                    self.node_budget_exhausted = true;
+                    continue;
+                }
+                let Some(document) = documents.get(neighbor) else {
+                    continue;
+                };
+                self.discovered.insert(neighbor.to_owned());
+                self.nodes.push(graph_node(document, depth + 1, false));
+                if query.include_archived || document.archive_state == ARCHIVE_STATE_ACTIVE {
+                    self.queue.push_back((neighbor.to_owned(), depth + 1));
+                }
+            }
+        }
+    }
+}
+
+fn can_expand(
+    identity: &str,
+    documents: &HashMap<String, GraphDocumentRow>,
+    include_archived: bool,
+) -> bool {
+    include_archived
+        || documents
+            .get(identity)
+            .is_some_and(|document| document.archive_state == ARCHIVE_STATE_ACTIVE)
+}
+
+fn candidate_links<'a>(
+    identity: &str,
+    links: &'a [GraphLinkRow],
+    direction: MemoryGraphDirection,
+) -> Vec<&'a GraphLinkRow> {
+    let mut selected = links
+        .iter()
+        .filter(|link| match direction {
+            MemoryGraphDirection::Outbound => link.source == identity,
+            MemoryGraphDirection::Inbound => {
+                link.status == RESOLUTION_STATUS_RESOLVED
+                    && link.target_identity.as_deref() == Some(identity)
+            }
+            MemoryGraphDirection::Both => {
+                link.source == identity
+                    || (link.status == RESOLUTION_STATUS_RESOLVED
+                        && link.target_identity.as_deref() == Some(identity))
+            }
+        })
+        .collect::<Vec<&GraphLinkRow>>();
+    selected
+        .sort_by(|left, right| (&left.source, left.ordinal).cmp(&(&right.source, right.ordinal)));
+    selected
+}
+
+fn neighbor_identity<'a>(
+    current: &str,
+    link: &'a GraphLinkRow,
+    direction: MemoryGraphDirection,
+) -> Option<&'a str> {
+    if link.status != RESOLUTION_STATUS_RESOLVED {
+        return None;
+    }
+    if link.source == current && direction != MemoryGraphDirection::Inbound {
+        return link.target_identity.as_deref();
+    }
+    if link.target_identity.as_deref() == Some(current)
+        && direction != MemoryGraphDirection::Outbound
+    {
+        return Some(link.source.as_str());
+    }
+    None
+}
+
+fn resolve_roots(
+    documents: &[GraphDocumentRow],
+    query: &MemoryGraphQuery,
+) -> Result<(String, Vec<String>), MemoryIndexError> {
+    let eligible = documents
+        .iter()
+        .filter(|document| query.include_archived || document.archive_state == ARCHIVE_STATE_ACTIVE)
+        .collect::<Vec<&GraphDocumentRow>>();
+    let exact = eligible
+        .iter()
+        .filter(|document| has_exact_field(document, &query.pattern))
+        .map(|document| document.identity.clone())
+        .collect::<Vec<String>>();
+    if exact.len() > 1 {
+        return Err(MemoryIndexError::GraphQuery(format!(
+            "document selector {:?} exactly matches multiple documents: {}",
+            query.pattern,
+            exact.join(", ")
+        )));
+    }
+    if !exact.is_empty() {
+        return Ok(("exact".to_owned(), exact));
+    }
+    let needle = query.pattern.to_lowercase();
+    let substring = eligible
+        .iter()
+        .filter(|document| has_matching_field(document, &needle))
+        .map(|document| document.identity.clone())
+        .collect::<Vec<String>>();
+    if !substring.is_empty() {
+        return Ok(("substring".to_owned(), substring));
+    }
+    let archived_match = documents
+        .iter()
+        .any(|document| has_archived_matching_field(document, &needle));
+    let suffix = if archived_match && !query.include_archived {
+        "; matching documents are archived, use --include-archived"
+    } else {
+        ""
+    };
+    Err(MemoryIndexError::GraphQuery(format!(
+        "no memory documents match {:?}{suffix}",
+        query.pattern
+    )))
+}
+
+fn has_exact_field(document: &GraphDocumentRow, pattern: &str) -> bool {
+    fields(document).contains(&pattern)
+}
+
+fn has_matching_field(document: &GraphDocumentRow, needle: &str) -> bool {
+    fields(document)
+        .iter()
+        .any(|value| value.to_lowercase().contains(needle))
+}
+
+fn has_archived_matching_field(document: &GraphDocumentRow, needle: &str) -> bool {
+    document.archive_state == ARCHIVE_STATE_ARCHIVED && has_matching_field(document, needle)
+}
+
+fn fields(document: &GraphDocumentRow) -> [&str; 5] {
+    [
+        document.identity.as_str(),
+        document.repository_relative_path.as_str(),
+        document.basename.as_str(),
+        document.slug.as_str(),
+        document.title.as_deref().unwrap_or(""),
+    ]
+}
+
+fn graph_node(document: &GraphDocumentRow, depth: usize, root: bool) -> MemoryGraphNode {
+    MemoryGraphNode {
+        identity: document.identity.clone(),
+        artifact_kind: document.artifact_kind.clone(),
+        archive_state: document.archive_state.clone(),
+        repository_relative_path: document.repository_relative_path.clone(),
+        basename: document.basename.clone(),
+        slug: document.slug.clone(),
+        title: document.title.clone(),
+        depth,
+        root,
+    }
+}
+
+fn graph_edge(link: &GraphLinkRow) -> MemoryGraphEdge {
+    MemoryGraphEdge {
+        source_document_identity: link.source.clone(),
+        source_link_ordinal: link.ordinal,
+        relationship: link.relationship.clone(),
+        authored_target: link.target.clone(),
+        resolution_status: link.status.clone(),
+        target_document_identity: link.target_identity.clone(),
+        cycle: false,
+    }
+}
+
+fn mark_cycles(mut edges: Vec<MemoryGraphEdge>) -> Vec<MemoryGraphEdge> {
+    let mut adjacency = HashMap::<String, Vec<String>>::new();
+    for edge in &edges {
+        if edge.resolution_status != RESOLUTION_STATUS_RESOLVED {
+            continue;
+        }
+        if let Some(target) = &edge.target_document_identity {
+            adjacency
+                .entry(edge.source_document_identity.clone())
+                .or_default()
+                .push(target.clone());
+        }
+    }
+    for edge in &mut edges {
+        let Some(target) = edge.target_document_identity.as_deref() else {
+            continue;
+        };
+        edge.cycle = has_path(target, &edge.source_document_identity, &adjacency);
+    }
+    edges
+}
+
+fn has_path(start: &str, goal: &str, adjacency: &HashMap<String, Vec<String>>) -> bool {
+    let mut pending = vec![start];
+    let mut visited: HashSet<&str> = HashSet::new();
+    while let Some(current) = pending.pop() {
+        if current == goal {
+            return true;
+        }
+        if !visited.insert(current) {
+            continue;
+        }
+        if let Some(targets) = adjacency.get(current) {
+            pending.extend(targets.iter().map(String::as_str));
+        }
+    }
+    false
+}

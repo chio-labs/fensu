@@ -4,17 +4,14 @@ from __future__ import annotations
 
 import json
 import sys
-from collections.abc import Mapping
 from importlib.metadata import version
 from pathlib import Path
 
+from fensu.cli._helpers.rule_metadata import rule_metadata_value
 from fensu.cli.constants import SKILLS_METADATA_PROTOCOL_VERSION
 from fensu.cli.exceptions import CliCommandError
 from fensu.config.main.load_project_config import load_project_config
 from fensu.config.models import LoadedConfig
-from fensu.rules.authoring.constants import MISSING
-from fensu.rules.authoring.models import RuleOption, RuleSpec
-from fensu.rules.authoring.types import RuleOptionValue
 from fensu.rules.catalog.main.build_check_rule_selection import build_check_rule_selection
 from fensu.rules.catalog.models import RuleSelection
 
@@ -40,7 +37,7 @@ def main() -> int:
         "protocol": SKILLS_METADATA_PROTOCOL_VERSION,
         "package_version": version("fensu"),
         "catalogue": [
-            _rule_value(
+            rule_metadata_value(
                 rule=rule,
                 current=loaded.config.rule_options.get(rule.code, {}),
             )
@@ -53,40 +50,3 @@ def main() -> int:
     json.dump(response, sys.stdout, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
     sys.stdout.write("\n")
     return 0
-
-
-def _rule_value(*, rule: RuleSpec, current: Mapping[str, RuleOptionValue]) -> dict[str, object]:
-    return {
-        "code": rule.code,
-        "family": rule.family.value,
-        "slug": rule.slug,
-        "message": rule.message,
-        "remediation": rule.remediation,
-        "severity": rule.severity.value,
-        "enabled_by_default": rule.enabled_by_default,
-        "execution_owner": rule.execution_owner.value,
-        "kind": rule.kind.value,
-        "source": rule.source,
-        "cacheable": bool(rule.cacheable),
-        "options": [
-            _option_value(option=option, current=current)
-            for option in sorted(rule.options, key=lambda item: item.name)
-        ],
-    }
-
-
-def _option_value(
-    *, option: RuleOption[object], current: Mapping[str, RuleOptionValue]
-) -> dict[str, object]:
-    return {
-        "name": option.name,
-        "kind": option.kind.value,
-        "required": option.required,
-        "default": None if option.default is MISSING else option.default,
-        "current_value": current[option.name],
-        "description": option.description,
-        "choices": option.choices,
-        "minimum": option.minimum,
-        "maximum": option.maximum,
-        "minimum_items": option.minimum_items,
-    }

@@ -1,13 +1,14 @@
 use std::env;
 use std::path::Path;
 
+use crate::check::main::clean_caches::clean_caches;
+use crate::check::main::prepare_cleanup::prepare_cleanup;
 use crate::command::main::{check, help, init, map, memory, rule, skills};
 use crate::configuration::main::custom_rules;
-use crate::helpers::check::cleanup;
-use crate::helpers::hosting::process;
+use crate::hosting::main::run_custom_check_host::run_custom_check_host;
 use crate::models::CliOutput;
 
-pub fn run_cli() -> CliOutput {
+pub(super) fn run_cli() -> CliOutput {
     let arguments = env::args().skip(1).collect::<Vec<_>>();
     dispatch(&arguments).unwrap_or_else(CliOutput::error)
 }
@@ -41,9 +42,9 @@ fn dispatch(arguments: &[String]) -> Result<CliOutput, String> {
 }
 
 fn dispatch_check(arguments: &[String]) -> Result<CliOutput, String> {
-    let cleanup = cleanup::prepare(Path::new("."));
+    let cleanup = prepare_cleanup(Path::new("."));
     let result = if custom_rules::custom_rules_are_configured(Path::new("."))? {
-        let exit_code = process::run_custom_check_host(arguments)?;
+        let exit_code = run_custom_check_host(arguments)?;
         Ok(CliOutput {
             stdout: String::new(),
             stderr: String::new(),
@@ -60,7 +61,7 @@ fn dispatch_check(arguments: &[String]) -> Result<CliOutput, String> {
             .any(|argument| matches!(argument.as_str(), "--help" | "-h"))
     {
         if let Some(cleanup) = cleanup {
-            cleanup.run();
+            clean_caches(&cleanup);
         }
     }
     result

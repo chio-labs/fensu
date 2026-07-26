@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::mapping::helpers::identity::{build_class_key, build_function_key, qualify};
+use crate::mapping::_helpers::identity::{build_class_key, build_function_key, qualify};
 
 #[derive(Clone, Debug)]
 pub(crate) struct MappingSource {

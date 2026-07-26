@@ -4,13 +4,14 @@ use std::collections::VecDeque;
 
 use ruff_python_ast::{ModModule, PythonVersion};
 
-use crate::facts::helpers::shape::children::children;
-use crate::facts::helpers::shape::nodes::{kind_name, ShapeNode};
-use crate::facts::helpers::shape::spans::span;
 use crate::facts::models::LocatedNode;
 use crate::parsing::main::parse_strict::parse_strict;
 use crate::parsing::models::ParseFailure;
 use crate::positions::main::index_lines::index_lines;
+use crate::syntax::main::children::children;
+use crate::syntax::main::kind_name::kind_name;
+use crate::syntax::main::span::span;
+use crate::syntax::types::ShapeNode;
 
 /// Return every CPython-equivalent node with kind and span in BFS order.
 pub fn enumerate_nodes(

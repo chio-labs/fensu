@@ -2,12 +2,16 @@
 
 pub const MAX_FILE_LINES: usize = 400;
 pub const MAX_DECLARATION_FILE_LINES: usize = 80;
+pub const MAX_BINARY_ENTRY_LINES: usize = 80;
 pub const MAX_HELPER_CONTAINER_MODULES: usize = 10;
 pub const MAX_MAIN_CONTAINER_MODULES: usize = 20;
 pub const MAX_ENTRY_PRIVATE_FUNCTIONS: usize = 2;
+pub const MIN_NESTED_PACKAGE_DEPTH: usize = 2;
 pub const MAX_CONTAINER_COMPONENT_DEPTH: usize = 2;
+pub const MIN_SHARED_PREFIX_MODULES: usize = 3;
 pub const MIN_DOMAIN_SEGMENTS: usize = 2;
 pub const MAX_ARGUMENTS: usize = 10;
+pub const MAX_POSITIONAL_PARAMETERS: usize = 4;
 pub const MAX_STATEMENTS_GLOBAL: usize = 70;
 pub const MAX_STATEMENTS_ENTRY: usize = 40;
 pub const MAX_DISTINCT_CALLS_ENTRY: usize = 20;
@@ -42,22 +46,25 @@ pub const ROLE_FILE_NAMES: &[&str] = &[
     "models.rs",
     "types.rs",
 ];
-pub const CONTAINER_DIRECTORY_NAMES: &[&str] = &["helpers", "main"];
-pub const HELPERS_DIRECTORY: &str = "helpers";
+pub const CONTAINER_DIRECTORY_NAMES: &[&str] = &["_helpers", "main"];
+pub const HELPERS_DIRECTORY: &str = "_helpers";
 pub const MAIN_DIRECTORY: &str = "main";
 pub const RULES_DIRECTORY: &str = "rules";
 pub const MOD_FILE: &str = "mod.rs";
 pub const LIB_FILE: &str = "lib.rs";
 pub const MAIN_FILE: &str = "main.rs";
+pub const MAIN_FUNCTION: &str = "main";
 pub const HELPERS_FILE: &str = "helpers.rs";
 pub const MODELS_FILE: &str = "models.rs";
 pub const TYPES_FILE: &str = "types.rs";
 pub const CONSTANTS_FILE: &str = "constants.rs";
 pub const ERRORS_FILE: &str = "errors.rs";
 pub const TEST_TYPES_FILE: &str = "test_types.rs";
+pub const TEST_TYPES_MODULE: &str = "test_types";
 pub const INLINE_TEST_HARNESS_FILE: &str = "tests.rs";
 pub const SOURCE_DIRECTORY: &str = "src";
 pub const TESTS_DIRECTORY: &str = "tests";
+pub const BIN_DIRECTORY: &str = "bin";
 pub const CARGO_MANIFEST_FILE: &str = "Cargo.toml";
 pub const RUST_SUFFIX: &str = "rs";
 pub const SELF_MODULE: &str = "self";
@@ -82,6 +89,7 @@ pub const TEST_CASE_LOOP_VARIABLE: &str = "test_case";
 pub const CASE_RUNNER_NAME: &str = "run_cases";
 pub const MODULE_CASES_CONSTANT: &str = "TEST_CASES";
 pub const TEST_CASE_STRUCT_SUFFIX: &str = "TestCase";
+pub const TEST_FILE_PREFIX: &str = "test_";
 pub const ERROR_TYPE_SUFFIX: &str = "Error";
 pub const DESCRIPTION_FIELD: &str = "description";
 pub const EXPECTED_FIELD_PREFIX: &str = "expected_";

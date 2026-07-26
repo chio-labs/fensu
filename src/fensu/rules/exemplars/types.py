@@ -31,37 +31,6 @@ class ExemplarRoleName(StrEnum):
     HELPERS = "_helpers"
 
 
-class ExemplarBannedPackageName(StrEnum):
-    """Generic package names rejected by ownership policy."""
-
-    BASE = "base"
-    COMMON = "common"
-    HELPERS = "helpers"
-    LIB = "lib"
-    MISC = "misc"
-    SHARED = "shared"
-    UTIL = "util"
-    UTILS = "utils"
-
-
-class ExemplarToolingRoleName(StrEnum):
-    """Approved tooling package role directories."""
-
-    MAIN = "main"
-    HELPERS = "_helpers"
-    CLASSES = "classes"
-    RULES = "rules"
-
-
-class ExemplarToolingRoleFile(StrEnum):
-    """Approved tooling package role files."""
-
-    MODELS = "models.py"
-    TYPES = "types.py"
-    CONSTANTS = "constants.py"
-    EXCEPTIONS = "exceptions.py"
-
-
 class ExemplarTestScopeName(StrEnum):
     """Supported test scope directory names."""
 

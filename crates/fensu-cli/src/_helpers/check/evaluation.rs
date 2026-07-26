@@ -6,13 +6,14 @@ use fensu_native::rules::main::plan_core_rule_queries::plan_core_rule_queries;
 use fensu_native::rules::models::NativeRuleContext;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 
-use crate::_helpers::catalogue::metadata;
 use crate::_helpers::check::exceptions::apply_exceptions;
 use crate::_helpers::check::policy::{
     apply_rule_ignores, is_entry_module, is_main_module, program, resolved_thresholds, role,
     scope_roots, source_module_name,
 };
 use crate::_helpers::check::project::{observe, project_plane};
+use crate::catalogue::main::rule_catalogue::rule_catalogue;
+use crate::catalogue::main::rule_metadata::rule_metadata;
 use crate::constants::{
     OWNER_FILE, OWNER_PACKAGE, ROLE_HELPERS, ROLE_MAIN, SCOPE_TEST, SUFFIX_INIT,
 };
@@ -94,7 +95,7 @@ pub(crate) fn evaluate_and_render(
             let faults = rows
                 .into_iter()
                 .map(|row| {
-                    let metadata = metadata::rule(&row.code)
+                    let metadata = rule_metadata(&row.code)
                         .ok_or_else(|| format!("Unknown native rule code: {}", row.code))?;
                     let path = row.path.unwrap_or_else(|| source.repository_path.clone());
                     Ok(Fault {
@@ -171,7 +172,7 @@ fn native_rule_options(
     let mut by_code = HashMap::new();
     for code in codes {
         let rule =
-            metadata::rule(code).ok_or_else(|| format!("Unknown native rule code: {code}"))?;
+            rule_metadata(code).ok_or_else(|| format!("Unknown native rule code: {code}"))?;
         let mut values = HashMap::new();
         for option in &rule.options {
             values.insert(
@@ -187,7 +188,7 @@ fn native_rule_options(
 }
 
 pub(crate) fn selected_rules(select: &[String], ignore: &[String]) -> Vec<&'static RuleMetadata> {
-    metadata::catalogue()
+    rule_catalogue()
         .iter()
         .filter(|rule| {
             let selected = select

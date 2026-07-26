@@ -51,11 +51,11 @@ pub(crate) struct RuleMetadata {
     pub(crate) severity: String,
     pub(crate) enabled_by_default: bool,
     pub(crate) execution_owner: String,
-    #[serde(default = "crate::_helpers::catalogue::metadata::core_kind")]
+    #[serde(default = "crate::catalogue::main::core_kind::core_kind")]
     pub(crate) kind: String,
     #[serde(default)]
     pub(crate) source: Option<String>,
-    #[serde(default = "crate::_helpers::catalogue::metadata::cacheable_default")]
+    #[serde(default = "crate::catalogue::main::cacheable_default::cacheable_default")]
     pub(crate) cacheable: bool,
     #[serde(default)]
     pub(crate) options: Vec<RuleOptionMetadata>,

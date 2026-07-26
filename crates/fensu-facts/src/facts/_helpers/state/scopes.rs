@@ -5,8 +5,8 @@ use std::collections::{HashSet, VecDeque};
 use ruff_python_ast::{Expr, ExprContext, Stmt, StmtFunctionDef};
 
 use crate::constants;
-use crate::facts::_helpers::shape::children::children;
-use crate::facts::_helpers::shape::nodes::ShapeNode;
+use crate::syntax::main::children::children;
+use crate::syntax::types::ShapeNode;
 
 pub(crate) struct ScopeMetadata<'a> {
     pub(crate) bindings: HashSet<&'a str>,

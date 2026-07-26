@@ -1,5 +1,7 @@
 #[path = "rules/containers.rs"]
 mod containers;
+#[path = "rules/domains.rs"]
+mod domains;
 #[path = "rules/helpers.rs"]
 mod helpers;
 #[path = "rules/hygiene.rs"]

@@ -1,5 +1,6 @@
 //! Shared temporary-repository helpers for structure checker tests.
 
+use std::collections::BTreeSet;
 use std::fs;
 use std::path;
 use std::sync::atomic;
@@ -8,7 +9,19 @@ use crate::test_types;
 
 static REPO_COUNTER: atomic::AtomicUsize = atomic::AtomicUsize::new(0);
 
+/// Write a fixture repository, completing each leaf domain with a `main/` entry.
 pub(crate) fn write_temp_repo(test_case: &test_types::CheckRepoTestCase) -> path::PathBuf {
+    let root = write_repo(test_case);
+    write_missing_entries(&root, test_case);
+    root
+}
+
+/// Write a fixture repository exactly as declared, for domain-shape rules.
+pub(crate) fn write_temp_repo_verbatim(test_case: &test_types::CheckRepoTestCase) -> path::PathBuf {
+    write_repo(test_case)
+}
+
+fn write_repo(test_case: &test_types::CheckRepoTestCase) -> path::PathBuf {
     let index = REPO_COUNTER.fetch_add(1, atomic::Ordering::SeqCst);
     let root = std::env::temp_dir().join(format!(
         "fensu-structure-checker-{}-{index}",
@@ -33,6 +46,38 @@ pub(crate) fn write_temp_repo(test_case: &test_types::CheckRepoTestCase) -> path
         fs::write(&file_path, &file.contents).expect("fixture files are writable");
     }
     root
+}
+
+fn write_missing_entries(root: &path::Path, test_case: &test_types::CheckRepoTestCase) {
+    let domain_parts: Vec<Vec<&str>> = test_case
+        .repo_files
+        .iter()
+        .filter_map(|file| file.path.split_once("/src/"))
+        .map(|(_, inside)| inside.split('/').collect::<Vec<&str>>())
+        .filter(|parts| parts.len() > 1)
+        .collect();
+    let domains: BTreeSet<&str> = domain_parts
+        .iter()
+        .filter_map(|parts| parts.first().copied())
+        .collect();
+    let entry_domains: BTreeSet<&str> = domain_parts
+        .iter()
+        .filter(|parts| parts[1] == "main")
+        .filter_map(|parts| parts.first().copied())
+        .collect();
+    let branch_domains: BTreeSet<&str> = domain_parts
+        .iter()
+        .filter(|parts| parts.len() > 2 && parts[1] != "main" && parts[1] != "_helpers")
+        .filter_map(|parts| parts.first().copied())
+        .collect();
+    let leaf_domains: BTreeSet<&str> = domains.difference(&branch_domains).copied().collect();
+    for domain in leaf_domains.difference(&entry_domains) {
+        let entry = root.join(format!("crates/example/src/{domain}/main/read_entry.rs"));
+        let parent = entry.parent().expect("entry paths name a parent");
+        fs::create_dir_all(parent).expect("fixture entry directories are writable");
+        fs::write(&entry, "pub fn read_entry() -> usize {\n    1\n}\n")
+            .expect("fixture entry files are writable");
+    }
 }
 
 pub(crate) fn collect_violation_codes(repo_root: &path::Path) -> Vec<&'static str> {

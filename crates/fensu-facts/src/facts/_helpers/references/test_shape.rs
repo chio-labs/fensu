@@ -4,10 +4,10 @@ use ruff_python_ast::{Expr, ModModule, Stmt};
 
 use crate::constants;
 use crate::facts::_helpers::naming::names::{is_dataclass_class, is_docstring_statement};
-use crate::facts::_helpers::shape::nodes::ShapeNode;
-use crate::facts::_helpers::shape::spans::start_of;
 use crate::facts::models::TestModuleRows;
 use crate::positions::models::LineIndex;
+use crate::syntax::main::start_of::start_of;
+use crate::syntax::types::ShapeNode;
 
 pub(crate) fn test_module_rows(
     module: &ModModule,

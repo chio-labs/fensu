@@ -3,8 +3,8 @@
 use ruff_python_ast::{Expr, Stmt};
 use ruff_text_size::{Ranged, TextRange};
 
-use crate::facts::_helpers::shape::children::children;
-use crate::facts::_helpers::shape::nodes::ShapeNode;
+use crate::syntax::main::children::children;
+use crate::syntax::types::ShapeNode;
 
 pub(crate) fn owned_return_shape(body: &[Stmt]) -> (Option<TextRange>, bool) {
     let mut meaningful_return: Option<TextRange> = None;

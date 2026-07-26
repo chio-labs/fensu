@@ -10,11 +10,11 @@ use crate::facts::_helpers::harness::imports::{
     all_parameter_names, expression_parts, function_shadowed_names, index_module_bindings,
     BindingIndex,
 };
-use crate::facts::_helpers::shape::breadth::breadth_first_with_parents;
-use crate::facts::_helpers::shape::nodes::ShapeNode;
-use crate::facts::_helpers::shape::spans::start_of;
 use crate::facts::models::{DimensionRow, EvaluateRuleCallRow};
 use crate::positions::models::LineIndex;
+use crate::syntax::main::breadth_first_with_parents::breadth_first_with_parents;
+use crate::syntax::main::start_of::start_of;
+use crate::syntax::types::ShapeNode;
 
 struct CallContext<'context, 'module> {
     nodes: &'context [ShapeNode<'module>],

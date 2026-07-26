@@ -4,10 +4,11 @@ use std::path;
 
 use crate::constants;
 use crate::models;
-use crate::rules::_helpers::containers;
-use crate::rules::_helpers::layers;
-use crate::rules::_helpers::scanning;
-use crate::rules::_helpers::tests_layout;
+use crate::rules::_helpers::imports::layers;
+use crate::rules::_helpers::roles::containers;
+use crate::rules::_helpers::roles::domains;
+use crate::rules::_helpers::sources::scanning;
+use crate::rules::_helpers::test_conventions::tests_layout;
 
 /// Check the workspace under repo_root and return deterministic violations.
 pub fn check_repository(repo_root: &path::Path) -> Vec<models::Violation> {
@@ -35,6 +36,7 @@ fn check_crate(repo_root: &path::Path, crate_dir: &path::Path) -> Vec<models::Vi
         violations.extend(scanning::check_test_file(repo_root, &tests_root, file));
     }
     violations.extend(containers::check_containers(&src_scan.files));
+    violations.extend(domains::check_domains(&src_scan.files));
     violations.extend(tests_layout::check_test_mirroring(repo_root, crate_dir));
     violations.extend(tests_layout::check_harness_coverage(repo_root, crate_dir));
     violations.extend(layers::check_manifest(repo_root, crate_dir));

@@ -6,10 +6,10 @@ use ruff_python_ast::{Decorator, Expr, StmtFunctionDef};
 
 use crate::constants;
 use crate::facts::_helpers::harness::imports::{expression_parts, BindingIndex};
-use crate::facts::_helpers::shape::nodes::ShapeNode;
-use crate::facts::_helpers::shape::spans::start_of;
 use crate::facts::models::DimensionRow;
 use crate::positions::models::LineIndex;
+use crate::syntax::main::start_of::start_of;
+use crate::syntax::types::ShapeNode;
 
 pub(crate) fn dimension_rows(
     function: &StmtFunctionDef,

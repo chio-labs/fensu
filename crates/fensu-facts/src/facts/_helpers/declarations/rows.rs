@@ -9,15 +9,15 @@ use crate::facts::_helpers::naming::names::{
     is_nonexecuting_import_guard, is_public_type_alias, is_rule_decorated_function,
     is_type_checking_import_block, is_type_class,
 };
-use crate::facts::_helpers::shape::breadth::breadth_first_from;
-use crate::facts::_helpers::shape::children::children;
-use crate::facts::_helpers::shape::nodes::ShapeNode;
-use crate::facts::_helpers::shape::spans::start_of;
-use crate::facts::_helpers::shape::statement_children::push_clause_orelse;
 use crate::facts::models::{
     ModuleDeclarationRows, ModuleStatementRow, NamedCallRow, TypeDeclarationRow,
 };
 use crate::positions::models::LineIndex;
+use crate::syntax::main::breadth_first_from::breadth_first_from;
+use crate::syntax::main::children::children;
+use crate::syntax::main::push_clause_orelse::push_clause_orelse;
+use crate::syntax::main::start_of::start_of;
+use crate::syntax::types::ShapeNode;
 
 pub(crate) fn collect_class_rows(
     breadth_nodes: &[ShapeNode<'_>],

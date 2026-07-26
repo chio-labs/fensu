@@ -6,11 +6,12 @@ use ruff_python_ast::{Expr, ModModule, Stmt};
 use ruff_text_size::{Ranged, TextRange};
 
 use crate::facts::_helpers::metrics::mutations::{attribute_root_name, is_mutator_call};
-use crate::facts::_helpers::shape::breadth::{breadth_first_from, breadth_first_with_parents};
-use crate::facts::_helpers::shape::nodes::ShapeNode;
 use crate::facts::_helpers::state::scopes::{
     argument_names, function_local_bindings, scope_metadata,
 };
+use crate::syntax::main::breadth_first_from::breadth_first_from;
+use crate::syntax::main::breadth_first_with_parents::breadth_first_with_parents;
+use crate::syntax::types::ShapeNode;
 
 pub(crate) fn outer_mutation_ranges(module: &ModModule) -> Vec<TextRange> {
     let (nodes, parents) = breadth_first_with_parents(module);

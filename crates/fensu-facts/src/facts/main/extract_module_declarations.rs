@@ -7,9 +7,9 @@ use crate::facts::_helpers::declarations::rows::{
     imported_main_entry_names, main_call_rows,
 };
 use crate::facts::_helpers::naming::names::is_docstring_statement;
-use crate::facts::_helpers::shape::breadth::breadth_first_nodes;
 use crate::facts::models::ModuleDeclarationRows;
 use crate::positions::models::LineIndex;
+use crate::syntax::main::breadth_first_nodes::breadth_first_nodes;
 
 /// Return classified module statements and declarations for one module.
 pub fn extract_module_declarations(

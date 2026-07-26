@@ -47,12 +47,12 @@ fn given_container_fixtures_when_checking_then_reports_expected_codes() {
             expected_violation_codes: vec!["RSR302"],
         },
         test_types::CheckRepoTestCase {
-            description: "implementation module outside role containers is reported",
+            description: "implementation module at domain position is reported",
             repo_files: vec![test_types::RepoFile {
                 path: "crates/example/src/reading/scan.rs".to_owned(),
                 contents: "fn scan() -> usize {\n    1\n}\n".to_owned(),
             }],
-            expected_violation_codes: vec!["RSR304"],
+            expected_violation_codes: vec!["RSR307"],
         },
         test_types::CheckRepoTestCase {
             description: "entry module with two visible functions is reported",

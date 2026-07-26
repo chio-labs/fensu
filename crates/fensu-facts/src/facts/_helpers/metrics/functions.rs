@@ -8,11 +8,11 @@ use crate::facts::_helpers::metrics::lookups::{
     assigned_target_names, dotted_call_name, function_at, function_positions, is_dunder_name,
     nonreceiver_parameter_names,
 };
-use crate::facts::_helpers::shape::breadth::breadth_first_with_parents;
-use crate::facts::_helpers::shape::nodes::ShapeNode;
-use crate::facts::_helpers::shape::spans::start_of;
 use crate::facts::models::FunctionMetricRow;
 use crate::positions::models::LineIndex;
+use crate::syntax::main::breadth_first_with_parents::breadth_first_with_parents;
+use crate::syntax::main::start_of::start_of;
+use crate::syntax::types::ShapeNode;
 
 pub(crate) fn function_metric_rows(
     module: &ModModule,

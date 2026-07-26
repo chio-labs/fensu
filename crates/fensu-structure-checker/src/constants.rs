@@ -5,6 +5,7 @@ pub const MAX_DECLARATION_FILE_LINES: usize = 80;
 pub const MAX_HELPER_CONTAINER_MODULES: usize = 10;
 pub const MAX_MAIN_CONTAINER_MODULES: usize = 20;
 pub const MAX_ENTRY_PRIVATE_FUNCTIONS: usize = 2;
+pub const MIN_NESTED_PACKAGE_DEPTH: usize = 2;
 pub const MAX_CONTAINER_COMPONENT_DEPTH: usize = 2;
 pub const MIN_SHARED_PREFIX_MODULES: usize = 3;
 pub const MIN_DOMAIN_SEGMENTS: usize = 2;

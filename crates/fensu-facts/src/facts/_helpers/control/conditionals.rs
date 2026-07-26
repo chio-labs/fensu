@@ -6,11 +6,13 @@ use ruff_python_ast::{Expr, ModModule, Stmt};
 use ruff_text_size::{Ranged, TextRange};
 
 use crate::facts::_helpers::naming::names::decorator_name;
-use crate::facts::_helpers::shape::breadth::{breadth_first_from, breadth_first_nodes};
-use crate::facts::_helpers::shape::nodes::ShapeNode;
-use crate::facts::_helpers::shape::spans::{span, start_of};
 use crate::facts::models::{FunctionConditionalRow, SourceRangeRow};
 use crate::positions::models::LineIndex;
+use crate::syntax::main::breadth_first_from::breadth_first_from;
+use crate::syntax::main::breadth_first_nodes::breadth_first_nodes;
+use crate::syntax::main::span::span;
+use crate::syntax::main::start_of::start_of;
+use crate::syntax::types::ShapeNode;
 
 pub(crate) fn function_conditional_rows(
     module: &ModModule,
@@ -167,7 +169,7 @@ fn generator_count(node: &ShapeNode<'_>) -> usize {
 
 fn contains_nested_comprehension(node: &ShapeNode<'_>) -> bool {
     let mut child_buffer: Vec<ShapeNode<'_>> = Vec::new();
-    crate::facts::_helpers::shape::children::children(node, &mut child_buffer);
+    crate::syntax::main::children::children(node, &mut child_buffer);
     for child in child_buffer {
         for descendant in breadth_first_from(child) {
             if is_comprehension(&descendant) {

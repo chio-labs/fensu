@@ -8,11 +8,11 @@ use crate::facts::_helpers::rule_authoring::ownership::{
     has_loop_ancestor,
 };
 use crate::facts::_helpers::rule_authoring::references::qualified_reference;
-use crate::facts::_helpers::shape::breadth::breadth_first_with_parents;
-use crate::facts::_helpers::shape::nodes::ShapeNode;
-use crate::facts::_helpers::shape::spans::start_of;
 use crate::facts::models::{LocalCallEdgeRow, RuleNamedCallRow};
 use crate::positions::models::LineIndex;
+use crate::syntax::main::breadth_first_with_parents::breadth_first_with_parents;
+use crate::syntax::main::start_of::start_of;
+use crate::syntax::types::ShapeNode;
 
 /// Return named calls and local edges from independent shared-tree traversals.
 pub fn extract_rule_calls(

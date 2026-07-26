@@ -5,9 +5,9 @@ use std::collections::{HashMap, HashSet};
 use ruff_python_ast::{Expr, ModModule, Stmt, StmtFunctionDef};
 
 use crate::constants;
-use crate::facts::_helpers::shape::breadth::breadth_first_from;
-use crate::facts::_helpers::shape::nodes::ShapeNode;
 use crate::facts::models::StaticReferenceRow;
+use crate::syntax::main::breadth_first_from::breadth_first_from;
+use crate::syntax::types::ShapeNode;
 
 pub(crate) struct BindingIndex<'a> {
     pub(crate) from_bindings: HashMap<&'a str, HashSet<StaticReferenceRow>>,

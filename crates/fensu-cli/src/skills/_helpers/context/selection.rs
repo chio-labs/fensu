@@ -4,7 +4,7 @@ use std::path::Path;
 use serde_json::json;
 
 use crate::_helpers::catalogue::metadata;
-use crate::_helpers::hosting::process;
+use crate::hosting::main::run_skills_metadata_host::run_skills_metadata_host;
 use crate::models::{Config, RuleMetadata};
 use crate::skills::_helpers::context::option_validation::validate_rule_options;
 use crate::skills::models::{HostResponse, RuleSelection};
@@ -67,7 +67,7 @@ fn hosted_selection(project_root: &Path) -> Result<RuleSelection, String> {
         "project_root": project_root.to_string_lossy(),
     }))
     .map_err(|error| error.to_string())?;
-    let raw = process::run_skills_metadata_host(&request)?;
+    let raw = run_skills_metadata_host(&request)?;
     validate_host_shape(&raw)?;
     let response: HostResponse = serde_json::from_slice(&raw)
         .map_err(|error| format!("Invalid custom-rule metadata host response: {error}"))?;

@@ -5,7 +5,7 @@ use std::fs;
 use fensu_memory::engine::main::query_memory_index::query_memory_index;
 use fensu_memory::engine::models::MemoryQueryValue;
 
-use crate::dependencies::helpers;
+use crate::test_dependencies::helpers;
 use crate::test_types::{InvalidMemoryQueryTestCase, MemoryQueryTestCase};
 
 #[test]

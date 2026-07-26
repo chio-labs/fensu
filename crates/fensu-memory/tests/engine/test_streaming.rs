@@ -7,7 +7,7 @@ use fensu_memory::engine::main::rebuild_memory_index::rebuild_memory_index;
 use fensu_memory::engine::main::sync_memory_index::sync_memory_index;
 use rusqlite::Connection;
 
-use crate::dependencies::{helpers, streaming_helpers};
+use crate::test_dependencies::{helpers, streaming_helpers};
 use crate::test_types::{FixtureFile, MemoryStreamingFailureTestCase, MemoryStreamingTestCase};
 
 #[test]

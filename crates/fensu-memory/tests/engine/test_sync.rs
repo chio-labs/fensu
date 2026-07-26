@@ -11,7 +11,7 @@ use rusqlite::Connection;
 #[cfg(unix)]
 use rusqlite::OpenFlags;
 
-use crate::dependencies::helpers;
+use crate::test_dependencies::helpers;
 use crate::test_types::{FixtureFile, MemoryRecoveryTestCase, MemorySyncTestCase};
 #[cfg(unix)]
 use crate::test_types::{MemoryConcurrentPublicationTestCase, MemoryPermissionFailureTestCase};

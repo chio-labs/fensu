@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 
 use fensu_memory::engine::main::rebuild_memory_index::rebuild_memory_index;
 
-use crate::dependencies::helpers;
+use crate::test_dependencies::helpers;
 use crate::test_types::{MemoryPublicationPerformanceTestCase, MemoryPublicationStressTestCase};
 
 #[test]

@@ -14,7 +14,7 @@ fn given_test_shape_fixtures_when_checking_then_reports_expected_codes() {
                     contents: String::new(),
                 },
                 test_types::RepoFile {
-                path: "crates/example/tests/rules/checking.rs".to_owned(),
+                path: "crates/example/tests/rules/test_checking.rs".to_owned(),
                 contents: "use crate::test_types;\n\n#[test]\nfn given_a_when_b_then_c() {\n    let test_cases = [test_types::ValueTestCase { description: \"d\", expected_value: 1 }];\n\n    for test_case in &test_cases {\n        assert_eq!(1, test_case.expected_value, \"{}\", test_case.description);\n    }\n}\n"
                     .to_owned(),
             }],
@@ -28,7 +28,7 @@ fn given_test_shape_fixtures_when_checking_then_reports_expected_codes() {
                     contents: String::new(),
                 },
                 test_types::RepoFile {
-                path: "crates/example/tests/rules/checking.rs".to_owned(),
+                path: "crates/example/tests/rules/test_checking.rs".to_owned(),
                 contents: "use crate::test_types;\n\n#[test]\nfn checks_reading() {\n    let test_cases = [test_types::ValueTestCase { description: \"d\", expected_value: 1 }];\n\n    for test_case in &test_cases {\n        assert_eq!(1, test_case.expected_value, \"{}\", test_case.description);\n    }\n}\n"
                     .to_owned(),
             }],
@@ -42,7 +42,7 @@ fn given_test_shape_fixtures_when_checking_then_reports_expected_codes() {
                     contents: String::new(),
                 },
                 test_types::RepoFile {
-                path: "crates/example/tests/rules/checking.rs".to_owned(),
+                path: "crates/example/tests/rules/test_checking.rs".to_owned(),
                 contents: "use crate::test_types;\n\n#[test]\nfn given_a_when_b_then_c() {\n    let test_cases = [test_types::ValueTestCase { description: \"d\", expected_value: 1 }];\n\n    for test_case in &test_cases {\n        if test_case.expected_value > 0 {\n            assert_eq!(1, test_case.expected_value, \"{}\", test_case.description);\n        }\n    }\n}\n"
                     .to_owned(),
             }],
@@ -56,11 +56,13 @@ fn given_test_shape_fixtures_when_checking_then_reports_expected_codes() {
                     contents: String::new(),
                 },
                 test_types::RepoFile {
-                path: "crates/example/tests/rules/checking.rs".to_owned(),
+                path: "crates/example/tests/rules/test_checking.rs".to_owned(),
                 contents: "#[test]\nfn given_a_when_b_then_c() {\n    assert_eq!(1, 1, \"fixed\");\n}\n"
                     .to_owned(),
             }],
-            expected_violation_codes: vec!["RST401", "RST404", "RST407", "RST420"],
+            expected_violation_codes: vec![
+                "RST401", "RST404", "RST405", "RST407", "RST414", "RST420",
+            ],
         },
         test_types::CheckRepoTestCase {
             description: "empty case array is reported",
@@ -70,7 +72,7 @@ fn given_test_shape_fixtures_when_checking_then_reports_expected_codes() {
                     contents: String::new(),
                 },
                 test_types::RepoFile {
-                path: "crates/example/tests/rules/checking.rs".to_owned(),
+                path: "crates/example/tests/rules/test_checking.rs".to_owned(),
                 contents: "use crate::test_types;\n\n#[test]\nfn given_a_when_b_then_c() {\n    let test_cases: [test_types::ValueTestCase; 0] = [];\n\n    for test_case in &test_cases {\n        assert_eq!(1, test_case.expected_value, \"{}\", test_case.description);\n    }\n}\n"
                     .to_owned(),
             }],
@@ -84,11 +86,71 @@ fn given_test_shape_fixtures_when_checking_then_reports_expected_codes() {
                     contents: String::new(),
                 },
                 test_types::RepoFile {
-                path: "crates/example/tests/rules/checking.rs".to_owned(),
+                path: "crates/example/tests/rules/test_checking.rs".to_owned(),
                 contents: "use crate::test_types;\n\n#[test]\nfn given_a_when_b_then_c() {\n    let test_cases = [test_types::ValueTestCase { description: \"d\", expected_value: 1 }];\n\n    for case in &test_cases {\n        assert_eq!(1, case.expected_value, \"{}\", case.description);\n    }\n}\n"
                     .to_owned(),
             }],
-            expected_violation_codes: vec!["RST402"],
+            expected_violation_codes: vec!["RST402", "RST406"],
+        },
+        test_types::CheckRepoTestCase {
+            description: "case constructor must name a TestCase type",
+            repo_files: vec![
+                test_types::RepoFile {
+                    path: "crates/example/src/rules/mod.rs".to_owned(),
+                    contents: String::new(),
+                },
+                test_types::RepoFile {
+                    path: "crates/example/tests/rules/test_checking.rs".to_owned(),
+                    contents: "use crate::test_types;\n\n#[test]\nfn given_a_when_b_then_c() {\n    let test_cases = [test_types::Value { description: \"d\", expected_value: 1 }];\n\n    for test_case in &test_cases {\n        assert_eq!(1, test_case.expected_value, \"{}\", test_case.description);\n    }\n}\n"
+                        .to_owned(),
+                },
+            ],
+            expected_violation_codes: vec!["RST403"],
+        },
+        test_types::CheckRepoTestCase {
+            description: "case values must use an inline array",
+            repo_files: vec![
+                test_types::RepoFile {
+                    path: "crates/example/src/rules/mod.rs".to_owned(),
+                    contents: String::new(),
+                },
+                test_types::RepoFile {
+                    path: "crates/example/tests/rules/test_checking.rs".to_owned(),
+                    contents: "#[test]\nfn given_a_when_b_then_c() {\n    let test_cases = make_cases();\n\n    for test_case in &test_cases {\n        assert_eq!(1, test_case.expected_value, \"{}\", test_case.description);\n    }\n}\n"
+                        .to_owned(),
+                },
+            ],
+            expected_violation_codes: vec!["RST408"],
+        },
+        test_types::CheckRepoTestCase {
+            description: "tuple-style cases are reported",
+            repo_files: vec![
+                test_types::RepoFile {
+                    path: "crates/example/src/rules/mod.rs".to_owned(),
+                    contents: String::new(),
+                },
+                test_types::RepoFile {
+                    path: "crates/example/tests/rules/test_checking.rs".to_owned(),
+                    contents: "use crate::test_types;\n\n#[test]\nfn given_a_when_b_then_c() {\n    let test_cases = [test_types::ValueTestCase(\"d\", 1)];\n\n    for test_case in &test_cases {\n        assert_eq!(1, test_case.expected_value, \"{}\", test_case.description);\n    }\n}\n"
+                        .to_owned(),
+                },
+            ],
+            expected_violation_codes: vec!["RST412"],
+        },
+        test_types::CheckRepoTestCase {
+            description: "external test case constructors are reported",
+            repo_files: vec![
+                test_types::RepoFile {
+                    path: "crates/example/src/rules/mod.rs".to_owned(),
+                    contents: String::new(),
+                },
+                test_types::RepoFile {
+                    path: "crates/example/tests/rules/test_checking.rs".to_owned(),
+                    contents: "#[test]\nfn given_a_when_b_then_c() {\n    let test_cases = [ExternalTestCase { description: \"d\", expected_value: 1 }];\n\n    for test_case in &test_cases {\n        assert_eq!(1, test_case.expected_value, \"{}\", test_case.description);\n    }\n}\n"
+                        .to_owned(),
+                },
+            ],
+            expected_violation_codes: vec!["RST413"],
         },
         test_types::CheckRepoTestCase {
             description: "assertions without expected fields are reported",
@@ -98,7 +160,7 @@ fn given_test_shape_fixtures_when_checking_then_reports_expected_codes() {
                     contents: String::new(),
                 },
                 test_types::RepoFile {
-                path: "crates/example/tests/rules/checking.rs".to_owned(),
+                path: "crates/example/tests/rules/test_checking.rs".to_owned(),
                 contents: "use crate::test_types;\n\n#[test]\nfn given_a_when_b_then_c() {\n    let test_cases = [test_types::ValueTestCase { description: \"d\", expected_value: 1 }];\n\n    for test_case in &test_cases {\n        assert_eq!(1, 1, \"{}\", test_case.description);\n    }\n}\n"
                     .to_owned(),
             }],
@@ -112,7 +174,7 @@ fn given_test_shape_fixtures_when_checking_then_reports_expected_codes() {
                     contents: String::new(),
                 },
                 test_types::RepoFile {
-                    path: "crates/example/tests/rules/checking.rs".to_owned(),
+                    path: "crates/example/tests/rules/test_checking.rs".to_owned(),
                     contents: "use crate::test_types;\n\n#[test]\nfn given_a_when_b_then_c() {\n    let test_cases = [test_types::ValueTestCase { description: \"d\", expected_value: 1 }];\n\n    for test_case in &test_cases {\n        consume(test_case.expected_value);\n    }\n}\n"
                         .to_owned(),
                 },
@@ -127,11 +189,11 @@ fn given_test_shape_fixtures_when_checking_then_reports_expected_codes() {
                     contents: String::new(),
                 },
                 test_types::RepoFile {
-                path: "crates/example/tests/rules/checking.rs".to_owned(),
+                path: "crates/example/tests/rules/test_checking.rs".to_owned(),
                 contents: "use crate::test_types;\n\n#[test]\nfn given_a_when_b_then_c() {\n    let test_cases = [test_types::ValueTestCase { description: \"d\", expected_value: 1 }];\n\n    for test_case in &test_cases {\n        assert_eq!(1, test_case.expected_value);\n    }\n}\n"
                     .to_owned(),
             }],
-            expected_violation_codes: vec!["RST407"],
+            expected_violation_codes: vec!["RST407", "RST414"],
         },
         test_types::CheckRepoTestCase {
             description: "two case executors are reported",
@@ -141,7 +203,7 @@ fn given_test_shape_fixtures_when_checking_then_reports_expected_codes() {
                     contents: String::new(),
                 },
                 test_types::RepoFile {
-                path: "crates/example/tests/rules/checking.rs".to_owned(),
+                path: "crates/example/tests/rules/test_checking.rs".to_owned(),
                 contents: "use crate::test_types;\n\n#[test]\nfn given_a_when_b_then_c() {\n    let test_cases = [test_types::ValueTestCase { description: \"d\", expected_value: 1 }];\n\n    for test_case in &test_cases {\n        assert_eq!(1, test_case.expected_value, \"{}\", test_case.description);\n    }\n\n    for test_case in &test_cases {\n        assert_eq!(1, test_case.expected_value, \"{}\", test_case.description);\n    }\n}\n"
                     .to_owned(),
             }],

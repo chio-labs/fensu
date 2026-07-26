@@ -4,7 +4,7 @@ use std::fs;
 
 use fensu_memory::engine::main::check_memory::check_memory;
 
-use crate::dependencies::helpers;
+use crate::test_dependencies::helpers;
 use crate::test_types::{FixtureFile, MemoryCheckTestCase};
 
 #[test]

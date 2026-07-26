@@ -8,7 +8,7 @@ use fensu_memory::engine::models::{
     MemoryGraphDirection, MemoryGraphQuery, MemoryGraphRelationship,
 };
 
-use crate::dependencies::helpers;
+use crate::test_dependencies::helpers;
 use crate::test_types::{FixtureFile, InvalidMemoryGraphTestCase, MemoryGraphTraversalTestCase};
 
 const ALPHA: &str = "note:20260718T100001_000000Z";

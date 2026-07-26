@@ -1,12 +1,12 @@
-#[path = "command/check_cleanup.rs"]
-mod check_cleanup;
-#[path = "command/check_exceptions.rs"]
-mod check_exceptions;
-#[path = "command/check_policy.rs"]
-mod check_policy;
-#[path = "command/commands.rs"]
-mod commands;
 #[path = "command/helpers.rs"]
 mod helpers;
+#[path = "command/test_check_cleanup.rs"]
+mod test_check_cleanup;
+#[path = "command/test_check_exceptions.rs"]
+mod test_check_exceptions;
+#[path = "command/test_check_policy.rs"]
+mod test_check_policy;
+#[path = "command/test_commands.rs"]
+mod test_commands;
 #[path = "command/test_types.rs"]
 mod test_types;

@@ -10,7 +10,7 @@ use fensu_memory::engine::main::sync_memory_index::sync_memory_index;
 use fensu_memory::engine::models::MemoryArchiveRequest;
 use rusqlite::Connection;
 
-use crate::dependencies::helpers;
+use crate::test_dependencies::helpers;
 use crate::test_types::{
     FixtureFile, MemoryArchiveAutomaticTestCase, MemoryArchiveCtimeTestCase,
     MemoryArchiveTaskTestCase, MemoryArchiveTestCase,

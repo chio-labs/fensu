@@ -1,199 +1,10 @@
-//! Test layout rules: harness shape, case-type placement, topic-file content.
+//! Per-file test layout rules: harness shape, case-type placement, topic-file content.
 
 use syn::spanned::Spanned;
 
 use crate::constants;
 use crate::models;
 use crate::types::FileKind;
-
-/// Check that every test area mirrors a source area of the same crate.
-pub(crate) fn check_test_mirroring(
-    repo_root: &std::path::Path,
-    crate_dir: &std::path::Path,
-) -> Vec<models::Violation> {
-    let mut violations: Vec<models::Violation> = Vec::new();
-    let tests_root = crate_dir.join(constants::TESTS_DIRECTORY);
-    let src_root = crate_dir.join(constants::SOURCE_DIRECTORY);
-    if !tests_root.exists() {
-        return violations;
-    }
-    let entries = match std::fs::read_dir(&tests_root) {
-        Ok(entries) => entries,
-        Err(error) => {
-            let relative = tests_root.strip_prefix(repo_root).unwrap_or(&tests_root);
-            return vec![models::Violation::new(models::ViolationRequest {
-                code: "RSH901",
-                path: relative,
-                line: None,
-                message: format!("cannot read Rust test directory: {error}"),
-                remediation: "restore a readable test directory before checking structure",
-            })];
-        }
-    };
-    let mut area_names: Vec<String> = Vec::new();
-    for result in entries {
-        match result {
-            Ok(entry) if entry.path().is_dir() => {
-                let name = entry.file_name().to_string_lossy().into_owned();
-                area_names.push(name);
-            }
-            Ok(_) => {}
-            Err(error) => violations.push(models::Violation::new(models::ViolationRequest {
-                code: "RSH901",
-                path: tests_root.strip_prefix(repo_root).unwrap_or(&tests_root),
-                line: None,
-                message: format!("cannot inspect Rust test directory entry: {error}"),
-                remediation: "restore a readable test directory before checking structure",
-            })),
-        }
-    }
-    area_names.sort();
-    for name in &area_names {
-        let mirrors_directory = src_root.join(name).is_dir();
-        let mirrors_module = src_root.join(format!("{name}.rs")).is_file();
-        if mirrors_directory || mirrors_module {
-            continue;
-        }
-        let area = tests_root.join(name);
-        let relative = area.strip_prefix(repo_root).unwrap_or(&area);
-        violations.push(models::Violation::new(models::ViolationRequest {
-            code: "RST003",
-            path: relative,
-            line: None,
-            message: format!("test area {name} mirrors no source area"),
-            remediation: "name test areas after the src module or domain they exercise",
-        }));
-    }
-    violations
-}
-
-/// Check that every test module inside a harness area is declared somewhere.
-pub(crate) fn check_harness_coverage(
-    repo_root: &std::path::Path,
-    crate_dir: &std::path::Path,
-) -> Vec<models::Violation> {
-    let files = test_tree_files(crate_dir);
-    let declared = declared_targets(&files);
-    let mut violations: Vec<models::Violation> = Vec::new();
-    for candidate in area_candidates(&files) {
-        if declared.contains(&candidate) {
-            continue;
-        }
-        let relative = candidate.strip_prefix(repo_root).unwrap_or(&candidate);
-        let name = candidate
-            .file_name()
-            .and_then(|value| value.to_str())
-            .unwrap_or_default();
-        violations.push(models::Violation::new(models::ViolationRequest {
-            code: "RST110",
-            path: relative,
-            line: None,
-            message: format!("test module {name} is never declared and cannot run"),
-            remediation:
-                "declare #[path = \"<file>.rs\"] mod <file>; from the harness or an area module",
-        }));
-    }
-    violations
-}
-
-fn test_tree_files(crate_dir: &std::path::Path) -> Vec<std::path::PathBuf> {
-    let mut files: Vec<std::path::PathBuf> = Vec::new();
-    for root in [
-        crate_dir.join(constants::SOURCE_DIRECTORY),
-        crate_dir.join(constants::TESTS_DIRECTORY),
-    ] {
-        for entry in walkdir::WalkDir::new(&root)
-            .follow_links(false)
-            .into_iter()
-            .filter_map(Result::ok)
-        {
-            let path = entry.path();
-            if entry.file_type().is_file()
-                && path.extension().and_then(|value| value.to_str()) == Some("rs")
-            {
-                files.push(path.to_path_buf());
-            }
-        }
-    }
-    files.sort();
-    files
-}
-
-fn declared_targets(files: &[std::path::PathBuf]) -> std::collections::HashSet<std::path::PathBuf> {
-    let mut declared: std::collections::HashSet<std::path::PathBuf> =
-        std::collections::HashSet::new();
-    for file in files {
-        let Some(directory) = file.parent() else {
-            continue;
-        };
-        let area = file.with_extension("");
-        let Ok(source) = std::fs::read_to_string(file) else {
-            continue;
-        };
-        let Ok(syntax) = syn::parse_file(&source) else {
-            continue;
-        };
-        for item in &syntax.items {
-            let syn::Item::Mod(item_mod) = item else {
-                continue;
-            };
-            let explicit = module_path_attribute(item_mod);
-            match explicit {
-                Some(value) => {
-                    let _ = declared.insert(directory.join(value));
-                }
-                None => {
-                    let name = item_mod.ident.to_string();
-                    for base in [directory, area.as_path()] {
-                        let _ = declared.insert(base.join(format!("{name}.rs")));
-                        let _ = declared.insert(base.join(&name).join(constants::MOD_FILE));
-                    }
-                }
-            }
-        }
-    }
-    declared
-}
-
-fn module_path_attribute(item_mod: &syn::ItemMod) -> Option<String> {
-    for attribute in &item_mod.attrs {
-        if !attribute.path().is_ident("path") {
-            continue;
-        }
-        let syn::Meta::NameValue(value) = &attribute.meta else {
-            continue;
-        };
-        let syn::Expr::Lit(literal) = &value.value else {
-            continue;
-        };
-        if let syn::Lit::Str(text) = &literal.lit {
-            return Some(text.value());
-        }
-    }
-    None
-}
-
-fn area_candidates(files: &[std::path::PathBuf]) -> Vec<std::path::PathBuf> {
-    let mut candidates: Vec<std::path::PathBuf> = Vec::new();
-    for file in files {
-        let Some(directory) = file.parent() else {
-            continue;
-        };
-        if !directory.with_extension("rs").is_file() {
-            continue;
-        }
-        let inside_tests = directory.file_name().and_then(|value| value.to_str())
-            == Some(constants::TESTS_DIRECTORY)
-            || directory.ancestors().any(|path| {
-                path.file_name().and_then(|value| value.to_str())
-                    == Some(constants::TESTS_DIRECTORY)
-            });
-        if inside_tests {
-            candidates.push(file.clone());
-        }
-    }
-    candidates
-}
 
 /// Check layout rules for one test file according to its role.
 pub(crate) fn check(
@@ -210,10 +21,44 @@ pub(crate) fn check(
     }
 }
 
+/// Report test functions declared outside integration or inline unit-test scopes.
+pub(crate) fn check_source_scope(
+    file: &models::SourceFile,
+    syntax: &syn::File,
+) -> Vec<models::Violation> {
+    syntax
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            syn::Item::Fn(function) if has_test_attribute(function) => Some(function),
+            _ => None,
+        })
+        .map(|function| {
+            models::Violation::new(models::ViolationRequest {
+                code: "RST002",
+                path: file.relative_path(),
+                line: Some(function.sig.ident.span().start().line),
+                message: "test function is outside a recognized Rust test scope",
+                remediation: "move it under tests/<area>/ or src/<domain>/tests/",
+            })
+        })
+        .collect()
+}
+
 fn check_harness(file: &models::SourceFile, syntax: &syn::File) -> Vec<models::Violation> {
     let mut violations: Vec<models::Violation> = Vec::new();
     for item in &syntax.items {
         let syn::Item::Mod(item_mod) = item else {
+            if matches!(item, syn::Item::Fn(function) if has_test_attribute(function)) {
+                violations.push(models::Violation::new(models::ViolationRequest {
+                    code: "RST004",
+                    path: file.relative_path(),
+                    line: Some(item.span().start().line),
+                    message: "runtime test is not nested beneath a source area",
+                    remediation:
+                        "move the test into tests/<source-area>/ and declare it from a harness",
+                }));
+            }
             violations.push(models::Violation::new(models::ViolationRequest {
                 code: "RST101",
                 path: file.relative_path(),
@@ -283,6 +128,7 @@ fn check_test_types(file: &models::SourceFile, syntax: &syn::File) -> Vec<models
 
 fn check_topic(file: &models::SourceFile, syntax: &syn::File) -> Vec<models::Violation> {
     let mut violations = check_struct_placement(file, syntax);
+    violations.extend(check_topic_file_contract(file, syntax));
     let mut seen_function = false;
     for item in &syntax.items {
         match item {
@@ -302,6 +148,50 @@ fn check_topic(file: &models::SourceFile, syntax: &syn::File) -> Vec<models::Vio
                 violations.extend(check_topic_const(file, item_const, seen_function));
             }
             _ => {}
+        }
+    }
+    violations
+}
+
+fn check_topic_file_contract(
+    file: &models::SourceFile,
+    syntax: &syn::File,
+) -> Vec<models::Violation> {
+    let mut violations: Vec<models::Violation> = Vec::new();
+    if !file.file_stem().starts_with(constants::TEST_FILE_PREFIX) {
+        violations.push(models::Violation::new(models::ViolationRequest {
+            code: "RST301",
+            path: file.relative_path(),
+            line: None,
+            message: "test topic filename does not start with test_",
+            remediation: "rename the module to test_<behavior>.rs",
+        }));
+    }
+    let test_types = file.path.with_file_name(constants::TEST_TYPES_FILE);
+    if !test_types.is_file() {
+        violations.push(models::Violation::new(models::ViolationRequest {
+            code: "RST204",
+            path: file.relative_path(),
+            line: None,
+            message: "test topic has no sibling test_types.rs",
+            remediation: "define local test-case structs in a sibling test_types.rs",
+        }));
+    }
+    for item in &syntax.items {
+        let syn::Item::Use(item_use) = item else {
+            continue;
+        };
+        let syn::UseTree::Path(root) = &item_use.tree else {
+            continue;
+        };
+        if root.ident == constants::SELF_MODULE || root.ident == constants::SUPER_MODULE {
+            violations.push(models::Violation::new(models::ViolationRequest {
+                code: "RST102",
+                path: file.relative_path(),
+                line: Some(item_use.use_token.span.start().line),
+                message: "test uses a relative import",
+                remediation: "import through crate:: or the package name",
+            }));
         }
     }
     violations

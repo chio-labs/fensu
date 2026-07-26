@@ -172,6 +172,7 @@ pub(crate) fn check_source_file(
     violations.extend(placement::check_common(file));
     match syntax.as_ref() {
         Ok(syntax) => {
+            violations.extend(tests_layout::check_source_scope(file, syntax));
             violations.extend(layers::check_uses(file, syntax, true));
             violations.extend(placement::check_source(file, syntax, kind));
             violations.extend(containers::check_file(file, syntax, kind));

@@ -83,6 +83,7 @@ def config_fingerprint(config: Config) -> CacheFingerprint:
         "rule_paths": list(config.rule_paths),
         "select": list(config.select),
         "skills": {"name": config.skills.name},
+        "test_scopes": list(config.test_scopes),
         "tests": list(config.tests),
         "threshold_overrides": [
             {

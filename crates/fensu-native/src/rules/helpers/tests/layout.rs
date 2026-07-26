@@ -40,24 +40,21 @@ pub(crate) fn layout_faults(
         return Vec::new();
     };
     (code == actual)
-        .then(|| path_fault(code, message))
+        .then(|| path_fault(code, &message))
         .into_iter()
         .collect()
 }
 
-fn layout_issue(context: &NativeRuleContext) -> Option<(&'static str, &'static str)> {
+fn layout_issue(context: &NativeRuleContext) -> Option<(&'static str, String)> {
     let directories = &context.relative_parts[..context.relative_parts.len().saturating_sub(1)];
     if directories.len() < MINIMUM_LAYOUT_DIRECTORIES {
         return Some((
             TEST_LAYOUT_CODE,
-            "test directories must live under <configured-tests>/<scope>/...",
+            "test directories must live under <configured-tests>/<scope>/...".to_owned(),
         ));
     }
-    if !matches!(directories[0].as_str(), "unit" | "integration" | "e2e") {
-        return Some((
-            TEST_SCOPE_CODE,
-            "test scope must be unit, integration, or e2e",
-        ));
+    if !context.test_scopes.contains(&directories[0]) {
+        return Some((TEST_SCOPE_CODE, scope_message(&context.test_scopes)));
     }
     let mirrored = &directories[1..];
     let mut matches: Vec<(&str, &str, usize)> = context
@@ -80,12 +77,14 @@ fn layout_issue(context: &NativeRuleContext) -> Option<(&'static str, &'static s
             return Some(if scope == ROOT_SCOPE {
                 (
                     TEST_SRC_MIRROR_DEPTH_CODE,
-                    "runtime tests must include an area beneath the configured source root",
+                    "runtime tests must include an area beneath the configured source root"
+                        .to_owned(),
                 )
             } else {
                 (
                     TEST_SCRIPTS_MIRROR_DEPTH_CODE,
-                    "tooling tests must include an area beneath the configured tooling root",
+                    "tooling tests must include an area beneath the configured tooling root"
+                        .to_owned(),
                 )
             });
         }
@@ -98,12 +97,12 @@ fn layout_issue(context: &NativeRuleContext) -> Option<(&'static str, &'static s
             return Some(if scope == ROOT_SCOPE {
                 (
                     TEST_SRC_AREA_EXISTS_CODE,
-                    "runtime tests must mirror a real configured source package area",
+                    "runtime tests must mirror a real configured source package area".to_owned(),
                 )
             } else {
                 (
                     TEST_SCRIPTS_AREA_EXISTS_CODE,
-                    "tooling tests must mirror a real configured tooling area",
+                    "tooling tests must mirror a real configured tooling area".to_owned(),
                 )
             });
         }
@@ -125,20 +124,29 @@ fn layout_issue(context: &NativeRuleContext) -> Option<(&'static str, &'static s
             return Some(if mirrored.len() <= containers.len() {
                 (
                     TEST_SRC_MIRROR_DEPTH_CODE,
-                    "runtime tests must mirror a configured package and area",
+                    "runtime tests must mirror a configured package and area".to_owned(),
                 )
             } else {
                 (
                     TEST_SRC_PACKAGE_EXISTS_CODE,
-                    "runtime tests must mirror a configured source package",
+                    "runtime tests must mirror a configured source package".to_owned(),
                 )
             });
         }
     }
     Some((
         TEST_MIRRORED_ROOT_CODE,
-        "test directories must mirror a configured runtime or tooling root",
+        "test directories must mirror a configured runtime or tooling root".to_owned(),
     ))
+}
+
+fn scope_message(scopes: &[String]) -> String {
+    let quoted: Vec<String> = scopes.iter().map(|scope| scope.to_string()).collect();
+    match quoted.split_last() {
+        None => "test scope must be one of the configured test scopes".to_owned(),
+        Some((last, [])) => format!("test scope must be {last}"),
+        Some((last, rest)) => format!("test scope must be {}, or {last}", rest.join(", ")),
+    }
 }
 
 fn observed_bool(context: &NativeRuleContext, kind: &str, path: &str) -> bool {

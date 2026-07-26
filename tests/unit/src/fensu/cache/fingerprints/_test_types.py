@@ -95,6 +95,16 @@ class ConfigLayoutFingerprintTestCase:
 
 
 @dataclass(frozen=True)
+class ConfiguredTestScopesFingerprintTestCase:
+    """Two test-scope vocabularies and whether their config fingerprints must match."""
+
+    description: str
+    first_test_scopes: tuple[str, ...]
+    second_test_scopes: tuple[str, ...]
+    expected_equal: bool
+
+
+@dataclass(frozen=True)
 class ThresholdOverrideFingerprintTestCase:
     """Two override orders and whether config fingerprints must match."""
 

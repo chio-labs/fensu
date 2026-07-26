@@ -96,6 +96,7 @@ pub(crate) enum RuleOptionListValue {
 pub(crate) struct Config {
     pub(crate) roots: Vec<String>,
     pub(crate) tests: Vec<String>,
+    pub(crate) test_scopes: Vec<String>,
     pub(crate) tooling: Vec<String>,
     pub(crate) select: Vec<String>,
     pub(crate) warn: Vec<String>,

@@ -2,6 +2,7 @@ use std::collections::HashSet;
 
 use crate::configuration::helpers::exceptions;
 use crate::configuration::helpers::roots::validate_nested_roots;
+use crate::configuration::helpers::scopes::validate_test_scopes;
 use crate::constants::{
     CONFIG_ROLE_NAMES, CONTRACT_BEHAVIORS, DEFAULT_THRESHOLDS, MAX_CORE_SELECTOR_SUFFIX,
 };
@@ -14,6 +15,7 @@ pub(crate) fn validate(table: &toml::map::Map<String, toml::Value>) -> Result<()
         &[
             "roots",
             "tests",
+            "test_scopes",
             "tooling",
             "select",
             "warn",
@@ -40,6 +42,7 @@ pub(crate) fn validate(table: &toml::map::Map<String, toml::Value>) -> Result<()
     validate_optional_table(table, "evaluation", &["include", "exclude"])?;
     validate_optional_table(table, "skills", &["name"])?;
     validate_rule_options(table.get("rule_options"))?;
+    validate_test_scopes(table.get("test_scopes"))?;
     for name in [
         "tests",
         "tooling",

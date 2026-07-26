@@ -7,7 +7,7 @@ use ruff_text_size::Ranged;
 use crate::positions::models::LineIndex;
 
 /// Return the innermost qualified function symbol containing the position.
-pub(crate) fn owner_symbol_at(
+pub(in crate::extension) fn owner_symbol_at(
     module: &ModModule,
     index: &LineIndex,
     line: u32,

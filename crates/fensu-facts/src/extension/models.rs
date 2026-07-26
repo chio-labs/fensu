@@ -113,7 +113,7 @@ impl ProgramHandle {
     }
 
     pub fn owner_symbol_at(&self, line: u32, column: u32) -> Option<String> {
-        crate::facts::_helpers::naming::owner_symbols::owner_symbol_at(
+        crate::extension::_helpers::queries::owner_symbols::owner_symbol_at(
             self.module(),
             self.index(),
             line,

@@ -9,6 +9,7 @@ use crate::rules::_helpers::imports::layers;
 use crate::rules::_helpers::imports::visibility;
 use crate::rules::_helpers::roles::containers;
 use crate::rules::_helpers::roles::domains;
+use crate::rules::_helpers::roles::ownership;
 use crate::rules::_helpers::roles::surfaces;
 use crate::rules::_helpers::roles::tooling;
 use crate::rules::_helpers::sources::scanning;
@@ -49,6 +50,7 @@ fn check_crate(repo_root: &path::Path, crate_dir: &path::Path) -> Vec<models::Vi
     }
     violations.extend(containers::check_containers(&src_scan.files));
     violations.extend(domains::check_domains(&src_scan.files));
+    violations.extend(ownership::check(crate_dir, &src_scan.files));
     violations.extend(surfaces::check(&src_scan.files));
     if crate_dir
         .file_name()

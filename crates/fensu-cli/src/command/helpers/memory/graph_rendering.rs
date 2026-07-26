@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use fensu_memory::engine::models::{MemoryGraphNode, MemoryGraphQuery, MemoryGraphResult};
 
 use crate::command::constants::{ARCHIVE_STATE_ARCHIVED, RESOLUTION_STATUS_RESOLVED};
-use crate::command::helpers::memory_values::{direction_name, heading};
+use crate::command::helpers::memory::values::{direction_name, heading};
 
 pub(crate) fn graph(result: &MemoryGraphResult, query: &MemoryGraphQuery, color: bool) -> String {
     let nodes = result

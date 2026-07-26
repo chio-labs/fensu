@@ -94,3 +94,48 @@ fn given_role_file_fixtures_when_checking_then_reports_expected_codes() {
         );
     }
 }
+
+#[test]
+fn given_reserved_role_names_in_helpers_when_checking_then_reports_misplacement() {
+    let test_cases = [
+        test_types::CheckRepoTestCase {
+            description: "a models role file inside helpers is reported",
+            repo_files: vec![test_types::RepoFile {
+                path: "crates/example/src/alpha/helpers/models.rs".to_owned(),
+                contents:
+                    "#[derive(Debug)]\npub(crate) struct Value {\n    pub(crate) count: usize,\n}\n"
+                        .to_owned(),
+            }],
+            expected_violation_codes: vec!["RSR303"],
+        },
+        test_types::CheckRepoTestCase {
+            description: "a models role file beside helpers is accepted",
+            repo_files: vec![
+                test_types::RepoFile {
+                    path: "crates/example/src/alpha/models.rs".to_owned(),
+                    contents:
+                        "#[derive(Debug)]\npub(crate) struct Value {\n    pub(crate) count: usize,\n}\n"
+                            .to_owned(),
+                },
+                test_types::RepoFile {
+                    path: "crates/example/src/alpha/helpers/matching.rs".to_owned(),
+                    contents: String::new(),
+                },
+            ],
+            expected_violation_codes: vec![],
+        },
+    ];
+
+    for test_case in &test_cases {
+        let repo_root = helpers::write_temp_repo(test_case);
+
+        let actual_codes = helpers::collect_violation_codes(&repo_root);
+
+        helpers::remove_temp_repo(&repo_root);
+        assert_eq!(
+            actual_codes, test_case.expected_violation_codes,
+            "case failed: {}",
+            test_case.description
+        );
+    }
+}

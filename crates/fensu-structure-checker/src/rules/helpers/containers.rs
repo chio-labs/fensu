@@ -44,8 +44,59 @@ pub(crate) fn check_containers(files: &[models::SourceFile]) -> Vec<models::Viol
             bucket_modules.get(&container).copied().unwrap_or(0),
         ));
     }
+    violations.extend(check_prefix_families(files));
     violations.dedup_by(|left, right| left.sort_key() == right.sort_key());
     violations
+}
+
+fn check_prefix_families(files: &[models::SourceFile]) -> Vec<models::Violation> {
+    let mut families: BTreeMap<(String, String), Vec<String>> = BTreeMap::new();
+    for file in files {
+        if file.file_name() == constants::MOD_FILE
+            || constants::ROLE_FILE_NAMES.contains(&file.file_name())
+        {
+            continue;
+        }
+        let Some((container, remainder)) = container_split(&file.relative) else {
+            continue;
+        };
+        if !container.ends_with(constants::HELPERS_DIRECTORY) || remainder.contains('/') {
+            continue;
+        }
+        let Some((directory, stem)) = module_position(&file.relative) else {
+            continue;
+        };
+        let Some(prefix) = stem.split_once('_').map(|(prefix, _)| prefix.to_owned()) else {
+            continue;
+        };
+        families
+            .entry((directory, prefix))
+            .or_default()
+            .push(stem.to_owned());
+    }
+    let mut violations: Vec<models::Violation> = Vec::new();
+    for ((directory, prefix), members) in families {
+        if members.len() < constants::MIN_SHARED_PREFIX_MODULES {
+            continue;
+        }
+        violations.push(models::Violation::new(
+            "RSR308",
+            std::path::Path::new(&directory),
+            None,
+            format!(
+                "{} sibling modules share the {prefix} prefix",
+                members.len()
+            ),
+            "group the shared prefix into one bucket named after it",
+        ));
+    }
+    violations
+}
+
+fn module_position(relative: &str) -> Option<(String, &str)> {
+    let (directory, file_name) = relative.rsplit_once('/')?;
+    let stem = file_name.strip_suffix(".rs")?;
+    Some((directory.to_owned(), stem))
 }
 
 pub(crate) fn check_file(

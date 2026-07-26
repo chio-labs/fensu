@@ -16,7 +16,29 @@ pub(crate) fn check(
     }
     let mut violations = check_role_content(file, syntax);
     violations.extend(check_placement(file, syntax));
+    violations.extend(check_reserved_helper_name(file));
     violations
+}
+
+fn check_reserved_helper_name(file: &models::SourceFile) -> Vec<models::Violation> {
+    let name = file.file_name();
+    if name == constants::MOD_FILE || !constants::ROLE_FILE_NAMES.contains(&name) {
+        return Vec::new();
+    }
+    let inside_helpers = file
+        .relative
+        .rsplit_once('/')
+        .is_some_and(|(directory, _)| directory.ends_with(constants::HELPERS_DIRECTORY));
+    if !inside_helpers {
+        return Vec::new();
+    }
+    vec![models::Violation::new(
+        "RSR303",
+        file.relative_path(),
+        None,
+        format!("helpers container declares the reserved role file {name}"),
+        "move role declarations to the sibling role file beside the container",
+    )]
 }
 
 fn check_role_content(file: &models::SourceFile, syntax: &syn::File) -> Vec<models::Violation> {

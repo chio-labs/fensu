@@ -50,7 +50,7 @@ pub(crate) fn numbered_module_files(
     let mut files: Vec<test_types::RepoFile> = Vec::new();
     for index in 0..count {
         files.push(test_types::RepoFile {
-            path: format!("{directory}/module_{index:02}.rs"),
+            path: format!("{directory}/m{index:02}.rs"),
             contents: contents.to_owned(),
         });
     }

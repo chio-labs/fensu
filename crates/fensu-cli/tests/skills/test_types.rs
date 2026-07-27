@@ -9,6 +9,7 @@ pub(crate) struct FreshnessTestCase {
     pub(crate) description: &'static str,
     pub(crate) expected_state: &'static str,
     pub(crate) expected_exit_code: i32,
+    pub(crate) expected_update_exit_code: i32,
     pub(crate) mutate: fn(&Path, &Path, &[u8]),
 }
 

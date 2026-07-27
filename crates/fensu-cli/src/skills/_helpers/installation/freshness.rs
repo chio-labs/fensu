@@ -3,8 +3,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::skills::_helpers::content::fingerprint::{
-    content_fingerprint_matches, generated_marker_present, owned_generated_content,
-    owned_project_content, parse_ownership, project_input_fingerprint, project_marker_present,
+    content_fingerprint_matches, generated_marker_present, legacy_ownership_matches,
+    owned_generated_content, owned_project_content, parse_ownership, project_input_fingerprint,
+    project_marker_present, LEGACY_OWNERSHIP_SCHEMA,
 };
 use crate::skills::_helpers::content::rendering;
 use crate::skills::_helpers::installation::filesystem::{
@@ -69,7 +70,19 @@ fn inspect_generated(
     let Some(ownership) = parse_ownership(&content) else {
         return Ok(authoritative.then_some(FreshnessReason::MalformedMarker));
     };
-    if ownership.owner != plan.owner || ownership.identity != plan.context.identity {
+    if ownership.identity != plan.context.identity {
+        return Ok(authoritative.then_some(FreshnessReason::Collision));
+    }
+    if ownership.schema == LEGACY_OWNERSHIP_SCHEMA {
+        return Ok(Some(
+            if legacy_ownership_matches(&content, &ownership, &plan.context.identity) {
+                FreshnessReason::Stale
+            } else {
+                FreshnessReason::Divergent
+            },
+        ));
+    }
+    if ownership.owner != plan.owner {
         return Ok(authoritative.then_some(FreshnessReason::Collision));
     }
     if ownership.input_fingerprint != plan.input_fingerprint {
@@ -226,8 +239,9 @@ fn inspect_stale_targets(
                 continue;
             };
             if project_marker_present(&content)
-                && ownership.owner == plan.owner
                 && ownership.identity == name
+                && (ownership.owner == plan.owner
+                    || legacy_ownership_matches(&content, &ownership, name))
             {
                 issues.push(FreshnessIssue {
                     path: document,
@@ -261,7 +275,17 @@ fn project_document_reason(request: ProjectDocumentRequest<'_>) -> Option<Freshn
     let Some(ownership) = parse_ownership(content) else {
         return Some(FreshnessReason::MalformedMarker);
     };
-    if ownership.owner != plan.owner || ownership.identity != identity {
+    if ownership.identity != identity {
+        return Some(FreshnessReason::Collision);
+    }
+    if ownership.schema == LEGACY_OWNERSHIP_SCHEMA {
+        return Some(if legacy_ownership_matches(content, &ownership, identity) {
+            FreshnessReason::Stale
+        } else {
+            FreshnessReason::Divergent
+        });
+    }
+    if ownership.owner != plan.owner {
         return Some(FreshnessReason::Collision);
     }
     if ownership.input_fingerprint != input {

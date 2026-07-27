@@ -8,49 +8,44 @@ use crate::models::{Config, RuleMetadata};
 use crate::skills::models::{Ownership, ProjectSkillBundle, SkillContext};
 
 const GENERATED_MARKER: &str = "<!-- generated-by: fensu skills -->";
+pub(crate) const LEGACY_OWNERSHIP_SCHEMA: u32 = 1;
+const OWNERSHIP_SCHEMA: u32 = 2;
 const OWNER_PREFIX: &str = "<!-- fensu-skill-owner: ";
 const OWNER_SUFFIX: &str = " -->";
 const PROJECT_MARKER: &str = "<!-- synchronized-project-skill-by: fensu skills -->";
 const UNICODE_BASIC_PLANE_MAX: u32 = 0xffff;
 
 pub(crate) fn input_fingerprint(context: &SkillContext) -> Result<String, String> {
-    let payload = input_value(context);
-    let encoded = canonical_ascii(&payload)?;
+    let encoded = canonical_ascii(&input_value(context))?;
     Ok(digest(encoded.as_bytes()))
 }
 
 pub(crate) fn input_value(context: &SkillContext) -> BTreeMap<&'static str, Value> {
     let mut payload: BTreeMap<&'static str, Value> = BTreeMap::new();
-    payload.insert("schema", json!(1));
+    payload.insert("schema", json!(OWNERSHIP_SCHEMA));
     payload.insert(
         "config_source",
         json!({
             "kind": context.config.source_kind,
-            "path": posix(&context.config_path),
+            "path": stable_config_path(context),
         }),
-    );
-    payload.insert("project_root", json!(posix(&context.project_root)));
-    payload.insert("install_root", json!(posix(&context.install_root)));
-    payload.insert(
-        "git_root",
-        context
-            .git_root
-            .as_ref()
-            .map(|path| json!(posix(path)))
-            .unwrap_or(Value::Null),
     );
     payload.insert("project_prefix", json!(context.project_prefix));
     payload.insert("identity", json!(context.identity));
     payload.insert("config", config_value(&context.config));
-    payload.insert("catalogue", rules_value(&context.catalogue));
-    payload.insert("blocking", rules_value(&context.blocking));
-    payload.insert("warnings", rules_value(&context.warnings));
-    payload.insert("ignored", rules_value(&context.ignored));
+    payload.insert("catalogue", rules_value(context, &context.catalogue));
+    payload.insert("blocking", rules_value(context, &context.blocking));
+    payload.insert("warnings", rules_value(context, &context.warnings));
+    payload.insert("ignored", rules_value(context, &context.ignored));
     payload
 }
 
 pub(crate) fn owner(context: &SkillContext) -> String {
-    digest(posix(&context.config_path).as_bytes())
+    let input = format!(
+        "{OWNERSHIP_SCHEMA}\0{}\0{}",
+        context.identity, context.project_prefix
+    );
+    digest(input.as_bytes())
 }
 
 pub(crate) fn owned_generated_content(
@@ -62,7 +57,7 @@ pub(crate) fn owned_generated_content(
         return Err("Generated skill content contains an invalid generated marker.".to_owned());
     }
     let mut ownership = Ownership {
-        schema: 1,
+        schema: OWNERSHIP_SCHEMA,
         identity: context.identity.clone(),
         owner: owner(context),
         input_fingerprint: input_fingerprint(context)?,
@@ -90,7 +85,7 @@ pub(crate) fn owned_project_content(
         .find(|file| file.relative_path == Path::new("SKILL.md"))
         .ok_or_else(|| format!("project skill {:?} has no SKILL.md", bundle.identity))?;
     let mut ownership = Ownership {
-        schema: 1,
+        schema: OWNERSHIP_SCHEMA,
         identity: bundle.identity.clone(),
         owner: owner(context),
         input_fingerprint: project_input_fingerprint(context, bundle)?,
@@ -169,7 +164,24 @@ pub(crate) fn parse_ownership(content: &[u8]) -> Option<Ownership> {
     let Ok(ownership) = serde_json::from_value::<Ownership>(value) else {
         return None;
     };
-    (ownership.schema == 1).then_some(ownership)
+    matches!(ownership.schema, LEGACY_OWNERSHIP_SCHEMA | OWNERSHIP_SCHEMA).then_some(ownership)
+}
+
+pub(crate) fn legacy_ownership_matches(
+    content: &[u8],
+    ownership: &Ownership,
+    identity: &str,
+) -> bool {
+    ownership.schema == LEGACY_OWNERSHIP_SCHEMA
+        && ownership.identity == identity
+        && content_fingerprint_matches(content, ownership)
+}
+
+pub(crate) fn ownership_marker_present(content: &[u8]) -> bool {
+    content
+        .split(|byte| *byte == b'\n')
+        .map(|line| line.strip_suffix(b"\r").unwrap_or(line))
+        .any(|line| line.starts_with(OWNER_PREFIX.as_bytes()))
 }
 
 pub(crate) fn content_fingerprint_matches(content: &[u8], ownership: &Ownership) -> bool {
@@ -268,7 +280,7 @@ fn config_value(config: &Config) -> Value {
     })
 }
 
-fn rules_value(rules: &[RuleMetadata]) -> Value {
+fn rules_value(context: &SkillContext, rules: &[RuleMetadata]) -> Value {
     let mut sorted = rules.iter().collect::<Vec<_>>();
     sorted.sort_by(|left, right| left.code.cmp(&right.code).then(left.slug.cmp(&right.slug)));
     Value::Array(
@@ -287,7 +299,7 @@ fn rules_value(rules: &[RuleMetadata]) -> Value {
                     "remediation": rule.remediation,
                     "severity": rule.severity,
                     "kind": rule.kind,
-                    "source": rule.source,
+                    "source": rule.source.as_deref().map(|source| stable_rule_source(context, source)),
                     "enabled_by_default": rule.enabled_by_default,
                     "cacheable": rule.cacheable,
                     "execution_owner": rule.execution_owner,
@@ -366,4 +378,21 @@ fn digest(content: &[u8]) -> String {
 
 fn posix(path: &Path) -> String {
     path.to_string_lossy().replace('\\', "/")
+}
+
+fn stable_config_path(context: &SkillContext) -> String {
+    let relative = context
+        .config_path
+        .strip_prefix(&context.project_root)
+        .unwrap_or(&context.config_path);
+    posix(&Path::new(&context.project_prefix).join(relative))
+}
+
+fn stable_rule_source(context: &SkillContext, source: &str) -> String {
+    let path = Path::new(source);
+    let relative = path.strip_prefix(&context.project_root).unwrap_or(path);
+    if path.is_absolute() {
+        return posix(&Path::new(&context.project_prefix).join(relative));
+    }
+    posix(relative)
 }

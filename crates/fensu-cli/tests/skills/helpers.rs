@@ -2,6 +2,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
+use serde_json::Value;
+use sha2::{Digest, Sha256};
+
 pub(crate) const CONFIG: &str = "roots = [\"src/pkg\"]\ntests = []\nselect = [\"FF\"]\n[experimental]\nmemory = true\n[skills]\nname = \"Fixture\"\n";
 #[cfg(not(windows))]
 const WORKSPACE_PYTHON: &str = ".venv/bin/python";
@@ -72,9 +75,44 @@ pub(crate) fn diverge_skill(_root: &Path, path: &Path, original: &[u8]) {
 }
 
 pub(crate) fn malform_skill(_root: &Path, path: &Path, original: &[u8]) {
-    write(path, text(original).replace("\"schema\":1", "\"schema\":2"));
+    write(
+        path,
+        text(original).replace("\"schema\":2", "\"schema\":999"),
+    );
 }
 
 pub(crate) fn collide_skill(_root: &Path, path: &Path, _original: &[u8]) {
     write(path, b"user guidance\n");
+}
+
+pub(crate) fn make_legacy_owned_skill(path: &Path) {
+    let content = fs::read_to_string(path).expect("generated skill text");
+    let marker = content
+        .lines()
+        .find(|line| line.starts_with("<!-- fensu-skill-owner: "))
+        .expect("ownership marker");
+    let raw = marker
+        .strip_prefix("<!-- fensu-skill-owner: ")
+        .and_then(|value| value.strip_suffix(" -->"))
+        .expect("ownership payload");
+    let mut ownership: Value = serde_json::from_str(raw).expect("ownership JSON");
+    ownership["schema"] = Value::from(1);
+    ownership["owner"] = Value::from("legacy-owner-from-another-checkout");
+    ownership["input_fingerprint"] = Value::from("legacy-input-from-another-checkout");
+    ownership["content_fingerprint"] = Value::from("");
+    let provisional_marker = format!(
+        "<!-- fensu-skill-owner: {} -->",
+        serde_json::to_string(&ownership).expect("provisional ownership JSON")
+    );
+    let provisional = content.replacen(marker, &provisional_marker, 1);
+    ownership["content_fingerprint"] =
+        Value::from(format!("{:x}", Sha256::digest(provisional.as_bytes())));
+    let final_marker = format!(
+        "<!-- fensu-skill-owner: {} -->",
+        serde_json::to_string(&ownership).expect("final ownership JSON")
+    );
+    write(
+        path,
+        provisional.replacen(&provisional_marker, &final_marker, 1),
+    );
 }

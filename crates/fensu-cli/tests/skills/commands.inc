@@ -2,8 +2,9 @@ use std::fs;
 use std::process::{Command, Stdio};
 
 use crate::helpers::{
-    collide_skill, diverge_skill, malform_skill, native, native_with_python, project, remove_skill,
-    stale_skill, target, text, workspace_python, write, CONFIG,
+    collide_skill, diverge_skill, make_legacy_owned_skill, malform_skill, native,
+    native_with_python, project, remove_skill, stale_skill, target, text, workspace_python, write,
+    CONFIG,
 };
 use crate::test_types::{
     ExceptionSymbolTestCase, FreshnessTestCase, PublicationRaceTestCase, SkillsCommandTestCase,
@@ -213,30 +214,35 @@ fn given_installed_skill_states_when_checking_then_reports_status_without_writes
             description: "missing generated skill",
             expected_state: "missing",
             expected_exit_code: 1,
+            expected_update_exit_code: 0,
             mutate: remove_skill,
         },
         FreshnessTestCase {
             description: "stale generated skill",
             expected_state: "stale",
             expected_exit_code: 1,
+            expected_update_exit_code: 0,
             mutate: stale_skill,
         },
         FreshnessTestCase {
             description: "divergent generated skill",
             expected_state: "divergent",
             expected_exit_code: 1,
+            expected_update_exit_code: 0,
             mutate: diverge_skill,
         },
         FreshnessTestCase {
             description: "malformed generated ownership marker",
             expected_state: "malformed-marker",
             expected_exit_code: 1,
+            expected_update_exit_code: 2,
             mutate: malform_skill,
         },
         FreshnessTestCase {
             description: "unmanaged generated skill collision",
             expected_state: "collision",
             expected_exit_code: 2,
+            expected_update_exit_code: 2,
             mutate: collide_skill,
         },
     ];
@@ -261,7 +267,58 @@ fn given_installed_skill_states_when_checking_then_reports_status_without_writes
             test_case.description
         );
         assert_eq!(fs::read(&path).ok(), before);
+        let update = native(repository.path(), &["--target", "agents"]);
+        assert_eq!(
+            update.status.code(),
+            Some(test_case.expected_update_exit_code),
+            "{}",
+            test_case.description
+        );
     }
+}
+
+#[test]
+fn given_generated_skill_when_repository_moves_then_ownership_remains_fresh() {
+    let checkout_a = tempfile::tempdir().expect("checkout A");
+    let project_a = checkout_a.path().join("backend");
+    write(checkout_a.path().join(".git/HEAD"), b"ref: refs/heads/main\n");
+    write(project_a.join("fensu.toml"), CONFIG);
+    write(project_a.join("src/pkg/__init__.py"), b"");
+    let generated_a = target(checkout_a.path(), ".agents", "fensu-fixture");
+    let update = native(&project_a, &["--target", "agents"]);
+    assert_eq!(update.status.code(), Some(0), "{}", text(&update.stderr));
+
+    let checkout_b = tempfile::tempdir().expect("checkout B");
+    let project_b = checkout_b.path().join("backend");
+    write(checkout_b.path().join(".git/HEAD"), b"ref: refs/heads/main\n");
+    write(project_b.join("fensu.toml"), CONFIG);
+    write(project_b.join("src/pkg/__init__.py"), b"");
+    let generated_b = target(checkout_b.path(), ".agents", "fensu-fixture");
+    write(
+        &generated_b,
+        fs::read(&generated_a).expect("checkout A generated skill"),
+    );
+    let check = native(&project_b, &["--target", "agents", "--check"]);
+
+    assert_eq!(check.status.code(), Some(0), "{}", text(&check.stdout));
+}
+
+#[test]
+fn given_valid_legacy_owner_when_checking_and_updating_then_migrates_without_force() {
+    let repository = project();
+    let path = target(repository.path(), ".agents", "fensu-fixture");
+    let initial = native(repository.path(), &["--target", "agents"]);
+    assert_eq!(initial.status.code(), Some(0), "{}", text(&initial.stderr));
+    make_legacy_owned_skill(&path);
+
+    let check = native(repository.path(), &["--target", "agents", "--check"]);
+    assert_eq!(check.status.code(), Some(1), "{}", text(&check.stdout));
+    assert!(text(&check.stdout).contains(": stale\n"));
+
+    let update = native(repository.path(), &["--target", "agents"]);
+    assert_eq!(update.status.code(), Some(0), "{}", text(&update.stderr));
+    let current = native(repository.path(), &["--target", "agents", "--check"]);
+    assert_eq!(current.status.code(), Some(0), "{}", text(&current.stdout));
 }
 
 #[test]
@@ -318,6 +375,7 @@ fn given_project_bundle_when_synchronizing_then_preserves_bytes_modes_and_owners
         assert_eq!(check.status.code(), Some(1));
         assert!(text(&check.stdout).contains("assets/data.bin: divergent"));
 
+        make_legacy_owned_skill(&repository.path().join(".agents/skills/alpha/SKILL.md"));
         fs::remove_dir_all(&source).expect("remove canonical bundle");
         let update = native(repository.path(), &["--target", "agents"]);
         assert_eq!(update.status.code(), Some(0), "{}", text(&update.stderr));
@@ -326,9 +384,9 @@ fn given_project_bundle_when_synchronizing_then_preserves_bytes_modes_and_owners
 }
 
 #[test]
-fn given_unmanaged_and_foreign_bundles_when_forcing_then_only_unmanaged_is_replaced() {
+fn given_unmanaged_and_same_identity_bundles_when_forcing_then_managed_owner_is_replaceable() {
     let test_cases = [SkillsCommandTestCase {
-        description: "force replaces unmanaged guidance but preserves another project's skill",
+        description: "force replaces unmanaged guidance and stable owners refresh shared targets",
         expected_exit_code: 2,
     }];
     for test_case in test_cases {
@@ -364,8 +422,7 @@ fn given_unmanaged_and_foreign_bundles_when_forcing_then_only_unmanaged_is_repla
         );
         assert_eq!(first.status.code(), Some(0));
         let shared_target = target(&shared, ".opencode", "fensu-fixture");
-        let original = fs::read(&shared_target).expect("shared skill");
-        let foreign = native(
+        let relocated_owner = native(
             second.path(),
             &[
                 "--target",
@@ -375,12 +432,9 @@ fn given_unmanaged_and_foreign_bundles_when_forcing_then_only_unmanaged_is_repla
                 "--force",
             ],
         );
-        assert_eq!(foreign.status.code(), Some(2));
-        assert!(text(&foreign.stderr).contains("owned by another Fensu project"));
-        assert_eq!(
-            fs::read(shared_target).expect("preserved foreign skill"),
-            original
-        );
+        assert_eq!(relocated_owner.status.code(), Some(0));
+        assert!(text(&fs::read(shared_target).expect("stable shared skill"))
+            .contains(&second.path().to_string_lossy().replace('\\', "/")));
     }
 }
 
@@ -520,6 +574,35 @@ def always(module: ast.Module, ctx: RuleContext) -> list[Fault]:
         assert!(guidance.contains("sibling `_helpers/`"));
         assert!(guidance.contains("does not mean helpers belong beneath `rules/`"));
         assert!(!guidance.contains("test_case: RuleCase"));
+        let relocated = tempfile::tempdir().expect("relocated custom-rule project");
+        write(
+            relocated.path().join("fensu.toml"),
+            fs::read(repository.path().join("fensu.toml")).expect("relocated config"),
+        );
+        write(
+            relocated.path().join("src/pkg/target.py"),
+            fs::read(repository.path().join("src/pkg/target.py")).expect("relocated target"),
+        );
+        write(
+            relocated.path().join("rules/custom.py"),
+            fs::read(repository.path().join("rules/custom.py")).expect("relocated rule"),
+        );
+        write(
+            target(relocated.path(), ".agents", "fensu-fixture"),
+            fs::read(target(repository.path(), ".agents", "fensu-fixture"))
+                .expect("relocated generated skill"),
+        );
+        let relocated_check = native_with_python(
+            relocated.path(),
+            &["--target", "agents", "--check"],
+            &python_executable,
+        );
+        assert_eq!(
+            relocated_check.status.code(),
+            Some(0),
+            "{}",
+            text(&relocated_check.stdout)
+        );
         let rule_path = repository.path().join("rules/custom.py");
         let rule_source = fs::read(&rule_path).expect("custom rule source");
         write(
@@ -615,11 +698,21 @@ fn given_global_legacy_init_and_core_flows_when_running_then_they_remain_native(
         assert!(target(&home, ".agents", "fensu-fixture").is_file());
 
         let legacy = project();
+        let legacy_seed = native(legacy.path(), &["--target", "agents"]);
+        assert_eq!(legacy_seed.status.code(), Some(0));
+        let legacy_seed_document = target(legacy.path(), ".agents", "fensu-fixture");
         let legacy_document = legacy.path().join(".agents/skills/fensu/SKILL.md");
         write(
             &legacy_document,
-            b"<!-- generated-by: fensu skills -->\nlegacy\n",
+            fs::read(&legacy_seed_document).expect("legacy generated seed"),
         );
+        make_legacy_owned_skill(&legacy_document);
+        fs::remove_dir_all(
+            legacy_seed_document
+                .parent()
+                .expect("generated seed parent"),
+        )
+        .expect("remove generated seed");
         write(
             legacy.path().join(".agents/skills/fensu/user.txt"),
             b"preserve\n",
@@ -636,6 +729,13 @@ fn given_global_legacy_init_and_core_flows_when_running_then_they_remain_native(
             fs::read(legacy.path().join(".agents/skills/fensu/user.txt")).expect("legacy sibling"),
             b"preserve\n"
         );
+        write(
+            &legacy_document,
+            b"<!-- generated-by: fensu skills -->\n<!-- fensu-skill-owner: {} -->\n",
+        );
+        let preserved = native(legacy.path(), &["--target", "agents"]);
+        assert_eq!(preserved.status.code(), Some(0));
+        assert!(legacy_document.is_file());
 
         let initialized = tempfile::tempdir().expect("empty init repository");
         let init = Command::new(env!("CARGO_BIN_EXE_fensu"))

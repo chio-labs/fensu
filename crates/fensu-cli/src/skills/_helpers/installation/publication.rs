@@ -3,7 +3,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::skills::_helpers::content::fingerprint::{
-    generated_marker_present, owned_project_content, parse_ownership, project_marker_present,
+    generated_marker_present, legacy_ownership_matches, owned_project_content,
+    ownership_marker_present, parse_ownership, project_marker_present,
 };
 use crate::skills::_helpers::installation::filesystem::{
     capture, capture_bundle, ensure_safe_directory, normalization_collision, sorted_entries,
@@ -102,7 +103,7 @@ pub(crate) fn install(
         (stale_roots, deletions) = capture_stale_bundles(plan, deletions)?;
     }
     for path in &plan.legacy_paths {
-        if let Some(snapshot) = capture_legacy(path, &plan.owner)? {
+        if let Some(snapshot) = capture_legacy(path, &plan.owner, &plan.context.identity)? {
             deletions.insert(path.clone(), snapshot);
         }
     }
@@ -136,19 +137,21 @@ fn preflight_bundle(request: PreflightRequest<'_>) -> Result<Vec<Snapshot>, Stri
     let ownership = document
         .and_then(|item| item.content.as_deref())
         .and_then(parse_ownership);
-    if ownership
-        .as_ref()
-        .is_some_and(|item| item.owner != expected_owner || item.identity != identity)
-    {
+    let content = document.and_then(|item| item.content.as_deref());
+    let migratable = ownership.as_ref().is_some_and(|item| {
+        content.is_some_and(|bytes| legacy_ownership_matches(bytes, item, identity))
+    });
+    if ownership.as_ref().is_some_and(|item| {
+        item.identity != identity || (item.owner != expected_owner && !migratable)
+    }) {
         return Err(format!(
             "refusing to overwrite skill owned by another Fensu project: {}",
             root.join("SKILL.md").display()
         ));
     }
-    let content = document.and_then(|item| item.content.as_deref());
     let managed = ownership
         .as_ref()
-        .is_some_and(|item| item.owner == expected_owner)
+        .is_some_and(|item| item.owner == expected_owner || migratable)
         && content.is_some_and(|bytes| {
             if project {
                 project_marker_present(bytes)
@@ -156,8 +159,11 @@ fn preflight_bundle(request: PreflightRequest<'_>) -> Result<Vec<Snapshot>, Stri
                 generated_marker_present(bytes)
             }
         });
-    let compatible =
-        !project && ownership.is_none() && content.is_some_and(generated_marker_present);
+    let compatible = !project
+        && ownership.is_none()
+        && content.is_some_and(|bytes| {
+            generated_marker_present(bytes) && !ownership_marker_present(bytes)
+        });
     if !managed && !compatible && !force {
         return Err(format!(
             "refusing to overwrite unmanaged skill file: {}; rerun with --force",
@@ -204,8 +210,9 @@ fn capture_stale_bundles(
                 continue;
             };
             if project_marker_present(content)
-                && ownership.owner == plan.owner
                 && ownership.identity == name
+                && (ownership.owner == plan.owner
+                    || legacy_ownership_matches(content, &ownership, name))
             {
                 stale_roots.push(entry.clone());
                 for snapshot in capture_bundle(&entry)? {
@@ -217,7 +224,11 @@ fn capture_stale_bundles(
     Ok((stale_roots, deletions))
 }
 
-fn capture_legacy(path: &Path, expected_owner: &str) -> Result<Option<Snapshot>, String> {
+fn capture_legacy(
+    path: &Path,
+    expected_owner: &str,
+    expected_identity: &str,
+) -> Result<Option<Snapshot>, String> {
     if fs::symlink_metadata(path).is_ok_and(|metadata| metadata.file_type().is_symlink()) {
         return Err(format!(
             "refusing to write unsafe skill target: {}",
@@ -231,8 +242,13 @@ fn capture_legacy(path: &Path, expected_owner: &str) -> Result<Option<Snapshot>,
     if !generated_marker_present(content) {
         return Ok(None);
     }
+    if ownership_marker_present(content) && parse_ownership(content).is_none() {
+        return Ok(None);
+    }
     if let Some(ownership) = parse_ownership(content) {
-        if ownership.owner != expected_owner {
+        if ownership.owner != expected_owner
+            && !legacy_ownership_matches(content, &ownership, expected_identity)
+        {
             return Ok(None);
         }
     }

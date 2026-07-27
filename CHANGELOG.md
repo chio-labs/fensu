@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.1](https://github.com/chio-labs/fensu/compare/v0.8.0...v0.8.1) (2026-07-27)
+
+
+### Bug Fixes
+
+* make skill ownership relocatable ([55ba0d7](https://github.com/chio-labs/fensu/commit/55ba0d72af6e5cad00be158b4f6ea132c880c9a0))
+* make skill ownership relocatable ([b5ca716](https://github.com/chio-labs/fensu/commit/b5ca7168f404487f6529e336d876c64beea8f0dd))
+
 ## [0.8.0](https://github.com/chio-labs/fensu/compare/v0.7.0...v0.8.0) (2026-07-26)
 
 

@@ -31,9 +31,9 @@ from tests.unit.src.fensu.rules.authoring._test_types import EnumMembersTestCase
             expected_members={"ERROR": "error", "WARNING": "warning"},
         ),
         EnumMembersTestCase(
-            description="RuleKind has core and custom",
+            description="RuleKind has core, native pack, and custom",
             actual_members={member.name: member.value for member in RuleKind},
-            expected_members={"CORE": "core", "CUSTOM": "custom"},
+            expected_members={"CORE": "core", "PACK": "pack", "CUSTOM": "custom"},
         ),
         EnumMembersTestCase(
             description="Threshold has all thirteen named limits",

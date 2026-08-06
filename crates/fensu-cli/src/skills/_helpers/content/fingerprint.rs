@@ -259,6 +259,7 @@ fn config_value(config: &Config) -> Value {
         "ignore": config.ignore,
         "rule_paths": config.rule_paths,
         "rule_modules": config.rule_modules,
+        "rule_packs": config.rule_packs,
         "rule_exceptions": config.exceptions.iter().map(|item| json!({
             "rule": item.rule, "path": item.path, "reason": item.reason, "symbols": item.symbols,
         })).collect::<Vec<_>>(),

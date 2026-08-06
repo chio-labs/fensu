@@ -79,6 +79,7 @@ def config_fingerprint(config: Config) -> CacheFingerprint:
             for item in config.rule_ignores
         ],
         "rule_modules": list(config.rule_modules),
+        "rule_packs": list(config.rule_packs),
         "rule_options": _rule_options_value(config.rule_options),
         "rule_paths": list(config.rule_paths),
         "select": list(config.select),
@@ -122,6 +123,8 @@ def _rule_spec_value(
         "execution_owner": rule.execution_owner.value,
         "family": rule.family.value,
         "kind": rule.kind.value,
+        "pack": rule.pack,
+        "alias_of": rule.alias_of,
         "message": rule.message,
         "options": _rule_option_schemas(rule.options),
         "remediation": rule.remediation,

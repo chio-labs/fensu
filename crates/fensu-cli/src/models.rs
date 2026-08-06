@@ -54,6 +54,10 @@ pub(crate) struct RuleMetadata {
     #[serde(default = "crate::catalogue::main::core_kind::core_kind")]
     pub(crate) kind: String,
     #[serde(default)]
+    pub(crate) pack: Option<String>,
+    #[serde(default)]
+    pub(crate) alias_of: Option<String>,
+    #[serde(default)]
     pub(crate) source: Option<String>,
     #[serde(default = "crate::catalogue::main::cacheable_default::cacheable_default")]
     pub(crate) cacheable: bool,
@@ -129,6 +133,7 @@ pub(crate) struct Config {
     pub(crate) ignore: Vec<String>,
     pub(crate) rule_paths: Vec<String>,
     pub(crate) rule_modules: Vec<String>,
+    pub(crate) rule_packs: Vec<String>,
     pub(crate) rule_options: toml::map::Map<String, toml::Value>,
     pub(crate) cache_enabled: bool,
     pub(crate) cache_require_cacheable: bool,
@@ -185,6 +190,7 @@ pub(crate) struct ScopedSource {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct Fault {
     pub(crate) code: String,
+    pub(crate) alias_of: Option<String>,
     pub(crate) path: String,
     pub(crate) line: Option<u32>,
     pub(crate) column: Option<u32>,

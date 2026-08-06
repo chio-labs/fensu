@@ -26,6 +26,7 @@ fn given_colored_faults_when_rendering_then_uses_historical_orange_styles() {
         fs::write(&source_path, test_case.source).expect("source file");
         let faults = [Fault {
             code: "XRP001".to_owned(),
+            alias_of: None,
             path: source_path.to_string_lossy().into_owned(),
             line: Some(test_case.line),
             column: Some(test_case.column),

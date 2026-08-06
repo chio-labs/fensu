@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
+from typing import cast
 
 from fensu.rules.authoring.constants import MISSING
+from fensu.rules.authoring.exceptions import RuleDefinitionError
 from fensu.rules.authoring.models import RuleOption, RuleSpec
 from fensu.rules.authoring.types import RuleOptionValue
 
@@ -25,6 +27,8 @@ def rule_metadata_value(
         "enabled_by_default": rule.enabled_by_default,
         "execution_owner": rule.execution_owner.value,
         "kind": rule.kind.value,
+        "pack": rule.pack,
+        "alias_of": rule.alias_of,
         "source": rule.source,
         "cacheable": bool(rule.cacheable),
         "options": [
@@ -52,7 +56,9 @@ def rule_metadata_value(
 def serialized_rule_catalogue(*, rules: Sequence[RuleSpec]) -> bytes:
     """Serialize rules exactly as the checked-in native catalogue asset."""
 
-    values: list[dict[str, object]] = [rule_metadata_value(rule=rule, current={}) for rule in rules]
+    values: list[dict[str, object]] = [
+        rule_metadata_value(rule=rule, current=_default_option_values(rule=rule)) for rule in rules
+    ]
     content: str = json.dumps(
         values,
         ensure_ascii=True,
@@ -60,6 +66,16 @@ def serialized_rule_catalogue(*, rules: Sequence[RuleSpec]) -> bytes:
         sort_keys=True,
     )
     return f"{content}\n".encode()
+
+
+def _default_option_values(*, rule: RuleSpec) -> dict[str, RuleOptionValue]:
+    values: dict[str, RuleOptionValue] = {}
+    for option in rule.options:
+        if option.default is MISSING:
+            message = f"shipped rule {rule.code} option {option.name} requires a default"
+            raise RuleDefinitionError(message)
+        values[option.name] = cast(RuleOptionValue, option.default)
+    return values
 
 
 def _option_metadata_value(

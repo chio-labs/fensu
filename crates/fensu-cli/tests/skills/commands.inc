@@ -624,7 +624,13 @@ def always(module: ast.Module, ctx: RuleContext) -> list[Fault]:
             .env("FENSU_PYTHON", &wrapper)
             .output()
             .expect("native custom-rule inspection");
-        assert_eq!(inspected.status.code(), Some(test_case.expected_exit_code));
+        assert_eq!(
+            inspected.status.code(),
+            Some(test_case.expected_exit_code),
+            "stdout:\n{}\nstderr:\n{}",
+            text(&inspected.stdout),
+            text(&inspected.stderr)
+        );
         assert!(text(&inspected.stdout).contains("XSK001 always"));
         assert!(text(&inspected.stdout).contains("Kind: custom"));
         assert!(text(&inspected.stdout).contains("Source:"));

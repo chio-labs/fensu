@@ -48,6 +48,7 @@ class RuleKind(StrEnum):
     """Whether a rule ships with fensu or is authored downstream."""
 
     CORE = "core"
+    PACK = "pack"
     CUSTOM = "custom"
 
 

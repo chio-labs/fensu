@@ -38,10 +38,9 @@ impl WildcardMatcher<'_> {
         } else if self.pattern[pattern_index] == b'*' {
             let mut index = path_index;
             let mut matched = false;
-            while index <= self.path.len() && (index == self.path.len() || self.path[index] != b'/')
-            {
+            while index <= self.path.len() {
                 matched |= self.matches(index, pattern_index + 1);
-                if matched {
+                if matched || index == self.path.len() || self.path[index] == b'/' {
                     break;
                 }
                 index += 1;

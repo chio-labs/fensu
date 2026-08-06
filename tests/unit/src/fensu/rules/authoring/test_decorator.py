@@ -206,6 +206,14 @@ def test_given_valid_envelope_when_decorating_then_returns_original_function(
             message="m",
             expected_error_fragment="exact",
         ),
+        InvalidEnvelopeTestCase(
+            description="native pack namespace is reserved from public decorators",
+            code="FPDG999",
+            family=Family.CUSTOM,
+            slug="reserved-pack",
+            message="m",
+            expected_error_fragment="reserved for rules compiled into Fensu",
+        ),
     ],
     ids=lambda case: case.description,
 )

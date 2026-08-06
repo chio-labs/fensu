@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fensu.rules.annotations.constants import FFA_RULES
 from fensu.rules.authoring.models import RuleSpec
+from fensu.rules.dagster.constants import FPDG_RULES
 from fensu.rules.hygiene.constants import FFH_RULES
 from fensu.rules.layers.constants import FFL_RULES
 from fensu.rules.naming.constants import FFN_RULES
@@ -20,6 +21,7 @@ CORE_RULES: tuple[RuleSpec, ...] = (
     *FFR_RULES,
     *FFN_RULES,
 )
+SHIPPED_RULES: tuple[RuleSpec, ...] = (*CORE_RULES, *FPDG_RULES)
 FENSU_PACKAGE_NAME: str = "fensu"
 TRACKED_FACADE_ATTRIBUTE: str = "project"
 MODULE_PARAMETER_NAME: str = "module"

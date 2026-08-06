@@ -22,3 +22,14 @@ pub(crate) fn rule_catalogue() -> &'static [RuleMetadata] {
 pub(crate) fn rule_metadata(code: &str) -> Option<&'static RuleMetadata> {
     rule_catalogue().iter().find(|rule| rule.code == code)
 }
+
+pub(crate) fn configured_rule_catalogue(rule_packs: &[String]) -> Vec<&'static RuleMetadata> {
+    rule_catalogue()
+        .iter()
+        .filter(|rule| {
+            rule.pack
+                .as_ref()
+                .is_none_or(|pack| rule_packs.contains(pack))
+        })
+        .collect()
+}

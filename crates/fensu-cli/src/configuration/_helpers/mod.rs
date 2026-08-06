@@ -2,6 +2,7 @@ pub(crate) mod discovery;
 pub(crate) mod exception_targets;
 pub(crate) mod exceptions;
 pub(crate) mod loading;
+pub(crate) mod native_rules;
 pub(crate) mod parsing;
 pub(crate) mod roots;
 pub(crate) mod scopes;

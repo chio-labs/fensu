@@ -11,7 +11,27 @@ from fensu.rules.authoring.types import Threshold
 from tests.unit.src.fensu.config._test_types import (
     InMemoryConfigBuildTestCase,
     InvalidInMemoryConfigTestCase,
+    RulePackConfigTestCase,
 )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        RulePackConfigTestCase(
+            description="registered Dagster pack is normalized",
+            raw_config={"roots": ["src/pkg"], "rule_packs": ["dagster"], "select": ["FPDG"]},
+            expected_rule_packs=("dagster",),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_registered_rule_pack_when_building_then_returns_pack_configuration(
+    test_case: RulePackConfigTestCase,
+) -> None:
+    config: Config = build_config(test_case.raw_config)
+
+    assert config.rule_packs == test_case.expected_rule_packs
 
 
 @pytest.mark.parametrize(
@@ -62,6 +82,18 @@ def test_given_valid_raw_mapping_when_building_then_returns_config(
             raw_config={"roots": ["src", "src/pkg"]},
             expected_error_type=ConfigError,
             expected_error_fragment="nested",
+        ),
+        InvalidInMemoryConfigTestCase(
+            description="unknown native rule pack is rejected",
+            raw_config={"roots": ["src/pkg"], "rule_packs": ["unknown"]},
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="Unknown native rule pack: unknown",
+        ),
+        InvalidInMemoryConfigTestCase(
+            description="duplicate native rule pack is rejected",
+            raw_config={"roots": ["src/pkg"], "rule_packs": ["dagster", "dagster"]},
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="must not contain duplicates",
         ),
     ],
     ids=lambda case: case.description,

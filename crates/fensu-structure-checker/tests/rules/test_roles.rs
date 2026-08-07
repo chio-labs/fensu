@@ -2,6 +2,7 @@
 
 use crate::helpers;
 use crate::test_types;
+use fensu_structure_checker::constants::MAX_FILE_LINES;
 
 #[test]
 fn given_role_fixtures_when_checking_then_reports_expected_codes() {
@@ -105,7 +106,7 @@ fn given_role_fixtures_when_checking_then_reports_expected_codes() {
             repo_files: vec![test_types::RepoFile {
                 path: "crates/example/src/models.rs".to_owned(),
                 contents: "//! Data models.\n\n#[derive(Debug)]\npub struct Big {\n".to_owned()
-                    + &"    pub value: usize,\n".repeat(400)
+                    + &"    pub value: usize,\n".repeat(MAX_FILE_LINES)
                     + "}\n",
             }],
             expected_violation_codes: vec!["RSR601"],

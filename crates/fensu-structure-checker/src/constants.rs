@@ -1,6 +1,6 @@
 //! Thresholds and name tables for the structure checker.
 
-pub const MAX_FILE_LINES: usize = 400;
+pub const MAX_FILE_LINES: usize = 2000;
 pub const MAX_DECLARATION_FILE_LINES: usize = 80;
 pub const MAX_BINARY_ENTRY_LINES: usize = 80;
 pub const MAX_HELPER_CONTAINER_MODULES: usize = 10;

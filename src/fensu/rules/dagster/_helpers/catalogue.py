@@ -102,7 +102,7 @@ def _native_rules() -> tuple[RuleSpec, ...]:
             ),
         ),
         _native(
-            code="FPDG007",
+            code="FPDG005",
             slug="dagster-asset-callback-signature",
             message=(
                 "Dagster asset callbacks must accept positional context and keyword-only "
@@ -114,7 +114,7 @@ def _native_rules() -> tuple[RuleSpec, ...]:
             ),
         ),
         _native(
-            code="FPDG008",
+            code="FPDG006",
             slug="dagster-import-boundaries",
             message=(
                 "Dagster asset imports must use approved owner, dependency, utility, and "
@@ -126,7 +126,7 @@ def _native_rules() -> tuple[RuleSpec, ...]:
             ),
         ),
         _native(
-            code="FPDG009",
+            code="FPDG007",
             slug="dagster-definition-role-public-surface",
             message="job, schedule, and sensor modules may expose only Dagster definitions",
             remediation=(
@@ -135,7 +135,7 @@ def _native_rules() -> tuple[RuleSpec, ...]:
             ),
         ),
         _native(
-            code="FPDG010",
+            code="FPDG008",
             slug="dagster-definition-role-module-layout",
             message=(
                 "job, schedule, and sensor trees must use semantic modules and sanctioned private "
@@ -148,7 +148,7 @@ def _native_rules() -> tuple[RuleSpec, ...]:
             ),
         ),
         _native(
-            code="FPDG011",
+            code="FPDG009",
             slug="dagster-definition-private-support-imports",
             message=(
                 "private job, schedule, and sensor support modules may only be imported within "
@@ -160,7 +160,7 @@ def _native_rules() -> tuple[RuleSpec, ...]:
             ),
         ),
         _native(
-            code="FPDG012",
+            code="FPDG010",
             slug="dagster-operational-resource-layout",
             message="operational resource packages must use explicit resource and support roles",
             remediation=(
@@ -171,7 +171,7 @@ def _native_rules() -> tuple[RuleSpec, ...]:
             ),
         ),
         _native(
-            code="FPDG013",
+            code="FPDG011",
             slug="dagster-definition-provider-type-honesty",
             message=(
                 "definitions providers must be declared honestly instead of cast to another "
@@ -184,7 +184,7 @@ def _native_rules() -> tuple[RuleSpec, ...]:
             ),
         ),
         _native(
-            code="FPDG014",
+            code="FPDG012",
             slug="dagster-asset-config-module-shape",
             message=(
                 "asset configs must use semantic modules with one concrete config and one "
@@ -197,7 +197,7 @@ def _native_rules() -> tuple[RuleSpec, ...]:
             ),
         ),
         _native(
-            code="FPDG015",
+            code="FPDG013",
             slug="no-dynamic-or-string-module-references",
             message="dynamic imports and string-based module references are forbidden",
             remediation=(
@@ -206,7 +206,7 @@ def _native_rules() -> tuple[RuleSpec, ...]:
             ),
         ),
         _native(
-            code="FPDG016",
+            code="FPDG014",
             slug="dagster-model-declaration-placement",
             message=(
                 "structured runtime models must use the models role or an automation-private "
@@ -218,7 +218,7 @@ def _native_rules() -> tuple[RuleSpec, ...]:
             ),
         ),
         _native(
-            code="FPDG017",
+            code="FPDG015",
             slug="dagster-exception-declaration-placement",
             message=(
                 "custom exceptions must use the exceptions role or an automation-private "
@@ -230,7 +230,7 @@ def _native_rules() -> tuple[RuleSpec, ...]:
             ),
         ),
         _native(
-            code="FPDG018",
+            code="FPDG016",
             slug="private-helper-boundary",
             message=(
                 "private support packages may only be imported within their owning package subtree"
@@ -241,7 +241,7 @@ def _native_rules() -> tuple[RuleSpec, ...]:
             ),
         ),
         _native(
-            code="FPDG019",
+            code="FPDG017",
             slug="private-classes-role-shape",
             message="_classes modules may contain only private class declarations and imports",
             remediation=(
@@ -250,7 +250,7 @@ def _native_rules() -> tuple[RuleSpec, ...]:
             ),
         ),
         _native(
-            code="FPDG020",
+            code="FPDG018",
             slug="source-root-path-allowlist",
             message="source-root paths must belong to the explicit architecture allowlist",
             remediation=(
@@ -259,7 +259,7 @@ def _native_rules() -> tuple[RuleSpec, ...]:
             ),
         ),
         _native(
-            code="FPDG021",
+            code="FPDG019",
             slug="tooling-import-boundary",
             message="production modules must not import from the tooling root",
             remediation=(
@@ -268,7 +268,7 @@ def _native_rules() -> tuple[RuleSpec, ...]:
             ),
         ),
         _native(
-            code="FPDG022",
+            code="FPDG020",
             slug="runtime-package-owner-names",
             message="runtime package directories must identify an owner",
             remediation=(
@@ -277,7 +277,7 @@ def _native_rules() -> tuple[RuleSpec, ...]:
             ),
         ),
         _native(
-            code="FPDG023",
+            code="FPDG021",
             slug="test-root-directory-allowlist",
             message="test-root directories must be supported scopes",
             remediation=(
@@ -286,7 +286,7 @@ def _native_rules() -> tuple[RuleSpec, ...]:
             ),
         ),
         _native(
-            code="FPDG024",
+            code="FPDG022",
             slug="dagster-autoload-external-discovery",
             message=(
                 "Dagster autoload must not reach external discovery outside an approved loader "
@@ -299,7 +299,7 @@ def _native_rules() -> tuple[RuleSpec, ...]:
             options=(_APPROVED_LOADER_BOUNDARIES,),
         ),
         _native(
-            code="FPDG025",
+            code="FPDG023",
             slug="dagster-type-declaration-placement",
             message=(
                 "type-layer declarations must use the types role or an automation-private "

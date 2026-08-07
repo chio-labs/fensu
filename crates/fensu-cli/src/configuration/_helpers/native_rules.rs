@@ -3,8 +3,8 @@ use std::collections::HashSet;
 use crate::configuration::_helpers::validation::required_strings;
 
 const APPROVED_LOADER_BOUNDARIES: &str = "approved_loader_boundaries";
-const APPROVED_LOADER_BOUNDARIES_KEY: &str = "rule_options.FPDG024.approved_loader_boundaries";
-const DAGSTER_AUTOLOAD_CODE: &str = "FPDG024";
+const APPROVED_LOADER_BOUNDARIES_KEY: &str = "rule_options.FPDG022.approved_loader_boundaries";
+const DAGSTER_AUTOLOAD_CODE: &str = "FPDG022";
 const DAGSTER_PACK: &str = "dagster";
 
 pub(crate) fn validate_rule_packs(value: Option<&toml::Value>) -> Result<(), String> {
@@ -46,7 +46,7 @@ pub(crate) fn validate_rule_options(value: Option<&toml::Value>) -> Result<(), S
             .ok_or_else(|| "Config key rule_options must contain rule-code tables.".to_owned())?;
         for (name, option_value) in table {
             if name != APPROVED_LOADER_BOUNDARIES {
-                return Err(format!("Rule FPDG024 does not declare option {name}."));
+                return Err(format!("Rule FPDG022 does not declare option {name}."));
             }
             let _ = required_strings(Some(option_value), APPROVED_LOADER_BOUNDARIES_KEY)?;
         }

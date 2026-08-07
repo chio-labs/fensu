@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.2](https://github.com/chio-labs/fensu/compare/v0.9.1...v0.9.2) (2026-08-07)
+
+
+### Bug Fixes
+
+* make dagster rule codes contiguous ([83305c7](https://github.com/chio-labs/fensu/commit/83305c726e1d8cddf1aac88ce087e22b890fb154))
+* make dagster rule codes contiguous ([cda05f2](https://github.com/chio-labs/fensu/commit/cda05f219874f5b8d6e646fb6c14e0757aa80714))
+
 ## [0.9.1](https://github.com/chio-labs/fensu/compare/v0.9.0...v0.9.1) (2026-08-07)
 
 

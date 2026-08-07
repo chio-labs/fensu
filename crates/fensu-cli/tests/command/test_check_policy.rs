@@ -1,8 +1,120 @@
 use crate::helpers::{run_check, run_check_colored, write};
 use crate::test_types::{
-    CheckPolicyTestCase, ColoredCheckTestCase, InvalidCheckConfigTestCase,
+    CheckPolicyTestCase, ColoredCheckTestCase, InvalidCheckConfigTestCase, NativeRulePackTestCase,
     RuleOptionsCheckRoutingTestCase,
 };
+
+#[test]
+fn given_native_dagster_alias_when_checking_then_executes_core_kernel_under_pack_identity() {
+    let test_cases = [NativeRulePackTestCase {
+        description: "selected Dagster alias executes natively and reports canonical provenance",
+        config: "roots = [\"src/pkg\"]\ntests = []\ntooling = []\nrule_packs = [\"dagster\"]\nselect = [\"FPDGA001\"]\n",
+        expected_exit_code: 1,
+        expected_output: "FPDGA001 (alias FFA001)  function parameter 'missing' must define a type annotation",
+    }];
+
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(repository.path().join("fensu.toml"), test_case.config);
+        write(
+            repository.path().join("src/pkg/bad.py"),
+            "def bad(value: int, missing):\n    return value\n",
+        );
+
+        let output = run_check(repository.path());
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {}",
+            test_case.description,
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            stdout.contains(test_case.expected_output),
+            "{}: {stdout}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_core_and_alias_in_one_tier_when_checking_then_rejects_duplicate_implementation() {
+    let test_cases = [NativeRulePackTestCase {
+        description: "canonical and alias identities cannot produce duplicate diagnostics",
+        config: "roots = [\"src/pkg\"]\ntests = []\ntooling = []\nrule_packs = [\"dagster\"]\nselect = [\"FFA001\", \"FPDGA001\"]\n",
+        expected_exit_code: 2,
+        expected_output: "select the same native implementation FFA001; select only one identity",
+    }];
+
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(repository.path().join("fensu.toml"), test_case.config);
+        write(
+            repository.path().join("src/pkg/bad.py"),
+            "def bad(value):\n    return value\n",
+        );
+
+        let output = run_check(repository.path());
+        let stderr = String::from_utf8_lossy(&output.stderr);
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            stderr.contains(test_case.expected_output),
+            "{}: {stderr}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_native_pack_rule_options_when_checking_then_stays_native_and_applies_boundary() {
+    let test_cases = [NativeRulePackTestCase {
+        description: "Dagster loader boundary options do not route through Python",
+        config: "roots = [\"pkg\"]\ntests = []\ntooling = []\nrule_packs = [\"dagster\"]\nselect = [\"FPDG024\"]\n\n[rule_options.FPDG024]\napproved_loader_boundaries = [\"pkg.defs.resources.example.loader.load_metadata\"]\n",
+        expected_exit_code: 0,
+        expected_output: "Found 0 faults",
+    }];
+
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(repository.path().join("fensu.toml"), test_case.config);
+        write(
+            repository
+                .path()
+                .join("pkg/defs/resources/example/resource.py"),
+            "import dagster as dg\nfrom pkg.defs.resources.example.loader import load_metadata\n\n@dg.definitions\ndef example() -> dg.Definitions:\n    load_metadata()\n    return dg.Definitions()\n",
+        );
+        write(
+            repository
+                .path()
+                .join("pkg/defs/resources/example/loader.py"),
+            "import paramiko\n\ndef load_metadata() -> None:\n    paramiko.SSHClient()\n",
+        );
+
+        let output = run_check(repository.path());
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {}",
+            test_case.description,
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            stdout.contains(test_case.expected_output),
+            "{}: {stdout}",
+            test_case.description
+        );
+    }
+}
 
 #[test]
 fn given_path_scoped_rule_ignore_when_checking_then_only_matching_reported_paths_are_filtered() {

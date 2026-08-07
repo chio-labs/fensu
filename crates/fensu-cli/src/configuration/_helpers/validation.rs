@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use crate::configuration::_helpers::exceptions;
+use crate::configuration::_helpers::native_rules::{validate_rule_options, validate_rule_packs};
 use crate::configuration::_helpers::roots::validate_nested_roots;
 use crate::configuration::_helpers::scopes::validate_test_scopes;
 use crate::configuration::constants::{CONFIG_ROLE_NAMES, CONTRACT_BEHAVIORS, DEFAULT_THRESHOLDS};
@@ -21,6 +22,7 @@ pub(crate) fn validate(table: &toml::map::Map<String, toml::Value>) -> Result<()
             "ignore",
             "rule_paths",
             "rule_modules",
+            "rule_packs",
             "rule_options",
             "thresholds",
             "roles",
@@ -50,11 +52,13 @@ pub(crate) fn validate(table: &toml::map::Map<String, toml::Value>) -> Result<()
         "ignore",
         "rule_paths",
         "rule_modules",
+        "rule_packs",
     ] {
         if let Some(value) = table.get(name) {
             let _ = required_strings(Some(value), name)?;
         }
     }
+    validate_rule_packs(table.get("rule_packs"))?;
     validate_nested_roots(required_strings(table.get("roots"), "roots")?)?;
     validate_boolean_table(table, "cache", &["enabled", "require_cacheable"])?;
     validate_boolean_table(table, "experimental", &["memory"])?;
@@ -65,19 +69,6 @@ pub(crate) fn validate(table: &toml::map::Map<String, toml::Value>) -> Result<()
     exceptions::validate(table.get("rule_exceptions"))?;
     validate_rule_ignores(table.get("rule_ignores"))?;
     validate_evaluation(table.get("evaluation"))?;
-    Ok(())
-}
-
-fn validate_rule_options(value: Option<&toml::Value>) -> Result<(), String> {
-    let Some(value) = value else {
-        return Ok(());
-    };
-    let rules = value
-        .as_table()
-        .ok_or_else(|| "Config key rule_options must be a table.".to_owned())?;
-    if rules.values().any(|options| !options.is_table()) {
-        return Err("Config key rule_options must contain rule-code tables.".to_owned());
-    }
     Ok(())
 }
 

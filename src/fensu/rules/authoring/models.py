@@ -198,6 +198,8 @@ class RuleSpec:
     remediation: str | None = None
     severity: Severity = Severity.ERROR
     kind: RuleKind = RuleKind.CORE
+    pack: str | None = None
+    alias_of: str | None = None
     source: str | None = None
     enabled_by_default: bool = True
     cacheable: bool | None = None

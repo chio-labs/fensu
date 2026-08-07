@@ -1,10 +1,51 @@
 use std::process::Command;
 
 use crate::helpers::write;
-use crate::test_types::{RuleColorTestCase, RuleRemediationTestCase};
+use crate::test_types::{RuleColorTestCase, RulePackLookupTestCase, RuleRemediationTestCase};
 
 const CONFIG: &str =
     "roots = [\"src\"]\ntests = [\"tests\"]\ntooling = [\"scripts\"]\nselect = [\"FFA\"]\n";
+
+#[test]
+fn given_enabled_native_pack_when_inspecting_alias_then_shows_pack_and_target_without_python() {
+    let test_cases = [RulePackLookupTestCase {
+        description: "Dagster alias lookup discloses its shipped ownership and canonical target",
+        expected_fragments: &[
+            "FPDGA001 parameter-annotation",
+            "Kind: pack",
+            "Pack: dagster",
+            "Alias: FFA001",
+        ],
+    }];
+
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(
+            repository.path().join("fensu.toml"),
+            "roots = [\"src\"]\nrule_packs = [\"dagster\"]\nselect = [\"FPDG\"]\n",
+        );
+        let output = Command::new(env!("CARGO_BIN_EXE_fensu"))
+            .args(["rule", "FPDGA001", "--color", "never"])
+            .current_dir(repository.path())
+            .env(
+                "FENSU_PYTHON",
+                repository.path().join("python-does-not-exist"),
+            )
+            .output()
+            .expect("native rule process runs");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        assert_eq!(output.status.code(), Some(0), "{}", test_case.description);
+        assert!(
+            test_case
+                .expected_fragments
+                .iter()
+                .all(|fragment| stdout.contains(fragment)),
+            "{}: {stdout}",
+            test_case.description
+        );
+    }
+}
 
 #[test]
 fn given_forced_color_when_inspecting_rule_then_fault_code_renders_in_orange() {

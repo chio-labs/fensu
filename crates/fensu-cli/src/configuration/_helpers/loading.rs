@@ -40,5 +40,5 @@ pub(crate) fn custom_rules_are_configured(start: &Path) -> Result<bool, String> 
     let (_, config) = load(start)?;
     Ok(!config.rule_paths.is_empty()
         || !config.rule_modules.is_empty()
-        || !config.rule_options.is_empty())
+        || config.rule_options.keys().any(|code| code.starts_with('X')))
 }

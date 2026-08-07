@@ -22,11 +22,13 @@ from fensu.rules.catalog.main._build_rule_selection import build_rule_selection
 from fensu.rules.catalog.main.build_catalogue import build_catalogue
 from fensu.rules.catalog.main.build_ruleset import build_ruleset
 from fensu.rules.catalog.models import RuleSelection
+from fensu.rules.dagster.constants import FPDG_RULES
 from tests.unit.src.fensu.rules.catalog.main._test_types import (
     CatalogueQualityTestCase,
     CustomRuleLoadTestCase,
     DirectRuleSpecErrorTestCase,
     ModuleIsolationTestCase,
+    NativeRulePackCatalogueTestCase,
     RegistryErrorTestCase,
     RuleExceptionCodeTestCase,
     RuleSelectionErrorTestCase,
@@ -42,6 +44,43 @@ from tests.unit.src.fensu.rules.catalog.main.helpers import (
     write_importing_custom_rule_package,
     write_module_package,
 )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        NativeRulePackCatalogueTestCase(
+            description="Dagster pack is complete and standalone",
+            expected_catalogue_count=123,
+            expected_active_count=122,
+            expected_alias_count=100,
+            expected_native_count=23,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_dagster_pack_when_building_catalogue_then_registers_complete_standalone_policy(
+    tmp_path: Path,
+    test_case: NativeRulePackCatalogueTestCase,
+) -> None:
+    config: Config = Config(
+        roots=("src/pkg",),
+        rule_packs=("dagster",),
+        select=("FPDG",),
+    )
+
+    catalogue: tuple[RuleSpec, ...] = build_catalogue(config=config, repo_root=tmp_path)
+    ruleset: tuple[RuleSpec, ...] = build_ruleset(config=config, repo_root=tmp_path)
+    catalogue_codes: set[str] = {rule.code for rule in catalogue}
+    pack_codes: set[str] = {rule.code for rule in FPDG_RULES}
+
+    assert len(FPDG_RULES) == test_case.expected_catalogue_count
+    assert len(ruleset) == test_case.expected_active_count
+    assert sum(rule.alias_of is not None for rule in FPDG_RULES) == test_case.expected_alias_count
+    assert sum(rule.alias_of is None for rule in FPDG_RULES) == test_case.expected_native_count
+    assert pack_codes <= catalogue_codes
+    assert all(rule.code.startswith("FPDG") for rule in FPDG_RULES)
+    assert all(rule.code.startswith("FPDG") for rule in ruleset)
 
 
 @pytest.mark.parametrize(

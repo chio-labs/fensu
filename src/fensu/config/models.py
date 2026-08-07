@@ -139,6 +139,7 @@ class Config:
     ignore: tuple[str, ...] = ()
     rule_paths: tuple[str, ...] = ()
     rule_modules: tuple[str, ...] = ()
+    rule_packs: tuple[str, ...] = ()
     rule_options: Mapping[str, Mapping[str, RuleOptionValue]] = field(
         default_factory=lambda: MappingProxyType({})
     )

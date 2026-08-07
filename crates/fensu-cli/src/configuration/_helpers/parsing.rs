@@ -34,6 +34,7 @@ pub(crate) fn build(
         ignore: strings(table.get("ignore")),
         rule_paths: strings(table.get("rule_paths")),
         rule_modules: strings(table.get("rule_modules")),
+        rule_packs: strings(table.get("rule_packs")),
         rule_options: table
             .get("rule_options")
             .and_then(toml::Value::as_table)

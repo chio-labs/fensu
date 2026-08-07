@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from fensu.cli._helpers.rule_metadata import serialized_rule_catalogue
-from fensu.rules.catalog.constants import CORE_RULES
+from fensu.rules.catalog.constants import CORE_RULES, SHIPPED_RULES
 from scripts.catalogue._helpers.rust_policy import serialized_cli_defaults, serialized_native_policy
 from scripts.catalogue.constants import (
     CATALOGUE_ASSET_PATH,
@@ -27,7 +27,7 @@ def generate_catalogue(
 ) -> int:
     """Write the canonical asset or verify that its committed bytes are current."""
 
-    expected_catalogue: bytes = serialized_rule_catalogue(rules=CORE_RULES)
+    expected_catalogue: bytes = serialized_rule_catalogue(rules=SHIPPED_RULES)
     expected_native_policy: bytes = serialized_native_policy(rules=CORE_RULES)
     expected_cli_defaults: bytes = serialized_cli_defaults()
     normalized: tuple[str, ...] = tuple(arguments)

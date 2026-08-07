@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from fensu.cli._helpers.rule_metadata import serialized_rule_catalogue
-from fensu.rules.catalog.constants import CORE_RULES
+from fensu.rules.catalog.constants import CORE_RULES, SHIPPED_RULES
 from scripts.catalogue._helpers.rust_policy import serialized_cli_defaults, serialized_native_policy
 from scripts.catalogue.main.generate_catalogue import generate_catalogue
 from tests.unit.scripts.catalogue.main._test_types import GenerateCatalogueTestCase
@@ -17,7 +17,7 @@ from tests.unit.scripts.catalogue.main._test_types import GenerateCatalogueTestC
         GenerateCatalogueTestCase(
             description="check accepts the canonical committed projection",
             arguments=("--check",),
-            initial_catalogue=serialized_rule_catalogue(rules=CORE_RULES),
+            initial_catalogue=serialized_rule_catalogue(rules=SHIPPED_RULES),
             initial_native_policy=serialized_native_policy(rules=CORE_RULES),
             initial_cli_defaults=serialized_cli_defaults(),
             expected_exit_code=0,
@@ -35,7 +35,7 @@ from tests.unit.scripts.catalogue.main._test_types import GenerateCatalogueTestC
         GenerateCatalogueTestCase(
             description="check rejects stale native policy without replacing it",
             arguments=("--check",),
-            initial_catalogue=serialized_rule_catalogue(rules=CORE_RULES),
+            initial_catalogue=serialized_rule_catalogue(rules=SHIPPED_RULES),
             initial_native_policy=b"",
             initial_cli_defaults=serialized_cli_defaults(),
             expected_exit_code=1,
@@ -44,7 +44,7 @@ from tests.unit.scripts.catalogue.main._test_types import GenerateCatalogueTestC
         GenerateCatalogueTestCase(
             description="check rejects stale CLI defaults without replacing them",
             arguments=("--check",),
-            initial_catalogue=serialized_rule_catalogue(rules=CORE_RULES),
+            initial_catalogue=serialized_rule_catalogue(rules=SHIPPED_RULES),
             initial_native_policy=serialized_native_policy(rules=CORE_RULES),
             initial_cli_defaults=b"",
             expected_exit_code=1,
@@ -79,7 +79,7 @@ def test_given_catalogue_asset_when_generating_then_returns_expected_state(
         native_policy_target=native_policy_target,
         cli_defaults_target=cli_defaults_target,
     )
-    expected_catalogue: bytes = serialized_rule_catalogue(rules=CORE_RULES)
+    expected_catalogue: bytes = serialized_rule_catalogue(rules=SHIPPED_RULES)
     expected_native_policy: bytes = serialized_native_policy(rules=CORE_RULES)
     expected_cli_defaults: bytes = serialized_cli_defaults()
 

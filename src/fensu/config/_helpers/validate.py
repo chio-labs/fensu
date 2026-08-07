@@ -40,6 +40,7 @@ _current_path_part: str = "."
 _parent_path_part: str = ".."
 _python_file_suffix: str = ".py"
 _glob_characters: frozenset[str] = frozenset({"*", "?", "[", "]"})
+_registered_rule_packs: frozenset[str] = frozenset({"dagster"})
 
 
 def validate_config(raw: Mapping[str, object]) -> None:
@@ -55,6 +56,17 @@ def validate_config(raw: Mapping[str, object]) -> None:
     _validate_optional_string_sequence(name="tooling", value=raw.get("tooling"))
     _validate_optional_string_sequence(name="rule_paths", value=raw.get("rule_paths"))
     _validate_optional_string_sequence(name="rule_modules", value=raw.get("rule_modules"))
+    raw_rule_packs: object = raw.get("rule_packs")
+    rule_packs: tuple[str, ...] = (
+        ()
+        if raw_rule_packs is None
+        else _validate_string_sequence(name="rule_packs", value=raw_rule_packs)
+    )
+    if len(rule_packs) != len(set(rule_packs)):
+        raise ConfigValidationError("Config key rule_packs must not contain duplicates.")
+    unknown_rule_packs: tuple[str, ...] = tuple(sorted(set(rule_packs) - _registered_rule_packs))
+    if unknown_rule_packs:
+        raise ConfigValidationError(f"Unknown native rule pack: {unknown_rule_packs[0]}.")
     _validate_rule_options_shape(value=raw.get("rule_options"))
     _validate_selection(name="select", value=raw.get("select"))
     _validate_selection(name="warn", value=raw.get("warn"))

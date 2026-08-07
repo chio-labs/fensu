@@ -47,7 +47,7 @@ def execute_rule(
 
     check: RuleCheck | None = rule.check
     if check is None:
-        if rule.kind is RuleKind.CORE:
+        if rule.kind in {RuleKind.CORE, RuleKind.PACK}:
             raise NativeCoreCallbackError(
                 f"Native evaluation returned no result for selected core rule {rule.code}."
             )

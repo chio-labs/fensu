@@ -220,11 +220,22 @@ def prepare_native_project_plane(
 ) -> tuple[list[NativeProjectFile], list[str]]:
     """Build one dependency-recorded project source plane for project-owned native rules."""
 
+    project_plane_codes: frozenset[str] = frozenset(
+        {
+            LayerCode.PUBLIC_MAIN_ENTRY_EXTERNAL_USE,
+            "FPDG001",
+            "FPDG004",
+            "FPDG008",
+            "FPDG020",
+            "FPDG023",
+            "FPDG024",
+        }
+    )
     requester: Path | None = next(
         (
             target.scoped_file.path
             for target, codes in zip(targets, codes_by_target, strict=True)
-            if LayerCode.PUBLIC_MAIN_ENTRY_EXTERNAL_USE in codes
+            if project_plane_codes.intersection(codes)
         ),
         None,
     )
@@ -232,7 +243,7 @@ def prepare_native_project_plane(
         return [], []
     files: list[NativeProjectFile] = []
     for scope, root_text in scope_roots:
-        if scope not in {ScopeName.ROOT, ScopeName.TOOLING}:
+        if scope not in {ScopeName.ROOT, ScopeName.TEST, ScopeName.TOOLING}:
             continue
         root: Path = repo_root / root_text
         paths: set[Path] = set()

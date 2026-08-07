@@ -10,6 +10,7 @@ from fensu.rules.authoring.types import Family, RuleKind
 
 _KEBAB_CASE_PATTERN: re.Pattern[str] = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 _CORE_CODE_PREFIX: str = "FF"
+_PACK_CODE_PREFIX: str = "FP"
 _CUSTOM_CODE_PREFIX: str = "X"
 
 
@@ -41,14 +42,25 @@ def resolve_envelope(*, code: str, slug: str, message: str, family: Family | str
 def infer_kind(code: str) -> RuleKind:
     """Infer whether an already validated code is core or custom."""
 
-    return RuleKind.CORE if code.startswith(_CORE_CODE_PREFIX) else RuleKind.CUSTOM
+    if code.startswith(_CORE_CODE_PREFIX):
+        return RuleKind.CORE
+    if code.startswith(_PACK_CODE_PREFIX):
+        return RuleKind.PACK
+    return RuleKind.CUSTOM
 
 
 def validate_code_namespace(*, code: str, kind: RuleKind) -> None:
     """Enforce that exact codes use the namespace required by their kind."""
 
     if not rule_code_is_exact(code):
-        raise RuleDefinitionError(f"rule code {code!r} must be one exact core or custom rule code")
+        raise RuleDefinitionError(
+            f"rule code {code!r} must be one exact core, native-pack, or custom rule code"
+        )
+
+    if kind is RuleKind.PACK:
+        raise RuleDefinitionError(
+            f"native-pack rule code {code!r} is reserved for rules compiled into Fensu"
+        )
 
     if kind is RuleKind.CUSTOM:
         if code.startswith(_CORE_CODE_PREFIX):
@@ -76,7 +88,9 @@ def _validate_family_code_consistency(*, code: str, family: Family) -> None:
 
 def _validate_code(code: str) -> None:
     if not rule_code_is_exact(code):
-        raise RuleDefinitionError(f"rule code {code!r} must be one exact core or custom rule code")
+        raise RuleDefinitionError(
+            f"rule code {code!r} must be one exact core, native-pack, or custom rule code"
+        )
 
 
 def _validate_non_empty(*, field_name: str, value: str) -> None:

@@ -151,6 +151,8 @@ pub(crate) fn render_metadata(mut output: String, metadata: &RuleMetadata, color
         ("Family", metadata.family.as_str()),
         ("Severity", metadata.severity.as_str()),
         ("Kind", metadata.kind.as_str()),
+        ("Pack", metadata.pack.as_deref().unwrap_or("None")),
+        ("Alias", metadata.alias_of.as_deref().unwrap_or("None")),
         ("Enabled by default", enabled),
         ("Source", metadata.source.as_deref().unwrap_or("core")),
         ("Message", metadata.message.as_str()),

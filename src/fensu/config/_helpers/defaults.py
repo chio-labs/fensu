@@ -75,6 +75,7 @@ def build_config(
         ignore=_string_tuple(value=raw.get("ignore"), default=DEFAULT_IGNORE),
         rule_paths=_string_tuple(value=raw.get("rule_paths")),
         rule_modules=_string_tuple(value=raw.get("rule_modules")),
+        rule_packs=_string_tuple(value=raw.get("rule_packs")),
         rule_options=MappingProxyType({}) if rule_options is None else rule_options,
         rule_exceptions=_rule_exceptions(raw.get("rule_exceptions")),
         rule_ignores=_rule_ignores(raw.get("rule_ignores")),

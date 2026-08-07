@@ -79,6 +79,18 @@ pub(crate) struct RuleColorTestCase {
     pub(crate) expected_fragment: &'static str,
 }
 
+pub(crate) struct NativeRulePackTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) config: &'static str,
+    pub(crate) expected_exit_code: i32,
+    pub(crate) expected_output: &'static str,
+}
+
+pub(crate) struct RulePackLookupTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_fragments: &'static [&'static str],
+}
+
 pub(crate) struct PreExecutionCleanupTestCase {
     pub(crate) description: &'static str,
     pub(crate) config: &'static str,

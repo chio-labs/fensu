@@ -5,8 +5,10 @@ from __future__ import annotations
 import re
 
 _CORE_RULE_CODE: re.Pattern[str] = re.compile(r"FF[A-Z][0-9]{3}")
+_PACK_RULE_CODE: re.Pattern[str] = re.compile(r"FP[A-Z]+[0-9]+")
 _CUSTOM_RULE_CODE: re.Pattern[str] = re.compile(r"X[A-Z]*[0-9]+")
 _CORE_RULE_SELECTOR: re.Pattern[str] = re.compile(r"FF(?:[A-Z][0-9]{0,3})?")
+_PACK_RULE_SELECTOR: re.Pattern[str] = re.compile(r"FP[A-Z]*(?:[0-9]+)?")
 _CUSTOM_RULE_SELECTOR: re.Pattern[str] = re.compile(r"X[A-Z]*(?:[0-9]+)?")
 
 
@@ -15,6 +17,7 @@ def rule_code_is_exact(value: object) -> bool:
 
     return isinstance(value, str) and (
         _CORE_RULE_CODE.fullmatch(value) is not None
+        or _PACK_RULE_CODE.fullmatch(value) is not None
         or _CUSTOM_RULE_CODE.fullmatch(value) is not None
     )
 
@@ -24,6 +27,7 @@ def rule_selector_is_valid(value: object) -> bool:
 
     return isinstance(value, str) and (
         _CORE_RULE_SELECTOR.fullmatch(value) is not None
+        or _PACK_RULE_SELECTOR.fullmatch(value) is not None
         or _CUSTOM_RULE_SELECTOR.fullmatch(value) is not None
     )
 

@@ -29,10 +29,12 @@ from fensu.rules.authoring.models import RuleConstraint, RuleLimit, RuleSpec
 def serialized_native_policy(*, rules: Sequence[RuleSpec]) -> bytes:
     """Return deterministic Rust source for every fixed core constraint."""
 
+    owners: tuple[str, ...] = tuple(rule.code for rule in rules if rule.constraints or rule.limits)
     lines: list[str] = [
         "//! Generated fixed core-rule policy. Do not edit by hand.",
         "",
     ]
+    lines.extend(_string_lines(name="GENERATED_POLICY_OWNERS", values=owners))
     for rule in rules:
         for constraint in sorted(rule.constraints, key=lambda item: item.name):
             lines.extend(_constraint_lines(code=rule.code, constraint=constraint))

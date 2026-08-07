@@ -18,7 +18,6 @@ class RoleName(StrEnum):
 
     CLASSES = "classes"
     CONSTANTS = "constants"
-    ENTRY = "entry"
     EXCEPTIONS = "exceptions"
     HELPERS = "helpers"
     MAIN = "main"

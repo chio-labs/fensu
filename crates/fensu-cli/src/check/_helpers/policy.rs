@@ -1,19 +1,17 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::ffi::OsString;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use fensu_facts::extension::models::ProgramHandle;
 use ruff_python_ast::PythonVersion;
 use sha2::{Digest, Sha256};
 use walkdir::WalkDir;
 
-use crate::catalogue::main::rule_metadata::rule_metadata;
 use crate::constants::{
     GLOB_ALL, PYTHON_CACHE_DIRECTORY, ROLE_HELPERS, ROLE_MAIN, ROLE_RULES, SCOPE_TOOLING,
     SUFFIX_INIT,
 };
-use crate::models::{Config, Fault, ScopedSource, ThresholdUse};
+use crate::models::{Config, Fault, ScopedSource};
 
 struct WildcardMatcher<'a> {
     path: &'a [u8],
@@ -53,53 +51,6 @@ impl WildcardMatcher<'_> {
         self.memo.insert((path_index, pattern_index), result);
         result
     }
-}
-
-pub(crate) fn resolved_thresholds(
-    source: &ScopedSource,
-    config: &Config,
-    codes: &[String],
-) -> (HashMap<String, u32>, Vec<ThresholdUse>) {
-    let mut values = config.thresholds.clone();
-    if let Some(role) = role(source).and_then(|role| config.role_thresholds.get(&role)) {
-        values.extend(role.clone());
-    }
-    let required = required_thresholds(codes);
-    let mut uses: Vec<ThresholdUse> = Vec::new();
-    for (order, override_) in config.threshold_overrides.iter().enumerate() {
-        let Some(pattern) = override_
-            .paths
-            .iter()
-            .filter(|pattern| path_matches(&source.repository_path, pattern))
-            .max_by_key(|pattern| pattern.len())
-        else {
-            continue;
-        };
-        for (name, value) in &override_.thresholds {
-            if required.contains(name.as_str()) {
-                values.insert(name.clone(), *value);
-                uses.push(ThresholdUse {
-                    repository_path: source.repository_path.clone(),
-                    threshold: name.clone(),
-                    override_order: order,
-                    matched_pattern: pattern.clone(),
-                    reason: override_.reason.clone(),
-                    effective_value: *value,
-                });
-            }
-        }
-    }
-    (values, uses)
-}
-
-pub(crate) fn required_thresholds(codes: &[String]) -> HashSet<&'static str> {
-    let mut names: HashSet<&'static str> = HashSet::new();
-    for code in codes {
-        if let Some(metadata) = rule_metadata(code) {
-            names.extend(metadata.thresholds.iter().map(String::as_str));
-        }
-    }
-    names
 }
 
 pub(crate) fn role(source: &ScopedSource) -> Option<String> {
@@ -177,26 +128,96 @@ pub(crate) fn source_module_name(source: &ScopedSource, root: &Path) -> String {
         .replace(['/', '\\'], ".")
 }
 
-pub(crate) fn validate_package_names(root: &Path, config: &Config) -> Result<(), String> {
-    let mut runtime: HashSet<OsString> = HashSet::new();
-    for path in &config.roots {
-        if let Some(name) = root.join(path).file_name() {
-            runtime.insert(name.to_owned());
+pub(crate) fn validate_scope_roots(root: &Path, config: &Config) -> Result<(), String> {
+    let scopes = [
+        ("roots", "Runtime", &config.roots),
+        ("tests", "test", &config.tests),
+        ("tooling", "tooling", &config.tooling),
+    ];
+    let mut resolved: Vec<(&str, &str, Vec<PathBuf>)> = Vec::new();
+    for (owner, label, configured) in scopes {
+        let mut paths: Vec<PathBuf> = Vec::new();
+        for value in configured {
+            paths.push(resolve_scope_path(root, value)?);
         }
+        resolved.push((owner, label, paths));
     }
-    let mut tooling: HashSet<OsString> = HashSet::new();
-    for path in &config.tooling {
-        if let Some(name) = root.join(path).file_name() {
-            tooling.insert(name.to_owned());
-        }
-    }
-    if let Some(name) = runtime.intersection(&tooling).next() {
+    let missing = config
+        .roots
+        .iter()
+        .zip(&resolved[0].2)
+        .filter(|(_, path)| !path.is_dir())
+        .map(|(configured, _)| configured.as_str())
+        .collect::<Vec<_>>();
+    if !missing.is_empty() {
         return Err(format!(
-            "Runtime and tooling roots must not claim the same import package: {}.",
-            name.to_string_lossy()
+            "Configured root path(s) do not exist: {}.",
+            missing.join(", ")
         ));
     }
+    for index in 0..resolved.len() {
+        let (owner, label, paths) = &resolved[index];
+        for (other_owner, other_label, other_paths) in &resolved[index + 1..] {
+            if let Some(path) = paths.iter().filter(|path| other_paths.contains(path)).min() {
+                return Err(format!(
+                    "Configured path cannot belong to both {owner} and {other_owner}: {}",
+                    path.display()
+                ));
+            }
+            let packages = paths
+                .iter()
+                .filter_map(|path| path.file_name())
+                .collect::<HashSet<_>>();
+            let other_packages = other_paths
+                .iter()
+                .filter_map(|path| path.file_name())
+                .collect::<HashSet<_>>();
+            if let Some(name) = packages.intersection(&other_packages).min() {
+                return Err(format!(
+                    "{label} and {other_label} roots must not claim the same import package: {}",
+                    name.to_string_lossy()
+                ));
+            }
+        }
+    }
     Ok(())
+}
+
+fn resolve_scope_path(root: &Path, value: &str) -> Result<PathBuf, String> {
+    let configured = Path::new(value);
+    let candidate = if configured.is_absolute() {
+        configured.to_path_buf()
+    } else {
+        root.join(configured)
+    };
+    let normalized = normalize_path(&candidate);
+    let resolved = if normalized.exists() {
+        normalized
+            .canonicalize()
+            .map_err(|error| format!("Could not resolve configured path {value}: {error}"))?
+    } else {
+        normalized
+    };
+    if !resolved.starts_with(root) {
+        return Err(format!(
+            "Configured path must resolve inside the repository: {value}"
+        ));
+    }
+    Ok(resolved)
+}
+
+fn normalize_path(path: &Path) -> PathBuf {
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                let _ = normalized.pop();
+            }
+            other => normalized.push(other.as_os_str()),
+        }
+    }
+    normalized
 }
 
 pub(crate) fn path_matches(path: &str, pattern: &str) -> bool {

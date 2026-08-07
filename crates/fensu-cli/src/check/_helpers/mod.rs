@@ -9,3 +9,4 @@ pub(crate) mod options;
 pub(crate) mod policy;
 pub(crate) mod preparation;
 pub(crate) mod project;
+pub(crate) mod rule_policy;

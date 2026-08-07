@@ -52,7 +52,6 @@ pub(crate) const DEFAULT_SELECT: &[&str] = &[
 pub(crate) const CONFIG_ROLE_NAMES: &[&str] = &[
     "classes",
     "constants",
-    "entry",
     "exceptions",
     "helpers",
     "main",

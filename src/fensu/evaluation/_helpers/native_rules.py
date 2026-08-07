@@ -42,7 +42,6 @@ _thresholds_by_code: dict[str, tuple[Threshold, ...]] = {
     rule.code: rule.thresholds for rule in CORE_RULES if rule.thresholds
 }
 _main_only_threshold_codes: frozenset[str] = frozenset({"FFS001", "FFS002", "FFS003"})
-_maximum_native_metric: int = 2**32 - 1
 _native_naming_codes: frozenset[str] = frozenset({"FFN001", "FFN002", "FFN003", "FFN004"})
 _true_text: str = "true"
 
@@ -91,7 +90,7 @@ def prepare_native_execution_request(
                 path=threshold_repository_path,
                 role=position.role,
             )
-            thresholds[threshold.value] = min(resolution.effective_value, _maximum_native_metric)
+            thresholds[threshold.value] = resolution.effective_value
             if (
                 resolution.matched_pattern is not None
                 and resolution.reason is not None

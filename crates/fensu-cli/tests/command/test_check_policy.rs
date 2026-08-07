@@ -119,7 +119,7 @@ fn given_core_and_alias_in_one_tier_when_checking_then_rejects_duplicate_impleme
 fn given_native_pack_rule_options_when_checking_then_stays_native_and_applies_boundary() {
     let test_cases = [NativeRulePackTestCase {
         description: "Dagster loader boundary options do not route through Python",
-        config: "roots = [\"pkg\"]\ntests = []\ntooling = []\nrule_packs = [\"dagster\"]\nselect = [\"FPDG024\"]\n\n[rule_options.FPDG024]\napproved_loader_boundaries = [\"pkg.defs.resources.example.loader.load_metadata\"]\n",
+        config: "roots = [\"pkg\"]\ntests = []\ntooling = []\nrule_packs = [\"dagster\"]\nselect = [\"FPDG022\"]\n\n[rule_options.FPDG022]\napproved_loader_boundaries = [\"pkg.defs.resources.example.loader.load_metadata\"]\n",
         expected_exit_code: 0,
         expected_output: "Found 0 faults",
     }];

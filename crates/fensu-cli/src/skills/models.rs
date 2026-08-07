@@ -3,7 +3,8 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::models::{Config, RuleMetadata};
+use crate::catalogue::models::RuleMetadata;
+use crate::models::Config;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub(crate) enum SkillTarget {

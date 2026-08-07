@@ -101,7 +101,7 @@ fn parametrize_row(
     });
     let parameter_name: Option<String> = call.arguments.args.first().and_then(extract_string_value);
     let argument_count = u32::try_from(call.arguments.args.len()).unwrap_or(u32::MAX);
-    if call.arguments.args.len() < constants::MINIMUM_PARAMETRIZE_ARGUMENTS {
+    let Some(values) = call.arguments.args.get(1) else {
         return Some(ParametrizeRow {
             argument_count,
             parameter_name,
@@ -112,8 +112,7 @@ fn parametrize_row(
             values_empty: false,
             cases: Vec::new(),
         });
-    }
-    let values = &call.arguments.args[1];
+    };
     let case_nodes: Vec<&Expr> = match values {
         Expr::ListComp(inner) => vec![&inner.elt],
         Expr::SetComp(inner) => vec![&inner.elt],

@@ -16,6 +16,7 @@ from fensu.config.constants import (
     DOUBLE_PATH_SEPARATOR,
     EVALUATION_CONFIG_KEYS,
     EXPERIMENTAL_MEMORY_CONFIG_KEY,
+    MAX_THRESHOLD_VALUE,
     MEMORY_CONFIG_KEYS,
     MEMORY_TASKS_ARCHIVE_AFTER_DAYS_CONFIG_KEY,
     MEMORY_TASKS_CONFIG_KEY,
@@ -297,6 +298,8 @@ def _validate_thresholds(*, value: object, owner: str) -> None:
             raise ConfigValidationError(f"Threshold {key} in {owner} must be an integer.")
         if threshold_value < 0:
             raise ConfigValidationError(f"Threshold {key} in {owner} must be non-negative.")
+        if threshold_value > MAX_THRESHOLD_VALUE:
+            raise ConfigValidationError(f"Threshold {key} in {owner} is too large.")
 
 
 def _validate_role_thresholds(*, value: object) -> None:

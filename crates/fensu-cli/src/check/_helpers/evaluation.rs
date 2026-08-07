@@ -7,19 +7,23 @@ use fensu_native::rules::main::plan_core_rule_queries::plan_core_rule_queries;
 use fensu_native::rules::models::NativeRuleContext;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 
-use crate::catalogue::main::rule_catalogue::configured_rule_catalogue;
 use crate::catalogue::main::rule_metadata::rule_metadata;
+use crate::catalogue::models::RuleMetadata;
 use crate::check::_helpers::exceptions::{apply_exceptions, ApplyExceptionsRequest};
 use crate::check::_helpers::policy::{
-    apply_rule_ignores, is_entry_module, is_main_module, program, resolved_thresholds, role,
-    scope_roots, source_module_name,
+    apply_rule_ignores, is_entry_module, is_main_module, program, role, scope_roots,
+    source_module_name,
 };
 use crate::check::_helpers::project::{observe, project_plane};
+use crate::check::_helpers::rule_policy::{
+    display_codes_by_implementation, resolved_thresholds, selected_rules, validate_config_tiers,
+    validate_unique_implementations,
+};
 use crate::check::models::EvaluationRequest;
 use crate::constants::{
     OWNER_FILE, OWNER_PACKAGE, ROLE_HELPERS, ROLE_MAIN, SCOPE_TEST, SUFFIX_INIT,
 };
-use crate::models::{Config, Fault, RuleMetadata, ScopedSource, ThresholdUse};
+use crate::models::{Config, Fault, ScopedSource, ThresholdUse};
 use crate::reporting::main::report::report;
 use crate::reporting::models::ReportRequest;
 
@@ -32,6 +36,7 @@ pub(crate) fn evaluate_and_render(request: EvaluationRequest<'_>) -> Result<(Str
         show_warnings,
         color,
     } = request;
+    validate_config_tiers(config)?;
     let blocking = selected_rules(config, &config.select, &config.ignore)?;
     let warning_rules = if show_warnings {
         selected_rules(config, &config.warn, &config.ignore)?
@@ -66,7 +71,7 @@ pub(crate) fn evaluate_and_render(request: EvaluationRequest<'_>) -> Result<(Str
         .map(|(source, codes)| {
             let implementation_codes = implementation_codes(codes)?;
             let display_codes = display_codes_by_implementation(codes)?;
-            let (thresholds, source_uses) = resolved_thresholds(source, config, codes);
+            let (thresholds, source_uses) = resolved_thresholds(source, config, codes)?;
             let mut context = NativeRuleContext {
                 scope: source.scope.clone(),
                 role: role(source),
@@ -94,7 +99,7 @@ pub(crate) fn evaluate_and_render(request: EvaluationRequest<'_>) -> Result<(Str
                 let display_code = display_codes.get(&row.code).ok_or_else(|| {
                     format!("No selected identity for native rule code: {}", row.code)
                 })?;
-                let metadata = rule_metadata(display_code)
+                let metadata = rule_metadata(display_code)?
                     .ok_or_else(|| format!("Unknown native rule code: {display_code}"))?;
                 let path = row.path.unwrap_or_else(|| source.repository_path.clone());
                 faults.push(Fault {
@@ -178,7 +183,7 @@ fn native_rule_options(
     let mut by_code: HashMap<String, HashMap<String, String>> = HashMap::new();
     for code in codes {
         let rule =
-            rule_metadata(code).ok_or_else(|| format!("Unknown native rule code: {code}"))?;
+            rule_metadata(code)?.ok_or_else(|| format!("Unknown native rule code: {code}"))?;
         let mut values: HashMap<String, String> = HashMap::new();
         for option in &rule.options {
             let configured = config
@@ -207,61 +212,15 @@ fn native_rule_options(
     Ok(by_code)
 }
 
-pub(crate) fn selected_rules(
-    config: &Config,
-    select: &[String],
-    ignore: &[String],
-) -> Result<Vec<&'static RuleMetadata>, String> {
-    let mut rules: Vec<&'static RuleMetadata> = Vec::new();
-    for rule in configured_rule_catalogue(&config.rule_packs) {
-        let selected = select
-            .iter()
-            .any(|selector| rule.code.starts_with(selector));
-        let explicit = select.iter().any(|selector| selector == &rule.code);
-        let ignored = ignore
-            .iter()
-            .any(|selector| rule.code.starts_with(selector));
-        if (rule.enabled_by_default && selected || explicit) && !ignored {
-            rules.push(rule);
-        }
-    }
-    validate_unique_implementations(&rules)?;
-    Ok(rules)
-}
-
 fn implementation_codes(codes: &[String]) -> Result<Vec<String>, String> {
     codes
         .iter()
         .map(|code| {
             let metadata =
-                rule_metadata(code).ok_or_else(|| format!("Unknown native rule code: {code}"))?;
+                rule_metadata(code)?.ok_or_else(|| format!("Unknown native rule code: {code}"))?;
             Ok(metadata.alias_of.clone().unwrap_or_else(|| code.clone()))
         })
         .collect()
-}
-
-fn display_codes_by_implementation(codes: &[String]) -> Result<HashMap<String, String>, String> {
-    let mut display: HashMap<String, String> = HashMap::new();
-    for code in codes {
-        let metadata =
-            rule_metadata(code).ok_or_else(|| format!("Unknown native rule code: {code}"))?;
-        let implementation = metadata.alias_of.as_ref().unwrap_or(code);
-        if let Some(previous) = display.insert(implementation.clone(), code.clone()) {
-            return Err(format!(
-                "Rules {previous} and {code} select the same native implementation {implementation}; select only one identity."
-            ));
-        }
-    }
-    Ok(display)
-}
-
-fn validate_unique_implementations(rules: &[&RuleMetadata]) -> Result<(), String> {
-    let codes = rules
-        .iter()
-        .map(|rule| rule.code.clone())
-        .collect::<Vec<_>>();
-    let _ = display_codes_by_implementation(&codes)?;
-    Ok(())
 }
 
 fn tooling_packages(config: &Config) -> Vec<String> {
@@ -327,9 +286,10 @@ pub(crate) fn owner_identity(source: &ScopedSource, owner: &str) -> Option<Strin
         .relative_parts
         .first()
         .filter(|part| !part.ends_with(".py"));
-    let subdomain = source.relative_parts.get(1).filter(|part| {
-        !part.ends_with(".py") && !matches!(part.as_str(), ROLE_MAIN | ROLE_HELPERS | "classes")
-    });
+    let subdomain = source
+        .relative_parts
+        .get(1)
+        .filter(|part| !part.ends_with(".py") && !is_role_directory(part));
     match owner {
         "project" => Some("project".to_owned()),
         "scope" => Some(format!("{}\0{}", source.scope, source.root_text)),
@@ -368,10 +328,11 @@ pub(crate) fn anchor_key(source: &ScopedSource, owner: &str) -> (bool, usize, St
         "domain" => Some(2),
         "subdomain" => Some(3),
         "leaf" => Some(
-            if source.relative_parts.get(1).is_some_and(|part| {
-                !part.ends_with(".py")
-                    && !matches!(part.as_str(), ROLE_MAIN | ROLE_HELPERS | "classes")
-            }) {
+            if source
+                .relative_parts
+                .get(1)
+                .is_some_and(|part| !part.ends_with(".py") && !is_role_directory(part))
+            {
                 3
             } else {
                 2
@@ -388,5 +349,12 @@ pub(crate) fn anchor_key(source: &ScopedSource, owner: &str) -> (bool, usize, St
         !owner_init,
         source.relative_parts.len(),
         source.repository_path.clone(),
+    )
+}
+
+fn is_role_directory(part: &str) -> bool {
+    matches!(
+        part,
+        ROLE_MAIN | ROLE_HELPERS | "classes" | "models" | "types" | "constants" | "exceptions"
     )
 }

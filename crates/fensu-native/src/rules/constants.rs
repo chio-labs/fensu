@@ -96,6 +96,7 @@ pub const TEST_TYPES_DESCRIPTION_CODE: &str = "FFT201";
 pub const TEST_TYPES_EXPECTED_FIELD_CODE: &str = "FFT202";
 pub const TEST_LOCAL_TEST_TYPES_IMPORT_CODE: &str = "FFT203";
 pub const TEST_LOCAL_TEST_TYPES_FILE_CODE: &str = "FFT204";
+pub const TEST_SCENARIO_MODELS_DATACLASSES_CODE: &str = "FFT205";
 pub const TEST_FILE_NAME_CODE: &str = "FFT301";
 pub const TEST_FUNCTION_NAME_CODE: &str = "FFT302";
 pub const TEST_DATACLASS_PARAMETRIZE_CODE: &str = "FFT401";
@@ -113,7 +114,6 @@ pub const TEST_DESCRIPTION_LAMBDA_IDS_CODE: &str = "FFT414";
 pub const TEST_DESCRIPTION_FIELD_NAME: &str = "description";
 pub const TEST_EXPECTED_FIELD_PREFIX: &str = "expected_";
 pub const TEST_INIT_MODULE_NAME: &str = "__init__.py";
-pub const TEST_MINIMUM_PARAMETRIZE_ARGUMENTS: u32 = 2;
 pub const STAR_IMPORT_NAME: &str = "*";
 pub const DAGSTER_ASSET_PACKAGE_LAYOUT_CODE: &str = "FPDG001";
 pub const DAGSTER_ASSETS_MODULE_SHAPE_CODE: &str = "FPDG002";
@@ -262,6 +262,7 @@ pub const NATIVE_RULE_FACT_FAMILIES: &[(&str, &[&str])] = &[
     (TEST_TYPES_EXPECTED_FIELD_CODE, &["dataclasses"]),
     (TEST_LOCAL_TEST_TYPES_IMPORT_CODE, &["references"]),
     (TEST_LOCAL_TEST_TYPES_FILE_CODE, &[]),
+    (TEST_SCENARIO_MODELS_DATACLASSES_CODE, &["test_module"]),
     (TEST_FILE_NAME_CODE, &[]),
     (TEST_FUNCTION_NAME_CODE, &["test_functions"]),
     (TEST_DATACLASS_PARAMETRIZE_CODE, &["test_functions"]),

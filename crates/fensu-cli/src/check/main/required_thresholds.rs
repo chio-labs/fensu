@@ -2,6 +2,6 @@
 
 use std::collections::HashSet;
 
-pub(crate) fn required_thresholds(codes: &[String]) -> HashSet<&'static str> {
-    crate::check::_helpers::policy::required_thresholds(codes)
+pub(crate) fn required_thresholds(codes: &[String]) -> Result<HashSet<&'static str>, String> {
+    crate::check::_helpers::rule_policy::required_thresholds(codes)
 }

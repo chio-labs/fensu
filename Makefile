@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: benchmark benchmark-budget benchmark-profile catalogue-check catalogue-generate check check-rust develop-memory develop-native self-check skills test test-e2e test-integration test-memory test-rust test-unit verify
+.PHONY: benchmark benchmark-budget benchmark-profile catalogue-check catalogue-generate check check-rust develop-memory develop-native native-corpus-generate self-check skills skills-content-check test test-e2e test-integration test-memory test-rust test-unit verify
 
 BENCHMARK_PROJECT ?= ../sqlbuild
 BENCHMARK_RUNS ?= 5
@@ -41,11 +41,17 @@ develop-native:
 develop-memory:
 	uvx --from 'maturin[patchelf]>=1.14,<2' maturin develop --release --uv --features extension-module,memory
 
+native-corpus-generate:
+	PYTHONPATH=. FENSU_CORE_FIXTURE_OUTPUT=crates/fensu-native/tests/rules/fixtures/generated_rules.jsonl uv run pytest tests/unit/src/fensu/rules tests/integration/src/fensu/rules -q -n 0 -p scripts.native_corpus._helpers.capture_plugin
+
 self-check:
 	uv run fensu check
 
 skills:
 	uv run fensu skills
+
+skills-content-check:
+	cargo test -p fensu-cli --test skills --quiet
 
 test:
 	uv run pytest tests -q -n auto

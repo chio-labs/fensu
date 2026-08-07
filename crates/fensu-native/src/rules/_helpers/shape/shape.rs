@@ -2,6 +2,9 @@
 
 use fensu_facts::extension::models::ProgramHandle;
 
+use crate::rules::_helpers::generated_policy::{
+    FFS102_EXEMPT_FUNCTION_KINDS, FFS110_EXEMPT_FUNCTION_KINDS,
+};
 use crate::rules::constants::{
     DEFAULT_MUTATION_RETURN_CODE, KEYWORD_ONLY_ARGUMENTS_CODE, MAX_ARGUMENTS_CODE,
     MAX_STATEMENTS_GLOBAL_CODE, MEANINGFUL_PROJECT_RESULT_DISCARDED_CODE,
@@ -19,6 +22,7 @@ const MAX_STATEMENTS_THRESHOLD: &str = "max_statements";
 const MAX_STATEMENTS_GLOBAL_THRESHOLD: &str = "max_statements_global";
 
 type FunctionMetricRow = fensu_facts::facts::models::FunctionMetricRow;
+type ParameterMutationRow = fensu_facts::facts::models::ParameterMutationRow;
 
 struct MainMetricPolicy<'a, Metric, Message> {
     program: &'a ProgramHandle,
@@ -89,7 +93,7 @@ pub(crate) fn shape_faults(
                 program
                     .parameter_mutation_rows()
                     .iter()
-                    .filter(|row| !row.dunder && !row.setter)
+                    .filter(|row| !mutation_exempt(row, FFS102_EXEMPT_FUNCTION_KINDS))
                     .map(|row| location_fault(code, row.line, row.column))
                     .collect()
             }
@@ -97,7 +101,7 @@ pub(crate) fn shape_faults(
         DEFAULT_MUTATION_RETURN_CODE => program
             .parameter_mutation_rows()
             .iter()
-            .filter(|row| !row.dunder && !row.setter && !row.returned)
+            .filter(|row| !mutation_exempt(row, FFS110_EXEMPT_FUNCTION_KINDS) && !row.returned)
             .map(|row| location_fault(code, row.line, row.column))
             .collect(),
         KEYWORD_ONLY_ARGUMENTS_CODE => all_metric_faults(AllMetricPolicy {
@@ -142,6 +146,10 @@ pub(crate) fn shape_faults(
         _ => return None,
     };
     Some(faults)
+}
+
+fn mutation_exempt(row: &ParameterMutationRow, kinds: &[&str]) -> bool {
+    row.dunder && kinds.contains(&"dunder") || row.setter && kinds.contains(&"setter")
 }
 
 fn meaningful_project_result_faults(

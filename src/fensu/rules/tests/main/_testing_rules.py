@@ -6,6 +6,7 @@ from fensu.rules.authoring.models import RuleSpec
 from fensu.rules.authoring.types import Family
 from fensu.rules.tests._helpers.configuration import get_test_rule_configuration_inputs
 from fensu.rules.tests._helpers.constraints import get_test_rule_constraints
+from fensu.rules.tests._helpers.limits import get_test_rule_limits
 from fensu.rules.tests._helpers.metadata import test_rule_details
 from fensu.rules.tests.types import FftCode
 
@@ -28,4 +29,5 @@ def _rule(*, code: FftCode, slug: str) -> RuleSpec:
         remediation=remediation,
         configuration_inputs=get_test_rule_configuration_inputs(code),
         constraints=get_test_rule_constraints(code),
+        limits=get_test_rule_limits(code),
     )

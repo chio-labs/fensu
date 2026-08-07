@@ -803,6 +803,12 @@ def test_given_valid_prefix_selectors_when_loading_then_preserves_spellings(
             expected_error_fragment="non-negative",
         ),
         InvalidConfigTestCase(
+            description="threshold value must fit the native metric range",
+            config_text='roots = ["src/pkg"]\n[thresholds]\nmax_statements = 4294967296\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="too large",
+        ),
+        InvalidConfigTestCase(
             description="unknown role name is rejected",
             config_text='roots = ["src/pkg"]\n[roles.service]\nmax_statements = 30\n',
             expected_error_type=ConfigValidationError,
@@ -810,13 +816,13 @@ def test_given_valid_prefix_selectors_when_loading_then_preserves_spellings(
         ),
         InvalidConfigTestCase(
             description="role threshold key is validated",
-            config_text='roots = ["src/pkg"]\n[roles.entry]\nmax_statments = 30\n',
+            config_text='roots = ["src/pkg"]\n[roles.main]\nmax_statments = 30\n',
             expected_error_type=ConfigValidationError,
             expected_error_fragment="max_statments",
         ),
         InvalidConfigTestCase(
             description="role threshold value must be integer",
-            config_text='roots = ["src/pkg"]\n[roles.entry]\nmax_statements = "30"\n',
+            config_text='roots = ["src/pkg"]\n[roles.main]\nmax_statements = "30"\n',
             expected_error_type=ConfigValidationError,
             expected_error_fragment="integer",
         ),

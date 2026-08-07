@@ -37,7 +37,9 @@ def test_init_module_empty_equivalent(*, module: ast.Module, ctx: RuleContext) -
 )
 def _test_no_top_level_helpers_equivalent(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     del module
-    if ctx.scope() is not ScopeName.TEST or ctx.path.name in set(ExemplarTestPathName):
+    if ctx.scope() is not ScopeName.TEST or ctx.path.name in ctx.constraint(
+        name="excluded_test_support_filenames"
+    ):
         return []
     return [
         ctx.fault_at(location=location)
@@ -56,7 +58,9 @@ def _test_no_top_level_helpers_equivalent(*, module: ast.Module, ctx: RuleContex
 )
 def _test_private_constant_order_equivalent(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     del module
-    if ctx.scope() is not ScopeName.TEST or ctx.path.name in set(ExemplarTestPathName):
+    if ctx.scope() is not ScopeName.TEST or ctx.path.name in ctx.constraint(
+        name="excluded_test_support_filenames"
+    ):
         return []
     return [
         ctx.fault_at(location=location)

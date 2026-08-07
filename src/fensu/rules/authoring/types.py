@@ -19,7 +19,7 @@ if TYPE_CHECKING:
         SyntaxAnalysis,
         TextAnalysis,
     )
-    from fensu.rules.authoring.models import Fault, RuleOption
+    from fensu.rules.authoring.models import CustomRuleRegistration, Fault, RuleOption
 
 type RuleOptionValue = bool | int | str | tuple[str, ...] | tuple[int, ...]
 
@@ -132,6 +132,18 @@ class RuleContext(Protocol):
 
     def option[T](self, option: RuleOption[T]) -> T:
         """Return the current value of an option declared by the active rule."""
+        ...
+
+    def constraint(self, *, name: str) -> tuple[str, ...]:
+        """Return one fixed exhaustive value set declared by the active rule."""
+        ...
+
+    def limit(self, *, name: str) -> int:
+        """Return one fixed numeric cardinality declared by the active rule."""
+        ...
+
+    def custom_rule_registrations(self) -> tuple[CustomRuleRegistration, ...]:
+        """Return configured custom-rule declarations owned by the current file."""
         ...
 
     def fault(

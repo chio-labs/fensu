@@ -1,15 +1,16 @@
 //! Native core-rule contract fixture helpers.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
 
 use fensu_facts::extension::models::ProgramHandle;
+use fensu_native::rules::constants::NATIVE_RULE_FACT_FAMILIES;
 use fensu_native::rules::main::evaluate_core_rules::evaluate_core_rules;
 use fensu_native::rules::models::{NativeProjectModule, NativeProjectPlane, NativeRuleContext};
 use ruff_python_ast::PythonVersion;
 
-use crate::test_types::{CoreRuleFixture, ExpectedFault};
+use crate::test_types::{CoreRuleCorpusTestCase, CoreRuleFixture, ExpectedFault};
 
 pub(crate) fn run_fixtures(fixtures: Vec<CoreRuleFixture>) {
     for fixture in fixtures {
@@ -23,6 +24,61 @@ pub(crate) fn fixtures() -> Vec<CoreRuleFixture> {
         .lines()
         .map(|line| serde_json::from_str(line).expect("core rule fixture is valid"))
         .collect()
+}
+
+pub(crate) fn generated_fixtures() -> Vec<CoreRuleFixture> {
+    include_str!("fixtures/generated_rules.jsonl")
+        .lines()
+        .map(|line| serde_json::from_str(line).expect("generated core rule fixture is valid"))
+        .collect()
+}
+
+pub(crate) fn assert_corpus_contract(
+    test_case: &CoreRuleCorpusTestCase,
+    fixtures: Vec<CoreRuleFixture>,
+) {
+    assert_eq!(
+        fixtures.len(),
+        test_case.expected_fixture_count,
+        "{}",
+        test_case.description
+    );
+    let registered = NATIVE_RULE_FACT_FAMILIES
+        .iter()
+        .map(|(code, _)| *code)
+        .filter(|code| code.starts_with("FF"))
+        .collect::<HashSet<_>>();
+    let requested = fixtures
+        .iter()
+        .flat_map(|fixture| fixture.codes.iter().map(String::as_str))
+        .collect::<HashSet<_>>();
+    let faulting = fixtures
+        .iter()
+        .flat_map(|fixture| {
+            fixture
+                .expected_faults
+                .iter()
+                .map(|fault| fault.code.as_str())
+        })
+        .collect::<HashSet<_>>();
+    let mut non_faulting = registered
+        .difference(&faulting)
+        .copied()
+        .collect::<Vec<_>>();
+    non_faulting.sort_unstable();
+    assert_eq!(
+        registered.len(),
+        test_case.expected_core_code_count,
+        "{}",
+        test_case.description
+    );
+    assert_eq!(requested, registered, "{}", test_case.description);
+    assert_eq!(
+        non_faulting, test_case.expected_non_faulting_codes,
+        "{}",
+        test_case.description
+    );
+    run_fixtures(fixtures);
 }
 
 fn evaluate_fixture(test_case: &CoreRuleFixture) -> Vec<ExpectedFault> {

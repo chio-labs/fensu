@@ -52,6 +52,10 @@ def evaluate_rule(
             tree=tree,
             ruleset=(resolved_rule,),
             config=config,
+            custom_rule_registrations=tuple(
+                replace(registration, source_path=repo_root / registration.source_path)
+                for registration in test_case.custom_rule_registrations
+            ),
         )
         return remap_rule_result(
             faults=result.faults,

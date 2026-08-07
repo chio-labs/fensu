@@ -7,8 +7,57 @@ use crate::helpers::{
     CONFIG,
 };
 use crate::test_types::{
-    ExceptionSymbolTestCase, FreshnessTestCase, PublicationRaceTestCase, SkillsCommandTestCase,
+    ExceptionSymbolTestCase, FreshnessTestCase, PublicationRaceTestCase,
+    RepositoryGuidanceTestCase, SkillsCommandTestCase,
 };
+
+#[test]
+fn given_canonical_role_policy_when_generating_skill_then_guidance_is_owned_and_complete() {
+    let test_cases = [RepositoryGuidanceTestCase {
+        description: "tooling roles derive from FFR705 and design advice is explicitly advisory",
+        expected_fragments: &[
+            "Advisory: For a singleton capability",
+            "Advisory: Promote a leaf to a branch",
+            "### Tooling\n\nEnforced by FFR705: Tool packages use the canonical role directories and files shown below.\n\n```text\nscripts/\n├── run_tool.py\n└── <tool>/\n    ├── main/\n    ├── _helpers/\n    ├── classes/\n    ├── rules/\n    ├── models.py\n    ├── types.py\n    ├── constants.py\n    └── exceptions.py\n```",
+        ],
+        unexpected_fragments: &["\nFor a singleton capability", "\nPromote a leaf to a branch"],
+    }];
+    for test_case in test_cases {
+        let repository = project();
+        let configured = CONFIG.replace("tests = []", "tests = []\ntooling = [\"scripts\"]");
+        write(repository.path().join("fensu.toml"), configured);
+        write(repository.path().join("scripts/run.py"), b"");
+
+        let result = native(repository.path(), &["--target", "agents"]);
+        assert_eq!(
+            result.status.code(),
+            Some(0),
+            "{}: {}",
+            test_case.description,
+            text(&result.stderr)
+        );
+        let guidance = fs::read_to_string(target(
+            repository.path(),
+            ".agents",
+            "fensu-fixture",
+        ))
+        .expect("generated guidance");
+        for fragment in test_case.expected_fragments {
+            assert!(
+                guidance.contains(fragment),
+                "{}: missing {fragment}",
+                test_case.description
+            );
+        }
+        for fragment in test_case.unexpected_fragments {
+            assert!(
+                !guidance.contains(fragment),
+                "{}: retained {fragment}",
+                test_case.description
+            );
+        }
+    }
+}
 
 #[test]
 fn given_destination_change_during_staging_when_publishing_then_rolls_back_prior_writes() {

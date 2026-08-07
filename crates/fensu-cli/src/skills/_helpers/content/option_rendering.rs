@@ -1,6 +1,6 @@
 use serde_json::json;
 
-use crate::models::{RuleMetadata, RuleOptionMetadata, RuleOptionValue};
+use crate::catalogue::models::{RuleMetadata, RuleOptionMetadata, RuleOptionValue};
 use crate::skills::_helpers::content::sections::py_json;
 
 pub(crate) fn rule_option_lines(rule: &RuleMetadata) -> Vec<String> {

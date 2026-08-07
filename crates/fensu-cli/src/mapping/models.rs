@@ -9,6 +9,7 @@ use crate::mapping::_helpers::identity::{build_class_key, build_function_key, qu
 pub(crate) struct MappingSource {
     pub(crate) scan_path: PathBuf,
     pub(crate) import_root: PathBuf,
+    pub(crate) exclude_artifact_directories: bool,
 }
 
 #[derive(Clone, Debug)]

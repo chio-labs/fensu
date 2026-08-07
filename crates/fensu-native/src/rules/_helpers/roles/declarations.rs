@@ -3,6 +3,7 @@
 use fensu_facts::extension::models::ProgramHandle;
 use fensu_facts::facts::models::{ModuleDeclarationRows, ModuleStatementRow};
 
+use crate::rules::_helpers::generated_policy::FFR102_ALLOWED_PRIVATE_TYPE_ROLES;
 use crate::rules::constants::{
     CONSTANTS_ONLY_CONSTANTS_CODE, CONSTANT_OUTSIDE_CONSTANTS_CODE,
     EXCEPTIONS_ONLY_EXCEPTIONS_CODE, EXCEPTION_DECLARATION_OUTSIDE_EXCEPTIONS_CODE,
@@ -98,7 +99,11 @@ pub(crate) fn declaration_faults(
             .iter()
             .filter(|row| {
                 context.role.as_deref() != Some(TYPES_ROLE)
-                    && (!row.private || context.role.as_deref() != Some(HELPERS_ROLE))
+                    && (!row.private
+                        || !context
+                            .role
+                            .as_deref()
+                            .is_some_and(|role| FFR102_ALLOWED_PRIVATE_TYPE_ROLES.contains(&role)))
             })
             .map(|row| location_fault(code, row.line, row.column, None))
             .collect(),

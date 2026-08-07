@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
-use crate::models::{Config, RuleMetadata};
+use crate::catalogue::models::RuleMetadata;
+use crate::models::Config;
 
 pub(crate) fn validate(config: &Config, catalogue: &[RuleMetadata]) -> Result<(), String> {
     let codes = catalogue

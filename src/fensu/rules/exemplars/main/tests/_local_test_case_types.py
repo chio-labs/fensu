@@ -4,7 +4,7 @@ import ast
 from pathlib import Path
 
 from fensu import Family, Fault, ParametrizeFact, RuleContext, ScopeName, rule
-from fensu.rules.exemplars.types import ExemplarTestPathName, ExemplarTestSymbol
+from fensu.rules.exemplars.types import ExemplarTestSymbol
 
 
 def _local_types(*, ctx: RuleContext) -> frozenset[str]:
@@ -33,7 +33,9 @@ def test_case_annotation_equivalent(*, module: ast.Module, ctx: RuleContext) -> 
     """Express FFT403 through public test and sibling dataclass facts."""
 
     del module
-    if ctx.scope() is not ScopeName.TEST or ctx.path.name in set(ExemplarTestPathName):
+    if ctx.scope() is not ScopeName.TEST or ctx.path.name in ctx.constraint(
+        name="excluded_test_support_filenames"
+    ):
         return []
     local_types: frozenset[str] = _local_types(ctx=ctx)
     return [
@@ -62,14 +64,18 @@ def _local_test_case_constructors_equivalent(
     *, module: ast.Module, ctx: RuleContext
 ) -> list[Fault]:
     del module
-    if ctx.scope() is not ScopeName.TEST or ctx.path.name in set(ExemplarTestPathName):
+    if ctx.scope() is not ScopeName.TEST or ctx.path.name in ctx.constraint(
+        name="excluded_test_support_filenames"
+    ):
         return []
     local_types: frozenset[str] = _local_types(ctx=ctx)
     faults: list[Fault] = []
     for function in ctx.facts.test_functions():
         parametrize: ParametrizeFact | None = function.parametrize
-        if parametrize is None or (
-            not parametrize.values_is_sequence and not parametrize.values_is_comprehension
+        if (
+            parametrize is None
+            or parametrize.argument_count < ctx.limit(name="minimum_parametrize_arguments")
+            or (not parametrize.values_is_sequence and not parametrize.values_is_comprehension)
         ):
             continue
         faults.extend(

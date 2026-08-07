@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fensu.rules.authoring.models import RuleSpec
+from fensu.rules.authoring.models import RuleConstraint, RuleSpec
 from fensu.rules.authoring.types import ExecutionOwner, Family
 from fensu.rules.layers.types import LayerCode
 
@@ -49,6 +49,13 @@ def import_rules() -> tuple[RuleSpec, ...]:
             slug="no-internal-public-surface-imports",
             message="internal code must import from the owning module, not the bare package",
             remediation="Import from the concrete owning module below the package surface.",
+            constraints=(
+                RuleConstraint(
+                    name="exempt_subdomain_paths",
+                    description="Subdomain paths exempt from internal public-surface imports",
+                    values=("rules/exemplars",),
+                ),
+            ),
         ),
         RuleSpec(
             code=LayerCode.NO_CROSS_DOMAIN_PRIVATE_MAIN_IMPORTS,

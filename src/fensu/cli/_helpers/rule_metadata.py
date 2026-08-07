@@ -30,7 +30,7 @@ def rule_metadata_value(
         "pack": rule.pack,
         "alias_of": rule.alias_of,
         "source": rule.source,
-        "cacheable": bool(rule.cacheable),
+        "cacheable": rule.cacheable,
         "options": [
             _option_metadata_value(option=option, current=current)
             for option in sorted(rule.options, key=lambda item: item.name)

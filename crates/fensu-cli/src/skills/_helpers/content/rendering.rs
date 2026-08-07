@@ -16,6 +16,19 @@ const CUSTOM_KIND: &str = "custom";
 const TESTS_HEADING: &str = "### Tests";
 const TEST_TYPES_LABEL: &str = "`_test_types.py`:";
 const TOOLING_HEADING: &str = "### Tooling";
+const NORMATIVE_GUIDANCE_FRAGMENTS: &[&str] = &[
+    " must ",
+    " only ",
+    "Do not ",
+    "Every ",
+    "banned",
+    "belong",
+    "defines exactly",
+    "precede",
+    "prefer",
+    "Promote",
+    "Use up",
+];
 const PROFILE: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/assets/skills_invariant.json"
@@ -183,8 +196,11 @@ fn repository_lines(context: &SkillContext) -> Result<Vec<String>, String> {
             test_types_index..test_types_index,
             profile_lines("tooling_tests")?,
         );
-        profile.extend(profile_lines("tooling")?);
+        if active.contains("FFR705") {
+            profile.extend(tooling_lines(context)?);
+        }
     }
+    validate_repository_guidance(&profile, context)?;
     let mut profile = expand_repository_profile(profile, context)?;
     if context.config.tests.is_empty() {
         if let Some(tests_index) = profile.iter().position(|line| line == TESTS_HEADING) {
@@ -198,11 +214,11 @@ fn repository_lines(context: &SkillContext) -> Result<Vec<String>, String> {
             }
         }
     }
-    let generic_package_prefix = "Generic package names are banned";
+    let generic_package_prefix = "Enforced by FFR204: Generic package names are banned";
     if active.contains("FFR204") {
         let values = fixed_constraint_values(context, "FFR204", "forbidden_package_names")?;
         let replacement = format!(
-            "Generic package names are banned: {}. Name the business domain or technical capability owner instead.",
+            "Enforced by FFR204: Generic package names are banned: {}. Name the business domain or technical capability owner instead.",
             values
                 .iter()
                 .map(|value| format!("`{value}`"))
@@ -245,6 +261,75 @@ fn repository_lines(context: &SkillContext) -> Result<Vec<String>, String> {
         .collect())
 }
 
+fn tooling_lines(context: &SkillContext) -> Result<Vec<String>, String> {
+    let directories =
+        fixed_constraint_values(context, "FFR705", "allowed_tooling_role_directories")?;
+    let files = fixed_constraint_values(context, "FFR705", "allowed_tooling_role_files")?;
+    let mut roles = directories
+        .iter()
+        .map(|value| format!("{value}/"))
+        .chain(files.iter().cloned())
+        .collect::<Vec<_>>();
+    let final_role = roles.pop().ok_or_else(|| {
+        "FFR705 must declare at least one tooling role directory or file.".to_owned()
+    })?;
+    let mut lines = vec![
+        TOOLING_HEADING.to_owned(),
+        String::new(),
+        "Enforced by FFR705: Tool packages use the canonical role directories and files shown below."
+            .to_owned(),
+        String::new(),
+        "```text".to_owned(),
+        "__TOOL__/".to_owned(),
+        "├── run_tool.py".to_owned(),
+        "└── <tool>/".to_owned(),
+    ];
+    lines.extend(roles.into_iter().map(|role| format!("    ├── {role}")));
+    lines.extend([
+        format!("    └── {final_role}"),
+        "```".to_owned(),
+        String::new(),
+    ]);
+    Ok(lines)
+}
+
+fn validate_repository_guidance(lines: &[String], context: &SkillContext) -> Result<(), String> {
+    let mut fenced = false;
+    for line in lines {
+        if line.starts_with("```") {
+            fenced = !fenced;
+            continue;
+        }
+        let normative = NORMATIVE_GUIDANCE_FRAGMENTS
+            .iter()
+            .any(|fragment| line.contains(fragment));
+        if fenced || !normative || line.starts_with("Advisory:") {
+            continue;
+        }
+        let owners = line
+            .strip_prefix("Enforced by ")
+            .and_then(|value| value.split_once(':').map(|item| item.0))
+            .ok_or_else(|| format!("Unowned normative repository guidance: {line}"))?;
+        let codes = owners
+            .split(|character: char| !character.is_ascii_alphanumeric())
+            .filter(|value| value.starts_with("FF"))
+            .collect::<Vec<_>>();
+        if codes.is_empty() {
+            return Err(format!(
+                "Repository guidance has no canonical rule owner: {line}"
+            ));
+        }
+        for code in codes {
+            if !context.catalogue.iter().any(|rule| rule.code == code) {
+                return Err(format!(
+                    "Repository guidance names unknown rule {code}: {line}"
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 fn fixed_constraint_values<'a>(
     context: &'a SkillContext,
     code: &str,
@@ -281,7 +366,7 @@ fn configured_threshold_lines(context: &SkillContext) -> Result<Vec<String>, Str
         .chain(&context.warnings)
         .map(|rule| rule.code.clone())
         .collect::<Vec<_>>();
-    let required = crate::check::main::required_thresholds::required_thresholds(&active);
+    let required = crate::check::main::required_thresholds::required_thresholds(&active)?;
     let mut applicable: Vec<&ThresholdOverride> = Vec::new();
     for item in &context.config.threshold_overrides {
         if item

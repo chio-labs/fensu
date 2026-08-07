@@ -28,6 +28,9 @@ fn valid_test_scope(scope: &str) -> bool {
     !scope.is_empty()
         && bytes[0].is_ascii_lowercase()
         && !scope.ends_with(['_', '-'])
+        && !bytes
+            .windows(2)
+            .any(|pair| matches!(pair[0], b'_' | b'-') && matches!(pair[1], b'_' | b'-'))
         && bytes.iter().all(|byte| {
             byte.is_ascii_lowercase() || byte.is_ascii_digit() || *byte == b'_' || *byte == b'-'
         })

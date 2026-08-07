@@ -109,6 +109,12 @@ pub(crate) struct EffectiveRulePolicyTestCase {
     pub(crate) expected_fragments: &'static [&'static str],
 }
 
+pub(crate) struct OwnerPlanningTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_exit_code: i32,
+    pub(crate) expected_fault_count: usize,
+}
+
 pub(crate) struct PreExecutionCleanupTestCase {
     pub(crate) description: &'static str,
     pub(crate) config: &'static str,

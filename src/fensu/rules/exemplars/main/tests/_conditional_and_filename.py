@@ -3,7 +3,6 @@
 import ast
 
 from fensu import Family, Fault, RuleContext, ScopeName, rule
-from fensu.rules.exemplars.types import ExemplarTestPathName
 
 
 @rule(
@@ -23,12 +22,12 @@ def test_no_if_in_tests_equivalent(*, module: ast.Module, ctx: RuleContext) -> l
     del module
     if ctx.scope() is not ScopeName.TEST:
         return []
-    if ctx.path.name in {ExemplarTestPathName.HELPERS, ExemplarTestPathName.TEST_HELPERS}:
+    if ctx.path.name in ctx.constraint(name="helper_module_filenames"):
         return [
             ctx.fault_at(location=location)
             for location in ctx.facts.top_level_definition_conditionals()
         ]
-    if ctx.path.name in set(ExemplarTestPathName):
+    if ctx.path.name in ctx.constraint(name="excluded_test_support_filenames"):
         return []
     faults: list[Fault] = []
     for fact in ctx.facts.test_functions():
@@ -47,7 +46,7 @@ def _test_file_name_equivalent(*, module: ast.Module, ctx: RuleContext) -> list[
     del module
     if (
         ctx.scope() is ScopeName.TEST
-        and ctx.path.name not in set(ExemplarTestPathName)
+        and ctx.path.name not in ctx.constraint(name="excluded_test_support_filenames")
         and not ctx.path.name.startswith("test_")
     ):
         return [ctx.path_fault()]

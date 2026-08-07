@@ -19,6 +19,20 @@ def get_role_rule_constraints(code: RoleCode) -> tuple[RuleConstraint, ...]:
         ),
         RoleCode.NESTED_DIRECT_SUBPACKAGES: (_recognized_role_directories(),),
         RoleCode.TOP_LEVEL_DIRECT_MODULES: (_recognized_role_filenames(),),
+        RoleCode.TYPE_DECLARATION_OUTSIDE_TYPES: (
+            RuleConstraint(
+                name="allowed_private_type_roles",
+                description="Roles allowed to own private type declarations",
+                values=("helpers",),
+            ),
+        ),
+        RoleCode.NO_REEXPORT_SHIM: (
+            RuleConstraint(
+                name="exempt_roles",
+                description="Roles exempt from the pure re-export shim rule",
+                values=("exceptions",),
+            ),
+        ),
         RoleCode.TOOLING_ENTRYPOINT_SHAPE: (
             RuleConstraint(
                 name="allowed_command_functions",
@@ -33,9 +47,14 @@ def get_role_rule_constraints(code: RoleCode) -> tuple[RuleConstraint, ...]:
         ),
         RoleCode.TOOLING_ENTRYPOINT_DELEGATION: (
             RuleConstraint(
-                name="allowed_main_call_targets",
-                description="Allowed direct-script main() call targets",
-                values=("_parse_args", "imported main/ entry function"),
+                name="allowed_local_main_call_targets",
+                description="Allowed local direct-script main() call targets",
+                values=("_parse_args",),
+            ),
+            RuleConstraint(
+                name="allowed_imported_entry_roles",
+                description="Roles whose imported entries may be called by direct-script main()",
+                values=("main",),
             ),
         ),
         RoleCode.TOOLING_PACKAGE_LAYOUT: (

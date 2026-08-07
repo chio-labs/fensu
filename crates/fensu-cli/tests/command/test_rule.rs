@@ -230,9 +230,14 @@ fn given_fixed_core_constraints_when_inspecting_rules_then_lists_exhaustive_valu
             expected_fragment: "Recognized runtime role directories: main, _helpers, classes, models, types, constants, exceptions",
         },
         RuleRemediationTestCase {
-            description: "FFR702 discloses every allowed direct-script call target",
+            description: "FFR702 discloses allowed local direct-script call targets",
             code: "FFR702",
-            expected_fragment: "Allowed direct-script main() call targets: _parse_args, imported main/ entry function",
+            expected_fragment: "Allowed local direct-script main() call targets: _parse_args",
+        },
+        RuleRemediationTestCase {
+            description: "FFR702 discloses allowed imported entry roles",
+            code: "FFR702",
+            expected_fragment: "Roles whose imported entries may be called by direct-script main(): main",
         },
         RuleRemediationTestCase {
             description: "FFR701 discloses every allowed direct-script function",

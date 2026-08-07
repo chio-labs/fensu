@@ -67,6 +67,9 @@ def evaluate_target(
                 config=config,
                 tree=tree,
                 project=project,
+                file_cache_seed={
+                    CUSTOM_RULE_REGISTRATIONS_CACHE_KEY: target.custom_rule_registrations
+                },
                 applicable_rule_codes=direct_applicable_rule_codes,
                 native_evaluation=(
                     replace(
@@ -79,13 +82,14 @@ def evaluate_target(
                 ),
             )
         )
-    if target.custom_rule_registrations:
-        coverage_tier: tuple[RuleSpec, ...] = (
-            warning_rules if target.custom_rule_coverage_warning else ruleset
-        )
-        coverage_rule: RuleSpec = next(
-            rule for rule in coverage_tier if rule.code == RoleCode.CUSTOM_RULE_TEST_COVERAGE
-        )
+    coverage_tier: tuple[RuleSpec, ...] = (
+        warning_rules if target.custom_rule_coverage_warning else ruleset
+    )
+    coverage_rule: RuleSpec | None = next(
+        (rule for rule in coverage_tier if rule.code == RoleCode.CUSTOM_RULE_TEST_COVERAGE),
+        None,
+    )
+    if target.custom_rule_registrations and coverage_rule is not None:
         evaluations.append(
             evaluate_file(
                 scoped_file=target.scoped_file,

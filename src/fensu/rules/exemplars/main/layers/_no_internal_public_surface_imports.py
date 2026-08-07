@@ -21,10 +21,7 @@ def no_internal_public_surface_imports_equivalent(
     del module
     if (
         ctx.scope() is not ScopeName.ROOT
-        or (
-            ctx.domain() == ExemplarLayerPathName.RULES
-            and ctx.subdomain() == ExemplarLayerPathName.EXEMPLARS
-        )
+        or "/".join(ctx.relative_parts()[:2]) in ctx.constraint(name="exempt_subdomain_paths")
         or (ctx.path.name == ExemplarLayerPathName.INIT and len(ctx.relative_parts()) == 1)
     ):
         return []

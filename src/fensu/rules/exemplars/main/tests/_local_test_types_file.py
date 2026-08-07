@@ -21,7 +21,9 @@ def local_test_types_file_equivalent(*, module: ast.Module, ctx: RuleContext) ->
     """Express FFT204 through the public file observation API."""
 
     del module
-    if ctx.scope() is not ScopeName.TEST or ctx.path.name in set(ExemplarTestPathName):
+    if ctx.scope() is not ScopeName.TEST or ctx.path.name in ctx.constraint(
+        name="excluded_test_support_filenames"
+    ):
         return []
     path: Path = ctx.path.parent / ExemplarTestPathName.TEST_TYPES
     return [] if ctx.project.is_file(requester=ctx.path, path=path) else [ctx.path_fault()]

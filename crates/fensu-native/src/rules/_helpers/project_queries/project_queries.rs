@@ -7,7 +7,8 @@ use fensu_facts::facts::models::ImportRow;
 
 use crate::rules::_helpers::generated_policy::{
     FFR204_FORBIDDEN_PACKAGE_NAMES, FFR705_ALLOWED_TOOLING_ROLE_DIRECTORIES,
-    FFR705_ALLOWED_TOOLING_ROLE_FILES, FFT301_EXCLUDED_TEST_SUPPORT_FILENAMES,
+    FFR705_ALLOWED_TOOLING_ROLE_FILES, FFT204_EXCLUDED_TEST_SUPPORT_FILENAMES,
+    FFT403_EXCLUDED_TEST_SUPPORT_FILENAMES, FFT413_EXCLUDED_TEST_SUPPORT_FILENAMES,
 };
 use crate::rules::_helpers::role_project_layout_queries;
 use crate::rules::constants::{
@@ -82,23 +83,26 @@ pub(crate) fn plan_project_queries(
             queries.push(query("exists", &path, ""));
         }
     }
-    if is_test_module(context) {
-        if selected.contains(TEST_LOCAL_TEST_TYPES_FILE_CODE) {
-            queries.push(query(
-                "is_file",
-                &sibling_path(context, TEST_TYPES_FILE),
-                "",
-            ));
-        }
-        if selected.contains(TEST_CASE_ANNOTATION_CODE)
-            || selected.contains(TEST_LOCAL_TEST_CASE_CONSTRUCTORS_CODE)
-        {
-            queries.push(query(
-                "dataclasses",
-                &sibling_path(context, TEST_TYPES_FILE),
-                "",
-            ));
-        }
+    let file_name = file_name(context);
+    if selected.contains(TEST_LOCAL_TEST_TYPES_FILE_CODE)
+        && !FFT204_EXCLUDED_TEST_SUPPORT_FILENAMES.contains(&file_name)
+    {
+        queries.push(query(
+            "is_file",
+            &sibling_path(context, TEST_TYPES_FILE),
+            "",
+        ));
+    }
+    if selected.contains(TEST_CASE_ANNOTATION_CODE)
+        && !FFT403_EXCLUDED_TEST_SUPPORT_FILENAMES.contains(&file_name)
+        || selected.contains(TEST_LOCAL_TEST_CASE_CONSTRUCTORS_CODE)
+            && !FFT413_EXCLUDED_TEST_SUPPORT_FILENAMES.contains(&file_name)
+    {
+        queries.push(query(
+            "dataclasses",
+            &sibling_path(context, TEST_TYPES_FILE),
+            "",
+        ));
     }
     if selected.contains(BANNED_GENERIC_PACKAGE_NAME_CODE) && context.scope == ROOT_SCOPE {
         for (index, part) in context.relative_parts
@@ -166,11 +170,6 @@ fn query(kind: &str, path: &str, argument: &str) -> NativeProjectQuery {
 
 fn file_name(context: &NativeRuleContext) -> &str {
     context.relative_parts.last().map_or("", String::as_str)
-}
-
-fn is_test_module(context: &NativeRuleContext) -> bool {
-    context.scope == TEST_SCOPE
-        && !FFT301_EXCLUDED_TEST_SUPPORT_FILENAMES.contains(&file_name(context))
 }
 
 fn sibling_path(context: &NativeRuleContext, name: &str) -> String {

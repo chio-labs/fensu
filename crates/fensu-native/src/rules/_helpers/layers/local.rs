@@ -5,6 +5,7 @@ use std::collections::HashSet;
 use fensu_facts::extension::models::ProgramHandle;
 use fensu_facts::facts::models::{ImportRow, ReferenceEventRow};
 
+use crate::rules::_helpers::generated_policy::FFL103_EXEMPT_SUBDOMAIN_PATHS;
 use crate::rules::constants::{
     NO_CROSS_FILE_HELPER_PRIVATE_CLASS_CODE, NO_INTERNAL_PUBLIC_SURFACE_IMPORTS_CODE,
     NO_RUNTIME_IMPORTS_FROM_TOOLING_CODE,
@@ -14,8 +15,6 @@ use crate::rules::models::{NativeFaultRow, NativeRuleContext};
 const HELPERS_PART: &str = "_helpers";
 const INIT_FILE_NAME: &str = "__init__.py";
 const ROOT_SCOPE: &str = "root";
-const RULES_DOMAIN: &str = "rules";
-const EXEMPLARS_SUBDOMAIN: &str = "exemplars";
 
 pub(crate) fn local_layer_faults(
     program: &ProgramHandle,
@@ -42,7 +41,7 @@ fn internal_public_surface_faults(
     imports: &[ImportRow],
 ) -> Vec<NativeFaultRow> {
     if context.scope != ROOT_SCOPE
-        || matches!(context.relative_parts.as_slice(), [domain, subdomain, ..] if domain == RULES_DOMAIN && subdomain == EXEMPLARS_SUBDOMAIN)
+        || exempt_subdomain(context)
         || matches!(context.relative_parts.as_slice(), [name] if name == INIT_FILE_NAME)
     {
         return Vec::new();
@@ -52,6 +51,14 @@ fn internal_public_surface_faults(
         .filter(|row| imports_public_surface(row, &context.package_name))
         .map(|row| location_fault(code, row.line, row.column))
         .collect()
+}
+
+fn exempt_subdomain(context: &NativeRuleContext) -> bool {
+    let Some([domain, subdomain]) = context.relative_parts.get(..2) else {
+        return false;
+    };
+    let path = format!("{domain}/{subdomain}");
+    FFL103_EXEMPT_SUBDOMAIN_PATHS.contains(&path.as_str())
 }
 
 fn runtime_tooling_import_faults(

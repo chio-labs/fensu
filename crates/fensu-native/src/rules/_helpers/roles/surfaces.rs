@@ -4,9 +4,10 @@ use fensu_facts::extension::models::ProgramHandle;
 use fensu_facts::facts::models::{ModuleDeclarationRows, ModuleStatementRow};
 
 use crate::rules::_helpers::generated_policy::{
-    FFR401_MAXIMUM_PRIVATE_FUNCTIONS, FFR401_REQUIRED_PUBLIC_FUNCTIONS,
+    FFR401_MAXIMUM_PRIVATE_FUNCTIONS, FFR401_REQUIRED_PUBLIC_FUNCTIONS, FFR403_EXEMPT_ROLES,
     FFR701_ALLOWED_COMMAND_FUNCTIONS, FFR701_ALLOWED_TOP_LEVEL_STATEMENT_KINDS,
-    FFR701_REQUIRED_MAIN_FUNCTIONS, FFR702_ALLOWED_MAIN_CALL_TARGETS,
+    FFR701_REQUIRED_MAIN_FUNCTIONS, FFR702_ALLOWED_IMPORTED_ENTRY_ROLES,
+    FFR702_ALLOWED_LOCAL_MAIN_CALL_TARGETS,
 };
 use crate::rules::constants::{
     CLASSES_ONE_CLASS_PER_MODULE_CODE, ENTRY_MODULE_SHAPE_CODE, INIT_MODULE_EMPTY_CODE,
@@ -19,7 +20,6 @@ use crate::rules::models::{NativeFaultRow, NativeRuleContext};
 use crate::rules::_helpers::roles::{location_fault, path_fault, path_name};
 
 const CLASSES_ROLE: &str = "classes";
-const EXCEPTIONS_ROLE: &str = "exceptions";
 const INIT_FILE_NAME: &str = "__init__.py";
 const MAIN_FUNCTION: &str = "main";
 const COMMAND_FUNCTION_STATEMENT: &str = "command function";
@@ -156,7 +156,10 @@ fn reexport_faults(
     declarations: &ModuleDeclarationRows,
 ) -> Vec<NativeFaultRow> {
     if path_name(context) == Some(INIT_FILE_NAME)
-        || context.role.as_deref() == Some(EXCEPTIONS_ROLE)
+        || context
+            .role
+            .as_deref()
+            .is_some_and(|role| FFR403_EXEMPT_ROLES.contains(&role))
         || !declarations.pure_reexport
     {
         return Vec::new();
@@ -328,7 +331,7 @@ fn tooling_entrypoint_delegation_faults(
         let allowed = call
             .name
             .as_deref()
-            .is_some_and(|name| FFR702_ALLOWED_MAIN_CALL_TARGETS.contains(&name))
+            .is_some_and(|name| FFR702_ALLOWED_LOCAL_MAIN_CALL_TARGETS.contains(&name))
             || imported_main_call(call.name.as_deref(), declarations);
         if !allowed {
             faults.push(location_fault(
@@ -343,6 +346,9 @@ fn tooling_entrypoint_delegation_faults(
 }
 
 fn imported_main_call(name: Option<&str>, declarations: &ModuleDeclarationRows) -> bool {
+    if !FFR702_ALLOWED_IMPORTED_ENTRY_ROLES.contains(&MAIN_FUNCTION) {
+        return false;
+    }
     let Some(name) = name else {
         return false;
     };

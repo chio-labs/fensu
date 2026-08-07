@@ -135,7 +135,6 @@ pub const LITERAL_CASE_FORM: &str = "literal";
 pub const PARAMETER_CASE_FORM: &str = "parameter";
 pub const LOCAL_CASE_FORM: &str = "local";
 pub const DYNAMIC_CASE_FORM: &str = "dynamic";
-pub const MINIMUM_PARAMETRIZE_ARGUMENTS: usize = 2;
 pub const MINIMUM_EXPECTED_FIELD_CHAIN_PARTS: usize = 2;
 pub const STATIC_REFERENCE_FACT_NAME: &str = "StaticReferenceFact";
 pub const EVALUATE_RULE_CALL_FACT_NAME: &str = "EvaluateRuleCallFact";

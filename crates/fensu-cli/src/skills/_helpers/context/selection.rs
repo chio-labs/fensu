@@ -5,17 +5,21 @@ use serde_json::json;
 
 use crate::catalogue::main::rule_catalogue::configured_rule_catalogue;
 use crate::configuration::constants::{CONTRACT_BEHAVIORS, DEFAULT_THRESHOLDS};
+use crate::configuration::main::is_rule_code::is_rule_code;
+use crate::configuration::main::is_rule_selector::is_rule_selector;
 use crate::hosting::main::run_skills_metadata_host::run_skills_metadata_host;
 use crate::models::{Config, RuleMetadata};
 use crate::skills::_helpers::context::option_validation::validate_rule_options;
-use crate::skills::_helpers::context::selector_validation::{
-    valid_code, valid_selector, CORE_KIND, CORE_PREFIX, CUSTOM_KIND, CUSTOM_PREFIX, PACK_KIND,
-    PACK_PREFIX,
-};
 use crate::skills::models::{HostResponse, RuleSelection};
 
 const CONFIGURATION_INPUTS: &[&str] = &["roots", "tests", "tooling", "test_scopes"];
+const CORE_KIND: &str = "core";
+const CORE_PREFIX: &str = "FF";
+const CUSTOM_KIND: &str = "custom";
+const CUSTOM_PREFIX: char = 'X';
 const METADATA_PROTOCOL: u32 = 3;
+const PACK_KIND: &str = "pack";
+const PACK_PREFIX: &str = "FP";
 
 pub(crate) fn validate_config_policy(config: &Config) -> Result<(), String> {
     for (name, selectors) in [
@@ -24,7 +28,7 @@ pub(crate) fn validate_config_policy(config: &Config) -> Result<(), String> {
         ("ignore", &config.ignore),
     ] {
         for selector in selectors {
-            if !valid_selector(selector) {
+            if !is_rule_selector(selector) {
                 return Err(format!(
                     "Config key {name} contains invalid selector {selector}."
                 ));
@@ -150,7 +154,7 @@ fn validate_host_shape(raw: &[u8]) -> Result<(), String> {
 fn validate_host_catalogue(catalogue: &[RuleMetadata]) -> Result<(), String> {
     let mut seen: HashSet<String> = HashSet::new();
     for item in catalogue {
-        if !valid_code(&item.code) {
+        if !is_rule_code(&item.code) {
             return Err(format!(
                 "Catalogue rule {} must use one exact rule code.",
                 item.code
@@ -301,7 +305,7 @@ fn selected(catalogue: &[RuleMetadata], selectors: &[String]) -> Vec<RuleMetadat
             item.enabled_by_default && selectors.iter().any(|value| item.code.starts_with(value));
         let explicit = selectors
             .iter()
-            .any(|value| valid_code(value) && value == &item.code);
+            .any(|value| is_rule_code(value) && value == &item.code);
         if enabled || explicit {
             selected.push(item.clone());
         }

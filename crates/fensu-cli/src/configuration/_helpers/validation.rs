@@ -4,8 +4,8 @@ use crate::configuration::_helpers::exceptions;
 use crate::configuration::_helpers::native_rules::{validate_rule_options, validate_rule_packs};
 use crate::configuration::_helpers::roots::validate_nested_roots;
 use crate::configuration::_helpers::scopes::validate_test_scopes;
+use crate::configuration::_helpers::selectors::valid_selector;
 use crate::configuration::constants::{CONFIG_ROLE_NAMES, CONTRACT_BEHAVIORS, DEFAULT_THRESHOLDS};
-use crate::constants::MAX_CORE_SELECTOR_SUFFIX;
 
 const RECURSIVE_GLOB: &str = "**";
 
@@ -44,6 +44,9 @@ pub(crate) fn validate(table: &toml::map::Map<String, toml::Value>) -> Result<()
     validate_optional_table(table, "skills", &["name"])?;
     validate_rule_options(table.get("rule_options"))?;
     validate_test_scopes(table.get("test_scopes"))?;
+    for name in ["select", "warn", "ignore"] {
+        validate_selectors(table.get(name), name)?;
+    }
     for name in [
         "tests",
         "tooling",
@@ -232,7 +235,7 @@ fn validate_rule_ignores(value: Option<&toml::Value>) -> Result<(), String> {
             return Err("Rule ignore selectors must not be empty.".to_owned());
         }
         for selector in rules {
-            if !valid_rule_selector(&selector) {
+            if !valid_selector(&selector) {
                 return Err(format!(
                     "Config key rule_ignores.rules contains invalid selector {selector}."
                 ));
@@ -256,26 +259,18 @@ fn validate_rule_ignores(value: Option<&toml::Value>) -> Result<(), String> {
     Ok(())
 }
 
-fn valid_rule_selector(value: &str) -> bool {
-    if matches!(value, "FF" | "X") {
-        return true;
+fn validate_selectors(value: Option<&toml::Value>, name: &str) -> Result<(), String> {
+    let Some(value) = value else {
+        return Ok(());
+    };
+    for selector in required_strings(Some(value), name)? {
+        if !valid_selector(&selector) {
+            return Err(format!(
+                "Config key {name} contains invalid selector {selector}."
+            ));
+        }
     }
-    if let Some(rest) = value.strip_prefix("FF") {
-        return rest.len() <= MAX_CORE_SELECTOR_SUFFIX
-            && rest
-                .chars()
-                .next()
-                .is_some_and(|item| item.is_ascii_uppercase())
-            && rest[1..].chars().all(|item| item.is_ascii_digit());
-    }
-    value.strip_prefix('X').is_some_and(|rest| {
-        let digit = rest
-            .find(|character: char| character.is_ascii_digit())
-            .unwrap_or(rest.len());
-        !rest.is_empty()
-            && rest[..digit].chars().all(|item| item.is_ascii_uppercase())
-            && rest[digit..].chars().all(|item| item.is_ascii_digit())
-    })
+    Ok(())
 }
 
 fn validate_evaluation(value: Option<&toml::Value>) -> Result<(), String> {

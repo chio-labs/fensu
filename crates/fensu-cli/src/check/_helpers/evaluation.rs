@@ -7,14 +7,17 @@ use fensu_native::rules::main::plan_core_rule_queries::plan_core_rule_queries;
 use fensu_native::rules::models::NativeRuleContext;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 
-use crate::catalogue::main::rule_catalogue::configured_rule_catalogue;
 use crate::catalogue::main::rule_metadata::rule_metadata;
 use crate::check::_helpers::exceptions::{apply_exceptions, ApplyExceptionsRequest};
 use crate::check::_helpers::policy::{
-    apply_rule_ignores, is_entry_module, is_main_module, program, resolved_thresholds, role,
-    scope_roots, source_module_name,
+    apply_rule_ignores, is_entry_module, is_main_module, program, role, scope_roots,
+    source_module_name,
 };
 use crate::check::_helpers::project::{observe, project_plane};
+use crate::check::_helpers::rule_policy::{
+    display_codes_by_implementation, resolved_thresholds, selected_rules, validate_config_tiers,
+    validate_unique_implementations,
+};
 use crate::check::models::EvaluationRequest;
 use crate::constants::{
     OWNER_FILE, OWNER_PACKAGE, ROLE_HELPERS, ROLE_MAIN, SCOPE_TEST, SUFFIX_INIT,
@@ -32,6 +35,7 @@ pub(crate) fn evaluate_and_render(request: EvaluationRequest<'_>) -> Result<(Str
         show_warnings,
         color,
     } = request;
+    validate_config_tiers(config)?;
     let blocking = selected_rules(config, &config.select, &config.ignore)?;
     let warning_rules = if show_warnings {
         selected_rules(config, &config.warn, &config.ignore)?
@@ -207,28 +211,6 @@ fn native_rule_options(
     Ok(by_code)
 }
 
-pub(crate) fn selected_rules(
-    config: &Config,
-    select: &[String],
-    ignore: &[String],
-) -> Result<Vec<&'static RuleMetadata>, String> {
-    let mut rules: Vec<&'static RuleMetadata> = Vec::new();
-    for rule in configured_rule_catalogue(&config.rule_packs) {
-        let selected = select
-            .iter()
-            .any(|selector| rule.code.starts_with(selector));
-        let explicit = select.iter().any(|selector| selector == &rule.code);
-        let ignored = ignore
-            .iter()
-            .any(|selector| rule.code.starts_with(selector));
-        if (rule.enabled_by_default && selected || explicit) && !ignored {
-            rules.push(rule);
-        }
-    }
-    validate_unique_implementations(&rules)?;
-    Ok(rules)
-}
-
 fn implementation_codes(codes: &[String]) -> Result<Vec<String>, String> {
     codes
         .iter()
@@ -238,30 +220,6 @@ fn implementation_codes(codes: &[String]) -> Result<Vec<String>, String> {
             Ok(metadata.alias_of.clone().unwrap_or_else(|| code.clone()))
         })
         .collect()
-}
-
-fn display_codes_by_implementation(codes: &[String]) -> Result<HashMap<String, String>, String> {
-    let mut display: HashMap<String, String> = HashMap::new();
-    for code in codes {
-        let metadata =
-            rule_metadata(code).ok_or_else(|| format!("Unknown native rule code: {code}"))?;
-        let implementation = metadata.alias_of.as_ref().unwrap_or(code);
-        if let Some(previous) = display.insert(implementation.clone(), code.clone()) {
-            return Err(format!(
-                "Rules {previous} and {code} select the same native implementation {implementation}; select only one identity."
-            ));
-        }
-    }
-    Ok(display)
-}
-
-fn validate_unique_implementations(rules: &[&RuleMetadata]) -> Result<(), String> {
-    let codes = rules
-        .iter()
-        .map(|rule| rule.code.clone())
-        .collect::<Vec<_>>();
-    let _ = display_codes_by_implementation(&codes)?;
-    Ok(())
 }
 
 fn tooling_packages(config: &Config) -> Vec<String> {

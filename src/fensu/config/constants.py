@@ -23,6 +23,7 @@ DEFAULT_THRESHOLDS: dict[Threshold, int] = {
     Threshold.MIN_SHARED_DOMAIN_PREFIX_PACKAGES: 2,
     Threshold.MIN_CUSTOM_RULE_TEST_CASES: 1,
 }
+MAX_THRESHOLD_VALUE: int = 2**32 - 1
 
 DEFAULT_ROLE_FILE_NAMES: frozenset[str] = frozenset(
     {"models.py", "types.py", "constants.py", "exceptions.py"}

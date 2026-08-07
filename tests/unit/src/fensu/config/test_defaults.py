@@ -594,14 +594,14 @@ def test_given_threshold_layers_when_resolving_path_then_applies_precedence(
             config_text=(
                 'roots = ["src/pkg"]\n'
                 "[thresholds]\nmax_statements = 50\n"
-                "[roles.entry]\nmax_statements = 30\n"
+                "[roles.main]\nmax_statements = 30\n"
             ),
             expected_roots=("src/pkg",),
             expected_tests=("tests",),
             expected_tooling=(),
             expected_threshold_name="max_statements",
             expected_threshold_value=50,
-            expected_role_name="entry",
+            expected_role_name="main",
             expected_role_threshold_name="max_statements",
             expected_role_threshold_value=30,
         )

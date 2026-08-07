@@ -248,6 +248,38 @@ from tests.e2e.src.fensu.cli.main.helpers import (
             expected_cache_exists=True,
         ),
         InstalledInitCliTestCase(
+            description="importable conventional tests do not become a runtime root",
+            argv=("--yes", "--no-skills"),
+            input_text="",
+            initial_files=(
+                CliProjectFile(relative_path="src/tiny/__init__.py", source=""),
+                CliProjectFile(relative_path="tests/__init__.py", source=""),
+                CliProjectFile(relative_path="tests/test_tiny.py", source="VALUE: int = 1\n"),
+            ),
+            expected_exit_code=0,
+            expected_files=(
+                CliProjectFile(
+                    relative_path="fensu.toml",
+                    source='roots = ["src/tiny"]\ntests = ["tests"]\nselect = ["FF"]\n',
+                ),
+                CliProjectFile(relative_path="src/tiny/__init__.py", source=""),
+                CliProjectFile(relative_path="tests/__init__.py", source=""),
+                CliProjectFile(relative_path="tests/test_tiny.py", source="VALUE: int = 1\n"),
+            ),
+            expected_config_values=(
+                ("roots", ("src/tiny",)),
+                ("tests", ("tests",)),
+                ("select", ("FF",)),
+            ),
+            expected_stdout_fragments=("Wrote fensu.toml",),
+            expected_stderr_fragments=(),
+            expected_absent_output_fragments=(
+                "Configured path cannot belong to both roots and tests",
+            ),
+            expected_stdout_is_empty=False,
+            expected_cache_exists=True,
+        ),
+        InstalledInitCliTestCase(
             description="directories holding modules without __init__.py are reported",
             argv=("--yes", "--no-skills"),
             input_text="",

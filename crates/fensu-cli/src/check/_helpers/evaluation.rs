@@ -8,6 +8,7 @@ use fensu_native::rules::models::NativeRuleContext;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 
 use crate::catalogue::main::rule_metadata::rule_metadata;
+use crate::catalogue::models::RuleMetadata;
 use crate::check::_helpers::exceptions::{apply_exceptions, ApplyExceptionsRequest};
 use crate::check::_helpers::policy::{
     apply_rule_ignores, is_entry_module, is_main_module, program, role, scope_roots,
@@ -22,7 +23,7 @@ use crate::check::models::EvaluationRequest;
 use crate::constants::{
     OWNER_FILE, OWNER_PACKAGE, ROLE_HELPERS, ROLE_MAIN, SCOPE_TEST, SUFFIX_INIT,
 };
-use crate::models::{Config, Fault, RuleMetadata, ScopedSource, ThresholdUse};
+use crate::models::{Config, Fault, ScopedSource, ThresholdUse};
 use crate::reporting::main::report::report;
 use crate::reporting::models::ReportRequest;
 
@@ -70,7 +71,7 @@ pub(crate) fn evaluate_and_render(request: EvaluationRequest<'_>) -> Result<(Str
         .map(|(source, codes)| {
             let implementation_codes = implementation_codes(codes)?;
             let display_codes = display_codes_by_implementation(codes)?;
-            let (thresholds, source_uses) = resolved_thresholds(source, config, codes);
+            let (thresholds, source_uses) = resolved_thresholds(source, config, codes)?;
             let mut context = NativeRuleContext {
                 scope: source.scope.clone(),
                 role: role(source),
@@ -98,7 +99,7 @@ pub(crate) fn evaluate_and_render(request: EvaluationRequest<'_>) -> Result<(Str
                 let display_code = display_codes.get(&row.code).ok_or_else(|| {
                     format!("No selected identity for native rule code: {}", row.code)
                 })?;
-                let metadata = rule_metadata(display_code)
+                let metadata = rule_metadata(display_code)?
                     .ok_or_else(|| format!("Unknown native rule code: {display_code}"))?;
                 let path = row.path.unwrap_or_else(|| source.repository_path.clone());
                 faults.push(Fault {
@@ -182,7 +183,7 @@ fn native_rule_options(
     let mut by_code: HashMap<String, HashMap<String, String>> = HashMap::new();
     for code in codes {
         let rule =
-            rule_metadata(code).ok_or_else(|| format!("Unknown native rule code: {code}"))?;
+            rule_metadata(code)?.ok_or_else(|| format!("Unknown native rule code: {code}"))?;
         let mut values: HashMap<String, String> = HashMap::new();
         for option in &rule.options {
             let configured = config
@@ -216,7 +217,7 @@ fn implementation_codes(codes: &[String]) -> Result<Vec<String>, String> {
         .iter()
         .map(|code| {
             let metadata =
-                rule_metadata(code).ok_or_else(|| format!("Unknown native rule code: {code}"))?;
+                rule_metadata(code)?.ok_or_else(|| format!("Unknown native rule code: {code}"))?;
             Ok(metadata.alias_of.clone().unwrap_or_else(|| code.clone()))
         })
         .collect()

@@ -103,6 +103,12 @@ pub(crate) struct RulePackLookupTestCase {
     pub(crate) expected_fragments: &'static [&'static str],
 }
 
+pub(crate) struct EffectiveRulePolicyTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) config: &'static str,
+    pub(crate) expected_fragments: &'static [&'static str],
+}
+
 pub(crate) struct PreExecutionCleanupTestCase {
     pub(crate) description: &'static str,
     pub(crate) config: &'static str,

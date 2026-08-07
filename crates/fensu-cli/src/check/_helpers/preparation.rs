@@ -54,7 +54,7 @@ pub(crate) fn prepare_check(options: &CheckOptions) -> Result<CheckPlan, String>
 }
 
 fn validate_exception_codes(config: &Config) -> Result<(), String> {
-    let known = configured_rule_catalogue(&config.rule_packs)
+    let known = configured_rule_catalogue(&config.rule_packs)?
         .into_iter()
         .map(|rule| rule.code.as_str())
         .collect::<std::collections::HashSet<_>>();

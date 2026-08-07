@@ -1,17 +1,25 @@
 //! Render a rule's metadata, options, exceptions, and ignores.
 
 use crate::catalogue::_helpers::options::option_lines;
-use crate::models::{Config, RuleIgnore, RuleMetadata};
+use crate::catalogue::_helpers::policy::RulePolicy;
+use crate::catalogue::models::RuleMetadata;
+use crate::models::{Config, RuleIgnore};
 use crate::reporting::constants::{ORANGE, RESET};
 
-pub(crate) fn render(metadata: &RuleMetadata, config: &Config, color: bool) -> String {
+pub(crate) fn render(
+    metadata: &RuleMetadata,
+    config: &Config,
+    color: bool,
+    policy: &RulePolicy,
+) -> String {
     let header = if color {
         format!("{ORANGE}{}{RESET} {}", metadata.code, metadata.slug)
     } else {
         format!("{} {}", metadata.code, metadata.slug)
     };
-    let mut output = format!("{header}\n");
+    let mut output = format!("{header}\n\nAuthored metadata:\n");
     output = render_metadata(output, metadata, color);
+    output = render_effective_policy(output, policy);
     output = render_constraints(output, metadata);
     output = render_thresholds(output, metadata, config);
     output = render_contracts(output, metadata, config);
@@ -21,6 +29,27 @@ pub(crate) fn render(metadata: &RuleMetadata, config: &Config, color: bool) -> S
     output = render_exceptions(output, metadata, config);
     output = render_rule_ignores(output, metadata, config);
     output
+}
+
+fn render_effective_policy(mut output: String, policy: &RulePolicy) -> String {
+    output.push_str("\nLoaded project policy:\n");
+    for (label, value) in [
+        ("Selected", policy.selected),
+        ("Blocking", policy.blocking),
+        ("Warning", policy.warning),
+        ("Ignored", policy.ignored),
+    ] {
+        output.push_str(&format!("{label}: {}\n", yes_no(value)));
+    }
+    output
+}
+
+fn yes_no(value: bool) -> &'static str {
+    if value {
+        "yes"
+    } else {
+        "no"
+    }
 }
 
 pub(crate) fn render_limits(mut output: String, metadata: &RuleMetadata) -> String {
@@ -142,10 +171,10 @@ pub(crate) fn render_options(mut output: String, metadata: &RuleMetadata) -> Str
 }
 
 pub(crate) fn render_metadata(mut output: String, metadata: &RuleMetadata, color: bool) -> String {
-    let enabled = if metadata.enabled_by_default {
-        "yes"
-    } else {
-        "no"
+    let cacheable = match metadata.cacheable {
+        None => "undeclared",
+        Some(false) => "false",
+        Some(true) => "true",
     };
     for (label, value) in [
         ("Family", metadata.family.as_str()),
@@ -153,7 +182,9 @@ pub(crate) fn render_metadata(mut output: String, metadata: &RuleMetadata, color
         ("Kind", metadata.kind.as_str()),
         ("Pack", metadata.pack.as_deref().unwrap_or("None")),
         ("Alias", metadata.alias_of.as_deref().unwrap_or("None")),
-        ("Enabled by default", enabled),
+        ("Enabled by default", yes_no(metadata.enabled_by_default)),
+        ("Execution owner", metadata.execution_owner.as_str()),
+        ("Cacheability", cacheable),
         ("Source", metadata.source.as_deref().unwrap_or("core")),
         ("Message", metadata.message.as_str()),
         (

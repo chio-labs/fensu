@@ -3,8 +3,9 @@ use std::collections::{HashMap, HashSet};
 
 use crate::catalogue::main::rule_catalogue::configured_rule_catalogue;
 use crate::catalogue::main::rule_metadata::rule_metadata;
+use crate::catalogue::models::RuleMetadata;
 use crate::check::_helpers::policy::{path_matches, role};
-use crate::models::{Config, RuleMetadata, ScopedSource, ThresholdUse};
+use crate::models::{Config, ScopedSource, ThresholdUse};
 
 const PATH_SEPARATOR: char = '/';
 const RECURSIVE_GLOB: &str = "**";
@@ -16,7 +17,7 @@ pub(crate) fn display_codes_by_implementation(
     let mut display: HashMap<String, String> = HashMap::new();
     for code in codes {
         let metadata =
-            rule_metadata(code).ok_or_else(|| format!("Unknown native rule code: {code}"))?;
+            rule_metadata(code)?.ok_or_else(|| format!("Unknown native rule code: {code}"))?;
         let implementation = metadata.alias_of.as_ref().unwrap_or(code);
         if let Some(previous) = display.insert(implementation.clone(), code.clone()) {
             return Err(format!(
@@ -33,7 +34,7 @@ pub(crate) fn selected_rules(
     ignore: &[String],
 ) -> Result<Vec<&'static RuleMetadata>, String> {
     let mut rules: Vec<&'static RuleMetadata> = Vec::new();
-    for rule in configured_rule_catalogue(&config.rule_packs) {
+    for rule in configured_rule_catalogue(&config.rule_packs)? {
         let selected = matches_selector(&rule.code, select);
         let explicit = select.iter().any(|selector| selector == &rule.code);
         let ignored = matches_selector(&rule.code, ignore);
@@ -61,7 +62,7 @@ pub(crate) fn validate_config_tiers(config: &Config) -> Result<(), String> {
             rule.code
         ));
     }
-    let ignored_codes = configured_rule_catalogue(&config.rule_packs)
+    let ignored_codes = configured_rule_catalogue(&config.rule_packs)?
         .into_iter()
         .filter(|rule| matches_selector(&rule.code, &config.ignore))
         .map(|rule| rule.code.as_str())
@@ -78,27 +79,27 @@ pub(crate) fn validate_config_tiers(config: &Config) -> Result<(), String> {
     Ok(())
 }
 
-pub(crate) fn required_thresholds(codes: &[String]) -> HashSet<&'static str> {
+pub(crate) fn required_thresholds(codes: &[String]) -> Result<HashSet<&'static str>, String> {
     let mut names: HashSet<&'static str> = HashSet::new();
     for code in codes {
-        if let Some(metadata) = rule_metadata(code) {
+        if let Some(metadata) = rule_metadata(code)? {
             names.extend(metadata.thresholds.iter().map(String::as_str));
         }
     }
-    names
+    Ok(names)
 }
 
 pub(crate) fn resolved_thresholds(
     source: &ScopedSource,
     config: &Config,
     codes: &[String],
-) -> (HashMap<String, u32>, Vec<ThresholdUse>) {
+) -> Result<(HashMap<String, u32>, Vec<ThresholdUse>), String> {
     let mut values = config.thresholds.clone();
     if let Some(role) = role(source).and_then(|role| config.role_thresholds.get(&role)) {
         values.extend(role.clone());
     }
     let mut uses: Vec<ThresholdUse> = Vec::new();
-    for name in required_thresholds(codes) {
+    for name in required_thresholds(codes)? {
         let mut winner = None;
         for (order, override_) in config.threshold_overrides.iter().enumerate() {
             let Some(value) = override_.thresholds.get(name) else {
@@ -130,7 +131,7 @@ pub(crate) fn resolved_thresholds(
             effective_value: value,
         });
     }
-    (values, uses)
+    Ok((values, uses))
 }
 
 fn matches_selector(code: &str, selectors: &[String]) -> bool {

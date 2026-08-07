@@ -167,6 +167,7 @@ pub(crate) fn effective_config_lines(context: &SkillContext) -> Result<Vec<Strin
         "### Custom Rule Sources".to_owned(), String::new(),
         format!("- `rule_paths`: {}", path_list(context, &config.rule_paths)?),
         format!("- `rule_modules`: {}", sorted_json(&config.rule_modules)?), String::new(),
+        format!("- `rule_packs`: {}", sorted_json(&config.rule_packs)?), String::new(),
         "### Cache And Evaluation".to_owned(), String::new(),
         format!("- Cache enabled: `{}`", config.cache_enabled),
         format!("- Cache requires cacheable rules: `{}`", config.cache_require_cacheable),

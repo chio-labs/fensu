@@ -46,7 +46,9 @@ def evaluate_native_core_rules(
 
     native: ModuleType = import_module(NATIVE_FACT_MODULE_NAME)
     native_codes: frozenset[str] = frozenset(code for code, _ in native.native_rule_fact_families())
-    rules_by_code: dict[str, RuleSpec] = {rule.code: rule for rule in (*ruleset, *warning_rules)}
+    rules_by_implementation: dict[str, RuleSpec] = {
+        rule.alias_of or rule.code: rule for rule in (*ruleset, *warning_rules)
+    }
     codes_by_target: tuple[tuple[str, ...], ...] = tuple(
         _target_native_codes(
             target=target,
@@ -111,7 +113,7 @@ def evaluate_native_core_rules(
                 repo_root=repo_root,
                 codes=codes,
                 rows=tuple(rows),
-                rules_by_code=rules_by_code,
+                rules_by_implementation=rules_by_implementation,
             ),
             source_fingerprint=snapshot.fingerprint,
             source=source,
@@ -145,9 +147,9 @@ def _target_native_codes(
             else ()
         )
     return tuple(
-        rule.code
+        rule.alias_of or rule.code
         for rule in rules
-        if rule.code in native_codes
+        if (rule.alias_of or rule.code) in native_codes
         and (target.applicable_rule_codes is None or rule.code in target.applicable_rule_codes)
     )
 
@@ -158,14 +160,14 @@ def _faults_by_code(
     repo_root: Path,
     codes: tuple[str, ...],
     rows: tuple[NativeFaultRow, ...],
-    rules_by_code: dict[str, RuleSpec],
+    rules_by_implementation: dict[str, RuleSpec],
 ) -> NativeFaultsByCode:
-    grouped: dict[str, list[Fault]] = {code: [] for code in codes}
+    grouped: dict[str, list[Fault]] = {rules_by_implementation[code].code: [] for code in codes}
     for code, reported_path, line, column, message, remediation in rows:
-        rule: RuleSpec = rules_by_code[code]
-        grouped[code].append(
+        rule: RuleSpec = rules_by_implementation[code]
+        grouped[rule.code].append(
             Fault(
-                code=code,
+                code=rule.code,
                 path=path if reported_path is None else repo_root / reported_path,
                 message=rule.message if message is None else message,
                 line=line,

@@ -7,7 +7,7 @@ use fensu_native::rules::main::plan_core_rule_queries::plan_core_rule_queries;
 use fensu_native::rules::models::NativeRuleContext;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 
-use crate::catalogue::main::rule_catalogue::rule_catalogue;
+use crate::catalogue::main::rule_catalogue::configured_rule_catalogue;
 use crate::catalogue::main::rule_metadata::rule_metadata;
 use crate::check::_helpers::exceptions::{apply_exceptions, ApplyExceptionsRequest};
 use crate::check::_helpers::policy::{
@@ -32,14 +32,15 @@ pub(crate) fn evaluate_and_render(request: EvaluationRequest<'_>) -> Result<(Str
         show_warnings,
         color,
     } = request;
-    let blocking = selected_rules(&config.select, &config.ignore);
+    let blocking = selected_rules(config, &config.select, &config.ignore)?;
     let warning_rules = if show_warnings {
-        selected_rules(&config.warn, &config.ignore)
+        selected_rules(config, &config.warn, &config.ignore)?
     } else {
         Vec::new()
     };
     let mut all_rules = blocking.clone();
     all_rules.extend(warning_rules.iter().copied());
+    validate_unique_implementations(&all_rules)?;
     let evaluated_codes = all_rules
         .iter()
         .map(|rule| rule.code.as_str())
@@ -63,6 +64,8 @@ pub(crate) fn evaluate_and_render(request: EvaluationRequest<'_>) -> Result<(Str
         .par_iter()
         .zip(codes_by_source.par_iter())
         .map(|(source, codes)| {
+            let implementation_codes = implementation_codes(codes)?;
+            let display_codes = display_codes_by_implementation(codes)?;
             let (thresholds, source_uses) = resolved_thresholds(source, config, codes);
             let mut context = NativeRuleContext {
                 scope: source.scope.clone(),
@@ -80,19 +83,24 @@ pub(crate) fn evaluate_and_render(request: EvaluationRequest<'_>) -> Result<(Str
                 observations: HashMap::new(),
                 custom_registrations: Vec::new(),
                 repo_root: root.to_string_lossy().into_owned(),
-                rule_options: native_rule_options(codes)?,
+                rule_options: native_rule_options(codes, config)?,
             };
-            let plans = plan_core_rule_queries(program(source), codes, &context);
+            let plans = plan_core_rule_queries(program(source), &implementation_codes, &context);
             context.observations = observe(root, &plans, &program_by_path, &program_by_module);
-            let rows = evaluate_core_rules(program(source), codes, &context, &project)?;
+            let rows =
+                evaluate_core_rules(program(source), &implementation_codes, &context, &project)?;
             let mut faults: Vec<Fault> = Vec::new();
             for row in rows {
-                let metadata = rule_metadata(&row.code)
-                    .ok_or_else(|| format!("Unknown native rule code: {}", row.code))?;
+                let display_code = display_codes.get(&row.code).ok_or_else(|| {
+                    format!("No selected identity for native rule code: {}", row.code)
+                })?;
+                let metadata = rule_metadata(display_code)
+                    .ok_or_else(|| format!("Unknown native rule code: {display_code}"))?;
                 let path = row.path.unwrap_or_else(|| source.repository_path.clone());
                 faults.push(Fault {
-                    warning: warning_codes.contains(row.code.as_str()),
-                    code: row.code,
+                    warning: warning_codes.contains(display_code.as_str()),
+                    code: display_code.clone(),
+                    alias_of: metadata.alias_of.clone(),
                     path: root.join(path).to_string_lossy().into_owned(),
                     line: Some(row.line),
                     column: Some(row.column),
@@ -165,6 +173,7 @@ pub(crate) fn evaluate_and_render(request: EvaluationRequest<'_>) -> Result<(Str
 
 fn native_rule_options(
     codes: &[String],
+    config: &Config,
 ) -> Result<HashMap<String, HashMap<String, String>>, String> {
     let mut by_code: HashMap<String, HashMap<String, String>> = HashMap::new();
     for code in codes {
@@ -172,21 +181,39 @@ fn native_rule_options(
             rule_metadata(code).ok_or_else(|| format!("Unknown native rule code: {code}"))?;
         let mut values: HashMap<String, String> = HashMap::new();
         for option in &rule.options {
+            let configured = config
+                .rule_options
+                .get(code)
+                .and_then(toml::Value::as_table)
+                .and_then(|table| table.get(&option.name));
             values.insert(
                 option.name.clone(),
-                serde_json::to_string(&option.current_value).map_err(|error| error.to_string())?,
+                match configured {
+                    Some(value) => {
+                        serde_json::to_string(value).map_err(|error| error.to_string())?
+                    }
+                    None => serde_json::to_string(&option.current_value)
+                        .map_err(|error| error.to_string())?,
+                },
             );
         }
         if !values.is_empty() {
-            by_code.insert(rule.code.clone(), values);
+            by_code.insert(
+                rule.alias_of.clone().unwrap_or_else(|| rule.code.clone()),
+                values,
+            );
         }
     }
     Ok(by_code)
 }
 
-pub(crate) fn selected_rules(select: &[String], ignore: &[String]) -> Vec<&'static RuleMetadata> {
+pub(crate) fn selected_rules(
+    config: &Config,
+    select: &[String],
+    ignore: &[String],
+) -> Result<Vec<&'static RuleMetadata>, String> {
     let mut rules: Vec<&'static RuleMetadata> = Vec::new();
-    for rule in rule_catalogue() {
+    for rule in configured_rule_catalogue(&config.rule_packs) {
         let selected = select
             .iter()
             .any(|selector| rule.code.starts_with(selector));
@@ -198,7 +225,43 @@ pub(crate) fn selected_rules(select: &[String], ignore: &[String]) -> Vec<&'stat
             rules.push(rule);
         }
     }
-    rules
+    validate_unique_implementations(&rules)?;
+    Ok(rules)
+}
+
+fn implementation_codes(codes: &[String]) -> Result<Vec<String>, String> {
+    codes
+        .iter()
+        .map(|code| {
+            let metadata =
+                rule_metadata(code).ok_or_else(|| format!("Unknown native rule code: {code}"))?;
+            Ok(metadata.alias_of.clone().unwrap_or_else(|| code.clone()))
+        })
+        .collect()
+}
+
+fn display_codes_by_implementation(codes: &[String]) -> Result<HashMap<String, String>, String> {
+    let mut display: HashMap<String, String> = HashMap::new();
+    for code in codes {
+        let metadata =
+            rule_metadata(code).ok_or_else(|| format!("Unknown native rule code: {code}"))?;
+        let implementation = metadata.alias_of.as_ref().unwrap_or(code);
+        if let Some(previous) = display.insert(implementation.clone(), code.clone()) {
+            return Err(format!(
+                "Rules {previous} and {code} select the same native implementation {implementation}; select only one identity."
+            ));
+        }
+    }
+    Ok(display)
+}
+
+fn validate_unique_implementations(rules: &[&RuleMetadata]) -> Result<(), String> {
+    let codes = rules
+        .iter()
+        .map(|rule| rule.code.clone())
+        .collect::<Vec<_>>();
+    let _ = display_codes_by_implementation(&codes)?;
+    Ok(())
 }
 
 fn tooling_packages(config: &Config) -> Vec<String> {

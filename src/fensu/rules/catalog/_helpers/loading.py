@@ -26,6 +26,7 @@ from fensu.rules.catalog._helpers.hermeticity import validate_cacheable_rules
 from fensu.rules.catalog.constants import CORE_RULES
 from fensu.rules.catalog.main._check_module_use import check_uses_module
 from fensu.rules.catalog.models import RuleSelection
+from fensu.rules.dagster.constants import DAGSTER_PACK_NAME, FPDG_RULES
 
 _CONFIGURATION_INPUTS: frozenset[str] = frozenset({"roots", "tests", "tooling", "test_scopes"})
 _CONTRACT_BEHAVIORS: frozenset[str] = frozenset(ContractBehavior)
@@ -71,7 +72,10 @@ def build_rule_selection_from_catalogue(
         rule for rule in selected if rule.code not in ignored_codes
     )
     warnings: tuple[RuleSpec, ...] = _selected_rules(rules=catalogue, selectors=config.warn)
+    _validate_unique_implementations(rules=blocking)
+    _validate_unique_implementations(rules=warnings)
     _validate_tier_overlaps(blocking=blocking, warnings=warnings, ignored=ignored)
+    _validate_unique_implementations(rules=(*blocking, *warnings))
     return RuleSelection(
         catalogue=catalogue,
         blocking=blocking,
@@ -97,7 +101,8 @@ def build_catalogue_from_config(
     )
     if config.cache.require_cacheable:
         custom_rules = tuple(replace(rule, cacheable=True) for rule in custom_rules)
-    all_rules: tuple[RuleSpec, ...] = (*CORE_RULES, *custom_rules)
+    pack_rules: tuple[RuleSpec, ...] = FPDG_RULES if DAGSTER_PACK_NAME in config.rule_packs else ()
+    all_rules: tuple[RuleSpec, ...] = (*CORE_RULES, *pack_rules, *custom_rules)
     _validate_rule_identities(rules=all_rules)
     _validate_unique_codes(rules=all_rules)
     _validate_rule_constraints(rules=all_rules)
@@ -445,6 +450,19 @@ def _validate_tier_overlaps(
         )
 
 
+def _validate_unique_implementations(*, rules: tuple[RuleSpec, ...]) -> None:
+    selected: dict[str, str] = {}
+    for rule in rules:
+        implementation: str = rule.alias_of or rule.code
+        previous: str | None = selected.get(implementation)
+        if previous is not None:
+            raise ConfigError(
+                f"Rules {previous} and {rule.code} select the same native implementation "
+                f"{implementation}; select only one identity."
+            )
+        selected[implementation] = rule.code
+
+
 def _rule_matches_select(*, rule: RuleSpec, select: tuple[str, ...]) -> bool:
     return any(matches_rule_selector(code=rule.code, selector=selector) for selector in select)
 
@@ -468,9 +486,21 @@ def _validate_rule_identities(*, rules: tuple[RuleSpec, ...]) -> None:
             raise ConfigError(f"Catalogue rule {rule.code} must use one exact rule code.")
         if not isinstance(rule.family, Family):
             raise ConfigError(f"Catalogue rule {rule.code} must use one valid Family member.")
-        expected_kind: RuleKind = RuleKind.CORE if rule.code.startswith("FF") else RuleKind.CUSTOM
+        expected_kind: RuleKind = (
+            RuleKind.CORE
+            if rule.code.startswith("FF")
+            else RuleKind.PACK
+            if rule.code.startswith("FP")
+            else RuleKind.CUSTOM
+        )
         if rule.kind is not expected_kind:
             raise ConfigError(f"Catalogue rule {rule.code} must use kind {expected_kind.value}.")
+        if rule.kind is RuleKind.PACK and (rule.pack is None or rule.source is not None):
+            raise ConfigError(
+                f"Catalogue native-pack rule {rule.code} has invalid ownership metadata."
+            )
+        if rule.alias_of is not None and rule.alias_of == rule.code:
+            raise ConfigError(f"Catalogue rule {rule.code} cannot alias itself.")
 
 
 def _validate_exception_codes(*, config: Config, rules: tuple[RuleSpec, ...]) -> None:

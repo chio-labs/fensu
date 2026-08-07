@@ -3,20 +3,18 @@ use std::path::Path;
 
 use serde_json::json;
 
-use crate::catalogue::main::rule_catalogue::rule_catalogue;
+use crate::catalogue::main::rule_catalogue::configured_rule_catalogue;
 use crate::configuration::constants::{CONTRACT_BEHAVIORS, DEFAULT_THRESHOLDS};
 use crate::hosting::main::run_skills_metadata_host::run_skills_metadata_host;
 use crate::models::{Config, RuleMetadata};
 use crate::skills::_helpers::context::option_validation::validate_rule_options;
+use crate::skills::_helpers::context::selector_validation::{
+    valid_code, valid_selector, CORE_KIND, CORE_PREFIX, CUSTOM_KIND, CUSTOM_PREFIX, PACK_KIND,
+    PACK_PREFIX,
+};
 use crate::skills::models::{HostResponse, RuleSelection};
 
-const CORE_KIND: &str = "core";
-const CORE_PREFIX: &str = "FF";
-const CORE_RULE_CODE_LENGTH: usize = 6;
-const CUSTOM_KIND: &str = "custom";
 const CONFIGURATION_INPUTS: &[&str] = &["roots", "tests", "tooling", "test_scopes"];
-const CUSTOM_PREFIX: char = 'X';
-const MAX_CORE_SELECTOR_SUFFIX: usize = 4;
 const METADATA_PROTOCOL: u32 = 3;
 
 pub(crate) fn validate_config_policy(config: &Config) -> Result<(), String> {
@@ -39,11 +37,14 @@ pub(crate) fn validate_config_policy(config: &Config) -> Result<(), String> {
 pub(crate) fn selection(config: &Config, project_root: &Path) -> Result<RuleSelection, String> {
     if !config.rule_paths.is_empty()
         || !config.rule_modules.is_empty()
-        || !config.rule_options.is_empty()
+        || config.rule_options.keys().any(|code| code.starts_with('X'))
     {
         return hosted_selection(project_root);
     }
-    let catalogue = rule_catalogue().to_vec();
+    let catalogue = configured_rule_catalogue(&config.rule_packs)
+        .into_iter()
+        .cloned()
+        .collect::<Vec<_>>();
     let ignored = matching(&catalogue, &config.ignore);
     let ignored_codes = ignored
         .iter()
@@ -121,6 +122,8 @@ fn validate_host_shape(raw: &[u8]) -> Result<(), String> {
         "enabled_by_default",
         "execution_owner",
         "kind",
+        "pack",
+        "alias_of",
         "source",
         "cacheable",
         "options",
@@ -154,13 +157,17 @@ fn validate_host_catalogue(catalogue: &[RuleMetadata]) -> Result<(), String> {
             ));
         }
         let core = item.code.starts_with(CORE_PREFIX);
-        if (core && item.kind != CORE_KIND) || (!core && item.kind != CUSTOM_KIND) {
+        let pack = item.code.starts_with(PACK_PREFIX);
+        if (core && item.kind != CORE_KIND)
+            || (pack && item.kind != PACK_KIND)
+            || (!core && !pack && item.kind != CUSTOM_KIND)
+        {
             return Err(format!(
                 "Catalogue rule {} has incompatible kind {}.",
                 item.code, item.kind
             ));
         }
-        if !core && !item.code.starts_with(CUSTOM_PREFIX) {
+        if !core && !pack && !item.code.starts_with(CUSTOM_PREFIX) {
             return Err(format!(
                 "Custom rule {} must use the X* namespace.",
                 item.code
@@ -181,7 +188,13 @@ fn validate_host_catalogue(catalogue: &[RuleMetadata]) -> Result<(), String> {
                 "file" | "package" | "domain" | "subdomain" | "leaf" | "scope" | "project"
             )
             || (item.kind == CUSTOM_KIND && item.source.as_deref().is_none_or(str::is_empty))
-            || (item.kind == CORE_KIND && item.source.is_some())
+            || (item.kind == CORE_KIND && (item.source.is_some() || item.pack.is_some()))
+            || (item.kind == PACK_KIND
+                && (item.pack.as_deref().is_none_or(str::is_empty) || item.source.is_some()))
+            || item
+                .alias_of
+                .as_ref()
+                .is_some_and(|target| target == &item.code)
         {
             return Err(format!(
                 "Catalogue rule {} contains incompatible metadata.",
@@ -334,45 +347,4 @@ fn validate_tiers(
         ));
     }
     Ok(())
-}
-
-fn valid_code(value: &str) -> bool {
-    let bytes = value.as_bytes();
-    (bytes.len() == CORE_RULE_CODE_LENGTH
-        && value.starts_with(CORE_PREFIX)
-        && bytes[2].is_ascii_uppercase()
-        && bytes[3..].iter().all(u8::is_ascii_digit))
-        || value.strip_prefix(CUSTOM_PREFIX).is_some_and(|rest| {
-            let digit = rest.find(|character: char| character.is_ascii_digit());
-            digit.is_some_and(|index| {
-                rest[..index]
-                    .chars()
-                    .all(|character| character.is_ascii_uppercase())
-                    && !rest[index..].is_empty()
-                    && rest[index..]
-                        .chars()
-                        .all(|character| character.is_ascii_digit())
-            })
-        })
-}
-
-fn valid_selector(value: &str) -> bool {
-    if value == CORE_PREFIX || value == CUSTOM_PREFIX.to_string() {
-        return true;
-    }
-    if let Some(rest) = value.strip_prefix(CORE_PREFIX) {
-        return rest.len() <= MAX_CORE_SELECTOR_SUFFIX
-            && rest
-                .chars()
-                .next()
-                .is_some_and(|item| item.is_ascii_uppercase())
-            && rest[1..].chars().all(|item| item.is_ascii_digit());
-    }
-    value.strip_prefix(CUSTOM_PREFIX).is_some_and(|rest| {
-        let digit = rest
-            .find(|character: char| character.is_ascii_digit())
-            .unwrap_or(rest.len());
-        rest[..digit].chars().all(|item| item.is_ascii_uppercase())
-            && rest[digit..].chars().all(|item| item.is_ascii_digit())
-    })
 }

@@ -6,6 +6,7 @@ use crate::rules::_helpers::annotations::{
     class_attribute_annotation_faults, local_variable_annotation_faults,
     module_variable_annotation_faults, parameter_annotation_faults, return_annotation_faults,
 };
+use crate::rules::_helpers::dagster::dagster_faults;
 use crate::rules::_helpers::hygiene::hygiene_faults;
 use crate::rules::_helpers::layers::layer_faults;
 use crate::rules::_helpers::naming::naming_faults;
@@ -45,7 +46,11 @@ pub fn evaluate_core_rules(
                 faults.extend(local_variable_annotation_faults(program.annotation_rows()));
             }
             _ => {
-                if let Some(rule_faults) = naming_faults(program.contract_rows(), code, context) {
+                if let Some(rule_faults) = dagster_faults(program, code, context, project) {
+                    faults.extend(rule_faults?);
+                } else if let Some(rule_faults) =
+                    naming_faults(program.contract_rows(), code, context)
+                {
                     faults.extend(rule_faults?);
                 } else if let Some(rule_faults) = hygiene_faults(program, code, &context.scope) {
                     faults.extend(rule_faults);

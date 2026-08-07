@@ -166,3 +166,14 @@ class UnselectedRuleOptionTestCase:
     description: str
     rule_code: str
     expected_error_fragment: str
+
+
+@dataclass(frozen=True)
+class NativeRulePackCatalogueTestCase:
+    """Expected complete and active sizes for one shipped native rule pack."""
+
+    description: str
+    expected_catalogue_count: int
+    expected_active_count: int
+    expected_alias_count: int
+    expected_native_count: int

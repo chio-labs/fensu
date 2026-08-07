@@ -57,6 +57,7 @@ CONFIG_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
         "ignore",
         "rule_paths",
         "rule_modules",
+        "rule_packs",
         "rule_options",
         "thresholds",
         "roles",

@@ -120,6 +120,7 @@ fn check(project: &MemoryProject, color: bool) -> Result<CliOutput, String> {
         .iter()
         .map(|diagnostic| Fault {
             code: diagnostic.code.to_owned(),
+            alias_of: None,
             path: project
                 .repository_root
                 .join(&diagnostic.repository_relative_path)

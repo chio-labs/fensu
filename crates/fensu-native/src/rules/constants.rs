@@ -115,6 +115,29 @@ pub const TEST_EXPECTED_FIELD_PREFIX: &str = "expected_";
 pub const TEST_INIT_MODULE_NAME: &str = "__init__.py";
 pub const TEST_MINIMUM_PARAMETRIZE_ARGUMENTS: u32 = 2;
 pub const STAR_IMPORT_NAME: &str = "*";
+pub const DAGSTER_ASSET_PACKAGE_LAYOUT_CODE: &str = "FPDG001";
+pub const DAGSTER_ASSETS_MODULE_SHAPE_CODE: &str = "FPDG002";
+pub const DAGSTER_ASSETS_DELEGATE_TO_MAIN_CODE: &str = "FPDG003";
+pub const DAGSTER_MAIN_MODULE_SHAPE_CODE: &str = "FPDG004";
+pub const DAGSTER_ASSET_CALLBACK_SIGNATURE_CODE: &str = "FPDG007";
+pub const DAGSTER_IMPORT_BOUNDARIES_CODE: &str = "FPDG008";
+pub const DAGSTER_DEFINITION_PUBLIC_SURFACE_CODE: &str = "FPDG009";
+pub const DAGSTER_DEFINITION_MODULE_LAYOUT_CODE: &str = "FPDG010";
+pub const DAGSTER_PRIVATE_SUPPORT_IMPORTS_CODE: &str = "FPDG011";
+pub const DAGSTER_OPERATIONAL_RESOURCE_LAYOUT_CODE: &str = "FPDG012";
+pub const DAGSTER_PROVIDER_TYPE_HONESTY_CODE: &str = "FPDG013";
+pub const DAGSTER_ASSET_CONFIG_SHAPE_CODE: &str = "FPDG014";
+pub const DAGSTER_NO_DYNAMIC_MODULE_REFERENCES_CODE: &str = "FPDG015";
+pub const DAGSTER_MODEL_PLACEMENT_CODE: &str = "FPDG016";
+pub const DAGSTER_EXCEPTION_PLACEMENT_CODE: &str = "FPDG017";
+pub const DAGSTER_PRIVATE_HELPER_BOUNDARY_CODE: &str = "FPDG018";
+pub const DAGSTER_PRIVATE_CLASSES_SHAPE_CODE: &str = "FPDG019";
+pub const DAGSTER_SOURCE_ROOT_ALLOWLIST_CODE: &str = "FPDG020";
+pub const DAGSTER_TOOLING_IMPORT_BOUNDARY_CODE: &str = "FPDG021";
+pub const DAGSTER_RUNTIME_PACKAGE_OWNER_CODE: &str = "FPDG022";
+pub const DAGSTER_TEST_ROOT_ALLOWLIST_CODE: &str = "FPDG023";
+pub const DAGSTER_AUTOLOAD_EXTERNAL_DISCOVERY_CODE: &str = "FPDG024";
+pub const DAGSTER_TYPE_PLACEMENT_CODE: &str = "FPDG025";
 pub const NATIVE_RULE_FACT_FAMILIES: &[(&str, &[&str])] = &[
     (PARAMETER_ANNOTATION_CODE, &["annotations"]),
     (RETURN_ANNOTATION_CODE, &["annotations"]),
@@ -256,5 +279,58 @@ pub const NATIVE_RULE_FACT_FAMILIES: &[(&str, &[&str])] = &[
         &["test_functions", "references"],
     ),
     (TEST_DESCRIPTION_LAMBDA_IDS_CODE, &["test_functions"]),
+    (DAGSTER_ASSET_PACKAGE_LAYOUT_CODE, &["module_declarations"]),
+    (DAGSTER_ASSETS_MODULE_SHAPE_CODE, &["functions"]),
+    (
+        DAGSTER_ASSETS_DELEGATE_TO_MAIN_CODE,
+        &["functions", "references"],
+    ),
+    (
+        DAGSTER_MAIN_MODULE_SHAPE_CODE,
+        &["functions", "module_declarations"],
+    ),
+    (DAGSTER_ASSET_CALLBACK_SIGNATURE_CODE, &["functions"]),
+    (DAGSTER_IMPORT_BOUNDARIES_CODE, &["references"]),
+    (
+        DAGSTER_DEFINITION_PUBLIC_SURFACE_CODE,
+        &["module_declarations"],
+    ),
+    (
+        DAGSTER_DEFINITION_MODULE_LAYOUT_CODE,
+        &["module_declarations"],
+    ),
+    (DAGSTER_PRIVATE_SUPPORT_IMPORTS_CODE, &["references"]),
+    (
+        DAGSTER_OPERATIONAL_RESOURCE_LAYOUT_CODE,
+        &["module_declarations"],
+    ),
+    (DAGSTER_PROVIDER_TYPE_HONESTY_CODE, &["named_calls"]),
+    (
+        DAGSTER_ASSET_CONFIG_SHAPE_CODE,
+        &["class_declarations", "functions"],
+    ),
+    (
+        DAGSTER_NO_DYNAMIC_MODULE_REFERENCES_CODE,
+        &["named_calls", "references"],
+    ),
+    (DAGSTER_MODEL_PLACEMENT_CODE, &["module_declarations"]),
+    (DAGSTER_EXCEPTION_PLACEMENT_CODE, &["module_declarations"]),
+    (
+        DAGSTER_PRIVATE_HELPER_BOUNDARY_CODE,
+        &["module_declarations", "references"],
+    ),
+    (DAGSTER_PRIVATE_CLASSES_SHAPE_CODE, &["module_declarations"]),
+    (DAGSTER_SOURCE_ROOT_ALLOWLIST_CODE, &[]),
+    (DAGSTER_TOOLING_IMPORT_BOUNDARY_CODE, &["references"]),
+    (DAGSTER_RUNTIME_PACKAGE_OWNER_CODE, &[]),
+    (DAGSTER_TEST_ROOT_ALLOWLIST_CODE, &[]),
+    (
+        DAGSTER_AUTOLOAD_EXTERNAL_DISCOVERY_CODE,
+        &["named_calls", "references"],
+    ),
+    (DAGSTER_TYPE_PLACEMENT_CODE, &["module_declarations"]),
 ];
-pub const NATIVE_RULE_OPTIONS: &[(&str, &[&str])] = &[];
+pub const NATIVE_RULE_OPTIONS: &[(&str, &[&str])] = &[(
+    DAGSTER_AUTOLOAD_EXTERNAL_DISCOVERY_CODE,
+    &["approved_loader_boundaries"],
+)];

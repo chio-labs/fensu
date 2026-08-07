@@ -139,6 +139,15 @@ class ConfigListFieldTestCase:
 
 
 @dataclass(frozen=True)
+class RulePackConfigTestCase:
+    """A native rule-pack declaration and its expected normalized value."""
+
+    description: str
+    raw_config: Mapping[str, object]
+    expected_rule_packs: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class ConfiguredTestScopesTestCase:
     """A test-scope vocabulary declaration and its expected resolved value."""
 

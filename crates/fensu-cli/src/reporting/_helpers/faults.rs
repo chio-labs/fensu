@@ -21,14 +21,18 @@ pub(crate) fn format_fault(fault: &Fault, root: &Path, color: bool) -> String {
     let column = fault
         .column
         .map_or_else(|| "-".to_owned(), |value| value.to_string());
+    let code = fault.alias_of.as_ref().map_or_else(
+        || fault.code.clone(),
+        |target| format!("{} (alias {target})", fault.code),
+    );
     let mut lines = if color {
         vec![
-            format!("{ORANGE}{}{RESET}  {}", fault.code, fault.message),
+            format!("{ORANGE}{code}{RESET}  {}", fault.message),
             format!("{DIM} --> {path}:{line}:{column}{RESET}"),
         ]
     } else {
         vec![
-            format!("{}  {}", fault.code, fault.message),
+            format!("{code}  {}", fault.message),
             format!(" --> {path}:{line}:{column}"),
         ]
     };

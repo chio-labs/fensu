@@ -9,6 +9,7 @@ import pytest
 
 from fensu import RuleCase, RuleFile, RuleResult, evaluate_rule
 from fensu.analysis.constants import NATIVE_FACT_MODULE_NAME
+from fensu.rules.dagster.constants import FPDG_NATIVE_CODES
 from fensu.rules.exemplars.constants import NATIVE_CUSTOM_RULE_EQUIVALENTS
 from tests.integration.src.fensu.rules.exemplars.main.annotations._test_types import (
     NativeCustomRegistryTestCase,
@@ -1324,9 +1325,13 @@ def test_given_native_registry_when_checking_custom_parity_then_every_rule_is_co
 ) -> None:
     native: ModuleType = import_module(NATIVE_FACT_MODULE_NAME)
     native_codes: set[str] = {code for code, _ in native.native_rule_fact_families()}
+    core_native_codes: set[str] = native_codes.difference(FPDG_NATIVE_CODES)
     equivalent_codes: set[str] = set(NATIVE_CUSTOM_RULE_EQUIVALENTS)
-    missing: set[str] = native_codes.symmetric_difference(equivalent_codes)
-    missing.update(native_codes.symmetric_difference(_PARITY_NATIVE_CODES))
-    missing.update(native_codes.intersection(_PYTHON_OWNED_SFR_CODES))
+    missing: set[str] = native_codes.intersection(FPDG_NATIVE_CODES).symmetric_difference(
+        FPDG_NATIVE_CODES
+    )
+    missing.update(core_native_codes.symmetric_difference(equivalent_codes))
+    missing.update(core_native_codes.symmetric_difference(_PARITY_NATIVE_CODES))
+    missing.update(core_native_codes.intersection(_PYTHON_OWNED_SFR_CODES))
 
     assert tuple(sorted(missing)) == test_case.expected_missing_codes

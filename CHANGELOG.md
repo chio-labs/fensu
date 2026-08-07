@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.0](https://github.com/chio-labs/fensu/compare/v0.8.1...v0.9.0) (2026-08-07)
+
+
+### Features
+
+* add native dagster rule pack ([15cff16](https://github.com/chio-labs/fensu/commit/15cff162781d982d9230fb11f2a317d758206de6))
+* add native dagster rule pack ([fae0ac0](https://github.com/chio-labs/fensu/commit/fae0ac06ac281c9130991174b96b5f59de083deb))
+
 ## [0.8.1](https://github.com/chio-labs/fensu/compare/v0.8.0...v0.8.1) (2026-07-27)
 
 

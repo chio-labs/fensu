@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fensu.rules.authoring.models import RuleSpec
 from fensu.rules.authoring.types import Family
+from fensu.rules.roles._helpers.constraints import get_role_rule_constraints
 from fensu.rules.roles.types import RoleCode
 
 
@@ -16,9 +17,7 @@ def misplaced_rules() -> tuple[RuleSpec, ...]:
             family=Family.ROLES,
             slug="model-declaration-outside-models",
             message="structured runtime models must be defined in the models role",
-            remediation=(
-                "Move the dataclass or structured model into models.py or a models/ package."
-            ),
+            remediation="Move the dataclass or structured model into the owning models.py file.",
         ),
         RuleSpec(
             code=RoleCode.TYPE_DECLARATION_OUTSIDE_TYPES,
@@ -26,6 +25,7 @@ def misplaced_rules() -> tuple[RuleSpec, ...]:
             slug="type-declaration-outside-types",
             message="type-layer declarations must be defined in the types role",
             remediation="Move the protocol, enum, TypedDict, or public type alias into types.py.",
+            constraints=get_role_rule_constraints(RoleCode.TYPE_DECLARATION_OUTSIDE_TYPES),
         ),
         RuleSpec(
             code=RoleCode.CONSTANT_OUTSIDE_CONSTANTS,
@@ -39,6 +39,6 @@ def misplaced_rules() -> tuple[RuleSpec, ...]:
             family=Family.ROLES,
             slug="exception-declaration-outside-exceptions",
             message="custom exceptions must be defined in the exceptions role",
-            remediation="Move the exception class into exceptions.py or an exceptions/ package.",
+            remediation="Move the exception class into the owning exceptions.py file.",
         ),
     )

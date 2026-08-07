@@ -1,8 +1,7 @@
 use std::collections::HashSet;
 
-const CORE_RULE_CODE_LENGTH: usize = 6;
-const CORE_RULE_PREFIX: &str = "FF";
-const CUSTOM_RULE_PREFIX: char = 'X';
+use crate::configuration::_helpers::selectors::valid_code;
+
 const RULE_EXCEPTION_SYMBOLS: &str = "symbols";
 
 pub(crate) fn validate(value: Option<&toml::Value>) -> Result<(), String> {
@@ -31,7 +30,7 @@ pub(crate) fn validate(value: Option<&toml::Value>) -> Result<(), String> {
         if reason.trim().is_empty() {
             return Err("Rule exception reason must be non-empty.".to_owned());
         }
-        if !valid_rule_code(&rule) {
+        if !valid_code(&rule) {
             return Err(format!(
                 "Rule exception must use one exact rule code: {rule}."
             ));
@@ -77,26 +76,6 @@ fn exception_text(
         .filter(|value| !value.is_empty())
         .map(str::to_owned)
         .ok_or_else(|| format!("Rule exception {name} must be a non-empty string."))
-}
-
-fn valid_rule_code(value: &str) -> bool {
-    let bytes = value.as_bytes();
-    (bytes.len() == CORE_RULE_CODE_LENGTH
-        && value.starts_with(CORE_RULE_PREFIX)
-        && bytes[2].is_ascii_uppercase()
-        && bytes[3..].iter().all(u8::is_ascii_digit))
-        || value.strip_prefix(CUSTOM_RULE_PREFIX).is_some_and(|rest| {
-            let digit = rest.find(|character: char| character.is_ascii_digit());
-            digit.is_some_and(|index| {
-                rest[..index]
-                    .chars()
-                    .all(|character| character.is_ascii_uppercase())
-                    && !rest[index..].is_empty()
-                    && rest[index..]
-                        .chars()
-                        .all(|character| character.is_ascii_digit())
-            })
-        })
 }
 
 fn valid_qualified_symbol(value: &str) -> bool {

@@ -36,12 +36,13 @@ def build_evaluation_targets(
     warning_coverage: bool = any(
         rule.code == RoleCode.CUSTOM_RULE_TEST_COVERAGE for rule in warning_rules
     )
-    if blocking_coverage or warning_coverage:
+    if custom_rule_registrations:
         targets = _supplemented_targets(
             targets=targets,
             registrations=custom_rule_registrations,
             tree=tree,
             warning_coverage=warning_coverage,
+            create_missing=blocking_coverage or warning_coverage,
         )
     ordered: tuple[EvaluationTarget, ...] = tuple(
         sorted(targets.values(), key=lambda item: str(item.scoped_file.path))
@@ -80,6 +81,7 @@ def _supplemented_targets(
     registrations: tuple[CustomRuleRegistration, ...],
     tree: DiscoveredTree,
     warning_coverage: bool,
+    create_missing: bool,
 ) -> dict[Path, EvaluationTarget]:
     supplemented: dict[Path, EvaluationTarget] = dict(targets)
     grouped: dict[Path, list[CustomRuleRegistration]] = {}
@@ -90,6 +92,8 @@ def _supplemented_targets(
     }
     for path, owned_registrations in grouped.items():
         current: EvaluationTarget | None = supplemented.get(path)
+        if current is None and not create_missing:
+            continue
         scoped_file: ScopedFile = (
             current.scoped_file
             if current is not None

@@ -1,6 +1,8 @@
 use std::collections::HashSet;
 
-use crate::models::{RuleMetadata, RuleOptionListValue, RuleOptionMetadata, RuleOptionValue};
+use crate::catalogue::models::{
+    RuleMetadata, RuleOptionListValue, RuleOptionMetadata, RuleOptionValue,
+};
 
 const INTEGER_KIND: &str = "integer";
 const INTEGER_LIST_KIND: &str = "integer_list";

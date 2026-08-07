@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 from importlib import import_module
+from pathlib import Path
 from types import ModuleType
 
 import pytest
 
-from fensu import RuleCase, RuleFile, RuleResult, evaluate_rule
+from fensu import Family, RuleCase, RuleFile, RuleResult, evaluate_rule
 from fensu.analysis.constants import NATIVE_FACT_MODULE_NAME
+from fensu.rules.authoring.main._resolve_rule_spec import resolve_rule_spec
+from fensu.rules.authoring.models import CustomRuleRegistration, RuleSpec
+from fensu.rules.authoring.types import RuleKind
 from fensu.rules.dagster.constants import FPDG_NATIVE_CODES
 from fensu.rules.exemplars.constants import NATIVE_CUSTOM_RULE_EQUIVALENTS
 from tests.integration.src.fensu.rules.exemplars.main.annotations._test_types import (
@@ -18,6 +22,28 @@ from tests.integration.src.fensu.rules.exemplars.main.annotations._test_types im
 from tests.integration.src.fensu.rules.exemplars.main.annotations.helpers import (
     native_rule,
     normalized_faults,
+)
+
+_COVERED_RULE_SOURCE: str = (
+    "from fensu import Family, rule\n\n"
+    "@rule(code='XCV001', family=Family.CUSTOM, slug='covered', "
+    "message='covered custom rule')\n"
+    "def covered_rule() -> None:\n    return None\n"
+)
+_COVERED_RULE_REGISTRATION: CustomRuleRegistration = CustomRuleRegistration(
+    rule=RuleSpec(
+        code="XCV001",
+        family=Family.CUSTOM,
+        slug="covered",
+        message="covered custom rule",
+        kind=RuleKind.CUSTOM,
+    ),
+    source_path=Path("src/example/rules.py"),
+    module_name="example.rules",
+    function_name="covered_rule",
+    declaration_line=4,
+    declaration_column=0,
+    owner_key="src/example/rules.py\0example.rules\0covered_rule",
 )
 
 _PARITY_NATIVE_CODES: frozenset[str] = frozenset(
@@ -118,6 +144,7 @@ _PARITY_NATIVE_CODES: frozenset[str] = frozenset(
         "FFT202",
         "FFT203",
         "FFT204",
+        "FFT205",
         "FFT301",
         "FFT302",
         "FFT401",
@@ -564,6 +591,16 @@ _PYTHON_OWNED_SFR_CODES: frozenset[str] = frozenset()
             path="src/example/_helpers/results.py",
         ),
         NativeCustomRuleParityTestCase(
+            description="FFR101 accepts its documented models file remediation",
+            native_code="FFR101",
+            source=(
+                "from dataclasses import dataclass\n\n"
+                "@dataclass(frozen=True)\nclass Result:\n    value: int\n"
+            ),
+            expected_fault_count=0,
+            path="src/example/models.py",
+        ),
+        NativeCustomRuleParityTestCase(
             description="FFR102 matches public type declarations outside the types role",
             native_code="FFR102",
             source="from typing import Protocol\n\nclass Service(Protocol):\n    value: int\n",
@@ -583,6 +620,13 @@ _PYTHON_OWNED_SFR_CODES: frozenset[str] = frozenset()
             source="class ConfigError(Exception):\n    pass\n",
             expected_fault_count=1,
             path="src/example/_helpers/example.py",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="FFR104 accepts its documented exceptions file remediation",
+            native_code="FFR104",
+            source="class ConfigError(Exception):\n    pass\n",
+            expected_fault_count=0,
+            path="src/example/exceptions.py",
         ),
         NativeCustomRuleParityTestCase(
             description="FFR201 matches generic module filenames",
@@ -1153,6 +1197,34 @@ _PYTHON_OWNED_SFR_CODES: frozenset[str] = frozenset()
             expected_fault_count=0,
         ),
         NativeCustomRuleParityTestCase(
+            description="FFR707 native and public rules report an uncovered registration",
+            native_code="FFR707",
+            source=_COVERED_RULE_SOURCE,
+            expected_fault_count=1,
+            path="src/example/rules.py",
+            custom_rule_registrations=(_COVERED_RULE_REGISTRATION,),
+        ),
+        NativeCustomRuleParityTestCase(
+            description="FFR707 native and public rules accept a statically covered registration",
+            native_code="FFR707",
+            source=_COVERED_RULE_SOURCE,
+            expected_fault_count=0,
+            path="src/example/rules.py",
+            files=(
+                RuleFile(
+                    path="tests/unit/src/example/test_rules.py",
+                    source=(
+                        "from fensu import RuleCase, evaluate_rule\n"
+                        "from example.rules import covered_rule\n\n"
+                        "def test_given_source_when_checking_then_matches() -> None:\n"
+                        "    result = evaluate_rule(rule=covered_rule, test_case=RuleCase("
+                        "description='one', source='VALUE: int = 1', expected_fault_count=0))\n"
+                    ),
+                ),
+            ),
+            custom_rule_registrations=(_COVERED_RULE_REGISTRATION,),
+        ),
+        NativeCustomRuleParityTestCase(
             description="FFT001 matches public shallow test layout decisions",
             native_code="FFT001",
             source="",
@@ -1239,6 +1311,15 @@ _PYTHON_OWNED_SFR_CODES: frozenset[str] = frozenset()
             scope_root="tests",
         ),
         NativeCustomRuleParityTestCase(
+            description="FFT205 matches public scenario model declaration facts",
+            native_code="FFT205",
+            source="class Result:\n    value: int\n",
+            expected_fault_count=1,
+            path="tests/unit/src/example/scenario_models.py",
+            scope="test",
+            scope_root="tests",
+        ),
+        NativeCustomRuleParityTestCase(
             description="FFT403 matches public sibling dataclass facts",
             native_code="FFT403",
             source=(
@@ -1297,6 +1378,7 @@ def test_given_shared_fixture_when_evaluating_native_and_custom_rules_then_fault
         scope_root=test_case.scope_root,
         config=test_case.config,
         files=test_case.files,
+        custom_rule_registrations=test_case.custom_rule_registrations,
     )
     native_result: RuleResult = evaluate_rule(
         rule=native_rule(test_case.native_code), test_case=rule_case
@@ -1335,3 +1417,51 @@ def test_given_native_registry_when_checking_custom_parity_then_every_rule_is_co
     missing.update(core_native_codes.intersection(_PYTHON_OWNED_SFR_CODES))
 
     assert tuple(sorted(missing)) == test_case.expected_missing_codes
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        NativeCustomRegistryTestCase(
+            description="every registered exemplar carries its core rule policy shape",
+            expected_missing_codes=(),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_exemplar_registry_when_comparing_metadata_then_matches_canonical_policy_shape(
+    test_case: NativeCustomRegistryTestCase,
+) -> None:
+    mismatches: list[str] = []
+    for code, check in NATIVE_CUSTOM_RULE_EQUIVALENTS.items():
+        core: RuleSpec = native_rule(code)
+        exemplar: RuleSpec = resolve_rule_spec(value=check)
+        core_shape: tuple[object, ...] = (
+            core.message,
+            core.remediation,
+            core.severity,
+            core.enabled_by_default,
+            core.cacheable,
+            core.execution_owner,
+            core.constraints,
+            core.thresholds,
+            core.contract_behaviors,
+            core.configuration_inputs,
+            core.limits,
+        )
+        exemplar_shape: tuple[object, ...] = (
+            exemplar.message,
+            exemplar.remediation,
+            exemplar.severity,
+            exemplar.enabled_by_default,
+            exemplar.cacheable,
+            exemplar.execution_owner,
+            exemplar.constraints,
+            exemplar.thresholds,
+            exemplar.contract_behaviors,
+            exemplar.configuration_inputs,
+            exemplar.limits,
+        )
+        mismatches.extend([code] * (exemplar_shape != core_shape))
+
+    assert tuple(mismatches) == test_case.expected_missing_codes

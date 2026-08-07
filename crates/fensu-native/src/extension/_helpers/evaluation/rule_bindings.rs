@@ -277,6 +277,14 @@ pub(crate) fn native_rule_fact_families() -> Vec<(String, Vec<String>)> {
         .collect()
 }
 
+#[pyfunction]
+pub(crate) fn native_generated_policy_owners() -> Vec<String> {
+    crate::rules::main::generated_policy_owners::generated_policy_owners()
+        .iter()
+        .map(|code| (*code).to_owned())
+        .collect()
+}
+
 fn plan_request_queries(request: &Option<NativeExecutionRequest>) -> Vec<NativeProjectQueryTuple> {
     let Some(request) = request else {
         return Vec::new();

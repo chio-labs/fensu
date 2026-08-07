@@ -4,7 +4,7 @@ import ast
 import re
 
 from fensu import Family, Fault, RuleContext, ScopeName, rule
-from fensu.rules.exemplars.types import ExemplarTestPathName, ExemplarTestSymbol
+from fensu.rules.exemplars.types import ExemplarTestSymbol
 
 
 @rule(
@@ -20,7 +20,9 @@ def test_function_name_equivalent(*, module: ast.Module, ctx: RuleContext) -> li
     """Express FFT302 through public pytest-function facts."""
 
     del module
-    if ctx.scope() is not ScopeName.TEST or ctx.path.name in set(ExemplarTestPathName):
+    if ctx.scope() is not ScopeName.TEST or ctx.path.name in ctx.constraint(
+        name="excluded_test_support_filenames"
+    ):
         return []
     pattern: re.Pattern[str] = re.compile(r"^test_given_.+_when_.+_then_.+$")
     return [
@@ -39,7 +41,9 @@ def test_function_name_equivalent(*, module: ast.Module, ctx: RuleContext) -> li
 )
 def _dataclass_parametrize_equivalent(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     del module
-    if ctx.scope() is not ScopeName.TEST or ctx.path.name in set(ExemplarTestPathName):
+    if ctx.scope() is not ScopeName.TEST or ctx.path.name in ctx.constraint(
+        name="excluded_test_support_filenames"
+    ):
         return []
     return [
         ctx.fault_at(location=fact.location)
@@ -57,7 +61,9 @@ def _dataclass_parametrize_equivalent(*, module: ast.Module, ctx: RuleContext) -
 )
 def _accepts_test_case_equivalent(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     del module
-    if ctx.scope() is not ScopeName.TEST or ctx.path.name in set(ExemplarTestPathName):
+    if ctx.scope() is not ScopeName.TEST or ctx.path.name in ctx.constraint(
+        name="excluded_test_support_filenames"
+    ):
         return []
     return [
         ctx.fault_at(location=fact.location)

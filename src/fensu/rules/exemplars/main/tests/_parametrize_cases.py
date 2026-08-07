@@ -3,7 +3,6 @@
 import ast
 
 from fensu import Family, Fault, ParametrizeFact, RuleContext, ScopeName, rule
-from fensu.rules.exemplars.types import ExemplarTestLimit, ExemplarTestPathName
 
 
 @rule(
@@ -17,14 +16,16 @@ def no_dict_test_cases_equivalent(*, module: ast.Module, ctx: RuleContext) -> li
     """Express FFT412 through public parametrize case facts."""
 
     del module
-    if ctx.scope() is not ScopeName.TEST or ctx.path.name in set(ExemplarTestPathName):
+    if ctx.scope() is not ScopeName.TEST or ctx.path.name in ctx.constraint(
+        name="excluded_test_support_filenames"
+    ):
         return []
     faults: list[Fault] = []
     for fact in ctx.facts.test_functions():
         parametrize: ParametrizeFact | None = fact.parametrize
         if (
             parametrize is None
-            or parametrize.argument_count < int(ExemplarTestLimit.MINIMUM_PARAMETRIZE_ARGUMENTS)
+            or parametrize.argument_count < ctx.limit(name="minimum_parametrize_arguments")
             or not parametrize.values_is_sequence
         ):
             continue
@@ -45,13 +46,15 @@ def no_dict_test_cases_equivalent(*, module: ast.Module, ctx: RuleContext) -> li
 )
 def _description_lambda_ids_equivalent(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     del module
-    if ctx.scope() is not ScopeName.TEST or ctx.path.name in set(ExemplarTestPathName):
+    if ctx.scope() is not ScopeName.TEST or ctx.path.name in ctx.constraint(
+        name="excluded_test_support_filenames"
+    ):
         return []
     return [
         ctx.fault_at(location=fact.location)
         for fact in ctx.facts.test_functions()
         if fact.parametrize is not None
-        and fact.parametrize.argument_count >= int(ExemplarTestLimit.MINIMUM_PARAMETRIZE_ARGUMENTS)
+        and fact.parametrize.argument_count >= ctx.limit(name="minimum_parametrize_arguments")
         and (fact.parametrize.values_is_sequence or fact.parametrize.values_is_comprehension)
         and not fact.parametrize.description_lambda_ids
     ]

@@ -94,6 +94,11 @@ def test_rule_details(code: FftCode) -> tuple[str, str]:
             "Create _test_types.py beside the test. Custom-rule tests should define a local "
             "wrapper dataclass there rather than parametrizing directly with RuleCase.",
         ),
+        FftCode.SCENARIO_MODELS_DATACLASSES: (
+            "scenario model modules may contain only imports and dataclass declarations",
+            "Decorate each scenario model with @dataclass or move non-model behavior into a "
+            "focused helper module.",
+        ),
         FftCode.NO_TOP_LEVEL_HELPERS: (
             "test modules may contain only tests, imports, and declarations",
             "Move reusable functions into the local helpers.py module.",

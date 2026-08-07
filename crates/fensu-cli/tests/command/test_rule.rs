@@ -1,10 +1,78 @@
 use std::process::Command;
 
 use crate::helpers::write;
-use crate::test_types::{RuleColorTestCase, RulePackLookupTestCase, RuleRemediationTestCase};
+use crate::test_types::{
+    EffectiveRulePolicyTestCase, RuleColorTestCase, RulePackLookupTestCase, RuleRemediationTestCase,
+};
 
 const CONFIG: &str =
     "roots = [\"src\"]\ntests = [\"tests\"]\ntooling = [\"scripts\"]\nselect = [\"FFA\"]\n";
+
+#[test]
+fn given_loaded_project_policy_when_inspecting_rule_then_discloses_effective_state() {
+    let test_cases = [
+        EffectiveRulePolicyTestCase {
+            description: "selected core rule discloses blocking effective state",
+            config: "roots = [\"src\"]\nselect = [\"FFA001\"]\n",
+            expected_fragments: &[
+                "Authored metadata:",
+                "Execution owner: file",
+                "Cacheability: undeclared",
+                "Loaded project policy:",
+                "Selected: yes",
+                "Blocking: yes",
+                "Warning: no",
+                "Ignored: no",
+            ],
+        },
+        EffectiveRulePolicyTestCase {
+            description: "warn-only core rule discloses warning effective state",
+            config: "roots = [\"src\"]\nselect = []\nwarn = [\"FFA001\"]\n",
+            expected_fragments: &[
+                "Selected: yes",
+                "Blocking: no",
+                "Warning: yes",
+                "Ignored: no",
+            ],
+        },
+        EffectiveRulePolicyTestCase {
+            description: "ignored selected rule discloses both policy facts",
+            config: "roots = [\"src\"]\nselect = [\"FFA001\"]\nignore = [\"FFA001\"]\n",
+            expected_fragments: &[
+                "Selected: yes",
+                "Blocking: no",
+                "Warning: no",
+                "Ignored: yes",
+            ],
+        },
+        EffectiveRulePolicyTestCase {
+            description: "unselected core rule discloses inactive effective state",
+            config: "roots = [\"src\"]\nselect = [\"FFT\"]\n",
+            expected_fragments: &["Selected: no", "Blocking: no", "Warning: no", "Ignored: no"],
+        },
+    ];
+
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(repository.path().join("fensu.toml"), test_case.config);
+        let output = Command::new(env!("CARGO_BIN_EXE_fensu"))
+            .args(["rule", "FFA001", "--color", "never"])
+            .current_dir(repository.path())
+            .output()
+            .expect("native rule process runs");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        assert_eq!(output.status.code(), Some(0), "{}", test_case.description);
+        assert!(
+            test_case
+                .expected_fragments
+                .iter()
+                .all(|fragment| stdout.contains(fragment)),
+            "{}: {stdout}",
+            test_case.description
+        );
+    }
+}
 
 #[test]
 fn given_enabled_native_pack_when_inspecting_alias_then_shows_pack_and_target_without_python() {
@@ -162,9 +230,14 @@ fn given_fixed_core_constraints_when_inspecting_rules_then_lists_exhaustive_valu
             expected_fragment: "Recognized runtime role directories: main, _helpers, classes, models, types, constants, exceptions",
         },
         RuleRemediationTestCase {
-            description: "FFR702 discloses every allowed direct-script call target",
+            description: "FFR702 discloses allowed local direct-script call targets",
             code: "FFR702",
-            expected_fragment: "Allowed direct-script main() call targets: _parse_args, imported main/ entry function",
+            expected_fragment: "Allowed local direct-script main() call targets: _parse_args",
+        },
+        RuleRemediationTestCase {
+            description: "FFR702 discloses allowed imported entry roles",
+            code: "FFR702",
+            expected_fragment: "Roles whose imported entries may be called by direct-script main(): main",
         },
         RuleRemediationTestCase {
             description: "FFR701 discloses every allowed direct-script function",

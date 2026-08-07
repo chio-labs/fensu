@@ -6,4 +6,5 @@ pub(crate) mod native_rules;
 pub(crate) mod parsing;
 pub(crate) mod roots;
 pub(crate) mod scopes;
+pub(crate) mod selectors;
 pub(crate) mod validation;

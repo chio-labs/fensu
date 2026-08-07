@@ -69,7 +69,7 @@ def test_given_loaded_config_when_mutating_thresholds_then_raises_type_error(
     [
         ConfigImmutabilityTestCase(
             description="role threshold mapping cannot be mutated",
-            config_text='roots = ["src/pkg"]\n[roles.entry]\nmax_statements = 30\n',
+            config_text='roots = ["src/pkg"]\n[roles.main]\nmax_statements = 30\n',
             expected_error_type=TypeError,
         )
     ],
@@ -82,7 +82,7 @@ def test_given_loaded_config_when_mutating_role_thresholds_then_raises_type_erro
     write_fensu_toml(root=tmp_path, contents=test_case.config_text)
     config: Config = load_config(tmp_path)
     mutable_role_thresholds: MutableMapping[Threshold, int] = cast(
-        "MutableMapping[Threshold, int]", config.role_thresholds["entry"]
+        "MutableMapping[Threshold, int]", config.role_thresholds["main"]
     )
 
     with pytest.raises(test_case.expected_error_type):

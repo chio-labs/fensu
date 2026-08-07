@@ -132,7 +132,7 @@ def exceptions_only_exceptions_equivalent(*, module: ast.Module, ctx: RuleContex
     family=Family.CUSTOM,
     slug="model-declaration-outside-models-equivalent",
     message="structured runtime models must be defined in the models role",
-    remediation="Move the dataclass or structured model into models.py or a models/ package.",
+    remediation="Move the dataclass or structured model into the owning models.py file.",
 )
 def model_declaration_outside_models_equivalent(
     *, module: ast.Module, ctx: RuleContext
@@ -162,7 +162,8 @@ def type_declaration_outside_types_equivalent(
     return [
         ctx.fault_at(location=fact.location)
         for fact in ctx.facts.module_declarations().type_declarations
-        if not fact.private or not ctx.in_role("helpers")
+        if not fact.private
+        or ctx.role_of() not in ctx.constraint(name="allowed_private_type_roles")
     ]
 
 
@@ -190,7 +191,7 @@ def constant_outside_constants_equivalent(*, module: ast.Module, ctx: RuleContex
     family=Family.CUSTOM,
     slug="exception-declaration-outside-exceptions-equivalent",
     message="custom exceptions must be defined in the exceptions role",
-    remediation="Move the exception class into exceptions.py or an exceptions/ package.",
+    remediation="Move the exception class into the owning exceptions.py file.",
 )
 def exception_declaration_outside_exceptions_equivalent(
     *, module: ast.Module, ctx: RuleContext
@@ -442,7 +443,7 @@ def no_reexport_shim_equivalent(*, module: ast.Module, ctx: RuleContext) -> list
     if (
         _excluded_scope(ctx)
         or ctx.path.name == _INIT
-        or ctx.role_of() == _EXCEPTIONS
+        or ctx.role_of() in ctx.constraint(name="exempt_roles")
         or not ctx.facts.module_declarations().pure_reexport
     ):
         return []
@@ -636,20 +637,22 @@ def tooling_entrypoint_delegation_equivalent(
                 message="direct scripts must import and call an entry function from a main/ module"
             )
         ]
+    imported_entries: frozenset[str] = (
+        facts.imported_main_entry_names
+        if _MAIN in ctx.constraint(name="allowed_imported_entry_roles")
+        else frozenset()
+    )
     faults: list[Fault] = []
-    if not any(call.name in facts.imported_main_entry_names for call in facts.main_calls):
+    if not any(call.name in imported_entries for call in facts.main_calls):
         faults.append(
             ctx.path_fault(
                 message="direct scripts must import and call an entry function from a main/ module"
             )
         )
-    allowed_targets: tuple[str, ...] = get_rule_constraint(
-        code="FFR702", name="allowed_main_call_targets"
-    )
     allowed_calls: frozenset[str] = frozenset(
         {
-            *facts.imported_main_entry_names,
-            *(name for name in allowed_targets if name.startswith("_")),
+            *imported_entries,
+            *ctx.constraint(name="allowed_local_main_call_targets"),
         }
     )
     faults.extend(

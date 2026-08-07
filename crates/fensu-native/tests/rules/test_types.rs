@@ -21,6 +21,8 @@ pub(crate) struct CoreRuleFixture {
 pub(crate) struct CoreRuleCorpusTestCase {
     pub(crate) description: &'static str,
     pub(crate) expected_fixture_count: usize,
+    pub(crate) expected_core_code_count: usize,
+    pub(crate) expected_non_faulting_codes: &'static [&'static str],
 }
 
 pub(crate) struct NativeOptionRejectionTestCase {

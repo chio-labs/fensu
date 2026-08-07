@@ -25,6 +25,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: Swatinem/rust-cache@v2
       - run: make check-rust
+      - run: make skills-content-check
       - run: make test-rust
 
   performance:

@@ -54,9 +54,7 @@ fn dimension_row(params: DimensionRowParams<'_>) -> DimensionRow {
         .first()
         .map(split_parameter_names)
         .unwrap_or_default();
-    let values: Option<&Expr> = (params.call.arguments.args.len()
-        >= constants::MINIMUM_PARAMETRIZE_ARGUMENTS)
-        .then(|| &params.call.arguments.args[1]);
+    let values: Option<&Expr> = params.call.arguments.args.get(1);
     let decorator_line = params
         .index
         .locate(

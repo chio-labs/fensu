@@ -12,18 +12,38 @@ use crate::test_types;
 #[test]
 fn given_core_rule_contract_corpus_when_evaluating_then_diagnostics_are_exact() {
     let test_cases = [test_types::CoreRuleCorpusTestCase {
-        description: "captured native requests preserve every proven core diagnostic",
+        description: "legacy captured requests preserve every proven core diagnostic",
         expected_fixture_count: 531,
+        expected_core_code_count: 111,
+        expected_non_faulting_codes: &["FFR707", "FFT001"],
     }];
-    for test_case in test_cases {
-        let fixtures = crate::helpers::fixtures();
+    for test_case in &test_cases {
         assert_eq!(
-            fixtures.len(),
+            crate::helpers::fixtures().len(),
             test_case.expected_fixture_count,
             "{}",
             test_case.description
         );
-        crate::helpers::run_fixtures(fixtures);
+        crate::helpers::assert_corpus_contract(test_case, crate::helpers::fixtures());
+    }
+}
+
+#[test]
+fn given_generated_core_rule_corpus_when_evaluating_then_every_registration_is_covered() {
+    let test_cases = [test_types::CoreRuleCorpusTestCase {
+        description: "current rule suites reproducibly cover every core registration",
+        expected_fixture_count: 132,
+        expected_core_code_count: 111,
+        expected_non_faulting_codes: &["FFR301", "FFR302", "FFR306", "FFR308", "FFR309"],
+    }];
+    for test_case in &test_cases {
+        assert_eq!(
+            crate::helpers::generated_fixtures().len(),
+            test_case.expected_fixture_count,
+            "{}",
+            test_case.description
+        );
+        crate::helpers::assert_corpus_contract(test_case, crate::helpers::generated_fixtures());
     }
 }
 

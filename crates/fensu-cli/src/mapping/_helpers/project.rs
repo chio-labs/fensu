@@ -49,6 +49,7 @@ pub(crate) fn resolve(explicit_roots: &[String]) -> Result<MappingProject, Strin
             sources.push(MappingSource {
                 import_root: scan_path.clone(),
                 scan_path,
+                exclude_artifact_directories: false,
             });
         }
         return Ok(MappingProject {
@@ -84,6 +85,7 @@ pub(crate) fn resolve(explicit_roots: &[String]) -> Result<MappingProject, Strin
         sources: vec![MappingSource {
             scan_path: source_root.clone(),
             import_root: source_root,
+            exclude_artifact_directories: true,
         }],
         cache_enabled: true,
     })
@@ -120,6 +122,7 @@ fn configured_sources(
                 .map(Path::to_path_buf)
                 .unwrap_or_else(|| scan_path.clone()),
             scan_path,
+            exclude_artifact_directories: false,
         })
         .collect())
 }
@@ -227,9 +230,10 @@ pub(crate) fn discover(
             else {
                 continue;
             };
-            if parts
-                .iter()
-                .any(|part| EXCLUDED.contains(&part.to_string_lossy().as_ref()))
+            if source.exclude_artifact_directories
+                && parts
+                    .iter()
+                    .any(|part| EXCLUDED.contains(&part.to_string_lossy().as_ref()))
             {
                 continue;
             }

@@ -29,6 +29,10 @@ pub fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
         module
     )?)?;
     module.add_function(wrap_pyfunction!(
+        rule_bindings::native_generated_policy_owners,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(
         execution_planning::select_native_execution_files,
         module
     )?)?;

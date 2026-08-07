@@ -6,10 +6,12 @@ use std::path::Path;
 
 use walkdir::WalkDir;
 
+use crate::catalogue::main::rule_catalogue::configured_rule_catalogue;
 use crate::check::_helpers::options::use_color;
 use crate::check::_helpers::policy::{
-    check_identity, hex_digest, path_matches, validate_package_names,
+    check_identity, hex_digest, path_matches, validate_scope_roots,
 };
+use crate::check::_helpers::rule_policy::validate_config_tiers;
 use crate::check::models::CheckPlan;
 use crate::configuration::main::load;
 use crate::configuration::main::validate_exception_targets::validate_exception_targets;
@@ -30,7 +32,9 @@ pub(crate) fn prepare_check(options: &CheckOptions) -> Result<CheckPlan, String>
     if !options.paths.is_empty() {
         config.roots = configured_paths(options, &invocation, &root)?;
     }
-    validate_package_names(&root, &config)?;
+    validate_config_tiers(&config)?;
+    validate_exception_codes(&config)?;
+    validate_scope_roots(&root, &config)?;
     validate_exception_targets(&config, &root)?;
     let discovered = discover(&root, &config)?;
     let (sources, excluded) = select_sources(discovered, &config);
@@ -47,6 +51,24 @@ pub(crate) fn prepare_check(options: &CheckOptions) -> Result<CheckPlan, String>
         cache_enabled,
         color,
     })
+}
+
+fn validate_exception_codes(config: &Config) -> Result<(), String> {
+    let known = configured_rule_catalogue(&config.rule_packs)?
+        .into_iter()
+        .map(|rule| rule.code.as_str())
+        .collect::<std::collections::HashSet<_>>();
+    if let Some(exception) = config.exceptions.iter().find(|exception| {
+        let hosted_custom = exception.rule.starts_with('X')
+            && (!config.rule_paths.is_empty() || !config.rule_modules.is_empty());
+        !hosted_custom && !known.contains(exception.rule.as_str())
+    }) {
+        return Err(format!(
+            "Rule exception references unknown rule code: {}.",
+            exception.rule
+        ));
+    }
+    Ok(())
 }
 
 fn configured_paths(

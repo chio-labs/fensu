@@ -26,8 +26,16 @@ from fensu.discovery.models import ProjectLayout, RepoRoot
 from fensu.discovery.types import RoleName, ScopeName
 from fensu.evaluation._helpers import ast_access
 from fensu.evaluation.models import ParsedModule, ThresholdOverrideUse
+from fensu.rules.authoring.constants import CUSTOM_RULE_REGISTRATIONS_CACHE_KEY
 from fensu.rules.authoring.exceptions import RuleDefinitionError
-from fensu.rules.authoring.models import Fault, RuleOption, RuleSpec
+from fensu.rules.authoring.models import (
+    CustomRuleRegistration,
+    Fault,
+    RuleConstraint,
+    RuleLimit,
+    RuleOption,
+    RuleSpec,
+)
 from fensu.rules.authoring.types import RuleOptionValue, Threshold
 
 _POSIX_PATH_SEPARATOR: str = "/"
@@ -106,6 +114,37 @@ class EvaluationRuleContext:
             )
         value: RuleOptionValue = self._config.rule_options[self._rule.code][option.name]
         return cast(T, value)
+
+    def constraint(self, *, name: str) -> tuple[str, ...]:
+        """Return one fixed exhaustive value set declared by the active rule."""
+
+        constraint: RuleConstraint | None = next(
+            (item for item in self._rule.constraints if item.name == name),
+            None,
+        )
+        if constraint is None:
+            raise RuleDefinitionError(
+                f"rule {self._rule.code} requested undeclared constraint {name}"
+            )
+        return constraint.values
+
+    def limit(self, *, name: str) -> int:
+        """Return one fixed numeric cardinality declared by the active rule."""
+
+        limit: RuleLimit | None = next(
+            (item for item in self._rule.limits if item.name == name), None
+        )
+        if limit is None:
+            raise RuleDefinitionError(f"rule {self._rule.code} requested undeclared limit {name}")
+        return limit.value
+
+    def custom_rule_registrations(self) -> tuple[CustomRuleRegistration, ...]:
+        """Return configured custom-rule declarations owned by the current file."""
+
+        return cast(
+            tuple[CustomRuleRegistration, ...],
+            self._file_cache.get(CUSTOM_RULE_REGISTRATIONS_CACHE_KEY, ()),
+        )
 
     def fault(
         self,

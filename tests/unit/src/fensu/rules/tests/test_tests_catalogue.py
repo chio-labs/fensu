@@ -34,6 +34,7 @@ from tests.unit.src.fensu.rules.tests._test_types import FftCatalogueTestCase, F
                 "FFT202",
                 "FFT203",
                 "FFT204",
+                "FFT205",
                 "FFT301",
                 "FFT302",
                 "FFT401",

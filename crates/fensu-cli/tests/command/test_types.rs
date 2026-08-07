@@ -60,6 +60,18 @@ pub(crate) struct InvalidCheckConfigTestCase {
     pub(crate) expected_error: &'static str,
 }
 
+pub(crate) struct ConfigDiscoveryTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_exit_code: i32,
+}
+
+pub(crate) struct ThresholdPrecedenceTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_exit_code: i32,
+    pub(crate) expected_present: &'static str,
+    pub(crate) expected_absent: &'static str,
+}
+
 pub(crate) struct RuleOptionsCheckRoutingTestCase {
     pub(crate) description: &'static str,
     pub(crate) config: &'static str,
@@ -89,6 +101,18 @@ pub(crate) struct NativeRulePackTestCase {
 pub(crate) struct RulePackLookupTestCase {
     pub(crate) description: &'static str,
     pub(crate) expected_fragments: &'static [&'static str],
+}
+
+pub(crate) struct EffectiveRulePolicyTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) config: &'static str,
+    pub(crate) expected_fragments: &'static [&'static str],
+}
+
+pub(crate) struct OwnerPlanningTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_exit_code: i32,
+    pub(crate) expected_fault_count: usize,
 }
 
 pub(crate) struct PreExecutionCleanupTestCase {

@@ -5,14 +5,19 @@ use std::collections::HashSet;
 use fensu_facts::extension::models::ProgramHandle;
 use fensu_facts::facts::models::{ParametrizeRow, TestFunctionRow};
 
+use crate::rules::_helpers::generated_policy::{
+    FFT405_MINIMUM_PARAMETRIZE_ARGUMENTS, FFT406_MINIMUM_PARAMETRIZE_ARGUMENTS,
+    FFT407_MINIMUM_PARAMETRIZE_ARGUMENTS, FFT408_MINIMUM_PARAMETRIZE_ARGUMENTS,
+    FFT411_MINIMUM_PARAMETRIZE_ARGUMENTS, FFT412_MINIMUM_PARAMETRIZE_ARGUMENTS,
+    FFT413_MINIMUM_PARAMETRIZE_ARGUMENTS, FFT414_MINIMUM_PARAMETRIZE_ARGUMENTS,
+};
 use crate::rules::_helpers::test_names::{description_ids_fault, valid_test_name};
 use crate::rules::constants::{
     TEST_ACCEPTS_TEST_CASE_CODE, TEST_CASE_ANNOTATION_CODE, TEST_DATACLASS_PARAMETRIZE_CODE,
     TEST_DESCRIPTION_LAMBDA_IDS_CODE, TEST_EXPECTED_FIELD_ASSERTION_CODE, TEST_FUNCTION_NAME_CODE,
     TEST_INLINE_PARAMETRIZE_VALUES_CODE, TEST_LOCAL_TEST_CASE_CONSTRUCTORS_CODE,
-    TEST_MINIMUM_PARAMETRIZE_ARGUMENTS, TEST_NONEMPTY_PARAMETRIZE_VALUES_CODE,
-    TEST_NO_DICT_TEST_CASES_CODE, TEST_PARAMETRIZE_ARGUMENTS_CODE, TEST_PARAMETRIZE_IDS_CODE,
-    TEST_PARAMETRIZE_TEST_CASE_CODE,
+    TEST_NONEMPTY_PARAMETRIZE_VALUES_CODE, TEST_NO_DICT_TEST_CASES_CODE,
+    TEST_PARAMETRIZE_ARGUMENTS_CODE, TEST_PARAMETRIZE_IDS_CODE, TEST_PARAMETRIZE_TEST_CASE_CODE,
 };
 use crate::rules::models::{NativeFaultRow, NativeProjectQuery, NativeRuleContext};
 
@@ -36,6 +41,7 @@ pub(super) fn test_function_faults(
             .into_iter()
             .collect();
     };
+    let minimum_arguments = minimum_parametrize_arguments(code);
     let fault = match code {
         TEST_ACCEPTS_TEST_CASE_CODE => !row
             .parameter_names
@@ -51,35 +57,32 @@ pub(super) fn test_function_faults(
                     .is_some_and(|name| local_types.contains(name))
         }
         TEST_EXPECTED_FIELD_ASSERTION_CODE => !row.references_expected_field,
-        TEST_PARAMETRIZE_ARGUMENTS_CODE => {
-            parametrize.argument_count < TEST_MINIMUM_PARAMETRIZE_ARGUMENTS
-        }
+        TEST_PARAMETRIZE_ARGUMENTS_CODE => parametrize.argument_count < minimum_arguments,
         TEST_PARAMETRIZE_TEST_CASE_CODE => {
-            parametrize.argument_count >= TEST_MINIMUM_PARAMETRIZE_ARGUMENTS
+            parametrize.argument_count >= minimum_arguments
                 && parametrize.parameter_name.as_deref() != Some(TEST_CASE_NAME)
         }
         TEST_PARAMETRIZE_IDS_CODE => {
-            parametrize.argument_count >= TEST_MINIMUM_PARAMETRIZE_ARGUMENTS
-                && !parametrize.ids_present
+            parametrize.argument_count >= minimum_arguments && !parametrize.ids_present
         }
         TEST_INLINE_PARAMETRIZE_VALUES_CODE => {
-            parametrize.argument_count >= TEST_MINIMUM_PARAMETRIZE_ARGUMENTS
+            parametrize.argument_count >= minimum_arguments
                 && !parametrize.values_is_sequence
                 && !parametrize.values_is_comprehension
         }
         TEST_NONEMPTY_PARAMETRIZE_VALUES_CODE => {
-            parametrize.argument_count >= TEST_MINIMUM_PARAMETRIZE_ARGUMENTS
+            parametrize.argument_count >= minimum_arguments
                 && parametrize.values_is_sequence
                 && parametrize.values_empty
         }
-        TEST_DESCRIPTION_LAMBDA_IDS_CODE => description_ids_fault(parametrize),
+        TEST_DESCRIPTION_LAMBDA_IDS_CODE => description_ids_fault(parametrize, minimum_arguments),
         _ => false,
     };
     if code == TEST_NO_DICT_TEST_CASES_CODE {
-        return dictionary_case_faults(code, parametrize);
+        return dictionary_case_faults(code, parametrize, minimum_arguments);
     }
     if code == TEST_LOCAL_TEST_CASE_CONSTRUCTORS_CODE {
-        return local_constructor_faults(code, parametrize, local_types);
+        return local_constructor_faults(code, parametrize, local_types, minimum_arguments);
     }
     fault
         .then(|| location_fault(code, row.line, row.column))
@@ -120,8 +123,9 @@ fn local_constructor_faults(
     code: &str,
     row: &ParametrizeRow,
     local_types: &HashSet<String>,
+    minimum_arguments: u32,
 ) -> Vec<NativeFaultRow> {
-    if row.argument_count < TEST_MINIMUM_PARAMETRIZE_ARGUMENTS
+    if row.argument_count < minimum_arguments
         || (!row.values_is_sequence && !row.values_is_comprehension)
     {
         return Vec::new();
@@ -139,8 +143,12 @@ fn local_constructor_faults(
         .collect()
 }
 
-fn dictionary_case_faults(code: &str, row: &ParametrizeRow) -> Vec<NativeFaultRow> {
-    if row.argument_count < TEST_MINIMUM_PARAMETRIZE_ARGUMENTS || !row.values_is_sequence {
+fn dictionary_case_faults(
+    code: &str,
+    row: &ParametrizeRow,
+    minimum_arguments: u32,
+) -> Vec<NativeFaultRow> {
+    if row.argument_count < minimum_arguments || !row.values_is_sequence {
         return Vec::new();
     }
     row.cases
@@ -148,6 +156,21 @@ fn dictionary_case_faults(code: &str, row: &ParametrizeRow) -> Vec<NativeFaultRo
         .filter(|case| case.dictionary)
         .map(|case| location_fault(code, case.line, case.column))
         .collect()
+}
+
+fn minimum_parametrize_arguments(code: &str) -> u32 {
+    let value = match code {
+        TEST_PARAMETRIZE_ARGUMENTS_CODE => FFT405_MINIMUM_PARAMETRIZE_ARGUMENTS,
+        TEST_PARAMETRIZE_TEST_CASE_CODE => FFT406_MINIMUM_PARAMETRIZE_ARGUMENTS,
+        TEST_PARAMETRIZE_IDS_CODE => FFT407_MINIMUM_PARAMETRIZE_ARGUMENTS,
+        TEST_INLINE_PARAMETRIZE_VALUES_CODE => FFT408_MINIMUM_PARAMETRIZE_ARGUMENTS,
+        TEST_NONEMPTY_PARAMETRIZE_VALUES_CODE => FFT411_MINIMUM_PARAMETRIZE_ARGUMENTS,
+        TEST_NO_DICT_TEST_CASES_CODE => FFT412_MINIMUM_PARAMETRIZE_ARGUMENTS,
+        TEST_LOCAL_TEST_CASE_CONSTRUCTORS_CODE => FFT413_MINIMUM_PARAMETRIZE_ARGUMENTS,
+        TEST_DESCRIPTION_LAMBDA_IDS_CODE => FFT414_MINIMUM_PARAMETRIZE_ARGUMENTS,
+        _ => 0,
+    };
+    u32::try_from(value).unwrap_or(u32::MAX)
 }
 
 fn sibling_path(repository_path: &str, name: &str) -> String {

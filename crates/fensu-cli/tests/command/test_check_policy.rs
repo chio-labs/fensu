@@ -1,8 +1,50 @@
 use crate::helpers::{run_check, run_check_colored, write};
 use crate::test_types::{
     CheckPolicyTestCase, ColoredCheckTestCase, InvalidCheckConfigTestCase, NativeRulePackTestCase,
-    RuleOptionsCheckRoutingTestCase,
+    OwnerPlanningTestCase, RuleOptionsCheckRoutingTestCase,
 };
+
+#[test]
+fn given_role_directories_in_one_leaf_when_planning_then_evaluates_owner_once() {
+    let test_cases = [OwnerPlanningTestCase {
+        description: "models and types role directories belong to their parent leaf",
+        expected_exit_code: 1,
+        expected_fault_count: 1,
+    }];
+
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(
+            repository.path().join("fensu.toml"),
+            "roots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFR309\"]\n",
+        );
+        write(
+            repository.path().join("src/pkg/orders/models/value.py"),
+            "VALUE: int = 1\n",
+        );
+        write(
+            repository.path().join("src/pkg/orders/types/value.py"),
+            "Value = int\n",
+        );
+
+        let output = run_check(repository.path());
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {}",
+            test_case.description,
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(
+            stdout.matches("FFR309").count(),
+            test_case.expected_fault_count,
+            "{}: {stdout}",
+            test_case.description
+        );
+    }
+}
 
 #[test]
 fn given_native_dagster_alias_when_checking_then_executes_core_kernel_under_pack_identity() {

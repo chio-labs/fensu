@@ -3,7 +3,7 @@ use std::path::Path;
 
 use serde_json::{json, Value};
 
-use crate::models::RuleMetadata;
+use crate::catalogue::models::RuleMetadata;
 use crate::skills::_helpers::content::fingerprint::canonical_ascii;
 use crate::skills::models::SkillContext;
 

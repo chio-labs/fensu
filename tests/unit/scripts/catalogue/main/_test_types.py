@@ -14,3 +14,11 @@ class GenerateCatalogueTestCase:
     initial_cli_defaults: bytes
     expected_exit_code: int
     expected_current: bool
+
+
+@dataclass(frozen=True)
+class RuleSurfaceParityTestCase:
+    """Expected cross-language rule registry differences."""
+
+    description: str
+    expected_mismatches: tuple[str, ...]

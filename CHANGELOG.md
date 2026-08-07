@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.9.1](https://github.com/chio-labs/fensu/compare/v0.9.0...v0.9.1) (2026-08-07)
+
+
+### Bug Fixes
+
+* align native rules with canonical policy ([f19b81c](https://github.com/chio-labs/fensu/commit/f19b81c55b0a37b8853a90faf5e517d6dc8dd826))
+* derive repository guidance from rule policy ([45d255c](https://github.com/chio-labs/fensu/commit/45d255caca16877fa0eb816128ef9f642986d9dd))
+* honor configured map roots ([1551d2c](https://github.com/chio-labs/fensu/commit/1551d2c5ecc79c69745a5e174f2ba60731fc8492))
+* make catalogue inspection fail closed ([ae82a48](https://github.com/chio-labs/fensu/commit/ae82a48b1b5945cc49b6b24754c0f7646dd241c1))
+* make native configuration fail closed ([24bd4ba](https://github.com/chio-labs/fensu/commit/24bd4ba5dac570ad81458da20c8460f7b6e11266))
+
 ## [0.9.0](https://github.com/chio-labs/fensu/compare/v0.8.1...v0.9.0) (2026-08-07)
 
 

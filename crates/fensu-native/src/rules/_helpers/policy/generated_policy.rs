@@ -1,6 +1,48 @@
 //! Generated fixed core-rule policy. Do not edit by hand.
 
 #[rustfmt::skip]
+pub(crate) const GENERATED_POLICY_OWNERS: &[&str] = &[
+    "FFL103",
+    "FFH002",
+    "FFS102",
+    "FFS110",
+    "FFT103",
+    "FFT104",
+    "FFT105",
+    "FFT203",
+    "FFT204",
+    "FFT205",
+    "FFT301",
+    "FFT302",
+    "FFT401",
+    "FFT402",
+    "FFT403",
+    "FFT404",
+    "FFT405",
+    "FFT406",
+    "FFT407",
+    "FFT408",
+    "FFT411",
+    "FFT412",
+    "FFT413",
+    "FFT414",
+    "FFR102",
+    "FFR201",
+    "FFR204",
+    "FFR301",
+    "FFR302",
+    "FFR303",
+    "FFR304",
+    "FFR305",
+    "FFR307",
+    "FFR401",
+    "FFR403",
+    "FFR701",
+    "FFR702",
+    "FFR705",
+];
+
+#[rustfmt::skip]
 pub(crate) const FFL103_EXEMPT_SUBDOMAIN_PATHS: &[&str] = &[
     "rules/exemplars",
 ];

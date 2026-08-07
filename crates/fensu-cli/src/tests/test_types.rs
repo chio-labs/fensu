@@ -12,3 +12,9 @@ pub(crate) struct PathMatchTestCase {
     pub(crate) pattern: &'static str,
     pub(crate) expected_matches: bool,
 }
+
+pub(crate) struct CoreRuleRenderingTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_core_count: usize,
+    pub(crate) expected_labels: &'static [&'static str],
+}

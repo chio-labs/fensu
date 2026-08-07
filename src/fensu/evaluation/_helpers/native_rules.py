@@ -224,10 +224,10 @@ def prepare_native_project_plane(
             LayerCode.PUBLIC_MAIN_ENTRY_EXTERNAL_USE,
             "FPDG001",
             "FPDG004",
-            "FPDG008",
-            "FPDG020",
-            "FPDG023",
-            "FPDG024",
+            "FPDG006",
+            "FPDG018",
+            "FPDG021",
+            "FPDG022",
         }
     )
     requester: Path | None = next(

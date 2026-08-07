@@ -25,3 +25,9 @@ pub(crate) struct PublicationRaceTestCase {
     pub(crate) staged_payload_size: usize,
     pub(crate) expected_exit_code: i32,
 }
+
+pub(crate) struct RepositoryGuidanceTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_fragments: &'static [&'static str],
+    pub(crate) unexpected_fragments: &'static [&'static str],
+}

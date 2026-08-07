@@ -591,6 +591,16 @@ _PYTHON_OWNED_SFR_CODES: frozenset[str] = frozenset()
             path="src/example/_helpers/results.py",
         ),
         NativeCustomRuleParityTestCase(
+            description="FFR101 accepts its documented models file remediation",
+            native_code="FFR101",
+            source=(
+                "from dataclasses import dataclass\n\n"
+                "@dataclass(frozen=True)\nclass Result:\n    value: int\n"
+            ),
+            expected_fault_count=0,
+            path="src/example/models.py",
+        ),
+        NativeCustomRuleParityTestCase(
             description="FFR102 matches public type declarations outside the types role",
             native_code="FFR102",
             source="from typing import Protocol\n\nclass Service(Protocol):\n    value: int\n",
@@ -610,6 +620,13 @@ _PYTHON_OWNED_SFR_CODES: frozenset[str] = frozenset()
             source="class ConfigError(Exception):\n    pass\n",
             expected_fault_count=1,
             path="src/example/_helpers/example.py",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="FFR104 accepts its documented exceptions file remediation",
+            native_code="FFR104",
+            source="class ConfigError(Exception):\n    pass\n",
+            expected_fault_count=0,
+            path="src/example/exceptions.py",
         ),
         NativeCustomRuleParityTestCase(
             description="FFR201 matches generic module filenames",

@@ -132,7 +132,7 @@ def exceptions_only_exceptions_equivalent(*, module: ast.Module, ctx: RuleContex
     family=Family.CUSTOM,
     slug="model-declaration-outside-models-equivalent",
     message="structured runtime models must be defined in the models role",
-    remediation="Move the dataclass or structured model into models.py or a models/ package.",
+    remediation="Move the dataclass or structured model into the owning models.py file.",
 )
 def model_declaration_outside_models_equivalent(
     *, module: ast.Module, ctx: RuleContext
@@ -191,7 +191,7 @@ def constant_outside_constants_equivalent(*, module: ast.Module, ctx: RuleContex
     family=Family.CUSTOM,
     slug="exception-declaration-outside-exceptions-equivalent",
     message="custom exceptions must be defined in the exceptions role",
-    remediation="Move the exception class into exceptions.py or an exceptions/ package.",
+    remediation="Move the exception class into the owning exceptions.py file.",
 )
 def exception_declaration_outside_exceptions_equivalent(
     *, module: ast.Module, ctx: RuleContext

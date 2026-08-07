@@ -4,6 +4,139 @@ use crate::helpers::{
     ambiguous_protocol_project, basic_project, method_project, run, run_colored,
     sibling_method_project, text, write, write_bytes,
 };
+use crate::test_types::ConfiguredPackageMappingTestCase;
+
+#[test]
+fn given_artifact_named_package_in_configured_root_when_mapping_then_symbols_and_edges_are_complete() {
+    let test_cases = [
+        ConfiguredPackageMappingTestCase {
+            description: "build remains an ordinary configured Python package",
+            package_name: "build",
+            expected_function_path: "src/pkg/build/worker.py:1",
+        },
+        ConfiguredPackageMappingTestCase {
+            description: "dist remains an ordinary configured Python package",
+            package_name: "dist",
+            expected_function_path: "src/pkg/dist/worker.py:1",
+        },
+        ConfiguredPackageMappingTestCase {
+            description: "venv remains an ordinary configured Python package",
+            package_name: "venv",
+            expected_function_path: "src/pkg/venv/worker.py:1",
+        },
+        ConfiguredPackageMappingTestCase {
+            description: "node_modules remains an ordinary configured Python package",
+            package_name: "node_modules",
+            expected_function_path: "src/pkg/node_modules/worker.py:1",
+        },
+    ];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("configured package repository");
+        write(repository.path().join("fensu.toml"), "roots = [\"src/pkg\"]\n");
+        write(repository.path().join("src/pkg/__init__.py"), "");
+        write(
+            repository
+                .path()
+                .join(format!("src/pkg/{}/__init__.py", test_case.package_name)),
+            "",
+        );
+        write(
+            repository
+                .path()
+                .join(format!("src/pkg/{}/worker.py", test_case.package_name)),
+            "def artifact_worker_fn() -> int:\n    return 1\n",
+        );
+        write(
+            repository.path().join("src/pkg/caller.py"),
+            &format!(
+                "from pkg.{}.worker import artifact_worker_fn\n\n\ndef caller_fn() -> int:\n    return artifact_worker_fn()\n",
+                test_case.package_name
+            ),
+        );
+        for selector in [
+            "artifact_worker_fn".to_owned(),
+            format!("pkg.{}.worker.artifact_worker_fn", test_case.package_name),
+            format!("src/pkg/{}/worker::artifact_worker_fn", test_case.package_name),
+        ] {
+            let output = run(repository.path(), &[&selector, "--no-cache"]);
+            assert_eq!(
+                output.status.code(),
+                Some(0),
+                "{}: {}",
+                test_case.description,
+                text(&output.stderr)
+            );
+            assert!(
+                text(&output.stdout).contains(test_case.expected_function_path),
+                "{}: {selector}",
+                test_case.description
+            );
+        }
+        if test_case.package_name == "build" {
+            let explicit = run(
+                repository.path(),
+                &["artifact_worker_fn", "--root", "src/pkg", "--no-cache"],
+            );
+            assert_eq!(
+                explicit.status.code(),
+                Some(0),
+                "explicit root: {}",
+                text(&explicit.stderr)
+            );
+            assert!(text(&explicit.stdout).contains(test_case.expected_function_path));
+        }
+        let uncached = run(repository.path(), &["caller_fn", "--no-cache"]);
+        let cold = run(repository.path(), &["caller_fn", "--cache-stats"]);
+        let warm = run(repository.path(), &["caller_fn", "--cache-stats"]);
+        assert_eq!(uncached.status.code(), Some(0), "{}", test_case.description);
+        assert!(
+            text(&uncached.stdout).contains("artifact_worker_fn(...)"),
+            "{}",
+            test_case.description
+        );
+        assert_eq!(uncached.stdout, cold.stdout, "{}", test_case.description);
+        assert_eq!(cold.stdout, warm.stdout, "{}", test_case.description);
+        assert!(text(&cold.stderr).contains("manifest=miss"));
+        assert!(text(&warm.stderr).contains("manifest=hit"));
+    }
+}
+
+#[test]
+fn given_artifact_directory_in_inferred_root_when_mapping_then_generated_code_stays_excluded() {
+    let test_cases = [ConfiguredPackageMappingTestCase {
+        description: "top-level build output remains excluded without configured roots",
+        package_name: "build",
+        expected_function_path: "Unknown project function: generated_artifact_fn.",
+    }];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("inferred artifact repository");
+        write(
+            repository.path().join("pyproject.toml"),
+            "[project]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+        );
+        write(
+            repository
+                .path()
+                .join(format!("{}/generated.py", test_case.package_name)),
+            "def generated_artifact_fn() -> None:\n    return None\n",
+        );
+        write(
+            repository.path().join("pkg/entry.py"),
+            "def included_fn() -> None:\n    return None\n",
+        );
+
+        let included = run(repository.path(), &["included_fn", "--no-cache"]);
+        let excluded = run(repository.path(), &["generated_artifact_fn", "--no-cache"]);
+
+        assert_eq!(included.status.code(), Some(0), "{}", test_case.description);
+        assert_eq!(excluded.status.code(), Some(2), "{}", test_case.description);
+        assert!(
+            text(&excluded.stderr).contains(test_case.expected_function_path),
+            "{}",
+            test_case.description
+        );
+    }
+}
 
 #[test]
 fn given_native_map_when_python_is_missing_then_direct_calls_cycles_and_depth_are_deterministic() {

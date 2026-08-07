@@ -49,6 +49,24 @@ pub(crate) const DEFAULT_SELECT: &[&str] = &[
 ];
 
 #[rustfmt::skip]
+pub(crate) const DEFAULT_WARN: &[&str] = &[
+];
+
+#[rustfmt::skip]
+pub(crate) const DEFAULT_IGNORE: &[&str] = &[
+];
+
+pub(crate) const DEFAULT_CACHE_ENABLED: bool = true;
+
+pub(crate) const DEFAULT_CACHE_REQUIRE_CACHEABLE: bool = false;
+
+pub(crate) const DEFAULT_EXPERIMENTAL_MEMORY: bool = false;
+
+pub(crate) const DEFAULT_MEMORY_ARCHIVE_DAYS: u64 = 7;
+
+pub(crate) const SKILLS_METADATA_PROTOCOL_VERSION: u32 = 3;
+
+#[rustfmt::skip]
 pub(crate) const CONFIG_ROLE_NAMES: &[&str] = &[
     "classes",
     "constants",
@@ -66,4 +84,12 @@ pub(crate) const CONTRACT_BEHAVIORS: &[&str] = &[
     "returns-bool",
     "returns-iterator",
     "returns-value",
+];
+
+#[rustfmt::skip]
+pub(crate) const RULE_CONFIGURATION_INPUTS: &[&str] = &[
+    "roots",
+    "test_scopes",
+    "tests",
+    "tooling",
 ];

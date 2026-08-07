@@ -1,6 +1,6 @@
 //! Render one rule option's metadata lines.
 
-use crate::models::{RuleOptionMetadata, RuleOptionValue};
+use crate::catalogue::models::{RuleOptionMetadata, RuleOptionValue};
 
 pub(crate) fn option_lines(option: &RuleOptionMetadata) -> [(&'static str, String); 9] {
     [

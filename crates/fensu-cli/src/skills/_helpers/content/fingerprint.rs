@@ -4,7 +4,8 @@ use std::path::Path;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
-use crate::models::{Config, RuleMetadata};
+use crate::catalogue::models::RuleMetadata;
+use crate::models::Config;
 use crate::skills::models::{Ownership, ProjectSkillBundle, SkillContext};
 
 const GENERATED_MARKER: &str = "<!-- generated-by: fensu skills -->";

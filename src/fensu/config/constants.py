@@ -75,6 +75,7 @@ CONFIG_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
 )
 CONFIG_ROLE_NAMES: frozenset[str] = frozenset(RoleName)
 CONTRACT_BEHAVIORS: frozenset[str] = frozenset(ContractBehavior)
+RULE_CONFIGURATION_INPUTS: frozenset[str] = frozenset({"roots", "tests", "tooling", "test_scopes"})
 DEFAULT_CONTRACTS: dict[str, str] = {
     "validate_*": ContractBehavior.NO_RETURN,
     "enforce_*": ContractBehavior.NO_RETURN,

@@ -15,15 +15,20 @@ pub(crate) fn plan_layout(
     if survey.empty {
         return empty_repository_plan(repository, options);
     }
-    let roots = if options.roots.is_empty() {
-        survey.package_roots.clone()
-    } else {
-        options.roots.clone()
-    };
     let tests = if options.tests.is_empty() {
         vec!["tests".to_owned()]
     } else {
         options.tests.clone()
+    };
+    let roots = if options.roots.is_empty() {
+        survey
+            .package_roots
+            .iter()
+            .filter(|root| !tests.contains(root))
+            .cloned()
+            .collect()
+    } else {
+        options.roots.clone()
     };
     Ok(InitPlan {
         roots,

@@ -13,6 +13,7 @@ from pathlib import Path
 from types import ModuleType
 
 from fensu.analysis.models import SourceLocation
+from fensu.config.constants import RULE_CONFIGURATION_INPUTS
 from fensu.config.exceptions import ConfigError
 from fensu.config.models import Config
 from fensu.config.types import ContractBehavior
@@ -28,7 +29,6 @@ from fensu.rules.catalog.main._check_module_use import check_uses_module
 from fensu.rules.catalog.models import RuleSelection
 from fensu.rules.dagster.constants import DAGSTER_PACK_NAME, FPDG_RULES
 
-_CONFIGURATION_INPUTS: frozenset[str] = frozenset({"roots", "tests", "tooling", "test_scopes"})
 _CONTRACT_BEHAVIORS: frozenset[str] = frozenset(ContractBehavior)
 
 
@@ -139,7 +139,7 @@ def _validate_rule_inputs(*, rules: tuple[RuleSpec, ...]) -> None:
         ):
             raise ConfigError(f"rule {rule.code} declares invalid naming contract inputs")
         if len(rule.configuration_inputs) != len(set(rule.configuration_inputs)) or any(
-            name not in _CONFIGURATION_INPUTS for name in rule.configuration_inputs
+            name not in RULE_CONFIGURATION_INPUTS for name in rule.configuration_inputs
         ):
             raise ConfigError(f"rule {rule.code} declares invalid configuration inputs")
 

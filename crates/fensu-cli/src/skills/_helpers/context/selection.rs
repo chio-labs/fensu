@@ -4,20 +4,22 @@ use std::path::Path;
 use serde_json::json;
 
 use crate::catalogue::main::rule_catalogue::configured_rule_catalogue;
-use crate::configuration::constants::{CONTRACT_BEHAVIORS, DEFAULT_THRESHOLDS};
+use crate::catalogue::models::RuleMetadata;
+use crate::configuration::constants::{
+    CONTRACT_BEHAVIORS, DEFAULT_THRESHOLDS, RULE_CONFIGURATION_INPUTS,
+    SKILLS_METADATA_PROTOCOL_VERSION,
+};
 use crate::configuration::main::is_rule_code::is_rule_code;
 use crate::configuration::main::is_rule_selector::is_rule_selector;
 use crate::hosting::main::run_skills_metadata_host::run_skills_metadata_host;
-use crate::models::{Config, RuleMetadata};
+use crate::models::Config;
 use crate::skills::_helpers::context::option_validation::validate_rule_options;
 use crate::skills::models::{HostResponse, RuleSelection};
 
-const CONFIGURATION_INPUTS: &[&str] = &["roots", "tests", "tooling", "test_scopes"];
 const CORE_KIND: &str = "core";
 const CORE_PREFIX: &str = "FF";
 const CUSTOM_KIND: &str = "custom";
 const CUSTOM_PREFIX: char = 'X';
-const METADATA_PROTOCOL: u32 = 3;
 const PACK_KIND: &str = "pack";
 const PACK_PREFIX: &str = "FP";
 
@@ -45,7 +47,7 @@ pub(crate) fn selection(config: &Config, project_root: &Path) -> Result<RuleSele
     {
         return hosted_selection(project_root);
     }
-    let catalogue = configured_rule_catalogue(&config.rule_packs)
+    let catalogue = configured_rule_catalogue(&config.rule_packs)?
         .into_iter()
         .cloned()
         .collect::<Vec<_>>();
@@ -70,7 +72,7 @@ pub(crate) fn selection(config: &Config, project_root: &Path) -> Result<RuleSele
 
 fn hosted_selection(project_root: &Path) -> Result<RuleSelection, String> {
     let request = serde_json::to_vec(&json!({
-        "protocol": METADATA_PROTOCOL,
+        "protocol": SKILLS_METADATA_PROTOCOL_VERSION,
         "project_root": project_root.to_string_lossy(),
     }))
     .map_err(|error| error.to_string())?;
@@ -78,10 +80,10 @@ fn hosted_selection(project_root: &Path) -> Result<RuleSelection, String> {
     validate_host_shape(&raw)?;
     let response: HostResponse = serde_json::from_slice(&raw)
         .map_err(|error| format!("Invalid custom-rule metadata host response: {error}"))?;
-    if response.protocol != METADATA_PROTOCOL {
+    if response.protocol != SKILLS_METADATA_PROTOCOL_VERSION {
         return Err(format!(
             "Incompatible custom-rule metadata protocol {}; expected {}.",
-            response.protocol, METADATA_PROTOCOL
+            response.protocol, SKILLS_METADATA_PROTOCOL_VERSION
         ));
     }
     if response.package_version != env!("CARGO_PKG_VERSION") {
@@ -248,7 +250,7 @@ fn validate_rule_inputs(rule: &RuleMetadata) -> Result<(), String> {
         || rule
             .configuration_inputs
             .iter()
-            .any(|name| !CONFIGURATION_INPUTS.contains(&name.as_str()))
+            .any(|name| !RULE_CONFIGURATION_INPUTS.contains(&name.as_str()))
     {
         return Err(format!(
             "Catalogue rule {} contains incompatible effective inputs.",

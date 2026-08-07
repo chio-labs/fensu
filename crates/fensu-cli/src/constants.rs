@@ -15,5 +15,4 @@ pub(crate) const SUFFIX_INIT: &str = "__init__.py";
 pub(crate) const VALUE_TRUE: &str = "true";
 pub(crate) const CONFIG_FENSU_FILE: &str = "fensu.toml";
 pub(crate) const CONFIG_PYPROJECT_FILE: &str = "pyproject.toml";
-pub(crate) const DEFAULT_MEMORY_ARCHIVE_DAYS: u64 = 7;
 pub(crate) const PYTHON_CACHE_DIRECTORY: &str = "__pycache__";

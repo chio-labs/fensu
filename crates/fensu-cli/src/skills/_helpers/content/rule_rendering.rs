@@ -1,6 +1,7 @@
 //! Render canonical rule contracts into generated skill sections.
 
-use crate::models::{Config, RuleMetadata};
+use crate::catalogue::models::RuleMetadata;
+use crate::models::Config;
 use crate::skills::_helpers::content::option_rendering::rule_option_lines;
 
 pub(crate) fn tier_lines(heading: &str, rules: &[RuleMetadata], config: &Config) -> Vec<String> {

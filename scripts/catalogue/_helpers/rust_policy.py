@@ -6,14 +6,22 @@ import json
 import re
 from collections.abc import Sequence
 
+from fensu.cli.constants import SKILLS_METADATA_PROTOCOL_VERSION
 from fensu.config.constants import (
     CONFIG_ROLE_NAMES,
     CONTRACT_BEHAVIORS,
+    DEFAULT_CACHE_ENABLED,
+    DEFAULT_CACHE_REQUIRE_CACHEABLE,
     DEFAULT_CONTRACTS,
+    DEFAULT_EXPERIMENTAL_MEMORY,
+    DEFAULT_IGNORE,
+    DEFAULT_MEMORY_TASKS_ARCHIVE_AFTER_DAYS,
     DEFAULT_SELECT,
     DEFAULT_TEST_PATHS,
     DEFAULT_TEST_SCOPES,
     DEFAULT_THRESHOLDS,
+    DEFAULT_WARN,
+    RULE_CONFIGURATION_INPUTS,
 )
 from fensu.rules.authoring.models import RuleConstraint, RuleLimit, RuleSpec
 
@@ -60,8 +68,51 @@ def serialized_cli_defaults() -> bytes:
     lines.extend(_string_lines(name="DEFAULT_TEST_PATHS", values=DEFAULT_TEST_PATHS))
     lines.extend(_string_lines(name="DEFAULT_TEST_SCOPES", values=DEFAULT_TEST_SCOPES))
     lines.extend(_string_lines(name="DEFAULT_SELECT", values=DEFAULT_SELECT))
+    lines.extend(_string_lines(name="DEFAULT_WARN", values=DEFAULT_WARN))
+    lines.extend(_string_lines(name="DEFAULT_IGNORE", values=DEFAULT_IGNORE))
+    lines.extend(
+        _value_line(
+            name="DEFAULT_CACHE_ENABLED",
+            rust_type="bool",
+            value=DEFAULT_CACHE_ENABLED,
+        )
+    )
+    lines.extend(
+        _value_line(
+            name="DEFAULT_CACHE_REQUIRE_CACHEABLE",
+            rust_type="bool",
+            value=DEFAULT_CACHE_REQUIRE_CACHEABLE,
+        )
+    )
+    lines.extend(
+        _value_line(
+            name="DEFAULT_EXPERIMENTAL_MEMORY",
+            rust_type="bool",
+            value=DEFAULT_EXPERIMENTAL_MEMORY,
+        )
+    )
+    lines.extend(
+        _value_line(
+            name="DEFAULT_MEMORY_ARCHIVE_DAYS",
+            rust_type="u64",
+            value=DEFAULT_MEMORY_TASKS_ARCHIVE_AFTER_DAYS,
+        )
+    )
+    lines.extend(
+        _value_line(
+            name="SKILLS_METADATA_PROTOCOL_VERSION",
+            rust_type="u32",
+            value=SKILLS_METADATA_PROTOCOL_VERSION,
+        )
+    )
     lines.extend(_string_lines(name="CONFIG_ROLE_NAMES", values=tuple(sorted(CONFIG_ROLE_NAMES))))
     lines.extend(_string_lines(name="CONTRACT_BEHAVIORS", values=tuple(sorted(CONTRACT_BEHAVIORS))))
+    lines.extend(
+        _string_lines(
+            name="RULE_CONFIGURATION_INPUTS",
+            values=tuple(sorted(RULE_CONFIGURATION_INPUTS)),
+        )
+    )
     source: str = "\n".join(lines).rstrip()
     return f"{source}\n".encode()
 
@@ -87,6 +138,11 @@ def _pair_lines(*, name: str, rust_type: str, values: tuple[tuple[str, object], 
 def _limit_lines(*, code: str, limit: RuleLimit) -> list[str]:
     name: str = re.sub(r"[^A-Z0-9_]", "_", f"{code}_{limit.name.upper()}")
     return [f"pub(crate) const {name}: usize = {limit.value};", ""]
+
+
+def _value_line(*, name: str, rust_type: str, value: bool | int) -> list[str]:
+    rendered: str = str(value).lower() if isinstance(value, bool) else str(value)
+    return [f"pub(crate) const {name}: {rust_type} = {rendered};", ""]
 
 
 def _string_lines(*, name: str, values: Sequence[str]) -> list[str]:

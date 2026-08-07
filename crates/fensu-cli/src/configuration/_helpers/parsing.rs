@@ -2,9 +2,10 @@ use std::collections::HashMap;
 
 use crate::configuration::_helpers::validation::{required_strings, validate_keys};
 use crate::configuration::constants::{
-    DEFAULT_CONTRACTS, DEFAULT_SELECT, DEFAULT_TEST_PATHS, DEFAULT_TEST_SCOPES, DEFAULT_THRESHOLDS,
+    DEFAULT_CACHE_ENABLED, DEFAULT_CACHE_REQUIRE_CACHEABLE, DEFAULT_CONTRACTS,
+    DEFAULT_EXPERIMENTAL_MEMORY, DEFAULT_IGNORE, DEFAULT_MEMORY_ARCHIVE_DAYS, DEFAULT_SELECT,
+    DEFAULT_TEST_PATHS, DEFAULT_TEST_SCOPES, DEFAULT_THRESHOLDS, DEFAULT_WARN,
 };
-use crate::constants::DEFAULT_MEMORY_ARCHIVE_DAYS;
 use crate::models::{Config, RuleException, RuleIgnore, ThresholdOverride};
 
 pub(crate) fn build(
@@ -30,8 +31,8 @@ pub(crate) fn build(
         test_scopes: strings_or(table.get("test_scopes"), DEFAULT_TEST_SCOPES),
         tooling: strings(table.get("tooling")),
         select: strings_or(table.get("select"), DEFAULT_SELECT),
-        warn: strings(table.get("warn")),
-        ignore: strings(table.get("ignore")),
+        warn: strings_or(table.get("warn"), DEFAULT_WARN),
+        ignore: strings_or(table.get("ignore"), DEFAULT_IGNORE),
         rule_paths: strings(table.get("rule_paths")),
         rule_modules: strings(table.get("rule_modules")),
         rule_packs: strings(table.get("rule_packs")),
@@ -43,11 +44,11 @@ pub(crate) fn build(
         cache_enabled: cache
             .and_then(|values| values.get("enabled"))
             .and_then(toml::Value::as_bool)
-            .unwrap_or(true),
+            .unwrap_or(DEFAULT_CACHE_ENABLED),
         cache_require_cacheable: cache
             .and_then(|values| values.get("require_cacheable"))
             .and_then(toml::Value::as_bool)
-            .unwrap_or(false),
+            .unwrap_or(DEFAULT_CACHE_REQUIRE_CACHEABLE),
         evaluation_include: evaluation
             .map(|values| strings(values.get("include")))
             .unwrap_or_default(),
@@ -130,14 +131,14 @@ fn memory_archive_after_days(table: &toml::map::Map<String, toml::Value>) -> Res
 
 fn memory_enabled(table: &toml::map::Map<String, toml::Value>) -> Result<bool, String> {
     let Some(experimental_value) = table.get("experimental") else {
-        return Ok(false);
+        return Ok(DEFAULT_EXPERIMENTAL_MEMORY);
     };
     let experimental = experimental_value
         .as_table()
         .ok_or_else(|| "Config key experimental must be a table.".to_owned())?;
     validate_keys(experimental, &["memory"], "experimental")?;
     let Some(value) = experimental.get("memory") else {
-        return Ok(false);
+        return Ok(DEFAULT_EXPERIMENTAL_MEMORY);
     };
     value
         .as_bool()

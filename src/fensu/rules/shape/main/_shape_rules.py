@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fensu.rules.authoring.models import RuleSpec
+from fensu.rules.authoring.models import RuleConstraint, RuleSpec
 from fensu.rules.authoring.types import Family, Threshold
 from fensu.rules.shape.types import ShapeCode
 
@@ -77,6 +77,13 @@ def shape_rules() -> tuple[RuleSpec, ...]:
             message="helpers must return values instead of mutating parameters",
             remediation="Return a new or updated value so dataflow remains visible to the caller.",
             enabled_by_default=False,
+            constraints=(
+                RuleConstraint(
+                    name="exempt_function_kinds",
+                    description="Function kinds exempt from parameter-mutation enforcement",
+                    values=("dunder", "setter"),
+                ),
+            ),
         ),
         RuleSpec(
             code=ShapeCode.DEFAULT_MUTATION_RETURN,
@@ -86,6 +93,13 @@ def shape_rules() -> tuple[RuleSpec, ...]:
             remediation=(
                 "Return each mutated parameter explicitly, or avoid parameter mutation and "
                 "return a new value."
+            ),
+            constraints=(
+                RuleConstraint(
+                    name="exempt_function_kinds",
+                    description="Function kinds exempt from parameter-mutation enforcement",
+                    values=("dunder", "setter"),
+                ),
             ),
         ),
         RuleSpec(

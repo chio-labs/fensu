@@ -4,6 +4,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 from fensu import RuleFile
+from fensu.rules.authoring.models import CustomRuleRegistration
 
 
 @dataclass(frozen=True)
@@ -19,6 +20,7 @@ class NativeCustomRuleParityTestCase:
     scope_root: str | None = None
     config: Mapping[str, object] | None = None
     files: tuple[RuleFile, ...] = field(default_factory=tuple)
+    custom_rule_registrations: tuple[CustomRuleRegistration, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True)

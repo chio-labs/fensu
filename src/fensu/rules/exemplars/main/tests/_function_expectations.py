@@ -3,7 +3,7 @@
 import ast
 
 from fensu import Family, Fault, RuleContext, ScopeName, rule
-from fensu.rules.exemplars.types import ExemplarTestLimit, ExemplarTestPathName, ExemplarTestSymbol
+from fensu.rules.exemplars.types import ExemplarTestSymbol
 
 
 @rule(
@@ -19,7 +19,9 @@ def expected_field_assertion_equivalent(*, module: ast.Module, ctx: RuleContext)
     """Express FFT404 through public pytest-function facts."""
 
     del module
-    if ctx.scope() is not ScopeName.TEST or ctx.path.name in set(ExemplarTestPathName):
+    if ctx.scope() is not ScopeName.TEST or ctx.path.name in ctx.constraint(
+        name="excluded_test_support_filenames"
+    ):
         return []
     return [
         ctx.fault_at(location=fact.location)
@@ -37,13 +39,15 @@ def expected_field_assertion_equivalent(*, module: ast.Module, ctx: RuleContext)
 )
 def _parametrize_arguments_equivalent(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     del module
-    if ctx.scope() is not ScopeName.TEST or ctx.path.name in set(ExemplarTestPathName):
+    if ctx.scope() is not ScopeName.TEST or ctx.path.name in ctx.constraint(
+        name="excluded_test_support_filenames"
+    ):
         return []
     return [
         ctx.fault_at(location=fact.location)
         for fact in ctx.facts.test_functions()
         if fact.parametrize is not None
-        and fact.parametrize.argument_count < int(ExemplarTestLimit.MINIMUM_PARAMETRIZE_ARGUMENTS)
+        and fact.parametrize.argument_count < ctx.limit(name="minimum_parametrize_arguments")
     ]
 
 
@@ -56,12 +60,14 @@ def _parametrize_arguments_equivalent(*, module: ast.Module, ctx: RuleContext) -
 )
 def _parametrize_test_case_equivalent(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     del module
-    if ctx.scope() is not ScopeName.TEST or ctx.path.name in set(ExemplarTestPathName):
+    if ctx.scope() is not ScopeName.TEST or ctx.path.name in ctx.constraint(
+        name="excluded_test_support_filenames"
+    ):
         return []
     return [
         ctx.fault_at(location=fact.location)
         for fact in ctx.facts.test_functions()
         if fact.parametrize is not None
-        and fact.parametrize.argument_count >= int(ExemplarTestLimit.MINIMUM_PARAMETRIZE_ARGUMENTS)
+        and fact.parametrize.argument_count >= ctx.limit(name="minimum_parametrize_arguments")
         and fact.parametrize.parameter_name != ExemplarTestSymbol.TEST_CASE
     ]

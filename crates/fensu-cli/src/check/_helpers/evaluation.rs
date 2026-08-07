@@ -286,9 +286,10 @@ pub(crate) fn owner_identity(source: &ScopedSource, owner: &str) -> Option<Strin
         .relative_parts
         .first()
         .filter(|part| !part.ends_with(".py"));
-    let subdomain = source.relative_parts.get(1).filter(|part| {
-        !part.ends_with(".py") && !matches!(part.as_str(), ROLE_MAIN | ROLE_HELPERS | "classes")
-    });
+    let subdomain = source
+        .relative_parts
+        .get(1)
+        .filter(|part| !part.ends_with(".py") && !is_role_directory(part));
     match owner {
         "project" => Some("project".to_owned()),
         "scope" => Some(format!("{}\0{}", source.scope, source.root_text)),
@@ -327,10 +328,11 @@ pub(crate) fn anchor_key(source: &ScopedSource, owner: &str) -> (bool, usize, St
         "domain" => Some(2),
         "subdomain" => Some(3),
         "leaf" => Some(
-            if source.relative_parts.get(1).is_some_and(|part| {
-                !part.ends_with(".py")
-                    && !matches!(part.as_str(), ROLE_MAIN | ROLE_HELPERS | "classes")
-            }) {
+            if source
+                .relative_parts
+                .get(1)
+                .is_some_and(|part| !part.ends_with(".py") && !is_role_directory(part))
+            {
                 3
             } else {
                 2
@@ -347,5 +349,12 @@ pub(crate) fn anchor_key(source: &ScopedSource, owner: &str) -> (bool, usize, St
         !owner_init,
         source.relative_parts.len(),
         source.repository_path.clone(),
+    )
+}
+
+fn is_role_directory(part: &str) -> bool {
+    matches!(
+        part,
+        ROLE_MAIN | ROLE_HELPERS | "classes" | "models" | "types" | "constants" | "exceptions"
     )
 }

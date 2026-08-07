@@ -2,8 +2,6 @@
 
 use fensu_facts::facts::models::ParametrizeRow;
 
-use crate::rules::constants::TEST_MINIMUM_PARAMETRIZE_ARGUMENTS;
-
 pub(crate) fn valid_test_name(name: &str) -> bool {
     let Some(after_given) = name.strip_prefix("test_given_") else {
         return false;
@@ -17,8 +15,8 @@ pub(crate) fn valid_test_name(name: &str) -> bool {
     !state.is_empty() && !action.is_empty() && !outcome.is_empty()
 }
 
-pub(crate) fn description_ids_fault(row: &ParametrizeRow) -> bool {
-    row.argument_count >= TEST_MINIMUM_PARAMETRIZE_ARGUMENTS
+pub(crate) fn description_ids_fault(row: &ParametrizeRow, minimum_arguments: u32) -> bool {
+    row.argument_count >= minimum_arguments
         && (row.values_is_sequence || row.values_is_comprehension)
         && !row.description_lambda_ids
 }

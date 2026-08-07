@@ -31,6 +31,13 @@ class ExemplarRoleName(StrEnum):
     HELPERS = "_helpers"
 
 
+class ExemplarFunctionKind(StrEnum):
+    """Function categories used by canonical applicability constraints."""
+
+    DUNDER = "dunder"
+    SETTER = "setter"
+
+
 class ExemplarTestScopeName(StrEnum):
     """Supported test scope directory names."""
 
@@ -66,5 +73,4 @@ class ExemplarTestSymbol(StrEnum):
 class ExemplarTestLimit(StrEnum):
     """Fixed syntax cardinalities used by local pytest policy."""
 
-    MINIMUM_PARAMETRIZE_ARGUMENTS = "2"
     MINIMUM_PATH_PARTS = "2"

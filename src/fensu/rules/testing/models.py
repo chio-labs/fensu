@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 
 from fensu.analysis.models import ProjectDependency
-from fensu.rules.authoring.models import Fault
+from fensu.rules.authoring.models import CustomRuleRegistration, Fault
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,6 +29,7 @@ class RuleCase:
     scope_root: str | None = None
     files: tuple[RuleFile, ...] = ()
     config: Mapping[str, object] | None = None
+    custom_rule_registrations: tuple[CustomRuleRegistration, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

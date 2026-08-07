@@ -60,7 +60,9 @@ def _test_types_expected_field_equivalent(*, module: ast.Module, ctx: RuleContex
 )
 def _local_test_types_import_equivalent(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     del module
-    if ctx.scope() is not ScopeName.TEST or ctx.path.name in set(ExemplarTestPathName):
+    if ctx.scope() is not ScopeName.TEST or ctx.path.name in ctx.constraint(
+        name="excluded_test_support_filenames"
+    ):
         return []
     expected_module: str = ".".join(
         (ctx.path.parent / "_test_types.py").relative_to(ctx.repo_root).with_suffix("").parts

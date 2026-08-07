@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fensu.rules.authoring.models import RuleSpec
 from fensu.rules.authoring.types import Family
+from fensu.rules.roles._helpers.constraints import get_role_rule_constraints
 from fensu.rules.roles.types import RoleCode
 
 
@@ -26,6 +27,7 @@ def misplaced_rules() -> tuple[RuleSpec, ...]:
             slug="type-declaration-outside-types",
             message="type-layer declarations must be defined in the types role",
             remediation="Move the protocol, enum, TypedDict, or public type alias into types.py.",
+            constraints=get_role_rule_constraints(RoleCode.TYPE_DECLARATION_OUTSIDE_TYPES),
         ),
         RuleSpec(
             code=RoleCode.CONSTANT_OUTSIDE_CONSTANTS,

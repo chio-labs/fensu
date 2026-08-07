@@ -3,7 +3,6 @@
 import ast
 
 from fensu import Family, Fault, RuleContext, ScopeName, rule
-from fensu.rules.exemplars.types import ExemplarTestLimit, ExemplarTestPathName
 
 
 @rule(
@@ -19,13 +18,15 @@ def parametrize_ids_equivalent(*, module: ast.Module, ctx: RuleContext) -> list[
     """Express FFT407 through public parametrize facts."""
 
     del module
-    if ctx.scope() is not ScopeName.TEST or ctx.path.name in set(ExemplarTestPathName):
+    if ctx.scope() is not ScopeName.TEST or ctx.path.name in ctx.constraint(
+        name="excluded_test_support_filenames"
+    ):
         return []
     return [
         ctx.fault_at(location=fact.location)
         for fact in ctx.facts.test_functions()
         if fact.parametrize is not None
-        and fact.parametrize.argument_count >= int(ExemplarTestLimit.MINIMUM_PARAMETRIZE_ARGUMENTS)
+        and fact.parametrize.argument_count >= ctx.limit(name="minimum_parametrize_arguments")
         and not fact.parametrize.ids_present
     ]
 
@@ -42,13 +43,15 @@ def parametrize_ids_equivalent(*, module: ast.Module, ctx: RuleContext) -> list[
 )
 def _inline_parametrize_values_equivalent(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     del module
-    if ctx.scope() is not ScopeName.TEST or ctx.path.name in set(ExemplarTestPathName):
+    if ctx.scope() is not ScopeName.TEST or ctx.path.name in ctx.constraint(
+        name="excluded_test_support_filenames"
+    ):
         return []
     return [
         ctx.fault_at(location=fact.location)
         for fact in ctx.facts.test_functions()
         if fact.parametrize is not None
-        and fact.parametrize.argument_count >= int(ExemplarTestLimit.MINIMUM_PARAMETRIZE_ARGUMENTS)
+        and fact.parametrize.argument_count >= ctx.limit(name="minimum_parametrize_arguments")
         and not fact.parametrize.values_is_sequence
         and not fact.parametrize.values_is_comprehension
     ]
@@ -63,13 +66,15 @@ def _inline_parametrize_values_equivalent(*, module: ast.Module, ctx: RuleContex
 )
 def _nonempty_parametrize_values_equivalent(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
     del module
-    if ctx.scope() is not ScopeName.TEST or ctx.path.name in set(ExemplarTestPathName):
+    if ctx.scope() is not ScopeName.TEST or ctx.path.name in ctx.constraint(
+        name="excluded_test_support_filenames"
+    ):
         return []
     return [
         ctx.fault_at(location=fact.location)
         for fact in ctx.facts.test_functions()
         if fact.parametrize is not None
-        and fact.parametrize.argument_count >= int(ExemplarTestLimit.MINIMUM_PARAMETRIZE_ARGUMENTS)
+        and fact.parametrize.argument_count >= ctx.limit(name="minimum_parametrize_arguments")
         and fact.parametrize.values_is_sequence
         and fact.parametrize.values_empty
     ]

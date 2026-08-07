@@ -3,6 +3,7 @@
 import ast
 
 from fensu import Family, Fault, RuleContext, rule
+from fensu.rules.exemplars.types import ExemplarFunctionKind
 
 
 @rule(
@@ -20,8 +21,10 @@ def parameter_mutation_in_phase_helpers_equivalent(
     del module
     if not ctx.in_role("helpers"):
         return []
+    exempt_kinds: tuple[str, ...] = ctx.constraint(name="exempt_function_kinds")
     return [
         ctx.fault_at(location=fact.location)
         for fact in ctx.facts.parameter_mutations()
-        if not fact.dunder and not fact.setter
+        if not (fact.dunder and ExemplarFunctionKind.DUNDER in exempt_kinds)
+        and not (fact.setter and ExemplarFunctionKind.SETTER in exempt_kinds)
     ]

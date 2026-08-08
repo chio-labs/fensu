@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from fensu.config.models import RuleIgnoreEntry
+
 
 @dataclass(frozen=True)
 class CustomRuleLoadTestCase:
@@ -76,6 +78,7 @@ class RuleSelectionErrorTestCase:
     warn: tuple[str, ...]
     ignore: tuple[str, ...]
     expected_error: str
+    rule_ignores: tuple[RuleIgnoreEntry, ...] = ()
 
 
 @dataclass(frozen=True)

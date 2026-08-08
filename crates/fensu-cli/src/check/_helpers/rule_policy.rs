@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::catalogue::main::rule_catalogue::configured_rule_catalogue;
 use crate::catalogue::main::rule_metadata::rule_metadata;
+use crate::catalogue::main::validate_config_selectors::validate_config_selectors;
 use crate::catalogue::models::RuleMetadata;
 use crate::check::_helpers::policy::{path_matches, role};
 use crate::models::{Config, ScopedSource, ThresholdUse};
@@ -47,6 +48,8 @@ pub(crate) fn selected_rules(
 }
 
 pub(crate) fn validate_config_tiers(config: &Config) -> Result<(), String> {
+    let catalogue = configured_rule_catalogue(&config.rule_packs)?;
+    validate_config_selectors(config, &catalogue)?;
     let blocking = selected_rules(config, &config.select, &[])?;
     let warnings = selected_rules(config, &config.warn, &[])?;
     let warning_codes = warnings

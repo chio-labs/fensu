@@ -7,9 +7,39 @@ use crate::helpers::{
     CONFIG,
 };
 use crate::test_types::{
-    ExceptionSymbolTestCase, FreshnessTestCase, PublicationRaceTestCase,
-    RepositoryGuidanceTestCase, SkillsCommandTestCase,
+    ExceptionSymbolTestCase, FreshnessTestCase, InvalidSkillsConfigTestCase,
+    PublicationRaceTestCase, RepositoryGuidanceTestCase, SkillsCommandTestCase,
 };
+
+#[test]
+fn given_unmatched_selector_when_generating_skills_then_configuration_fails_closed() {
+    let test_cases = [InvalidSkillsConfigTestCase {
+        description: "skills reject selectors absent from the configured catalogue",
+        expected_exit_code: 2,
+        expected_error: "Config key ignore contains selector FFX, but it matches no rules in the configured catalogue.",
+    }];
+    for test_case in test_cases {
+        let repository = project();
+        let configured = CONFIG.replace("select = [\"FF\"]", "select = [\"FF\"]\nignore = [\"FFX\"]");
+        write(repository.path().join("fensu.toml"), configured);
+
+        let result = native(repository.path(), &["--target", "agents"]);
+
+        assert_eq!(
+            result.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {}",
+            test_case.description,
+            text(&result.stderr)
+        );
+        assert!(
+            text(&result.stderr).contains(test_case.expected_error),
+            "{}: {}",
+            test_case.description,
+            text(&result.stderr)
+        );
+    }
+}
 
 #[test]
 fn given_canonical_role_policy_when_generating_skill_then_guidance_is_owned_and_complete() {

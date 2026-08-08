@@ -12,7 +12,7 @@ import pytest
 
 from fensu.config.exceptions import ConfigError, ConfigValidationError
 from fensu.config.main.load_project_config import load_project_config
-from fensu.config.models import Config, RuleExceptionEntry
+from fensu.config.models import Config, RuleExceptionEntry, RuleIgnoreEntry
 from fensu.rules.authoring.main.define import rule
 from fensu.rules.authoring.models import RuleOption, RuleSpec
 from fensu.rules.authoring.types import Family, RuleKind
@@ -599,7 +599,7 @@ def test_given_foreign_decorated_rule_when_loading_custom_file_then_module_metad
         config=Config(
             roots=("src/pkg",),
             rule_paths=(str(path),),
-            select=(test_case.stale_rule_code, test_case.loaded_rule_code),
+            select=(test_case.loaded_rule_code,),
         ),
         repo_root=tmp_path,
     )
@@ -629,18 +629,6 @@ def test_given_foreign_decorated_rule_when_loading_custom_file_then_module_metad
             expected_codes=(),
         ),
         SelectCompositionTestCase(
-            description="valid unpopulated core selector matches no rules",
-            select=("FFX",),
-            ignore=(),
-            expected_codes=(),
-        ),
-        SelectCompositionTestCase(
-            description="valid unpopulated exact core code matches no rules",
-            select=("FFX001",),
-            ignore=(),
-            expected_codes=(),
-        ),
-        SelectCompositionTestCase(
             description="core spelling ignore removes only core codes",
             select=("FF", "X"),
             ignore=("FFH",),
@@ -657,12 +645,6 @@ def test_given_foreign_decorated_rule_when_loading_custom_file_then_module_metad
             select=("X",),
             ignore=(),
             expected_codes=("XRG001", "XDB001"),
-        ),
-        SelectCompositionTestCase(
-            description="core selector does not select custom rule declaring roles family",
-            select=("FFR",),
-            ignore=(),
-            expected_codes=(),
         ),
         SelectCompositionTestCase(
             description="core root selector selects core codes only",
@@ -751,15 +733,6 @@ def test_given_select_and_ignore_when_building_ruleset_then_applies_expected_com
             expected_ignored_codes=("FFH001",),
         ),
         RuleSelectionTestCase(
-            description="unknown valid warning selector resolves to no rules",
-            select=(),
-            warn=("FFX",),
-            ignore=(),
-            expected_blocking_codes=(),
-            expected_warning_codes=(),
-            expected_ignored_codes=(),
-        ),
-        RuleSelectionTestCase(
             description="custom warning namespace selects default-on custom rules",
             select=(),
             warn=("XDB",),
@@ -824,6 +797,57 @@ def test_given_policy_selectors_when_resolving_then_returns_distinct_rule_sets(
             ignore=(),
             expected_error="Rule FFH001 cannot be configured as both blocking and warning.",
         ),
+        RuleSelectionErrorTestCase(
+            description="blocking selector must match the configured catalogue",
+            select=("FFX",),
+            warn=(),
+            ignore=(),
+            expected_error=(
+                "Config key select contains selector FFX, but it matches no rules in the "
+                "configured catalogue. Activate the required rule pack, or correct or remove "
+                "the selector."
+            ),
+        ),
+        RuleSelectionErrorTestCase(
+            description="warning selector must match the configured catalogue",
+            select=(),
+            warn=("FFX",),
+            ignore=(),
+            expected_error=(
+                "Config key warn contains selector FFX, but it matches no rules in the "
+                "configured catalogue. Activate the required rule pack, or correct or remove "
+                "the selector."
+            ),
+        ),
+        RuleSelectionErrorTestCase(
+            description="ignored selector must match the configured catalogue",
+            select=("FFH",),
+            warn=(),
+            ignore=("FFX",),
+            expected_error=(
+                "Config key ignore contains selector FFX, but it matches no rules in the "
+                "configured catalogue. Activate the required rule pack, or correct or remove "
+                "the selector."
+            ),
+        ),
+        RuleSelectionErrorTestCase(
+            description="path-scoped ignore selector must match the configured catalogue",
+            select=("FFH",),
+            warn=(),
+            ignore=(),
+            expected_error=(
+                "Config key rule_ignores.rules contains selector FFX, but it matches no rules "
+                "in the configured catalogue. Activate the required rule pack, or correct or "
+                "remove the selector."
+            ),
+            rule_ignores=(
+                RuleIgnoreEntry(
+                    rules=("FFX",),
+                    paths=("src/pkg/**",),
+                    reason="Generated source.",
+                ),
+            ),
+        ),
     ],
     ids=lambda case: case.description,
 )
@@ -847,6 +871,7 @@ def test_given_overlapping_policy_tiers_when_resolving_then_raises_config_error(
                 select=test_case.select,
                 warn=test_case.warn,
                 ignore=test_case.ignore,
+                rule_ignores=test_case.rule_ignores,
             )
         )
 

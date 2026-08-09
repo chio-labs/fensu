@@ -117,6 +117,29 @@ pub(crate) fn select_target(
     })
 }
 
+pub(crate) fn selected_target_names(
+    table: &toml::map::Map<String, toml::Value>,
+    target: Option<&str>,
+) -> Result<Vec<Option<String>>, String> {
+    if !table.contains_key(CONFIG_TARGETS_KEY) {
+        if let Some(name) = target {
+            return Err(format!("Unknown target name: {name}."));
+        }
+        validate(table)?;
+        return Ok(vec![None]);
+    }
+    let validated = validated_targets(table)?;
+    if let Some(name) = target {
+        if !validated.contains_key(name) {
+            return Err(format!("Unknown target name: {name}."));
+        }
+        return Ok(vec![Some(name.to_owned())]);
+    }
+    let mut names = validated.keys().cloned().map(Some).collect::<Vec<_>>();
+    names.sort();
+    Ok(names)
+}
+
 pub(crate) fn validate_without_selection(
     table: &toml::map::Map<String, toml::Value>,
 ) -> Result<(), String> {
@@ -151,7 +174,9 @@ fn validated_targets(
     }
     let mut validated: HashMap<String, (toml::map::Map<String, toml::Value>, String, String)> =
         HashMap::new();
-    for (name, value) in targets {
+    let mut target_entries = targets.iter().collect::<Vec<_>>();
+    target_entries.sort_by_key(|(name, _)| *name);
+    for (name, value) in target_entries {
         if name.is_empty() {
             return Err("Target names must be non-empty strings.".to_owned());
         }

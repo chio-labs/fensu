@@ -159,6 +159,106 @@ fn given_selected_target_when_check_succeeds_then_cleanup_uses_selected_roots() 
     }
 }
 
+#[test]
+fn given_all_targets_when_check_succeeds_then_cleanup_uses_every_selected_root() {
+    let test_cases = [TargetCleanupTestCase {
+        description: "successful all-target check cleans both target roots",
+        expected_exit_code: 0,
+        expected_removed_path: "alpha/src/pkg/empty",
+        expected_preserved_path: "beta/src/pkg/empty",
+    }];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(
+            repository.path().join("fensu.toml"),
+            "[targets.alpha]\nanalyzer = \"python\"\nroot = \"alpha\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n[targets.beta]\nanalyzer = \"python\"\nroot = \"beta\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n",
+        );
+        write(
+            repository.path().join("alpha/src/pkg/module.py"),
+            "VALUE: int = 1\n",
+        );
+        write(
+            repository.path().join("beta/src/pkg/module.py"),
+            "VALUE: int = 1\n",
+        );
+        create_directory(repository.path().join(test_case.expected_removed_path));
+        create_directory(repository.path().join(test_case.expected_preserved_path));
+
+        let output = run_check(repository.path());
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            !repository
+                .path()
+                .join(test_case.expected_removed_path)
+                .exists(),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            !repository
+                .path()
+                .join(test_case.expected_preserved_path)
+                .exists(),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_nested_target_root_when_cleaning_parent_then_child_root_is_protected() {
+    let test_cases = [TargetCleanupTestCase {
+        description: "union cleanup preserves an empty configured root nested under another target",
+        expected_exit_code: 0,
+        expected_removed_path: "workspace/disposable",
+        expected_preserved_path: "workspace/nested/src/pkg",
+    }];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(
+            repository.path().join("fensu.toml"),
+            "[targets.parent]\nanalyzer = \"python\"\nroots = [\"workspace\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n[targets.child]\nanalyzer = \"python\"\nroot = \"workspace/nested\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n",
+        );
+        write(
+            repository.path().join("workspace/module.py"),
+            "VALUE: int = 1\n",
+        );
+        create_directory(repository.path().join(test_case.expected_removed_path));
+        create_directory(repository.path().join(test_case.expected_preserved_path));
+
+        let output = run_check(repository.path());
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            !repository
+                .path()
+                .join(test_case.expected_removed_path)
+                .exists(),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            repository
+                .path()
+                .join(test_case.expected_preserved_path)
+                .is_dir(),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
 #[cfg(unix)]
 #[test]
 fn given_symlinked_tree_when_check_finishes_then_link_and_target_are_preserved() {

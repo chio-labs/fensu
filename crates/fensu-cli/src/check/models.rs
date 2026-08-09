@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 use cap_std::fs::Dir;
 
-use crate::models::{Config, ScopedSource};
+use crate::models::{Config, Fault, ScopedSource, ThresholdUse};
 
 #[derive(Debug)]
 pub(crate) struct CheckIdentityRequest<'a> {
@@ -18,7 +18,6 @@ pub(crate) struct CheckIdentityRequest<'a> {
 
 #[derive(Debug)]
 pub(crate) struct CheckPlan {
-    pub(crate) invocation: PathBuf,
     pub(crate) root: PathBuf,
     pub(crate) project_root: PathBuf,
     pub(crate) config: Config,
@@ -30,9 +29,30 @@ pub(crate) struct CheckPlan {
 }
 
 #[derive(Debug)]
+pub(crate) struct CheckPlans {
+    pub(crate) invocation: PathBuf,
+    pub(crate) root: PathBuf,
+    pub(crate) plans: Vec<CheckPlan>,
+    pub(crate) sources: Vec<ScopedSource>,
+    pub(crate) identity: String,
+    pub(crate) cache_enabled: bool,
+    pub(crate) color: bool,
+}
+
+#[derive(Debug)]
+pub(crate) struct CheckResult {
+    pub(crate) faults: Vec<Fault>,
+    pub(crate) warnings: Vec<Fault>,
+    pub(crate) selected: usize,
+    pub(crate) excluded: usize,
+    pub(crate) applied_exceptions: usize,
+    pub(crate) threshold_uses: Vec<ThresholdUse>,
+}
+
+#[derive(Debug)]
 pub(crate) struct CleanupPlan {
     pub(crate) repository: Dir,
-    pub(crate) config: Config,
+    pub(crate) configs: Vec<Config>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -43,11 +63,9 @@ pub(crate) struct CheckRouting<'a> {
 
 #[derive(Debug)]
 pub(crate) struct EvaluationRequest<'a> {
-    pub(crate) root: &'a Path,
     pub(crate) project_root: &'a Path,
     pub(crate) config: &'a Config,
     pub(crate) sources: &'a [ScopedSource],
     pub(crate) excluded: usize,
     pub(crate) show_warnings: bool,
-    pub(crate) color: bool,
 }

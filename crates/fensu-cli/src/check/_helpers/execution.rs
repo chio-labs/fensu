@@ -3,13 +3,13 @@
 use fensu_facts::extension::models::ProgramHandle;
 
 use crate::check::_helpers::cache;
-use crate::check::_helpers::evaluation::evaluate_and_render;
+use crate::check::_helpers::evaluation::{evaluate, render_results};
 use crate::check::_helpers::policy::python_version;
-use crate::check::models::{CheckPlan, EvaluationRequest};
+use crate::check::models::{CheckPlans, EvaluationRequest};
 use crate::models::{CachedOutput, CheckOptions, CliOutput, ScopedSource};
 use crate::skills::main::core_freshness;
 
-pub(crate) fn cached_output(plan: &CheckPlan, options: &CheckOptions) -> Option<CliOutput> {
+pub(crate) fn cached_output(plan: &CheckPlans, options: &CheckOptions) -> Option<CliOutput> {
     if !plan.cache_enabled {
         return None;
     }
@@ -21,10 +21,7 @@ pub(crate) fn cached_output(plan: &CheckPlan, options: &CheckOptions) -> Option<
             plan.sources.len()
         ));
     }
-    stderr.push_str(
-        &core_freshness::core_freshness(&plan.invocation, plan.config.target.as_deref())
-            .unwrap_or_default(),
-    );
+    stderr.push_str(&freshness(plan));
     Some(CliOutput {
         stdout: cached.output,
         stderr,
@@ -33,24 +30,23 @@ pub(crate) fn cached_output(plan: &CheckPlan, options: &CheckOptions) -> Option<
 }
 
 pub(crate) fn render_check(
-    mut plan: CheckPlan,
+    mut plan: CheckPlans,
     options: &CheckOptions,
 ) -> Result<CliOutput, String> {
-    parse_sources(&mut plan.sources)?;
-    let (output, exit_code) = evaluate_and_render(EvaluationRequest {
-        root: &plan.root,
-        project_root: &plan.project_root,
-        config: &plan.config,
-        sources: &plan.sources,
-        excluded: plan.excluded,
-        show_warnings: options.warn,
-        color: plan.color,
-    })?;
+    let mut results = Vec::with_capacity(plan.plans.len());
+    for target in &mut plan.plans {
+        parse_sources(&mut target.sources)?;
+        results.push(evaluate(EvaluationRequest {
+            project_root: &target.project_root,
+            config: &target.config,
+            sources: &target.sources,
+            excluded: target.excluded,
+            show_warnings: options.warn,
+        })?);
+    }
+    let (output, exit_code) = render_results(results, &plan.root, plan.color, options.warn);
     let mut stderr = String::new();
-    stderr.push_str(
-        &core_freshness::core_freshness(&plan.invocation, plan.config.target.as_deref())
-            .unwrap_or_default(),
-    );
+    stderr.push_str(&freshness(&plan));
     if plan.cache_enabled {
         stderr.push_str(&stored_output(
             &plan,
@@ -66,7 +62,7 @@ pub(crate) fn render_check(
     })
 }
 
-fn stored_output(plan: &CheckPlan, output: &str, exit_code: i32, cache_stats: bool) -> String {
+fn stored_output(plan: &CheckPlans, output: &str, exit_code: i32, cache_stats: bool) -> String {
     let cached = CachedOutput {
         identity: plan.identity.clone(),
         output: output.to_owned(),
@@ -84,6 +80,19 @@ fn stored_output(plan: &CheckPlan, output: &str, exit_code: i32, cache_stats: bo
         );
     }
     String::new()
+}
+
+fn freshness(plan: &CheckPlans) -> String {
+    let mut messages: Vec<String> = Vec::new();
+    for target in &plan.plans {
+        let message =
+            core_freshness::core_freshness(&plan.invocation, target.config.target.as_deref())
+                .unwrap_or_default();
+        if !message.is_empty() && !messages.contains(&message) {
+            messages.push(message);
+        }
+    }
+    messages.concat()
 }
 
 fn parse_sources(sources: &mut [ScopedSource]) -> Result<(), String> {

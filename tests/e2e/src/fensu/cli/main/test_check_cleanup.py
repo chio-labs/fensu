@@ -133,3 +133,71 @@ def test_given_custom_host_pre_execution_exit_when_checking_then_repository_is_n
 
     assert completed.returncode == test_case.expected_exit_code
     assert preserved.is_dir()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CheckCleanupCliTestCase(
+            description="custom freshness failure preserves completed exit and cleanup",
+            config=(
+                "[targets.core]\n"
+                'analyzer = "python"\n'
+                'roots = ["src/core"]\n'
+                "tests = []\n"
+                "tooling = []\n"
+                'select = ["FFA101"]\n'
+                "[targets.custom]\n"
+                'analyzer = "python"\n'
+                'root = "frontend"\n'
+                'roots = ["src/custom"]\n'
+                "tests = []\n"
+                "tooling = []\n"
+                'select = ["XFR001"]\n'
+                'rule_paths = ["rules/custom.py"]\n'
+            ),
+            files=(
+                CliProjectFile(relative_path="src/core/module.py", source="VALUE: int = 1\n"),
+                CliProjectFile(
+                    relative_path="frontend/src/custom/module.py", source="VALUE: int = 1\n"
+                ),
+                CliProjectFile(
+                    relative_path="frontend/rules/custom.py",
+                    source=(
+                        "import ast\n"
+                        "from pathlib import Path\n"
+                        "from fensu import Family, Fault, RuleContext, rule\n\n"
+                        '@rule(code="XFR001", family=Family.CUSTOM, slug="freshness", '
+                        'message="freshness fault")\n'
+                        "def freshness(module: ast.Module, ctx: RuleContext) -> list[Fault]:\n"
+                        "    del module, ctx\n"
+                        "    Path(__file__).unlink()\n"
+                        "    return []\n"
+                    ),
+                ),
+            ),
+            expected_exit_code=0,
+            expected_stdout_fragment="Found 0 faults",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_custom_check_completed_when_freshness_fails_then_cleanup_and_exit_are_preserved(
+    tmp_path: Path,
+    test_case: CheckCleanupCliTestCase,
+) -> None:
+    (tmp_path / "fensu.toml").write_text(test_case.config, encoding="utf-8")
+    write_project_files(root=tmp_path, files=test_case.files)
+    disposable: Path = tmp_path / "frontend/src/custom/empty/nested"
+    disposable.mkdir(parents=True)
+
+    completed: subprocess.CompletedProcess[str] = run_cli_check(
+        root=tmp_path,
+        argv=("--no-cache",),
+    )
+
+    assert completed.returncode == test_case.expected_exit_code
+    assert test_case.expected_stdout_fragment in completed.stdout
+    assert not disposable.exists()
+    assert not (tmp_path / "frontend/rules/custom.py").exists()
+    assert completed.stderr == ""

@@ -34,6 +34,8 @@ def evaluated_check(
     rule_selection: RuleSelection,
     project_dir: Path,
     warn: bool,
+    allow_short_circuit: bool = True,
+    cache_storage_root: Path | None = None,
     jobs: int | None = None,
 ) -> CheckEvaluation:
     """Evaluate the tree with caching when available and return observability."""
@@ -92,6 +94,8 @@ def evaluated_check(
             config=config,
             global_fingerprint=global_fingerprint,
             custom_rule_registrations=rule_selection.custom_registrations,
+            allow_short_circuit=allow_short_circuit,
+            cache_storage_root=cache_storage_root,
             jobs=resolved_jobs,
         ),
     )

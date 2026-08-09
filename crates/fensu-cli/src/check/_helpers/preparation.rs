@@ -12,51 +12,91 @@ use crate::check::_helpers::policy::{
     check_identity, hex_digest, path_matches, validate_scope_roots,
 };
 use crate::check::_helpers::rule_policy::validate_config_tiers;
-use crate::check::models::{CheckIdentityRequest, CheckPlan};
-use crate::configuration::main::load_target;
+use crate::check::models::{CheckIdentityRequest, CheckPlan, CheckPlans};
+use crate::configuration::main::load_targets;
 use crate::configuration::main::resolve_target_root::resolve_target_root;
 use crate::configuration::main::validate_exception_targets::validate_exception_targets;
 use crate::constants::PYTHON_CACHE_DIRECTORY;
 use crate::models::{CheckOptions, Config, ScopedSource};
 
-pub(crate) fn prepare_check(options: &CheckOptions) -> Result<CheckPlan, String> {
+pub(crate) fn prepare_checks(options: &CheckOptions) -> Result<CheckPlans, String> {
     let invocation = env::current_dir()
         .map_err(|error| error.to_string())?
         .canonicalize()
         .map_err(|error| error.to_string())?;
-    let (config_path, mut config) =
-        load_target::load_target(&invocation, options.target.as_deref())?;
-    let root = config_path
-        .parent()
-        .ok_or_else(|| "Configuration has no parent directory.".to_owned())?
-        .canonicalize()
-        .map_err(|error| error.to_string())?;
-    let project_root = resolve_target_root(&root, &config.target_root)?;
-    if !options.paths.is_empty() {
-        config.roots = configured_paths(options, &invocation, &project_root)?;
+    let loaded = load_targets::load_targets(&invocation, options.target.as_deref())?;
+    if loaded.len() > 1 && !options.paths.is_empty() {
+        return Err(
+            "Positional paths require exactly one selected target; use --target TARGET.".to_owned(),
+        );
     }
-    validate_config_tiers(&config)?;
-    validate_exception_codes(&config)?;
-    validate_scope_roots(&project_root, &config)?;
-    validate_exception_targets(&config, &project_root)?;
-    let discovered = discover(&root, &project_root, &config)?;
-    let (sources, excluded) = select_sources(discovered, &config);
-    let cache_enabled = options.cache_enabled.unwrap_or(config.cache_enabled);
-    let color = use_color(&options.color);
-    let identity = check_identity(CheckIdentityRequest {
-        root: &root,
-        project_root: &project_root,
-        config: &config,
-        sources: &sources,
-        warnings: options.warn,
-    });
-    Ok(CheckPlan {
+    let mut plans = Vec::with_capacity(loaded.len());
+    for (config_path, mut config) in loaded {
+        let root = config_path
+            .parent()
+            .ok_or_else(|| "Configuration has no parent directory.".to_owned())?
+            .canonicalize()
+            .map_err(|error| error.to_string())?;
+        let project_root = resolve_target_root(&root, &config.target_root)?;
+        if !options.paths.is_empty() {
+            config.roots = configured_paths(options, &invocation, &project_root)?;
+        }
+        validate_config_tiers(&config)?;
+        validate_exception_codes(&config)?;
+        validate_scope_roots(&project_root, &config)?;
+        validate_exception_targets(&config, &project_root)?;
+        let discovered = discover(&root, &project_root, &config)?;
+        let (sources, excluded) = select_sources(discovered, &config);
+        let cache_enabled = options.cache_enabled.unwrap_or(config.cache_enabled);
+        let color = use_color(&options.color);
+        let identity = check_identity(CheckIdentityRequest {
+            root: &root,
+            project_root: &project_root,
+            config: &config,
+            sources: &sources,
+            warnings: options.warn,
+        });
+        plans.push(CheckPlan {
+            root,
+            project_root,
+            config,
+            sources,
+            excluded,
+            identity,
+            cache_enabled,
+            color,
+        });
+    }
+    let first = plans
+        .first()
+        .ok_or_else(|| "No analyzer targets were selected.".to_owned())?;
+    let root = first.root.clone();
+    let color = first.color;
+    let cache_enabled = plans.iter().all(|plan| plan.cache_enabled);
+    let identity = if plans.len() == 1 {
+        first.identity.clone()
+    } else {
+        let mut combined: Vec<u8> = Vec::new();
+        for plan in &plans {
+            combined
+                .extend_from_slice(plan.config.target.as_deref().unwrap_or_default().as_bytes());
+            combined.push(0);
+            combined.extend_from_slice(plan.identity.as_bytes());
+            combined.push(0);
+        }
+        hex_digest(&combined)
+    };
+    let mut sources = plans
+        .iter()
+        .flat_map(|plan| plan.sources.iter().cloned())
+        .collect::<Vec<_>>();
+    sources.sort_by(|left, right| left.repository_path.cmp(&right.repository_path));
+    sources.dedup_by(|left, right| left.repository_path == right.repository_path);
+    Ok(CheckPlans {
         invocation,
         root,
-        project_root,
-        config,
+        plans,
         sources,
-        excluded,
         identity,
         cache_enabled,
         color,

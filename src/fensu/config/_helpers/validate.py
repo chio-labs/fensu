@@ -103,7 +103,7 @@ def select_config_target(
     if not targets:
         raise ConfigValidationError("Config key targets must define at least one named target.")
     validated: dict[str, tuple[dict[str, object], str, str]] = {}
-    for name, value in targets.items():
+    for name, value in sorted(targets.items()):
         if not isinstance(name, str) or not name:
             raise ConfigValidationError("Target names must be non-empty strings.")
         if not isinstance(value, dict):
@@ -146,6 +146,24 @@ def select_config_target(
         )
     selected_config, analyzer, root = validated[selected_name]
     return selected_config, selected_name, analyzer, root
+
+
+def selected_config_target_names(
+    *, raw: Mapping[str, object], target: str | None
+) -> tuple[str | None, ...]:
+    """Return validated selected target names in deterministic order."""
+
+    if target is not None or TARGETS_CONFIG_KEY not in raw:
+        _, selected, _, _ = select_config_target(raw=raw, target=target)
+        return (selected,)
+    targets: object = raw.get(TARGETS_CONFIG_KEY)
+    if not isinstance(targets, dict) or not targets:
+        _ = select_config_target(raw=raw, target=None)
+        raise ConfigValidationError("Config key targets must define at least one named target.")
+    names: tuple[str, ...] = tuple(sorted(str(name) for name in targets))
+    for name in names:
+        _ = select_config_target(raw=raw, target=name)
+    return names
 
 
 def _normalize_target_root(*, name: str, value: str) -> str:

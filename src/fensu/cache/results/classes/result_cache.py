@@ -22,10 +22,13 @@ from fensu.evaluation.models import FileEvaluation
 class ResultCache:
     """Expose fail-soft native generation operations to check orchestration."""
 
-    def __init__(self, *, repo_root: Path) -> None:
+    def __init__(self, *, repo_root: Path, storage_root: Path | None = None) -> None:
         """Bind a result cache without creating persistent storage."""
 
         self._repo_root: Path = repo_root.resolve()
+        self._storage_root: Path = (
+            self._repo_root if storage_root is None else storage_root.resolve()
+        )
 
     def load_native_replay(
         self,
@@ -42,7 +45,7 @@ class ResultCache:
         try:
             native: ModuleType = import_module("fensu._native")
             row, metrics = native.cache_replay_generation(
-                self._repo_root,
+                self._storage_root,
                 global_fingerprint.value,
                 [(path, _fingerprint_value(source_fingerprints.get(path))) for path in targets],
                 CACHE_RECORD_MAX_DECODED_BYTES,
@@ -78,7 +81,7 @@ class ResultCache:
         try:
             native: ModuleType = import_module("fensu._native")
             row, metrics = native.cache_plan_generation(
-                self._repo_root,
+                self._storage_root,
                 global_fingerprint.value,
                 [(path, _fingerprint_value(source_fingerprints.get(path))) for path in targets],
                 allow_edit,
@@ -147,7 +150,7 @@ class ResultCache:
         try:
             native: ModuleType = import_module("fensu._native")
             row, metrics = native.cache_publish_generation(
-                self._repo_root,
+                self._storage_root,
                 global_fingerprint.value,
                 _fingerprint_value(expected_index_fingerprint),
                 [
@@ -192,7 +195,7 @@ class ResultCache:
         try:
             native: ModuleType = import_module("fensu._native")
             stored, metrics = native.cache_store_check_output(
-                self._repo_root,
+                self._storage_root,
                 global_fingerprint.value,
                 expected_index_fingerprint.value,
                 (sorted(targets), plain_output, color_output, exit_code),

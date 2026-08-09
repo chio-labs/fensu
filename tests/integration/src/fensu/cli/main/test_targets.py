@@ -2,17 +2,29 @@
 
 from __future__ import annotations
 
+import re
+import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
+from fensu.cache.results.classes.result_cache import ResultCache
+from fensu.cache.results.models import CacheStats
 from fensu.cli.main.custom_check_host import run_custom_check as run_check
 from tests.integration.src.fensu.cli.main._test_types import (
     CanonicalAliasCheckTestCase,
+    MultiTargetCacheCheckTestCase,
+    MultiTargetThresholdOrderTestCase,
     TargetCheckTestCase,
 )
-from tests.integration.src.fensu.cli.main.helpers import CaptureOutput
+from tests.integration.src.fensu.cli.main.helpers import (
+    CaptureOutput,
+    run_custom_check_process,
+    write_cacheability_advice_target_project,
+    write_cacheable_target_project,
+    write_mixed_cacheability_target_project,
+)
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="symlink creation requires Windows privileges")
@@ -80,11 +92,11 @@ def test_given_internal_target_alias_when_checking_then_reports_canonical_prefix
             expected_stderr_fragment="",
         ),
         TargetCheckTestCase(
-            description="multiple custom-host targets require explicit selection",
+            description="multiple custom-host targets aggregate all local policies",
             argv=("--no-color", "--no-cache"),
-            expected_exit_code=2,
-            expected_stdout_fragment="",
-            expected_stderr_fragment="select one with --target TARGET",
+            expected_exit_code=1,
+            expected_stdout_fragment="Found 4 faults",
+            expected_stderr_fragment="",
         ),
         TargetCheckTestCase(
             description="unknown custom-host target is rejected",
@@ -92,6 +104,13 @@ def test_given_internal_target_alias_when_checking_then_reports_canonical_prefix
             expected_exit_code=2,
             expected_stdout_fragment="",
             expected_stderr_fragment="Unknown target name: missing",
+        ),
+        TargetCheckTestCase(
+            description="multiple custom-host targets reject positional paths",
+            argv=("--no-color", "--no-cache", "src/core"),
+            expected_exit_code=2,
+            expected_stdout_fragment="",
+            expected_stderr_fragment="Positional paths require exactly one selected target",
         ),
         TargetCheckTestCase(
             description="Python host reads target-local pyproject entrypoints",
@@ -228,3 +247,267 @@ def test_given_named_targets_when_running_custom_host_then_uses_same_selection_s
     assert exit_code == test_case.expected_exit_code
     assert test_case.expected_stdout_fragment in stdout.getvalue()
     assert test_case.expected_stderr_fragment in stderr.getvalue()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        MultiTargetCacheCheckTestCase(
+            description="all enabled targets retain isolated warm generations",
+            beta_cache_enabled=True,
+            argv=("--no-color", "--cache-stats"),
+            expected_cold_stats="hits=0 misses=2",
+            expected_warm_stats="hits=2 misses=0",
+            expected_database_count=2,
+        ),
+        MultiTargetCacheCheckTestCase(
+            description="mixed target defaults atomically disable aggregate caching",
+            beta_cache_enabled=False,
+            argv=("--no-color", "--cache-stats"),
+            expected_cold_stats="",
+            expected_warm_stats="",
+            expected_database_count=0,
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_multi_target_cache_policy_when_checking_twice_then_uses_atomic_isolated_generations(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: MultiTargetCacheCheckTestCase,
+) -> None:
+    write_cacheable_target_project(root=tmp_path, beta_cache_enabled=test_case.beta_cache_enabled)
+    monkeypatch.chdir(tmp_path)
+    cold_stdout: CaptureOutput = CaptureOutput()
+    cold_stderr: CaptureOutput = CaptureOutput()
+    warm_stdout: CaptureOutput = CaptureOutput()
+    warm_stderr: CaptureOutput = CaptureOutput()
+
+    cold_exit: int = run_check(
+        argv=test_case.argv,
+        stdout=cold_stdout,
+        stderr=cold_stderr,
+    )
+    warm_exit: int = run_check(
+        argv=test_case.argv,
+        stdout=warm_stdout,
+        stderr=warm_stderr,
+    )
+    databases: tuple[Path, ...] = tuple(tmp_path.glob(".fensu/cache/targets/*/.fensu/cache/v4.db"))
+
+    assert cold_exit == 1
+    assert warm_exit == 1
+    assert cold_stdout.getvalue() == warm_stdout.getvalue()
+    assert cold_stderr.getvalue().count("Cache:") == int(bool(test_case.expected_cold_stats))
+    assert warm_stderr.getvalue().count("Cache:") == int(bool(test_case.expected_warm_stats))
+    assert test_case.expected_cold_stats in cold_stderr.getvalue()
+    assert test_case.expected_warm_stats in warm_stderr.getvalue()
+    assert len(databases) == test_case.expected_database_count
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        MultiTargetCacheCheckTestCase(
+            description="CLI cache override enables every mixed-default target",
+            beta_cache_enabled=False,
+            argv=("--no-color", "--cache", "--cache-stats"),
+            expected_cold_stats="hits=0 misses=2",
+            expected_warm_stats="hits=2 misses=0",
+            expected_database_count=2,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_mixed_target_cache_defaults_when_forcing_cache_then_all_targets_become_warm(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: MultiTargetCacheCheckTestCase,
+) -> None:
+    write_cacheable_target_project(root=tmp_path, beta_cache_enabled=test_case.beta_cache_enabled)
+    monkeypatch.chdir(tmp_path)
+    cold_stderr: CaptureOutput = CaptureOutput()
+    warm_stderr: CaptureOutput = CaptureOutput()
+
+    cold_exit: int = run_check(argv=test_case.argv, stderr=cold_stderr)
+    warm_exit: int = run_check(argv=test_case.argv, stderr=warm_stderr)
+    databases: tuple[Path, ...] = tuple(tmp_path.glob(".fensu/cache/targets/*/.fensu/cache/v4.db"))
+
+    assert cold_exit == 1
+    assert warm_exit == 1
+    assert test_case.expected_cold_stats in cold_stderr.getvalue()
+    assert test_case.expected_warm_stats in warm_stderr.getvalue()
+    assert len(databases) == test_case.expected_database_count
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        TargetCheckTestCase(
+            description="aggregate storage failure emits one degradation warning and status",
+            argv=("--no-color", "--cache", "--cache-stats"),
+            expected_exit_code=1,
+            expected_stdout_fragment="Found 1 fault",
+            expected_stderr_fragment="cache publication failed",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_multi_target_cache_degradation_when_checking_then_reports_once(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: TargetCheckTestCase,
+) -> None:
+    write_cacheable_target_project(root=tmp_path, beta_cache_enabled=True)
+    monkeypatch.chdir(tmp_path)
+    stdout: CaptureOutput = CaptureOutput()
+    stderr: CaptureOutput = CaptureOutput()
+
+    def failed_publication(cache: ResultCache, **kwargs: object) -> CacheStats:
+        del cache, kwargs
+        return CacheStats(storage_failed=True)
+
+    monkeypatch.setattr(ResultCache, "publish_native_generation", failed_publication)
+
+    exit_code: int = run_check(argv=test_case.argv, stdout=stdout, stderr=stderr)
+
+    assert exit_code == test_case.expected_exit_code
+    assert test_case.expected_stdout_fragment in stdout.getvalue()
+    assert stderr.getvalue().count(test_case.expected_stderr_fragment) == 1
+    assert stderr.getvalue().count("Cache:") == 1
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        MultiTargetCacheCheckTestCase(
+            description="warm mixed-cacheability run retains hits and reports fresh work",
+            beta_cache_enabled=True,
+            argv=("--no-color", "--cache-stats"),
+            expected_cold_stats="hits=0 misses=1 invalidations=0 writes=1 non_cacheable=1",
+            expected_warm_stats="hits=1 misses=0 invalidations=0 writes=0 non_cacheable=1",
+            expected_database_count=1,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_cacheable_and_non_cacheable_targets_when_checking_warm_then_stats_are_conservative(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: MultiTargetCacheCheckTestCase,
+) -> None:
+    write_mixed_cacheability_target_project(root=tmp_path)
+    monkeypatch.chdir(tmp_path)
+    cold_stderr: CaptureOutput = CaptureOutput()
+    warm_stderr: CaptureOutput = CaptureOutput()
+
+    cold_exit: int = run_check(argv=test_case.argv, stderr=cold_stderr)
+    warm_exit: int = run_check(argv=test_case.argv, stderr=warm_stderr)
+    databases: tuple[Path, ...] = tuple(tmp_path.glob(".fensu/cache/targets/*/.fensu/cache/v4.db"))
+
+    assert cold_exit == 1
+    assert warm_exit == 1
+    assert test_case.expected_cold_stats in cold_stderr.getvalue()
+    assert test_case.expected_warm_stats in warm_stderr.getvalue()
+    assert "non_cacheable=0" not in warm_stderr.getvalue()
+    assert len(databases) == test_case.expected_database_count
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        TargetCheckTestCase(
+            description="identical advice is grouped and differing advice is target attributed",
+            argv=("--no-color", "--cache-stats"),
+            expected_exit_code=1,
+            expected_stdout_fragment="Found 3 faults",
+            expected_stderr_fragment="non_cacheable=3",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_duplicate_and_distinct_cacheability_advice_when_checking_then_groups_deterministically(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: TargetCheckTestCase,
+) -> None:
+    write_cacheability_advice_target_project(root=tmp_path)
+    monkeypatch.chdir(tmp_path)
+    stdout: CaptureOutput = CaptureOutput()
+    stderr: CaptureOutput = CaptureOutput()
+
+    exit_code: int = run_check(argv=test_case.argv, stdout=stdout, stderr=stderr)
+    advice: tuple[str, ...] = tuple(
+        re.findall(r"^Custom rules appear.*$", stderr.getvalue(), flags=re.MULTILINE)
+    )
+
+    assert exit_code == test_case.expected_exit_code
+    assert test_case.expected_stdout_fragment in stdout.getvalue()
+    assert test_case.expected_stderr_fragment in stderr.getvalue()
+    assert advice == (
+        "Custom rules appear cacheable for targets alpha, beta; declare cacheable=True to enable "
+        "caching for them: XAD001",
+        "Custom rules appear cacheable for target gamma; declare cacheable=True to enable "
+        "caching for them: XAD002",
+    )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        MultiTargetThresholdOrderTestCase(
+            description="threshold metadata uses every differing field for stable ordering",
+            expected_first="max_arguments=1 path=src/pkg/module.py",
+            expected_second="max_arguments=2 path=src/pkg/module.py",
+            expected_exit_code=1,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_threshold_uses_that_differ_by_value_and_reason_when_checking_in_processes_then_order_is_stable(
+    tmp_path: Path,
+    test_case: MultiTargetThresholdOrderTestCase,
+) -> None:
+    (tmp_path / "fensu.toml").write_text(
+        "[targets.alpha]\n"
+        'analyzer = "python"\n'
+        'roots = ["src/pkg"]\n'
+        "tests = []\n"
+        "tooling = []\n"
+        'select = ["FFS010"]\n'
+        "[[targets.alpha.threshold_overrides]]\n"
+        'paths = ["src/pkg/module.py"]\n'
+        "thresholds = { max_arguments = 2 }\n"
+        'reason = "alpha later value"\n'
+        "[targets.zeta]\n"
+        'analyzer = "python"\n'
+        'roots = ["src/pkg"]\n'
+        "tests = []\n"
+        "tooling = []\n"
+        'select = ["FFS010"]\n'
+        "[[targets.zeta.threshold_overrides]]\n"
+        'paths = ["src/pkg/module.py"]\n'
+        "thresholds = { max_arguments = 1 }\n"
+        'reason = "zeta earlier value"\n',
+        encoding="utf-8",
+    )
+    source: Path = tmp_path / "src/pkg/module.py"
+    source.parent.mkdir(parents=True)
+    source.write_text(
+        "def example(first: int, second: int, third: int) -> None:\n    return None\n",
+        encoding="utf-8",
+    )
+
+    first: subprocess.CompletedProcess[str] = run_custom_check_process(
+        root=tmp_path, argv=("--no-color", "--no-cache")
+    )
+    second: subprocess.CompletedProcess[str] = run_custom_check_process(
+        root=tmp_path, argv=("--no-color", "--no-cache")
+    )
+
+    assert first.returncode == test_case.expected_exit_code
+    assert second.returncode == test_case.expected_exit_code
+    assert first.stdout == second.stdout
+    assert first.stdout.index(test_case.expected_first) < first.stdout.index(
+        test_case.expected_second
+    )

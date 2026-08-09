@@ -67,6 +67,7 @@ def run_cached_evaluation(
     global_fingerprint: CacheFingerprint,
     custom_rule_registrations: tuple[CustomRuleRegistration, ...] = (),
     allow_short_circuit: bool = True,
+    cache_storage_root: Path | None = None,
     jobs: int = 1,
 ) -> CacheEvaluation:
     """Return a complete evaluation using only native-validated cache hits."""
@@ -92,7 +93,10 @@ def run_cached_evaluation(
             custom_rule_registrations=custom_rule_registrations,
         )
         return CacheEvaluation(result=result, stats=CacheStats(non_cacheable=len(targets)))
-    cache: ResultCache = ResultCache(repo_root=tree.repo_root.path)
+    cache: ResultCache = ResultCache(
+        repo_root=tree.repo_root.path,
+        storage_root=cache_storage_root,
+    )
     target_paths, source_fingerprints = _target_source_state(
         targets=targets,
         repo_root=tree.repo_root.path,

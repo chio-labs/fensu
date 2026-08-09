@@ -41,6 +41,28 @@ from tests.e2e.src.fensu.cli.main.helpers import (
             expected_exec_count=1,
         ),
         NativeProcessAccountingTestCase(
+            description="core-only all-target check executes one binary and no interpreter",
+            config=(
+                "[targets.alpha]\n"
+                'analyzer = "python"\n'
+                'roots = ["src/alpha"]\n'
+                "tests = []\n"
+                'select = ["FFA101"]\n'
+                "[targets.beta]\n"
+                'analyzer = "python"\n'
+                'roots = ["src/beta"]\n'
+                "tests = []\n"
+                'select = ["FFA101"]\n'
+            ),
+            files=(
+                CliProjectFile(relative_path="src/alpha/models.py", source="VALUE: int = 1\n"),
+                CliProjectFile(relative_path="src/beta/models.py", source="VALUE: int = 1\n"),
+            ),
+            argv=("check", "--no-cache", "--no-color"),
+            expected_exit_code=0,
+            expected_exec_count=1,
+        ),
+        NativeProcessAccountingTestCase(
             description="uncached map executes one binary and no interpreter",
             config='roots = ["src/pkg"]\ntests = []\n',
             files=(

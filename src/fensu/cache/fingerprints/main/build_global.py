@@ -15,6 +15,7 @@ from fensu.cache.fingerprints._helpers.fingerprints import (
     installed_implementation_fingerprint,
     ruleset_fingerprint,
 )
+from fensu.cache.fingerprints.constants import NO_CACHEABLE_RULES_REASON
 from fensu.cache.fingerprints.models import CacheFingerprint, GlobalFingerprintBuild
 from fensu.config.models import Config
 from fensu.rules.authoring.models import RuleSpec
@@ -34,7 +35,7 @@ def build_global_fingerprint(
     if ruleset and all(rule.kind is RuleKind.CUSTOM and not rule.cacheable for rule in ruleset):
         return GlobalFingerprintBuild(
             fingerprint=None,
-            disabled_reason="no cacheable rules are selected",
+            disabled_reason=NO_CACHEABLE_RULES_REASON,
         )
     package_root: Path | None = _loaded_package_root()
     if package_root is None:

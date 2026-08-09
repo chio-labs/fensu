@@ -111,6 +111,28 @@ class TargetCheckTestCase:
 
 
 @dataclass(frozen=True)
+class MultiTargetCacheCheckTestCase:
+    """All-target custom-host cache modes and expected aggregate observations."""
+
+    description: str
+    beta_cache_enabled: bool
+    argv: tuple[str, ...]
+    expected_cold_stats: str
+    expected_warm_stats: str
+    expected_database_count: int
+
+
+@dataclass(frozen=True)
+class MultiTargetThresholdOrderTestCase:
+    """Cross-process aggregate threshold ordering expectations."""
+
+    description: str
+    expected_first: str
+    expected_second: str
+    expected_exit_code: int
+
+
+@dataclass(frozen=True)
 class CanonicalAliasCheckTestCase:
     """Internal target alias and canonical repository-visible diagnostics."""
 

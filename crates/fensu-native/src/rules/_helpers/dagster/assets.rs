@@ -133,20 +133,52 @@ pub(super) fn assets_delegate_to_main(
         faults.push(path_fault(code, None));
     }
     for callback in callbacks {
-        let body = function_source(program, callback.line);
-        let direct = body
-            .lines()
-            .skip(1)
-            .filter(|line| !line.trim().is_empty())
-            .collect::<Vec<_>>();
-        let valid = direct.len() == 1
-            && (direct[0].trim_start().starts_with("return main(")
-                || direct[0].trim_start().starts_with("yield from main("));
-        if !valid {
+        if !direct_main_delegation(program, callback.line) {
             faults.push(fault(code, callback.line, callback.column));
         }
     }
     faults
+}
+
+fn direct_main_delegation(program: &ProgramHandle, line: u32) -> bool {
+    let source = function_source(program, line);
+    let mut signature_complete = false;
+    let mut delimiter_balance: i32 = 0;
+    let mut body_indentation: Option<usize> = None;
+    let mut direct_statements: Vec<&str> = Vec::new();
+    for text in source.lines() {
+        if !signature_complete {
+            delimiter_balance += text.chars().fold(0, |balance, character| {
+                balance
+                    + match character {
+                        '(' | '[' | '{' => 1,
+                        ')' | ']' | '}' => -1,
+                        _ => 0,
+                    }
+            });
+            signature_complete = delimiter_balance == 0 && text.trim_end().ends_with(':');
+            continue;
+        }
+        if text.trim().is_empty() {
+            continue;
+        }
+        let indentation = text.len().saturating_sub(text.trim_start().len());
+        let body_indentation = *body_indentation.get_or_insert(indentation);
+        if indentation == body_indentation && delimiter_balance == 0 {
+            direct_statements.push(text.trim_start());
+        }
+        delimiter_balance += text.chars().fold(0, |balance, character| {
+            balance
+                + match character {
+                    '(' | '[' | '{' => 1,
+                    ')' | ']' | '}' => -1,
+                    _ => 0,
+                }
+        });
+    }
+    direct_statements.len() == 1
+        && (direct_statements[0].starts_with("return main(")
+            || direct_statements[0].starts_with("yield from main("))
 }
 
 fn approved_main_return(signature: &str) -> bool {
@@ -263,6 +295,20 @@ fn nearest_asset_owner(
     }
 }
 
+fn ancestor_asset_owners(owner: &str) -> Vec<String> {
+    let parts: Vec<&str> = owner.split('.').collect();
+    (4..parts.len())
+        .map(|depth| parts[..depth].join("."))
+        .collect()
+}
+
+fn owner_supports_target(owner: &str, target: &str) -> bool {
+    target.starts_with(&format!("{owner}._helpers."))
+        || ["constants", "exceptions", "models", "types"]
+            .iter()
+            .any(|role| target == format!("{owner}.{role}"))
+}
+
 pub(super) fn import_boundaries(
     program: &ProgramHandle,
     code: &str,
@@ -275,6 +321,7 @@ pub(super) fn import_boundaries(
     let Some(owner) = nearest_asset_owner(context, project) else {
         return Vec::new();
     };
+    let ancestor_owners = ancestor_asset_owners(&owner);
     let package = &context.package_name;
     let mut faults: Vec<NativeFaultRow> = Vec::new();
     for row in &program.reference_rows().imports {
@@ -290,10 +337,10 @@ pub(super) fn import_boundaries(
                 && !private
                 && import_public(row);
             let owned = target == format!("{owner}.main")
-                || target.starts_with(&format!("{owner}._helpers."))
-                || ["constants", "exceptions", "models", "types"]
+                || owner_supports_target(&owner, &target)
+                || ancestor_owners
                     .iter()
-                    .any(|role| target == format!("{owner}.{role}"));
+                    .any(|ancestor| owner_supports_target(ancestor, &target));
             let dependency = row.from_import && target.ends_with(".assets");
             if !shared && !owned && !dependency {
                 faults.push(fault(code, row.line, row.column));

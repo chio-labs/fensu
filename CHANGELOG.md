@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.9.3](https://github.com/chio-labs/fensu/compare/v0.9.2...v0.9.3) (2026-08-09)
+
+
+### Bug Fixes
+
+* execute native rule packs consistently ([d2f65b1](https://github.com/chio-labs/fensu/commit/d2f65b1da8c087791499cf53f225ce9786f889ac))
+* execute native rule packs consistently ([3397139](https://github.com/chio-labs/fensu/commit/33971391568b593fdb7eae2d878b09a421bdd7e4))
+* reject unmatched rule selectors ([b1ee6b4](https://github.com/chio-labs/fensu/commit/b1ee6b45a491c27b7b23c45b2da0d82255a5f7ac))
+* reject unmatched rule selectors ([68c28fb](https://github.com/chio-labs/fensu/commit/68c28fba8b700249daa5094c212ed7cb9eb75dd9))
+
 ## [0.9.2](https://github.com/chio-labs/fensu/compare/v0.9.1...v0.9.2) (2026-08-07)
 
 

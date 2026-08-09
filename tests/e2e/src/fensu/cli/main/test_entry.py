@@ -20,14 +20,13 @@ from tests.e2e.src.fensu.cli.main.helpers import installed_fensu_executable
             argv=("--help",),
             expected_exit_code=0,
             expected_stdout=(
-                "Usage: fensu {init,check,rule,map,skills,memory} ...\n\n"
+                "Usage: fensu {init,check,rule,map,skills} ...\n\n"
                 "Commands:\n"
                 "  init    Initialize Fensu configuration for a repository.\n"
                 "  check   Evaluate repository architecture rules.\n"
                 "  rule    Show details for one rule.\n"
                 "  map     Render a directional project call map.\n"
-                "  skills  Generate and install agent guidance.\n"
-                "  memory  Synchronize, inspect, and query persistent repository memory.\n\n"
+                "  skills  Generate and install agent guidance.\n\n"
                 "Run `fensu <command> --help` for command-specific options.\n"
             ),
             expected_stderr="",

@@ -5,7 +5,8 @@ use std::process::{Command, Output};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
-pub(crate) const CONFIG: &str = "roots = [\"src/pkg\"]\ntests = []\nselect = [\"FF\"]\n[experimental]\nmemory = true\n[skills]\nname = \"Fixture\"\n";
+pub(crate) const CONFIG: &str =
+    "roots = [\"src/pkg\"]\ntests = []\nselect = [\"FF\"]\n[skills]\nname = \"Fixture\"\n";
 #[cfg(not(windows))]
 const WORKSPACE_PYTHON: &str = ".venv/bin/python";
 #[cfg(windows)]
@@ -66,7 +67,7 @@ pub(crate) fn remove_skill(_root: &Path, path: &Path, _original: &[u8]) {
 }
 
 pub(crate) fn stale_skill(root: &Path, _path: &Path, _original: &[u8]) {
-    let config = CONFIG.replace("memory = true", "memory = false");
+    let config = CONFIG.replace("select = [\"FF\"]", "select = [\"FFA101\"]");
     write(root.join("fensu.toml"), config);
 }
 

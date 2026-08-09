@@ -13,9 +13,7 @@ from fensu.config.constants import (
     DEFAULT_CACHE_ENABLED,
     DEFAULT_CACHE_REQUIRE_CACHEABLE,
     DEFAULT_CONTRACTS,
-    DEFAULT_EXPERIMENTAL_MEMORY,
     DEFAULT_IGNORE,
-    DEFAULT_MEMORY_TASKS_ARCHIVE_AFTER_DAYS,
     DEFAULT_SELECT,
     DEFAULT_TEST_PATHS,
     DEFAULT_TEST_SCOPES,
@@ -84,20 +82,6 @@ def serialized_cli_defaults() -> bytes:
             name="DEFAULT_CACHE_REQUIRE_CACHEABLE",
             rust_type="bool",
             value=DEFAULT_CACHE_REQUIRE_CACHEABLE,
-        )
-    )
-    lines.extend(
-        _value_line(
-            name="DEFAULT_EXPERIMENTAL_MEMORY",
-            rust_type="bool",
-            value=DEFAULT_EXPERIMENTAL_MEMORY,
-        )
-    )
-    lines.extend(
-        _value_line(
-            name="DEFAULT_MEMORY_ARCHIVE_DAYS",
-            rust_type="u64",
-            value=DEFAULT_MEMORY_TASKS_ARCHIVE_AFTER_DAYS,
         )
     )
     lines.extend(

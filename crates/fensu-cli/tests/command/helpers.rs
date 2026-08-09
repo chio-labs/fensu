@@ -2,17 +2,6 @@ use std::fs;
 use std::path::Path;
 use std::process::{Command, Output};
 
-pub(crate) fn run(repository: &Path, arguments: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_fensu"))
-        .arg("memory")
-        .args(arguments)
-        .current_dir(repository)
-        .env("FENSU_PYTHON", repository.join("python-does-not-exist"))
-        .env("NO_COLOR", "1")
-        .output()
-        .expect("native fensu process runs")
-}
-
 pub(crate) fn run_check(repository: &Path) -> Output {
     run_check_with(repository, &["--no-cache"])
 }
@@ -51,18 +40,4 @@ pub(crate) fn write_bytes(path: impl AsRef<Path>, contents: &[u8]) {
 
 pub(crate) fn create_directory(path: impl AsRef<Path>) {
     fs::create_dir_all(path).expect("fixture directory");
-}
-
-pub(crate) fn assert_success(output: &Output, expected: &str) {
-    assert_eq!(
-        output.status.code(),
-        Some(0),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert!(
-        String::from_utf8_lossy(&output.stdout).contains(expected),
-        "stdout: {}",
-        String::from_utf8_lossy(&output.stdout)
-    );
 }

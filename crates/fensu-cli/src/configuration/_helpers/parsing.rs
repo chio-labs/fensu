@@ -1,10 +1,9 @@
 use std::collections::HashMap;
 
-use crate::configuration::_helpers::validation::{required_strings, validate_keys};
+use crate::configuration::_helpers::validation::required_strings;
 use crate::configuration::constants::{
-    DEFAULT_CACHE_ENABLED, DEFAULT_CACHE_REQUIRE_CACHEABLE, DEFAULT_CONTRACTS,
-    DEFAULT_EXPERIMENTAL_MEMORY, DEFAULT_IGNORE, DEFAULT_MEMORY_ARCHIVE_DAYS, DEFAULT_SELECT,
-    DEFAULT_TEST_PATHS, DEFAULT_TEST_SCOPES, DEFAULT_THRESHOLDS, DEFAULT_WARN,
+    DEFAULT_CACHE_ENABLED, DEFAULT_CACHE_REQUIRE_CACHEABLE, DEFAULT_CONTRACTS, DEFAULT_IGNORE,
+    DEFAULT_SELECT, DEFAULT_TEST_PATHS, DEFAULT_TEST_SCOPES, DEFAULT_THRESHOLDS, DEFAULT_WARN,
 };
 use crate::models::{Config, RuleException, RuleIgnore, ThresholdOverride};
 
@@ -61,8 +60,6 @@ pub(crate) fn build(
         contracts,
         exceptions: exceptions(table.get("rule_exceptions")),
         rule_ignores: rule_ignores(table.get("rule_ignores")),
-        memory_enabled: memory_enabled(table)?,
-        memory_archive_after_days: memory_archive_after_days(table)?,
         skills_name: skills_name(table)?,
         source_kind: if pyproject { "pyproject" } else { "fensu_toml" }.to_owned(),
         raw,
@@ -102,47 +99,6 @@ fn skills_name(table: &toml::map::Map<String, toml::Value>) -> Result<Option<Str
         .map(str::to_owned)
         .map(Some)
         .ok_or_else(|| "Config key skills.name must be a non-empty string.".to_owned())
-}
-
-fn memory_archive_after_days(table: &toml::map::Map<String, toml::Value>) -> Result<u64, String> {
-    let Some(memory_value) = table.get("memory") else {
-        return Ok(DEFAULT_MEMORY_ARCHIVE_DAYS);
-    };
-    let memory = memory_value
-        .as_table()
-        .ok_or_else(|| "Config key memory must be a table.".to_owned())?;
-    validate_keys(memory, &["tasks"], "memory")?;
-    let Some(tasks_value) = memory.get("tasks") else {
-        return Ok(DEFAULT_MEMORY_ARCHIVE_DAYS);
-    };
-    let tasks = tasks_value
-        .as_table()
-        .ok_or_else(|| "Config key memory.tasks must be a table.".to_owned())?;
-    validate_keys(tasks, &["archive_after_days"], "memory.tasks")?;
-    let Some(value) = tasks.get("archive_after_days") else {
-        return Ok(DEFAULT_MEMORY_ARCHIVE_DAYS);
-    };
-    let Some(days) = value.as_integer() else {
-        return Err("Config key memory.tasks.archive_after_days must be an integer.".to_owned());
-    };
-    u64::try_from(days)
-        .map_err(|_| "Config key memory.tasks.archive_after_days must be non-negative.".to_owned())
-}
-
-fn memory_enabled(table: &toml::map::Map<String, toml::Value>) -> Result<bool, String> {
-    let Some(experimental_value) = table.get("experimental") else {
-        return Ok(DEFAULT_EXPERIMENTAL_MEMORY);
-    };
-    let experimental = experimental_value
-        .as_table()
-        .ok_or_else(|| "Config key experimental must be a table.".to_owned())?;
-    validate_keys(experimental, &["memory"], "experimental")?;
-    let Some(value) = experimental.get("memory") else {
-        return Ok(DEFAULT_EXPERIMENTAL_MEMORY);
-    };
-    value
-        .as_bool()
-        .ok_or_else(|| "Config key experimental.memory must be a boolean.".to_owned())
 }
 
 pub(crate) fn strings(value: Option<&toml::Value>) -> Vec<String> {

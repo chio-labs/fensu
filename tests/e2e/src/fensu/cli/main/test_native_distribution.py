@@ -41,14 +41,6 @@ from tests.e2e.src.fensu.cli.main.helpers import (
             expected_exec_count=1,
         ),
         NativeProcessAccountingTestCase(
-            description="memory schema executes one binary and no interpreter",
-            config=('roots = ["src/pkg"]\ntests = []\n[experimental]\nmemory = true\n'),
-            files=(),
-            argv=("memory", "schema", "--color", "never"),
-            expected_exit_code=0,
-            expected_exec_count=1,
-        ),
-        NativeProcessAccountingTestCase(
             description="uncached map executes one binary and no interpreter",
             config='roots = ["src/pkg"]\ntests = []\n',
             files=(
@@ -216,7 +208,7 @@ def test_given_default_init_skills_and_stale_core_check_when_tracing_then_each_u
         check=False,
     )
     (check_root / "fensu.toml").write_text(
-        'roots = ["src/pkg"]\ntests = []\nselect = ["FFA101"]\n[experimental]\nmemory = true\n[skills]\nname = "fixture"\n',
+        'roots = ["src/pkg"]\ntests = []\nselect = ["FFA102"]\n[skills]\nname = "fixture"\n',
         encoding="utf-8",
     )
     check_trace: Path = tmp_path / "check.trace"

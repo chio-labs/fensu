@@ -66,18 +66,6 @@ pub(crate) fn generate(context: &SkillContext) -> Result<String, String> {
         "- Run `fensu skills` after changing rule selection or custom rules.".to_owned(),
         String::new(),
     ];
-    if context.config.memory_enabled {
-        let memory = profile_lines("memory")?
-            .into_iter()
-            .map(|line| {
-                line.replace(
-                    "987654321",
-                    &context.config.memory_archive_after_days.to_string(),
-                )
-            })
-            .collect::<Vec<_>>();
-        lines.extend(memory);
-    }
     lines.extend(profile_lines("navigation")?);
     lines.extend(profile_lines("work_practices")?);
     lines.extend(repository_lines(context)?);

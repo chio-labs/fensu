@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TextIO
 
 from fensu.cache.fingerprints.models import CacheFingerprint
 from fensu.cache.results.classes.result_cache import ResultCache
@@ -83,22 +82,6 @@ def persist_check_output(
         exit_code=1 if plain.fault_count else 0,
         expected_index_fingerprint=expected_index_fingerprint,
     )
-
-
-def write_memory_check_result(*, stdout: TextIO, result: object | None, use_color: bool) -> int:
-    """Append enabled memory findings without adding them to architecture caches."""
-
-    if result is None:
-        return 0
-    from fensu.memory.main.render_memory_check import render_memory_check
-    from fensu.memory.models import MemoryCheckResult
-
-    if not isinstance(result, MemoryCheckResult) or not result.diagnostics:
-        return 0
-
-    report: RenderedReport = render_memory_check(result=result, use_color=use_color)
-    stdout.write(f"\n{report.text}\n")
-    return report.fault_count
 
 
 def _rendered_stdout(

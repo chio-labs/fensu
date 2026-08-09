@@ -163,19 +163,36 @@ pub(super) fn decorators(program: &ProgramHandle, line: u32) -> Vec<String> {
     let lines: Vec<&str> = program.source().lines().collect();
     let mut index = usize::try_from(line.saturating_sub(1)).unwrap_or_default();
     let mut names: Vec<String> = Vec::new();
+    let mut delimiter_balance: i32 = 0;
     while index > 0 {
         index -= 1;
         let text = lines.get(index).copied().unwrap_or("").trim();
         if text.is_empty() {
             continue;
         }
-        if !text.starts_with('@') {
+        delimiter_balance += delimiter_delta(text);
+        if text.starts_with('@') && delimiter_balance <= 0 {
+            let target = text[1..].split('(').next().unwrap_or("");
+            names.push(target.rsplit('.').next().unwrap_or(target).to_owned());
+            delimiter_balance = 0;
+            continue;
+        }
+        if delimiter_balance <= 0 {
             break;
         }
-        let target = text[1..].split('(').next().unwrap_or("");
-        names.push(target.rsplit('.').next().unwrap_or(target).to_owned());
     }
     names
+}
+
+fn delimiter_delta(source: &str) -> i32 {
+    source.chars().fold(0, |balance, character| {
+        balance
+            + match character {
+                ')' | ']' | '}' => 1,
+                '(' | '[' | '{' => -1,
+                _ => 0,
+            }
+    })
 }
 
 pub(super) fn has_decorator(program: &ProgramHandle, line: u32, names: &[&str]) -> bool {
@@ -191,14 +208,21 @@ pub(super) fn function_source(program: &ProgramHandle, line: u32) -> String {
         .get(start)
         .map_or(0, |line| line.len().saturating_sub(line.trim_start().len()));
     let mut selected: Vec<&str> = Vec::new();
+    let mut signature_complete = false;
+    let mut signature_balance: i32 = 0;
     for (index, text) in lines.iter().enumerate().skip(start) {
-        if index > start
+        if signature_complete
+            && index > start
             && !text.trim().is_empty()
             && text.len().saturating_sub(text.trim_start().len()) <= indentation
         {
             break;
         }
         selected.push(text);
+        if !signature_complete {
+            signature_balance -= delimiter_delta(text);
+            signature_complete = signature_balance == 0 && text.trim_end().ends_with(':');
+        }
     }
     selected.join("\n")
 }
@@ -229,7 +253,21 @@ pub(super) fn positional_parameter_names(program: &ProgramHandle, line: u32) -> 
     let Some((_, after_open)) = signature.split_once('(') else {
         return Vec::new();
     };
-    let before_keyword_only = after_open.split('*').next().unwrap_or(after_open);
+    let mut parameter_end = after_open.len();
+    let mut nested_delimiters: i32 = 0;
+    for (index, character) in after_open.char_indices() {
+        match character {
+            '(' | '[' | '{' => nested_delimiters += 1,
+            ')' if nested_delimiters == 0 => {
+                parameter_end = index;
+                break;
+            }
+            ')' | ']' | '}' => nested_delimiters -= 1,
+            _ => {}
+        }
+    }
+    let parameters = &after_open[..parameter_end];
+    let before_keyword_only = parameters.split('*').next().unwrap_or(parameters);
     before_keyword_only
         .split(',')
         .map(str::trim)
@@ -276,6 +314,25 @@ fn assets_factory_statement(
         .source()
         .lines()
         .nth(usize::try_from(row.line.saturating_sub(1)).unwrap_or_default())
-        .is_some_and(|line| line.contains("AssetsDefinition") && line.contains('('));
+        .and_then(|line| line.split_once('='))
+        .is_some_and(|(declaration, value)| {
+            if !declaration.contains("AssetsDefinition") {
+                return false;
+            }
+            let callee = value.trim().split_once('(').map_or("", |item| item.0);
+            imported_factory_callee(program, callee)
+        });
     binds_assets && constructs_assets
+}
+
+fn imported_factory_callee(program: &ProgramHandle, callee: &str) -> bool {
+    let root = callee.split('.').next().unwrap_or("");
+    for import in &program.reference_rows().imports {
+        if import.aliases.iter().any(|alias| {
+            alias.bound_name == callee || (!import.from_import && alias.bound_name == root)
+        }) {
+            return true;
+        }
+    }
+    false
 }

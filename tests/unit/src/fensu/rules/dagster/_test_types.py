@@ -20,3 +20,4 @@ class NativeDagsterRuleTestCase:
     expected_fault_count: int
     files: tuple[RuleFile, ...] = ()
     rule_options: Mapping[str, RuleOptionValue] | None = None
+    scope: str = "root"

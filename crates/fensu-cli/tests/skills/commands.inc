@@ -39,11 +39,16 @@ fn given_multiple_targets_when_generating_skills_then_config_target_selects_poli
     ];
     for test_case in test_cases {
         let repository = tempfile::tempdir().expect("multi-target skills project");
+        write(repository.path().join(".git/keep"), b"");
         write(
             repository.path().join("fensu.toml"),
-            b"[targets.first]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\ntests = []\nselect = [\"FFA001\"]\n[targets.first.skills]\nname = \"first\"\n[targets.second]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\ntests = []\nselect = [\"FFA002\"]\n[targets.second.skills]\nname = \"second\"\n",
+            b"[targets.first]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\ntests = []\nselect = [\"FFA001\"]\n[targets.first.skills]\nname = \"first\"\n[targets.second]\nanalyzer = \"python\"\nroot = \"frontend\"\nroots = [\"src/pkg\"]\ntests = []\nselect = [\"FFA002\"]\n[targets.second.skills]\nname = \"second\"\n",
         );
         write(repository.path().join("src/pkg/__init__.py"), b"");
+        write(
+            repository.path().join("frontend/src/pkg/__init__.py"),
+            b"",
+        );
 
         let result = native(repository.path(), test_case.arguments);
 
@@ -76,6 +81,16 @@ fn given_multiple_targets_when_generating_skills_then_config_target_selects_poli
                 "{}",
                 test_case.description
             );
+            assert!(
+                guidance.contains("Project root from installation root: \"frontend\""),
+                "{}",
+                test_case.description
+            );
+            assert!(
+                guidance.contains("Product roots: [\"frontend/src/pkg\"]"),
+                "{}",
+                test_case.description
+            );
         }
     }
 }
@@ -94,13 +109,14 @@ fn given_custom_rule_target_when_generating_skills_then_python_host_uses_same_se
     };
     for test_case in test_cases {
         let repository = tempfile::tempdir().expect("custom multi-target skills project");
+        write(repository.path().join(".git/keep"), b"");
         write(
             repository.path().join("fensu.toml"),
-            b"[targets.native]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\ntests = []\nselect = [\"FFA001\"]\n[targets.custom]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\ntests = []\nselect = [\"XSK001\"]\nrule_paths = [\"rules/custom.py\"]\n[targets.custom.skills]\nname = \"custom\"\n",
+            b"[targets.native]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\ntests = []\nselect = [\"FFA001\"]\n[targets.custom]\nanalyzer = \"python\"\nroot = \"frontend\"\nroots = [\"src/pkg\"]\ntests = []\nselect = [\"XSK001\"]\nrule_paths = [\"rules/custom.py\"]\n[targets.custom.skills]\nname = \"custom\"\n",
         );
-        write(repository.path().join("src/pkg/__init__.py"), b"");
+        write(repository.path().join("frontend/src/pkg/__init__.py"), b"");
         write(
-            repository.path().join("rules/custom.py"),
+            repository.path().join("frontend/rules/custom.py"),
             b"import ast\nfrom fensu import Family, Fault, RuleContext, rule\n@rule(code='XSK001', family=Family.CUSTOM, slug='skill-target', message='custom target')\ndef custom_target(module: ast.Module, ctx: RuleContext) -> list[Fault]:\n    return []\n",
         );
 

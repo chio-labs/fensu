@@ -30,6 +30,14 @@ class AbsoluteRootDiscoveryTestCase:
 
 
 @dataclass(frozen=True)
+class SymlinkDiscoveryTestCase:
+    """A target-root file symlink and expected confined discovery result."""
+
+    description: str
+    expected_relative_files: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class ScopedRelativePartsTestCase:
     """A non-root scope file and its expected scope-relative parts."""
 

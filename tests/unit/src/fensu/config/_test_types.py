@@ -49,8 +49,20 @@ class TargetConfigTestCase:
     config_text: str
     target: str | None
     expected_target: str
+    expected_target_root: str
     expected_roots: tuple[str, ...]
     expected_select: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class CanonicalTargetRootTestCase:
+    """A symlink target spelling and expected canonical effective identity."""
+
+    description: str
+    alias: str
+    configured_alias: str
+    canonical: str
+    expected_target_root: str
 
 
 @dataclass(frozen=True)

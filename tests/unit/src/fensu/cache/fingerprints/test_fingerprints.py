@@ -148,8 +148,18 @@ def test_given_validated_configs_when_fingerprinting_then_captures_policy_inputs
             description="named target change invalidates config identity",
             first_target="api",
             second_target="worker",
+            first_root=".",
+            second_root=".",
             expected_equal=False,
-        )
+        ),
+        TargetFingerprintTestCase(
+            description="target root change invalidates config identity",
+            first_target="app",
+            second_target="app",
+            first_root="frontend-a",
+            second_root="frontend-b",
+            expected_equal=False,
+        ),
     ],
     ids=lambda case: case.description,
 )
@@ -157,10 +167,18 @@ def test_given_named_targets_when_fingerprinting_then_captures_target_identity(
     test_case: TargetFingerprintTestCase,
 ) -> None:
     first: CacheFingerprint = config_fingerprint(
-        Config(roots=("src/pkg",), target=test_case.first_target)
+        Config(
+            roots=("src/pkg",),
+            target=test_case.first_target,
+            target_root=test_case.first_root,
+        )
     )
     second: CacheFingerprint = config_fingerprint(
-        Config(roots=("src/pkg",), target=test_case.second_target)
+        Config(
+            roots=("src/pkg",),
+            target=test_case.second_target,
+            target_root=test_case.second_root,
+        )
     )
 
     assert (first == second) is test_case.expected_equal

@@ -8,7 +8,7 @@ from pathlib import Path
 from types import ModuleType
 
 from fensu.analysis.constants import NATIVE_FACT_MODULE_NAME
-from fensu.discovery.models import DiscoveredTree, ScopedFile
+from fensu.discovery.models import DiscoveredTree, RepoRoot, ScopedFile
 from fensu.discovery.types import ScopeName
 from fensu.evaluation.models import EvaluationSelection, EvaluationTarget
 from fensu.rules.authoring.models import CustomRuleRegistration, RuleSpec
@@ -50,10 +50,11 @@ def build_evaluation_targets(
     if not plan_rule_owners:
         return ordered
     native: ModuleType = import_module(NATIVE_FACT_MODULE_NAME)
+    project_root: RepoRoot = tree.repo_root if tree.project_root is None else tree.project_root
     planned: list[tuple[list[str], list[tuple[str, str]]]] = native.plan_native_execution_owners(
         [
             (
-                target.scoped_file.path.relative_to(tree.repo_root.path).as_posix(),
+                target.scoped_file.path.relative_to(project_root.path).as_posix(),
                 target.scoped_file.scope.value,
                 str(target.scoped_file.root),
                 list(target.scoped_file.relative_parts),
@@ -109,9 +110,10 @@ def _supplemented_targets(
 
 
 def _supplemental_scoped_file(*, path: Path, tree: DiscoveredTree) -> ScopedFile:
+    project_root: RepoRoot = tree.repo_root if tree.project_root is None else tree.project_root
     return ScopedFile(
         path=path,
-        root=tree.repo_root.path,
+        root=project_root.path,
         scope=ScopeName.TOOLING,
-        relative_parts=path.relative_to(tree.repo_root.path).parts,
+        relative_parts=path.relative_to(project_root.path).parts,
     )

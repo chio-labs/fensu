@@ -45,6 +45,7 @@ def collect_evaluation_result(
     dependencies: tuple[ProjectDependency, ...],
     config: Config,
     repo_root: Path,
+    project_root: Path | None = None,
     evaluated_rule_codes: frozenset[str] | None = None,
     selection: EvaluationSelection | None = None,
 ) -> EvaluationResult:
@@ -59,6 +60,7 @@ def collect_evaluation_result(
         warnings.extend(file_evaluation.warnings)
         applied_exceptions.update(file_evaluation.applied_exception_keys)
         threshold_override_uses.update(file_evaluation.threshold_override_uses)
+    policy_root: Path = repo_root if project_root is None else project_root
     configured_exceptions: frozenset[RuleExceptionKey] = configured_exception_keys(config)
     if evaluated_rule_codes is not None:
         configured_exceptions = frozenset(
@@ -66,7 +68,7 @@ def collect_evaluation_result(
         )
     if selection is not None and selection.filtered:
         target_paths: frozenset[str] = frozenset(
-            _repository_relative_path(path=scoped_file.path, repo_root=repo_root)
+            _repository_relative_path(path=scoped_file.path, repo_root=policy_root)
             for scoped_file in selection.files
         )
         configured_exceptions = frozenset(
@@ -78,8 +80,8 @@ def collect_evaluation_result(
     )
     if stale_error is not None:
         raise stale_error
-    faults = visible_faults(faults=faults, config=config, repo_root=repo_root)
-    warnings = visible_faults(faults=warnings, config=config, repo_root=repo_root)
+    faults = visible_faults(faults=faults, config=config, repo_root=policy_root)
+    warnings = visible_faults(faults=warnings, config=config, repo_root=policy_root)
     return EvaluationResult(
         faults=sort_faults(faults=faults, repo_root=repo_root),
         warnings=sort_faults(faults=warnings, repo_root=repo_root),

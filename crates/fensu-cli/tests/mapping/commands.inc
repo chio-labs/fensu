@@ -13,7 +13,7 @@ fn given_multiple_targets_when_mapping_from_config_then_requires_and_uses_named_
             description: "map selects configured roots from an inline named target",
             arguments: &["second_fn", "--target=second", "--no-cache"],
             expected_exit_code: 0,
-            expected_stdout: "src/second/module.py:1",
+            expected_stdout: "frontend/src/second/module.py:1",
             expected_stderr: "",
         },
         ConfigTargetMappingTestCase {
@@ -35,14 +35,14 @@ fn given_multiple_targets_when_mapping_from_config_then_requires_and_uses_named_
         let repository = tempfile::tempdir().expect("multi-target mapping repository");
         write(
             repository.path().join("fensu.toml"),
-            "[targets.first]\nanalyzer = \"python\"\nroots = [\"src/first\"]\ntests = []\ntooling = []\n[targets.second]\nanalyzer = \"python\"\nroots = [\"src/second\"]\ntests = []\ntooling = []\n",
+            "[targets.first]\nanalyzer = \"python\"\nroots = [\"src/first\"]\ntests = []\ntooling = []\n[targets.second]\nanalyzer = \"python\"\nroot = \"frontend\"\nroots = [\"src/second\"]\ntests = []\ntooling = []\n",
         );
         write(
             repository.path().join("src/first/module.py"),
             "def first_fn() -> int:\n    return 1\n",
         );
         write(
-            repository.path().join("src/second/module.py"),
+            repository.path().join("frontend/src/second/module.py"),
             "def second_fn() -> int:\n    return 2\n",
         );
 

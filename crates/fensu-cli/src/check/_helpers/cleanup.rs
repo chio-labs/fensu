@@ -50,13 +50,23 @@ pub(crate) fn cleanup_configured_roots(repository: &Dir, config: &Config) {
 }
 
 fn configured_roots(config: &Config) -> BTreeSet<PathBuf> {
-    config
+    let target_root = resolve_configured_root(&config.target_root);
+    let mut roots: BTreeSet<PathBuf> = BTreeSet::new();
+    for path in config
         .roots
         .iter()
         .chain(&config.tests)
         .chain(&config.tooling)
-        .filter_map(|path| resolve_configured_root(path))
-        .collect()
+    {
+        let Some(resolved) = resolve_configured_root(path) else {
+            continue;
+        };
+        roots.insert(match &target_root {
+            Some(target) => target.join(resolved),
+            None => resolved,
+        });
+    }
+    roots
 }
 
 fn resolve_configured_root(configured: &str) -> Option<PathBuf> {

@@ -29,6 +29,7 @@ use crate::reporting::models::ReportRequest;
 pub(crate) fn evaluate_and_render(request: EvaluationRequest<'_>) -> Result<(String, i32), String> {
     let EvaluationRequest {
         root,
+        project_root,
         config,
         sources,
         excluded,
@@ -50,14 +51,14 @@ pub(crate) fn evaluate_and_render(request: EvaluationRequest<'_>) -> Result<(Str
         .map(|rule| rule.code.as_str())
         .collect::<HashSet<_>>();
     let codes_by_source = owner_plan(sources, &all_rules)?;
-    let project = project_plane(root, config, sources)?;
+    let project = project_plane(project_root, config, sources)?;
     let program_by_path = sources
         .iter()
-        .map(|source| (source.repository_path.as_str(), program(source)))
+        .map(|source| (source.target_path.as_str(), program(source)))
         .collect::<HashMap<_, _>>();
     let mut program_by_module: HashMap<String, &ProgramHandle> = HashMap::new();
     for source in sources.iter().filter(|source| source.scope != SCOPE_TEST) {
-        program_by_module.insert(source_module_name(source, root), program(source));
+        program_by_module.insert(source_module_name(source, project_root), program(source));
     }
     let warning_codes = warning_rules
         .iter()
@@ -76,7 +77,7 @@ pub(crate) fn evaluate_and_render(request: EvaluationRequest<'_>) -> Result<(Str
                 role: role(source),
                 is_main_module: is_main_module(source),
                 thresholds,
-                repository_path: source.repository_path.clone(),
+                repository_path: source.target_path.clone(),
                 contracts: config.contracts.clone(),
                 relative_parts: source.relative_parts.clone(),
                 is_entry_module: is_entry_module(source),
@@ -86,11 +87,12 @@ pub(crate) fn evaluate_and_render(request: EvaluationRequest<'_>) -> Result<(Str
                 test_scopes: config.test_scopes.clone(),
                 observations: HashMap::new(),
                 custom_registrations: Vec::new(),
-                repo_root: root.to_string_lossy().into_owned(),
+                repo_root: project_root.to_string_lossy().into_owned(),
                 rule_options: native_rule_options(codes, config)?,
             };
             let plans = plan_core_rule_queries(program(source), &implementation_codes, &context);
-            context.observations = observe(root, &plans, &program_by_path, &program_by_module);
+            context.observations =
+                observe(project_root, &plans, &program_by_path, &program_by_module);
             let rows =
                 evaluate_core_rules(program(source), &implementation_codes, &context, &project)?;
             let mut faults: Vec<Fault> = Vec::new();
@@ -100,12 +102,12 @@ pub(crate) fn evaluate_and_render(request: EvaluationRequest<'_>) -> Result<(Str
                 })?;
                 let metadata = rule_metadata(display_code)?
                     .ok_or_else(|| format!("Unknown native rule code: {display_code}"))?;
-                let path = row.path.unwrap_or_else(|| source.repository_path.clone());
+                let path = row.path.unwrap_or_else(|| source.target_path.clone());
                 faults.push(Fault {
                     warning: warning_codes.contains(display_code.as_str()),
                     code: display_code.clone(),
                     alias_of: metadata.alias_of.clone(),
-                    path: root.join(path).to_string_lossy().into_owned(),
+                    path: project_root.join(path).to_string_lossy().into_owned(),
                     line: Some(row.line),
                     column: Some(row.column),
                     message: row.message.unwrap_or_else(|| metadata.message.clone()),
@@ -139,11 +141,11 @@ pub(crate) fn evaluate_and_render(request: EvaluationRequest<'_>) -> Result<(Str
     let (faults, applied) = apply_exceptions(ApplyExceptionsRequest {
         faults,
         sources,
-        root,
+        project_root,
         evaluated_codes: &evaluated_codes,
         config,
     })?;
-    let faults = apply_rule_ignores(faults, root, config);
+    let faults = apply_rule_ignores(faults, project_root, config);
     let blocking_faults = faults
         .iter()
         .filter(|fault| !fault.warning)
@@ -247,7 +249,7 @@ pub(crate) fn owner_plan(
     let targets: Vec<NativeExecutionTarget> = sources
         .iter()
         .map(|source| NativeExecutionTarget {
-            repository_path: source.repository_path.clone(),
+            repository_path: source.target_path.clone(),
             scope: source.scope.clone(),
             root: source.root_text.clone(),
             relative_parts: source.relative_parts.clone(),

@@ -10,6 +10,55 @@ const CONFIG: &str =
     "roots = [\"src\"]\ntests = [\"tests\"]\ntooling = [\"scripts\"]\nselect = [\"FFA\"]\n";
 
 #[test]
+fn given_target_local_custom_rule_when_inspecting_then_rule_uses_selected_root() {
+    let python = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.venv/bin/python");
+    let test_cases = [ConfigCommandTargetTestCase {
+        description: "rule resolves a custom rule path from the selected frontend root",
+        arguments: &["rule", "XRT001", "--target", "frontend", "--color", "never"],
+        expected_exit_code: 0,
+        expected_stdout: "target-root custom rule",
+        expected_stderr: "",
+    }];
+    let repository = tempfile::tempdir().expect("temporary repository");
+    write(
+        repository.path().join("fensu.toml"),
+        "[targets.frontend]\nanalyzer = \"python\"\nroot = \"frontend\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"XRT001\"]\nrule_paths = [\"rules/custom.py\"]\n",
+    );
+    write(repository.path().join("frontend/src/pkg/__init__.py"), "");
+    write(
+        repository.path().join("frontend/rules/custom.py"),
+        "import ast\nfrom fensu import Family, Fault, RuleContext, rule\n@rule(code='XRT001', family=Family.CUSTOM, slug='target-root', message='target-root custom rule')\ndef target_root(module: ast.Module, ctx: RuleContext) -> list[Fault]:\n    return []\n",
+    );
+
+    for test_case in &test_cases {
+        let output = Command::new(env!("CARGO_BIN_EXE_fensu"))
+            .args(test_case.arguments)
+            .current_dir(repository.path())
+            .env("FENSU_PYTHON", &python)
+            .output()
+            .expect("native rule process runs");
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {}",
+            test_case.description,
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stdout).contains(test_case.expected_stdout),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains(test_case.expected_stderr),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
 fn given_multiple_targets_when_inspecting_rule_then_requires_and_uses_named_selection() {
     let test_cases = [
         ConfigCommandTargetTestCase {

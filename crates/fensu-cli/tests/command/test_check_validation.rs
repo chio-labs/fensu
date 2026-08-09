@@ -1,8 +1,131 @@
 use crate::helpers::{run_check, write};
 use crate::test_types::{
-    ConfigDiscoveryTestCase, InvalidCheckConfigTestCase, TargetCacheCheckTestCase,
-    TargetCheckTestCase, ThresholdPrecedenceTestCase,
+    CanonicalAliasDiagnosticTestCase, ConfigDiscoveryTestCase, InvalidCheckConfigTestCase,
+    ProjectAwareTargetTestCase, TargetCacheCheckTestCase, TargetCheckTestCase,
+    ThresholdPrecedenceTestCase,
 };
+
+#[cfg(unix)]
+#[test]
+fn given_internal_target_alias_when_checking_then_diagnostic_uses_canonical_prefix_once() {
+    use std::os::unix::fs::symlink;
+
+    let test_cases = [CanonicalAliasDiagnosticTestCase {
+        description: "Rust diagnostics match canonical target identity instead of alias spelling",
+        expected_exit_code: 1,
+        expected_present: "canonical/src/pkg/module.py",
+        expected_alias_absent: "alias/src/pkg/module.py",
+        expected_double_prefix_absent: "canonical/canonical/",
+    }];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(
+            repository.path().join("fensu.toml"),
+            "[targets.app]\nanalyzer = \"python\"\nroot = \"alias\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n",
+        );
+        write(
+            repository.path().join("canonical/src/pkg/module.py"),
+            "VALUE = 1\n",
+        );
+        symlink(
+            repository.path().join("canonical"),
+            repository.path().join("alias"),
+        )
+        .expect("internal target alias");
+
+        let output =
+            crate::helpers::run_check_with(repository.path(), &["--target", "app", "--no-cache"]);
+        let stdout = String::from_utf8(output.stdout).expect("check stdout is UTF-8");
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {}",
+            test_case.description,
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            stdout.contains(test_case.expected_present),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            !stdout.contains(test_case.expected_alias_absent),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            !stdout.contains(test_case.expected_double_prefix_absent),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_non_dot_target_when_project_rule_compares_modules_then_paths_share_target_invariant() {
+    let test_cases = [ProjectAwareTargetTestCase {
+        description: "external importer clears one FFL105 entry while orphan reports once",
+        expected_exit_code: 1,
+        expected_present: "frontend/src/pkg/orders/billing/main/orphan.py",
+        expected_absent: "frontend/frontend/",
+        expected_cleared: "frontend/src/pkg/orders/billing/main/public.py",
+    }];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(
+            repository.path().join("fensu.toml"),
+            "[targets.frontend]\nanalyzer = \"python\"\nroot = \"frontend\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFL105\"]\n",
+        );
+        write(
+            repository
+                .path()
+                .join("frontend/src/pkg/orders/billing/main/public.py"),
+            "def publish() -> None:\n    pass\n",
+        );
+        write(
+            repository
+                .path()
+                .join("frontend/src/pkg/orders/billing/main/orphan.py"),
+            "def orphan() -> None:\n    pass\n",
+        );
+        write(
+            repository
+                .path()
+                .join("frontend/src/pkg/inventory/_helpers/use.py"),
+            "from pkg.orders.billing.main.public import publish\n",
+        );
+
+        let output = crate::helpers::run_check_with(
+            repository.path(),
+            &["--target", "frontend", "--no-cache"],
+        );
+        let stdout = String::from_utf8(output.stdout).expect("check stdout is UTF-8");
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {}",
+            test_case.description,
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            stdout.contains(test_case.expected_present),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            !stdout.contains(test_case.expected_absent),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            !stdout.contains(test_case.expected_cleared),
+            "{}",
+            test_case.description
+        );
+    }
+}
 
 #[test]
 fn given_invalid_native_policy_when_checking_then_configuration_fails_closed() {
@@ -274,10 +397,22 @@ fn given_invalid_explicit_targets_when_checking_then_configuration_fails_closed(
             expected_error: "Unknown analyzer for target web: svelte",
         },
         InvalidCheckConfigTestCase {
-            description: "non-dot target roots fail closed",
-            config: "[targets.app]\nanalyzer = \"python\"\nroot = \"backend\"\nroots = [\"src/pkg\"]\n",
+            description: "target roots cannot traverse above the repository",
+            config: "[targets.app]\nanalyzer = \"python\"\nroot = \"../backend\"\nroots = [\"src/pkg\"]\n",
             expected_exit_code: 2,
-            expected_error: "only root = \".\" is supported",
+            expected_error: "must not escape the repository",
+        },
+        InvalidCheckConfigTestCase {
+            description: "backslash target roots cannot traverse above the repository",
+            config: "[targets.app]\nanalyzer = \"python\"\nroot = 'frontend\\..\\..\\backend'\nroots = [\"src/pkg\"]\n",
+            expected_exit_code: 2,
+            expected_error: "must not escape the repository",
+        },
+        InvalidCheckConfigTestCase {
+            description: "target roots cannot be absolute",
+            config: "[targets.app]\nanalyzer = \"python\"\nroot = \"/backend\"\nroots = [\"src/pkg\"]\n",
+            expected_exit_code: 2,
+            expected_error: "must be repository-relative",
         },
         InvalidCheckConfigTestCase {
             description: "multiple targets require explicit selection",
@@ -332,7 +467,7 @@ fn given_explicit_python_targets_when_checking_then_selects_requested_target() {
             description: "faulty named target reports only its repository path",
             arguments: &["--target", "faulty"],
             expected_exit_code: 1,
-            expected_stdout: "src/faulty/module.py",
+            expected_stdout: "frontend/src/faulty/module.py",
             expected_stderr: "",
         },
         TargetCheckTestCase {
@@ -357,6 +492,13 @@ fn given_explicit_python_targets_when_checking_then_selects_requested_target() {
             expected_stderr: "",
         },
         TargetCheckTestCase {
+            description: "backslash traversal target normalizes to backend",
+            arguments: &["--target", "backend"],
+            expected_exit_code: 1,
+            expected_stdout: "backend/src/pkg/module.py",
+            expected_stderr: "",
+        },
+        TargetCheckTestCase {
             description: "separated long-help token is rejected as a missing target argument",
             arguments: &["--target", "--help"],
             expected_exit_code: 2,
@@ -374,14 +516,18 @@ fn given_explicit_python_targets_when_checking_then_selects_requested_target() {
     let repository = tempfile::tempdir().expect("temporary repository");
     write(
         repository.path().join("fensu.toml"),
-        "[targets.clean]\nanalyzer = \"python\"\nroots = [\"src/clean\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n[targets.faulty]\nanalyzer = \"python\"\nroot = \".\"\nroots = [\"src/faulty\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n[targets.\"--help\"]\nanalyzer = \"python\"\nroots = [\"src/clean\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n[targets.\"-h\"]\nanalyzer = \"python\"\nroots = [\"src/clean\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n",
+        "[targets.clean]\nanalyzer = \"python\"\nroots = [\"src/clean\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n[targets.faulty]\nanalyzer = \"python\"\nroot = \"./frontend/nested/..\"\nroots = [\"src/faulty\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n[targets.backend]\nanalyzer = \"python\"\nroot = 'frontend\\..\\backend'\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n[targets.\"--help\"]\nanalyzer = \"python\"\nroots = [\"src/clean\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n[targets.\"-h\"]\nanalyzer = \"python\"\nroots = [\"src/clean\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n",
     );
     write(
         repository.path().join("src/clean/module.py"),
         "VALUE: int = 1\n",
     );
     write(
-        repository.path().join("src/faulty/module.py"),
+        repository.path().join("frontend/src/faulty/module.py"),
+        "VALUE = 1\n",
+    );
+    write(
+        repository.path().join("backend/src/pkg/module.py"),
         "VALUE = 1\n",
     );
 
@@ -490,9 +636,61 @@ fn given_one_explicit_python_target_when_checking_then_selects_it_automatically(
 }
 
 #[test]
+fn given_target_local_pyproject_when_checking_then_entrypoints_use_target_metadata() {
+    let test_cases = [TargetCheckTestCase {
+        description: "frontend pyproject entrypoint justifies its public main entry",
+        arguments: &["--target", "frontend", "--no-cache"],
+        expected_exit_code: 0,
+        expected_stdout: "Found 0 faults",
+        expected_stderr: "",
+    }];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(
+            repository.path().join("fensu.toml"),
+            "[targets.frontend]\nanalyzer = \"python\"\nroot = \"frontend\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFL105\"]\n",
+        );
+        write(
+            repository.path().join("pyproject.toml"),
+            "[project]\nname = \"repository-decoy\"\nversion = \"0.0.0\"\n",
+        );
+        write(
+            repository.path().join("frontend/pyproject.toml"),
+            "[project]\nname = \"frontend\"\nversion = \"0.0.0\"\n[project.scripts]\nrun = \"pkg.orders.main.run:run\"\n",
+        );
+        write(
+            repository
+                .path()
+                .join("frontend/src/pkg/orders/main/run.py"),
+            "def run() -> None:\n    pass\n",
+        );
+
+        let output = crate::helpers::run_check_with(repository.path(), test_case.arguments);
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {}",
+            test_case.description,
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stdout).contains(test_case.expected_stdout),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains(test_case.expected_stderr),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
 fn given_alternating_cached_targets_when_checking_then_output_is_not_replayed() {
     let test_cases = [TargetCacheCheckTestCase {
-        description: "alternating target names cannot replay another target's output",
+        description: "alternating target roots cannot replay another target's output",
         expected_lenient_exit_code: 0,
         expected_strict_exit_code: 1,
         expected_strict_stdout: "FFA101",
@@ -501,9 +699,16 @@ fn given_alternating_cached_targets_when_checking_then_output_is_not_replayed() 
     let repository = tempfile::tempdir().expect("temporary repository");
     write(
         repository.path().join("fensu.toml"),
-        "[targets.lenient]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = []\n[targets.strict]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n",
+        "[targets.lenient]\nanalyzer = \"python\"\nroot = \"frontend-a\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n[targets.strict]\nanalyzer = \"python\"\nroot = \"frontend-b\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n",
     );
-    write(repository.path().join("src/pkg/module.py"), "VALUE = 1\n");
+    write(
+        repository.path().join("frontend-a/src/pkg/module.py"),
+        "VALUE: int = 1\n",
+    );
+    write(
+        repository.path().join("frontend-b/src/pkg/module.py"),
+        "VALUE = 1\n",
+    );
 
     for test_case in &test_cases {
         let lenient =

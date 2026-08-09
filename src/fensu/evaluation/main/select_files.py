@@ -6,8 +6,7 @@ from types import ModuleType
 from fensu.analysis.constants import NATIVE_FACT_MODULE_NAME
 from fensu.config.exceptions import ConfigError
 from fensu.config.models import EvaluationConfig
-from fensu.discovery.constants import SNAPSHOT_TABLE
-from fensu.discovery.models import DiscoveredTree, ScopedFile
+from fensu.discovery.models import DiscoveredTree, RepoRoot, ScopedFile
 from fensu.evaluation.models import EvaluationSelection
 
 
@@ -27,7 +26,7 @@ def select_evaluation_files(
             filtered=False,
         )
     repository_paths: tuple[tuple[ScopedFile, str], ...] = tuple(
-        (scoped_file, _repository_path(tree=tree, scoped_file=scoped_file))
+        (scoped_file, _project_path(tree=tree, scoped_file=scoped_file))
         for scoped_file in tree.files
     )
     try:
@@ -49,11 +48,6 @@ def select_evaluation_files(
     )
 
 
-def _repository_path(*, tree: DiscoveredTree, scoped_file: ScopedFile) -> str:
-    snapshot_path: str | None = SNAPSHOT_TABLE.relative_path(
-        path=scoped_file.path,
-        repo_root=tree.repo_root.path,
-    )
-    if snapshot_path is not None:
-        return snapshot_path
-    return scoped_file.path.relative_to(tree.repo_root.path).as_posix()
+def _project_path(*, tree: DiscoveredTree, scoped_file: ScopedFile) -> str:
+    project_root: RepoRoot = tree.repo_root if tree.project_root is None else tree.project_root
+    return scoped_file.path.relative_to(project_root.path).as_posix()

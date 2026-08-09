@@ -55,6 +55,22 @@ pub(crate) struct TargetCheckTestCase {
     pub(crate) expected_stderr: &'static str,
 }
 
+pub(crate) struct ProjectAwareTargetTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_exit_code: i32,
+    pub(crate) expected_present: &'static str,
+    pub(crate) expected_absent: &'static str,
+    pub(crate) expected_cleared: &'static str,
+}
+
+pub(crate) struct CanonicalAliasDiagnosticTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_exit_code: i32,
+    pub(crate) expected_present: &'static str,
+    pub(crate) expected_alias_absent: &'static str,
+    pub(crate) expected_double_prefix_absent: &'static str,
+}
+
 pub(crate) struct TargetCacheCheckTestCase {
     pub(crate) description: &'static str,
     pub(crate) expected_lenient_exit_code: i32,

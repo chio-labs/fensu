@@ -251,7 +251,7 @@ fn config_value(config: &Config) -> Value {
         role_thresholds.insert(role.clone(), json!(values));
     }
     let contracts = config.contracts.iter().cloned().collect::<BTreeMap<_, _>>();
-    json!({
+    let mut value = json!({
         "roots": config.roots,
         "tests": config.tests,
         "tooling": config.tooling,
@@ -277,7 +277,13 @@ fn config_value(config: &Config) -> Value {
             json!({"paths": item.paths, "thresholds": values, "reason": item.reason})
         }).collect::<Vec<_>>(),
         "contracts": contracts,
-    })
+    });
+    if config.target.is_some() {
+        value["analyzer"] = json!(config.analyzer);
+        value["target"] = json!(config.target);
+        value["target_root"] = json!(config.target_root);
+    }
+    value
 }
 
 fn rules_value(context: &SkillContext, rules: &[RuleMetadata]) -> Value {
@@ -381,11 +387,14 @@ fn posix(path: &Path) -> String {
 }
 
 fn stable_config_path(context: &SkillContext) -> String {
+    if let Ok(relative) = context.config_path.strip_prefix(&context.project_root) {
+        return posix(&Path::new(&context.project_prefix).join(relative));
+    }
     let relative = context
         .config_path
-        .strip_prefix(&context.project_root)
+        .strip_prefix(&context.install_root)
         .unwrap_or(&context.config_path);
-    posix(&Path::new(&context.project_prefix).join(relative))
+    posix(relative)
 }
 
 fn stable_rule_source(context: &SkillContext, source: &str) -> String {

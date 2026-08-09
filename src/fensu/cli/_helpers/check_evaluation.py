@@ -40,6 +40,7 @@ def evaluated_check(
 
     ruleset: tuple[RuleSpec, ...] = rule_selection.blocking
     warning_rules: tuple[RuleSpec, ...] = rule_selection.warnings if warn else ()
+    target_dir: Path = project_dir if tree.project_root is None else tree.project_root.path
     resolved_jobs: int = (
         jobs if jobs is not None else resolve_worker_count(target_count=len(tree.files))
     )
@@ -50,6 +51,7 @@ def evaluated_check(
                 config=config,
                 ruleset=(*ruleset, *warning_rules),
                 repo_root=project_dir,
+                custom_rule_root=target_dir,
                 warnings_enabled=warn,
             ),
         )

@@ -26,7 +26,7 @@ _TARGET_CONFIG: str = (
     'select = ["FFA101"]\n'
     "[targets.custom]\n"
     'analyzer = "python"\n'
-    'root = "."\n'
+    'root = "frontend"\n'
     'roots = ["src/custom"]\n'
     "tests = []\n"
     "tooling = []\n"
@@ -35,9 +35,9 @@ _TARGET_CONFIG: str = (
 )
 _TARGET_FILES: tuple[CliProjectFile, ...] = (
     CliProjectFile(relative_path="src/core/module.py", source="CORE: int = 1\n"),
-    CliProjectFile(relative_path="src/custom/module.py", source="CUSTOM: int = 1\n"),
+    CliProjectFile(relative_path="frontend/src/custom/module.py", source="CUSTOM: int = 1\n"),
     CliProjectFile(
-        relative_path="rules/named_target.py",
+        relative_path="frontend/rules/named_target.py",
         source=(
             "import ast\n"
             "from fensu import Family, Fault, RuleContext, rule\n"
@@ -70,7 +70,7 @@ _TARGET_FILES: tuple[CliProjectFile, ...] = (
             working_directory=".",
             argv=("check", "--no-color", "--no-cache", "--target=custom"),
             expected_exit_code=1,
-            expected_stdout_fragments=("XNT001", "src/custom/module.py"),
+            expected_stdout_fragments=("XNT001", "frontend/src/custom/module.py"),
             expected_stderr_fragments=(),
         ),
         ConfigurableLayoutCliTestCase(

@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
 
 from fensu.config.exceptions import ConfigError
+from fensu.config.models import Config
 from fensu.discovery.exceptions import RepoRootNotFoundError
 from fensu.discovery.main.discover_files import discover_files
 from fensu.discovery.models import DiscoveredTree, ScopedFile
@@ -16,6 +18,7 @@ from tests.unit.src.fensu.discovery._test_types import (
     LayoutConfigErrorTestCase,
     MissingRootTestCase,
     ScopedRelativePartsTestCase,
+    SymlinkDiscoveryTestCase,
 )
 from tests.unit.src.fensu.discovery.helpers import (
     layout_error_config,
@@ -23,6 +26,45 @@ from tests.unit.src.fensu.discovery.helpers import (
     relative_file_names,
     write_python_files,
 )
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlink creation requires Windows privileges")
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SymlinkDiscoveryTestCase(
+            description="file symlink escaping a non-dot target root is skipped",
+            expected_relative_files=("frontend/src/pkg/local.py",),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_escaping_file_symlink_when_discovering_then_skips_external_source(
+    tmp_path: Path,
+    test_case: SymlinkDiscoveryTestCase,
+) -> None:
+    external: Path = tmp_path / "outside/external.py"
+    external.parent.mkdir(parents=True)
+    external.write_text("EXTERNAL: int = 1\n", encoding="utf-8")
+    local: Path = tmp_path / "repository/frontend/src/pkg/local.py"
+    local.parent.mkdir(parents=True)
+    local.write_text("LOCAL: int = 1\n", encoding="utf-8")
+    (local.parent / "linked.py").symlink_to(external)
+
+    tree: DiscoveredTree = discover_files(
+        config=Config(
+            roots=("src/pkg",),
+            tests=(),
+            tooling=(),
+            target="frontend",
+            target_root="frontend",
+        ),
+        repo_root=tmp_path / "repository",
+    )
+
+    assert relative_file_names(repo_root=tmp_path / "repository", files=tree.files) == (
+        test_case.expected_relative_files
+    )
 
 
 @pytest.mark.parametrize(

@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use crate::configuration::main::load_target;
+use crate::configuration::main::resolve_target_root::resolve_target_root;
 use crate::configuration::main::validate_exception_targets::validate_exception_targets;
 use crate::models::Config;
 use crate::skills::_helpers::context::{exceptions, identity, selection};
@@ -26,10 +27,11 @@ pub(crate) fn build(invocation: &Path, options: &SkillOptions) -> Result<SkillCo
     let config_path = config_path
         .canonicalize()
         .map_err(|error| format!("Could not resolve {}: {error}", config_path.display()))?;
-    let project_root = config_path
+    let repository_root = config_path
         .parent()
         .ok_or_else(|| "Configuration has no parent directory.".to_owned())?
         .to_path_buf();
+    let project_root = resolve_target_root(&repository_root, &config.target_root)?;
     selection::validate_config_policy(&config)?;
     validate_layout(&config, &project_root)?;
     let git_root = identity::find_git_root(&project_root);

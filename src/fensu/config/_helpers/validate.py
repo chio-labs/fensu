@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping
-from pathlib import PurePosixPath
+from pathlib import PurePosixPath, PureWindowsPath
 from typing import cast
 
 from fensu.config.constants import (
@@ -122,15 +122,12 @@ def select_config_target(
             )
         if analyzer != PYTHON_ANALYZER:
             raise ConfigValidationError(f"Unknown analyzer for target {name}: {analyzer}.")
-        root: object = typed_value.get("root", DEFAULT_TARGET_ROOT)
-        if not isinstance(root, str) or not root:
+        root_value: object = typed_value.get("root", DEFAULT_TARGET_ROOT)
+        if not isinstance(root_value, str) or not root_value:
             raise ConfigValidationError(
                 f"Config key targets.{name}.root must be a non-empty string."
             )
-        if root != DEFAULT_TARGET_ROOT:
-            raise ConfigValidationError(
-                f'Target {name} root {root!r} is not supported yet; only root = "." is supported.'
-            )
+        root: str = _normalize_target_root(name=name, value=root_value)
         selected: dict[str, object] = dict(typed_value)
         _ = selected.pop("analyzer")
         _ = selected.pop("root", None)
@@ -149,6 +146,28 @@ def select_config_target(
         )
     selected_config, analyzer, root = validated[selected_name]
     return selected_config, selected_name, analyzer, root
+
+
+def _normalize_target_root(*, name: str, value: str) -> str:
+    windows_path: PureWindowsPath = PureWindowsPath(value)
+    configured: PurePosixPath = PurePosixPath(
+        value.replace(_windows_path_separator, PATH_SEPARATOR)
+    )
+    if configured.is_absolute() or windows_path.is_absolute() or windows_path.drive:
+        raise ConfigValidationError(f"Target {name} root {value!r} must be repository-relative.")
+    parts: list[str] = []
+    for part in configured.parts:
+        if part in {_empty_string, _current_path_part}:
+            continue
+        if part == _parent_path_part:
+            if not parts:
+                raise ConfigValidationError(
+                    f"Target {name} root {value!r} must not escape the repository."
+                )
+            _ = parts.pop()
+            continue
+        parts.append(part)
+    return PurePosixPath(*parts).as_posix() if parts else DEFAULT_TARGET_ROOT
 
 
 def _validate_top_level_keys(*, raw: Mapping[str, object]) -> None:

@@ -6,6 +6,7 @@ use fensu_facts::snapshot::main::walk_python_files::walk_python_files;
 use sha2::{Digest, Sha256};
 
 use crate::configuration::main::load_optional;
+use crate::configuration::main::resolve_target_root::resolve_target_root;
 use crate::mapping::constants::INIT_MODULE;
 use crate::mapping::models::{MappingProject, MappingSource, SourceSnapshot};
 
@@ -72,7 +73,8 @@ pub(crate) fn resolve(
     if let Some((path, loaded)) = load_optional::load_optional(&cwd, target)? {
         let repo_root = dunce::canonicalize(path.parent().unwrap_or(Path::new(".")))
             .map_err(|error| error.to_string())?;
-        let sources = configured_sources(&repo_root, &loaded)?;
+        let project_root = resolve_target_root(&repo_root, &loaded.target_root)?;
+        let sources = configured_sources(&project_root, &loaded)?;
         return Ok(MappingProject {
             repo_root,
             sources,

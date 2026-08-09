@@ -15,6 +15,7 @@ from fensu.analysis.types import (
     SyntaxAnalysis,
     TextAnalysis,
 )
+from fensu.config.constants import DEFAULT_TARGET_ROOT
 from fensu.config.main.resolve_threshold import resolve_threshold
 from fensu.config.models import Config, ThresholdResolution
 from fensu.discovery.constants import (
@@ -405,7 +406,9 @@ class EvaluationRuleContext:
                     matched_pattern=resolution.matched_pattern,
                     reason=resolution.reason,
                     override_order=resolution.override_order,
-                    repository_path=resolution.repository_path,
+                    repository_path=_visible_repository_path(
+                        config=self._config, path=resolution.repository_path
+                    ),
                 )
             )
         return resolution.effective_value
@@ -445,3 +448,7 @@ def _role_for_path(*, path: Path, scope_root: Path) -> str | None:
         if part in _ROLE_DIRECTORY_NAMES:
             return part
     return ROLE_FILE_TO_NAME.get(parts[-1])
+
+
+def _visible_repository_path(*, config: Config, path: str) -> str:
+    return path if config.target_root == DEFAULT_TARGET_ROOT else f"{config.target_root}/{path}"

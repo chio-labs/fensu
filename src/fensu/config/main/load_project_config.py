@@ -11,7 +11,8 @@ from fensu.config._helpers.parse import parse_config_source
 from fensu.config._helpers.validate import select_config_target, validate_config
 from fensu.config.main._build_config import build_config
 from fensu.config.main.build_config_for_rules import build_config_for_rules
-from fensu.config.models import Config, ConfigSource, LoadedConfig
+from fensu.config.main.resolve_target_root import resolve_target_root
+from fensu.config.models import Config, ConfigSource, LoadedConfig, ResolvedTargetRoot
 from fensu.rules.authoring.models import RuleSpec
 from fensu.rules.catalog.main.build_catalogue import build_catalogue
 
@@ -37,15 +38,20 @@ def _load_project_config(*, start: Path | None, target: str | None) -> LoadedCon
         target=target_name,
         target_root=target_root,
     )
+    repository_root: Path = source.path.parent.resolve()
+    resolved_target: ResolvedTargetRoot = resolve_target_root(
+        config=bootstrap, repo_root=repository_root
+    )
+    bootstrap = replace(bootstrap, target_root=resolved_target.repository_relative)
     catalogue: tuple[RuleSpec, ...] = build_catalogue(
         config=bootstrap,
-        repo_root=source.path.parent.resolve(),
+        repo_root=resolved_target.path,
     )
     config: Config = replace(
         build_config_for_rules(raw=raw_config, rules=catalogue),
         analyzer=analyzer,
         target=target_name,
-        target_root=target_root,
+        target_root=resolved_target.repository_relative,
     )
     return LoadedConfig(
         config=config,

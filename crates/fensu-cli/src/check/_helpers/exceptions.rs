@@ -8,7 +8,7 @@ type ExceptionKey = (String, String, Option<String>);
 pub(crate) struct ApplyExceptionsRequest<'a> {
     pub(crate) faults: Vec<Fault>,
     pub(crate) sources: &'a [ScopedSource],
-    pub(crate) root: &'a Path,
+    pub(crate) project_root: &'a Path,
     pub(crate) evaluated_codes: &'a HashSet<&'a str>,
     pub(crate) config: &'a Config,
 }
@@ -19,7 +19,7 @@ pub(crate) fn apply_exceptions(
     let ApplyExceptionsRequest {
         faults,
         sources,
-        root,
+        project_root,
         evaluated_codes,
         config,
     } = request;
@@ -28,12 +28,12 @@ pub(crate) fn apply_exceptions(
     }
     let source_by_path = sources
         .iter()
-        .map(|source| (source.repository_path.as_str(), source))
+        .map(|source| (source.target_path.as_str(), source))
         .collect::<HashMap<_, _>>();
     let mut applied: HashSet<ExceptionKey> = HashSet::new();
     let mut retained: Vec<Fault> = Vec::new();
     for fault in faults {
-        let reported = repository_path(&fault.path, root);
+        let reported = repository_path(&fault.path, project_root);
         let mut owner: Option<String> = None;
         let mut matching = None;
         for entry in &config.exceptions {

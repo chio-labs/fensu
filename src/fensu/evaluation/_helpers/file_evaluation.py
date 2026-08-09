@@ -6,7 +6,7 @@ from collections.abc import Mapping
 
 from fensu.config.models import Config
 from fensu.discovery.main.route import families_for_scope
-from fensu.discovery.models import DiscoveredTree, ScopedFile
+from fensu.discovery.models import DiscoveredTree, RepoRoot, ScopedFile
 from fensu.evaluation._helpers.execution import execute_rule
 from fensu.evaluation._helpers.rule_exceptions import file_exception_scope, suppress_faults
 from fensu.evaluation.models import (
@@ -51,10 +51,11 @@ def evaluate_file(
         native_evaluation.threshold_override_uses if native_evaluation is not None else ()
     )
     applicable_families: frozenset[Family] = families_for_scope(scoped_file=scoped_file)
+    project_root: RepoRoot = tree.repo_root if tree.project_root is None else tree.project_root
     exception_scope: FileExceptionScope | None = file_exception_scope(
         path=scoped_file.path,
         config=config,
-        repo_root=tree.repo_root.path,
+        repo_root=project_root.path,
     )
     for tier_rules, tier_faults in ((ruleset, faults), (warning_rules, warnings)):
         for rule in tier_rules:
@@ -71,7 +72,7 @@ def evaluate_file(
                     rule=rule,
                     parsed_module=parsed_module,
                     config=config,
-                    repo_root=tree.repo_root,
+                    repo_root=project_root,
                     layout=tree.layout,
                     project=project,
                     file_cache=file_cache,

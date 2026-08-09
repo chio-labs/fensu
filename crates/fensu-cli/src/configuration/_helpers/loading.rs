@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::configuration::_helpers::roots::resolve_target_root;
 use crate::configuration::_helpers::{discovery, parsing, validation};
 use crate::models::Config;
 
@@ -30,7 +31,12 @@ pub(crate) fn load_target(start: &Path, target: Option<&str>) -> Result<(PathBuf
     })?;
     let selection = validation::select_target(table, target)?;
     validation::validate(&selection.table)?;
-    Ok((path, parsing::build(selection, raw, pyproject)?))
+    let config = parsing::build(selection, raw, pyproject)?;
+    let repository_root = path
+        .parent()
+        .ok_or_else(|| "Configuration has no parent directory.".to_owned())?;
+    let _ = resolve_target_root(repository_root, &config.target_root)?;
+    Ok((path, config))
 }
 
 pub(crate) fn load_optional(

@@ -263,6 +263,52 @@ fn given_exception_for_unevaluated_rule_when_checking_without_warnings_then_it_i
 }
 
 #[test]
+fn given_unselected_target_with_stale_exception_when_checking_one_target_then_it_is_ignored() {
+    let test_cases = [CheckPolicyTestCase {
+        description: "unselected exception is ignored but all-target validation reports staleness",
+        expected_exit_code: 2,
+        expected_present: "no longer matches a fault",
+        expected_absent: "no longer matches",
+    }];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(
+            repository.path().join("fensu.toml"),
+            "[targets.selected]\nanalyzer = \"python\"\nroots = [\"src/selected\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n[targets.stale]\nanalyzer = \"python\"\nroots = [\"src/stale\"]\ntests = []\ntooling = []\nselect = [\"FFA001\"]\n[[targets.stale.rule_exceptions]]\nrule = \"FFA001\"\npath = \"src/stale/module.py\"\nreason = \"No longer faults.\"\n",
+        );
+        write(
+            repository.path().join("src/selected/module.py"),
+            "VALUE: int = 1\n",
+        );
+        write(
+            repository.path().join("src/stale/module.py"),
+            "def valid(value: int) -> int:\n    return value\n",
+        );
+
+        let selected = run_check_with(repository.path(), &["--target", "selected"]);
+        let all = run_check(repository.path());
+
+        assert_eq!(selected.status.code(), Some(0), "{}", test_case.description);
+        assert!(
+            !String::from_utf8_lossy(&selected.stderr).contains(test_case.expected_absent),
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            all.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&all.stderr).contains(test_case.expected_present),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
 fn given_unresolvable_exception_targets_when_checking_then_configuration_fails_loudly() {
     let test_cases = [
         InvalidCheckConfigTestCase {

@@ -3,6 +3,7 @@ use std::path::Path;
 
 use crate::check::main::check_routing::check_routing;
 use crate::check::main::clean_caches::clean_caches;
+use crate::check::main::custom_freshness::all_target_custom_freshness;
 use crate::check::main::prepare_cleanup::prepare_cleanup;
 use crate::command::main::{check, help, init, map, rule, skills};
 use crate::configuration::main::custom_rules;
@@ -51,7 +52,11 @@ fn dispatch_check(arguments: &[String]) -> Result<CliOutput, String> {
         let exit_code = run_custom_check_host(arguments)?;
         Ok(CliOutput {
             stdout: String::new(),
-            stderr: String::new(),
+            stderr: if matches!(exit_code, 0 | 1) {
+                all_target_custom_freshness(Path::new("."), routing.target)
+            } else {
+                String::new()
+            },
             exit_code,
         })
     } else {
@@ -64,8 +69,8 @@ fn dispatch_check(arguments: &[String]) -> Result<CliOutput, String> {
             .iter()
             .any(|argument| matches!(argument.as_str(), "--help" | "-h"))
     {
-        if let Some(cleanup) = cleanup {
-            clean_caches(&cleanup);
+        for cleanup in &cleanup {
+            clean_caches(cleanup);
         }
     }
     result

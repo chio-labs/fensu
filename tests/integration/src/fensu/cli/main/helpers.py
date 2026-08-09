@@ -78,6 +78,15 @@ _CUSTOM_CHECK_PROCESS: str = (
     "from fensu.cli.main.custom_check_host import run_custom_check; "
     "raise SystemExit(run_custom_check())"
 )
+_CACHEABLE_TARGET_RULE: str = (
+    "import ast\n"
+    "from fensu import Family, Fault, RuleContext, rule\n"
+    "@rule(code='XNT001', family=Family.CUSTOM, slug='named-target', "
+    "message='named target fault', cacheable=True)\n"
+    "def named_target(module: ast.Module, ctx: RuleContext) -> list[Fault]:\n"
+    "    return [ctx.fault(node=module.body[0])]\n"
+)
+_NON_CACHEABLE_TARGET_RULE: str = _CACHEABLE_TARGET_RULE.replace(", cacheable=True", "")
 
 
 class CaptureOutput(StringIO):
@@ -106,6 +115,90 @@ def run_custom_check_process(
         text=True,
         check=False,
     )
+
+
+def write_cacheable_target_project(*, root: Path, beta_cache_enabled: bool) -> None:
+    """Write two targets whose native and custom rules are independently cacheable."""
+
+    _write_target_cache_project(
+        root=root,
+        beta_cache_enabled=beta_cache_enabled,
+        beta_rule_source=_CACHEABLE_TARGET_RULE,
+    )
+
+
+def write_mixed_cacheability_target_project(*, root: Path) -> None:
+    """Write one cacheable native target and one non-cacheable custom target."""
+
+    _write_target_cache_project(
+        root=root,
+        beta_cache_enabled=True,
+        beta_rule_source=_NON_CACHEABLE_TARGET_RULE,
+    )
+
+
+def _write_target_cache_project(
+    *, root: Path, beta_cache_enabled: bool, beta_rule_source: str
+) -> None:
+    (root / "fensu.toml").write_text(
+        "[targets.alpha]\n"
+        'analyzer = "python"\n'
+        'roots = ["src/alpha"]\n'
+        "tests = []\n"
+        "tooling = []\n"
+        'select = ["FFA101"]\n'
+        "[targets.alpha.cache]\n"
+        "enabled = true\n"
+        "[targets.beta]\n"
+        'analyzer = "python"\n'
+        'root = "frontend"\n'
+        'roots = ["src/beta"]\n'
+        "tests = []\n"
+        "tooling = []\n"
+        'select = ["XNT001"]\n'
+        'rule_paths = ["rules/named_target.py"]\n'
+        "[targets.beta.cache]\n"
+        f"enabled = {str(beta_cache_enabled).lower()}\n",
+        encoding="utf-8",
+    )
+    alpha: Path = root / "src/alpha/module.py"
+    alpha.parent.mkdir(parents=True)
+    alpha.write_text("VALUE: int = 1\n", encoding="utf-8")
+    beta: Path = root / "frontend/src/beta/module.py"
+    beta.parent.mkdir(parents=True)
+    beta.write_text("VALUE: int = 1\n", encoding="utf-8")
+    rule: Path = root / "frontend/rules/named_target.py"
+    rule.parent.mkdir(parents=True)
+    rule.write_text(beta_rule_source, encoding="utf-8")
+
+
+def write_cacheability_advice_target_project(*, root: Path) -> None:
+    """Write duplicate and distinct undeclared-cacheable rules across three targets."""
+
+    config: list[str] = []
+    for target, code in (("alpha", "XAD001"), ("beta", "XAD001"), ("gamma", "XAD002")):
+        config.extend(
+            (
+                f"[targets.{target}]\n",
+                'analyzer = "python"\n',
+                f'root = "{target}"\n',
+                'roots = ["src/pkg"]\n',
+                "tests = []\n",
+                "tooling = []\n",
+                f'select = ["{code}"]\n',
+                'rule_paths = ["rules/advice.py"]\n',
+            )
+        )
+        source: Path = root / target / "src/pkg/module.py"
+        source.parent.mkdir(parents=True)
+        source.write_text("VALUE: int = 1\n", encoding="utf-8")
+        rule: Path = root / target / "rules/advice.py"
+        rule.parent.mkdir(parents=True)
+        rule.write_text(
+            _NON_CACHEABLE_TARGET_RULE.replace("XNT001", code),
+            encoding="utf-8",
+        )
+    (root / "fensu.toml").write_text("".join(config), encoding="utf-8")
 
 
 def write_custom_rule_option_project(

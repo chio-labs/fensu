@@ -20,21 +20,19 @@ use crate::check::_helpers::rule_policy::{
     display_codes_by_implementation, resolved_thresholds, selected_rules, validate_config_tiers,
     validate_unique_implementations,
 };
-use crate::check::models::EvaluationRequest;
+use crate::check::models::{CheckResult, EvaluationRequest};
 use crate::constants::SCOPE_TEST;
 use crate::models::{Config, Fault, ScopedSource, ThresholdUse};
 use crate::reporting::main::report::report;
 use crate::reporting::models::ReportRequest;
 
-pub(crate) fn evaluate_and_render(request: EvaluationRequest<'_>) -> Result<(String, i32), String> {
+pub(crate) fn evaluate(request: EvaluationRequest<'_>) -> Result<CheckResult, String> {
     let EvaluationRequest {
-        root,
         project_root,
         config,
         sources,
         excluded,
         show_warnings,
-        color,
     } = request;
     validate_config_tiers(config)?;
     let blocking = selected_rules(config, &config.select, &config.ignore)?;
@@ -156,25 +154,75 @@ pub(crate) fn evaluate_and_render(request: EvaluationRequest<'_>) -> Result<(Str
         .filter(|fault| fault.warning)
         .cloned()
         .collect::<Vec<_>>();
+    Ok(CheckResult {
+        faults: blocking_faults,
+        warnings,
+        selected: sources.len(),
+        excluded,
+        applied_exceptions: applied,
+        threshold_uses: uses,
+    })
+}
+
+pub(crate) fn render_results(
+    mut results: Vec<CheckResult>,
+    root: &Path,
+    color: bool,
+    show_warnings: bool,
+) -> (String, i32) {
+    let selected = results.iter().map(|result| result.selected).sum::<usize>();
+    let excluded = results.iter().map(|result| result.excluded).sum::<usize>();
+    let applied_exceptions = results
+        .iter()
+        .map(|result| result.applied_exceptions)
+        .sum::<usize>();
+    let mut faults = results
+        .iter_mut()
+        .flat_map(|result| std::mem::take(&mut result.faults))
+        .collect::<Vec<_>>();
+    let mut warnings = results
+        .iter_mut()
+        .flat_map(|result| std::mem::take(&mut result.warnings))
+        .collect::<Vec<_>>();
+    let mut threshold_uses = results
+        .iter_mut()
+        .flat_map(|result| std::mem::take(&mut result.threshold_uses))
+        .collect::<Vec<_>>();
+    let fault_order = |left: &Fault, right: &Fault| {
+        (
+            &left.path,
+            left.line.unwrap_or(0),
+            left.column.unwrap_or(0),
+            &left.code,
+        )
+            .cmp(&(
+                &right.path,
+                right.line.unwrap_or(0),
+                right.column.unwrap_or(0),
+                &right.code,
+            ))
+    };
+    faults.sort_by(fault_order);
+    warnings.sort_by(fault_order);
+    threshold_uses.sort();
+    threshold_uses.dedup();
     let summary = (excluded > 0).then(|| {
         format!(
-            "Evaluation: {} of {} Python files ({} excluded by config)",
-            sources.len(),
-            sources.len() + excluded,
-            excluded
+            "Evaluation: {selected} of {} Python files ({excluded} excluded by config)",
+            selected + excluded
         )
     });
     let output = report(ReportRequest {
-        faults: &blocking_faults,
+        faults: &faults,
         warnings: &warnings,
         root,
         color,
         show_warnings,
         evaluation_summary: summary.as_deref(),
-        applied_exceptions: applied,
-        threshold_uses: &uses,
+        applied_exceptions,
+        threshold_uses: &threshold_uses,
     });
-    Ok((output, i32::from(!blocking_faults.is_empty())))
+    (output, i32::from(!faults.is_empty()))
 }
 
 fn native_rule_options(

@@ -70,6 +70,59 @@ fn given_selected_target_with_stale_skill_when_checking_then_cached_and_uncached
 }
 
 #[test]
+fn given_all_targets_with_one_stale_skill_when_checking_then_freshness_covers_every_target() {
+    let test_cases = [TargetSkillFreshnessTestCase {
+        description: "all-target freshness reaches a stale second target",
+        expected_exit_code: 0,
+        expected_stderr: "Fensu skill files are out of date",
+    }];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("multi-target freshness repository");
+        let initial_config = "[targets.alpha]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA001\"]\n[targets.alpha.skills]\nname = \"alpha\"\n[targets.beta]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA002\"]\n[targets.beta.skills]\nname = \"beta\"\n";
+        write(repository.path().join("fensu.toml"), initial_config);
+        write(
+            repository.path().join("src/pkg/module.py"),
+            "value: int = 1\n",
+        );
+        for target in ["alpha", "beta"] {
+            let generated = Command::new(env!("CARGO_BIN_EXE_fensu"))
+                .args(["skills", "--target", "agents", "--config-target", target])
+                .current_dir(repository.path())
+                .env(
+                    "FENSU_PYTHON",
+                    repository.path().join("python-does-not-exist"),
+                )
+                .output()
+                .expect("native skills process runs");
+            assert_eq!(
+                generated.status.code(),
+                Some(test_case.expected_exit_code),
+                "{}",
+                test_case.description
+            );
+        }
+        write(
+            repository.path().join("fensu.toml"),
+            &initial_config.replacen("select = [\"FFA002\"]", "select = [\"FFA101\"]", 1),
+        );
+
+        let output = run_check_with(repository.path(), &["--no-cache"]);
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains(test_case.expected_stderr),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
 fn given_role_directories_in_one_leaf_when_planning_then_evaluates_owner_once() {
     let test_cases = [OwnerPlanningTestCase {
         description: "models and types role directories belong to their parent leaf",

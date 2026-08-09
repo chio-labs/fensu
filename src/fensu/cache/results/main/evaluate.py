@@ -1,5 +1,7 @@
 """Evaluate a discovered tree through validated persistent result caching."""
 
+from pathlib import Path
+
 from fensu.cache.fingerprints.models import CacheFingerprint
 from fensu.cache.results._helpers.evaluation import run_cached_evaluation
 from fensu.cache.results.models import CacheEvaluation
@@ -17,6 +19,7 @@ def evaluate_with_cache(
     global_fingerprint: CacheFingerprint,
     custom_rule_registrations: tuple[CustomRuleRegistration, ...] = (),
     allow_short_circuit: bool = True,
+    cache_storage_root: Path | None = None,
     jobs: int = 1,
 ) -> CacheEvaluation:
     """Return complete logical diagnostics and observable persistent-cache statistics."""
@@ -29,5 +32,6 @@ def evaluate_with_cache(
         global_fingerprint=global_fingerprint,
         custom_rule_registrations=custom_rule_registrations,
         allow_short_circuit=allow_short_circuit,
+        cache_storage_root=cache_storage_root,
         jobs=jobs,
     )

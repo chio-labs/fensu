@@ -1,8 +1,8 @@
 use crate::helpers::{run_check, write};
 use crate::test_types::{
-    CanonicalAliasDiagnosticTestCase, ConfigDiscoveryTestCase, InvalidCheckConfigTestCase,
-    ProjectAwareTargetTestCase, TargetCacheCheckTestCase, TargetCheckTestCase,
-    ThresholdPrecedenceTestCase,
+    CanonicalAliasDiagnosticTestCase, CheckPolicyTestCase, ConfigDiscoveryTestCase,
+    InvalidCheckConfigTestCase, ProjectAwareTargetTestCase, TargetCacheCheckTestCase,
+    TargetCheckTestCase, ThresholdPrecedenceTestCase,
 };
 
 #[cfg(unix)]
@@ -415,12 +415,6 @@ fn given_invalid_explicit_targets_when_checking_then_configuration_fails_closed(
             expected_error: "must be repository-relative",
         },
         InvalidCheckConfigTestCase {
-            description: "multiple targets require explicit selection",
-            config: "[targets.api]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\n[targets.worker]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\n",
-            expected_exit_code: 2,
-            expected_error: "select one with --target TARGET",
-        },
-        InvalidCheckConfigTestCase {
             description: "unselected targets must define non-empty roots",
             config: "[targets.valid]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\n[targets.invalid]\nanalyzer = \"python\"\nroots = []\n",
             expected_exit_code: 2,
@@ -547,6 +541,298 @@ fn given_explicit_python_targets_when_checking_then_selects_requested_target() {
         );
         assert!(
             String::from_utf8_lossy(&output.stderr).contains(test_case.expected_stderr),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_multiple_python_targets_when_checking_all_then_aggregates_one_deterministic_report() {
+    let test_cases = [TargetCheckTestCase {
+        description: "all targets report repository paths once and one coherent summary",
+        arguments: &["--no-cache"],
+        expected_exit_code: 1,
+        expected_stdout: "alpha-root/src/pkg/module.py",
+        expected_stderr: "",
+    }];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(
+            repository.path().join("fensu.toml"),
+            "[targets.zeta]\nanalyzer = \"python\"\nroot = \"zeta-root\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n[targets.alpha]\nanalyzer = \"python\"\nroot = \"alpha-root\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n",
+        );
+        write(
+            repository.path().join("alpha-root/src/pkg/module.py"),
+            "VALUE = 1\n",
+        );
+        write(
+            repository.path().join("zeta-root/src/pkg/module.py"),
+            "VALUE: int = 1\n",
+        );
+
+        let output = crate::helpers::run_check_with(repository.path(), test_case.arguments);
+        let stdout = String::from_utf8(output.stdout).expect("check stdout is UTF-8");
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            stdout.contains(test_case.expected_stdout),
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            stdout.matches("Found 1 fault").count(),
+            1,
+            "{}",
+            test_case.description
+        );
+        assert!(
+            !stdout.contains("alpha-root/alpha-root/"),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains(test_case.expected_stderr),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_multiple_targets_and_positional_paths_when_checking_then_fails_closed() {
+    let test_cases = [TargetCheckTestCase {
+        description: "all-target positional paths are rejected as ambiguous",
+        arguments: &["src/alpha"],
+        expected_exit_code: 2,
+        expected_stdout: "",
+        expected_stderr: "Positional paths require exactly one selected target",
+    }];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(
+            repository.path().join("fensu.toml"),
+            "[targets.alpha]\nanalyzer = \"python\"\nroots = [\"src/alpha\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n[targets.beta]\nanalyzer = \"python\"\nroots = [\"src/beta\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n",
+        );
+        write(
+            repository.path().join("src/alpha/module.py"),
+            "VALUE: int = 1\n",
+        );
+        write(
+            repository.path().join("src/beta/module.py"),
+            "VALUE: int = 1\n",
+        );
+
+        let output = crate::helpers::run_check_with(repository.path(), test_case.arguments);
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stdout).contains(test_case.expected_stdout),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains(test_case.expected_stderr),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_multiple_target_cache_defaults_when_checking_then_cli_override_applies_to_all() {
+    let test_cases = [TargetCheckTestCase {
+        description: "mixed cache defaults disable aggregate cache until CLI override",
+        arguments: &["--cache", "--cache-stats"],
+        expected_exit_code: 0,
+        expected_stdout: "misses=2",
+        expected_stderr: "hits=2 misses=0",
+    }];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(
+            repository.path().join("fensu.toml"),
+            "[targets.alpha]\nanalyzer = \"python\"\nroots = [\"src/alpha\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n[targets.alpha.cache]\nenabled = true\n[targets.beta]\nanalyzer = \"python\"\nroots = [\"src/beta\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n[targets.beta.cache]\nenabled = false\n",
+        );
+        write(
+            repository.path().join("src/alpha/module.py"),
+            "VALUE: int = 1\n",
+        );
+        write(
+            repository.path().join("src/beta/module.py"),
+            "VALUE: int = 1\n",
+        );
+
+        let configured = crate::helpers::run_check_with(repository.path(), &["--cache-stats"]);
+        let cold = crate::helpers::run_check_with(repository.path(), test_case.arguments);
+        let warm = crate::helpers::run_check_with(repository.path(), test_case.arguments);
+        let uncached =
+            crate::helpers::run_check_with(repository.path(), &["--no-cache", "--cache-stats"]);
+
+        assert_eq!(
+            cold.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            !String::from_utf8_lossy(&configured.stderr).contains("Cache:"),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&cold.stderr).contains(test_case.expected_stdout),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&warm.stderr).contains(test_case.expected_stderr),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            !String::from_utf8_lossy(&uncached.stderr).contains("Cache:"),
+            "{}",
+            test_case.description
+        );
+        assert_eq!(cold.stdout, warm.stdout, "{}", test_case.description);
+        assert_eq!(warm.stdout, uncached.stdout, "{}", test_case.description);
+    }
+}
+
+#[test]
+fn given_alternating_all_and_single_target_caches_when_checking_then_surfaces_never_leak() {
+    let test_cases = [TargetCheckTestCase {
+        description: "alternating aggregate and selected caches do not replay another surface",
+        arguments: &["--cache", "--cache-stats"],
+        expected_exit_code: 1,
+        expected_stdout: "FFA101",
+        expected_stderr: "hits=2 misses=0",
+    }];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(
+            repository.path().join("fensu.toml"),
+            "[targets.alpha]\nanalyzer = \"python\"\nroots = [\"src/alpha\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n[targets.beta]\nanalyzer = \"python\"\nroots = [\"src/beta\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n",
+        );
+        write(repository.path().join("src/alpha/module.py"), "VALUE = 1\n");
+        write(
+            repository.path().join("src/beta/module.py"),
+            "VALUE: int = 1\n",
+        );
+
+        let all = crate::helpers::run_check_with(repository.path(), test_case.arguments);
+        let beta = crate::helpers::run_check_with(
+            repository.path(),
+            &["--cache", "--cache-stats", "--target", "beta"],
+        );
+        let all_again = crate::helpers::run_check_with(repository.path(), test_case.arguments);
+        let all_warm = crate::helpers::run_check_with(repository.path(), test_case.arguments);
+
+        assert_eq!(
+            all.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&all.stdout).contains(test_case.expected_stdout),
+            "{}",
+            test_case.description
+        );
+        assert_eq!(beta.status.code(), Some(0), "{}", test_case.description);
+        assert!(
+            !String::from_utf8_lossy(&beta.stdout).contains(test_case.expected_stdout),
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            all_again.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&all_again.stderr).contains("misses=2"),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&all_warm.stderr).contains(test_case.expected_stderr),
+            "{}",
+            test_case.description
+        );
+        assert_eq!(all.stdout, all_again.stdout, "{}", test_case.description);
+        assert_eq!(
+            all_again.stdout, all_warm.stdout,
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_warn_rules_across_targets_when_requested_then_warnings_are_advisory_and_aggregated() {
+    let test_cases = [CheckPolicyTestCase {
+        description: "all-target warning rules remain advisory and use one summary",
+        expected_exit_code: 0,
+        expected_present: "Found 0 faults and 1 warning",
+        expected_absent: "FFA001",
+    }];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(
+            repository.path().join("fensu.toml"),
+            "[targets.alpha]\nanalyzer = \"python\"\nroots = [\"src/alpha\"]\ntests = []\ntooling = []\nselect = []\nwarn = [\"FFA001\"]\n[targets.beta]\nanalyzer = \"python\"\nroots = [\"src/beta\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n",
+        );
+        write(
+            repository.path().join("src/alpha/module.py"),
+            "def untyped(value):\n    return value\n",
+        );
+        write(
+            repository.path().join("src/beta/module.py"),
+            "VALUE: int = 1\n",
+        );
+
+        let plain = run_check(repository.path());
+        let warned = crate::helpers::run_check_with(repository.path(), &["--warn", "--no-cache"]);
+        let warned_stdout = String::from_utf8_lossy(&warned.stdout);
+
+        assert_eq!(
+            plain.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            !String::from_utf8_lossy(&plain.stdout).contains(test_case.expected_absent),
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            warned.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            warned_stdout.contains(test_case.expected_absent),
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            warned_stdout.matches(test_case.expected_present).count(),
+            1,
             "{}",
             test_case.description
         );

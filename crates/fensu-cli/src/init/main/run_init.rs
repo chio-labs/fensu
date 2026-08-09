@@ -18,7 +18,7 @@ pub(crate) fn run_init(arguments: &[String]) -> Result<CliOutput, String> {
     }
     let repository = env::current_dir().map_err(|error| error.to_string())?;
     if let Some(path) = local_config(&repository) {
-        return existing_configuration(&repository, &path, &options);
+        return existing_configuration(&path, &options);
     }
     let survey = survey_repository(&repository);
     validate_request(&options, &survey)?;

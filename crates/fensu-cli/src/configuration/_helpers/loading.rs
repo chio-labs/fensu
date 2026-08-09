@@ -5,6 +5,10 @@ use crate::configuration::_helpers::{discovery, parsing, validation};
 use crate::models::Config;
 
 pub(crate) fn load(start: &Path) -> Result<(PathBuf, Config), String> {
+    load_target(start, None)
+}
+
+pub(crate) fn load_target(start: &Path, target: Option<&str>) -> Result<(PathBuf, Config), String> {
     let (path, pyproject) = discovery::find(start)?;
     let raw =
         fs::read(&path).map_err(|error| format!("Could not read {}: {error}", path.display()))?;
@@ -24,20 +28,30 @@ pub(crate) fn load(start: &Path) -> Result<(PathBuf, Config), String> {
             path.display()
         )
     })?;
-    validation::validate(table)?;
-    Ok((path, parsing::build(table, raw, pyproject)?))
+    let selection = validation::select_target(table, target)?;
+    validation::validate(&selection.table)?;
+    Ok((path, parsing::build(selection, raw, pyproject)?))
 }
 
-pub(crate) fn load_optional(start: &Path) -> Result<Option<(PathBuf, Config)>, String> {
+pub(crate) fn load_optional(
+    start: &Path,
+    target: Option<&str>,
+) -> Result<Option<(PathBuf, Config)>, String> {
     match discovery::find(start) {
-        Ok(_) => load(start).map(Some),
+        Ok(_) => match target {
+            Some(target) => load_target(start, Some(target)).map(Some),
+            None => load(start).map(Some),
+        },
         Err(error) if error.starts_with("Could not find fensu.toml") => Ok(None),
         Err(error) => Err(error),
     }
 }
 
-pub(crate) fn custom_rules_are_configured(start: &Path) -> Result<bool, String> {
-    let (_, config) = load(start)?;
+pub(crate) fn custom_rules_are_configured(
+    start: &Path,
+    target: Option<&str>,
+) -> Result<bool, String> {
+    let (_, config) = load_target(start, target)?;
     Ok(!config.rule_paths.is_empty()
         || !config.rule_modules.is_empty()
         || config.rule_options.keys().any(|code| code.starts_with('X')))

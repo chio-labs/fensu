@@ -1,8 +1,73 @@
-use crate::helpers::{run_check, run_check_colored, write};
+use std::process::Command;
+
+use crate::helpers::{run_check, run_check_colored, run_check_with, write};
 use crate::test_types::{
     CheckPolicyTestCase, ColoredCheckTestCase, InvalidCheckConfigTestCase, NativeRulePackTestCase,
-    OwnerPlanningTestCase, RuleOptionsCheckRoutingTestCase,
+    OwnerPlanningTestCase, RuleOptionsCheckRoutingTestCase, TargetSkillFreshnessTestCase,
 };
+
+#[test]
+fn given_selected_target_with_stale_skill_when_checking_then_cached_and_uncached_paths_warn() {
+    let test_cases = [TargetSkillFreshnessTestCase {
+        description: "selected target reaches skill freshness on fresh and cached checks",
+        expected_exit_code: 0,
+        expected_stderr: "Fensu skill files are out of date",
+    }];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("multi-target freshness repository");
+        let initial_config = "[targets.selected]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA001\"]\n[targets.selected.skills]\nname = \"selected\"\n[targets.other]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA001\"]\n";
+        write(repository.path().join("fensu.toml"), initial_config);
+        write(
+            repository.path().join("src/pkg/module.py"),
+            "value: int = 1\n",
+        );
+        let generated = Command::new(env!("CARGO_BIN_EXE_fensu"))
+            .args([
+                "skills",
+                "--target",
+                "agents",
+                "--config-target",
+                "selected",
+            ])
+            .current_dir(repository.path())
+            .env(
+                "FENSU_PYTHON",
+                repository.path().join("python-does-not-exist"),
+            )
+            .output()
+            .expect("native skills process runs");
+        assert_eq!(
+            generated.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {}",
+            test_case.description,
+            String::from_utf8_lossy(&generated.stderr)
+        );
+        write(
+            repository.path().join("fensu.toml"),
+            &initial_config.replacen("select = [\"FFA001\"]", "select = [\"FFA002\"]", 1),
+        );
+
+        let uncached = run_check_with(repository.path(), &["--target", "selected", "--no-cache"]);
+        let cold = run_check_with(repository.path(), &["--target", "selected", "--cache"]);
+        let warm = run_check_with(repository.path(), &["--target", "selected", "--cache"]);
+
+        for output in [&uncached, &cold, &warm] {
+            assert_eq!(
+                output.status.code(),
+                Some(test_case.expected_exit_code),
+                "{}",
+                test_case.description
+            );
+            assert!(
+                String::from_utf8_lossy(&output.stderr).contains(test_case.expected_stderr),
+                "{}: {}",
+                test_case.description,
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+    }
+}
 
 #[test]
 fn given_role_directories_in_one_leaf_when_planning_then_evaluates_owner_once() {

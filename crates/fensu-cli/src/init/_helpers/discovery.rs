@@ -6,7 +6,8 @@ use std::path::{Path, PathBuf};
 
 use walkdir::WalkDir;
 
-use crate::configuration::main::load;
+use crate::configuration::main::validate_document::validate_document;
+use crate::constants::CONFIG_PYPROJECT_FILE;
 use crate::init::_helpers::arguments::requests_scopes;
 use crate::init::models::RepositorySurvey;
 use crate::models::{CliOutput, InitOptions};
@@ -34,11 +35,13 @@ pub(crate) fn local_config(repository: &Path) -> Option<PathBuf> {
 }
 
 pub(crate) fn existing_configuration(
-    repository: &Path,
     path: &Path,
     options: &InitOptions,
 ) -> Result<CliOutput, String> {
-    if let Err(error) = load::load(repository) {
+    let text = fs::read_to_string(path)
+        .map_err(|error| format!("Could not read {}: {error}", path.display()))?;
+    let pyproject = path.file_name().and_then(|name| name.to_str()) == Some(CONFIG_PYPROJECT_FILE);
+    if let Err(error) = validate_document(&text, pyproject) {
         return Err(format!(
             "Fensu configuration already exists but is not usable: {}\n{error}\nEdit that file, \
              or delete it and rerun fensu init.",

@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
-use crate::configuration::main::load;
+use crate::configuration::main::load_target;
 use crate::configuration::main::validate_exception_targets::validate_exception_targets;
 use crate::models::Config;
 use crate::skills::_helpers::context::{exceptions, identity, selection};
@@ -14,7 +14,15 @@ pub(crate) fn build(invocation: &Path, options: &SkillOptions) -> Result<SkillCo
     let invocation = invocation
         .canonicalize()
         .map_err(|error| error.to_string())?;
-    let (config_path, config) = load::load(&invocation)?;
+    let (config_path, config) =
+        load_target::load_target(&invocation, options.config_target.as_deref()).map_err(
+            |error| {
+                error.replace(
+                    "select one with --target TARGET",
+                    "select one with --config-target TARGET",
+                )
+            },
+        )?;
     let config_path = config_path
         .canonicalize()
         .map_err(|error| format!("Could not resolve {}: {error}", config_path.display()))?;

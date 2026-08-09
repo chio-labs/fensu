@@ -31,9 +31,10 @@ pub(crate) fn execute(
     Ok(CliOutput::success(output))
 }
 
-pub(crate) fn core_freshness(invocation: &Path) -> Result<String, String> {
+pub(crate) fn core_freshness(invocation: &Path, target: Option<&str>) -> Result<String, String> {
     let options = SkillOptions {
         check: true,
+        config_target: target.map(str::to_owned),
         ..SkillOptions::default()
     };
     Ok(execute(invocation, &options, false)?.stdout)

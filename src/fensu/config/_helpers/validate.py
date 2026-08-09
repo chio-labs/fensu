@@ -13,15 +13,19 @@ from fensu.config.constants import (
     CONFIG_ROLE_NAMES,
     CONFIG_TOP_LEVEL_KEYS,
     CONTRACT_BEHAVIORS,
+    DEFAULT_TARGET_ROOT,
     DOUBLE_PATH_SEPARATOR,
     EVALUATION_CONFIG_KEYS,
     MAX_THRESHOLD_VALUE,
     PATH_SEPARATOR,
+    PYTHON_ANALYZER,
     RECURSIVE_GLOB,
     RULE_EXCEPTION_SYMBOLS_CONFIG_KEY,
     RULE_IGNORE_KEYS,
     SKILLS_CONFIG_KEYS,
     SKILLS_NAME_CONFIG_KEY,
+    TARGET_CONFIG_KEYS,
+    TARGETS_CONFIG_KEY,
     TEST_SCOPE_PATTERN,
     THRESHOLD_OVERRIDE_KEYS,
 )
@@ -76,6 +80,75 @@ def validate_config(raw: Mapping[str, object]) -> None:
     _validate_cache(value=raw.get("cache"))
     _validate_evaluation(value=raw.get("evaluation"))
     _validate_skills(value=raw.get("skills"))
+
+
+def select_config_target(
+    *, raw: Mapping[str, object], target: str | None
+) -> tuple[Mapping[str, object], str | None, str, str]:
+    """Select and validate one explicit target, or preserve legacy flat configuration."""
+
+    if TARGETS_CONFIG_KEY not in raw:
+        if target is not None:
+            raise ConfigValidationError(f"Unknown target name: {target}.")
+        return raw, None, PYTHON_ANALYZER, DEFAULT_TARGET_ROOT
+    mixed_keys: set[str] = set(raw) - {TARGETS_CONFIG_KEY}
+    if mixed_keys:
+        names: str = ", ".join(sorted(mixed_keys))
+        raise ConfigValidationError(
+            f"Explicit targets cannot be mixed with legacy top-level config keys: {names}."
+        )
+    targets: object = raw.get(TARGETS_CONFIG_KEY)
+    if not isinstance(targets, dict):
+        raise ConfigValidationError("Config key targets must be a table of named targets.")
+    if not targets:
+        raise ConfigValidationError("Config key targets must define at least one named target.")
+    validated: dict[str, tuple[dict[str, object], str, str]] = {}
+    for name, value in targets.items():
+        if not isinstance(name, str) or not name:
+            raise ConfigValidationError("Target names must be non-empty strings.")
+        if not isinstance(value, dict):
+            raise ConfigValidationError(f"Config target {name} must be a table.")
+        typed_value: dict[str, object] = cast("dict[str, object]", value)
+        unknown_keys: set[str] = (
+            set(typed_value) - set(CONFIG_TOP_LEVEL_KEYS) - set(TARGET_CONFIG_KEYS)
+        )
+        if unknown_keys:
+            names = ", ".join(sorted(unknown_keys))
+            raise ConfigValidationError(f"Unknown targets.{name} config key(s): {names}.")
+        analyzer: object = typed_value.get("analyzer")
+        if not isinstance(analyzer, str) or not analyzer:
+            raise ConfigValidationError(
+                f"Config key targets.{name}.analyzer must be a non-empty string."
+            )
+        if analyzer != PYTHON_ANALYZER:
+            raise ConfigValidationError(f"Unknown analyzer for target {name}: {analyzer}.")
+        root: object = typed_value.get("root", DEFAULT_TARGET_ROOT)
+        if not isinstance(root, str) or not root:
+            raise ConfigValidationError(
+                f"Config key targets.{name}.root must be a non-empty string."
+            )
+        if root != DEFAULT_TARGET_ROOT:
+            raise ConfigValidationError(
+                f'Target {name} root {root!r} is not supported yet; only root = "." is supported.'
+            )
+        selected: dict[str, object] = dict(typed_value)
+        _ = selected.pop("analyzer")
+        _ = selected.pop("root", None)
+        validate_config(selected)
+        validated[name] = (selected, analyzer, root)
+    selected_name: str
+    if target is not None:
+        if target not in validated:
+            raise ConfigValidationError(f"Unknown target name: {target}.")
+        selected_name = target
+    elif len(validated) == 1:
+        selected_name = next(iter(validated))
+    else:
+        raise ConfigValidationError(
+            "Multiple targets are configured; select one with --target TARGET."
+        )
+    selected_config, analyzer, root = validated[selected_name]
+    return selected_config, selected_name, analyzer, root
 
 
 def _validate_top_level_keys(*, raw: Mapping[str, object]) -> None:

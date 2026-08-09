@@ -5,12 +5,12 @@ use std::path::Path;
 use crate::catalogue::_helpers::arguments::{parse_arguments, use_color};
 use crate::catalogue::_helpers::policy::{apply_native_option_values, effective_policy};
 use crate::catalogue::_helpers::rendering::render;
-use crate::configuration::main::load;
+use crate::configuration::main::load_target;
 use crate::skills::main::catalogue::load_rule_selection;
 
 pub(crate) fn rule_output(arguments: &[String]) -> Result<String, String> {
-    let (color, code) = parse_arguments(arguments)?;
-    let (config_path, loaded) = load::load(Path::new("."))?;
+    let (color, code, target) = parse_arguments(arguments)?;
+    let (config_path, loaded) = load_target::load_target(Path::new("."), target.as_deref())?;
     let project_root = config_path
         .parent()
         .ok_or_else(|| "Configuration has no parent directory.".to_owned())?;

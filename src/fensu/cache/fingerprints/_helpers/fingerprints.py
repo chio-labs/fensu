@@ -65,6 +65,7 @@ def config_fingerprint(config: Config) -> CacheFingerprint:
     """Return a deterministic identity for semantic evaluation configuration."""
 
     payload: CanonicalValue = {
+        "analyzer": config.analyzer,
         "contracts": dict(sorted(config.contracts.items())),
         "evaluation": {
             "exclude": list(config.evaluation.exclude),
@@ -86,6 +87,8 @@ def config_fingerprint(config: Config) -> CacheFingerprint:
         "skills": {"name": config.skills.name},
         "test_scopes": list(config.test_scopes),
         "tests": list(config.tests),
+        "target": config.target,
+        "target_root": config.target_root,
         "threshold_overrides": [
             {
                 "paths": list(item.paths),

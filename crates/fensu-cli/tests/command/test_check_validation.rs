@@ -1,6 +1,7 @@
 use crate::helpers::{run_check, write};
 use crate::test_types::{
-    ConfigDiscoveryTestCase, InvalidCheckConfigTestCase, ThresholdPrecedenceTestCase,
+    ConfigDiscoveryTestCase, InvalidCheckConfigTestCase, TargetCacheCheckTestCase,
+    TargetCheckTestCase, ThresholdPrecedenceTestCase,
 };
 
 #[test]
@@ -229,6 +230,354 @@ fn given_misleading_child_pyproject_when_checking_then_parent_config_is_discover
             "{}: {}",
             test_case.description,
             String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}
+
+#[test]
+fn given_invalid_explicit_targets_when_checking_then_configuration_fails_closed() {
+    let test_cases = [
+        InvalidCheckConfigTestCase {
+            description: "targets must be a table",
+            config: "targets = []\n",
+            expected_exit_code: 2,
+            expected_error: "targets must be a table of named targets",
+        },
+        InvalidCheckConfigTestCase {
+            description: "targets table must not be empty",
+            config: "targets = {}\n",
+            expected_exit_code: 2,
+            expected_error: "must define at least one named target",
+        },
+        InvalidCheckConfigTestCase {
+            description: "named target must be a table",
+            config: "targets = { app = \"python\" }\n",
+            expected_exit_code: 2,
+            expected_error: "target app must be a table",
+        },
+        InvalidCheckConfigTestCase {
+            description: "legacy and explicit configuration cannot be mixed",
+            config: "roots = [\"src/pkg\"]\n[targets.app]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\n",
+            expected_exit_code: 2,
+            expected_error: "cannot be mixed with legacy top-level config keys: roots",
+        },
+        InvalidCheckConfigTestCase {
+            description: "target analyzer is required",
+            config: "[targets.app]\nroots = [\"src/pkg\"]\n",
+            expected_exit_code: 2,
+            expected_error: "targets.app.analyzer must be a non-empty string",
+        },
+        InvalidCheckConfigTestCase {
+            description: "unknown analyzers fail closed",
+            config: "[targets.web]\nanalyzer = \"svelte\"\nroots = [\"src/pkg\"]\n",
+            expected_exit_code: 2,
+            expected_error: "Unknown analyzer for target web: svelte",
+        },
+        InvalidCheckConfigTestCase {
+            description: "non-dot target roots fail closed",
+            config: "[targets.app]\nanalyzer = \"python\"\nroot = \"backend\"\nroots = [\"src/pkg\"]\n",
+            expected_exit_code: 2,
+            expected_error: "only root = \".\" is supported",
+        },
+        InvalidCheckConfigTestCase {
+            description: "multiple targets require explicit selection",
+            config: "[targets.api]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\n[targets.worker]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\n",
+            expected_exit_code: 2,
+            expected_error: "select one with --target TARGET",
+        },
+        InvalidCheckConfigTestCase {
+            description: "unselected targets must define non-empty roots",
+            config: "[targets.valid]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\n[targets.invalid]\nanalyzer = \"python\"\nroots = []\n",
+            expected_exit_code: 2,
+            expected_error: "Config must define at least one root in roots.",
+        },
+    ];
+
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(repository.path().join("fensu.toml"), test_case.config);
+        write(
+            repository.path().join("src/pkg/module.py"),
+            "value: int = 1\n",
+        );
+
+        let output = run_check(repository.path());
+        let stderr = String::from_utf8_lossy(&output.stderr);
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {stderr}",
+            test_case.description
+        );
+        assert!(
+            stderr.contains(test_case.expected_error),
+            "{}: {stderr}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_explicit_python_targets_when_checking_then_selects_requested_target() {
+    let test_cases = [
+        TargetCheckTestCase {
+            description: "inline clean named target passes",
+            arguments: &["--target=clean"],
+            expected_exit_code: 0,
+            expected_stdout: "Found 0 faults",
+            expected_stderr: "",
+        },
+        TargetCheckTestCase {
+            description: "faulty named target reports only its repository path",
+            arguments: &["--target", "faulty"],
+            expected_exit_code: 1,
+            expected_stdout: "src/faulty/module.py",
+            expected_stderr: "",
+        },
+        TargetCheckTestCase {
+            description: "unknown named target fails closed",
+            arguments: &["--target", "missing"],
+            expected_exit_code: 2,
+            expected_stdout: "",
+            expected_stderr: "Unknown target name: missing",
+        },
+        TargetCheckTestCase {
+            description: "inline long-help target value is not treated as help",
+            arguments: &["--target=--help"],
+            expected_exit_code: 0,
+            expected_stdout: "Found 0 faults",
+            expected_stderr: "",
+        },
+        TargetCheckTestCase {
+            description: "inline short-help target value is not treated as help",
+            arguments: &["--target=-h"],
+            expected_exit_code: 0,
+            expected_stdout: "Found 0 faults",
+            expected_stderr: "",
+        },
+        TargetCheckTestCase {
+            description: "separated long-help token is rejected as a missing target argument",
+            arguments: &["--target", "--help"],
+            expected_exit_code: 2,
+            expected_stdout: "",
+            expected_stderr: "argument --target: expected one argument",
+        },
+        TargetCheckTestCase {
+            description: "separated short-help token is rejected as a missing target argument",
+            arguments: &["--target", "-h"],
+            expected_exit_code: 2,
+            expected_stdout: "",
+            expected_stderr: "argument --target: expected one argument",
+        },
+    ];
+    let repository = tempfile::tempdir().expect("temporary repository");
+    write(
+        repository.path().join("fensu.toml"),
+        "[targets.clean]\nanalyzer = \"python\"\nroots = [\"src/clean\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n[targets.faulty]\nanalyzer = \"python\"\nroot = \".\"\nroots = [\"src/faulty\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n[targets.\"--help\"]\nanalyzer = \"python\"\nroots = [\"src/clean\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n[targets.\"-h\"]\nanalyzer = \"python\"\nroots = [\"src/clean\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n",
+    );
+    write(
+        repository.path().join("src/clean/module.py"),
+        "VALUE: int = 1\n",
+    );
+    write(
+        repository.path().join("src/faulty/module.py"),
+        "VALUE = 1\n",
+    );
+
+    for test_case in &test_cases {
+        let output = crate::helpers::run_check_with(repository.path(), test_case.arguments);
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stdout).contains(test_case.expected_stdout),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains(test_case.expected_stderr),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_invalid_unselected_target_when_checking_selected_target_then_configuration_fails_closed() {
+    let test_cases = [TargetCheckTestCase {
+        description: "selected valid target cannot hide invalid unselected roots",
+        arguments: &["--target", "valid"],
+        expected_exit_code: 2,
+        expected_stdout: "",
+        expected_stderr: "Config must define at least one root in roots.",
+    }];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(
+            repository.path().join("fensu.toml"),
+            "[targets.valid]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\n[targets.invalid]\nanalyzer = \"python\"\nroots = []\n",
+        );
+        write(
+            repository.path().join("src/pkg/module.py"),
+            "VALUE: int = 1\n",
+        );
+
+        let output = crate::helpers::run_check_with(repository.path(), test_case.arguments);
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stdout).contains(test_case.expected_stdout),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains(test_case.expected_stderr),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_one_explicit_python_target_when_checking_then_selects_it_automatically() {
+    let test_cases = [TargetCheckTestCase {
+        description: "one explicit target needs no target argument",
+        arguments: &[],
+        expected_exit_code: 0,
+        expected_stdout: "Found 0 faults",
+        expected_stderr: "",
+    }];
+    let repository = tempfile::tempdir().expect("temporary repository");
+    write(
+        repository.path().join("fensu.toml"),
+        "[targets.app]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n",
+    );
+    write(
+        repository.path().join("src/pkg/module.py"),
+        "VALUE: int = 1\n",
+    );
+
+    for test_case in &test_cases {
+        let output = crate::helpers::run_check_with(repository.path(), test_case.arguments);
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stdout).contains(test_case.expected_stdout),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains(test_case.expected_stderr),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_alternating_cached_targets_when_checking_then_output_is_not_replayed() {
+    let test_cases = [TargetCacheCheckTestCase {
+        description: "alternating target names cannot replay another target's output",
+        expected_lenient_exit_code: 0,
+        expected_strict_exit_code: 1,
+        expected_strict_stdout: "FFA101",
+        expected_lenient_absent: "FFA101",
+    }];
+    let repository = tempfile::tempdir().expect("temporary repository");
+    write(
+        repository.path().join("fensu.toml"),
+        "[targets.lenient]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = []\n[targets.strict]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n",
+    );
+    write(repository.path().join("src/pkg/module.py"), "VALUE = 1\n");
+
+    for test_case in &test_cases {
+        let lenient =
+            crate::helpers::run_check_with(repository.path(), &["--cache", "--target", "lenient"]);
+        let strict =
+            crate::helpers::run_check_with(repository.path(), &["--cache", "--target", "strict"]);
+        let lenient_again =
+            crate::helpers::run_check_with(repository.path(), &["--cache", "--target", "lenient"]);
+
+        assert_eq!(
+            lenient.status.code(),
+            Some(test_case.expected_lenient_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            strict.status.code(),
+            Some(test_case.expected_strict_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&strict.stdout).contains(test_case.expected_strict_stdout),
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            lenient_again.status.code(),
+            Some(test_case.expected_lenient_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            !String::from_utf8_lossy(&lenient_again.stdout)
+                .contains(test_case.expected_lenient_absent),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_check_help_when_rendering_then_documents_target_option() {
+    let test_cases = [TargetCheckTestCase {
+        description: "check help bypasses ambiguous config and documents target",
+        arguments: &["--help"],
+        expected_exit_code: 0,
+        expected_stdout: "--target TARGET",
+        expected_stderr: "",
+    }];
+    let repository = tempfile::tempdir().expect("temporary repository");
+    write(
+        repository.path().join("fensu.toml"),
+        "[targets.api]\nanalyzer = \"python\"\nroots = [\"src/api\"]\n[targets.worker]\nanalyzer = \"python\"\nroots = [\"src/worker\"]\n",
+    );
+
+    for test_case in &test_cases {
+        let output = crate::helpers::run_check_with(repository.path(), test_case.arguments);
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stdout).contains(test_case.expected_stdout),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains(test_case.expected_stderr),
+            "{}",
+            test_case.description
         );
     }
 }

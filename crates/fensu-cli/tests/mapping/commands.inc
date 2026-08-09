@@ -4,7 +4,68 @@ use crate::helpers::{
     ambiguous_protocol_project, basic_project, method_project, run, run_colored,
     sibling_method_project, text, write, write_bytes,
 };
-use crate::test_types::ConfiguredPackageMappingTestCase;
+use crate::test_types::{ConfigTargetMappingTestCase, ConfiguredPackageMappingTestCase};
+
+#[test]
+fn given_multiple_targets_when_mapping_from_config_then_requires_and_uses_named_selection() {
+    let test_cases = [
+        ConfigTargetMappingTestCase {
+            description: "map selects configured roots from an inline named target",
+            arguments: &["second_fn", "--target=second", "--no-cache"],
+            expected_exit_code: 0,
+            expected_stdout: "src/second/module.py:1",
+            expected_stderr: "",
+        },
+        ConfigTargetMappingTestCase {
+            description: "map rejects ambiguous configured roots",
+            arguments: &["second_fn", "--no-cache"],
+            expected_exit_code: 2,
+            expected_stdout: "",
+            expected_stderr: "select one with --target TARGET",
+        },
+        ConfigTargetMappingTestCase {
+            description: "map help documents named target selection",
+            arguments: &["--help"],
+            expected_exit_code: 0,
+            expected_stdout: "--target TARGET",
+            expected_stderr: "",
+        },
+    ];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("multi-target mapping repository");
+        write(
+            repository.path().join("fensu.toml"),
+            "[targets.first]\nanalyzer = \"python\"\nroots = [\"src/first\"]\ntests = []\ntooling = []\n[targets.second]\nanalyzer = \"python\"\nroots = [\"src/second\"]\ntests = []\ntooling = []\n",
+        );
+        write(
+            repository.path().join("src/first/module.py"),
+            "def first_fn() -> int:\n    return 1\n",
+        );
+        write(
+            repository.path().join("src/second/module.py"),
+            "def second_fn() -> int:\n    return 2\n",
+        );
+
+        let output = run(repository.path(), test_case.arguments);
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            text(&output.stdout).contains(test_case.expected_stdout),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            text(&output.stderr).contains(test_case.expected_stderr),
+            "{}",
+            test_case.description
+        );
+    }
+}
 
 #[test]
 fn given_artifact_named_package_in_configured_root_when_mapping_then_symbols_and_edges_are_complete() {

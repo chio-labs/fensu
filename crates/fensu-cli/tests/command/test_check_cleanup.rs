@@ -3,7 +3,7 @@ use std::fs;
 use crate::helpers::{create_directory, run_check, run_check_with, write, write_bytes};
 use crate::test_types::{
     CheckCacheTestCase, CheckCleanupTestCase, CheckPreservationTestCase,
-    PreExecutionCleanupTestCase,
+    PreExecutionCleanupTestCase, TargetCleanupTestCase,
 };
 
 const CONFIG: &str =
@@ -103,6 +103,55 @@ fn given_configured_roots_when_check_finishes_then_only_empty_and_bytecode_only_
             .path()
             .join("outside/__pycache__/outside.pyc")
             .is_file());
+    }
+}
+
+#[test]
+fn given_selected_target_when_check_succeeds_then_cleanup_uses_selected_roots() {
+    let test_cases = [TargetCleanupTestCase {
+        description: "successful multi-target check cleans only the selected target roots",
+        expected_exit_code: 0,
+        expected_removed_path: "src/selected/empty",
+        expected_preserved_path: "src/unselected/empty",
+    }];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(
+            repository.path().join("fensu.toml"),
+            "[targets.selected]\nanalyzer = \"python\"\nroots = [\"src/selected\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n[targets.unselected]\nanalyzer = \"python\"\nroots = [\"src/unselected\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n",
+        );
+        write(
+            repository.path().join("src/selected/module.py"),
+            "VALUE: int = 1\n",
+        );
+        create_directory(repository.path().join(test_case.expected_removed_path));
+        create_directory(repository.path().join(test_case.expected_preserved_path));
+
+        let output = run_check_with(repository.path(), &["--target", "selected"]);
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {}",
+            test_case.description,
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            !repository
+                .path()
+                .join(test_case.expected_removed_path)
+                .exists(),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            repository
+                .path()
+                .join(test_case.expected_preserved_path)
+                .is_dir(),
+            "{}",
+            test_case.description
+        );
     }
 }
 

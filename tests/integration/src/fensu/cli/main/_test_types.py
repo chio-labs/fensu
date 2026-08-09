@@ -100,6 +100,17 @@ class CheckErrorTestCase:
 
 
 @dataclass(frozen=True)
+class TargetCheckTestCase:
+    """Named custom-rule target selection and expected diagnostics."""
+
+    description: str
+    argv: tuple[str, ...]
+    expected_exit_code: int
+    expected_stdout_fragment: str
+    expected_stderr_fragment: str
+
+
+@dataclass(frozen=True)
 class CustomRuleCoverageTestCase:
     """Configured custom rules and expected source-owned FFR707 diagnostics."""
 

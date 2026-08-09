@@ -208,6 +208,7 @@ pub(crate) struct MapOptions {
     pub(crate) direction: MapDirection,
     pub(crate) depth: usize,
     pub(crate) roots: Vec<String>,
+    pub(crate) target: Option<String>,
     pub(crate) path_mode: PathMode,
     pub(crate) color: String,
     pub(crate) cache_enabled: Option<bool>,

@@ -9,7 +9,7 @@ use crate::mapping::models::{
 use crate::models::CliOutput;
 
 pub(crate) fn execute(options: MapOptions) -> Result<CliOutput, String> {
-    let mapping_project = project::resolve(&options.roots)?;
+    let mapping_project = project::resolve(&options.roots, options.target.as_deref())?;
     let snapshots = project::discover(&mapping_project.sources, &mapping_project.repo_root)?;
     let cache_enabled = options
         .cache_enabled

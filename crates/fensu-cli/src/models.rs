@@ -42,6 +42,9 @@ pub(crate) struct InitOptions {
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Config {
+    pub(crate) analyzer: String,
+    pub(crate) target: Option<String>,
+    pub(crate) target_root: String,
     pub(crate) roots: Vec<String>,
     pub(crate) tests: Vec<String>,
     pub(crate) test_scopes: Vec<String>,
@@ -66,6 +69,14 @@ pub(crate) struct Config {
     pub(crate) skills_name: Option<String>,
     pub(crate) source_kind: String,
     pub(crate) raw: Vec<u8>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct TargetSelection {
+    pub(crate) table: toml::map::Map<String, toml::Value>,
+    pub(crate) target: Option<String>,
+    pub(crate) analyzer: String,
+    pub(crate) root: String,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -129,6 +140,7 @@ pub(crate) struct CheckOptions {
     pub(crate) warn: bool,
     pub(crate) cache_enabled: Option<bool>,
     pub(crate) cache_stats: bool,
+    pub(crate) target: Option<String>,
     pub(crate) paths: Vec<String>,
 }
 

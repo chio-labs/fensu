@@ -13,7 +13,7 @@ use crate::check::_helpers::policy::{
 };
 use crate::check::_helpers::rule_policy::validate_config_tiers;
 use crate::check::models::CheckPlan;
-use crate::configuration::main::load;
+use crate::configuration::main::load_target;
 use crate::configuration::main::validate_exception_targets::validate_exception_targets;
 use crate::constants::PYTHON_CACHE_DIRECTORY;
 use crate::models::{CheckOptions, Config, ScopedSource};
@@ -23,7 +23,8 @@ pub(crate) fn prepare_check(options: &CheckOptions) -> Result<CheckPlan, String>
         .map_err(|error| error.to_string())?
         .canonicalize()
         .map_err(|error| error.to_string())?;
-    let (config_path, mut config) = load::load(&invocation)?;
+    let (config_path, mut config) =
+        load_target::load_target(&invocation, options.target.as_deref())?;
     let root = config_path
         .parent()
         .ok_or_else(|| "Configuration has no parent directory.".to_owned())?

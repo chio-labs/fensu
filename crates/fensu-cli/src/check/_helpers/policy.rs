@@ -244,6 +244,9 @@ pub(crate) fn check_identity(
     digest.update(b"fensu-native-check-v3\0");
     digest.update(env!("CARGO_PKG_VERSION").as_bytes());
     digest.update(&config.raw);
+    digest.update(config.analyzer.as_bytes());
+    digest.update(config.target.as_deref().unwrap_or_default().as_bytes());
+    digest.update(config.target_root.as_bytes());
     digest.update([u8::from(warnings)]);
     for source in sources {
         digest.update(source.repository_path.as_bytes());

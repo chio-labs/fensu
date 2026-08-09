@@ -21,7 +21,10 @@ pub(crate) fn cached_output(plan: &CheckPlan, options: &CheckOptions) -> Option<
             plan.sources.len()
         ));
     }
-    stderr.push_str(&core_freshness::core_freshness(&plan.invocation).unwrap_or_default());
+    stderr.push_str(
+        &core_freshness::core_freshness(&plan.invocation, plan.config.target.as_deref())
+            .unwrap_or_default(),
+    );
     Some(CliOutput {
         stdout: cached.output,
         stderr,
@@ -43,7 +46,10 @@ pub(crate) fn render_check(
         color: plan.color,
     })?;
     let mut stderr = String::new();
-    stderr.push_str(&core_freshness::core_freshness(&plan.invocation).unwrap_or_default());
+    stderr.push_str(
+        &core_freshness::core_freshness(&plan.invocation, plan.config.target.as_deref())
+            .unwrap_or_default(),
+    );
     if plan.cache_enabled {
         stderr.push_str(&stored_output(
             &plan,

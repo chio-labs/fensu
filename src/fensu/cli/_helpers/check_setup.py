@@ -8,7 +8,7 @@ from pathlib import Path
 
 from fensu.cli._helpers.check_paths import invocation_path
 from fensu.cli.models import CheckInputs
-from fensu.config.main.load_project_config import load_project_config
+from fensu.config.main.load_target_project_config import load_target_project_config
 from fensu.config.models import Config, LoadedConfig
 from fensu.discovery.main.discover_files import discover_files
 from fensu.discovery.models import DiscoveredTree
@@ -28,7 +28,7 @@ def prepare_check_inputs(*, args: argparse.Namespace, invocation_dir: Path) -> C
 
     loaded: LoadedConfig = OPERATION_COUNTERS.measure(
         operation=PHASE_CONFIG_NANOSECONDS,
-        callback=lambda: load_project_config(invocation_dir),
+        callback=lambda: load_target_project_config(start=invocation_dir, target=args.target),
     )
     project_dir: Path = loaded.source.path.parent.resolve()
     rule_selection: RuleSelection = OPERATION_COUNTERS.measure(

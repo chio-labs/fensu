@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import replace
 from pathlib import Path
 
 from fensu.config._helpers.discovery import locate_config
 from fensu.config._helpers.parse import parse_config_source
-from fensu.config._helpers.validate import validate_config
+from fensu.config._helpers.validate import select_config_target, validate_config
 from fensu.config.main._build_config import build_config
 from fensu.config.main.build_config_for_rules import build_config_for_rules
 from fensu.config.models import Config, ConfigSource, LoadedConfig
@@ -18,18 +19,36 @@ from fensu.rules.catalog.main.build_catalogue import build_catalogue
 def load_project_config(start: Path | None = None) -> LoadedConfig:
     """Load validated config together with its authoritative source location."""
 
+    return _load_project_config(start=start, target=None)
+
+
+def _load_project_config(*, start: Path | None, target: str | None) -> LoadedConfig:
+    """Load validated config for an optional named target."""
+
     source: ConfigSource = locate_config(start)
-    raw_config: Mapping[str, object] = parse_config_source(source)
+    parsed: Mapping[str, object] = parse_config_source(source)
+    raw_config, target_name, analyzer, target_root = select_config_target(raw=parsed, target=target)
     validate_config(raw_config)
     bootstrap_raw: dict[str, object] = dict(raw_config)
     _ = bootstrap_raw.pop("rule_options", None)
-    bootstrap: Config = build_config(bootstrap_raw)
+    bootstrap: Config = replace(
+        build_config(bootstrap_raw),
+        analyzer=analyzer,
+        target=target_name,
+        target_root=target_root,
+    )
     catalogue: tuple[RuleSpec, ...] = build_catalogue(
         config=bootstrap,
         repo_root=source.path.parent.resolve(),
     )
+    config: Config = replace(
+        build_config_for_rules(raw=raw_config, rules=catalogue),
+        analyzer=analyzer,
+        target=target_name,
+        target_root=target_root,
+    )
     return LoadedConfig(
-        config=build_config_for_rules(raw=raw_config, rules=catalogue),
+        config=config,
         source=source,
         catalogue=catalogue,
     )

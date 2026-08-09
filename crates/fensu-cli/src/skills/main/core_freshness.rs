@@ -2,6 +2,6 @@ use std::path::Path;
 
 use crate::skills::_helpers::command::execution;
 
-pub(crate) fn core_freshness(invocation: &Path) -> Result<String, String> {
-    execution::core_freshness(invocation)
+pub(crate) fn core_freshness(invocation: &Path, target: Option<&str>) -> Result<String, String> {
+    execution::core_freshness(invocation, target)
 }

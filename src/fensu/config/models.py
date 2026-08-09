@@ -135,6 +135,9 @@ class Config:
     contracts: Mapping[str, str] = field(
         default_factory=lambda: MappingProxyType(dict(DEFAULT_CONTRACTS))
     )
+    analyzer: str = "python"
+    target: str | None = None
+    target_root: str = "."
 
     def __post_init__(self) -> None:
         """Freeze defensive copies of nested rule-option mappings."""

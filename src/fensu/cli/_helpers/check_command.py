@@ -155,6 +155,7 @@ def _parser() -> argparse.ArgumentParser:
         default=None,
         help="worker processes for full evaluations (default: automatic)",
     )
+    parser.add_argument("--target", metavar="TARGET", help="named analyzer target to check")
     parser.add_argument("paths", nargs="*", help="configured root paths to check")
     return parser
 

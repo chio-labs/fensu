@@ -47,6 +47,43 @@ pub(crate) struct InvalidCheckConfigTestCase {
     pub(crate) expected_error: &'static str,
 }
 
+pub(crate) struct TargetCheckTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) arguments: &'static [&'static str],
+    pub(crate) expected_exit_code: i32,
+    pub(crate) expected_stdout: &'static str,
+    pub(crate) expected_stderr: &'static str,
+}
+
+pub(crate) struct TargetCacheCheckTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_lenient_exit_code: i32,
+    pub(crate) expected_strict_exit_code: i32,
+    pub(crate) expected_strict_stdout: &'static str,
+    pub(crate) expected_lenient_absent: &'static str,
+}
+
+pub(crate) struct TargetCleanupTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_exit_code: i32,
+    pub(crate) expected_removed_path: &'static str,
+    pub(crate) expected_preserved_path: &'static str,
+}
+
+pub(crate) struct ConfigCommandTargetTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) arguments: &'static [&'static str],
+    pub(crate) expected_exit_code: i32,
+    pub(crate) expected_stdout: &'static str,
+    pub(crate) expected_stderr: &'static str,
+}
+
+pub(crate) struct TargetSkillFreshnessTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_exit_code: i32,
+    pub(crate) expected_stderr: &'static str,
+}
+
 pub(crate) struct ConfigDiscoveryTestCase {
     pub(crate) description: &'static str,
     pub(crate) expected_exit_code: i32,

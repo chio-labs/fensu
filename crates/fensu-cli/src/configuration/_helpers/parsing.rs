@@ -5,13 +5,14 @@ use crate::configuration::constants::{
     DEFAULT_CACHE_ENABLED, DEFAULT_CACHE_REQUIRE_CACHEABLE, DEFAULT_CONTRACTS, DEFAULT_IGNORE,
     DEFAULT_SELECT, DEFAULT_TEST_PATHS, DEFAULT_TEST_SCOPES, DEFAULT_THRESHOLDS, DEFAULT_WARN,
 };
-use crate::models::{Config, RuleException, RuleIgnore, ThresholdOverride};
+use crate::models::{Config, RuleException, RuleIgnore, TargetSelection, ThresholdOverride};
 
 pub(crate) fn build(
-    table: &toml::map::Map<String, toml::Value>,
+    selection: TargetSelection,
     raw: Vec<u8>,
     pyproject: bool,
 ) -> Result<Config, String> {
+    let table = &selection.table;
     let roots = required_strings(table.get("roots"), "roots")?;
     if roots.is_empty() {
         return Err("Config must define at least one root in roots.".to_owned());
@@ -25,6 +26,9 @@ pub(crate) fn build(
     let cache = table.get("cache").and_then(toml::Value::as_table);
     let evaluation = table.get("evaluation").and_then(toml::Value::as_table);
     Ok(Config {
+        analyzer: selection.analyzer,
+        target: selection.target,
+        target_root: selection.root,
         roots,
         tests: strings_or(table.get("tests"), DEFAULT_TEST_PATHS),
         test_scopes: strings_or(table.get("test_scopes"), DEFAULT_TEST_SCOPES),

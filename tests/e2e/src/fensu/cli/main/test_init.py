@@ -214,6 +214,83 @@ from tests.e2e.src.fensu.cli.main.helpers import (
             expected_stdout_is_empty=False,
         ),
         InstalledInitCliTestCase(
+            description="existing valid multi-target configuration is preserved without selection",
+            argv=("--yes",),
+            input_text="",
+            initial_files=(
+                CliProjectFile(
+                    relative_path="fensu.toml",
+                    source=(
+                        "[targets.api]\n"
+                        'analyzer = "python"\n'
+                        'roots = ["src/api"]\n'
+                        "[targets.worker]\n"
+                        'analyzer = "python"\n'
+                        'roots = ["src/worker"]\n'
+                    ),
+                ),
+            ),
+            expected_exit_code=0,
+            expected_files=(
+                CliProjectFile(
+                    relative_path="fensu.toml",
+                    source=(
+                        "[targets.api]\n"
+                        'analyzer = "python"\n'
+                        'roots = ["src/api"]\n'
+                        "[targets.worker]\n"
+                        'analyzer = "python"\n'
+                        'roots = ["src/worker"]\n'
+                    ),
+                ),
+            ),
+            expected_config_values=(),
+            expected_stdout_fragments=("configuration already exists", "nothing to do"),
+            expected_stderr_fragments=(),
+            expected_absent_output_fragments=("--target", "not usable"),
+            expected_stdout_is_empty=False,
+        ),
+        InstalledInitCliTestCase(
+            description="existing malformed multi-target configuration still fails validation",
+            argv=("--yes",),
+            input_text="",
+            initial_files=(
+                CliProjectFile(
+                    relative_path="fensu.toml",
+                    source=(
+                        "[targets.valid]\n"
+                        'analyzer = "python"\n'
+                        'roots = ["src/valid"]\n'
+                        "[targets.invalid]\n"
+                        'analyzer = "python"\n'
+                        "roots = []\n"
+                    ),
+                ),
+            ),
+            expected_exit_code=2,
+            expected_files=(
+                CliProjectFile(
+                    relative_path="fensu.toml",
+                    source=(
+                        "[targets.valid]\n"
+                        'analyzer = "python"\n'
+                        'roots = ["src/valid"]\n'
+                        "[targets.invalid]\n"
+                        'analyzer = "python"\n'
+                        "roots = []\n"
+                    ),
+                ),
+            ),
+            expected_config_values=(),
+            expected_stdout_fragments=(),
+            expected_stderr_fragments=(
+                "configuration already exists but is not usable",
+                "must define at least one root in roots",
+            ),
+            expected_absent_output_fragments=("nothing to do",),
+            expected_stdout_is_empty=True,
+        ),
+        InstalledInitCliTestCase(
             description="package below a namespace directory does not become a nested root",
             argv=("--yes", "--no-skills"),
             input_text="",

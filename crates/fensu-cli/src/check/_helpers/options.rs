@@ -3,13 +3,23 @@
 use std::env;
 use std::io::{self, IsTerminal};
 
-use crate::constants::{COLOR_ALWAYS, COLOR_AUTO, COLOR_NEVER};
+use crate::constants::{COLOR_ALWAYS, COLOR_AUTO, COLOR_NEVER, OPTION_TARGET};
 use crate::models::CheckOptions;
 
 pub(crate) fn requests_help(arguments: &[String]) -> bool {
-    arguments
-        .iter()
-        .any(|argument| matches!(argument.as_str(), "--help" | "-h"))
+    let mut index = 0;
+    while index < arguments.len() {
+        let argument = arguments[index].as_str();
+        if matches!(argument, "--target" | "--color" | "--jobs") {
+            index += 2;
+            continue;
+        }
+        if matches!(argument, "--help" | "-h") {
+            return true;
+        }
+        index += 1;
+    }
+    false
 }
 
 pub(crate) fn parse_options(arguments: &[String]) -> Result<CheckOptions, String> {
@@ -18,6 +28,7 @@ pub(crate) fn parse_options(arguments: &[String]) -> Result<CheckOptions, String
         warn: false,
         cache_enabled: None,
         cache_stats: false,
+        target: None,
         paths: Vec::new(),
     };
     let mut index = 0;
@@ -40,6 +51,17 @@ pub(crate) fn parse_options(arguments: &[String]) -> Result<CheckOptions, String
             "--cache" => options.cache_enabled = Some(true),
             "--no-cache" => options.cache_enabled = Some(false),
             "--cache-stats" => options.cache_stats = true,
+            OPTION_TARGET => {
+                index += 1;
+                let value = arguments
+                    .get(index)
+                    .filter(|value| !value.starts_with('-'))
+                    .ok_or_else(|| "argument --target: expected one argument".to_owned())?;
+                options.target = Some(value.clone());
+            }
+            argument if argument.starts_with("--target=") => {
+                options.target = Some(argument[OPTION_TARGET.len() + 1..].to_owned());
+            }
             "--jobs" => {
                 index += 1;
                 let jobs = arguments

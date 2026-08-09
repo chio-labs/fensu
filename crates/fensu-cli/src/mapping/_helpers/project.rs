@@ -24,14 +24,25 @@ const EXCLUDED: &[&str] = &[
     "venv",
 ];
 
-pub(crate) fn resolve(explicit_roots: &[String]) -> Result<MappingProject, String> {
+pub(crate) fn resolve(
+    explicit_roots: &[String],
+    target: Option<&str>,
+) -> Result<MappingProject, String> {
     let cwd = dunce::canonicalize(std::env::current_dir().map_err(|error| error.to_string())?)
         .map_err(|error| error.to_string())?;
     if !explicit_roots.is_empty() {
         let repo_root = find_project_root(&cwd);
-        let cache_enabled = match load_optional::load_optional(&cwd) {
+        let cache_enabled = match load_optional::load_optional(&cwd, target) {
             Ok(Some((_, config))) => config.cache_enabled,
-            Ok(None) | Err(_) => true,
+            Ok(None) if target.is_some() => {
+                return Err(format!(
+                    "Unknown target name: {}.",
+                    target.unwrap_or_default()
+                ));
+            }
+            Ok(None) => true,
+            Err(error) if target.is_some() => return Err(error),
+            Err(_) => true,
         };
         let mut sources: Vec<MappingSource> = Vec::new();
         for value in explicit_roots {
@@ -58,7 +69,7 @@ pub(crate) fn resolve(explicit_roots: &[String]) -> Result<MappingProject, Strin
             cache_enabled,
         });
     }
-    if let Some((path, loaded)) = load_optional::load_optional(&cwd)? {
+    if let Some((path, loaded)) = load_optional::load_optional(&cwd, target)? {
         let repo_root = dunce::canonicalize(path.parent().unwrap_or(Path::new(".")))
             .map_err(|error| error.to_string())?;
         let sources = configured_sources(&repo_root, &loaded)?;
@@ -67,6 +78,9 @@ pub(crate) fn resolve(explicit_roots: &[String]) -> Result<MappingProject, Strin
             sources,
             cache_enabled: loaded.cache_enabled,
         });
+    }
+    if let Some(target) = target {
+        return Err(format!("Unknown target name: {target}."));
     }
     let repo_root = find_project_root(&cwd);
     let source_root = if repo_root.join("src").is_dir() {

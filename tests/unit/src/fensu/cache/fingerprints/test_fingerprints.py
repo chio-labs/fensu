@@ -59,6 +59,7 @@ from tests.unit.src.fensu.cache.fingerprints._test_types import (
     RulesetSourceReuseTestCase,
     SkillsFingerprintTestCase,
     SourceFingerprintTestCase,
+    TargetFingerprintTestCase,
     ThresholdOverrideFingerprintTestCase,
     WarningFingerprintTestCase,
     WarningModeFingerprintTestCase,
@@ -136,6 +137,31 @@ def test_given_validated_configs_when_fingerprinting_then_captures_policy_inputs
 
     first: CacheFingerprint = config_fingerprint(first_config)
     second: CacheFingerprint = config_fingerprint(second_config)
+
+    assert (first == second) is test_case.expected_equal
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        TargetFingerprintTestCase(
+            description="named target change invalidates config identity",
+            first_target="api",
+            second_target="worker",
+            expected_equal=False,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_named_targets_when_fingerprinting_then_captures_target_identity(
+    test_case: TargetFingerprintTestCase,
+) -> None:
+    first: CacheFingerprint = config_fingerprint(
+        Config(roots=("src/pkg",), target=test_case.first_target)
+    )
+    second: CacheFingerprint = config_fingerprint(
+        Config(roots=("src/pkg",), target=test_case.second_target)
+    )
 
     assert (first == second) is test_case.expected_equal
 

@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::configuration::_helpers::exceptions;
 use crate::configuration::_helpers::native_rules::{validate_rule_options, validate_rule_packs};
@@ -6,37 +6,39 @@ use crate::configuration::_helpers::roots::validate_nested_roots;
 use crate::configuration::_helpers::scopes::validate_test_scopes;
 use crate::configuration::_helpers::selectors::valid_selector;
 use crate::configuration::constants::{CONFIG_ROLE_NAMES, CONTRACT_BEHAVIORS, DEFAULT_THRESHOLDS};
+use crate::constants::CONFIG_TARGETS_KEY;
+use crate::models::TargetSelection;
 
 const RECURSIVE_GLOB: &str = "**";
+const PYTHON_ANALYZER: &str = "python";
+const DEFAULT_TARGET_ROOT: &str = ".";
+const CONFIG_KEYS: &[&str] = &[
+    "roots",
+    "tests",
+    "test_scopes",
+    "tooling",
+    "select",
+    "warn",
+    "ignore",
+    "rule_paths",
+    "rule_modules",
+    "rule_packs",
+    "rule_options",
+    "thresholds",
+    "roles",
+    "contracts",
+    "rule_exceptions",
+    "rule_ignores",
+    "threshold_overrides",
+    "cache",
+    "evaluation",
+    "skills",
+];
+type ValidatedTargets = HashMap<String, (toml::map::Map<String, toml::Value>, String, String)>;
 
 pub(crate) fn validate(table: &toml::map::Map<String, toml::Value>) -> Result<(), String> {
-    validate_keys(
-        table,
-        &[
-            "roots",
-            "tests",
-            "test_scopes",
-            "tooling",
-            "select",
-            "warn",
-            "ignore",
-            "rule_paths",
-            "rule_modules",
-            "rule_packs",
-            "rule_options",
-            "thresholds",
-            "roles",
-            "contracts",
-            "rule_exceptions",
-            "rule_ignores",
-            "threshold_overrides",
-            "cache",
-            "evaluation",
-            "skills",
-        ],
-        "",
-    )
-    .map_err(|error| error.replace("Unknown  config", "Unknown config"))?;
+    validate_keys(table, CONFIG_KEYS, "")
+        .map_err(|error| error.replace("Unknown  config", "Unknown config"))?;
     validate_optional_table(table, "cache", &["enabled", "require_cacheable"])?;
     validate_optional_table(table, "evaluation", &["include", "exclude"])?;
     validate_optional_table(table, "skills", &["name"])?;
@@ -60,7 +62,11 @@ pub(crate) fn validate(table: &toml::map::Map<String, toml::Value>) -> Result<()
         }
     }
     validate_rule_packs(table.get("rule_packs"))?;
-    validate_nested_roots(required_strings(table.get("roots"), "roots")?)?;
+    let roots = required_strings(table.get("roots"), "roots")?;
+    if roots.is_empty() {
+        return Err("Config must define at least one root in roots.".to_owned());
+    }
+    validate_nested_roots(roots)?;
     validate_boolean_table(table, "cache", &["enabled", "require_cacheable"])?;
     validate_threshold_table(table.get("thresholds"), "thresholds", false)?;
     validate_roles(table.get("roles"))?;
@@ -70,6 +76,136 @@ pub(crate) fn validate(table: &toml::map::Map<String, toml::Value>) -> Result<()
     validate_rule_ignores(table.get("rule_ignores"))?;
     validate_evaluation(table.get("evaluation"))?;
     Ok(())
+}
+
+pub(crate) fn select_target(
+    table: &toml::map::Map<String, toml::Value>,
+    target: Option<&str>,
+) -> Result<TargetSelection, String> {
+    if !table.contains_key(CONFIG_TARGETS_KEY) {
+        if let Some(name) = target {
+            return Err(format!("Unknown target name: {name}."));
+        }
+        return Ok(TargetSelection {
+            table: table.clone(),
+            target: None,
+            analyzer: PYTHON_ANALYZER.to_owned(),
+            root: DEFAULT_TARGET_ROOT.to_owned(),
+        });
+    }
+    let mut validated = validated_targets(table)?;
+    let selected_name = match target {
+        Some(name) if validated.contains_key(name) => name.to_owned(),
+        Some(name) => return Err(format!("Unknown target name: {name}.")),
+        None if validated.len() == 1 => validated.keys().next().cloned().ok_or_else(|| {
+            "Config key targets must define at least one named target.".to_owned()
+        })?,
+        None => {
+            return Err(
+                "Multiple targets are configured; select one with --target TARGET.".to_owned(),
+            );
+        }
+    };
+    let (selected, analyzer, root) = validated
+        .remove(&selected_name)
+        .ok_or_else(|| format!("Unknown target name: {selected_name}."))?;
+    Ok(TargetSelection {
+        table: selected,
+        target: Some(selected_name),
+        analyzer,
+        root,
+    })
+}
+
+pub(crate) fn validate_without_selection(
+    table: &toml::map::Map<String, toml::Value>,
+) -> Result<(), String> {
+    if table.contains_key(CONFIG_TARGETS_KEY) {
+        let _ = validated_targets(table)?;
+        return Ok(());
+    }
+    validate(table)
+}
+
+fn validated_targets(
+    table: &toml::map::Map<String, toml::Value>,
+) -> Result<ValidatedTargets, String> {
+    let mut mixed = table
+        .keys()
+        .filter(|key| key.as_str() != CONFIG_TARGETS_KEY)
+        .cloned()
+        .collect::<Vec<_>>();
+    if !mixed.is_empty() {
+        mixed.sort();
+        return Err(format!(
+            "Explicit targets cannot be mixed with legacy top-level config keys: {}.",
+            mixed.join(", ")
+        ));
+    }
+    let targets = table
+        .get(CONFIG_TARGETS_KEY)
+        .and_then(toml::Value::as_table)
+        .ok_or_else(|| "Config key targets must be a table of named targets.".to_owned())?;
+    if targets.is_empty() {
+        return Err("Config key targets must define at least one named target.".to_owned());
+    }
+    let mut validated: HashMap<String, (toml::map::Map<String, toml::Value>, String, String)> =
+        HashMap::new();
+    for (name, value) in targets {
+        if name.is_empty() {
+            return Err("Target names must be non-empty strings.".to_owned());
+        }
+        let values = value
+            .as_table()
+            .ok_or_else(|| format!("Config target {name} must be a table."))?;
+        let mut unknown = values
+            .keys()
+            .filter(|key| {
+                !CONFIG_KEYS.contains(&key.as_str()) && !matches!(key.as_str(), "analyzer" | "root")
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        if !unknown.is_empty() {
+            unknown.sort();
+            return Err(format!(
+                "Unknown targets.{name} config key(s): {}.",
+                unknown.join(", ")
+            ));
+        }
+        let analyzer = values
+            .get("analyzer")
+            .and_then(toml::Value::as_str)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| {
+                format!("Config key targets.{name}.analyzer must be a non-empty string.")
+            })?;
+        if analyzer != PYTHON_ANALYZER {
+            return Err(format!("Unknown analyzer for target {name}: {analyzer}."));
+        }
+        let root = match values.get("root") {
+            None => DEFAULT_TARGET_ROOT,
+            Some(value) => value
+                .as_str()
+                .filter(|text| !text.is_empty())
+                .ok_or_else(|| {
+                    format!("Config key targets.{name}.root must be a non-empty string.")
+                })?,
+        };
+        if root != DEFAULT_TARGET_ROOT {
+            return Err(format!(
+                "Target {name} root '{root}' is not supported yet; only root = \".\" is supported."
+            ));
+        }
+        let mut selected = values.clone();
+        selected.remove("analyzer");
+        selected.remove("root");
+        validate(&selected)?;
+        validated.insert(
+            name.clone(),
+            (selected, analyzer.to_owned(), root.to_owned()),
+        );
+    }
+    Ok(validated)
 }
 
 fn validate_boolean_table(

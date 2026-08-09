@@ -41,6 +41,10 @@ CACHE_ENABLED_CONFIG_KEY: str = "enabled"
 CACHE_REQUIRE_CACHEABLE_CONFIG_KEY: str = "require_cacheable"
 SKILLS_NAME_CONFIG_KEY: str = "name"
 DEFAULT_CACHE_REQUIRE_CACHEABLE: bool = False
+PYTHON_ANALYZER: str = "python"
+DEFAULT_TARGET_ROOT: str = "."
+TARGET_CONFIG_KEYS: frozenset[str] = frozenset({"analyzer", "root"})
+TARGETS_CONFIG_KEY: str = "targets"
 
 CONFIG_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
     {

@@ -42,6 +42,28 @@ class InvalidConfigTestCase:
 
 
 @dataclass(frozen=True)
+class TargetConfigTestCase:
+    """Explicit target configuration and expected selected identity."""
+
+    description: str
+    config_text: str
+    target: str | None
+    expected_target: str
+    expected_roots: tuple[str, ...]
+    expected_select: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class InvalidTargetConfigTestCase:
+    """Invalid explicit target configuration and expected selection error."""
+
+    description: str
+    config_text: str
+    target: str | None
+    expected_error_fragment: str
+
+
+@dataclass(frozen=True)
 class RuleSelectorConfigTestCase:
     """Configured selectors and their expected normalized values."""
 
@@ -219,6 +241,14 @@ class ConfigImmutabilityTestCase:
     description: str
     config_text: str
     expected_error_type: type[Exception]
+
+
+@dataclass(frozen=True)
+class ConfigPositionalCompatibilityTestCase:
+    """Expected positional field order retained by the Config constructor."""
+
+    description: str
+    expected_field_names: tuple[str, ...]
 
 
 @dataclass(frozen=True)

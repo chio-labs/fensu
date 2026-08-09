@@ -31,6 +31,16 @@ class ConfigFingerprintTestCase:
 
 
 @dataclass(frozen=True)
+class TargetFingerprintTestCase:
+    """Two target identities and whether config fingerprints must match."""
+
+    description: str
+    first_target: str | None
+    second_target: str | None
+    expected_equal: bool
+
+
+@dataclass(frozen=True)
 class RuleOptionsConfigFingerprintTestCase:
     """Two resolved per-rule option mappings and their expected identity relationship."""
 

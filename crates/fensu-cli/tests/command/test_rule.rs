@@ -2,11 +2,69 @@ use std::process::Command;
 
 use crate::helpers::write;
 use crate::test_types::{
-    EffectiveRulePolicyTestCase, RuleColorTestCase, RulePackLookupTestCase, RuleRemediationTestCase,
+    ConfigCommandTargetTestCase, EffectiveRulePolicyTestCase, RuleColorTestCase,
+    RulePackLookupTestCase, RuleRemediationTestCase,
 };
 
 const CONFIG: &str =
     "roots = [\"src\"]\ntests = [\"tests\"]\ntooling = [\"scripts\"]\nselect = [\"FFA\"]\n";
+
+#[test]
+fn given_multiple_targets_when_inspecting_rule_then_requires_and_uses_named_selection() {
+    let test_cases = [
+        ConfigCommandTargetTestCase {
+            description: "rule selection accepts a named target",
+            arguments: &["rule", "FFA002", "--target=second", "--color", "never"],
+            expected_exit_code: 0,
+            expected_stdout: "Blocking: yes",
+            expected_stderr: "",
+        },
+        ConfigCommandTargetTestCase {
+            description: "rule selection rejects ambiguous configuration",
+            arguments: &["rule", "FFA002", "--color", "never"],
+            expected_exit_code: 2,
+            expected_stdout: "",
+            expected_stderr: "select one with --target TARGET",
+        },
+        ConfigCommandTargetTestCase {
+            description: "rule help documents named target selection",
+            arguments: &["rule", "--help"],
+            expected_exit_code: 0,
+            expected_stdout: "--target TARGET",
+            expected_stderr: "",
+        },
+    ];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(
+            repository.path().join("fensu.toml"),
+            "[targets.first]\nanalyzer = \"python\"\nroots = [\"src\"]\nselect = [\"FFA001\"]\n[targets.second]\nanalyzer = \"python\"\nroots = [\"src\"]\nselect = [\"FFA002\"]\n",
+        );
+
+        let output = Command::new(env!("CARGO_BIN_EXE_fensu"))
+            .args(test_case.arguments)
+            .current_dir(repository.path())
+            .output()
+            .expect("native rule process runs");
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stdout).contains(test_case.expected_stdout),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains(test_case.expected_stderr),
+            "{}",
+            test_case.description
+        );
+    }
+}
 
 #[test]
 fn given_loaded_project_policy_when_inspecting_rule_then_discloses_effective_state() {

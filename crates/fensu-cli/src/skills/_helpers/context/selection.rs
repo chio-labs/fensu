@@ -46,7 +46,7 @@ pub(crate) fn selection(config: &Config, project_root: &Path) -> Result<RuleSele
         || !config.rule_modules.is_empty()
         || config.rule_options.keys().any(|code| code.starts_with('X'))
     {
-        return hosted_selection(project_root);
+        return hosted_selection(project_root, config.target.as_deref());
     }
     let configured_catalogue = configured_rule_catalogue(&config.rule_packs)?;
     validate_config_selectors(config, &configured_catalogue)?;
@@ -73,10 +73,11 @@ pub(crate) fn selection(config: &Config, project_root: &Path) -> Result<RuleSele
     })
 }
 
-fn hosted_selection(project_root: &Path) -> Result<RuleSelection, String> {
+fn hosted_selection(project_root: &Path, target: Option<&str>) -> Result<RuleSelection, String> {
     let request = serde_json::to_vec(&json!({
         "protocol": SKILLS_METADATA_PROTOCOL_VERSION,
         "project_root": project_root.to_string_lossy(),
+        "target": target,
     }))
     .map_err(|error| error.to_string())?;
     let raw = run_skills_metadata_host(&request)?;

@@ -7,18 +7,18 @@ use cap_std::ambient_authority;
 use cap_std::fs::{Dir, DirEntry};
 
 use crate::check::models::CleanupPlan;
-use crate::configuration::main::load;
+use crate::configuration::main::load_target;
 use crate::constants::PYTHON_CACHE_DIRECTORY;
 use crate::models::Config;
 
-pub(crate) fn prepare(invocation: &Path) -> Option<CleanupPlan> {
+pub(crate) fn prepare(invocation: &Path, target: Option<&str>) -> Option<CleanupPlan> {
     let Ok(invocation_directory) = Dir::open_ambient_dir(invocation, ambient_authority()) else {
         return None;
     };
     let Ok(invocation_path) = invocation.canonicalize() else {
         return None;
     };
-    let Ok((config_path, config)) = load::load(invocation) else {
+    let Ok((config_path, config)) = load_target::load_target(invocation, target) else {
         return None;
     };
     let repository_path = config_path.parent()?;

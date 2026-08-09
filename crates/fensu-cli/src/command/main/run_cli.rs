@@ -1,6 +1,7 @@
 use std::env;
 use std::path::Path;
 
+use crate::check::main::check_routing::check_routing;
 use crate::check::main::clean_caches::clean_caches;
 use crate::check::main::prepare_cleanup::prepare_cleanup;
 use crate::command::main::{check, help, init, map, rule, skills};
@@ -41,8 +42,12 @@ fn dispatch(arguments: &[String]) -> Result<CliOutput, String> {
 }
 
 fn dispatch_check(arguments: &[String]) -> Result<CliOutput, String> {
-    let cleanup = prepare_cleanup(Path::new("."));
-    let result = if custom_rules::custom_rules_are_configured(Path::new("."))? {
+    let routing = check_routing(arguments)?;
+    if routing.help {
+        return check::run(arguments);
+    }
+    let cleanup = prepare_cleanup(Path::new("."), routing.target);
+    let result = if custom_rules::custom_rules_are_configured(Path::new("."), routing.target)? {
         let exit_code = run_custom_check_host(arguments)?;
         Ok(CliOutput {
             stdout: String::new(),

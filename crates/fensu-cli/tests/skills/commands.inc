@@ -7,9 +7,131 @@ use crate::helpers::{
     CONFIG,
 };
 use crate::test_types::{
-    ExceptionSymbolTestCase, FreshnessTestCase, InvalidSkillsConfigTestCase,
-    PublicationRaceTestCase, RepositoryGuidanceTestCase, SkillsCommandTestCase,
+    ConfigTargetSkillsTestCase, ExceptionSymbolTestCase, FreshnessTestCase,
+    InvalidSkillsConfigTestCase, PublicationRaceTestCase, RepositoryGuidanceTestCase,
+    SkillsCommandTestCase,
 };
+
+#[test]
+fn given_multiple_targets_when_generating_skills_then_config_target_selects_policy() {
+    let test_cases = [
+        ConfigTargetSkillsTestCase {
+            description: "skills selects named project configuration without changing agent target",
+            arguments: &["--target", "agents", "--config-target", "second"],
+            expected_exit_code: 0,
+            expected_stdout: "SKILL.md",
+            expected_stderr: "",
+        },
+        ConfigTargetSkillsTestCase {
+            description: "skills rejects ambiguous project configuration",
+            arguments: &["--target", "agents"],
+            expected_exit_code: 2,
+            expected_stdout: "",
+            expected_stderr: "select one with --config-target TARGET",
+        },
+        ConfigTargetSkillsTestCase {
+            description: "skills help documents project target without replacing agent target",
+            arguments: &["--help"],
+            expected_exit_code: 0,
+            expected_stdout: "--config-target TARGET",
+            expected_stderr: "",
+        },
+    ];
+    for test_case in test_cases {
+        let repository = tempfile::tempdir().expect("multi-target skills project");
+        write(
+            repository.path().join("fensu.toml"),
+            b"[targets.first]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\ntests = []\nselect = [\"FFA001\"]\n[targets.first.skills]\nname = \"first\"\n[targets.second]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\ntests = []\nselect = [\"FFA002\"]\n[targets.second.skills]\nname = \"second\"\n",
+        );
+        write(repository.path().join("src/pkg/__init__.py"), b"");
+
+        let result = native(repository.path(), test_case.arguments);
+
+        assert_eq!(
+            result.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {}",
+            test_case.description,
+            text(&result.stderr)
+        );
+        assert!(
+            text(&result.stdout).contains(test_case.expected_stdout),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            text(&result.stderr).contains(test_case.expected_stderr),
+            "{}",
+            test_case.description
+        );
+        if test_case.expected_exit_code == 0 && !test_case.arguments.contains(&"--help") {
+            let guidance = fs::read_to_string(target(
+                repository.path(),
+                ".agents",
+                "fensu-second",
+            ))
+            .expect("selected target guidance");
+            assert!(
+                guidance.contains("Blocking rule codes: [\"FFA002\"]"),
+                "{}",
+                test_case.description
+            );
+        }
+    }
+}
+
+#[test]
+fn given_custom_rule_target_when_generating_skills_then_python_host_uses_same_selection() {
+    let test_cases = [ConfigTargetSkillsTestCase {
+        description: "custom-rule metadata host loads the native-selected target",
+        arguments: &["--target", "agents", "--config-target=custom"],
+        expected_exit_code: 0,
+        expected_stdout: "SKILL.md",
+        expected_stderr: "",
+    }];
+    let Some(python) = workspace_python() else {
+        return;
+    };
+    for test_case in test_cases {
+        let repository = tempfile::tempdir().expect("custom multi-target skills project");
+        write(
+            repository.path().join("fensu.toml"),
+            b"[targets.native]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\ntests = []\nselect = [\"FFA001\"]\n[targets.custom]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\ntests = []\nselect = [\"XSK001\"]\nrule_paths = [\"rules/custom.py\"]\n[targets.custom.skills]\nname = \"custom\"\n",
+        );
+        write(repository.path().join("src/pkg/__init__.py"), b"");
+        write(
+            repository.path().join("rules/custom.py"),
+            b"import ast\nfrom fensu import Family, Fault, RuleContext, rule\n@rule(code='XSK001', family=Family.CUSTOM, slug='skill-target', message='custom target')\ndef custom_target(module: ast.Module, ctx: RuleContext) -> list[Fault]:\n    return []\n",
+        );
+
+        let result = native_with_python(repository.path(), test_case.arguments, &python);
+
+        assert_eq!(
+            result.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {}",
+            test_case.description,
+            text(&result.stderr)
+        );
+        assert!(
+            text(&result.stdout).contains(test_case.expected_stdout),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            text(&result.stderr).contains(test_case.expected_stderr),
+            "{}",
+            test_case.description
+        );
+        let guidance = fs::read_to_string(target(
+            repository.path(),
+            ".agents",
+            "fensu-custom",
+        ))
+        .expect("custom target guidance");
+        assert!(guidance.contains("XSK001"), "{}", test_case.description);
+    }
+}
 
 #[test]
 fn given_unmatched_selector_when_generating_skills_then_configuration_fails_closed() {

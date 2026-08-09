@@ -11,6 +11,7 @@ from fensu.cli._helpers.rule_metadata import rule_metadata_value
 from fensu.cli.constants import SKILLS_METADATA_PROTOCOL_VERSION
 from fensu.cli.exceptions import CliCommandError
 from fensu.config.main.load_project_config import load_project_config
+from fensu.config.main.load_target_project_config import load_target_project_config
 from fensu.config.models import LoadedConfig
 from fensu.rules.catalog.main.build_check_rule_selection import build_check_rule_selection
 from fensu.rules.catalog.models import RuleSelection
@@ -25,7 +26,14 @@ def main() -> int:
     root_value: object = request.get("project_root")
     if not isinstance(root_value, str):
         raise CliCommandError("custom metadata request requires project_root")
-    loaded: LoadedConfig = load_project_config(Path(root_value))
+    target_value: object = request.get("target")
+    if target_value is not None and not isinstance(target_value, str):
+        raise CliCommandError("custom metadata request target must be a string or null")
+    loaded: LoadedConfig = (
+        load_project_config(Path(root_value))
+        if target_value is None
+        else load_target_project_config(start=Path(root_value), target=target_value)
+    )
     project_root: Path = loaded.source.path.parent.resolve()
     selection: RuleSelection = build_check_rule_selection(
         config=loaded.config,

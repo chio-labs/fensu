@@ -44,7 +44,7 @@ fn config_text(roots: &[String], tests: &[String], tooling: &[String]) -> Result
 }
 
 fn validate_config_text(text: &str) -> Result<(), String> {
-    validate_document(text).map_err(|error| {
+    validate_document(text, false).map_err(|error| {
         format!(
             "{error}\nRefusing to write fensu.toml. Choose the scopes explicitly, for example: \
              fensu init --yes --root src/<package>"

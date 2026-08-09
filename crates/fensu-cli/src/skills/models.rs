@@ -31,6 +31,7 @@ pub(crate) struct SkillOptions {
     pub(crate) force: bool,
     pub(crate) check: bool,
     pub(crate) install_root: Option<String>,
+    pub(crate) config_target: Option<String>,
     pub(crate) help: bool,
 }
 

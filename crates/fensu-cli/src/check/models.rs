@@ -25,6 +25,12 @@ pub(crate) struct CleanupPlan {
     pub(crate) config: Config,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct CheckRouting<'a> {
+    pub(crate) help: bool,
+    pub(crate) target: Option<&'a str>,
+}
+
 #[derive(Debug)]
 pub(crate) struct EvaluationRequest<'a> {
     pub(crate) root: &'a Path,

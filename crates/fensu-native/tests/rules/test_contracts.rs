@@ -3,8 +3,13 @@
 use std::collections::HashMap;
 
 use fensu_facts::extension::models::ProgramHandle;
+use fensu_native::rules::constants::DAGSTER_AUTOLOAD_EXTERNAL_DISCOVERY_CODE;
 use fensu_native::rules::main::evaluate_core_rules::evaluate_core_rules;
-use fensu_native::rules::models::{NativeProjectPlane, NativeRuleContext};
+use fensu_native::rules::main::plan_execution_owners::plan_execution_owners;
+use fensu_native::rules::models::{
+    NativeExecutionRule, NativeExecutionTarget, NativeProjectModule, NativeProjectPlane,
+    NativeRuleContext,
+};
 use ruff_python_ast::PythonVersion;
 
 use crate::test_types;
@@ -44,6 +49,113 @@ fn given_generated_core_rule_corpus_when_evaluating_then_every_registration_is_c
             test_case.description
         );
         crate::helpers::assert_corpus_contract(test_case, crate::helpers::generated_fixtures());
+    }
+}
+
+#[test]
+fn given_applicable_rule_without_execution_owner_when_planning_then_fails_closed() {
+    let test_cases = [test_types::ExecutionPlanningErrorTestCase {
+        description: "unknown execution owner cannot silently suppress an applicable rule",
+        code: "FPDG004",
+        family: "custom",
+        owner: "unknown",
+        expected_error: "Selected rule FPDG004 has applicable files but execution owner 'unknown' produced no targets.",
+    }];
+    for test_case in test_cases {
+        let targets = [NativeExecutionTarget {
+            repository_path: "pkg/defs/assets/example/main.py".to_owned(),
+            scope: "root".to_owned(),
+            root: "pkg".to_owned(),
+            relative_parts: vec![
+                "defs".to_owned(),
+                "assets".to_owned(),
+                "example".to_owned(),
+                "main.py".to_owned(),
+            ],
+            direct: true,
+        }];
+        let rules = [NativeExecutionRule::new(
+            test_case.code.to_owned(),
+            test_case.family.to_owned(),
+            test_case.owner.to_owned(),
+        )];
+
+        let error = plan_execution_owners(&targets, &rules)
+            .expect_err("applicable rule without an owner must fail");
+
+        assert_eq!(error, test_case.expected_error, "{}", test_case.description);
+    }
+}
+
+#[test]
+fn given_call_without_reference_parts_when_checking_autoload_then_skips_unresolvable_call() {
+    let test_cases = [test_types::AutoloadEmptyCallTestCase {
+        description: "direct lambda call has no traversable module or function reference",
+        source: "import dagster as dg\n\n@dg.definitions\ndef definitions() -> dg.Definitions:\n    (lambda: None)()\n    return dg.Definitions()\n",
+        expected_fault_count: 0,
+    }];
+    for test_case in test_cases {
+        let program = ProgramHandle::parse_many(
+            vec![test_case.source.to_owned()],
+            PythonVersion {
+                major: 3,
+                minor: 12,
+            },
+        )
+        .pop()
+        .flatten()
+        .expect("valid Python");
+        assert!(
+            program
+                .named_call_rows()
+                .iter()
+                .any(|call| call.reference.parts.is_empty()),
+            "{}",
+            test_case.description
+        );
+        let context = NativeRuleContext {
+            repository_path: "pkg/defs/resources/example.py".to_owned(),
+            relative_parts: vec![
+                "defs".to_owned(),
+                "resources".to_owned(),
+                "example.py".to_owned(),
+            ],
+            package_name: "pkg".to_owned(),
+            rule_options: HashMap::from([(
+                DAGSTER_AUTOLOAD_EXTERNAL_DISCOVERY_CODE.to_owned(),
+                HashMap::from([("approved_loader_boundaries".to_owned(), "[]".to_owned())]),
+            )]),
+            ..NativeRuleContext::default()
+        };
+        let project = NativeProjectPlane::new(
+            vec![NativeProjectModule::new(
+                context.repository_path.clone(),
+                "root".to_owned(),
+                vec![
+                    "pkg".to_owned(),
+                    "defs".to_owned(),
+                    "resources".to_owned(),
+                    "example".to_owned(),
+                ],
+                program.clone(),
+            )],
+            Vec::new(),
+        );
+
+        let faults = evaluate_core_rules(
+            &program,
+            &[DAGSTER_AUTOLOAD_EXTERNAL_DISCOVERY_CODE.to_owned()],
+            &context,
+            &project,
+        )
+        .expect("unresolvable calls are skipped");
+
+        assert_eq!(
+            faults.len(),
+            test_case.expected_fault_count,
+            "{}",
+            test_case.description
+        );
     }
 }
 

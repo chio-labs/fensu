@@ -5,6 +5,38 @@ use std::collections::HashMap;
 use fensu_facts::extension::models::ProgramHandle;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct NativeExecutionTarget {
+    pub repository_path: String,
+    pub scope: String,
+    pub root: String,
+    pub relative_parts: Vec<String>,
+    pub direct: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct NativeExecutionRule {
+    pub code: String,
+    pub family: String,
+    pub owner: String,
+}
+
+impl NativeExecutionRule {
+    pub fn new(code: String, family: String, owner: String) -> Self {
+        Self {
+            code,
+            family,
+            owner,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct NativeExecutionPlan {
+    pub codes: Vec<String>,
+    pub identities: Vec<(String, String)>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NativeFaultRow {
     pub code: String,
     pub line: u32,

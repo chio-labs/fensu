@@ -711,7 +711,7 @@ def always(module: ast.Module, ctx: RuleContext) -> list[Fault]:
         let incompatible = repository.path().join("incompatible-host");
         write(
             &incompatible,
-            b"#!/bin/sh\nprintf '{\"protocol\":1,\"package_version\":\"0\",\"catalogue\":[],\"blocking\":[],\"warnings\":[],\"ignored\":[]}\\n'\n",
+            b"#!/bin/sh\ncat >/dev/null\nprintf '{\"protocol\":1,\"package_version\":\"0\",\"catalogue\":[],\"blocking\":[],\"warnings\":[],\"ignored\":[]}\\n'\n",
         );
         fs::set_permissions(&incompatible, fs::Permissions::from_mode(0o755))
             .expect("incompatible host mode");

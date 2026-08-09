@@ -18,6 +18,26 @@ class CheckCommandTestCase:
 
 
 @dataclass(frozen=True)
+class UnavailableAnalyzerHostTestCase:
+    """Unavailable target analyzer and expected fail-closed host error."""
+
+    description: str
+    analyzer: str
+    expected_exit_code: int
+    expected_error_fragment: str
+
+
+@dataclass(frozen=True)
+class AggregateAnalyzerPreflightTestCase:
+    """Aggregate target ordering and expected analyzer preflight result."""
+
+    description: str
+    expected_exit_code: int
+    expected_error_fragment: str
+    expected_absent_fragment: str
+
+
+@dataclass(frozen=True)
 class CheckColorTestCase:
     """CLI check command color mode and expected ANSI styling."""
 

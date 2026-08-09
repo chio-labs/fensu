@@ -5,6 +5,7 @@ from __future__ import annotations
 from importlib.metadata import PackageNotFoundError
 from pathlib import Path
 
+from fensu.analysis.main.analyzer_capability import analyzer_capability
 from fensu.analysis.main.resolve_native_backend_version import resolve_native_backend_version
 from fensu.cache.fingerprints._helpers.fingerprints import (
     collect_implementation_paths,
@@ -81,6 +82,7 @@ def build_global_fingerprint(
                 ruleset=ruleset_fingerprint(ruleset),
                 custom_rules=custom_rules,
                 native_backend_version=resolve_native_backend_version(),
+                analyzer_contract=analyzer_capability(config.analyzer).cache_contract,
                 warnings_enabled=warnings_enabled,
             )
         )

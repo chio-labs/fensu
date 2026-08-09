@@ -4,6 +4,8 @@ use std::path::PathBuf;
 use fensu_facts::extension::models::ProgramHandle;
 use serde::{Deserialize, Serialize};
 
+use crate::analyzer::AnalyzerId;
+
 #[derive(Debug)]
 pub(crate) struct CliOutput {
     pub(crate) stdout: String,
@@ -42,7 +44,7 @@ pub(crate) struct InitOptions {
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Config {
-    pub(crate) analyzer: String,
+    pub(crate) analyzer: AnalyzerId,
     pub(crate) target: Option<String>,
     pub(crate) target_root: String,
     pub(crate) roots: Vec<String>,
@@ -75,7 +77,7 @@ pub(crate) struct Config {
 pub(crate) struct TargetSelection {
     pub(crate) table: toml::map::Map<String, toml::Value>,
     pub(crate) target: Option<String>,
-    pub(crate) analyzer: String,
+    pub(crate) analyzer: AnalyzerId,
     pub(crate) root: String,
 }
 

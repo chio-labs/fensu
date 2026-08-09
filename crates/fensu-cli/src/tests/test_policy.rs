@@ -1,9 +1,12 @@
+use crate::analyzer::AnalyzerId;
 use crate::check::_helpers::policy::{check_identity, path_matches};
 use crate::check::models::CheckIdentityRequest;
 use crate::configuration::main::resolve_target_root::resolve_target_root;
+use crate::mapping::_helpers::cache::generation;
+use crate::mapping::models::SourceSnapshot;
 use crate::models::Config;
 use crate::tests::test_types::{
-    CacheIdentityFramingTestCase, EscapingSymlinkTargetTestCase,
+    CacheIdentityFramingTestCase, EscapingSymlinkTargetTestCase, MapCacheIdentityTestCase,
     MissingSuffixSymlinkTargetTestCase, PathMatchTestCase, TargetRootRepresentationTestCase,
 };
 
@@ -116,21 +119,21 @@ fn given_ambiguous_target_field_concatenations_when_fingerprinting_then_identity
     let test_cases = [
         CacheIdentityFramingTestCase {
             description: "target and root boundary cannot collide",
-            first_analyzer: "python",
+            first_analyzer: AnalyzerId::Python,
             first_target: "ab",
             first_root: "c",
-            second_analyzer: "python",
+            second_analyzer: AnalyzerId::Python,
             second_target: "a",
             second_root: "bc",
             expected_equal: false,
         },
         CacheIdentityFramingTestCase {
-            description: "analyzer and target boundary cannot collide",
-            first_analyzer: "py",
-            first_target: "thon",
+            description: "analyzer contracts produce distinct identities",
+            first_analyzer: AnalyzerId::Python,
+            first_target: "web",
             first_root: "root",
-            second_analyzer: "pyt",
-            second_target: "hon",
+            second_analyzer: AnalyzerId::TypeScript,
+            second_target: "web",
             second_root: "root",
             expected_equal: false,
         },
@@ -138,14 +141,14 @@ fn given_ambiguous_target_field_concatenations_when_fingerprinting_then_identity
     let repository = tempfile::tempdir().expect("cache identity repository");
     for test_case in &test_cases {
         let first = Config {
-            analyzer: test_case.first_analyzer.to_owned(),
+            analyzer: test_case.first_analyzer,
             target: Some(test_case.first_target.to_owned()),
             target_root: test_case.first_root.to_owned(),
             raw: b"same config source".to_vec(),
             ..Config::default()
         };
         let second = Config {
-            analyzer: test_case.second_analyzer.to_owned(),
+            analyzer: test_case.second_analyzer,
             target: Some(test_case.second_target.to_owned()),
             target_root: test_case.second_root.to_owned(),
             raw: b"same config source".to_vec(),
@@ -170,6 +173,66 @@ fn given_ambiguous_target_field_concatenations_when_fingerprinting_then_identity
         assert_eq!(
             first_identity == second_identity,
             test_case.expected_equal,
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_analyzer_and_path_boundaries_when_mapping_then_cache_identity_is_framed() {
+    let test_cases = [MapCacheIdentityTestCase {
+        description: "mapping path and analyzer cache identities cannot collide",
+        expected_path_identity_equal: false,
+        expected_analyzer_identity_equal: false,
+    }];
+    let first = SourceSnapshot {
+        path: "ab".into(),
+        relative_path: "ab".to_owned(),
+        import_root_identity: "root".to_owned(),
+        module_name: "c".to_owned(),
+        source: Vec::new(),
+        source_fingerprint: "source".to_owned(),
+    };
+    let second = SourceSnapshot {
+        path: "a".into(),
+        relative_path: "a".to_owned(),
+        import_root_identity: "root".to_owned(),
+        module_name: "bc".to_owned(),
+        source: Vec::new(),
+        source_fingerprint: "source".to_owned(),
+    };
+
+    let first_generation = generation(AnalyzerId::Python, &[first]);
+    let second_generation = generation(AnalyzerId::Python, &[second]);
+    let other_analyzer = generation(
+        AnalyzerId::TypeScript,
+        &[SourceSnapshot {
+            path: "ab".into(),
+            relative_path: "ab".to_owned(),
+            import_root_identity: "root".to_owned(),
+            module_name: "c".to_owned(),
+            source: Vec::new(),
+            source_fingerprint: "source".to_owned(),
+        }],
+    );
+
+    for test_case in &test_cases {
+        assert_eq!(
+            first_generation.file_identities == second_generation.file_identities,
+            test_case.expected_path_identity_equal,
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            first_generation.file_identities == other_analyzer.file_identities,
+            test_case.expected_analyzer_identity_equal,
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            first_generation.project_identity == other_analyzer.project_identity,
+            test_case.expected_analyzer_identity_equal,
             "{}",
             test_case.description
         );

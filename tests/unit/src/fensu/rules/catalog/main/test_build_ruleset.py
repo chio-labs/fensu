@@ -13,6 +13,7 @@ import pytest
 from fensu.config.exceptions import ConfigError, ConfigValidationError
 from fensu.config.main.load_project_config import load_project_config
 from fensu.config.models import Config, RuleExceptionEntry, RuleIgnoreEntry
+from fensu.config.types import AnalyzerId
 from fensu.rules.authoring.main.define import rule
 from fensu.rules.authoring.models import RuleOption, RuleSpec
 from fensu.rules.authoring.types import Family, RuleKind
@@ -24,7 +25,9 @@ from fensu.rules.catalog.main.build_ruleset import build_ruleset
 from fensu.rules.catalog.models import RuleSelection
 from fensu.rules.dagster.constants import FPDG_RULES
 from tests.unit.src.fensu.rules.catalog.main._test_types import (
+    AnalyzerRuleSelectionTestCase,
     CatalogueQualityTestCase,
+    CustomRuleAnalyzerTestCase,
     CustomRuleLoadTestCase,
     DirectRuleSpecErrorTestCase,
     ModuleIsolationTestCase,
@@ -81,6 +84,117 @@ def test_given_dagster_pack_when_building_catalogue_then_registers_complete_stan
     assert pack_codes <= catalogue_codes
     assert all(rule.code.startswith("FPDG") for rule in FPDG_RULES)
     assert all(rule.code.startswith("FPDG") for rule in ruleset)
+    assert all(rule.analyzers == (AnalyzerId.PYTHON,) for rule in (*CORE_RULES, *FPDG_RULES))
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        AnalyzerRuleSelectionTestCase(
+            description="broad selector retains only TypeScript rules",
+            analyzer=AnalyzerId.TYPESCRIPT,
+            select=("FF",),
+            expected_codes=("FFT001",),
+            expected_error_fragment=None,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_mixed_analyzer_catalogue_when_selecting_broadly_then_only_applicable_rules_remain(
+    tmp_path: Path, test_case: AnalyzerRuleSelectionTestCase
+) -> None:
+    python_rule: RuleSpec = make_core_rule(code="FFA001", family=Family.ANNOTATIONS)
+    typescript_rule: RuleSpec = replace(
+        make_core_rule(code="FFT001", family=Family.TESTS),
+        analyzers=(test_case.analyzer,),
+    )
+    config: Config = Config(
+        roots=("src",),
+        select=test_case.select,
+        analyzer=test_case.analyzer,
+    )
+
+    selection: RuleSelection = loading_module.build_rule_selection_from_catalogue(
+        config=config,
+        catalogue=(python_rule, typescript_rule),
+        repo_root=tmp_path,
+    )
+
+    assert tuple(rule.code for rule in selection.catalogue) == test_case.expected_codes
+    assert tuple(rule.code for rule in selection.blocking) == test_case.expected_codes
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        AnalyzerRuleSelectionTestCase(
+            description="broad Python selector is incompatible with TypeScript",
+            analyzer=AnalyzerId.TYPESCRIPT,
+            select=("FFA",),
+            expected_codes=(),
+            expected_error_fragment="selector FFA.*not applicable to analyzer typescript",
+        ),
+        AnalyzerRuleSelectionTestCase(
+            description="exact Python rule is incompatible with Svelte",
+            analyzer=AnalyzerId.SVELTE,
+            select=("FFA001",),
+            expected_codes=(),
+            expected_error_fragment="FFA001.*not applicable to analyzer svelte",
+        ),
+        AnalyzerRuleSelectionTestCase(
+            description="exact incompatible alias fails closed",
+            analyzer=AnalyzerId.TYPESCRIPT,
+            select=("FFA001",),
+            expected_codes=(),
+            expected_error_fragment="FFA001.*not applicable to analyzer typescript",
+            alias_of="FFA002",
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_exact_incompatible_rule_when_selecting_then_error_names_analyzer(
+    test_case: AnalyzerRuleSelectionTestCase,
+) -> None:
+    python_rule: RuleSpec = replace(
+        make_core_rule(code="FFA001", family=Family.ANNOTATIONS),
+        alias_of=test_case.alias_of,
+    )
+    config: Config = Config(
+        roots=("src",),
+        select=test_case.select,
+        analyzer=test_case.analyzer,
+    )
+    expected_error: str | None = test_case.expected_error_fragment
+    assert expected_error is not None
+
+    with pytest.raises(ConfigError, match=expected_error):
+        loading_module.build_rule_selection_from_catalogue(
+            config=config,
+            catalogue=(python_rule,),
+        )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CustomRuleAnalyzerTestCase(
+            description="TypeScript custom rule fails closed",
+            analyzer=AnalyzerId.TYPESCRIPT,
+            expected_error_fragment="XTS001.*must use analyzer python",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_custom_rule_with_non_python_applicability_when_registering_then_fails_closed(
+    test_case: CustomRuleAnalyzerTestCase,
+) -> None:
+    custom_rule: RuleSpec = replace(
+        make_core_rule(code="XTS001", family=Family.CUSTOM),
+        analyzers=(test_case.analyzer,),
+    )
+
+    with pytest.raises(ConfigError, match=test_case.expected_error_fragment):
+        loading_module._with_custom_source(rules=(custom_rule,), source="rules/custom.py")
 
 
 @pytest.mark.parametrize(

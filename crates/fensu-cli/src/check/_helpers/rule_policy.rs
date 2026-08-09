@@ -36,6 +36,9 @@ pub(crate) fn selected_rules(
 ) -> Result<Vec<&'static RuleMetadata>, String> {
     let mut rules: Vec<&'static RuleMetadata> = Vec::new();
     for rule in configured_rule_catalogue(&config.rule_packs)? {
+        if !rule.analyzers.contains(&config.analyzer) {
+            continue;
+        }
         let selected = matches_selector(&rule.code, select);
         let explicit = select.iter().any(|selector| selector == &rule.code);
         let ignored = matches_selector(&rule.code, ignore);
@@ -48,8 +51,13 @@ pub(crate) fn selected_rules(
 }
 
 pub(crate) fn validate_config_tiers(config: &Config) -> Result<(), String> {
-    let catalogue = configured_rule_catalogue(&config.rule_packs)?;
-    validate_config_selectors(config, &catalogue)?;
+    let configured_catalogue = configured_rule_catalogue(&config.rule_packs)?;
+    let catalogue = configured_catalogue
+        .iter()
+        .copied()
+        .filter(|rule| rule.analyzers.contains(&config.analyzer))
+        .collect::<Vec<_>>();
+    validate_config_selectors(config, &catalogue, &configured_catalogue)?;
     let blocking = selected_rules(config, &config.select, &[])?;
     let warnings = selected_rules(config, &config.warn, &[])?;
     let warning_codes = warnings
@@ -67,6 +75,7 @@ pub(crate) fn validate_config_tiers(config: &Config) -> Result<(), String> {
     }
     let ignored_codes = configured_rule_catalogue(&config.rule_packs)?
         .into_iter()
+        .filter(|rule| rule.analyzers.contains(&config.analyzer))
         .filter(|rule| matches_selector(&rule.code, &config.ignore))
         .map(|rule| rule.code.as_str())
         .collect::<HashSet<_>>();

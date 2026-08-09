@@ -128,6 +128,7 @@ def _rule_spec_value(
         "kind": rule.kind.value,
         "pack": rule.pack,
         "alias_of": rule.alias_of,
+        "analyzers": [analyzer.value for analyzer in rule.analyzers],
         "message": rule.message,
         "options": _rule_option_schemas(rule.options),
         "remediation": rule.remediation,
@@ -304,6 +305,7 @@ def global_fingerprint(
     ruleset: CacheFingerprint,
     custom_rules: CacheFingerprint,
     native_backend_version: str,
+    analyzer_contract: str = "python-ruff-py312-v1",
     warnings_enabled: bool = False,
     fensu_version: str | None = None,
 ) -> CacheFingerprint:
@@ -311,6 +313,7 @@ def global_fingerprint(
 
     payload: CanonicalValue = {
         "config": config.value,
+        "analyzer_contract": analyzer_contract,
         "custom_rules": custom_rules.value,
         "evaluation_contract_version": EVALUATION_FINGERPRINT_CONTRACT_VERSION,
         "native_backend_version": native_backend_version,

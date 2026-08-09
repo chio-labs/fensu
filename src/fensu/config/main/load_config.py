@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 from pathlib import Path
 
+from fensu.analysis.main.require_analyzer_backend import require_analyzer_backend
 from fensu.config._helpers.discovery import locate_config
 from fensu.config._helpers.parse import parse_config_source
 from fensu.config._helpers.validate import select_config_target
@@ -28,6 +29,7 @@ def load_config(start: Path | None = None) -> Config:
         target=target_name,
         target_root=target_root,
     )
+    _ = require_analyzer_backend(config.analyzer)
     resolved_target: ResolvedTargetRoot = resolve_target_root(
         config=config, repo_root=source.path.parent
     )

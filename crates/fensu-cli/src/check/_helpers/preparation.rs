@@ -25,6 +25,9 @@ pub(crate) fn prepare_checks(options: &CheckOptions) -> Result<CheckPlans, Strin
         .canonicalize()
         .map_err(|error| error.to_string())?;
     let loaded = load_targets::load_targets(&invocation, options.target.as_deref())?;
+    for (_, config) in &loaded {
+        config.analyzer.require_backend()?;
+    }
     if loaded.len() > 1 && !options.paths.is_empty() {
         return Err(
             "Positional paths require exactly one selected target; use --target TARGET.".to_owned(),
@@ -78,11 +81,15 @@ pub(crate) fn prepare_checks(options: &CheckOptions) -> Result<CheckPlans, Strin
     } else {
         let mut combined: Vec<u8> = Vec::new();
         for plan in &plans {
-            combined
-                .extend_from_slice(plan.config.target.as_deref().unwrap_or_default().as_bytes());
-            combined.push(0);
-            combined.extend_from_slice(plan.identity.as_bytes());
-            combined.push(0);
+            for value in [
+                plan.config.analyzer.to_string(),
+                plan.config.target.clone().unwrap_or_default(),
+                plan.config.target_root.clone(),
+                plan.identity.clone(),
+            ] {
+                combined.extend_from_slice(&value.len().to_be_bytes());
+                combined.extend_from_slice(value.as_bytes());
+            }
         }
         hex_digest(&combined)
     };

@@ -13,7 +13,7 @@ from fensu.config.constants import (
     DEFAULT_TEST_SCOPES,
     DEFAULT_THRESHOLDS,
 )
-from fensu.config.types import ConfigSourceKind
+from fensu.config.types import AnalyzerId, ConfigSourceKind
 from fensu.rules.authoring.models import RuleSpec
 from fensu.rules.authoring.types import RuleOptionValue, Threshold
 
@@ -143,7 +143,7 @@ class Config:
     contracts: Mapping[str, str] = field(
         default_factory=lambda: MappingProxyType(dict(DEFAULT_CONTRACTS))
     )
-    analyzer: str = "python"
+    analyzer: AnalyzerId = AnalyzerId.PYTHON
     target: str | None = None
     target_root: str = "."
 

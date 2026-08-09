@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from dataclasses import replace
 from pathlib import Path
 
+from fensu.analysis.main.require_analyzer_backend import require_analyzer_backend
 from fensu.config._helpers.discovery import locate_config
 from fensu.config._helpers.parse import parse_config_source
 from fensu.config._helpers.validate import select_config_target, validate_config
@@ -38,6 +39,7 @@ def _load_project_config(*, start: Path | None, target: str | None) -> LoadedCon
         target=target_name,
         target_root=target_root,
     )
+    _ = require_analyzer_backend(bootstrap.analyzer)
     repository_root: Path = source.path.parent.resolve()
     resolved_target: ResolvedTargetRoot = resolve_target_root(
         config=bootstrap, repo_root=repository_root

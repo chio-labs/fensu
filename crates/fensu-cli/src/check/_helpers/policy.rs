@@ -244,16 +244,17 @@ pub(crate) fn check_identity(request: CheckIdentityRequest<'_>) -> String {
         warnings,
     } = request;
     let mut digest = Sha256::new();
-    digest.update(b"fensu-native-check-v3\0");
+    digest.update(b"fensu-native-check-v4\0");
     digest.update(env!("CARGO_PKG_VERSION").as_bytes());
     digest.update(&config.raw);
-    digest_text(&mut digest, &config.analyzer);
+    digest_text(&mut digest, &config.analyzer.to_string());
+    digest_text(&mut digest, config.analyzer.cache_contract());
     digest_text(&mut digest, config.target.as_deref().unwrap_or_default());
     digest_text(&mut digest, &config.target_root);
     digest.update([u8::from(warnings)]);
     for source in sources {
-        digest.update(source.repository_path.as_bytes());
-        digest.update(source.fingerprint.as_bytes());
+        digest_text(&mut digest, &source.repository_path);
+        digest_text(&mut digest, &source.fingerprint);
     }
     digest_project_observations(&mut digest, root, project_root, config);
     format!("{:x}", digest.finalize())

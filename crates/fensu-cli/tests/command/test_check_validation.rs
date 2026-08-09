@@ -25,6 +25,30 @@ fn given_invalid_native_policy_when_checking_then_configuration_fails_closed() {
             expected_error: "Config key ignore contains invalid selector wrong.",
         },
         InvalidCheckConfigTestCase {
+            description: "unmatched blocking selector is rejected",
+            config: "roots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFX\"]\n",
+            expected_exit_code: 2,
+            expected_error: "Config key select contains selector FFX, but it matches no rules in the configured catalogue.",
+        },
+        InvalidCheckConfigTestCase {
+            description: "unmatched warning selector is rejected",
+            config: "roots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = []\nwarn = [\"FFX\"]\n",
+            expected_exit_code: 2,
+            expected_error: "Config key warn contains selector FFX, but it matches no rules in the configured catalogue.",
+        },
+        InvalidCheckConfigTestCase {
+            description: "unmatched Dagster alias ignore is rejected",
+            config: "roots = [\"src/pkg\"]\ntests = []\ntooling = []\nrule_packs = [\"dagster\"]\nselect = [\"FPDG\"]\nignore = [\"FPDGL101\"]\n",
+            expected_exit_code: 2,
+            expected_error: "Config key ignore contains selector FPDGL101, but it matches no rules in the configured catalogue.",
+        },
+        InvalidCheckConfigTestCase {
+            description: "unmatched path-scoped ignore selector is rejected",
+            config: "roots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA001\"]\n\n[[rule_ignores]]\nrules = [\"FFX\"]\npaths = [\"src/pkg/**\"]\nreason = \"Generated source.\"\n",
+            expected_exit_code: 2,
+            expected_error: "Config key rule_ignores.rules contains selector FFX, but it matches no rules in the configured catalogue.",
+        },
+        InvalidCheckConfigTestCase {
             description: "blocking and warning tiers cannot overlap",
             config: "roots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA001\"]\nwarn = [\"FFA001\"]\n",
             expected_exit_code: 2,

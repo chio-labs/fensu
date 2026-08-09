@@ -65,6 +65,7 @@ def build_rule_selection_from_catalogue(
 ) -> RuleSelection:
     """Resolve blocking, warning, and ignored tiers from one discovered catalogue."""
 
+    _validate_config_selectors(config=config, rules=catalogue)
     ignored: tuple[RuleSpec, ...] = _matching_rules(rules=catalogue, selectors=config.ignore)
     selected: tuple[RuleSpec, ...] = _selected_rules(rules=catalogue, selectors=config.select)
     ignored_codes: frozenset[str] = frozenset(rule.code for rule in ignored)
@@ -427,6 +428,30 @@ def _matching_rules(
     *, rules: tuple[RuleSpec, ...], selectors: tuple[str, ...]
 ) -> tuple[RuleSpec, ...]:
     return tuple(rule for rule in rules if _rule_matches_select(rule=rule, select=selectors))
+
+
+def _validate_config_selectors(*, config: Config, rules: tuple[RuleSpec, ...]) -> None:
+    for name, selectors in (
+        ("select", config.select),
+        ("warn", config.warn),
+        ("ignore", config.ignore),
+    ):
+        _validate_selector_group(name=name, selectors=selectors, rules=rules)
+    for entry in config.rule_ignores:
+        _validate_selector_group(name="rule_ignores.rules", selectors=entry.rules, rules=rules)
+
+
+def _validate_selector_group(
+    *, name: str, selectors: tuple[str, ...], rules: tuple[RuleSpec, ...]
+) -> None:
+    for selector in selectors:
+        if any(matches_rule_selector(code=rule.code, selector=selector) for rule in rules):
+            continue
+        raise ConfigError(
+            f"Config key {name} contains selector {selector}, but it matches no rules in the "
+            "configured catalogue. Activate the required rule pack, or correct or remove the "
+            "selector."
+        )
 
 
 def _validate_tier_overlaps(

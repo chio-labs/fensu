@@ -4,6 +4,7 @@ use std::path::Path;
 use serde_json::json;
 
 use crate::catalogue::main::rule_catalogue::configured_rule_catalogue;
+use crate::catalogue::main::validate_config_selectors::validate_config_selectors;
 use crate::catalogue::models::RuleMetadata;
 use crate::configuration::constants::{
     CONTRACT_BEHAVIORS, DEFAULT_THRESHOLDS, RULE_CONFIGURATION_INPUTS,
@@ -47,7 +48,9 @@ pub(crate) fn selection(config: &Config, project_root: &Path) -> Result<RuleSele
     {
         return hosted_selection(project_root);
     }
-    let catalogue = configured_rule_catalogue(&config.rule_packs)?
+    let configured_catalogue = configured_rule_catalogue(&config.rule_packs)?;
+    validate_config_selectors(config, &configured_catalogue)?;
+    let catalogue = configured_catalogue
         .into_iter()
         .cloned()
         .collect::<Vec<_>>();

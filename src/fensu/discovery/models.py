@@ -71,3 +71,4 @@ class DiscoveredTree:
     files: tuple[ScopedFile, ...]
     repo_root: RepoRoot
     layout: ProjectLayout
+    project_root: RepoRoot | None = None

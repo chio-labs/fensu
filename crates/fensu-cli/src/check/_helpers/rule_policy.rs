@@ -109,7 +109,7 @@ pub(crate) fn resolved_thresholds(
                 continue;
             };
             for (pattern_order, pattern) in override_.paths.iter().enumerate() {
-                if !path_matches(&source.repository_path, pattern) {
+                if !path_matches(&source.target_path, pattern) {
                     continue;
                 }
                 let rank = (path_specificity(pattern), order, pattern_order);

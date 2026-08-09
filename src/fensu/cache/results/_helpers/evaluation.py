@@ -30,7 +30,7 @@ from fensu.rules.authoring.types import RuleKind
 if TYPE_CHECKING:
     from fensu.analysis.models import ProjectDependency
     from fensu.config.models import Config
-    from fensu.discovery.models import DiscoveredTree
+    from fensu.discovery.models import DiscoveredTree, RepoRoot
     from fensu.evaluation.models import (
         EvaluationResult,
         EvaluationSelection,
@@ -179,11 +179,13 @@ def run_cached_evaluation(
         dependencies.extend(evaluation.dependencies)
     from fensu.evaluation.main.collect_result import collect_file_evaluations
 
+    project_root: RepoRoot = tree.repo_root if tree.project_root is None else tree.project_root
     result: EvaluationResult = collect_file_evaluations(
         file_evaluations=evaluations,
         dependencies=tuple(dependencies),
         config=config,
         repo_root=tree.repo_root.path,
+        project_root=project_root.path,
         evaluated_rule_codes=frozenset(rule.code for rule in (*ruleset, *warning_rules)),
         selection=selection,
     )

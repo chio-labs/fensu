@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::configuration::_helpers::exceptions;
 use crate::configuration::_helpers::native_rules::{validate_rule_options, validate_rule_packs};
-use crate::configuration::_helpers::roots::validate_nested_roots;
+use crate::configuration::_helpers::roots::{normalize_target_root, validate_nested_roots};
 use crate::configuration::_helpers::scopes::validate_test_scopes;
 use crate::configuration::_helpers::selectors::valid_selector;
 use crate::configuration::constants::{CONFIG_ROLE_NAMES, CONTRACT_BEHAVIORS, DEFAULT_THRESHOLDS};
@@ -182,7 +182,7 @@ fn validated_targets(
         if analyzer != PYTHON_ANALYZER {
             return Err(format!("Unknown analyzer for target {name}: {analyzer}."));
         }
-        let root = match values.get("root") {
+        let root_value = match values.get("root") {
             None => DEFAULT_TARGET_ROOT,
             Some(value) => value
                 .as_str()
@@ -191,19 +191,12 @@ fn validated_targets(
                     format!("Config key targets.{name}.root must be a non-empty string.")
                 })?,
         };
-        if root != DEFAULT_TARGET_ROOT {
-            return Err(format!(
-                "Target {name} root '{root}' is not supported yet; only root = \".\" is supported."
-            ));
-        }
+        let root = normalize_target_root(name, root_value)?;
         let mut selected = values.clone();
         selected.remove("analyzer");
         selected.remove("root");
         validate(&selected)?;
-        validated.insert(
-            name.clone(),
-            (selected, analyzer.to_owned(), root.to_owned()),
-        );
+        validated.insert(name.clone(), (selected, analyzer.to_owned(), root));
     }
     Ok(validated)
 }

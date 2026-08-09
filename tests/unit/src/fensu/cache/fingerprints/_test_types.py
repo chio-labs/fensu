@@ -37,6 +37,8 @@ class TargetFingerprintTestCase:
     description: str
     first_target: str | None
     second_target: str | None
+    first_root: str
+    second_root: str
     expected_equal: bool
 
 

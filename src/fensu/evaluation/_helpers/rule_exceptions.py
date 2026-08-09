@@ -91,17 +91,20 @@ def suppress_faults(
                 exception
                 for exception in scope.exceptions
                 if exception.rule == fault.code
-                and (
-                    (owner is None and not exception.symbols)
-                    or (owner is not None and owner in exception.symbols)
-                )
+                and (not exception.symbols or (owner is not None and owner in exception.symbols))
             ),
             None,
         )
         if matching is None:
             retained.append(fault)
             continue
-        applied.add(RuleExceptionKey(rule=fault.code, path=scope.relative_path, symbol=owner))
+        applied.add(
+            RuleExceptionKey(
+                rule=fault.code,
+                path=scope.relative_path,
+                symbol=owner if matching.symbols else None,
+            )
+        )
     return retained, frozenset(applied)
 
 

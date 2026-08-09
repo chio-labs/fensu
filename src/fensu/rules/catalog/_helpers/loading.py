@@ -61,7 +61,11 @@ def build_rule_selection_from_config(
 
 
 def build_rule_selection_from_catalogue(
-    *, config: Config, catalogue: tuple[RuleSpec, ...], repo_root: Path | None = None
+    *,
+    config: Config,
+    catalogue: tuple[RuleSpec, ...],
+    repo_root: Path | None = None,
+    project_root: Path | None = None,
 ) -> RuleSelection:
     """Resolve blocking, warning, and ignored tiers from one discovered catalogue."""
 
@@ -86,6 +90,11 @@ def build_rule_selection_from_catalogue(
             rules=catalogue,
             config=config,
             repo_root=(Path.cwd() if repo_root is None else repo_root).resolve(),
+            project_root=(
+                (Path.cwd() if repo_root is None else repo_root).resolve()
+                if project_root is None
+                else project_root.resolve()
+            ),
         ),
     )
 
@@ -260,6 +269,8 @@ def _remove_repository_import_path(repository_path: str) -> None:
 
 
 def _displace_conflicting_modules(repo_root: Path) -> dict[str, ModuleType]:
+    if not repo_root.is_dir():
+        return {}
     package_names: frozenset[str] = frozenset(
         path.name for path in repo_root.iterdir() if (path / "__init__.py").is_file()
     )
@@ -326,7 +337,7 @@ def _repository_module_path(*, module: ModuleType, module_name: str, repo_root: 
 
 
 def _custom_registrations(
-    *, rules: tuple[RuleSpec, ...], config: Config, repo_root: Path
+    *, rules: tuple[RuleSpec, ...], config: Config, repo_root: Path, project_root: Path
 ) -> tuple[CustomRuleRegistration, ...]:
     registrations: list[CustomRuleRegistration] = []
     for rule in rules:
@@ -339,7 +350,7 @@ def _custom_registrations(
                 "FFR707 requires repository-owned rule sources for diagnostic and cache identity."
             )
         module_name: str = _configured_module_name(
-            rule=rule, source_path=source_path, config=config, repo_root=repo_root
+            rule=rule, source_path=source_path, config=config, repo_root=project_root
         )
         function_value: object = getattr(rule.check, "__name__", None)
         if not isinstance(function_value, str):

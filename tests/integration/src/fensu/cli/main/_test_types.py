@@ -111,6 +111,18 @@ class TargetCheckTestCase:
 
 
 @dataclass(frozen=True)
+class CanonicalAliasCheckTestCase:
+    """Internal target alias and canonical repository-visible diagnostics."""
+
+    description: str
+    expected_exit_code: int
+    expected_present: str
+    expected_alias_absent: str
+    expected_double_prefix_absent: str
+    expected_stderr: str
+
+
+@dataclass(frozen=True)
 class CustomRuleCoverageTestCase:
     """Configured custom rules and expected source-owned FFR707 diagnostics."""
 

@@ -1,3 +1,5 @@
+//! Native project-plane identities are target-relative; reporting prefixes the target exactly once.
+
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
@@ -34,7 +36,7 @@ pub(crate) fn project_plane(
             parts.pop();
         }
         modules.push(NativeProjectModule::new(
-            source.repository_path.clone(),
+            source.target_path.clone(),
             source.scope.clone(),
             parts,
             program(source).clone(),
@@ -60,7 +62,7 @@ pub(crate) fn project_plane(
             else {
                 continue;
             };
-            let repository_path = entry
+            let target_path = entry
                 .path()
                 .strip_prefix(root)
                 .map_err(|error| error.to_string())?
@@ -80,7 +82,7 @@ pub(crate) fn project_plane(
                 parts.pop();
             }
             modules.push(NativeProjectModule::new(
-                repository_path,
+                target_path,
                 scope.to_owned(),
                 parts,
                 program,

@@ -12,8 +12,9 @@ use crate::check::_helpers::policy::{
     check_identity, hex_digest, path_matches, validate_scope_roots,
 };
 use crate::check::_helpers::rule_policy::validate_config_tiers;
-use crate::check::models::CheckPlan;
+use crate::check::models::{CheckIdentityRequest, CheckPlan};
 use crate::configuration::main::load_target;
+use crate::configuration::main::resolve_target_root::resolve_target_root;
 use crate::configuration::main::validate_exception_targets::validate_exception_targets;
 use crate::constants::PYTHON_CACHE_DIRECTORY;
 use crate::models::{CheckOptions, Config, ScopedSource};
@@ -30,21 +31,29 @@ pub(crate) fn prepare_check(options: &CheckOptions) -> Result<CheckPlan, String>
         .ok_or_else(|| "Configuration has no parent directory.".to_owned())?
         .canonicalize()
         .map_err(|error| error.to_string())?;
+    let project_root = resolve_target_root(&root, &config.target_root)?;
     if !options.paths.is_empty() {
-        config.roots = configured_paths(options, &invocation, &root)?;
+        config.roots = configured_paths(options, &invocation, &project_root)?;
     }
     validate_config_tiers(&config)?;
     validate_exception_codes(&config)?;
-    validate_scope_roots(&root, &config)?;
-    validate_exception_targets(&config, &root)?;
-    let discovered = discover(&root, &config)?;
+    validate_scope_roots(&project_root, &config)?;
+    validate_exception_targets(&config, &project_root)?;
+    let discovered = discover(&root, &project_root, &config)?;
     let (sources, excluded) = select_sources(discovered, &config);
     let cache_enabled = options.cache_enabled.unwrap_or(config.cache_enabled);
     let color = use_color(&options.color);
-    let identity = check_identity(&root, &config, &sources, options.warn);
+    let identity = check_identity(CheckIdentityRequest {
+        root: &root,
+        project_root: &project_root,
+        config: &config,
+        sources: &sources,
+        warnings: options.warn,
+    });
     Ok(CheckPlan {
         invocation,
         root,
+        project_root,
         config,
         sources,
         excluded,
@@ -91,7 +100,11 @@ fn configured_paths(
     Ok(configured)
 }
 
-fn discover(root: &Path, config: &Config) -> Result<Vec<ScopedSource>, String> {
+fn discover(
+    root: &Path,
+    project_root: &Path,
+    config: &Config,
+) -> Result<Vec<ScopedSource>, String> {
     let mut sources: Vec<ScopedSource> = Vec::new();
     for (scope, configured_root) in config
         .roots
@@ -100,7 +113,7 @@ fn discover(root: &Path, config: &Config) -> Result<Vec<ScopedSource>, String> {
         .chain(config.tests.iter().map(|path| ("test", path)))
         .chain(config.tooling.iter().map(|path| ("tooling", path)))
     {
-        let source_root = root.join(configured_root);
+        let source_root = project_root.join(configured_root);
         if !source_root.exists() {
             continue;
         }
@@ -121,6 +134,11 @@ fn discover(root: &Path, config: &Config) -> Result<Vec<ScopedSource>, String> {
                 .map_err(|error| error.to_string())?
                 .to_string_lossy()
                 .replace('\\', "/");
+            let target_path = path
+                .strip_prefix(project_root)
+                .map_err(|error| error.to_string())?
+                .to_string_lossy()
+                .replace('\\', "/");
             let relative_parts: Vec<String> = path
                 .strip_prefix(&source_root)
                 .map_err(|error| error.to_string())?
@@ -130,6 +148,7 @@ fn discover(root: &Path, config: &Config) -> Result<Vec<ScopedSource>, String> {
             sources.push(ScopedSource {
                 path,
                 repository_path,
+                target_path,
                 root: source_root.clone(),
                 root_text: configured_root.clone(),
                 scope: scope.to_owned(),
@@ -163,11 +182,11 @@ fn select_sources(sources: Vec<ScopedSource>, config: &Config) -> (Vec<ScopedSou
             || config
                 .evaluation_include
                 .iter()
-                .any(|pattern| path_matches(&source.repository_path, pattern));
+                .any(|pattern| path_matches(&source.target_path, pattern));
         let excluded = config
             .evaluation_exclude
             .iter()
-            .any(|pattern| path_matches(&source.repository_path, pattern));
+            .any(|pattern| path_matches(&source.target_path, pattern));
         if included && !excluded {
             selected.push(source);
         }

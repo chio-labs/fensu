@@ -26,6 +26,7 @@ def build_global_fingerprint(
     config: Config,
     ruleset: tuple[RuleSpec, ...],
     repo_root: Path,
+    custom_rule_root: Path | None = None,
     warnings_enabled: bool = False,
 ) -> GlobalFingerprintBuild:
     """Return a complete installed/editable identity or the reason it is unavailable."""
@@ -65,7 +66,7 @@ def build_global_fingerprint(
             )
         custom_rules: CacheFingerprint | None = custom_rules_fingerprint(
             config=config,
-            repo_root=repo_root,
+            repo_root=repo_root if custom_rule_root is None else custom_rule_root,
         )
         if custom_rules is None:
             return GlobalFingerprintBuild(

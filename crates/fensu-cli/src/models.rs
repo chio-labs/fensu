@@ -105,6 +105,7 @@ pub(crate) struct RuleIgnore {
 pub(crate) struct ScopedSource {
     pub(crate) path: PathBuf,
     pub(crate) repository_path: String,
+    pub(crate) target_path: String,
     pub(crate) root: PathBuf,
     pub(crate) root_text: String,
     pub(crate) scope: String,

@@ -39,6 +39,7 @@ pub(crate) fn render_check(
     parse_sources(&mut plan.sources)?;
     let (output, exit_code) = evaluate_and_render(EvaluationRequest {
         root: &plan.root,
+        project_root: &plan.project_root,
         config: &plan.config,
         sources: &plan.sources,
         excluded: plan.excluded,

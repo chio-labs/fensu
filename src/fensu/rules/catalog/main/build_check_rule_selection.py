@@ -19,6 +19,7 @@ def build_check_rule_selection(
     config: Config,
     repo_root: Path,
     include_warnings: bool,
+    project_root: Path | None = None,
     catalogue: tuple[RuleSpec, ...] | None = None,
 ) -> RuleSelection:
     """Resolve tiers and validate cacheability only for rules this check evaluates."""
@@ -30,6 +31,7 @@ def build_check_rule_selection(
             config=config,
             catalogue=catalogue,
             repo_root=repo_root,
+            project_root=project_root,
         )
     )
     evaluated_warning_rules: tuple[RuleSpec, ...] = selection.warnings if include_warnings else ()

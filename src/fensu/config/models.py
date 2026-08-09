@@ -36,6 +36,14 @@ class LoadedConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class ResolvedTargetRoot:
+    """Canonical target path and its canonical repository-relative identity."""
+
+    path: Path
+    repository_relative: str
+
+
+@dataclass(frozen=True, slots=True)
 class RuleExceptionEntry:
     """One centralized exact rule/path exception with optional qualified symbols."""
 

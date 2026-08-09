@@ -111,20 +111,22 @@ fn given_selected_target_when_check_succeeds_then_cleanup_uses_selected_roots() 
     let test_cases = [TargetCleanupTestCase {
         description: "successful multi-target check cleans only the selected target roots",
         expected_exit_code: 0,
-        expected_removed_path: "src/selected/empty",
+        expected_removed_path: "frontend/src/selected/empty",
         expected_preserved_path: "src/unselected/empty",
     }];
     for test_case in &test_cases {
         let repository = tempfile::tempdir().expect("temporary repository");
         write(
             repository.path().join("fensu.toml"),
-            "[targets.selected]\nanalyzer = \"python\"\nroots = [\"src/selected\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n[targets.unselected]\nanalyzer = \"python\"\nroots = [\"src/unselected\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n",
+            "[targets.selected]\nanalyzer = \"python\"\nroot = \"frontend\"\nroots = [\"src/selected\"]\ntests = [\"tests\"]\ntooling = [\"scripts\"]\nselect = [\"FFA101\"]\n[targets.unselected]\nanalyzer = \"python\"\nroots = [\"src/unselected\"]\ntests = []\ntooling = []\nselect = [\"FFA101\"]\n",
         );
         write(
-            repository.path().join("src/selected/module.py"),
+            repository.path().join("frontend/src/selected/module.py"),
             "VALUE: int = 1\n",
         );
         create_directory(repository.path().join(test_case.expected_removed_path));
+        create_directory(repository.path().join("frontend/tests/empty"));
+        create_directory(repository.path().join("frontend/scripts/empty"));
         create_directory(repository.path().join(test_case.expected_preserved_path));
 
         let output = run_check_with(repository.path(), &["--target", "selected"]);
@@ -152,6 +154,8 @@ fn given_selected_target_when_check_succeeds_then_cleanup_uses_selected_roots() 
             "{}",
             test_case.description
         );
+        assert!(!repository.path().join("frontend/tests/empty").exists());
+        assert!(!repository.path().join("frontend/scripts/empty").exists());
     }
 }
 

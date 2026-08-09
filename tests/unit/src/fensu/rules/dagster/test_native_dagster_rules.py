@@ -37,11 +37,32 @@ RULES_BY_CODE: dict[str, RuleSpec] = {rule.code: rule for rule in FPDG_RULES}
             expected_fault_count=1,
         ),
         NativeDagsterRuleTestCase(
+            description="multiline asset decorator identifies the sole public callback",
+            code="FPDG002",
+            source="import dagster as dg\n\n@dg.asset(\n    group_name='example',\n)\ndef example(context):\n    return None\n",
+            path="pkg/defs/assets/example/assets.py",
+            expected_fault_count=0,
+        ),
+        NativeDagsterRuleTestCase(
+            description="local asset factory with generated assets passes",
+            code="FPDG002",
+            source="import dagster as dg\n\ndef create_assets() -> list[dg.AssetsDefinition]:\n    @dg.asset(\n        group_name='example',\n    )\n    def example(context):\n        return None\n    return [example]\n\nassets: list[dg.AssetsDefinition] = create_assets()\n",
+            path="pkg/defs/assets/example/assets.py",
+            expected_fault_count=0,
+        ),
+        NativeDagsterRuleTestCase(
             description="asset callback without direct main delegation faults",
             code="FPDG003",
             source="import dagster as dg\n\n@dg.asset\ndef example(context):\n    return None\n",
             path="pkg/defs/assets/example/assets.py",
             expected_fault_count=2,
+        ),
+        NativeDagsterRuleTestCase(
+            description="multiline asset callback delegates directly to sibling main",
+            code="FPDG003",
+            source="import dagster as dg\nfrom pkg.defs.assets.example.main import main\n\n@dg.asset(\n    group_name='example',\n)\ndef example(\n    context,\n):\n    return main(\n        context=context,\n    )\n",
+            path="pkg/defs/assets/example/assets.py",
+            expected_fault_count=0,
         ),
         NativeDagsterRuleTestCase(
             description="asset main with broad return contract faults",
@@ -64,6 +85,13 @@ RULES_BY_CODE: dict[str, RuleSpec] = {rule.code: rule for rule in FPDG_RULES}
             expected_fault_count=1,
         ),
         NativeDagsterRuleTestCase(
+            description="asset callback with context as its only parameter passes",
+            code="FPDG005",
+            source="import dagster as dg\n\n@dg.asset\ndef example(\n    context: dg.AssetExecutionContext,\n) -> dg.MaterializeResult:\n    return dg.MaterializeResult()\n",
+            path="pkg/defs/assets/example/assets.py",
+            expected_fault_count=0,
+        ),
+        NativeDagsterRuleTestCase(
             description="cross asset implementation import faults",
             code="FPDG006",
             source="from pkg.defs.assets.other.main import run\n",
@@ -77,11 +105,45 @@ RULES_BY_CODE: dict[str, RuleSpec] = {rule.code: rule for rule in FPDG_RULES}
             ),
         ),
         NativeDagsterRuleTestCase(
+            description="ancestor asset owner support import passes",
+            code="FPDG006",
+            source="from pkg.defs.assets.archive.exceptions import ArchiveError\n",
+            path="pkg/defs/assets/archive/provider/example/main.py",
+            expected_fault_count=0,
+            files=(
+                RuleFile(
+                    path="pkg/defs/assets/archive/provider/example/assets.py",
+                    source="assets: tuple[object, ...] = ()\n",
+                ),
+            ),
+        ),
+        NativeDagsterRuleTestCase(
             description="public undecorated job helper faults",
             code="FPDG007",
             source="def helper() -> None:\n    return None\n",
             path="pkg/defs/jobs/racing/example.py",
             expected_fault_count=1,
+        ),
+        NativeDagsterRuleTestCase(
+            description="typed unresolved asset job definition passes",
+            code="FPDG007",
+            source="from dagster import define_asset_job\nfrom dagster._core.definitions.unresolved_asset_job_definition import UnresolvedAssetJobDefinition\n\nexample_job: UnresolvedAssetJobDefinition = define_asset_job(\n    name='example',\n)\n",
+            path="pkg/defs/jobs/racing/example.py",
+            expected_fault_count=0,
+        ),
+        NativeDagsterRuleTestCase(
+            description="multiline sensor decorator identifies public definition",
+            code="FPDG007",
+            source="import dagster as dg\n\n@dg.run_status_sensor(\n    run_status=dg.DagsterRunStatus.FAILURE,\n)\ndef failure_sensor(context):\n    return None\n",
+            path="pkg/defs/sensors/alerting/failures.py",
+            expected_fault_count=0,
+        ),
+        NativeDagsterRuleTestCase(
+            description="private automation helper passes",
+            code="FPDG007",
+            source="import dagster as dg\n\ndef _load_job() -> dg.JobDefinition:\n    return dg.define_asset_job(name='example')\n\n@dg.definitions\ndef example() -> dg.Definitions:\n    return dg.Definitions(jobs=[_load_job()])\n",
+            path="pkg/defs/jobs/racing/example.py",
+            expected_fault_count=0,
         ),
         NativeDagsterRuleTestCase(
             description="generic job main module faults",
@@ -103,6 +165,13 @@ RULES_BY_CODE: dict[str, RuleSpec] = {rule.code: rule for rule in FPDG_RULES}
             source="def build() -> None:\n    return None\n",
             path="pkg/defs/resources/database/main.py",
             expected_fault_count=1,
+        ),
+        NativeDagsterRuleTestCase(
+            description="resource role root initializer passes",
+            code="FPDG010",
+            source="",
+            path="pkg/defs/resources/__init__.py",
+            expected_fault_count=0,
         ),
         NativeDagsterRuleTestCase(
             description="cast definitions provider faults",
@@ -187,6 +256,14 @@ RULES_BY_CODE: dict[str, RuleSpec] = {rule.code: rule for rule in FPDG_RULES}
             expected_fault_count=1,
         ),
         NativeDagsterRuleTestCase(
+            description="mirrored source root utils package passes in tests",
+            code="FPDG020",
+            source="def test_example() -> None:\n    return None\n",
+            path="tests/unit/pkg/utils/example/test_value.py",
+            expected_fault_count=0,
+            scope="test",
+        ),
+        NativeDagsterRuleTestCase(
             description="unsupported test-root scope faults",
             code="FPDG021",
             source="",
@@ -251,6 +328,7 @@ def test_given_dagster_policy_example_when_evaluating_native_rule_then_returns_e
             path=test_case.path,
             files=test_case.files,
             expected_fault_count=test_case.expected_fault_count,
+            scope=test_case.scope,
         ),
         rule_options=test_case.rule_options,
     )

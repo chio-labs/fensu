@@ -297,11 +297,13 @@ pub(super) fn runtime_package_owner(
     let mut parts =
         context.relative_parts[..context.relative_parts.len().saturating_sub(1)].to_vec();
     if context.scope == TEST_SCOPE && !parts.is_empty() {
-        let _ = parts.remove(0);
         if parts
             .first()
-            .is_some_and(|part| part == &context.package_name)
+            .is_some_and(|part| context.test_scopes.contains(part))
         {
+            let _ = parts.remove(0);
+        }
+        if !parts.is_empty() {
             let _ = parts.remove(0);
         }
     }

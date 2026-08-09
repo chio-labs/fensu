@@ -36,16 +36,21 @@ pub(super) fn definition_public_surface(
     if private_definition_support(context) {
         return Vec::new();
     }
-    let allowed_decorators: &[&str] = match role {
-        "jobs" => &["job", "definitions"],
-        "schedules" => &["schedule", "definitions"],
-        _ => &["sensor", "definitions"],
+    let (allowed_decorators, allowed_annotations): (&[&str], &[&str]) = match role {
+        "jobs" => (
+            &["job", "definitions"],
+            &["JobDefinition", "UnresolvedAssetJobDefinition"],
+        ),
+        "schedules" => (&["schedule", "definitions"], &["ScheduleDefinition"]),
+        _ => (&["sensor", "definitions"], &["SensorDefinition"]),
     };
     program
         .declaration_rows()
         .statements
         .iter()
-        .filter(|row| invalid_public_surface_statement(program, row, allowed_decorators))
+        .filter(|row| {
+            invalid_public_surface_statement(program, row, allowed_decorators, allowed_annotations)
+        })
         .map(|row| fault(code, row.line, row.column))
         .collect()
 }
@@ -149,6 +154,9 @@ pub(super) fn operational_resource_layout(
         return Vec::new();
     }
     if file_name(context) == INIT_FILE {
+        if parts.len() == 1 {
+            return Vec::new();
+        }
         let valid = parts.len() == ROLE_MODULE_PARTS
             || (parts.len() == SUPPORT_MODULE_PARTS
                 && matches!(
@@ -314,6 +322,7 @@ fn invalid_public_surface_statement(
     program: &ProgramHandle,
     row: &fensu_facts::facts::models::ModuleStatementRow,
     allowed_decorators: &[&str],
+    allowed_annotations: &[&str],
 ) -> bool {
     if row.import_statement || row.docstring_statement {
         return false;
@@ -326,7 +335,14 @@ fn invalid_public_surface_statement(
     {
         return false;
     }
-    if row.function_name.is_some() {
+    if row.assignment_statement {
+        return !assignment_annotation(program, row.line)
+            .is_some_and(|annotation| allowed_annotations.contains(&annotation.as_str()));
+    }
+    if let Some(function_name) = &row.function_name {
+        if function_name.starts_with('_') {
+            return false;
+        }
         let sensor_definition = decorators(program, row.line)
             .iter()
             .any(|name| name.ends_with(SENSOR_DECORATOR_SUFFIX));
@@ -334,7 +350,24 @@ fn invalid_public_surface_statement(
     }
     row.class_name
         .as_ref()
-        .is_none_or(|name| !name.starts_with('_'))
+        .is_some_and(|name| !name.starts_with('_'))
+}
+
+fn assignment_annotation(program: &ProgramHandle, line: u32) -> Option<String> {
+    let source = program
+        .source()
+        .lines()
+        .nth(usize::try_from(line.saturating_sub(1)).unwrap_or_default())?;
+    let declaration = source.split_once('=').map_or(source, |item| item.0);
+    let (_, annotation) = declaration.split_once(':')?;
+    Some(
+        annotation
+            .trim()
+            .rsplit('.')
+            .next()
+            .unwrap_or("")
+            .to_owned(),
+    )
 }
 
 fn invalid_constant_statement(row: &fensu_facts::facts::models::ModuleStatementRow) -> bool {

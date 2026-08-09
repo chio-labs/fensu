@@ -5,6 +5,12 @@ pub(crate) struct SkillsCommandTestCase {
     pub(crate) expected_exit_code: i32,
 }
 
+pub(crate) struct InvalidSkillsConfigTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_exit_code: i32,
+    pub(crate) expected_error: &'static str,
+}
+
 pub(crate) struct FreshnessTestCase {
     pub(crate) description: &'static str,
     pub(crate) expected_state: &'static str,

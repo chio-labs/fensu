@@ -31,8 +31,6 @@ pub(crate) fn validate(table: &toml::map::Map<String, toml::Value>) -> Result<()
             "rule_ignores",
             "threshold_overrides",
             "cache",
-            "experimental",
-            "memory",
             "evaluation",
             "skills",
         ],
@@ -64,7 +62,6 @@ pub(crate) fn validate(table: &toml::map::Map<String, toml::Value>) -> Result<()
     validate_rule_packs(table.get("rule_packs"))?;
     validate_nested_roots(required_strings(table.get("roots"), "roots")?)?;
     validate_boolean_table(table, "cache", &["enabled", "require_cacheable"])?;
-    validate_boolean_table(table, "experimental", &["memory"])?;
     validate_threshold_table(table.get("thresholds"), "thresholds", false)?;
     validate_roles(table.get("roles"))?;
     validate_contracts(table.get("contracts"))?;

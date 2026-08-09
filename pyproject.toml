@@ -36,7 +36,7 @@ Repository = "https://github.com/chio-labs/fensu"
 manifest-path = "crates/fensu-native/Cargo.toml"
 module-name = "fensu._native"
 python-source = "src"
-features = ["extension-module", "memory"]
+features = ["extension-module"]
 
 [dependency-groups]
 dev = [
@@ -54,8 +54,6 @@ cache-keys = [
   { file = "Cargo.toml" },
   { file = "crates/fensu-facts/Cargo.toml" },
   { file = "crates/fensu-facts/src/**/*.rs" },
-  { file = "crates/fensu-memory/Cargo.toml" },
-  { file = "crates/fensu-memory/src/**/*.rs" },
   { file = "crates/fensu-native/Cargo.toml" },
   { file = "crates/fensu-native/src/**/*.rs" },
   { file = "src/fensu/_native.pyi" },

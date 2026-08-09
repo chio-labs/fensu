@@ -60,10 +60,6 @@ pub(crate) const DEFAULT_CACHE_ENABLED: bool = true;
 
 pub(crate) const DEFAULT_CACHE_REQUIRE_CACHEABLE: bool = false;
 
-pub(crate) const DEFAULT_EXPERIMENTAL_MEMORY: bool = false;
-
-pub(crate) const DEFAULT_MEMORY_ARCHIVE_DAYS: u64 = 7;
-
 pub(crate) const SKILLS_METADATA_PROTOCOL_VERSION: u32 = 3;
 
 #[rustfmt::skip]

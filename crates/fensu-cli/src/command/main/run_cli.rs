@@ -3,7 +3,7 @@ use std::path::Path;
 
 use crate::check::main::clean_caches::clean_caches;
 use crate::check::main::prepare_cleanup::prepare_cleanup;
-use crate::command::main::{check, help, init, map, memory, rule, skills};
+use crate::command::main::{check, help, init, map, rule, skills};
 use crate::configuration::main::custom_rules;
 use crate::hosting::main::run_custom_check_host::run_custom_check_host;
 use crate::models::CliOutput;
@@ -16,7 +16,7 @@ pub(super) fn run_cli() -> CliOutput {
 fn dispatch(arguments: &[String]) -> Result<CliOutput, String> {
     let Some(command) = arguments.first().map(String::as_str) else {
         return Ok(CliOutput::error(
-            "Usage: fensu {check,init,rule,skills,map,memory} ...".to_owned(),
+            "Usage: fensu {check,init,rule,skills,map} ...".to_owned(),
         ));
     };
     match command {
@@ -28,13 +28,12 @@ fn dispatch(arguments: &[String]) -> Result<CliOutput, String> {
         "check" => dispatch_check(&arguments[1..]),
         "init" => init::init(&arguments[1..]),
         "map" => map::run(&arguments[1..]),
-        "memory" => memory::run(&arguments[1..]),
         "rule" => rule::rule(&arguments[1..]),
         "skills" => skills::run(&arguments[1..]),
         _ => Ok(CliOutput {
             stdout: String::new(),
             stderr: format!(
-                "Unknown command: {command}\nUsage: fensu {{check,init,rule,skills,map,memory}} ...\n"
+                "Unknown command: {command}\nUsage: fensu {{check,init,rule,skills,map}} ...\n"
             ),
             exit_code: 2,
         }),

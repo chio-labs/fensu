@@ -269,8 +269,6 @@ fn config_value(config: &Config) -> Value {
         })).collect::<Vec<_>>(),
         "cache": {"enabled": config.cache_enabled, "require_cacheable": config.cache_require_cacheable},
         "evaluation": {"include": config.evaluation_include, "exclude": config.evaluation_exclude},
-        "experimental": {"memory": config.memory_enabled},
-        "memory": {"tasks": {"archive_after_days": config.memory_archive_after_days}},
         "skills": {"name": config.skills_name},
         "thresholds": thresholds,
         "role_thresholds": role_thresholds,

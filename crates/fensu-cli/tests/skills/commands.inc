@@ -814,7 +814,7 @@ fn given_global_legacy_init_and_core_flows_when_running_then_they_remain_native(
         assert_eq!(installed.status.code(), Some(0));
         write(
             check_project.path().join("fensu.toml"),
-            CONFIG.replace("memory = true", "memory = false"),
+            CONFIG.replace("select = [\"FF\"]", "select = [\"FFA101\"]"),
         );
         let check = Command::new(env!("CARGO_BIN_EXE_fensu"))
             .args(["check", "--no-cache", "--no-color"])

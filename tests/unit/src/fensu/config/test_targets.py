@@ -7,12 +7,19 @@ from pathlib import Path
 
 import pytest
 
+from fensu.analysis.main.analyzer_capability import analyzer_capability
+from fensu.analysis.main.require_analyzer_backend import require_analyzer_backend
+from fensu.analysis.models import AnalyzerCapability
 from fensu.cache.fingerprints._helpers.fingerprints import config_fingerprint
 from fensu.cache.fingerprints.models import CacheFingerprint
+from fensu.config._helpers.validate import select_config_target
 from fensu.config.exceptions import ConfigError
 from fensu.config.main.load_target_project_config import load_target_project_config
 from fensu.config.models import Config
+from fensu.config.types import AnalyzerId
 from tests.unit.src.fensu.config._test_types import (
+    AnalyzerCapabilityTestCase,
+    AnalyzerIdentityTestCase,
     CanonicalTargetRootTestCase,
     InvalidTargetConfigTestCase,
     TargetConfigTestCase,
@@ -185,9 +192,9 @@ def test_given_explicit_targets_when_loading_then_selects_flat_python_config(
         ),
         InvalidTargetConfigTestCase(
             description="unknown analyzers fail closed",
-            config_text=('[targets.web]\nanalyzer = "svelte"\nroots = ["src/web"]\n'),
+            config_text=('[targets.web]\nanalyzer = "ruby"\nroots = ["src/web"]\n'),
             target=None,
-            expected_error_fragment="Unknown analyzer for target web: svelte",
+            expected_error_fragment="Unknown analyzer for target web: ruby",
         ),
         InvalidTargetConfigTestCase(
             description="target roots cannot traverse above the repository",
@@ -274,3 +281,88 @@ def test_given_invalid_explicit_targets_when_loading_then_fails_closed(
         load_target_project_config(start=tmp_path, target=test_case.target)
 
     assert test_case.expected_error_fragment in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        AnalyzerIdentityTestCase(
+            description="Python analyzer identity round trips",
+            value="python",
+            expected_analyzer=AnalyzerId.PYTHON,
+            expected_error_fragment=None,
+        ),
+        AnalyzerIdentityTestCase(
+            description="TypeScript analyzer identity round trips",
+            value="typescript",
+            expected_analyzer=AnalyzerId.TYPESCRIPT,
+            expected_error_fragment=None,
+        ),
+        AnalyzerIdentityTestCase(
+            description="Svelte analyzer identity round trips",
+            value="svelte",
+            expected_analyzer=AnalyzerId.SVELTE,
+            expected_error_fragment=None,
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_exact_analyzer_spelling_when_parsing_then_typed_identity_round_trips(
+    test_case: AnalyzerIdentityTestCase,
+) -> None:
+    _, _, parsed, _ = select_config_target(
+        raw={"targets": {"app": {"analyzer": test_case.value, "roots": ["src"]}}},
+        target="app",
+    )
+
+    assert parsed is test_case.expected_analyzer
+    assert str(parsed) == test_case.value
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        AnalyzerIdentityTestCase(
+            description=f"noncanonical analyzer {value} is unknown",
+            value=value,
+            expected_analyzer=None,
+            expected_error_fragment=f"Unknown analyzer for target app: {value}",
+        )
+        for value in ("Python", "TypeScript", "SVELTE", "ruby")
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_noncanonical_analyzer_spelling_when_parsing_then_identity_is_unknown(
+    test_case: AnalyzerIdentityTestCase,
+) -> None:
+    expected_error: str | None = test_case.expected_error_fragment
+    assert expected_error is not None
+    with pytest.raises(ConfigError, match=expected_error):
+        select_config_target(
+            raw={"targets": {"app": {"analyzer": test_case.value, "roots": ["src"]}}},
+            target="app",
+        )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        AnalyzerCapabilityTestCase(
+            description=f"known {analyzer.value} backend is unavailable",
+            analyzer=analyzer,
+            expected_available=False,
+            expected_error_fragment=f"Known analyzer backend unavailable: {analyzer.value}",
+        )
+        for analyzer in (AnalyzerId.TYPESCRIPT, AnalyzerId.SVELTE)
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_known_unavailable_analyzer_when_resolving_backend_then_fails_distinctly(
+    test_case: AnalyzerCapabilityTestCase,
+) -> None:
+    capability: AnalyzerCapability = analyzer_capability(test_case.analyzer)
+
+    assert capability.available is test_case.expected_available
+    assert capability.cache_contract
+    with pytest.raises(ConfigError, match=test_case.expected_error_fragment):
+        require_analyzer_backend(test_case.analyzer)

@@ -2,6 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::analyzer::AnalyzerId;
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct RuleMetadata {
@@ -12,6 +14,7 @@ pub(crate) struct RuleMetadata {
     pub(crate) remediation: Option<String>,
     pub(crate) severity: String,
     pub(crate) enabled_by_default: bool,
+    pub(crate) analyzers: Vec<AnalyzerId>,
     pub(crate) execution_owner: String,
     pub(crate) kind: String,
     #[serde(default)]
@@ -34,6 +37,12 @@ pub(crate) struct RuleMetadata {
     pub(crate) configuration_inputs: Vec<String>,
     #[serde(default)]
     pub(crate) limits: Vec<RuleLimitMetadata>,
+}
+
+#[derive(Debug)]
+pub(crate) struct SelectorCatalogues<'a> {
+    pub(crate) applicable: &'a [&'a RuleMetadata],
+    pub(crate) configured: &'a [&'a RuleMetadata],
 }
 
 #[derive(Clone, Debug, Deserialize)]

@@ -2,9 +2,118 @@ use std::fs;
 
 use crate::helpers::{
     ambiguous_protocol_project, basic_project, method_project, run, run_colored,
-    sibling_method_project, text, write, write_bytes,
+    sibling_method_project, text, write, write_bytes, write_optional_config,
 };
-use crate::test_types::{ConfigTargetMappingTestCase, ConfiguredPackageMappingTestCase};
+use crate::test_types::{
+    ConfigTargetMappingTestCase, ConfiguredPackageMappingTestCase,
+    ExplicitRootConfigMappingTestCase,
+};
+
+#[test]
+fn given_explicit_root_and_optional_config_when_mapping_then_invalid_config_never_falls_back() {
+    let test_cases = [
+        ExplicitRootConfigMappingTestCase {
+            description: "explicit root without config infers Python",
+            config: None,
+            expected_exit_code: 0,
+            expected_stdout: "src/pkg/module.py:1",
+            expected_stderr: "",
+        },
+        ExplicitRootConfigMappingTestCase {
+            description: "explicit root rejects malformed config",
+            config: Some("roots = \"src/pkg\"\n"),
+            expected_exit_code: 2,
+            expected_stdout: "",
+            expected_stderr: "Config key roots must be a list of strings",
+        },
+        ExplicitRootConfigMappingTestCase {
+            description: "explicit root rejects unknown analyzer",
+            config: Some(
+                "[targets.web]\nanalyzer = \"ruby\"\nroots = [\"ignored\"]\n",
+            ),
+            expected_exit_code: 2,
+            expected_stdout: "",
+            expected_stderr: "Unknown analyzer for target web: ruby",
+        },
+        ExplicitRootConfigMappingTestCase {
+            description: "explicit root rejects known unavailable analyzer",
+            config: Some(
+                "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"ignored\"]\n",
+            ),
+            expected_exit_code: 2,
+            expected_stdout: "",
+            expected_stderr: "Known analyzer backend unavailable: typescript",
+        },
+    ];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("explicit-root mapping repository");
+        write(
+            repository.path().join("src/pkg/module.py"),
+            "def run() -> None:\n    pass\n",
+        );
+        write_optional_config(repository.path(), test_case.config);
+
+        let output = run(
+            repository.path(),
+            &["run", "--root", "src/pkg", "--no-cache"],
+        );
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {}",
+            test_case.description,
+            text(&output.stderr)
+        );
+        assert!(
+            text(&output.stdout).contains(test_case.expected_stdout),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            text(&output.stderr).contains(test_case.expected_stderr),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_known_unavailable_analyzer_when_mapping_then_backend_error_precedes_discovery() {
+    let test_cases = [ConfigTargetMappingTestCase {
+        description: "Svelte mapping fails at the backend boundary",
+        arguments: &["run", "--target", "web", "--no-cache"],
+        expected_exit_code: 2,
+        expected_stdout: "",
+        expected_stderr: "Known analyzer backend unavailable: svelte",
+    }];
+    let repository = tempfile::tempdir().expect("temporary repository");
+    write(
+        repository.path().join("fensu.toml"),
+        "[targets.web]\nanalyzer = \"svelte\"\nroots = [\"missing\"]\n",
+    );
+
+    for test_case in &test_cases {
+        let output = run(repository.path(), test_case.arguments);
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout),
+            test_case.expected_stdout,
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains(test_case.expected_stderr),
+            "{}",
+            test_case.description
+        );
+    }
+}
 
 #[test]
 fn given_multiple_targets_when_mapping_from_config_then_requires_and_uses_named_selection() {

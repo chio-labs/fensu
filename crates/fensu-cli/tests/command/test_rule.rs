@@ -10,6 +10,48 @@ const CONFIG: &str =
     "roots = [\"src\"]\ntests = [\"tests\"]\ntooling = [\"scripts\"]\nselect = [\"FFA\"]\n";
 
 #[test]
+fn given_known_unavailable_analyzer_when_inspecting_rule_then_backend_error_precedes_catalogue() {
+    let test_cases = [ConfigCommandTargetTestCase {
+        description: "TypeScript rule lookup fails at the backend boundary",
+        arguments: &["rule", "FFA001", "--target", "web"],
+        expected_exit_code: 2,
+        expected_stdout: "",
+        expected_stderr: "Known analyzer backend unavailable: typescript",
+    }];
+    let repository = tempfile::tempdir().expect("temporary repository");
+    write(
+        repository.path().join("fensu.toml"),
+        "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"missing\"]\n",
+    );
+
+    for test_case in &test_cases {
+        let output = Command::new(env!("CARGO_BIN_EXE_fensu"))
+            .args(test_case.arguments)
+            .current_dir(repository.path())
+            .output()
+            .expect("native rule process runs");
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout),
+            test_case.expected_stdout,
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains(test_case.expected_stderr),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
 fn given_target_local_custom_rule_when_inspecting_then_rule_uses_selected_root() {
     let python = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.venv/bin/python");
     let test_cases = [ConfigCommandTargetTestCase {
@@ -123,6 +165,7 @@ fn given_loaded_project_policy_when_inspecting_rule_then_discloses_effective_sta
             config: "roots = [\"src\"]\nselect = [\"FFA001\"]\n",
             expected_fragments: &[
                 "Authored metadata:",
+                "Analyzers: python",
                 "Execution owner: file",
                 "Cacheability: undeclared",
                 "Loaded project policy:",

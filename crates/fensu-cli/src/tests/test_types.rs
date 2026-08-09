@@ -15,10 +15,10 @@ pub(crate) struct PathMatchTestCase {
 
 pub(crate) struct CacheIdentityFramingTestCase {
     pub(crate) description: &'static str,
-    pub(crate) first_analyzer: &'static str,
+    pub(crate) first_analyzer: AnalyzerId,
     pub(crate) first_target: &'static str,
     pub(crate) first_root: &'static str,
-    pub(crate) second_analyzer: &'static str,
+    pub(crate) second_analyzer: AnalyzerId,
     pub(crate) second_target: &'static str,
     pub(crate) second_root: &'static str,
     pub(crate) expected_equal: bool,
@@ -46,4 +46,33 @@ pub(crate) struct CoreRuleRenderingTestCase {
     pub(crate) description: &'static str,
     pub(crate) expected_core_count: usize,
     pub(crate) expected_labels: &'static [&'static str],
+}
+use crate::analyzer::AnalyzerId;
+
+pub(crate) struct AnalyzerContractTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) value: &'static str,
+    pub(crate) expected_analyzer: Option<AnalyzerId>,
+    pub(crate) expected_backend_error: Option<&'static str>,
+    pub(crate) expected_display: Option<&'static str>,
+    pub(crate) expected_cache_contract: Option<&'static str>,
+}
+
+pub(crate) struct MapCacheIdentityTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_path_identity_equal: bool,
+    pub(crate) expected_analyzer_identity_equal: bool,
+}
+
+pub(crate) struct AnalyzerCatalogueTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) analyzer: AnalyzerId,
+    pub(crate) select: &'static [&'static str],
+    pub(crate) expected_codes: &'static [&'static str],
+    pub(crate) expected_error: Option<&'static str>,
+}
+
+pub(crate) struct AnalyzerRenderingTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_line: &'static str,
 }

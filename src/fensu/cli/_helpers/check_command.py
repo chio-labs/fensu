@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 import sys
 from dataclasses import dataclass, replace
@@ -146,7 +147,12 @@ def _with_cache_enabled(*, inputs: CheckInputs, enabled: bool) -> CheckInputs:
 
 def _target_cache_storage_root(*, inputs: CheckInputs) -> Path:
     target: str = inputs.config.target or ""
-    identity: str = hashlib.sha256(target.encode()).hexdigest()
+    framed: bytes = json.dumps(
+        [inputs.config.analyzer.value, target, inputs.config.target_root],
+        ensure_ascii=True,
+        separators=(",", ":"),
+    ).encode()
+    identity: str = hashlib.sha256(framed).hexdigest()
     storage_root: Path = inputs.project_dir / ".fensu/cache/targets" / identity
     try:
         storage_root.mkdir(parents=True, exist_ok=True)

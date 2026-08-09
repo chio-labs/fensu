@@ -9,14 +9,17 @@ from pathlib import Path
 
 import pytest
 
+import fensu.cli._helpers.check_setup as check_setup_module
 from fensu.cache.results.classes.result_cache import ResultCache
 from fensu.cache.results.models import CacheStats
 from fensu.cli.main.custom_check_host import run_custom_check as run_check
 from tests.integration.src.fensu.cli.main._test_types import (
+    AggregateAnalyzerPreflightTestCase,
     CanonicalAliasCheckTestCase,
     MultiTargetCacheCheckTestCase,
     MultiTargetThresholdOrderTestCase,
     TargetCheckTestCase,
+    UnavailableAnalyzerHostTestCase,
 )
 from tests.integration.src.fensu.cli.main.helpers import (
     CaptureOutput,
@@ -25,6 +28,106 @@ from tests.integration.src.fensu.cli.main.helpers import (
     write_cacheable_target_project,
     write_mixed_cacheability_target_project,
 )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        UnavailableAnalyzerHostTestCase(
+            description=f"known {analyzer} target fails before Python discovery",
+            analyzer=analyzer,
+            expected_exit_code=2,
+            expected_error_fragment=f"Known analyzer backend unavailable: {analyzer}",
+        )
+        for analyzer in ("typescript", "svelte")
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_known_unavailable_target_when_running_python_host_then_fails_before_discovery(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: UnavailableAnalyzerHostTestCase,
+) -> None:
+    marker: Path = tmp_path / "custom-rule-imported"
+    (tmp_path / "fensu.toml").write_text(
+        "[targets.web]\n"
+        f'analyzer = "{test_case.analyzer}"\n'
+        'roots = ["missing"]\n'
+        'rule_paths = ["rules/custom.py"]\n',
+        encoding="utf-8",
+    )
+    custom_rule: Path = tmp_path / "rules/custom.py"
+    custom_rule.parent.mkdir()
+    custom_rule.write_text(
+        f"from pathlib import Path\nPath({str(marker)!r}).touch()\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        check_setup_module,
+        "discover_files",
+        lambda **_kwargs: pytest.fail("discovery must not run for an unavailable backend"),
+    )
+    monkeypatch.chdir(tmp_path)
+    stdout: CaptureOutput = CaptureOutput()
+    stderr: CaptureOutput = CaptureOutput()
+
+    exit_code: int = run_check(
+        argv=("--no-color", "--no-cache", "--target", "web"),
+        stdout=stdout,
+        stderr=stderr,
+    )
+
+    assert exit_code == test_case.expected_exit_code
+    assert stdout.getvalue() == ""
+    assert test_case.expected_error_fragment in stderr.getvalue()
+    assert not marker.exists()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        AggregateAnalyzerPreflightTestCase(
+            description="later unavailable backend preempts earlier malformed Python target",
+            expected_exit_code=2,
+            expected_error_fragment="Known analyzer backend unavailable: svelte",
+            expected_absent_fragment="Custom rule path does not exist",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_mixed_aggregate_targets_when_running_python_host_then_all_backends_preflight_first(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: AggregateAnalyzerPreflightTestCase,
+) -> None:
+    (tmp_path / "fensu.toml").write_text(
+        "[targets.alpha]\n"
+        'analyzer = "python"\n'
+        'roots = ["src/python"]\n'
+        'rule_paths = ["rules/missing.py"]\n'
+        "[targets.zeta]\n"
+        'analyzer = "svelte"\n'
+        'roots = ["src/web"]\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        check_setup_module,
+        "discover_files",
+        lambda **_kwargs: pytest.fail("discovery must not run before aggregate preflight"),
+    )
+    monkeypatch.chdir(tmp_path)
+    stdout: CaptureOutput = CaptureOutput()
+    stderr: CaptureOutput = CaptureOutput()
+
+    exit_code: int = run_check(
+        argv=("--no-color", "--no-cache"),
+        stdout=stdout,
+        stderr=stderr,
+    )
+
+    assert exit_code == test_case.expected_exit_code
+    assert test_case.expected_error_fragment in stderr.getvalue()
+    assert test_case.expected_absent_fragment not in stderr.getvalue()
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="symlink creation requires Windows privileges")

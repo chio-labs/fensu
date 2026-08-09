@@ -15,7 +15,11 @@ pub(crate) fn execute(options: MapOptions) -> Result<CliOutput, String> {
         .cache_enabled
         .unwrap_or(mapping_project.cache_enabled);
     let (project_index, stats) = if cache_enabled {
-        let (index, stats) = cached_index(&mapping_project.repo_root, &snapshots)?;
+        let (index, stats) = cached_index(
+            &mapping_project.repo_root,
+            mapping_project.analyzer,
+            &snapshots,
+        )?;
         (index, Some(stats))
     } else {
         (index::build(&snapshots)?, None)
@@ -47,9 +51,10 @@ pub(crate) fn execute(options: MapOptions) -> Result<CliOutput, String> {
 
 fn cached_index(
     repo_root: &Path,
+    analyzer: crate::analyzer::AnalyzerId,
     snapshots: &[SourceSnapshot],
 ) -> Result<(ProjectIndex, MapCacheStats), String> {
-    let generation = cache::generation(snapshots);
+    let generation = cache::generation(analyzer, snapshots);
     let requested_manifest_hit = cache::manifest_hit(repo_root, &generation);
     let mut indexes: Vec<ProjectIndex> = Vec::new();
     let mut missing: Vec<(String, ProjectIndex)> = Vec::new();

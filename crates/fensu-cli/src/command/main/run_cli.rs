@@ -7,6 +7,7 @@ use crate::check::main::custom_freshness::all_target_custom_freshness;
 use crate::check::main::prepare_cleanup::prepare_cleanup;
 use crate::command::main::{check, help, init, map, rule, skills};
 use crate::configuration::main::custom_rules;
+use crate::configuration::main::load_targets;
 use crate::hosting::main::run_custom_check_host::run_custom_check_host;
 use crate::models::CliOutput;
 
@@ -46,6 +47,9 @@ fn dispatch_check(arguments: &[String]) -> Result<CliOutput, String> {
     let routing = check_routing(arguments)?;
     if routing.help {
         return check::run(arguments);
+    }
+    for (_, config) in load_targets::load_targets(Path::new("."), routing.target)? {
+        config.analyzer.require_backend()?;
     }
     let cleanup = prepare_cleanup(Path::new("."), routing.target);
     let result = if custom_rules::custom_rules_are_configured(Path::new("."), routing.target)? {

@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from fensu.config.models import RuleIgnoreEntry
+from fensu.config.types import AnalyzerId
 
 
 @dataclass(frozen=True)
@@ -79,6 +80,27 @@ class RuleSelectionErrorTestCase:
     ignore: tuple[str, ...]
     expected_error: str
     rule_ignores: tuple[RuleIgnoreEntry, ...] = ()
+
+
+@dataclass(frozen=True)
+class AnalyzerRuleSelectionTestCase:
+    """Target analyzer policy and expected applicable rule selection."""
+
+    description: str
+    analyzer: AnalyzerId
+    select: tuple[str, ...]
+    expected_codes: tuple[str, ...]
+    expected_error_fragment: str | None
+    alias_of: str | None = None
+
+
+@dataclass(frozen=True)
+class CustomRuleAnalyzerTestCase:
+    """Custom rule analyzer applicability and expected registration error."""
+
+    description: str
+    analyzer: AnalyzerId
+    expected_error_fragment: str
 
 
 @dataclass(frozen=True)

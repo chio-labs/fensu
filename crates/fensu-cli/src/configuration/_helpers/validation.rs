@@ -1,5 +1,7 @@
 use std::collections::{HashMap, HashSet};
+use std::str::FromStr;
 
+use crate::analyzer::AnalyzerId;
 use crate::configuration::_helpers::exceptions;
 use crate::configuration::_helpers::native_rules::{validate_rule_options, validate_rule_packs};
 use crate::configuration::_helpers::roots::{normalize_target_root, validate_nested_roots};
@@ -10,7 +12,6 @@ use crate::constants::CONFIG_TARGETS_KEY;
 use crate::models::TargetSelection;
 
 const RECURSIVE_GLOB: &str = "**";
-const PYTHON_ANALYZER: &str = "python";
 const DEFAULT_TARGET_ROOT: &str = ".";
 const CONFIG_KEYS: &[&str] = &[
     "roots",
@@ -34,7 +35,7 @@ const CONFIG_KEYS: &[&str] = &[
     "evaluation",
     "skills",
 ];
-type ValidatedTargets = HashMap<String, (toml::map::Map<String, toml::Value>, String, String)>;
+type ValidatedTargets = HashMap<String, (toml::map::Map<String, toml::Value>, AnalyzerId, String)>;
 
 pub(crate) fn validate(table: &toml::map::Map<String, toml::Value>) -> Result<(), String> {
     validate_keys(table, CONFIG_KEYS, "")
@@ -89,7 +90,7 @@ pub(crate) fn select_target(
         return Ok(TargetSelection {
             table: table.clone(),
             target: None,
-            analyzer: PYTHON_ANALYZER.to_owned(),
+            analyzer: AnalyzerId::Python,
             root: DEFAULT_TARGET_ROOT.to_owned(),
         });
     }
@@ -172,8 +173,7 @@ fn validated_targets(
     if targets.is_empty() {
         return Err("Config key targets must define at least one named target.".to_owned());
     }
-    let mut validated: HashMap<String, (toml::map::Map<String, toml::Value>, String, String)> =
-        HashMap::new();
+    let mut validated: ValidatedTargets = HashMap::new();
     let mut target_entries = targets.iter().collect::<Vec<_>>();
     target_entries.sort_by_key(|(name, _)| *name);
     for (name, value) in target_entries {
@@ -204,9 +204,8 @@ fn validated_targets(
             .ok_or_else(|| {
                 format!("Config key targets.{name}.analyzer must be a non-empty string.")
             })?;
-        if analyzer != PYTHON_ANALYZER {
-            return Err(format!("Unknown analyzer for target {name}: {analyzer}."));
-        }
+        let analyzer = AnalyzerId::from_str(analyzer)
+            .map_err(|_| format!("Unknown analyzer for target {name}: {analyzer}."))?;
         let root_value = match values.get("root") {
             None => DEFAULT_TARGET_ROOT,
             Some(value) => value
@@ -221,7 +220,7 @@ fn validated_targets(
         selected.remove("analyzer");
         selected.remove("root");
         validate(&selected)?;
-        validated.insert(name.clone(), (selected, analyzer.to_owned(), root));
+        validated.insert(name.clone(), (selected, analyzer, root));
     }
     Ok(validated)
 }

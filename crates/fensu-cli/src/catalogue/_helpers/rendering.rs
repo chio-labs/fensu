@@ -176,12 +176,20 @@ pub(crate) fn render_metadata(mut output: String, metadata: &RuleMetadata, color
         Some(false) => "false",
         Some(true) => "true",
     };
+    let mut analyzers = metadata
+        .analyzers
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>();
+    analyzers.sort();
+    let analyzer_text = analyzers.join(", ");
     for (label, value) in [
         ("Family", metadata.family.as_str()),
         ("Severity", metadata.severity.as_str()),
         ("Kind", metadata.kind.as_str()),
         ("Pack", metadata.pack.as_deref().unwrap_or("None")),
         ("Alias", metadata.alias_of.as_deref().unwrap_or("None")),
+        ("Analyzers", analyzer_text.as_str()),
         ("Enabled by default", yes_no(metadata.enabled_by_default)),
         ("Execution owner", metadata.execution_owner.as_str()),
         ("Cacheability", cacheable),

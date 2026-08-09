@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 
+from fensu.config.types import AnalyzerId
 from fensu.rules.authoring.models import RuleSpec
 from fensu.rules.authoring.types import RuleOptionValue
 
@@ -72,6 +73,26 @@ class InvalidTargetConfigTestCase:
     description: str
     config_text: str
     target: str | None
+    expected_error_fragment: str
+
+
+@dataclass(frozen=True)
+class AnalyzerIdentityTestCase:
+    """Configured analyzer spelling and expected typed parse outcome."""
+
+    description: str
+    value: str
+    expected_analyzer: AnalyzerId | None
+    expected_error_fragment: str | None
+
+
+@dataclass(frozen=True)
+class AnalyzerCapabilityTestCase:
+    """Known analyzer and expected backend capability outcome."""
+
+    description: str
+    analyzer: AnalyzerId
+    expected_available: bool
     expected_error_fragment: str
 
 

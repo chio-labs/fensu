@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use fensu_facts::snapshot::main::walk_python_files::walk_python_files;
 use sha2::{Digest, Sha256};
 
+use crate::analyzer::AnalyzerId;
 use crate::configuration::main::load_optional;
 use crate::configuration::main::resolve_target_root::resolve_target_root;
 use crate::mapping::constants::INIT_MODULE;
@@ -33,17 +34,19 @@ pub(crate) fn resolve(
         .map_err(|error| error.to_string())?;
     if !explicit_roots.is_empty() {
         let repo_root = find_project_root(&cwd);
-        let cache_enabled = match load_optional::load_optional(&cwd, target) {
-            Ok(Some((_, config))) => config.cache_enabled,
+        let (cache_enabled, analyzer) = match load_optional::load_optional(&cwd, target) {
+            Ok(Some((_, config))) => {
+                config.analyzer.require_backend()?;
+                (config.cache_enabled, config.analyzer)
+            }
             Ok(None) if target.is_some() => {
                 return Err(format!(
                     "Unknown target name: {}.",
                     target.unwrap_or_default()
                 ));
             }
-            Ok(None) => true,
-            Err(error) if target.is_some() => return Err(error),
-            Err(_) => true,
+            Ok(None) => (true, AnalyzerId::Python),
+            Err(error) => return Err(error),
         };
         let mut sources: Vec<MappingSource> = Vec::new();
         for value in explicit_roots {
@@ -68,9 +71,11 @@ pub(crate) fn resolve(
             repo_root,
             sources,
             cache_enabled,
+            analyzer,
         });
     }
     if let Some((path, loaded)) = load_optional::load_optional(&cwd, target)? {
+        loaded.analyzer.require_backend()?;
         let repo_root = dunce::canonicalize(path.parent().unwrap_or(Path::new(".")))
             .map_err(|error| error.to_string())?;
         let project_root = resolve_target_root(&repo_root, &loaded.target_root)?;
@@ -79,6 +84,7 @@ pub(crate) fn resolve(
             repo_root,
             sources,
             cache_enabled: loaded.cache_enabled,
+            analyzer: loaded.analyzer,
         });
     }
     if let Some(target) = target {
@@ -104,6 +110,7 @@ pub(crate) fn resolve(
             exclude_artifact_directories: true,
         }],
         cache_enabled: true,
+        analyzer: AnalyzerId::Python,
     })
 }
 

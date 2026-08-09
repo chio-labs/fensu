@@ -392,9 +392,21 @@ fn given_invalid_explicit_targets_when_checking_then_configuration_fails_closed(
         },
         InvalidCheckConfigTestCase {
             description: "unknown analyzers fail closed",
-            config: "[targets.web]\nanalyzer = \"svelte\"\nroots = [\"src/pkg\"]\n",
+            config: "[targets.web]\nanalyzer = \"ruby\"\nroots = [\"src/pkg\"]\n",
             expected_exit_code: 2,
-            expected_error: "Unknown analyzer for target web: svelte",
+            expected_error: "Unknown analyzer for target web: ruby",
+        },
+        InvalidCheckConfigTestCase {
+            description: "known TypeScript analyzer fails before root discovery",
+            config: "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"missing\"]\nrule_paths = [\"rules/custom.py\"]\n",
+            expected_exit_code: 2,
+            expected_error: "Known analyzer backend unavailable: typescript",
+        },
+        InvalidCheckConfigTestCase {
+            description: "known Svelte analyzer fails before root discovery",
+            config: "[targets.web]\nanalyzer = \"svelte\"\nroots = [\"missing\"]\n",
+            expected_exit_code: 2,
+            expected_error: "Known analyzer backend unavailable: svelte",
         },
         InvalidCheckConfigTestCase {
             description: "target roots cannot traverse above the repository",

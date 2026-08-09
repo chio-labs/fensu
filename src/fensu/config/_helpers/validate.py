@@ -30,6 +30,7 @@ from fensu.config.constants import (
     THRESHOLD_OVERRIDE_KEYS,
 )
 from fensu.config.exceptions import ConfigError, ConfigValidationError
+from fensu.config.types import AnalyzerId
 from fensu.rules.authoring.main.is_rule_code import is_rule_code
 from fensu.rules.authoring.main.is_rule_selector import is_rule_selector
 from fensu.rules.authoring.types import Threshold
@@ -84,7 +85,7 @@ def validate_config(raw: Mapping[str, object]) -> None:
 
 def select_config_target(
     *, raw: Mapping[str, object], target: str | None
-) -> tuple[Mapping[str, object], str | None, str, str]:
+) -> tuple[Mapping[str, object], str | None, AnalyzerId, str]:
     """Select and validate one explicit target, or preserve legacy flat configuration."""
 
     if TARGETS_CONFIG_KEY not in raw:
@@ -102,7 +103,7 @@ def select_config_target(
         raise ConfigValidationError("Config key targets must be a table of named targets.")
     if not targets:
         raise ConfigValidationError("Config key targets must define at least one named target.")
-    validated: dict[str, tuple[dict[str, object], str, str]] = {}
+    validated: dict[str, tuple[dict[str, object], AnalyzerId, str]] = {}
     for name, value in sorted(targets.items()):
         if not isinstance(name, str) or not name:
             raise ConfigValidationError("Target names must be non-empty strings.")
@@ -120,8 +121,12 @@ def select_config_target(
             raise ConfigValidationError(
                 f"Config key targets.{name}.analyzer must be a non-empty string."
             )
-        if analyzer != PYTHON_ANALYZER:
-            raise ConfigValidationError(f"Unknown analyzer for target {name}: {analyzer}.")
+        try:
+            analyzer_id: AnalyzerId = AnalyzerId(analyzer)
+        except ValueError:
+            raise ConfigValidationError(
+                f"Unknown analyzer for target {name}: {analyzer}."
+            ) from None
         root_value: object = typed_value.get("root", DEFAULT_TARGET_ROOT)
         if not isinstance(root_value, str) or not root_value:
             raise ConfigValidationError(
@@ -132,7 +137,7 @@ def select_config_target(
         _ = selected.pop("analyzer")
         _ = selected.pop("root", None)
         validate_config(selected)
-        validated[name] = (selected, analyzer, root)
+        validated[name] = (selected, analyzer_id, root)
     selected_name: str
     if target is not None:
         if target not in validated:

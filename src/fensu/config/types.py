@@ -5,6 +5,14 @@ from __future__ import annotations
 from enum import StrEnum
 
 
+class AnalyzerId(StrEnum):
+    """Stable analyzer identities accepted by target configuration."""
+
+    PYTHON = "python"
+    TYPESCRIPT = "typescript"
+    SVELTE = "svelte"
+
+
 class ConfigSourceKind(StrEnum):
     """Supported configuration source formats."""
 

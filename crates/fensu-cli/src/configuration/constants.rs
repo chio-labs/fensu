@@ -60,7 +60,7 @@ pub(crate) const DEFAULT_CACHE_ENABLED: bool = true;
 
 pub(crate) const DEFAULT_CACHE_REQUIRE_CACHEABLE: bool = false;
 
-pub(crate) const SKILLS_METADATA_PROTOCOL_VERSION: u32 = 3;
+pub(crate) const SKILLS_METADATA_PROTOCOL_VERSION: u32 = 4;
 
 #[rustfmt::skip]
 pub(crate) const CONFIG_ROLE_NAMES: &[&str] = &[

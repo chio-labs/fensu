@@ -34,11 +34,13 @@ from fensu.config.models import (
     SkillsConfig,
     ThresholdOverride,
 )
+from fensu.config.types import AnalyzerId
 from fensu.rules.authoring.models import RuleSpec
 from fensu.rules.authoring.types import ExecutionOwner, Threshold
 from fensu.rules.catalog.constants import CORE_RULES
 from fensu.rules.catalog.main.build_ruleset import build_ruleset
 from tests.unit.src.fensu.cache.fingerprints._test_types import (
+    AnalyzerContractFingerprintTestCase,
     CacheBlockedRulesetTestCase,
     CachePreferenceFingerprintTestCase,
     CanonicalFingerprintTestCase,
@@ -855,6 +857,54 @@ def test_given_native_extension_version_when_fingerprinting_then_captures_backen
     )
 
     assert (first == second) is test_case.expected_equal
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        AnalyzerContractFingerprintTestCase(
+            description="Python and TypeScript contracts have isolated identities",
+            first_analyzer=AnalyzerId.PYTHON,
+            second_analyzer=AnalyzerId.TYPESCRIPT,
+            first_contract="python-ruff-py312-v1",
+            second_contract="typescript-backend-v1",
+            expected_equal=False,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_analyzer_contract_when_fingerprinting_then_backend_identity_is_isolated(
+    test_case: AnalyzerContractFingerprintTestCase,
+) -> None:
+    common: CacheFingerprint = source_fingerprint(b"common")
+
+    python: CacheFingerprint = global_fingerprint(
+        implementation=common,
+        config=common,
+        ruleset=common,
+        custom_rules=common,
+        native_backend_version="0.1.0",
+        analyzer_contract=test_case.first_contract,
+        fensu_version="1.0.0",
+    )
+    typescript: CacheFingerprint = global_fingerprint(
+        implementation=common,
+        config=common,
+        ruleset=common,
+        custom_rules=common,
+        native_backend_version="0.1.0",
+        analyzer_contract=test_case.second_contract,
+        fensu_version="1.0.0",
+    )
+    python_config: CacheFingerprint = config_fingerprint(
+        Config(roots=("src",), analyzer=test_case.first_analyzer)
+    )
+    typescript_config: CacheFingerprint = config_fingerprint(
+        Config(roots=("src",), analyzer=test_case.second_analyzer)
+    )
+
+    assert (python == typescript) is test_case.expected_equal
+    assert (python_config == typescript_config) is test_case.expected_equal
 
 
 @pytest.mark.parametrize(

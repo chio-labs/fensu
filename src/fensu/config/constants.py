@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from fensu.config.types import ContractBehavior, RuleSelector
+from fensu.config.types import AnalyzerId, ContractBehavior, RuleSelector
 from fensu.discovery.types import RoleName
 from fensu.rules.authoring.types import Threshold
 
@@ -41,7 +41,7 @@ CACHE_ENABLED_CONFIG_KEY: str = "enabled"
 CACHE_REQUIRE_CACHEABLE_CONFIG_KEY: str = "require_cacheable"
 SKILLS_NAME_CONFIG_KEY: str = "name"
 DEFAULT_CACHE_REQUIRE_CACHEABLE: bool = False
-PYTHON_ANALYZER: str = "python"
+PYTHON_ANALYZER: AnalyzerId = AnalyzerId.PYTHON
 DEFAULT_TARGET_ROOT: str = "."
 TARGET_CONFIG_KEYS: frozenset[str] = frozenset({"analyzer", "root"})
 TARGETS_CONFIG_KEY: str = "targets"

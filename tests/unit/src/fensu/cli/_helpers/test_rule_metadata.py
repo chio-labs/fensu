@@ -39,3 +39,4 @@ def test_given_cacheability_state_when_serializing_metadata_then_preserves_trist
     value: dict[str, object] = rule_metadata_value(rule=rule, current={})
 
     assert value["cacheable"] is test_case.expected_cacheable
+    assert value["analyzers"] == ["python"]

@@ -3,6 +3,7 @@
 
 pub mod command;
 
+mod analyzer;
 mod catalogue;
 mod check;
 mod configuration;

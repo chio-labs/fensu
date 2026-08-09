@@ -13,6 +13,43 @@ use crate::test_types::{
 };
 
 #[test]
+fn given_known_unavailable_analyzer_when_generating_skills_then_backend_error_precedes_layout() {
+    let test_cases = [ConfigTargetSkillsTestCase {
+        description: "TypeScript skills fail at the backend boundary",
+        arguments: &["--target", "agents", "--config-target", "web"],
+        expected_exit_code: 2,
+        expected_stdout: "",
+        expected_stderr: "Known analyzer backend unavailable: typescript",
+    }];
+    let repository = tempfile::tempdir().expect("temporary repository");
+    write(
+        repository.path().join("fensu.toml"),
+        "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"missing\"]\n",
+    );
+
+    for test_case in &test_cases {
+        let output = native(repository.path(), test_case.arguments);
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout),
+            test_case.expected_stdout,
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains(test_case.expected_stderr),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
 fn given_multiple_targets_when_generating_skills_then_config_target_selects_policy() {
     let test_cases = [
         ConfigTargetSkillsTestCase {

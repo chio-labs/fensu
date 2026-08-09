@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.4](https://github.com/chio-labs/fensu/compare/v0.9.3...v0.9.4) (2026-08-09)
+
+
+### Bug Fixes
+
+* restore native Dagster rule parity ([561166f](https://github.com/chio-labs/fensu/commit/561166f16157331adb9406615d181518076278aa))
+* restore native Dagster rule parity ([a9dac56](https://github.com/chio-labs/fensu/commit/a9dac56d99515e2f923c60056734128fadbb118e))
+
 ## [0.9.3](https://github.com/chio-labs/fensu/compare/v0.9.2...v0.9.3) (2026-08-09)
 
 

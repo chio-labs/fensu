@@ -79,7 +79,7 @@ jobs:
       - uses: PyO3/maturin-action@v1
         with:
           command: build
-          args: --release --out dist --features extension-module,memory
+          args: --release --out dist --features extension-module
           target: ${{ matrix.platform.target }}
           manylinux: auto
       # --interpreter is required for the build itself, not for the wheel tag.

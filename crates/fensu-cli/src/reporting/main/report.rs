@@ -1,4 +1,4 @@
-//! Render one complete check or memory report.
+//! Render one complete check report.
 
 use crate::reporting::_helpers::faults::format_fault;
 use crate::reporting::constants::{DIM, GREEN, ORANGE, RESET};

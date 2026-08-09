@@ -2,8 +2,6 @@
 
 use crate::cache::main::register_cache;
 use crate::extension::_helpers::evaluation::{execution_planning, rule_bindings};
-#[cfg(feature = "memory")]
-use crate::extension::_helpers::memory::registration;
 use pyo3::prelude::{pymodule, Bound, PyModule, PyModuleMethods, PyResult};
 use pyo3::wrap_pyfunction;
 
@@ -45,7 +43,5 @@ pub fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
         module
     )?)?;
     register_cache::register_cache_functions(module)?;
-    #[cfg(feature = "memory")]
-    registration::register_memory_functions(module)?;
     Ok(())
 }

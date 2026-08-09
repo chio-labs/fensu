@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING, TextIO
 
 from fensu.analysis.main.resolve_native_backend_version import resolve_native_backend_version
 from fensu.cli._helpers.check_evaluation import evaluated_check
-from fensu.cli._helpers.check_output import write_memory_check_result
 from fensu.cli._helpers.check_reporting import write_check_diagnostics
 from fensu.cli._helpers.check_setup import prepare_check_inputs
 from fensu.cli.constants import (
@@ -74,12 +73,7 @@ def execute_check(
             if use_color
             else evaluation.short_circuit.plain_output
         )
-        memory_fault_count: int = write_memory_check_result(
-            stdout=stdout,
-            result=inputs.memory_result,
-            use_color=use_color,
-        )
-        return 1 if evaluation.short_circuit.exit_code or memory_fault_count else 0
+        return evaluation.short_circuit.exit_code
     result: EvaluationResult | None = evaluation.result
     if result is None:
         stderr.write("Cached evaluation returned no result.\n")
@@ -113,12 +107,7 @@ def execute_check(
             expected_index_fingerprint=surface_index_fingerprint,
         )
     stdout.write(text)
-    memory_fault_count = write_memory_check_result(
-        stdout=stdout,
-        result=inputs.memory_result,
-        use_color=use_color,
-    )
-    return 1 if fault_count or memory_fault_count else 0
+    return 1 if fault_count else 0
 
 
 def _use_color(*, color: str, no_color: bool, stdout: TextIO) -> bool:

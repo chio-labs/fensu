@@ -136,13 +136,13 @@ fn walk_calls(
             state.faults.push(row);
             continue;
         }
-        let (target_module_name, function_name) = if parts.len() == 1 {
-            (current_module.clone(), parts[0].clone())
-        } else {
-            (
+        let (target_module_name, function_name) = match parts.as_slice() {
+            [] => continue,
+            [function_name] => (current_module.clone(), function_name.clone()),
+            _ => (
                 parts[..parts.len() - 1].join("."),
                 parts.last().cloned().unwrap_or_default(),
-            )
+            ),
         };
         if !target_module_name.starts_with(walk.package) {
             continue;

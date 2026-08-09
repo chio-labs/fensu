@@ -34,6 +34,20 @@ pub(crate) struct NativeOptionRejectionTestCase {
     pub(crate) expected_stored_value: &'static str,
 }
 
+pub(crate) struct ExecutionPlanningErrorTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) code: &'static str,
+    pub(crate) family: &'static str,
+    pub(crate) owner: &'static str,
+    pub(crate) expected_error: &'static str,
+}
+
+pub(crate) struct AutoloadEmptyCallTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) source: &'static str,
+    pub(crate) expected_fault_count: usize,
+}
+
 #[derive(Debug, Deserialize)]
 pub(crate) struct FilesystemEntry {
     pub(crate) path: String,

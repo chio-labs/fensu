@@ -82,6 +82,47 @@ fn given_native_dagster_alias_when_checking_then_executes_core_kernel_under_pack
 }
 
 #[test]
+fn given_native_dagster_rule_when_checking_then_executes_pack_kernel() {
+    let test_cases = [NativeRulePackTestCase {
+        description: "selected native Dagster rule reports an invalid asset main module",
+        config: "roots = [\"src/pkg\"]\ntests = []\ntooling = []\nrule_packs = [\"dagster\"]\nselect = [\"FPDG004\"]\n",
+        expected_exit_code: 1,
+        expected_output: "FPDG004  Dagster main.py must contain only imports and one main()",
+    }];
+
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(repository.path().join("fensu.toml"), test_case.config);
+        write(
+            repository
+                .path()
+                .join("src/pkg/defs/assets/example/assets.py"),
+            "assets: tuple[object, ...] = ()\n",
+        );
+        write(
+            repository.path().join("src/pkg/defs/assets/example/main.py"),
+            "def helper() -> int:\n    return 1\n\ndef main() -> dg.MaterializeResult:\n    return dg.MaterializeResult()\n",
+        );
+
+        let output = run_check(repository.path());
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {}",
+            test_case.description,
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            stdout.contains(test_case.expected_output),
+            "{}: {stdout}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
 fn given_core_and_alias_in_one_tier_when_checking_then_rejects_duplicate_implementation() {
     let test_cases = [NativeRulePackTestCase {
         description: "canonical and alias identities cannot produce duplicate diagnostics",

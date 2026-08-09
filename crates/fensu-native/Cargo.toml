@@ -23,13 +23,11 @@ rusqlite.workspace = true
 sha2.workspace = true
 serde_json.workspace = true
 fensu-facts = { workspace = true, default-features = false }
-fensu-memory = { workspace = true, optional = true }
 unicode-ident.workspace = true
 
 [features]
 default = ["python"]
 extension-module = ["python", "pyo3/extension-module"]
-memory = ["python", "dep:fensu-memory", "fensu-memory/sqlite-engine"]
 python = ["dep:pyo3", "fensu-facts/python"]
 
 [dev-dependencies]

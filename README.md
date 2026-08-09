@@ -37,7 +37,7 @@ pip install fensu
 
 The authoring/API distribution is `fensu`. It installs the lockstep
 `fensu-cli` binary package, which exclusively owns the `fensu` command.
-Core-only `check`, `init`, `rule`, `map`, `skills`, `memory`, and `--version`
+Core-only `check`, `init`, `rule`, `map`, `skills`, and `--version`
 execution is native. Configured Python custom rules launch one compatible Python
 host only for the policy metadata or callbacks they require.
 

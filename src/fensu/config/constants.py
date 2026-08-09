@@ -39,11 +39,6 @@ DEFAULT_IGNORE: tuple[str, ...] = ()
 DEFAULT_CACHE_ENABLED: bool = True
 CACHE_ENABLED_CONFIG_KEY: str = "enabled"
 CACHE_REQUIRE_CACHEABLE_CONFIG_KEY: str = "require_cacheable"
-DEFAULT_EXPERIMENTAL_MEMORY: bool = False
-DEFAULT_MEMORY_TASKS_ARCHIVE_AFTER_DAYS: int = 7
-EXPERIMENTAL_MEMORY_CONFIG_KEY: str = "memory"
-MEMORY_TASKS_CONFIG_KEY: str = "tasks"
-MEMORY_TASKS_ARCHIVE_AFTER_DAYS_CONFIG_KEY: str = "archive_after_days"
 SKILLS_NAME_CONFIG_KEY: str = "name"
 DEFAULT_CACHE_REQUIRE_CACHEABLE: bool = False
 
@@ -67,8 +62,6 @@ CONFIG_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
         "rule_ignores",
         "threshold_overrides",
         "cache",
-        "experimental",
-        "memory",
         "evaluation",
         "skills",
     }
@@ -98,7 +91,5 @@ RECURSIVE_GLOB: str = "**"
 THRESHOLD_OVERRIDE_KEYS: frozenset[str] = frozenset({"paths", "thresholds", "reason"})
 RULE_IGNORE_KEYS: frozenset[str] = frozenset({"rules", "paths", "reason"})
 EVALUATION_CONFIG_KEYS: frozenset[str] = frozenset({"include", "exclude"})
-MEMORY_CONFIG_KEYS: frozenset[str] = frozenset({MEMORY_TASKS_CONFIG_KEY})
-MEMORY_TASKS_CONFIG_KEYS: frozenset[str] = frozenset({MEMORY_TASKS_ARCHIVE_AFTER_DAYS_CONFIG_KEY})
 SKILLS_CONFIG_KEYS: frozenset[str] = frozenset({SKILLS_NAME_CONFIG_KEY})
 RULE_EXCEPTION_SYMBOLS_CONFIG_KEY: str = "symbols"

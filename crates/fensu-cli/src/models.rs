@@ -63,8 +63,6 @@ pub(crate) struct Config {
     pub(crate) contracts: Vec<(String, String)>,
     pub(crate) exceptions: Vec<RuleException>,
     pub(crate) rule_ignores: Vec<RuleIgnore>,
-    pub(crate) memory_enabled: bool,
-    pub(crate) memory_archive_after_days: u64,
     pub(crate) skills_name: Option<String>,
     pub(crate) source_kind: String,
     pub(crate) raw: Vec<u8>,

@@ -207,6 +207,16 @@ class EvaluationConfigTestCase:
 
 
 @dataclass(frozen=True)
+class EvaluationFingerprintTestCase:
+    """Evaluation config shape and expected canonical fingerprint values."""
+
+    description: str
+    config_text: str
+    target: str
+    expected_include: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class SkillsConfigTestCase:
     """A persistent skill identity and its expected normalized config value."""
 

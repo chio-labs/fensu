@@ -22,6 +22,7 @@ from tests.unit.src.fensu.config._test_types import (
     AnalyzerCapabilityTestCase,
     AnalyzerIdentityTestCase,
     CanonicalTargetRootTestCase,
+    EvaluationFingerprintTestCase,
     InvalidTargetConfigTestCase,
     TargetConfigTestCase,
     WebExceptionPathTestCase,
@@ -30,6 +31,45 @@ from tests.unit.src.fensu.config._test_types import (
     WebThresholdAliasTestCase,
 )
 from tests.unit.src.fensu.config.helpers import write_fensu_toml
+
+RACEWATCH_WEB_CONFIG: str = """[targets.web]
+analyzer = "svelte"
+root = "frontend"
+framework = "sveltekit"
+roots = ["src"]
+tests = ["tests"]
+tooling = ["tooling"]
+ui_kit = "src/ui-kit"
+test_layout = "mirrored"
+select = ["FW"]
+
+[targets.web.thresholds]
+max_route_script_lines = 200
+max_component_script_lines = 250
+max_state_lines = 300
+max_imported_bindings = 20
+max_public_exports = 20
+max_state_public_members = 20
+max_state_cells = 15
+max_total_runes = 20
+max_state_functions = 15
+max_resource_families = 1
+max_main_container_modules = 20
+max_helpers_container_modules = 10
+max_role_depth = 1
+max_function_statements = 70
+max_entry_statements = 40
+max_entry_distinct_calls = 20
+max_entry_locals = 20
+max_arguments = 10
+max_file_lines = 2000
+max_api_lines = 200
+max_api_exports = 3
+
+[targets.web.evaluation]
+include = ["src/**/*.{ts,js,svelte}", "tests/**/*.ts", "tooling/**/*.ts"]
+exclude = []
+"""
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="symlink creation requires Windows privileges")
@@ -333,6 +373,41 @@ def test_given_alias_and_canonical_web_configs_when_fingerprinting_then_identity
 @pytest.mark.parametrize(
     "test_case",
     [
+        EvaluationFingerprintTestCase(
+            description="RaceWatch empty web exclusion matches omission",
+            config_text=RACEWATCH_WEB_CONFIG,
+            target="web",
+            expected_include=(
+                "src/**/*.{ts,js,svelte}",
+                "tests/**/*.ts",
+                "tooling/**/*.ts",
+            ),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_racewatch_web_empty_exclude_when_fingerprinting_then_identity_matches_omission(
+    tmp_path: Path, test_case: EvaluationFingerprintTestCase
+) -> None:
+    (tmp_path / "frontend/src").mkdir(parents=True)
+    write_fensu_toml(root=tmp_path, contents=test_case.config_text)
+
+    explicit: Config = load_target_project_config(start=tmp_path, target=test_case.target).config
+    explicit_fingerprint: CacheFingerprint = config_fingerprint(explicit)
+    write_fensu_toml(
+        root=tmp_path,
+        contents=test_case.config_text.replace("exclude = []\n", ""),
+    )
+    omitted: Config = load_target_project_config(start=tmp_path, target=test_case.target).config
+
+    assert explicit.evaluation.include == test_case.expected_include
+    assert explicit.evaluation.exclude == ()
+    assert explicit_fingerprint == config_fingerprint(omitted)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
         WebExceptionPathTestCase(
             description="TypeScript exceptions accept TypeScript modules",
             analyzer="typescript",
@@ -543,6 +618,15 @@ def test_given_analyzer_compatible_web_exception_when_loading_then_path_is_accep
             ),
             target="web",
             expected_error_fragment="Conflicting threshold values in threshold_overrides.thresholds",
+        ),
+        InvalidTargetConfigTestCase(
+            description="explicit targets reject an empty evaluation include",
+            config_text=(
+                '[targets.web]\nanalyzer = "svelte"\nroots = ["src"]\n'
+                "[targets.web.evaluation]\ninclude = []\n"
+            ),
+            target="web",
+            expected_error_fragment="evaluation.include must not be empty",
         ),
         InvalidTargetConfigTestCase(
             description="TypeScript cannot activate the SvelteKit framework",

@@ -17,6 +17,7 @@ from fensu.config.constants import (
     DEFAULT_WEB_FRAMEWORK,
     DOUBLE_PATH_SEPARATOR,
     EVALUATION_CONFIG_KEYS,
+    EVALUATION_INCLUDE_CONFIG_KEY,
     INVALID_UI_KIT_PATH_PARTS,
     MAX_THRESHOLD_VALUE,
     PATH_SEPARATOR,
@@ -352,7 +353,7 @@ def _validate_evaluation(*, value: object) -> None:
         patterns: tuple[str, ...] = _validate_string_sequence(
             name=f"evaluation.{key}", value=typed_value[key]
         )
-        if not patterns:
+        if key == EVALUATION_INCLUDE_CONFIG_KEY and not patterns:
             raise ConfigValidationError(f"Config key evaluation.{key} must not be empty.")
         for pattern in patterns:
             _validate_path_pattern(pattern=pattern, owner=f"Evaluation {key}")

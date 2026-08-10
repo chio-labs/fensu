@@ -28,15 +28,7 @@ pub(crate) fn build(
     let contracts = contracts(table.get("contracts"), selection.analyzer);
     let cache = table.get("cache").and_then(toml::Value::as_table);
     let evaluation = table.get("evaluation").and_then(toml::Value::as_table);
-    let identity_raw = if selection.target.is_some()
-        && selection.analyzer != crate::analyzer::AnalyzerId::Python
-    {
-        toml::to_string(table)
-            .map_err(|error| format!("Could not normalize selected configuration: {error}"))?
-            .into_bytes()
-    } else {
-        raw.clone()
-    };
+    let identity_raw = identity_raw(table)?;
     Ok(Config {
         analyzer: selection.analyzer,
         target: selection.target,
@@ -113,6 +105,29 @@ pub(crate) fn build(
         raw,
         identity_raw,
     })
+}
+
+fn identity_raw(table: &toml::map::Map<String, toml::Value>) -> Result<Vec<u8>, String> {
+    let mut identity = table.clone();
+    let empty_evaluation = identity
+        .get_mut("evaluation")
+        .and_then(toml::Value::as_table_mut)
+        .is_some_and(|evaluation| {
+            if evaluation
+                .get("exclude")
+                .and_then(toml::Value::as_array)
+                .is_some_and(|patterns| patterns.is_empty())
+            {
+                evaluation.remove("exclude");
+            }
+            evaluation.is_empty()
+        });
+    if empty_evaluation {
+        identity.remove("evaluation");
+    }
+    toml::to_string(&identity)
+        .map(String::into_bytes)
+        .map_err(|error| format!("Could not normalize selected configuration: {error}"))
 }
 
 fn contracts(

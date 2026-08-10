@@ -141,6 +141,10 @@ WEB_THRESHOLD_ALIASES: dict[str, Threshold] = {
     "max_function_statements": Threshold.MAX_STATEMENTS_GLOBAL,
 }
 RULE_IGNORE_KEYS: frozenset[str] = frozenset({"rules", "paths", "reason"})
-EVALUATION_CONFIG_KEYS: frozenset[str] = frozenset({"include", "exclude"})
+EVALUATION_INCLUDE_CONFIG_KEY: str = "include"
+EVALUATION_EXCLUDE_CONFIG_KEY: str = "exclude"
+EVALUATION_CONFIG_KEYS: frozenset[str] = frozenset(
+    {EVALUATION_INCLUDE_CONFIG_KEY, EVALUATION_EXCLUDE_CONFIG_KEY}
+)
 SKILLS_CONFIG_KEYS: frozenset[str] = frozenset({SKILLS_NAME_CONFIG_KEY})
 RULE_EXCEPTION_SYMBOLS_CONFIG_KEY: str = "symbols"

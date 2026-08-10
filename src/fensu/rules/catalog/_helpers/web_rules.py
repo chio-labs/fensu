@@ -14,7 +14,7 @@ type _WebRuleMigration = tuple[str, str, bool, str]
 _GENERIC_REASON: str = "Framework-independent TypeScript/JavaScript architecture policy."
 _SVELTE_REASON: str = "Requires Svelte component or rune semantics."
 _SVELTEKIT_REASON: str = "Requires SvelteKit route, loader, server, or browser/runtime semantics."
-_RACEWATCH_REASON: str = "Depends on RaceWatch UI-kit, API, OpenAPI, or adapter conventions."
+_CONFIGURED_WEB_REASON: str = "Framework policy driven by target-local SvelteKit configuration."
 
 _WEB_RULE_MIGRATION: tuple[_WebRuleMigration, ...] = (
     (
@@ -32,9 +32,9 @@ _WEB_RULE_MIGRATION: tuple[_WebRuleMigration, ...] = (
     ("FWR310", "generic-typescript", True, _GENERIC_REASON),
     ("FWR311", "generic-typescript", True, _GENERIC_REASON),
     ("FWR403", "generic-typescript", True, _GENERIC_REASON),
-    ("FWU001", "racewatch-specific/deferred", False, _RACEWATCH_REASON),
-    ("FWU002", "racewatch-specific/deferred", False, _RACEWATCH_REASON),
-    ("FWU003", "racewatch-specific/deferred", False, _RACEWATCH_REASON),
+    ("FWU001", "sveltekit", True, _CONFIGURED_WEB_REASON),
+    ("FWU002", "sveltekit", True, _CONFIGURED_WEB_REASON),
+    ("FWU003", "sveltekit", True, _CONFIGURED_WEB_REASON),
     ("FWL101", "generic-typescript", True, _GENERIC_REASON),
     ("FWL108", "generic-typescript", True, _GENERIC_REASON),
     ("FWL109", "generic-typescript", True, _GENERIC_REASON),
@@ -44,19 +44,19 @@ _WEB_RULE_MIGRATION: tuple[_WebRuleMigration, ...] = (
     ("FWS010", "generic-typescript", True, _GENERIC_REASON),
     ("FWS011", "generic-typescript", True, _GENERIC_REASON),
     ("FWS601", "generic-typescript", True, _GENERIC_REASON),
-    ("FWS110", "racewatch-specific/deferred", False, _RACEWATCH_REASON),
-    ("FWS111", "racewatch-specific/deferred", False, _RACEWATCH_REASON),
-    ("FWS101", "svelte", False, _SVELTE_REASON),
-    ("FWS102", "svelte", False, _SVELTE_REASON),
-    ("FWS103", "sveltekit", False, _SVELTEKIT_REASON),
-    ("FWS104", "svelte", False, _SVELTE_REASON),
+    ("FWS110", "generic-typescript", True, "Configurable _api module line budget."),
+    ("FWS111", "generic-typescript", True, "Configurable _api export budget."),
+    ("FWS101", "svelte", True, _SVELTE_REASON),
+    ("FWS102", "svelte", True, _SVELTE_REASON),
+    ("FWS103", "sveltekit", True, _SVELTEKIT_REASON),
+    ("FWS104", "svelte", True, _SVELTE_REASON),
     ("FWS105", "generic-typescript", True, _GENERIC_REASON),
     ("FWS106", "generic-typescript", True, _GENERIC_REASON),
-    ("FWA101", "sveltekit", False, _SVELTEKIT_REASON),
+    ("FWA101", "sveltekit", True, _SVELTEKIT_REASON),
     ("FWA001", "generic-typescript", True, _GENERIC_REASON),
     ("FWA002", "generic-typescript", True, _GENERIC_REASON),
     ("FWA003", "generic-typescript", True, _GENERIC_REASON),
-    ("FWA102", "sveltekit", False, _SVELTEKIT_REASON),
+    ("FWA102", "sveltekit", True, _SVELTEKIT_REASON),
     ("FWR001", "generic-typescript", True, _GENERIC_REASON),
     ("FWR002", "generic-typescript", True, _GENERIC_REASON),
     ("FWR003", "generic-typescript", True, _GENERIC_REASON),
@@ -77,25 +77,25 @@ _WEB_RULE_MIGRATION: tuple[_WebRuleMigration, ...] = (
     ("FWR501", "generic-typescript", True, _GENERIC_REASON),
     ("FWL102", "generic-typescript", True, _GENERIC_REASON),
     ("FWL103", "generic-typescript", True, _GENERIC_REASON),
-    ("FWL104", "sveltekit", False, _SVELTEKIT_REASON),
+    ("FWL104", "sveltekit", True, _SVELTEKIT_REASON),
     ("FWL105", "generic-typescript", True, _GENERIC_REASON),
-    ("FWL106", "sveltekit", False, _SVELTEKIT_REASON),
-    ("FWL107", "sveltekit", False, _SVELTEKIT_REASON),
+    ("FWL106", "sveltekit", True, _SVELTEKIT_REASON),
+    ("FWL107", "sveltekit", True, _SVELTEKIT_REASON),
     ("FWL201", "generic-typescript", True, _GENERIC_REASON),
-    ("FWV101", "svelte", False, _SVELTE_REASON),
-    ("FWV102", "svelte", False, _SVELTE_REASON),
-    ("FWV103", "svelte", False, _SVELTE_REASON),
-    ("FWV104", "svelte", False, _SVELTE_REASON),
-    ("FWV105", "svelte", False, _SVELTE_REASON),
-    ("FWV106", "svelte", False, _SVELTE_REASON),
-    ("FWV107", "svelte", False, _SVELTE_REASON),
-    ("FWV201", "svelte", False, _SVELTE_REASON),
-    ("FWV202", "svelte", False, _SVELTE_REASON),
+    ("FWV101", "svelte", True, _SVELTE_REASON),
+    ("FWV102", "svelte", True, _SVELTE_REASON),
+    ("FWV103", "svelte", True, _SVELTE_REASON),
+    ("FWV104", "svelte", True, _SVELTE_REASON),
+    ("FWV105", "svelte", True, _SVELTE_REASON),
+    ("FWV106", "svelte", True, _SVELTE_REASON),
+    ("FWV107", "svelte", True, _SVELTE_REASON),
+    ("FWV201", "svelte", True, _SVELTE_REASON),
+    ("FWV202", "svelte", True, _SVELTE_REASON),
     ("FWH009", "generic-typescript", True, _GENERIC_REASON),
     ("FWC101", "generic-typescript", True, _GENERIC_REASON),
     ("FWC102", "generic-typescript", True, _GENERIC_REASON),
     ("FWC103", "generic-typescript", True, _GENERIC_REASON),
-    ("FWC201", "racewatch-specific/deferred", False, _RACEWATCH_REASON),
+    ("FWC201", "sveltekit", True, "Enabled when the target config supplies OpenAPI."),
     ("FWT001", "generic-typescript", True, _GENERIC_REASON),
     ("FWT201", "generic-typescript", True, _GENERIC_REASON),
     ("FWT202", "generic-typescript", True, _GENERIC_REASON),
@@ -112,13 +112,13 @@ _WEB_RULE_MIGRATION: tuple[_WebRuleMigration, ...] = (
     ("FWN002", "generic-typescript", True, _GENERIC_REASON),
     ("FWN003", "generic-typescript", True, _GENERIC_REASON),
     ("FWN004", "generic-typescript", True, _GENERIC_REASON),
-    ("FWS107", "svelte", False, _SVELTE_REASON),
-    ("FWS108", "svelte", False, _SVELTE_REASON),
-    ("FWS109", "svelte", False, _SVELTE_REASON),
+    ("FWS107", "svelte", True, _SVELTE_REASON),
+    ("FWS108", "svelte", True, _SVELTE_REASON),
+    ("FWS109", "svelte", True, _SVELTE_REASON),
     ("FWS201", "generic-typescript", True, _GENERIC_REASON),
     ("FWT002", "generic-typescript", True, _GENERIC_REASON),
     ("FWT302", "generic-typescript", True, _GENERIC_REASON),
-    ("FWA103", "sveltekit", False, _SVELTEKIT_REASON),
+    ("FWA103", "sveltekit", True, _SVELTEKIT_REASON),
     ("FWT003", "generic-typescript", True, _GENERIC_REASON),
     ("FWT004", "generic-typescript", True, _GENERIC_REASON),
 )
@@ -558,6 +558,206 @@ _RULE_DETAILS: tuple[tuple[str, Family, str, str, str], ...] = (
         "iterator names declare an iterable result",
         "Return an Iterator, Iterable, or generator, or rename the eager collection operation.",
     ),
+    (
+        "FWS101",
+        Family.SHAPE,
+        "state-line-budget",
+        "state modules must stay within the configured line budget",
+        "Split unrelated state responsibilities into named capabilities with focused factories.",
+    ),
+    (
+        "FWS102",
+        Family.SHAPE,
+        "no-module-scope-runes",
+        "rune state must not be created at module scope",
+        "Create reactive state inside a factory or component lifecycle and return an explicit "
+        "facade.",
+    ),
+    (
+        "FWS103",
+        Family.SHAPE,
+        "route-script-budget",
+        "route scripts must stay within the configured line budget",
+        "Move domain behavior into public capability entries and keep the route focused on "
+        "composition.",
+    ),
+    (
+        "FWS104",
+        Family.SHAPE,
+        "component-script-budget",
+        "component scripts must stay within the configured line budget",
+        "Extract state, transport, or domain behavior into the capability that owns it.",
+    ),
+    (
+        "FWS107",
+        Family.SHAPE,
+        "state-cell-budget",
+        "state factories stay within the mutable-cell budget",
+        "Split independently changing state into a named capability.",
+    ),
+    (
+        "FWS108",
+        Family.SHAPE,
+        "state-rune-budget",
+        "state modules stay within the rune budget",
+        "Split unrelated reactive responsibilities into named state capabilities.",
+    ),
+    (
+        "FWS109",
+        Family.SHAPE,
+        "state-function-budget",
+        "state factories stay within the function budget",
+        "Move cohesive actions or phases to their owning capability.",
+    ),
+    (
+        "FWS110",
+        Family.SHAPE,
+        "api-line-budget",
+        "API modules remain below the configured line budget",
+        "Split transport operations into focused endpoint modules under the owning _api role.",
+    ),
+    (
+        "FWS111",
+        Family.SHAPE,
+        "api-export-budget",
+        "API modules expose a focused runtime surface",
+        "Split unrelated endpoint operations into focused _api modules.",
+    ),
+    (
+        "FWA101",
+        Family.LAYERS,
+        "raw-fetch-ownership",
+        "raw fetch calls belong in API or framework loader modules",
+        "Move transport into the owning _api module and call a typed operation.",
+    ),
+    (
+        "FWA102",
+        Family.LAYERS,
+        "endpoint-literal-ownership",
+        "API endpoint literals belong in API or framework loader modules",
+        "Move the endpoint into the owning _api module and expose a typed operation.",
+    ),
+    (
+        "FWA103",
+        Family.LAYERS,
+        "navigation-ownership",
+        "components do not own route navigation",
+        "Receive a semantic navigation callback or move navigation into its named owner.",
+    ),
+    (
+        "FWL104",
+        Family.LAYERS,
+        "no-cross-route-imports",
+        "routes must not import another route",
+        "Promote reusable behavior into a named $lib owner and import its public entry.",
+    ),
+    (
+        "FWL106",
+        Family.LAYERS,
+        "browser-no-node-builtins",
+        "browser modules must not import Node built-ins",
+        "Move Node-dependent behavior into a SvelteKit server module or tooling.",
+    ),
+    (
+        "FWL107",
+        Family.LAYERS,
+        "server-no-client-imports",
+        "server modules must not import client state or components",
+        "Move the shared contract to a server-safe type/schema module.",
+    ),
+    (
+        "FWV101",
+        Family.SHAPE,
+        "runes-svelte-aware",
+        "runes belong only in Svelte-aware files",
+        "Move rune state into a .svelte, .svelte.ts, or .svelte.js module.",
+    ),
+    (
+        "FWV102",
+        Family.SHAPE,
+        "one-state-factory",
+        "state modules expose one create-state factory",
+        "Expose exactly one create*State factory and keep rune cells inside it.",
+    ),
+    (
+        "FWV103",
+        Family.SHAPE,
+        "state-facade-budget",
+        "state facades stay within their public-member budget",
+        "Return nested capability facades instead of one broad flat object.",
+    ),
+    (
+        "FWV104",
+        Family.SHAPE,
+        "no-imported-state-mutation",
+        "consumers do not mutate imported state directly",
+        "Call a named action owned by the imported state capability.",
+    ),
+    (
+        "FWV105",
+        Family.SHAPE,
+        "function-derived-by",
+        "function-valued derived state uses $derived.by",
+        "Use $derived.by(() => value) or pass a direct expression to $derived.",
+    ),
+    (
+        "FWV106",
+        Family.SHAPE,
+        "effects-transport-free",
+        "effects must not own transport",
+        "Move transport into an API action and let the effect synchronize an owned resource.",
+    ),
+    (
+        "FWV107",
+        Family.SHAPE,
+        "effect-lifecycle-composition",
+        "effects must not be nested in lifecycle callbacks",
+        "Declare the effect at component or state-factory scope.",
+    ),
+    (
+        "FWV201",
+        Family.SHAPE,
+        "resource-ownership",
+        "long-lived resources require an approved owner",
+        "Move the resource into _resources or explicit framework lifecycle code.",
+    ),
+    (
+        "FWV202",
+        Family.SHAPE,
+        "resource-cleanup",
+        "resource owners expose cleanup",
+        "Expose stop/destroy or return cleanup that releases every allocated resource.",
+    ),
+    (
+        "FWU001",
+        Family.ROLES,
+        "shadcn-aliases",
+        "shadcn aliases resolve inside the configured UI-kit",
+        "Point the shadcn UI and utility aliases at the configured UI-kit root.",
+    ),
+    (
+        "FWU002",
+        Family.LAYERS,
+        "ui-kit-dependencies",
+        "UI-kit dependencies remain application-agnostic",
+        "Remove the application dependency or move the application-specific component into its "
+        "owning capability.",
+    ),
+    (
+        "FWU003",
+        Family.ROLES,
+        "ui-kit-flat-families",
+        "UI-kit components use flat component-family directories",
+        "Keep utilities at the UI-kit root and component modules directly inside one named "
+        "component-family directory.",
+    ),
+    (
+        "FWC201",
+        Family.CONTRACTS,
+        "openapi-endpoints",
+        "frontend endpoints exist in OpenAPI",
+        "Use a documented endpoint or add the backend operation deliberately.",
+    ),
 )
 
 _THRESHOLDS: dict[str, tuple[Threshold, ...]] = {
@@ -574,6 +774,16 @@ _THRESHOLDS: dict[str, tuple[Threshold, ...]] = {
     "FWS105": (Threshold.MAX_IMPORTED_BINDINGS,),
     "FWS106": (Threshold.MAX_PUBLIC_EXPORTS,),
     "FWS601": (Threshold.MAX_FILE_LINES,),
+    "FWS101": (Threshold.MAX_STATE_LINES,),
+    "FWS103": (Threshold.MAX_ROUTE_SCRIPT_LINES,),
+    "FWS104": (Threshold.MAX_COMPONENT_SCRIPT_LINES,),
+    "FWS107": (Threshold.MAX_STATE_CELLS,),
+    "FWS108": (Threshold.MAX_TOTAL_RUNES,),
+    "FWS109": (Threshold.MAX_STATE_FUNCTIONS,),
+    "FWS110": (Threshold.MAX_API_LINES,),
+    "FWS111": (Threshold.MAX_API_EXPORTS,),
+    "FWV103": (Threshold.MAX_STATE_PUBLIC_MEMBERS,),
+    "FWV201": (Threshold.MAX_RESOURCE_FAMILIES,),
 }
 _PROJECT_RULES: frozenset[str] = frozenset(
     {
@@ -586,6 +796,7 @@ _PROJECT_RULES: frozenset[str] = frozenset(
         "FWL201",
         "FWT003",
         "FWT004",
+        "FWU001",
     }
 )
 _ANALYZERS: tuple[AnalyzerId, ...] = (AnalyzerId.TYPESCRIPT, AnalyzerId.SVELTE)
@@ -731,10 +942,20 @@ _UI_KIT_CONFIGURATION_RULES: frozenset[str] = frozenset(
         "FWR405",
         "FWR501",
         "FWS106",
+        "FWV104",
+        "FWU001",
+        "FWU002",
+        "FWU003",
     }
 )
 _NAMING_RULES: frozenset[str] = frozenset({"FWN001", "FWN002", "FWN003", "FWN004"})
-_BASE_CONFIGURATION_INPUTS: tuple[str, ...] = ("generated", "roots", "tests", "tooling")
+_BASE_CONFIGURATION_INPUTS: tuple[str, ...] = (
+    "framework",
+    "generated",
+    "roots",
+    "tests",
+    "tooling",
+)
 _NAMING_CONFIGURATION_INPUTS: tuple[str, ...] = ("contracts", *_BASE_CONFIGURATION_INPUTS)
 _UI_KIT_CONFIGURATION_INPUTS: tuple[str, ...] = (*_BASE_CONFIGURATION_INPUTS, "ui_kit")
 _NAMING_UI_KIT_CONFIGURATION_INPUTS: tuple[str, ...] = (
@@ -751,6 +972,8 @@ _CONFIGURATION_INPUTS: Mapping[str, tuple[str, ...]] = (
         _NAMING_RULES & _UI_KIT_CONFIGURATION_RULES,
         _NAMING_UI_KIT_CONFIGURATION_INPUTS,
     )
+    | {"FWU001": (*_BASE_CONFIGURATION_INPUTS, "shadcn", "ui_kit")}
+    | {"FWC201": (*_BASE_CONFIGURATION_INPUTS, "openapi")}
 )
 _CONTRACT_BEHAVIORS: dict[str, tuple[str, ...]] = {
     "FWN001": ("returns-bool",),

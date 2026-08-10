@@ -14,7 +14,7 @@ use crate::tests::test_types::{
 fn given_every_core_rule_when_rendering_then_complete_authored_metadata_is_visible() {
     let test_cases = [CoreRuleRenderingTestCase {
         description: "every native core registration renders the complete stable metadata frame",
-        expected_core_count: 171,
+        expected_core_count: 199,
         expected_labels: &[
             "Authored metadata:",
             "Family:",
@@ -97,14 +97,17 @@ fn given_python_catalogue_and_other_analyzer_when_selecting_then_applicability_p
         analyzer: AnalyzerId::TypeScript,
         select: &[],
         expected_codes: &[
-            "FWA001", "FWA002", "FWA003", "FWC101", "FWC102", "FWC103", "FWH009", "FWL101",
-            "FWL102", "FWL103", "FWL105", "FWL108", "FWL109", "FWL201", "FWN001", "FWN002",
-            "FWN003", "FWN004", "FWP001", "FWR001", "FWR002", "FWR003", "FWR201", "FWR204",
-            "FWR301", "FWR304", "FWR306", "FWR309", "FWR310", "FWR311", "FWR401", "FWR403",
-            "FWR404", "FWR405", "FWR501", "FWS001", "FWS002", "FWS003", "FWS010", "FWS011",
-            "FWS105", "FWS106", "FWS201", "FWS601", "FWT001", "FWT002", "FWT003", "FWT004",
+            "FWA001", "FWA002", "FWA003", "FWA101", "FWA102", "FWA103", "FWC101", "FWC102",
+            "FWC103", "FWC201", "FWH009", "FWL101", "FWL102", "FWL103", "FWL104", "FWL105",
+            "FWL106", "FWL107", "FWL108", "FWL109", "FWL201", "FWN001", "FWN002", "FWN003",
+            "FWN004", "FWP001", "FWR001", "FWR002", "FWR003", "FWR201", "FWR204", "FWR301",
+            "FWR304", "FWR306", "FWR309", "FWR310", "FWR311", "FWR401", "FWR403", "FWR404",
+            "FWR405", "FWR501", "FWS001", "FWS002", "FWS003", "FWS010", "FWS011", "FWS101",
+            "FWS102", "FWS103", "FWS104", "FWS105", "FWS106", "FWS107", "FWS108", "FWS109",
+            "FWS110", "FWS111", "FWS201", "FWS601", "FWT001", "FWT002", "FWT003", "FWT004",
             "FWT201", "FWT202", "FWT302", "FWT401", "FWT402", "FWT403", "FWT404", "FWT405",
-            "FWT406", "FWT410", "FWT411", "FWT412",
+            "FWT406", "FWT410", "FWT411", "FWT412", "FWU001", "FWU002", "FWU003", "FWV101",
+            "FWV102", "FWV103", "FWV104", "FWV105", "FWV106", "FWV107", "FWV201", "FWV202",
         ],
         expected_error: None,
     }];

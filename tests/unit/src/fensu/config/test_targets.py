@@ -23,6 +23,8 @@ from tests.unit.src.fensu.config._test_types import (
     CanonicalTargetRootTestCase,
     InvalidTargetConfigTestCase,
     TargetConfigTestCase,
+    WebExceptionPathTestCase,
+    WebTargetDefaultsTestCase,
 )
 from tests.unit.src.fensu.config.helpers import write_fensu_toml
 
@@ -158,6 +160,98 @@ def test_given_explicit_targets_when_loading_then_selects_flat_python_config(
 @pytest.mark.parametrize(
     "test_case",
     [
+        WebTargetDefaultsTestCase(
+            description="generic TypeScript has no SvelteKit or shadcn default",
+            analyzer="typescript",
+            extra_config="",
+            expected_framework=None,
+            expected_shadcn=None,
+            expected_ui_kit=None,
+        ),
+        WebTargetDefaultsTestCase(
+            description="Svelte defaults to its SvelteKit framework contract only",
+            analyzer="svelte",
+            extra_config="",
+            expected_framework="sveltekit",
+            expected_shadcn=None,
+            expected_ui_kit=None,
+        ),
+        WebTargetDefaultsTestCase(
+            description="nested UI-kit remains contained beneath a source root",
+            analyzer="svelte",
+            extra_config='ui_kit = "src/lib/design/ui-kit"\n',
+            expected_framework="sveltekit",
+            expected_shadcn=None,
+            expected_ui_kit="src/lib/design/ui-kit",
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_web_target_when_loading_then_defaults_follow_analyzer_contract(
+    tmp_path: Path, test_case: WebTargetDefaultsTestCase
+) -> None:
+    write_fensu_toml(
+        root=tmp_path,
+        contents=(
+            "[targets.web]\n"
+            f'analyzer = "{test_case.analyzer}"\n'
+            'roots = ["src"]\n'
+            f"{test_case.extra_config}"
+        ),
+    )
+
+    config: Config = load_target_project_config(start=tmp_path, target="web").config
+
+    assert config.framework == test_case.expected_framework
+    assert config.shadcn == test_case.expected_shadcn
+    assert config.ui_kit == test_case.expected_ui_kit
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        WebExceptionPathTestCase(
+            description="TypeScript exceptions accept TypeScript modules",
+            analyzer="typescript",
+            expected_path="src/module.ts",
+        ),
+        WebExceptionPathTestCase(
+            description="TypeScript exceptions accept JavaScript modules",
+            analyzer="typescript",
+            expected_path="src/module.js",
+        ),
+        WebExceptionPathTestCase(
+            description="Svelte exceptions accept component modules",
+            analyzer="svelte",
+            expected_path="src/Component.svelte",
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_analyzer_compatible_web_exception_when_loading_then_path_is_accepted(
+    tmp_path: Path, test_case: WebExceptionPathTestCase
+) -> None:
+    write_fensu_toml(
+        root=tmp_path,
+        contents=(
+            "[targets.web]\n"
+            f'analyzer = "{test_case.analyzer}"\n'
+            'roots = ["src"]\nselect = ["FWA003"]\n'
+            "[[targets.web.rule_exceptions]]\n"
+            'rule = "FWA003"\n'
+            f'path = "{test_case.expected_path}"\n'
+            'reason = "external contract"\n'
+        ),
+    )
+
+    config: Config = load_target_project_config(start=tmp_path, target="web").config
+
+    assert config.rule_exceptions[0].path == test_case.expected_path
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
         InvalidTargetConfigTestCase(
             description="targets must be a table",
             config_text="targets = []\n",
@@ -269,6 +363,42 @@ def test_given_explicit_targets_when_loading_then_selects_flat_python_config(
             target="valid",
             expected_error_fragment="must define at least one root in roots",
         ),
+        InvalidTargetConfigTestCase(
+            description="TypeScript cannot activate the SvelteKit framework",
+            config_text=(
+                '[targets.web]\nanalyzer = "typescript"\nroots = ["src"]\nframework = "sveltekit"\n'
+            ),
+            target="web",
+            expected_error_fragment="framework is supported only by the Svelte analyzer",
+        ),
+        InvalidTargetConfigTestCase(
+            description="TypeScript exceptions reject Python paths",
+            config_text=(
+                '[targets.web]\nanalyzer = "typescript"\nroots = ["src"]\n'
+                '[[targets.web.rule_exceptions]]\nrule = "FWA003"\n'
+                'path = "src/module.py"\nreason = "wrong analyzer"\n'
+            ),
+            target="web",
+            expected_error_fragment="not an exact repository-relative POSIX source for typescript",
+        ),
+        InvalidTargetConfigTestCase(
+            description="portable web dependencies reject Windows drives",
+            config_text=(
+                '[targets.web]\nanalyzer = "svelte"\nroots = ["src"]\n'
+                'openapi = "C:/contracts/openapi.json"\n'
+            ),
+            target="web",
+            expected_error_fragment="repository-relative path",
+        ),
+        InvalidTargetConfigTestCase(
+            description="explicit missing OpenAPI dependencies fail closed",
+            config_text=(
+                '[targets.web]\nanalyzer = "svelte"\nroots = ["src"]\n'
+                'openapi = "contracts/openapi.json"\n'
+            ),
+            target="web",
+            expected_error_fragment="web dependency does not exist: contracts/openapi.json",
+        ),
     ],
     ids=lambda case: case.description,
 )
@@ -276,6 +406,39 @@ def test_given_invalid_explicit_targets_when_loading_then_fails_closed(
     tmp_path: Path, test_case: InvalidTargetConfigTestCase
 ) -> None:
     write_fensu_toml(root=tmp_path, contents=test_case.config_text)
+
+    with pytest.raises(ConfigError) as error:
+        load_target_project_config(start=tmp_path, target=test_case.target)
+
+    assert test_case.expected_error_fragment in str(error.value)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlink creation requires Windows privileges")
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        InvalidTargetConfigTestCase(
+            description="OpenAPI symlink cannot escape a web target",
+            config_text=(
+                '[targets.web]\nanalyzer = "svelte"\nroot = "frontend"\n'
+                'roots = ["src"]\nopenapi = "contracts/openapi.json"\n'
+            ),
+            target="web",
+            expected_error_fragment="web dependency escapes the target: contracts/openapi.json",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_web_dependency_symlink_when_loading_then_target_escape_fails_closed(
+    tmp_path: Path, test_case: InvalidTargetConfigTestCase
+) -> None:
+    write_fensu_toml(root=tmp_path, contents=test_case.config_text)
+    (tmp_path / "frontend/src").mkdir(parents=True)
+    (tmp_path / "frontend/contracts").mkdir(parents=True)
+    (tmp_path / "outside").mkdir()
+    outside: Path = tmp_path / "outside/openapi.json"
+    outside.write_text('{"paths": {}}\n')
+    (tmp_path / "frontend/contracts/openapi.json").symlink_to(outside)
 
     with pytest.raises(ConfigError) as error:
         load_target_project_config(start=tmp_path, target=test_case.target)
@@ -348,21 +511,20 @@ def test_given_noncanonical_analyzer_spelling_when_parsing_then_identity_is_unkn
     "test_case",
     [
         AnalyzerCapabilityTestCase(
-            description=f"known {analyzer.value} backend is unavailable",
+            description=f"known {analyzer.value} backend is publicly available",
             analyzer=analyzer,
-            expected_available=False,
-            expected_error_fragment=f"Known analyzer backend unavailable: {analyzer.value}",
+            expected_available=True,
+            expected_cache_contract=f"{analyzer.value}-policy-v4",
         )
         for analyzer in (AnalyzerId.TYPESCRIPT, AnalyzerId.SVELTE)
     ],
     ids=lambda case: case.description,
 )
-def test_given_known_unavailable_analyzer_when_resolving_backend_then_fails_distinctly(
+def test_given_known_web_analyzer_when_resolving_backend_then_is_publicly_available(
     test_case: AnalyzerCapabilityTestCase,
 ) -> None:
     capability: AnalyzerCapability = analyzer_capability(test_case.analyzer)
 
     assert capability.available is test_case.expected_available
-    assert capability.cache_contract
-    with pytest.raises(ConfigError, match=test_case.expected_error_fragment):
-        require_analyzer_backend(test_case.analyzer)
+    assert capability.cache_contract == test_case.expected_cache_contract
+    assert require_analyzer_backend(test_case.analyzer) == capability

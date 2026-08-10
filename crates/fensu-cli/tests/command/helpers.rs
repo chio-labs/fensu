@@ -26,7 +26,6 @@ pub(crate) fn run_internal_web_check_with(
         .args(["check", "--no-color"])
         .args(arguments)
         .current_dir(repository)
-        .env("FENSU_INTERNAL_NATIVE_WEB_ANALYZERS", "1")
         .env("FENSU_PYTHON", poison_python(process_directory))
         .env("PATH", process_directory)
         .env("FENSU_PROCESS_MARKER", repository.join("process-invoked"))
@@ -35,15 +34,14 @@ pub(crate) fn run_internal_web_check_with(
         .expect("internal native web check process runs")
 }
 
-pub(crate) fn run_with_internal_web_gate(repository: &Path, arguments: &[&str]) -> Output {
+pub(crate) fn run_web_command(repository: &Path, arguments: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_fensu"))
         .args(arguments)
         .current_dir(repository)
-        .env("FENSU_INTERNAL_NATIVE_WEB_ANALYZERS", "1")
         .env("FENSU_PYTHON", repository.join("python-does-not-exist"))
         .env("NO_COLOR", "1")
         .output()
-        .expect("internal-gate command process runs")
+        .expect("native web command process runs")
 }
 
 pub(crate) fn run_check_colored(repository: &Path, arguments: &[&str]) -> Output {

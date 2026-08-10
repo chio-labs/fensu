@@ -46,6 +46,7 @@ pub(crate) fn render_check(
             project_root: &target.project_root,
             config: &target.config,
             sources: &target.sources,
+            project_inputs: &target.project_inputs,
             excluded: target.excluded,
             show_warnings: options.warn,
         })?);

@@ -83,13 +83,18 @@ pub(crate) fn render_configuration_inputs(
     output
 }
 
-fn configuration_values<'a>(name: &str, config: &'a Config) -> &'a [String] {
+fn configuration_values(name: &str, config: &Config) -> Vec<String> {
     match name {
-        "roots" => &config.roots,
-        "tests" => &config.tests,
-        "tooling" => &config.tooling,
-        "test_scopes" => &config.test_scopes,
-        _ => &[],
+        "roots" => config.roots.clone(),
+        "tests" => config.tests.clone(),
+        "tooling" => config.tooling.clone(),
+        "test_scopes" => config.test_scopes.clone(),
+        "generated" => config.generated.clone(),
+        "ui_kit" => config.ui_kit.iter().cloned().collect(),
+        "framework" => config.framework.iter().cloned().collect(),
+        "shadcn" => config.shadcn.iter().cloned().collect(),
+        "openapi" => config.openapi.iter().cloned().collect(),
+        _ => Vec::new(),
     }
 }
 

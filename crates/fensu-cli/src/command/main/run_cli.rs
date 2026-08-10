@@ -1,15 +1,12 @@
 use std::env;
 use std::path::Path;
 
-use crate::analyzer::AnalyzerId;
 use crate::check::main::check_routing::check_routing;
 use crate::check::main::clean_caches::clean_caches;
-use crate::check::main::custom_freshness::all_target_custom_freshness;
 use crate::check::main::prepare_cleanup::prepare_cleanup;
+use crate::command::_helpers::check_partition::execution::partitioned_check;
 use crate::command::main::{check, help, init, map, rule, skills};
-use crate::configuration::main::custom_rules;
 use crate::configuration::main::load_targets;
-use crate::hosting::main::run_custom_check_host::run_custom_check_host;
 use crate::models::CliOutput;
 
 pub(super) fn run_cli() -> CliOutput {
@@ -47,34 +44,13 @@ fn dispatch(arguments: &[String]) -> Result<CliOutput, String> {
 fn dispatch_check(arguments: &[String]) -> Result<CliOutput, String> {
     let routing = check_routing(arguments)?;
     if routing.help {
-        return check::run(arguments);
+        return check::run(arguments, None);
     }
     let loaded = load_targets::load_targets(Path::new("."), routing.target)?;
-    for (_, config) in &loaded {
-        config.analyzer.require_check_backend()?;
-    }
-    let hosted_web_policy = loaded.iter().any(|(_, config)| {
-        config.analyzer != AnalyzerId::Python
-            && (!config.rule_paths.is_empty()
-                || !config.rule_modules.is_empty()
-                || !config.rule_options.is_empty())
-    });
     let cleanup = prepare_cleanup(Path::new("."), routing.target);
-    let result = if custom_rules::custom_rules_are_configured(Path::new("."), routing.target)?
-        && !hosted_web_policy
-    {
-        let exit_code = run_custom_check_host(arguments)?;
-        Ok(CliOutput {
-            stdout: String::new(),
-            stderr: if matches!(exit_code, 0 | 1) {
-                all_target_custom_freshness(Path::new("."), routing.target)
-            } else {
-                String::new()
-            },
-            exit_code,
-        })
-    } else {
-        check::run(arguments)
+    let result = match partitioned_check(arguments, &loaded) {
+        Some(output) => Ok(output),
+        None => check::run(arguments, None),
     };
     if result
         .as_ref()

@@ -100,6 +100,16 @@ class Threshold(StrEnum):
     MIN_CUSTOM_RULE_TEST_CASES = "min_custom_rule_test_cases"
     MAX_IMPORTED_BINDINGS = "max_imported_bindings"
     MAX_PUBLIC_EXPORTS = "max_public_exports"
+    MAX_ROUTE_SCRIPT_LINES = "max_route_script_lines"
+    MAX_COMPONENT_SCRIPT_LINES = "max_component_script_lines"
+    MAX_STATE_LINES = "max_state_lines"
+    MAX_STATE_PUBLIC_MEMBERS = "max_state_public_members"
+    MAX_STATE_CELLS = "max_state_cells"
+    MAX_TOTAL_RUNES = "max_total_runes"
+    MAX_STATE_FUNCTIONS = "max_state_functions"
+    MAX_RESOURCE_FAMILIES = "max_resource_families"
+    MAX_API_LINES = "max_api_lines"
+    MAX_API_EXPORTS = "max_api_exports"
 
 
 class RuleContext(Protocol):

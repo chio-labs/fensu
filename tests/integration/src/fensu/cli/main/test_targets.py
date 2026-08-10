@@ -34,16 +34,18 @@ from tests.integration.src.fensu.cli.main.helpers import (
     "test_case",
     [
         UnavailableAnalyzerHostTestCase(
-            description=f"known {analyzer} target fails before Python discovery",
+            description=f"native {analyzer} target cannot enter the Python custom-rule host",
             analyzer=analyzer,
             expected_exit_code=2,
-            expected_error_fragment=f"Known analyzer backend unavailable: {analyzer}",
+            expected_error_fragment=(
+                f"Native {analyzer} targets do not support Python-hosted custom rules"
+            ),
         )
         for analyzer in ("typescript", "svelte")
     ],
     ids=lambda case: case.description,
 )
-def test_given_known_unavailable_target_when_running_python_host_then_fails_before_discovery(
+def test_given_native_web_target_when_running_python_host_then_fails_before_discovery(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     test_case: UnavailableAnalyzerHostTestCase,
@@ -87,15 +89,15 @@ def test_given_known_unavailable_target_when_running_python_host_then_fails_befo
     "test_case",
     [
         AggregateAnalyzerPreflightTestCase(
-            description="later unavailable backend preempts earlier malformed Python target",
+            description="Python custom-rule validation remains owned by the Python host",
             expected_exit_code=2,
-            expected_error_fragment="Known analyzer backend unavailable: svelte",
-            expected_absent_fragment="Custom rule path does not exist",
+            expected_error_fragment="Custom rule path does not exist",
+            expected_absent_fragment="Known analyzer backend unavailable",
         )
     ],
     ids=lambda case: case.description,
 )
-def test_given_mixed_aggregate_targets_when_running_python_host_then_all_backends_preflight_first(
+def test_given_mixed_aggregate_targets_when_running_python_host_then_python_policy_fails_closed(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     test_case: AggregateAnalyzerPreflightTestCase,

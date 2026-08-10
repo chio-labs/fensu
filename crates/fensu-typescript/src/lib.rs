@@ -7,9 +7,10 @@ pub mod parser;
 
 pub use constants::{CACHE_CONTRACT_VERSION, PARSER_CONTRACT_VERSION};
 pub use models::{
-    ClassFact, FunctionFact, ImportBindingFact, ImportFact, JsonCallFact, LocalBindingFact,
-    ModelFact, ModelKind, ModuleFacts, ParameterizedTestFact, ParseDiagnostic, SourceKind,
-    SourceSpan, TopLevelBindingFact,
+    CallFact, ClassFact, FunctionFact, ImportBindingFact, ImportFact, JsonCallFact,
+    LocalBindingFact, ModelFact, ModelKind, ModuleFacts, MutationFact, ParameterizedTestFact,
+    ParseDiagnostic, ResourceFact, ReturnObjectFact, SourceKind, SourceSpan, StringFact,
+    TopLevelBindingFact,
 };
 pub use parser::{
     parse, parse_binding_pattern, parse_expression, parse_formal_parameters, parse_javascript,

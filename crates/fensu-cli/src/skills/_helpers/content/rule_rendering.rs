@@ -91,6 +91,16 @@ fn rule_configuration_lines(rule: &RuleMetadata, config: &Config) -> Vec<String>
             ));
             continue;
         }
+        if matches!(name.as_str(), "framework" | "shadcn" | "openapi") {
+            let value = match name.as_str() {
+                "framework" => config.framework.as_deref(),
+                "shadcn" => config.shadcn.as_deref(),
+                "openapi" => config.openapi.as_deref(),
+                _ => None,
+            };
+            lines.push(format!("- `{name}`: {}", value.unwrap_or("not configured")));
+            continue;
+        }
         let values = match name.as_str() {
             "roots" => &config.roots,
             "tests" => &config.tests,

@@ -17,6 +17,16 @@ pub(crate) const DEFAULT_THRESHOLDS: &[(&str, u32)] = &[
     ("min_custom_rule_test_cases", 1),
     ("max_imported_bindings", 20),
     ("max_public_exports", 20),
+    ("max_route_script_lines", 200),
+    ("max_component_script_lines", 250),
+    ("max_state_lines", 300),
+    ("max_state_public_members", 20),
+    ("max_state_cells", 15),
+    ("max_total_runes", 20),
+    ("max_state_functions", 15),
+    ("max_resource_families", 1),
+    ("max_api_lines", 200),
+    ("max_api_exports", 3),
 ];
 
 #[rustfmt::skip]
@@ -93,8 +103,11 @@ pub(crate) const CONTRACT_BEHAVIORS: &[&str] = &[
 #[rustfmt::skip]
 pub(crate) const RULE_CONFIGURATION_INPUTS: &[&str] = &[
     "contracts",
+    "framework",
     "generated",
+    "openapi",
     "roots",
+    "shadcn",
     "test_scopes",
     "tests",
     "tooling",

@@ -17,7 +17,9 @@ const PROJECT_MARKER: &str = "<!-- synchronized-project-skill-by: fensu skills -
 const UNICODE_BASIC_PLANE_MAX: u32 = 0xffff;
 
 pub(crate) fn input_fingerprint(context: &SkillContext) -> Result<String, String> {
-    let encoded = canonical_ascii(&input_value(context))?;
+    let mut value = input_value(context);
+    value.insert("web_inputs", web_inputs_value(context)?);
+    let encoded = canonical_ascii(&value)?;
     Ok(digest(encoded.as_bytes()))
 }
 
@@ -271,6 +273,10 @@ fn config_value(config: &Config) -> Value {
         "evaluation": {"include": config.evaluation_include, "exclude": config.evaluation_exclude},
         "skills": {"name": config.skills_name},
         "thresholds": thresholds,
+        "framework": config.framework,
+        "ui_kit": config.ui_kit,
+        "shadcn": config.shadcn,
+        "openapi": config.openapi,
         "role_thresholds": role_thresholds,
         "threshold_overrides": config.threshold_overrides.iter().map(|item| {
             let values = item.thresholds.iter().map(|(key, value)| (key.clone(), json!(value))).collect::<BTreeMap<_, _>>();
@@ -284,6 +290,21 @@ fn config_value(config: &Config) -> Value {
         value["target_root"] = json!(config.target_root);
     }
     value
+}
+
+fn web_inputs_value(context: &SkillContext) -> Result<Value, String> {
+    let mut inputs: BTreeMap<String, String> = BTreeMap::new();
+    for path in [&context.config.shadcn, &context.config.openapi]
+        .into_iter()
+        .flatten()
+    {
+        let absolute = context.project_root.join(path);
+        let content = std::fs::read(&absolute).map_err(|error| {
+            format!("Could not fingerprint target-local web dependency {path}: {error}")
+        })?;
+        inputs.insert(path.clone(), digest(&content));
+    }
+    Ok(json!(inputs))
 }
 
 fn rules_value(context: &SkillContext, rules: &[RuleMetadata]) -> Value {

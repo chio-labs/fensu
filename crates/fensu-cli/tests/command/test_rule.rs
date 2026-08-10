@@ -11,17 +11,33 @@ const CONFIG: &str =
 
 #[test]
 fn given_web_analyzer_when_inspecting_rule_then_native_catalogue_is_available() {
-    let test_cases = [ConfigCommandTargetTestCase {
-        description: "TypeScript rule lookup renders retained native metadata",
-        arguments: &["rule", "FWA001", "--target", "web", "--color", "never"],
-        expected_exit_code: 0,
-        expected_stdout: "Analyzers: svelte, typescript",
-        expected_stderr: "",
-    }];
+    let test_cases = [
+        ConfigCommandTargetTestCase {
+            description: "TypeScript rule lookup renders retained native metadata",
+            arguments: &["rule", "FWA001", "--target", "web", "--color", "never"],
+            expected_exit_code: 0,
+            expected_stdout: "Analyzers: svelte, typescript",
+            expected_stderr: "",
+        },
+        ConfigCommandTargetTestCase {
+            description: "SvelteKit rule lookup renders framework provenance",
+            arguments: &["rule", "FWU001", "--target", "web", "--color", "never"],
+            expected_exit_code: 0,
+            expected_stdout: "framework: sveltekit",
+            expected_stderr: "",
+        },
+        ConfigCommandTargetTestCase {
+            description: "OpenAPI rule lookup renders target-local dependency provenance",
+            arguments: &["rule", "FWC201", "--target", "web", "--color", "never"],
+            expected_exit_code: 0,
+            expected_stdout: "openapi: contracts/openapi.json",
+            expected_stderr: "",
+        },
+    ];
     let repository = tempfile::tempdir().expect("temporary repository");
     write(
         repository.path().join("fensu.toml"),
-        "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"missing\"]\n",
+        "[targets.web]\nanalyzer = \"svelte\"\nframework = \"sveltekit\"\nroots = [\"src\"]\nui_kit = \"src/ui-kit\"\nshadcn = \"config/components.json\"\nopenapi = \"contracts/openapi.json\"\n",
     );
 
     for test_case in &test_cases {
@@ -34,13 +50,15 @@ fn given_web_analyzer_when_inspecting_rule_then_native_catalogue_is_available() 
         assert_eq!(
             output.status.code(),
             Some(test_case.expected_exit_code),
-            "{}",
-            test_case.description
+            "{}: {}",
+            test_case.description,
+            String::from_utf8_lossy(&output.stderr)
         );
         assert!(
             String::from_utf8_lossy(&output.stdout).contains(test_case.expected_stdout),
-            "{}",
-            test_case.description
+            "{}: {}",
+            test_case.description,
+            String::from_utf8_lossy(&output.stdout)
         );
         assert!(
             String::from_utf8_lossy(&output.stderr).contains(test_case.expected_stderr),

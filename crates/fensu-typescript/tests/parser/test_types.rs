@@ -118,3 +118,15 @@ pub(crate) struct ContractFactsTestCase {
     pub(crate) expected_test_names: &'static [&'static str],
     pub(crate) expected_public_any: usize,
 }
+
+pub(crate) struct WebPolicyFactsTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) source: &'static str,
+    pub(crate) expected_endpoints: &'static [(&'static str, bool)],
+    pub(crate) expected_dynamic_segments: &'static [&'static str],
+    pub(crate) expected_export_owners: &'static [(&'static str, &'static str)],
+    pub(crate) expected_cleanup_function: &'static str,
+    pub(crate) expected_cleanup_target: &'static str,
+    pub(crate) expected_return_function: &'static str,
+    pub(crate) expected_returned_member: &'static str,
+}

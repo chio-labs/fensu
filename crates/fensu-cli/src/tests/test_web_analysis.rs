@@ -229,7 +229,8 @@ fn given_recursive_jsonc_config_when_resolving_then_child_compiler_options_overr
             "{ \"compilerOptions\": { \"baseUrl\": \"../parent\", \"paths\": { \"@base/*\": [\"src/base/*\"] } } }\n",
         )
         .expect("base config");
-        let inputs = web::discover_project_inputs(root, root).expect("recursive config inputs");
+        let inputs = web::discover_project_inputs(root, root, &crate::models::Config::default())
+            .expect("recursive config inputs");
         let sources = vec![
             web_source(root, "src/feature.ts"),
             web_source(root, "src/new/value.ts"),
@@ -313,7 +314,8 @@ fn given_ordered_extends_array_when_resolving_then_later_bases_precede_child_ove
             "export const child: number = 1;\n",
         )
         .expect("child source");
-        let inputs = web::discover_project_inputs(root, root).expect("ordered config inputs");
+        let inputs = web::discover_project_inputs(root, root, &crate::models::Config::default())
+            .expect("ordered config inputs");
         let sources = vec![
             web_source(root, "src/feature.ts"),
             web_source(root, "one/src/value.ts"),

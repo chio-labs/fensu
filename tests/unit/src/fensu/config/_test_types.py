@@ -56,6 +56,27 @@ class TargetConfigTestCase:
 
 
 @dataclass(frozen=True)
+class WebTargetDefaultsTestCase:
+    """Web analyzer configuration and expected framework-local defaults."""
+
+    description: str
+    analyzer: str
+    extra_config: str
+    expected_framework: str | None
+    expected_shadcn: str | None
+    expected_ui_kit: str | None
+
+
+@dataclass(frozen=True)
+class WebExceptionPathTestCase:
+    """Web analyzer and exact exception path expected to be accepted."""
+
+    description: str
+    analyzer: str
+    expected_path: str
+
+
+@dataclass(frozen=True)
 class CanonicalTargetRootTestCase:
     """A symlink target spelling and expected canonical effective identity."""
 
@@ -93,7 +114,7 @@ class AnalyzerCapabilityTestCase:
     description: str
     analyzer: AnalyzerId
     expected_available: bool
-    expected_error_fragment: str
+    expected_cache_contract: str
 
 
 @dataclass(frozen=True)

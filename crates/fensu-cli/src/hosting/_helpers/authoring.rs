@@ -1,7 +1,7 @@
 //! Resolve and verify the installed authoring package version.
 
 use std::env;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 pub(crate) fn verify_authoring_version() -> Result<(), String> {
     let Some(version) = installed_authoring_version() else {
@@ -20,24 +20,35 @@ pub(crate) fn verify_authoring_version() -> Result<(), String> {
 }
 
 fn installed_authoring_version() -> Option<String> {
-    let Ok(executable) = env::current_exe() else {
-        return None;
-    };
-    let prefix = executable.parent()?.parent()?;
-    let candidates = [prefix.join("Lib/site-packages"), prefix.join("lib")];
-    for candidate in candidates {
-        if candidate.ends_with("lib") {
-            let Ok(entries) = candidate.read_dir() else {
-                return None;
-            };
-            for entry in entries.flatten() {
-                let site = entry.path().join("site-packages");
-                if let Some(version) = metadata_version(&site) {
-                    return Some(version);
-                }
+    let mut prefixes: Vec<PathBuf> = Vec::new();
+    if let Ok(executable) = env::current_exe() {
+        if let Some(prefix) = executable.parent().and_then(Path::parent) {
+            prefixes.push(prefix.to_path_buf());
+        }
+    }
+    if let Some(executable) = env::var_os("FENSU_PYTHON") {
+        if let Some(prefix) = Path::new(&executable).parent().and_then(Path::parent) {
+            if !prefixes.iter().any(|candidate| candidate == prefix) {
+                prefixes.push(prefix.to_path_buf());
             }
-        } else if let Some(version) = metadata_version(&candidate) {
-            return Some(version);
+        }
+    }
+    for prefix in prefixes {
+        let candidates = [prefix.join("Lib/site-packages"), prefix.join("lib")];
+        for candidate in candidates {
+            if candidate.ends_with("lib") {
+                let Ok(entries) = candidate.read_dir() else {
+                    continue;
+                };
+                for entry in entries.flatten() {
+                    let site = entry.path().join("site-packages");
+                    if let Some(version) = metadata_version(&site) {
+                        return Some(version);
+                    }
+                }
+            } else if let Some(version) = metadata_version(&candidate) {
+                return Some(version);
+            }
         }
     }
     None

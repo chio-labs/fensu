@@ -18,41 +18,16 @@ impl AnalyzerId {
     pub(crate) const fn cache_contract(self) -> &'static str {
         match self {
             Self::Python => "python-ruff-py312-v1",
-            Self::TypeScript => "typescript-policy-v3",
-            Self::Svelte => "svelte-policy-v3",
+            Self::TypeScript => "typescript-policy-v4",
+            Self::Svelte => "svelte-policy-v4",
         }
     }
 
     pub(crate) const fn parser_contract(self) -> &'static str {
         match self {
             Self::Python => "python-ruff-py312-v1",
-            Self::TypeScript => "typescript-backend-v6",
-            Self::Svelte => "svelte-backend-v6",
-        }
-    }
-
-    pub(crate) fn require_backend(self) -> Result<(), String> {
-        match self {
-            Self::Python => Ok(()),
-            Self::TypeScript | Self::Svelte => {
-                Err(format!("Known analyzer backend unavailable: {self}."))
-            }
-        }
-    }
-
-    pub(crate) fn require_check_backend(self) -> Result<(), String> {
-        match self {
-            Self::Python => Ok(()),
-            Self::TypeScript | Self::Svelte
-                if cfg!(debug_assertions)
-                    && std::env::var_os("FENSU_INTERNAL_NATIVE_WEB_ANALYZERS").as_deref()
-                        == Some(std::ffi::OsStr::new("1")) =>
-            {
-                Ok(())
-            }
-            Self::TypeScript | Self::Svelte => {
-                Err(format!("Known analyzer backend unavailable: {self}."))
-            }
+            Self::TypeScript => "typescript-backend-v10",
+            Self::Svelte => "svelte-backend-v10",
         }
     }
 }

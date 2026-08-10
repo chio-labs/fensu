@@ -68,6 +68,9 @@ pub(crate) struct Config {
     pub(crate) threshold_overrides: Vec<ThresholdOverride>,
     pub(crate) contracts: Vec<(String, String)>,
     pub(crate) ui_kit: Option<String>,
+    pub(crate) framework: Option<String>,
+    pub(crate) shadcn: Option<String>,
+    pub(crate) openapi: Option<String>,
     pub(crate) exceptions: Vec<RuleException>,
     pub(crate) rule_ignores: Vec<RuleIgnore>,
     pub(crate) skills_name: Option<String>,
@@ -198,6 +201,12 @@ pub(crate) struct ProjectInput {
     pub(crate) target_path: String,
     pub(crate) content: Vec<u8>,
     pub(crate) fingerprint: String,
+}
+
+impl ProjectInput {
+    pub(crate) fn text(&self) -> &str {
+        std::str::from_utf8(&self.content).unwrap_or_default()
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

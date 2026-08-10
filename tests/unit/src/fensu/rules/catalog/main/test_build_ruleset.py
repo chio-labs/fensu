@@ -105,7 +105,6 @@ def test_given_dagster_pack_when_building_catalogue_then_registers_complete_stan
                     "generic-typescript",
                     "svelte",
                     "sveltekit",
-                    "racewatch-specific/deferred",
                 }
             ),
         )
@@ -148,6 +147,10 @@ def test_given_legacy_web_policy_when_reading_migration_then_every_rule_is_class
                     "FWR405",
                     "FWR501",
                     "FWS106",
+                    "FWV104",
+                    "FWU001",
+                    "FWU002",
+                    "FWU003",
                 }
             ),
             expected_fwp_reason_fragment="trusted parse failures emit FWP001",

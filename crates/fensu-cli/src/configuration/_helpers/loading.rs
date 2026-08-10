@@ -82,18 +82,3 @@ pub(crate) fn load_optional(
         Err(error) => Err(error),
     }
 }
-
-pub(crate) fn custom_rules_are_configured(
-    start: &Path,
-    target: Option<&str>,
-) -> Result<bool, String> {
-    Ok(load_targets(start, target)?
-        .into_iter()
-        .any(config_has_custom_rules))
-}
-
-fn config_has_custom_rules((_, config): (PathBuf, Config)) -> bool {
-    !config.rule_paths.is_empty()
-        || !config.rule_modules.is_empty()
-        || config.rule_options.keys().any(|code| code.starts_with('X'))
-}

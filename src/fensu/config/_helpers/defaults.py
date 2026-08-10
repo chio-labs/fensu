@@ -80,6 +80,9 @@ def build_config(
         threshold_overrides=_threshold_overrides(raw.get("threshold_overrides")),
         contracts=MappingProxyType(contracts),
         ui_kit=raw_ui_kit if isinstance(raw_ui_kit, str) else None,
+        framework=str(raw["framework"]) if isinstance(raw.get("framework"), str) else None,
+        shadcn=str(raw["shadcn"]) if isinstance(raw.get("shadcn"), str) else None,
+        openapi=str(raw["openapi"]) if isinstance(raw.get("openapi"), str) else None,
         generated=_string_tuple(value=raw.get("generated")),
     )
 

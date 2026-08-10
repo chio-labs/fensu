@@ -32,6 +32,7 @@ pub(crate) fn evaluate(request: EvaluationRequest<'_>) -> Result<CheckResult, St
         project_root,
         config,
         sources,
+        project_inputs,
         excluded,
         show_warnings,
     } = request;
@@ -41,6 +42,7 @@ pub(crate) fn evaluate(request: EvaluationRequest<'_>) -> Result<CheckResult, St
             project_root,
             config,
             sources,
+            project_inputs,
             excluded,
             show_warnings,
         });
@@ -180,6 +182,7 @@ fn evaluate_parser_target(request: EvaluationRequest<'_>) -> Result<CheckResult,
         project_root,
         config,
         sources,
+        project_inputs,
         excluded,
         show_warnings,
     } = request;
@@ -225,6 +228,7 @@ fn evaluate_parser_target(request: EvaluationRequest<'_>) -> Result<CheckResult,
     let rows = web_policy::evaluate(WebPolicyRequest {
         config,
         sources,
+        project_inputs,
         selected_codes: &selected_codes,
         thresholds: &threshold_values,
     });
@@ -270,7 +274,15 @@ fn evaluate_parser_target(request: EvaluationRequest<'_>) -> Result<CheckResult,
         warnings,
         selected: sources
             .iter()
-            .filter(|source| source.purpose.is_direct())
+            .filter(|source| {
+                source.purpose.is_direct()
+                    || config.analyzer == crate::analyzer::AnalyzerId::Svelte
+                        && source.purpose == crate::models::SourcePurpose::Support
+                        && crate::check::_helpers::project::is_direct_source(
+                            &source.path,
+                            crate::analyzer::AnalyzerId::TypeScript,
+                        )
+            })
             .count(),
         excluded,
         applied_exceptions: applied,

@@ -5,7 +5,7 @@ use crate::check::main::check_routing::check_routing;
 use crate::check::main::clean_caches::clean_caches;
 use crate::check::main::prepare_cleanup::prepare_cleanup;
 use crate::command::_helpers::check_partition::execution::partitioned_check;
-use crate::command::main::{check, help, init, map, rule, skills};
+use crate::command::main::{check, help, init, map, rule, skills, target};
 use crate::configuration::main::load_targets;
 use crate::models::CliOutput;
 
@@ -17,7 +17,7 @@ pub(super) fn run_cli() -> CliOutput {
 fn dispatch(arguments: &[String]) -> Result<CliOutput, String> {
     let Some(command) = arguments.first().map(String::as_str) else {
         return Ok(CliOutput::error(
-            "Usage: fensu {check,init,rule,skills,map} ...".to_owned(),
+            "Usage: fensu {check,init,rule,skills,map,target} ...".to_owned(),
         ));
     };
     match command {
@@ -31,10 +31,11 @@ fn dispatch(arguments: &[String]) -> Result<CliOutput, String> {
         "map" => map::run(&arguments[1..]),
         "rule" => rule::rule(&arguments[1..]),
         "skills" => skills::run(&arguments[1..]),
+        "target" => target::run(&arguments[1..]),
         _ => Ok(CliOutput {
             stdout: String::new(),
             stderr: format!(
-                "Unknown command: {command}\nUsage: fensu {{check,init,rule,skills,map}} ...\n"
+                "Unknown command: {command}\nUsage: fensu {{check,init,rule,skills,map,target}} ...\n"
             ),
             exit_code: 2,
         }),

@@ -503,6 +503,86 @@ from tests.e2e.src.fensu.cli.main.helpers import (
             expected_absent_output_fragments=("Created", "\x1b["),
             expected_stdout_is_empty=True,
         ),
+        InstalledInitCliTestCase(
+            description="SvelteKit-only repository writes explicit target without Python scaffolding",
+            argv=("--yes", "--no-skills"),
+            input_text="",
+            initial_files=(
+                CliProjectFile(relative_path="svelte.config.js", source="export default {};\n"),
+                CliProjectFile(
+                    relative_path="package.json",
+                    source='{"devDependencies":{"@sveltejs/kit":"latest"}}\n',
+                ),
+                CliProjectFile(relative_path="tsconfig.json", source="{}\n"),
+                CliProjectFile(relative_path="src/routes/+page.svelte", source="<p>ok</p>\n"),
+            ),
+            expected_exit_code=0,
+            expected_files=(
+                CliProjectFile(
+                    relative_path="fensu.toml",
+                    source=(
+                        "[targets.web]\n"
+                        'analyzer = "svelte"\n'
+                        'root = "."\n'
+                        'roots = ["src"]\n'
+                        "tests = []\n"
+                        "tooling = []\n"
+                        'framework = "sveltekit"\n'
+                        "rule_packs = []\n"
+                        'select = ["FW"]\n'
+                    ),
+                ),
+                CliProjectFile(relative_path="svelte.config.js", source="export default {};\n"),
+                CliProjectFile(
+                    relative_path="package.json",
+                    source='{"devDependencies":{"@sveltejs/kit":"latest"}}\n',
+                ),
+                CliProjectFile(relative_path="tsconfig.json", source="{}\n"),
+                CliProjectFile(relative_path="src/routes/+page.svelte", source="<p>ok</p>\n"),
+            ),
+            expected_config_values=(),
+            expected_stdout_fragments=(
+                "Detected analyzer targets",
+                "web: analyzer=svelte, root=., roots=src, tests=, tooling=, packs=",
+                "Wrote fensu.toml",
+            ),
+            expected_stderr_fragments=(),
+            expected_absent_output_fragments=(
+                "Empty repository",
+                "Created src/",
+                "Python files",
+                "\x1b[",
+            ),
+            expected_stdout_is_empty=False,
+            expected_cache_exists=True,
+        ),
+        InstalledInitCliTestCase(
+            description="generic Node repository is a SvelteKit detection near miss",
+            argv=("--yes", "--no-skills"),
+            input_text="",
+            initial_files=(
+                CliProjectFile(
+                    relative_path="package.json", source='{"dependencies":{"svelte":"latest"}}\n'
+                ),
+                CliProjectFile(relative_path="tsconfig.json", source="{}\n"),
+                CliProjectFile(relative_path="src/index.ts", source="export const value = 1;\n"),
+            ),
+            expected_exit_code=2,
+            expected_files=(
+                CliProjectFile(
+                    relative_path="package.json", source='{"dependencies":{"svelte":"latest"}}\n'
+                ),
+                CliProjectFile(relative_path="tsconfig.json", source="{}\n"),
+                CliProjectFile(relative_path="src/index.ts", source="export const value = 1;\n"),
+            ),
+            expected_config_values=(),
+            expected_stdout_fragments=(),
+            expected_stderr_fragments=(
+                "Empty repository initialization with --yes requires --name NAME",
+            ),
+            expected_absent_output_fragments=("Wrote fensu.toml", "Created", "\x1b["),
+            expected_stdout_is_empty=True,
+        ),
     ],
     ids=lambda case: case.description,
 )

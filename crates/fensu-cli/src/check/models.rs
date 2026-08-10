@@ -34,6 +34,8 @@ pub(crate) struct CheckPlan {
 #[derive(Debug)]
 pub(crate) struct CheckPlans {
     pub(crate) invocation: PathBuf,
+    pub(crate) config_target: Option<String>,
+    pub(crate) check_skill_freshness: bool,
     pub(crate) root: PathBuf,
     pub(crate) plans: Vec<CheckPlan>,
     pub(crate) sources: Vec<ScopedSource>,

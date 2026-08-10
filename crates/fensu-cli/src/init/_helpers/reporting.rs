@@ -40,6 +40,23 @@ pub(crate) fn finish_report(
 }
 
 fn summary_text(repository: &Path, plan: &InitPlan) -> String {
+    if !plan.targets.is_empty() {
+        let mut output = "-> Detected analyzer targets\n".to_owned();
+        for target in &plan.targets {
+            output.push_str(&format!(
+                "    {}: analyzer={}, root={}, roots={}, tests={}, tooling={}, packs={}\n",
+                target.name,
+                target.analyzer,
+                target.root,
+                target.roots.join(","),
+                target.tests.join(","),
+                target.tooling.join(","),
+                target.rule_packs.join(",")
+            ));
+        }
+        output.push_str("    Wrote fensu.toml\n");
+        return output;
+    }
     let Some(name) = plan.project_name.as_ref() else {
         let runtime_count = plan
             .roots

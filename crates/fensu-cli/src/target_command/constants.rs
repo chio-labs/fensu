@@ -1,0 +1,9 @@
+pub(crate) const ADD_COMMAND: &str = "add";
+pub(crate) const CONFIG_FILE: &str = "fensu.toml";
+pub(crate) const HELP: &str = "usage: fensu target add NAME --preset sveltekit --path PATH\n";
+pub(crate) const OPERATION_LOCK: &str = ".fensu-target-add.lock";
+pub(crate) const PATH_OPTION: &str = "--path";
+pub(crate) const PRESET_OPTION: &str = "--preset";
+pub(crate) const SVELTEKIT_PRESET: &str = "sveltekit";
+pub(crate) const TEST_PAUSE_ENVIRONMENT: &str = "FENSU_TEST_TARGET_ADD_PAUSE_MS";
+pub(crate) const TEST_READY_LOCK: &str = ".fensu-target-add-test-ready";

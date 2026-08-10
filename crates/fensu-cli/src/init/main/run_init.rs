@@ -17,12 +17,12 @@ pub(crate) fn run_init(arguments: &[String]) -> Result<CliOutput, String> {
         return Ok(CliOutput::success(INIT_USAGE.to_owned()));
     }
     let repository = env::current_dir().map_err(|error| error.to_string())?;
-    if let Some(path) = local_config(&repository) {
+    if let Some(path) = local_config(&repository)? {
         return existing_configuration(&path, &options);
     }
     let survey = survey_repository(&repository);
     validate_request(&options, &survey)?;
     let plan = plan_layout(&repository, &options, &survey)?;
-    write_project_files(&repository, &plan, survey.empty)?;
+    write_project_files(&repository, &plan, plan.project_name.is_some())?;
     finish_report(&repository, &options, &plan)
 }

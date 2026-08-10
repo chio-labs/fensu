@@ -4,8 +4,8 @@ use std::path::{Path, PathBuf};
 use crate::skills::_helpers::content::fingerprint::{input_fingerprint, owner};
 use crate::skills::_helpers::context::identity::home_dir;
 use crate::skills::models::{
-    InstallPlan, InstallTarget, ProjectInstallTarget, ProjectSkillBundle, SkillContext,
-    SkillOptions, SkillTarget,
+    GeneratedSkillMigration, InstallPlan, InstallTarget, ProjectInstallTarget, ProjectSkillBundle,
+    SkillContext, SkillOptions, SkillTarget,
 };
 
 pub(crate) fn build(
@@ -78,11 +78,33 @@ pub(crate) fn build(
     }
     legacy_paths.sort();
     legacy_paths.dedup();
+    let mut migrations: Vec<GeneratedSkillMigration> = Vec::new();
+    for scoped in &context.migration_contexts {
+        for requested_target in &requested {
+            let path = target_path(
+                *requested_target,
+                options.global_install,
+                home.as_deref(),
+                scoped,
+            )?
+            .path;
+            migrations.push(GeneratedSkillMigration {
+                path,
+                identity: scoped.identity.clone(),
+                owner: owner(scoped),
+            });
+        }
+    }
+    migrations.sort_by(|left, right| left.path.cmp(&right.path));
+    migrations.dedup_by(|left, right| {
+        left.path == right.path && left.identity == right.identity && left.owner == right.owner
+    });
     Ok(InstallPlan {
         context: context.clone(),
         targets,
         project_targets,
         legacy_paths,
+        migrations,
         owner: owner(context),
         input_fingerprint: input_fingerprint(context)?,
         synchronize_project_skills,

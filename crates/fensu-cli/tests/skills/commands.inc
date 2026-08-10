@@ -15,7 +15,7 @@ use crate::test_types::{
 #[test]
 fn given_web_analyzer_when_generating_skills_then_native_catalogue_is_rendered() {
     let test_cases = [ConfigTargetSkillsTestCase {
-        description: "TypeScript skills render retained rules without opening the check gate",
+        description: "SvelteKit skills render retained native rules and provenance",
         arguments: &["--target", "agents", "--config-target", "web"],
         expected_exit_code: 0,
         expected_stdout: "SKILL.md",
@@ -24,10 +24,18 @@ fn given_web_analyzer_when_generating_skills_then_native_catalogue_is_rendered()
     let repository = tempfile::tempdir().expect("temporary repository");
     write(
         repository.path().join("fensu.toml"),
-        "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FWA001\"]\n[targets.web.skills]\nname = \"web\"\n",
+        "[targets.web]\nanalyzer = \"svelte\"\nframework = \"sveltekit\"\nroots = [\"src\"]\ntests = []\ntooling = []\nui_kit = \"src/ui-kit\"\nshadcn = \"config/components.json\"\nopenapi = \"contracts/openapi.json\"\nselect = [\"FWU001\", \"FWC201\", \"FWV105\"]\n[targets.web.skills]\nname = \"web\"\n",
     );
     write(repository.path().join(".git/keep"), b"");
     write(repository.path().join("src/value.ts"), b"export const value = 1;\n");
+    write(
+        repository.path().join("config/components.json"),
+        b"{\"aliases\":{\"ui\":\"$ui-kit\",\"utils\":\"$ui-kit/utils\"}}\n",
+    );
+    write(
+        repository.path().join("contracts/openapi.json"),
+        b"{\"paths\":{\"/api/orders\":{}}}\n",
+    );
 
     for test_case in &test_cases {
         let output = native(repository.path(), test_case.arguments);
@@ -49,13 +57,71 @@ fn given_web_analyzer_when_generating_skills_then_native_catalogue_is_rendered()
         );
         let guidance = fs::read_to_string(target(repository.path(), ".agents", "fensu-web"))
             .expect("web target guidance");
-        assert!(guidance.contains("Blocking rule codes: [\"FWA001\"]"));
+        assert!(guidance.contains("Blocking rule codes: [\"FWC201\", \"FWU001\", \"FWV105\"]"));
         assert!(guidance.contains("Analyzers: `typescript`, `svelte`"));
         assert!(guidance.contains("FW diagnostics and native TypeScript/Svelte architecture policy"));
+        assert!(guidance.contains("Framework pack: \"sveltekit\""));
+        assert!(guidance.contains("shadcn config: \"config/components.json\""));
+        assert!(guidance.contains("OpenAPI document: \"contracts/openapi.json\""));
+        assert!(guidance.contains("max_state_public_members"));
         assert!(!guidance.contains("FF diagnostics"));
         assert!(!guidance.contains("Python"));
         assert!(!guidance.contains("fensu map"));
         assert!(!guidance.contains("RuleContext"));
+    }
+}
+
+#[test]
+fn given_web_dependency_content_when_checking_skill_then_content_change_is_stale() {
+    let test_cases = [SkillsCommandTestCase {
+        description: "shadcn and OpenAPI content identities participate in skill freshness",
+        expected_exit_code: 1,
+    }];
+    for test_case in test_cases {
+        let repository = tempfile::tempdir().expect("web skill repository");
+        write(repository.path().join(".git/keep"), b"");
+        write(
+            repository.path().join("fensu.toml"),
+            b"[targets.web]\nanalyzer = \"svelte\"\nframework = \"sveltekit\"\nroots = [\"src\"]\ntests = []\ntooling = []\nui_kit = \"src/lib/design/ui-kit\"\nshadcn = \"config/components.json\"\nopenapi = \"contracts/openapi.json\"\nselect = [\"FWU001\", \"FWC201\"]\n[targets.web.skills]\nname = \"web\"\n",
+        );
+        write(repository.path().join("src/App.svelte"), b"<p>app</p>\n");
+        write(
+            repository.path().join("config/components.json"),
+            b"{\"aliases\":{\"ui\":\"$ui-kit\",\"utils\":\"$ui-kit/utils\"}}\n",
+        );
+        write(
+            repository.path().join("contracts/openapi.json"),
+            b"{\"paths\":{\"/api/orders\":{}}}\n",
+        );
+        let generated = native(
+            repository.path(),
+            &["--target", "agents", "--config-target", "web"],
+        );
+        assert_eq!(generated.status.code(), Some(0), "{}", test_case.description);
+
+        write(
+            repository.path().join("contracts/openapi.json"),
+            b"{\"paths\":{\"/api/payments\":{}}}\n",
+        );
+        let check = native(
+            repository.path(),
+            &[
+                "--target",
+                "agents",
+                "--config-target",
+                "web",
+                "--check",
+            ],
+        );
+
+        assert_eq!(
+            check.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {}",
+            test_case.description,
+            text(&check.stderr)
+        );
+        assert!(text(&check.stdout).contains("stale"));
     }
 }
 

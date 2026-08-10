@@ -3,10 +3,10 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
-use fensu_typescript::{FunctionFact, ModelFact, ModuleFacts, SourceSpan};
+use fensu_typescript::{FunctionFact, ModelFact, ModuleFacts, SourceSpan, StringFact};
 
 use crate::analyzer::AnalyzerId;
-use crate::models::{Config, ParsedProgram, ScopedSource, SourcePurpose};
+use crate::models::{Config, ParsedProgram, ProjectInput, ScopedSource, SourcePurpose};
 
 const GENERIC_OWNERS: &[&str] = &[
     "common",
@@ -55,6 +55,7 @@ pub(crate) struct WebDiagnostic {
 pub(crate) struct WebPolicyRequest<'a> {
     pub(crate) config: &'a Config,
     pub(crate) sources: &'a [ScopedSource],
+    pub(crate) project_inputs: &'a [ProjectInput],
     pub(crate) selected_codes: &'a HashSet<&'a str>,
     pub(crate) thresholds: &'a HashMap<(String, String), u32>,
 }
@@ -68,7 +69,9 @@ pub(crate) fn evaluate(request: WebPolicyRequest<'_>) -> Vec<WebDiagnostic> {
         .collect::<HashMap<_, _>>();
     for source in request.sources {
         let malformed = matches!(source.program, Some(ParsedProgram::Malformed(_)));
-        if source.purpose.is_direct() || malformed && source.purpose.reports_parse_failure() {
+        if participates_in_file_policy(source, request.config)
+            || malformed && source.purpose.reports_parse_failure()
+        {
             diagnostics.extend(module_diagnostics(source, &request, &by_path));
         }
     }
@@ -90,24 +93,24 @@ fn module_diagnostics(
 ) -> Vec<WebDiagnostic> {
     let mut diagnostics = Vec::new();
     if let Some(ParsedProgram::Malformed(failure)) = source.program.as_ref() {
-        if active(request, "FWP001") {
-            diagnostics.push(WebDiagnostic {
-                code: "FWP001",
-                path: source.target_path.clone(),
-                line: Some(failure.line),
-                column: Some(failure.column),
-                message: failure.message.clone(),
-            });
-        }
+        diagnostics.push(WebDiagnostic {
+            code: "FWP001",
+            path: source.target_path.clone(),
+            line: Some(failure.line),
+            column: Some(failure.column),
+            message: failure.message.clone(),
+        });
         return diagnostics;
     }
     role_diagnostics(source, request, &mut diagnostics);
     import_diagnostics(source, request, by_path, &mut diagnostics);
     shape_diagnostics(source, request, &mut diagnostics);
+    api_budget_diagnostics(source, request, &mut diagnostics);
     annotation_diagnostics(source, request, &mut diagnostics);
     hygiene_and_contract_diagnostics(source, request, &mut diagnostics);
     naming_diagnostics(source, request, &mut diagnostics);
     test_diagnostics(source, request, by_path, &mut diagnostics);
+    sveltekit_diagnostics(source, request, by_path, &mut diagnostics);
     diagnostics
 }
 
@@ -471,7 +474,7 @@ fn shape_diagnostics(
             function.statement_count,
             "statements",
         );
-        if entry && function.exported {
+        if entry && function.exported || is_server_route_entry(source, request.config, function) {
             function_budget(
                 source,
                 request,
@@ -504,6 +507,43 @@ fn shape_diagnostics(
             );
         }
     }
+}
+
+fn api_budget_diagnostics(
+    source: &ScopedSource,
+    request: &WebPolicyRequest<'_>,
+    diagnostics: &mut Vec<WebDiagnostic>,
+) {
+    if source_is_test(source)
+        || source_is_tooling(source)
+        || role_for(source, request.config).as_deref() != Some("_api")
+    {
+        return;
+    }
+    check_named_budget(
+        source,
+        request,
+        diagnostics,
+        "FWS110",
+        "max_api_lines",
+        source_line_count(source),
+        "API module has",
+        "lines",
+    );
+    let exports = module_facts(source)
+        .iter()
+        .map(|value| value.public_export_count)
+        .sum::<usize>();
+    check_named_budget(
+        source,
+        request,
+        diagnostics,
+        "FWS111",
+        "max_api_exports",
+        exports,
+        "API module exports",
+        "declarations",
+    );
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -554,6 +594,50 @@ fn check_budget(
             source,
             &format!("{prefix} {actual}; limit is {limit}"),
         );
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn check_named_budget(
+    source: &ScopedSource,
+    request: &WebPolicyRequest<'_>,
+    diagnostics: &mut Vec<WebDiagnostic>,
+    code: &'static str,
+    threshold_name: &str,
+    actual: usize,
+    prefix: &str,
+    noun: &str,
+) {
+    let limit = threshold(request, source, threshold_name);
+    if active(request, code) && actual > limit as usize {
+        push_path(
+            diagnostics,
+            code,
+            source,
+            &format!("{prefix} {actual} {noun}; limit is {limit}"),
+        );
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn check_script_budget(
+    source: &ScopedSource,
+    request: &WebPolicyRequest<'_>,
+    diagnostics: &mut Vec<WebDiagnostic>,
+    code: &'static str,
+    threshold_name: &str,
+    actual: usize,
+    prefix: &str,
+) {
+    let limit = threshold(request, source, threshold_name);
+    if !active(request, code) || actual <= limit as usize {
+        return;
+    }
+    let message = format!("{prefix} {actual} lines; limit is {limit}");
+    if let Some(span) = instance_script_span(source) {
+        push_span(diagnostics, code, source, span, &message);
+    } else {
+        push_path(diagnostics, code, source, &message);
     }
 }
 
@@ -960,6 +1044,574 @@ fn test_diagnostics(
     }
 }
 
+fn sveltekit_diagnostics(
+    source: &ScopedSource,
+    request: &WebPolicyRequest<'_>,
+    by_path: &HashMap<&str, &ScopedSource>,
+    diagnostics: &mut Vec<WebDiagnostic>,
+) {
+    if request.config.framework.as_deref() != Some("sveltekit") {
+        return;
+    }
+    if source_is_test(source) || source_is_tooling(source) {
+        return;
+    }
+    let facts = module_facts(source);
+    let state_module = is_state_module(source);
+    let route = is_route_module(source, request.config);
+    let component = matches!(source.program, Some(ParsedProgram::Svelte(_)));
+    let line_count = source_line_count(source);
+    if state_module {
+        check_named_budget(
+            source,
+            request,
+            diagnostics,
+            "FWS101",
+            "max_state_lines",
+            line_count,
+            "state module has",
+            "lines",
+        );
+        let state_cells = facts
+            .iter()
+            .flat_map(|value| &value.calls)
+            .filter(|call| call.name == "$state" || call.name.starts_with("$state."))
+            .count();
+        check_named_budget(
+            source,
+            request,
+            diagnostics,
+            "FWS107",
+            "max_state_cells",
+            state_cells,
+            "state module has",
+            "mutable cells",
+        );
+        let runes = facts
+            .iter()
+            .flat_map(|value| &value.calls)
+            .filter(|call| is_rune_name(&call.name))
+            .count();
+        check_named_budget(
+            source,
+            request,
+            diagnostics,
+            "FWS108",
+            "max_total_runes",
+            runes,
+            "state module has",
+            "runes",
+        );
+        let functions = facts
+            .iter()
+            .map(|value| value.functions.len())
+            .sum::<usize>();
+        check_named_budget(
+            source,
+            request,
+            diagnostics,
+            "FWS109",
+            "max_state_functions",
+            functions,
+            "state module has",
+            "functions",
+        );
+    }
+    for rune in module_scope_runes(source) {
+        if active(request, "FWS102") {
+            push_span(
+                diagnostics,
+                "FWS102",
+                source,
+                rune.1,
+                &format!("module scope creates mutable rune '{}'", rune.0),
+            );
+        }
+    }
+    if component {
+        let script_lines = instance_script_lines(source);
+        if route {
+            check_script_budget(
+                source,
+                request,
+                diagnostics,
+                "FWS103",
+                "max_route_script_lines",
+                script_lines,
+                "route script has",
+            );
+        } else {
+            check_script_budget(
+                source,
+                request,
+                diagnostics,
+                "FWS104",
+                "max_component_script_lines",
+                script_lines,
+                "component script has",
+            );
+        }
+    }
+    state_policy_diagnostics(source, request, diagnostics, &facts, state_module);
+    resource_policy_diagnostics(
+        source,
+        request,
+        diagnostics,
+        &facts,
+        state_module,
+        component,
+    );
+    api_policy_diagnostics(source, request, diagnostics, &facts, component, route);
+    framework_layer_diagnostics(source, request, by_path, diagnostics, component, route);
+    ui_kit_module_diagnostics(source, request, by_path, diagnostics);
+    openapi_diagnostics(source, request, diagnostics, &facts);
+}
+
+fn state_policy_diagnostics(
+    source: &ScopedSource,
+    request: &WebPolicyRequest<'_>,
+    diagnostics: &mut Vec<WebDiagnostic>,
+    facts: &[&ModuleFacts],
+    state_module: bool,
+) {
+    let runes = facts
+        .iter()
+        .flat_map(|value| &value.calls)
+        .filter(|call| is_rune_name(&call.name))
+        .collect::<Vec<_>>();
+    if active(request, "FWV101") && !is_svelte_aware(source) {
+        if let Some(rune) = runes.first() {
+            push_span(
+                diagnostics,
+                "FWV101",
+                source,
+                &rune.span,
+                "rune syntax appears outside a Svelte-aware file",
+            );
+        }
+    }
+    if role_for(source, request.config).as_deref() == Some("_state") && active(request, "FWV102") {
+        let factories = facts
+            .iter()
+            .flat_map(|value| &value.functions)
+            .filter(|function| {
+                function.exported
+                    && function.name.starts_with("create")
+                    && function.name.ends_with("State")
+            })
+            .count();
+        if factories != 1 {
+            push_path(
+                diagnostics,
+                "FWV102",
+                source,
+                &format!("state module exposes {factories} create-state factories; expected 1"),
+            );
+        }
+    }
+    if state_module && active(request, "FWV103") {
+        let factory = facts
+            .iter()
+            .flat_map(|value| &value.functions)
+            .find(|function| {
+                function.exported
+                    && function.name.starts_with("create")
+                    && function.name.ends_with("State")
+            });
+        if let Some(returned) = factory.and_then(|factory| {
+            facts
+                .iter()
+                .flat_map(|value| &value.return_objects)
+                .filter(|returned| returned.function_name.as_deref() == Some(&factory.name))
+                .max_by_key(|returned| returned.span.start)
+        }) {
+            let limit = threshold(request, source, "max_state_public_members") as usize;
+            if returned.member_count > limit {
+                push_span(
+                    diagnostics,
+                    "FWV103",
+                    source,
+                    &returned.span,
+                    &format!(
+                        "state facade has {} members; limit is {limit}",
+                        returned.member_count
+                    ),
+                );
+            }
+        }
+    }
+    if active(request, "FWV104") && !is_ui_kit(source, request.config) {
+        for mutation in facts.iter().flat_map(|value| &value.imported_mutations) {
+            push_span(
+                diagnostics,
+                "FWV104",
+                source,
+                &mutation.span,
+                &format!(
+                    "consumer mutates imported '{}' directly",
+                    mutation.root_name
+                ),
+            );
+        }
+    }
+    for call in facts.iter().flat_map(|value| &value.calls) {
+        if active(request, "FWV105") && call.name == "$derived" && call.function_argument {
+            push_span(
+                diagnostics,
+                "FWV105",
+                source,
+                &call.span,
+                "function-valued derivation uses $derived instead of $derived.by",
+            );
+        }
+        if active(request, "FWV106")
+            && call.name == "fetch"
+            && call.ancestor_calls.iter().any(|name| name == "$effect")
+        {
+            push_span(
+                diagnostics,
+                "FWV106",
+                source,
+                &call.span,
+                "effect performs raw transport",
+            );
+        }
+        if active(request, "FWV107")
+            && call.name == "$effect"
+            && call
+                .ancestor_calls
+                .iter()
+                .any(|name| name.rsplit('.').next() == Some("onMount"))
+        {
+            push_span(
+                diagnostics,
+                "FWV107",
+                source,
+                &call.span,
+                "effect is nested inside onMount",
+            );
+        }
+    }
+}
+
+fn resource_policy_diagnostics(
+    source: &ScopedSource,
+    request: &WebPolicyRequest<'_>,
+    diagnostics: &mut Vec<WebDiagnostic>,
+    facts: &[&ModuleFacts],
+    state_module: bool,
+    component: bool,
+) {
+    let resources = facts
+        .iter()
+        .flat_map(|value| &value.resources)
+        .collect::<Vec<_>>();
+    let resource_role = role_for(source, request.config).as_deref() == Some("_resources");
+    if active(request, "FWV201") {
+        if let Some(resource) = resources.iter().find(|resource| {
+            !resource_role
+                && !(component
+                    && resource
+                        .ancestor_calls
+                        .iter()
+                        .any(|name| matches!(name.as_str(), "onMount" | "$effect")))
+        }) {
+            push_span(
+                diagnostics,
+                "FWV201",
+                source,
+                &resource.span,
+                &format!(
+                    "{} is constructed outside a resource owner",
+                    resource.family
+                ),
+            );
+        }
+        if state_module {
+            let families = resources
+                .iter()
+                .map(|resource| resource.family.as_str())
+                .collect::<HashSet<_>>()
+                .len();
+            let limit = threshold(request, source, "max_resource_families") as usize;
+            if families > limit {
+                push_path(
+                    diagnostics,
+                    "FWV201",
+                    source,
+                    &format!("state module owns {families} resource families; limit is {limit}"),
+                );
+            }
+        }
+    }
+    if active(request, "FWV202") && resource_role && !resources.is_empty() {
+        let missing = resources.iter().find(|resource| {
+            resource
+                .binding_name
+                .as_deref()
+                .is_none_or(|target| !has_exposed_resource_cleanup(facts, &resource.family, target))
+        });
+        if let Some(resource) = missing {
+            push_path(
+                diagnostics,
+                "FWV202",
+                source,
+                &format!(
+                    "resource owner does not expose cleanup for {} instance '{}'",
+                    resource.family,
+                    resource.binding_name.as_deref().unwrap_or("<unbound>")
+                ),
+            );
+        }
+    }
+}
+
+fn api_policy_diagnostics(
+    source: &ScopedSource,
+    request: &WebPolicyRequest<'_>,
+    diagnostics: &mut Vec<WebDiagnostic>,
+    facts: &[&ModuleFacts],
+    component: bool,
+    route: bool,
+) {
+    let allows_api = allows_api_access(source, request.config);
+    if !allows_api {
+        if active(request, "FWA101") {
+            for call in facts
+                .iter()
+                .flat_map(|value| &value.calls)
+                .filter(|call| call.name == "fetch")
+            {
+                push_span(
+                    diagnostics,
+                    "FWA101",
+                    source,
+                    &call.span,
+                    "raw fetch call appears outside an API or loader module",
+                );
+            }
+        }
+        if active(request, "FWA102") {
+            for literal in facts
+                .iter()
+                .flat_map(|value| &value.strings)
+                .filter(|literal| literal.value.starts_with("/api/"))
+            {
+                push_span(
+                    diagnostics,
+                    "FWA102",
+                    source,
+                    &literal.span,
+                    &format!(
+                        "endpoint literal '{}' appears outside an API or loader module",
+                        literal.value
+                    ),
+                );
+            }
+        }
+    }
+    if active(request, "FWA103") && component && !route && has_imported_navigation_call(facts) {
+        push_path(
+            diagnostics,
+            "FWA103",
+            source,
+            "component owns application navigation",
+        );
+    }
+}
+
+fn has_imported_navigation_call(facts: &[&ModuleFacts]) -> bool {
+    let mut direct: HashSet<&str> = HashSet::new();
+    let mut namespaces: HashSet<&str> = HashSet::new();
+    for imported in facts
+        .iter()
+        .flat_map(|facts| &facts.imports)
+        .filter(|imported| imported.specifier == "$app/navigation")
+    {
+        for binding in &imported.bindings {
+            if binding.imported_name == "goto" {
+                direct.insert(&binding.local_name);
+            } else if binding.imported_name == "*" {
+                namespaces.insert(&binding.local_name);
+            }
+        }
+    }
+    facts.iter().flat_map(|facts| &facts.calls).any(|call| {
+        direct.contains(call.name.as_str())
+            || namespaces
+                .iter()
+                .any(|namespace| call.name == format!("{namespace}.goto"))
+    })
+}
+
+fn framework_layer_diagnostics(
+    source: &ScopedSource,
+    request: &WebPolicyRequest<'_>,
+    by_path: &HashMap<&str, &ScopedSource>,
+    diagnostics: &mut Vec<WebDiagnostic>,
+    _component: bool,
+    _route: bool,
+) {
+    let server = is_server_module(source, request.config);
+    for fact in module_facts(source).iter().flat_map(|value| &value.imports) {
+        if active(request, "FWL106") && node_builtin(&fact.specifier) && !server {
+            push_span(
+                diagnostics,
+                "FWL106",
+                source,
+                &fact.span,
+                &format!("browser module imports '{}'", fact.specifier),
+            );
+        }
+        let target = source
+            .imports
+            .iter()
+            .find(|item| item.specifier == fact.specifier)
+            .and_then(|item| item.resolved_path.as_deref())
+            .and_then(|path| by_path.get(path).copied());
+        let Some(target) = target.filter(|target| !target.purpose.is_generated()) else {
+            continue;
+        };
+        if active(request, "FWL104") {
+            let source_route = route_owner(source, request.config);
+            let target_route = route_owner(target, request.config);
+            if source_route.is_some() && target_route.is_some() && source_route != target_route {
+                push_span(
+                    diagnostics,
+                    "FWL104",
+                    source,
+                    &fact.span,
+                    &format!(
+                        "route imports another route '{}'",
+                        target_route.unwrap_or_default()
+                    ),
+                );
+            }
+        }
+        if active(request, "FWL107")
+            && server
+            && (matches!(target.program, Some(ParsedProgram::Svelte(_))) || is_state_module(target))
+        {
+            push_span(
+                diagnostics,
+                "FWL107",
+                source,
+                &fact.span,
+                &format!(
+                    "server module imports client module '{}'",
+                    target.target_path
+                ),
+            );
+        }
+    }
+}
+
+fn ui_kit_module_diagnostics(
+    source: &ScopedSource,
+    request: &WebPolicyRequest<'_>,
+    by_path: &HashMap<&str, &ScopedSource>,
+    diagnostics: &mut Vec<WebDiagnostic>,
+) {
+    if !is_ui_kit(source, request.config) {
+        return;
+    }
+    let Some(root) = request.config.ui_kit.as_deref() else {
+        return;
+    };
+    let relative = source
+        .target_path
+        .strip_prefix(root)
+        .and_then(|value| value.strip_prefix('/'))
+        .unwrap_or_default();
+    let depth = relative.split('/').count();
+    let component = matches!(source.program, Some(ParsedProgram::Svelte(_)));
+    if active(request, "FWU003") && (depth > 2 || component && depth != 2) {
+        push_path(
+            diagnostics,
+            "FWU003",
+            source,
+            &format!("UI-kit module '{relative}' is not directly inside one component family"),
+        );
+    }
+    if active(request, "FWU002") {
+        for imported in &source.imports {
+            let target = imported
+                .resolved_path
+                .as_deref()
+                .and_then(|path| by_path.get(path).copied());
+            if target.is_some_and(|target| {
+                !is_ui_kit(target, request.config)
+                    && !source_is_test(target)
+                    && !source_is_tooling(target)
+            }) {
+                push_path(
+                    diagnostics,
+                    "FWU002",
+                    source,
+                    &format!(
+                        "UI-kit module imports application source '{}'",
+                        target.map_or("unknown", |value| value.target_path.as_str())
+                    ),
+                );
+            }
+        }
+    }
+}
+
+fn openapi_diagnostics(
+    source: &ScopedSource,
+    request: &WebPolicyRequest<'_>,
+    diagnostics: &mut Vec<WebDiagnostic>,
+    facts: &[&ModuleFacts],
+) {
+    if !active(request, "FWC201") || request.config.openapi.is_none() {
+        return;
+    }
+    let paths = openapi_paths(request);
+    for literal in facts
+        .iter()
+        .flat_map(|value| &value.strings)
+        .filter(|literal| literal.value.starts_with("/api/"))
+    {
+        let endpoint = literal.value.split('?').next().unwrap_or(&literal.value);
+        let documented = paths
+            .iter()
+            .any(|path| endpoint_matches_openapi(literal, endpoint, path));
+        if !documented {
+            push_span(
+                diagnostics,
+                "FWC201",
+                source,
+                &literal.span,
+                &format!("endpoint '{endpoint}' is absent from OpenAPI"),
+            );
+        }
+    }
+}
+
+fn endpoint_matches_openapi(literal: &StringFact, endpoint: &str, path: &str) -> bool {
+    if literal.complete {
+        return endpoint == path;
+    }
+    let Some(first) = literal.static_segments.first() else {
+        return false;
+    };
+    let Some(mut remainder) = path.strip_prefix(first) else {
+        return false;
+    };
+    for (index, segment) in literal.static_segments.iter().enumerate().skip(1) {
+        let last = index + 1 == literal.static_segments.len();
+        if last {
+            return remainder.ends_with(segment);
+        }
+        let Some(position) = remainder.find(segment) else {
+            return false;
+        };
+        remainder = &remainder[position + segment.len()..];
+    }
+    true
+}
+
 fn readonly_test_case_type(
     source: &ScopedSource,
     test: &fensu_typescript::ParameterizedTestFact,
@@ -1019,11 +1671,120 @@ fn test_case_model<'a>(
 
 fn project_diagnostics(request: &WebPolicyRequest<'_>) -> Vec<WebDiagnostic> {
     let mut diagnostics = Vec::new();
+    ui_kit_project_diagnostics(request, &mut diagnostics);
     owner_project_diagnostics(request, &mut diagnostics);
     public_main_diagnostics(request, &mut diagnostics);
     cycle_diagnostics(request, &mut diagnostics);
     required_test_diagnostics(request, &mut diagnostics);
     diagnostics
+}
+
+fn ui_kit_project_diagnostics(
+    request: &WebPolicyRequest<'_>,
+    diagnostics: &mut Vec<WebDiagnostic>,
+) {
+    if !active(request, "FWU001") {
+        return;
+    }
+    let (Some(ui_kit), Some(shadcn_path)) = (
+        request.config.ui_kit.as_deref(),
+        request.config.shadcn.as_deref(),
+    ) else {
+        return;
+    };
+    let Some(input) = request
+        .project_inputs
+        .iter()
+        .find(|input| input.target_path == shadcn_path)
+    else {
+        return;
+    };
+    let parsed = serde_json::from_str::<serde_json::Value>(input.text()).unwrap_or_default();
+    let ui_alias = parsed
+        .pointer("/aliases/ui")
+        .and_then(serde_json::Value::as_str);
+    let utils_alias = parsed
+        .pointer("/aliases/utils")
+        .and_then(serde_json::Value::as_str);
+    let resolved_ui = ui_alias.and_then(|alias| resolve_web_alias(alias, request.config));
+    let resolved_utils = utils_alias.and_then(|alias| resolve_web_alias(alias, request.config));
+    let remediation =
+        format!("Set aliases.ui to '$ui-kit' and aliases.utils to '$ui-kit/utils' for '{ui_kit}'.");
+    if resolved_ui.as_deref() != Some(ui_kit) {
+        push_project_path(
+            diagnostics,
+            "FWU001",
+            input.target_path.clone(),
+            &format!(
+                "shadcn UI alias '{}' does not resolve to '{ui_kit}'; {remediation}",
+                ui_alias.unwrap_or("<missing>")
+            ),
+        );
+    }
+    if resolved_utils
+        .as_deref()
+        .is_none_or(|value| value == ui_kit || !value.starts_with(&format!("{ui_kit}/")))
+    {
+        push_project_path(
+            diagnostics,
+            "FWU001",
+            input.target_path.clone(),
+            &format!(
+                "shadcn utility alias '{}' does not resolve beneath '{ui_kit}'; {remediation}",
+                utils_alias.unwrap_or("<missing>")
+            ),
+        );
+    }
+}
+
+fn resolve_web_alias(alias: &str, config: &Config) -> Option<String> {
+    if alias == "$ui-kit" {
+        return config.ui_kit.clone();
+    }
+    if let Some(relative) = alias.strip_prefix("$ui-kit/") {
+        return config
+            .ui_kit
+            .as_ref()
+            .map(|root| format!("{root}/{relative}"));
+    }
+    if alias == "$lib" {
+        return config.roots.first().map(|root| format!("{root}/lib"));
+    }
+    if let Some(relative) = alias.strip_prefix("$lib/") {
+        return config
+            .roots
+            .first()
+            .map(|root| format!("{root}/lib/{relative}"));
+    }
+    Some(
+        alias
+            .trim_start_matches("./")
+            .trim_end_matches('/')
+            .to_owned(),
+    )
+}
+
+fn openapi_paths(request: &WebPolicyRequest<'_>) -> HashSet<String> {
+    let Some(path) = request.config.openapi.as_deref() else {
+        return HashSet::new();
+    };
+    let Some(input) = request
+        .project_inputs
+        .iter()
+        .find(|input| input.target_path == path)
+    else {
+        return HashSet::new();
+    };
+    serde_json::from_str::<serde_json::Value>(input.text())
+        .ok()
+        .and_then(|document| {
+            document
+                .get("paths")
+                .and_then(serde_json::Value::as_object)
+                .cloned()
+        })
+        .map(|paths| paths.into_iter().map(|(path, _)| path).collect())
+        .unwrap_or_default()
 }
 
 fn owner_project_diagnostics(request: &WebPolicyRequest<'_>, diagnostics: &mut Vec<WebDiagnostic>) {
@@ -1390,14 +2151,7 @@ fn source_is_analyzable(source: &ScopedSource) -> bool {
 }
 
 fn participates_in_project(source: &ScopedSource, config: &Config) -> bool {
-    source.purpose.is_direct()
-        || config.analyzer == AnalyzerId::Svelte
-            && source.purpose == SourcePurpose::Support
-            && matches!(source.program, Some(ParsedProgram::TypeScript(_)))
-            && crate::check::_helpers::project::is_direct_source(
-                &source.path,
-                AnalyzerId::TypeScript,
-            )
+    participates_in_file_policy(source, config)
 }
 
 fn is_ui_kit(source: &ScopedSource, config: &Config) -> bool {
@@ -1464,6 +2218,9 @@ fn role_index(segments: &[String]) -> Option<usize> {
 }
 
 fn role_for(source: &ScopedSource, config: &Config) -> Option<String> {
+    if let Some(role) = route_local_role(source, config) {
+        return Some(role);
+    }
     let segments = owner_segments(source, config);
     let index = role_index(&segments)?;
     let value = segments.get(index)?;
@@ -1775,6 +2532,264 @@ fn test_mirrors_source(source: &ScopedSource, request: &WebPolicyRequest<'_>) ->
                     .starts_with(&format!("{tooling_owner}/"))
             }))
     })
+}
+
+fn participates_in_file_policy(source: &ScopedSource, config: &Config) -> bool {
+    if source.purpose.is_direct() {
+        return true;
+    }
+    config.analyzer == AnalyzerId::Svelte
+        && source.purpose == SourcePurpose::Support
+        && crate::check::_helpers::project::is_direct_source(&source.path, AnalyzerId::TypeScript)
+}
+
+fn is_svelte_aware(source: &ScopedSource) -> bool {
+    let name = basename(source);
+    name.ends_with(".svelte") || name.contains(".svelte.")
+}
+
+fn is_state_module(source: &ScopedSource) -> bool {
+    let name = basename(source);
+    name.ends_with(".svelte.ts") || name.ends_with(".svelte.js")
+}
+
+fn is_rune_name(name: &str) -> bool {
+    [
+        "$state",
+        "$derived",
+        "$effect",
+        "$props",
+        "$bindable",
+        "$inspect",
+    ]
+    .iter()
+    .any(|rune| name == *rune || name.starts_with(&format!("{rune}.")))
+}
+
+fn module_scope_runes(source: &ScopedSource) -> Vec<(&str, &SourceSpan)> {
+    if let Some(facts) = source.program.as_ref().and_then(ParsedProgram::as_svelte) {
+        return facts
+            .scripts
+            .iter()
+            .filter(|script| script.context == fensu_svelte::ScriptContext::Module)
+            .flat_map(|script| &script.facts.top_level_bindings)
+            .filter_map(|binding| {
+                let name = binding.initializer_call.as_deref()?;
+                is_rune_name(name).then(|| {
+                    (
+                        name,
+                        binding
+                            .initializer_call_span
+                            .as_ref()
+                            .unwrap_or(&binding.span),
+                    )
+                })
+            })
+            .collect();
+    }
+    if !is_svelte_aware(source) {
+        return Vec::new();
+    }
+    module_facts(source)
+        .into_iter()
+        .flat_map(|facts| &facts.top_level_bindings)
+        .filter_map(|binding| {
+            let name = binding.initializer_call.as_deref()?;
+            is_rune_name(name).then(|| {
+                (
+                    name,
+                    binding
+                        .initializer_call_span
+                        .as_ref()
+                        .unwrap_or(&binding.span),
+                )
+            })
+        })
+        .collect()
+}
+
+fn source_line_count(source: &ScopedSource) -> usize {
+    if source.content.is_empty() {
+        0
+    } else {
+        source.content.iter().filter(|byte| **byte == b'\n').count()
+            + usize::from(!source.content.ends_with(b"\n"))
+    }
+}
+
+fn instance_script_lines(source: &ScopedSource) -> usize {
+    let Some(facts) = source.program.as_ref().and_then(ParsedProgram::as_svelte) else {
+        return 0;
+    };
+    let Some(script) = facts
+        .scripts
+        .iter()
+        .find(|script| script.context == fensu_svelte::ScriptContext::Instance)
+    else {
+        return 0;
+    };
+    let content = source
+        .content
+        .get(script.content_span.start..script.content_span.end)
+        .unwrap_or_default();
+    let trimmed = String::from_utf8_lossy(content);
+    let trimmed = trimmed.trim();
+    if trimmed.is_empty() {
+        0
+    } else {
+        trimmed.lines().count()
+    }
+}
+
+fn instance_script_span(source: &ScopedSource) -> Option<&SourceSpan> {
+    source
+        .program
+        .as_ref()
+        .and_then(ParsedProgram::as_svelte)?
+        .scripts
+        .iter()
+        .find(|script| script.context == fensu_svelte::ScriptContext::Instance)
+        .map(|script| &script.content_span)
+}
+
+fn is_route_module(source: &ScopedSource, config: &Config) -> bool {
+    basename(source).starts_with('+')
+        && config.roots.iter().any(|root| {
+            source.target_path == format!("{root}/routes/{}", basename(source))
+                || source.target_path.starts_with(&format!("{root}/routes/"))
+        })
+}
+
+fn route_local_role(source: &ScopedSource, config: &Config) -> Option<String> {
+    let relative = config
+        .roots
+        .iter()
+        .find_map(|root| source.target_path.strip_prefix(&format!("{root}/routes/")))?;
+    relative
+        .split('/')
+        .take_while(|part| *part != basename(source))
+        .find(|part| LEAF_ROLES.contains(part))
+        .map(str::to_owned)
+}
+
+fn is_server_route_entry(source: &ScopedSource, config: &Config, function: &FunctionFact) -> bool {
+    if config.framework.as_deref() != Some("sveltekit")
+        || !is_route_module(source, config)
+        || !is_server_module(source, config)
+    {
+        return false;
+    }
+    function.export_owner.as_deref().is_some_and(|owner| {
+        owner == "load"
+            || owner == "actions"
+            || ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"].contains(&owner)
+    })
+}
+
+fn route_owner(source: &ScopedSource, config: &Config) -> Option<String> {
+    let relative = config
+        .roots
+        .iter()
+        .find_map(|root| source.target_path.strip_prefix(&format!("{root}/routes/")))?;
+    let directory = relative
+        .rsplit_once('/')
+        .map_or("", |(directory, _)| directory);
+    Some(
+        directory
+            .split('/')
+            .take_while(|segment| !segment.starts_with('_'))
+            .collect::<Vec<_>>()
+            .join("/"),
+    )
+}
+
+fn is_server_module(source: &ScopedSource, config: &Config) -> bool {
+    let name = basename(source);
+    name.contains(".server.")
+        || name.starts_with("+server.")
+        || config.roots.iter().any(|root| {
+            source.target_path == format!("{root}/lib/server/{name}")
+                || source
+                    .target_path
+                    .starts_with(&format!("{root}/lib/server/"))
+        })
+}
+
+fn allows_api_access(source: &ScopedSource, config: &Config) -> bool {
+    let name = basename(source);
+    role_for(source, config).as_deref() == Some("_api")
+        || source.target_path.split('/').any(|part| part == "http")
+        || ["+page.", "+layout.", "+server."]
+            .iter()
+            .any(|prefix| name.starts_with(prefix) && !name.ends_with(".svelte"))
+}
+
+fn node_builtin(specifier: &str) -> bool {
+    specifier.starts_with("node:")
+        || [
+            "fs",
+            "path",
+            "os",
+            "child_process",
+            "worker_threads",
+            "net",
+            "tls",
+            "http",
+            "https",
+            "stream",
+            "crypto",
+        ]
+        .iter()
+        .any(|name| specifier == *name || specifier.starts_with(&format!("{name}/")))
+}
+
+fn has_exposed_resource_cleanup(
+    facts: &[&ModuleFacts],
+    family: &str,
+    resource_target: &str,
+) -> bool {
+    let returned_members = facts
+        .iter()
+        .flat_map(|facts| &facts.return_objects)
+        .flat_map(|returned| &returned.member_names)
+        .map(String::as_str)
+        .collect::<HashSet<_>>();
+    let exported_cleanup = facts
+        .iter()
+        .flat_map(|facts| &facts.functions)
+        .filter(|function| {
+            function.exported
+                && matches!(
+                    function.name.as_str(),
+                    "stop" | "destroy" | "cleanup" | "close"
+                )
+        })
+        .map(|function| function.name.as_str())
+        .collect::<HashSet<_>>();
+    facts.iter().flat_map(|facts| &facts.calls).any(|call| {
+        cleanup_matches_family(&call.name, family)
+            && call
+                .cleanup_target
+                .as_deref()
+                .is_some_and(|target| target == resource_target)
+            && (call.returned_cleanup
+                || call.function_name.as_deref().is_some_and(|name| {
+                    returned_members.contains(name) || exported_cleanup.contains(name)
+                }))
+    })
+}
+
+fn cleanup_matches_family(name: &str, family: &str) -> bool {
+    let operation = name.rsplit('.').next().unwrap_or(name);
+    matches!(
+        (family, operation),
+        ("timeout", "clearTimeout")
+            | ("interval", "clearInterval")
+            | ("event-listener", "removeEventListener")
+            | ("websocket" | "broadcast-channel", "close")
+            | ("observer", "disconnect")
+            | ("worker", "terminate")
+    )
 }
 
 fn push_path(

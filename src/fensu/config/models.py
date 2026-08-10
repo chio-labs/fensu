@@ -148,6 +148,9 @@ class Config:
     target_root: str = "."
     ui_kit: str | None = None
     generated: tuple[str, ...] = ()
+    framework: str | None = None
+    shadcn: str | None = None
+    openapi: str | None = None
 
     def __post_init__(self) -> None:
         """Freeze defensive copies of nested rule-option mappings."""

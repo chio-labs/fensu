@@ -1,6 +1,4 @@
-use crate::helpers::{
-    poison_processes, run_internal_web_check_with, run_with_internal_web_gate, write,
-};
+use crate::helpers::{poison_processes, run_internal_web_check_with, run_web_command, write};
 use crate::test_types::{
     HostedWebPolicyTestCase, InternalGateCommandTestCase, WebCacheCheckTestCase,
     WebConfigFailureTestCase, WebExceptionOwnerTestCase, WebParseDiagnosticTestCase,
@@ -198,7 +196,7 @@ fn given_valid_typescript_and_svelte_targets_when_checking_then_native_parsers_s
         assert_eq!(cold.stdout, warm.stdout, "{}", test_case.description);
         assert!(
             String::from_utf8_lossy(&cold.stdout)
-                .contains("Evaluation: 8 of 9 source files (1 excluded by config)"),
+                .contains("Evaluation: 16 of 17 source files (1 excluded by config)"),
             "{}: {}",
             test_case.description,
             String::from_utf8_lossy(&cold.stdout)
@@ -221,6 +219,98 @@ fn given_valid_typescript_and_svelte_targets_when_checking_then_native_parsers_s
         assert!(
             String::from_utf8_lossy(&changed_project_input.stderr)
                 .contains(test_case.expected_invalidated),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            !repository.path().join("process-invoked").exists(),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_target_local_web_configuration_dependencies_when_changed_then_cache_identity_is_invalidated(
+) {
+    let test_cases = [WebCacheCheckTestCase {
+        description: "target-local web configuration dependencies invalidate cached findings",
+        expected_cold: "hits=0 misses=1",
+        expected_warm: "hits=1 misses=0",
+        expected_invalidated: "hits=0 misses=1",
+    }];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(
+            repository.path().join("fensu.toml"),
+            concat!(
+                "[targets.web]\n",
+                "analyzer = \"svelte\"\n",
+                "root = \"frontend\"\n",
+                "roots = [\"src\"]\n",
+                "tests = []\n",
+                "tooling = []\n",
+                "ui_kit = \"src/ui-kit\"\n",
+                "shadcn = \"config/components.json\"\n",
+                "openapi = \"contracts/openapi.json\"\n",
+                "select = []\n",
+                "[targets.web.cache]\n",
+                "enabled = true\n",
+            ),
+        );
+        write(
+            repository.path().join("frontend/src/App.svelte"),
+            "<p>application</p>\n",
+        );
+        write(
+            repository.path().join("frontend/config/components.json"),
+            "{\"aliases\":{\"ui\":\"$ui-kit\",\"utils\":\"$ui-kit/utils\"}}\n",
+        );
+        write(
+            repository.path().join("frontend/contracts/openapi.json"),
+            "{\"paths\":{\"/api/orders\":{}}}\n",
+        );
+        write(
+            repository.path().join("config/components.json"),
+            "{\"aliases\":{\"ui\":\"wrong\"}}\n",
+        );
+        let process_directory = poison_processes(repository.path());
+
+        let cold = run_internal_web_check_with(
+            repository.path(),
+            &["--cache", "--cache-stats"],
+            &process_directory,
+        );
+        let warm = run_internal_web_check_with(
+            repository.path(),
+            &["--cache", "--cache-stats"],
+            &process_directory,
+        );
+        write(
+            repository.path().join("frontend/contracts/openapi.json"),
+            "{\"paths\":{\"/api/orders\":{},\"/api/payments\":{}}}\n",
+        );
+        let changed = run_internal_web_check_with(
+            repository.path(),
+            &["--cache", "--cache-stats"],
+            &process_directory,
+        );
+
+        assert_eq!(cold.status.code(), Some(0));
+        assert_eq!(warm.status.code(), Some(0));
+        assert_eq!(changed.status.code(), Some(0));
+        assert!(
+            String::from_utf8_lossy(&cold.stderr).contains(test_case.expected_cold),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&warm.stderr).contains(test_case.expected_warm),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&changed.stderr).contains(test_case.expected_invalidated),
             "{}",
             test_case.description
         );
@@ -414,18 +504,19 @@ fn given_web_source_purposes_when_checking_then_only_trusted_parse_surfaces_emit
 }
 
 #[test]
-fn given_internal_check_gate_when_running_other_commands_then_backends_remain_unavailable() {
+fn given_web_target_when_mapping_then_clear_capability_error_is_returned() {
     let test_cases = [InternalGateCommandTestCase {
         description: "map capability remains unavailable",
         arguments: &["map", "symbol", "--target", "a_typescript", "--no-cache"],
-        expected_error: "Known analyzer backend unavailable: typescript",
+        expected_error:
+            "Map capability unavailable for analyzer typescript: native mapping is not implemented.",
     }];
     for test_case in &test_cases {
         let repository = tempfile::tempdir().expect("temporary repository");
         write(repository.path().join("fensu.toml"), CONFIG);
         write(repository.path().join("src/value.ts"), VALID_TYPESCRIPT);
 
-        let output = run_with_internal_web_gate(repository.path(), test_case.arguments);
+        let output = run_web_command(repository.path(), test_case.arguments);
 
         assert_eq!(output.status.code(), Some(2), "{}", test_case.description);
         assert!(
@@ -928,8 +1019,8 @@ fn given_svelte_target_when_checking_generic_policy_then_component_and_support_f
         );
         assert!(stdout.contains("App.svelte:3:"));
         assert!(stdout.contains("local variable 'componentValue'"));
-        assert!(!stdout.contains("support.ts:2:"));
-        assert!(!stdout.contains("local variable 'supportValue'"));
+        assert!(stdout.contains("support.ts:2:"));
+        assert!(stdout.contains("local variable 'supportValue'"));
     }
 }
 
@@ -1153,6 +1244,121 @@ fn given_svelte_component_rune_when_checking_import_side_effects_then_component_
         assert_eq!(
             output.status.code(),
             Some(test_case.expected_exit_code),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_combined_sveltekit_project_when_checking_retained_pack_then_all_boundaries_pass_natively()
+{
+    let test_cases = [WebPolicyCheckTestCase {
+        description: "combined SvelteKit project passes every retained web boundary natively",
+        expected_exit_code: 0,
+    }];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(
+        repository.path().join("fensu.toml"),
+        concat!(
+            "[targets.web]\n",
+            "analyzer = \"svelte\"\n",
+            "framework = \"sveltekit\"\n",
+            "roots = [\"src\"]\n",
+            "tests = []\n",
+            "tooling = []\n",
+            "ui_kit = \"src/ui-kit\"\n",
+            "shadcn = \"config/components.json\"\n",
+            "openapi = \"contracts/openapi.json\"\n",
+            "select = [\"FWS101\", \"FWS102\", \"FWS103\", \"FWS104\", \"FWS107\", \"FWS108\", \"FWS109\", \"FWS110\", \"FWS111\", \"FWA101\", \"FWA102\", \"FWA103\", \"FWL104\", \"FWL106\", \"FWL107\", \"FWV101\", \"FWV102\", \"FWV103\", \"FWV104\", \"FWV105\", \"FWV106\", \"FWV107\", \"FWV201\", \"FWV202\", \"FWU001\", \"FWU002\", \"FWU003\", \"FWC201\"]\n",
+            "[targets.web.cache]\n",
+            "enabled = false\n",
+        ),
+    );
+        write(
+            repository.path().join("config/components.json"),
+            "{\"aliases\":{\"ui\":\"$ui-kit\",\"utils\":\"$ui-kit/utils\"}}\n",
+        );
+        write(
+            repository.path().join("contracts/openapi.json"),
+            "{\"paths\":{\"/api/orders\":{}}}\n",
+        );
+        write(
+            repository
+                .path()
+                .join("src/lib/orders/_state/order.state.svelte.ts"),
+            concat!(
+                "export function createOrderState(): object {\n",
+                "  let selected = $state<string | null>(null);\n",
+                "  const label = $derived.by(() => selected ?? 'none');\n",
+                "  function select(value: string): void { selected = value; }\n",
+                "  $effect(() => { document.title = label; });\n",
+                "  return { get selected() { return selected; }, label, select };\n",
+                "}\n",
+            ),
+        );
+        write(
+            repository
+                .path()
+                .join("src/lib/orders/_resources/socket.resource.ts"),
+            concat!(
+                "export function createSocket(): object {\n",
+                "  const socket = new WebSocket('ws://localhost');\n",
+                "  function stop(): void { socket.close(); }\n",
+                "  return { socket, stop };\n",
+                "}\n",
+            ),
+        );
+        write(
+            repository.path().join("src/lib/orders/_api/read-orders.ts"),
+            "export function readOrders(): Promise<Response> { return fetch('/api/orders'); }\n",
+        );
+        write(
+            repository.path().join("src/lib/orders/types.ts"),
+            "export interface Order { readonly id: string; }\n",
+        );
+        write(
+        repository.path().join("src/routes/orders/+page.ts"),
+        "export async function load(): Promise<object> { const response = await fetch('/api/orders'); return { response }; }\n",
+    );
+        write(
+        repository.path().join("src/routes/orders/+page.server.ts"),
+        "import type { Order } from '$lib/orders/types'; export function load(): Order { return { id: '1' }; }\n",
+    );
+        write(
+        repository.path().join("src/routes/orders/+page.svelte"),
+        "<script lang=\"ts\">import Button from '../../ui-kit/button/button.svelte';</script><Button />\n",
+    );
+        write(
+        repository
+            .path()
+            .join("src/lib/orders/components/OrderCard.svelte"),
+        "<script lang=\"ts\">let { onOpen }: { onOpen: () => void } = $props();</script><button onclick={onOpen}>Open</button>\n",
+    );
+        write(
+            repository.path().join("src/ui-kit/button/button.svelte"),
+            "<button><slot /></button>\n",
+        );
+        write(
+            repository.path().join("src/ui-kit/utils.ts"),
+            "export const className: string = 'button';\n",
+        );
+        let process_directory = poison_processes(repository.path());
+
+        let output =
+            run_internal_web_check_with(repository.path(), &["--no-cache"], &process_directory);
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {} {}",
+            test_case.description,
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            !repository.path().join("process-invoked").exists(),
             "{}",
             test_case.description
         );

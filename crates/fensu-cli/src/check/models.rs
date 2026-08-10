@@ -70,6 +70,7 @@ pub(crate) struct EvaluationRequest<'a> {
     pub(crate) project_root: &'a Path,
     pub(crate) config: &'a Config,
     pub(crate) sources: &'a [ScopedSource],
+    pub(crate) project_inputs: &'a [ProjectInput],
     pub(crate) excluded: usize,
     pub(crate) show_warnings: bool,
 }

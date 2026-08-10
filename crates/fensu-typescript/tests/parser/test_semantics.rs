@@ -250,6 +250,117 @@ fn given_policy_owned_top_level_declarations_when_collecting_then_retains_only_c
 }
 
 #[test]
+fn given_web_policy_syntax_when_collecting_then_retains_endpoint_entry_and_cleanup_evidence() {
+    let test_cases = [test_types::WebPolicyFactsTestCase {
+        description: "template heads, action ownership, and exposed cleanup remain linked",
+        source: concat!(
+            "const id = '1';\n",
+            "export const dynamic = `/api/orders/${id}/details`;\n",
+            "export const fixed = `/api/health/`;\n",
+            "export function load(): object { const value = read(); return { value }; }\n",
+            "export const actions = { default: (): object => { const value = read(); return { value }; } };\n",
+            "export function open(): object {\n",
+            "  const socket = new WebSocket('ws://localhost');\n",
+            "  function stop(): void { socket.close(); }\n",
+            "  return { socket, stop };\n",
+            "}\n",
+        ),
+        expected_endpoints: &[("/api/orders/", false), ("/api/health/", true)],
+        expected_dynamic_segments: &["/api/orders/", "/details"],
+        expected_export_owners: &[("load", "load"), ("<anonymous>", "actions")],
+        expected_cleanup_function: "stop",
+        expected_cleanup_target: "socket",
+        expected_return_function: "open",
+        expected_returned_member: "stop",
+    }];
+    for test_case in &test_cases {
+        let facts = parse_typescript(test_case.source.as_bytes()).expect("must parse");
+        let endpoints = facts
+            .strings
+            .iter()
+            .filter(|fact| fact.value.starts_with("/api/"))
+            .map(|fact| (fact.value.as_str(), fact.complete))
+            .collect::<Vec<_>>();
+        let export_owners = facts
+            .functions
+            .iter()
+            .filter_map(|function| {
+                function
+                    .export_owner
+                    .as_deref()
+                    .map(|owner| (function.name.as_str(), owner))
+            })
+            .collect::<Vec<_>>();
+        let cleanup = facts
+            .calls
+            .iter()
+            .find(|call| call.name.ends_with(".close"))
+            .expect("cleanup call");
+        let dynamic = facts
+            .strings
+            .iter()
+            .find(|fact| fact.value == test_case.expected_endpoints[0].0)
+            .expect("dynamic endpoint");
+
+        assert_eq!(
+            endpoints, test_case.expected_endpoints,
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            dynamic
+                .static_segments
+                .iter()
+                .map(String::as_str)
+                .collect::<Vec<_>>(),
+            test_case.expected_dynamic_segments,
+            "{}",
+            test_case.description
+        );
+        assert!(
+            test_case
+                .expected_export_owners
+                .iter()
+                .all(|expected| export_owners.contains(expected)),
+            "{}: {export_owners:?}",
+            test_case.description
+        );
+        assert_eq!(
+            cleanup.function_name.as_deref(),
+            Some(test_case.expected_cleanup_function),
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            cleanup.cleanup_target.as_deref(),
+            Some(test_case.expected_cleanup_target),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            facts
+                .resources
+                .iter()
+                .any(|resource| resource.family == "websocket"
+                    && resource.binding_name.as_deref() == Some(test_case.expected_cleanup_target)),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            facts.return_objects.iter().any(|returned| {
+                returned.function_name.as_deref() == Some(test_case.expected_return_function)
+                    && returned
+                        .member_names
+                        .iter()
+                        .any(|name| name == test_case.expected_returned_member)
+            }),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
 fn given_import_matrix_when_collecting_then_counts_expected_bindings_and_kinds() {
     let test_cases = [test_types::ImportMatrixTestCase {
         description:

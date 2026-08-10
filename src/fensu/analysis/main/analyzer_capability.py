@@ -15,12 +15,12 @@ def analyzer_capability(analyzer: AnalyzerId) -> AnalyzerCapability:
         ),
         AnalyzerId.TYPESCRIPT: AnalyzerCapability(
             analyzer=AnalyzerId.TYPESCRIPT,
-            available=False,
-            cache_contract="typescript-backend-v1",
+            available=True,
+            cache_contract="typescript-policy-v4",
         ),
         AnalyzerId.SVELTE: AnalyzerCapability(
             analyzer=AnalyzerId.SVELTE,
-            available=False,
-            cache_contract="svelte-backend-v1",
+            available=True,
+            cache_contract="svelte-policy-v4",
         ),
     }[analyzer]

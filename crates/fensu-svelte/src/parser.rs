@@ -390,6 +390,24 @@ fn shift_module_facts(source: &[u8], mut facts: ModuleFacts, offset: usize) -> M
     for span in &mut facts.public_any {
         *span = shifted_span(source, span.clone(), offset);
     }
+    for call in &mut facts.calls {
+        call.span = shifted_span(source, call.span.clone(), offset);
+    }
+    for literal in &mut facts.strings {
+        literal.span = shifted_span(source, literal.span.clone(), offset);
+    }
+    for mutation in &mut facts.imported_mutations {
+        mutation.span = shifted_span(source, mutation.span.clone(), offset);
+    }
+    for returned in &mut facts.return_objects {
+        returned.span = shifted_span(source, returned.span.clone(), offset);
+    }
+    for resource in &mut facts.resources {
+        resource.span = shifted_span(source, resource.span.clone(), offset);
+    }
+    for span in &mut facts.cleanup_returns {
+        *span = shifted_span(source, span.clone(), offset);
+    }
     facts
 }
 

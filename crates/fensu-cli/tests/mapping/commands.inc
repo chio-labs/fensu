@@ -36,13 +36,13 @@ fn given_explicit_root_and_optional_config_when_mapping_then_invalid_config_neve
             expected_stderr: "Unknown analyzer for target web: ruby",
         },
         ExplicitRootConfigMappingTestCase {
-            description: "explicit root rejects known unavailable analyzer",
+            description: "explicit root rejects analyzer without mapping capability",
             config: Some(
                 "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"ignored\"]\n",
             ),
             expected_exit_code: 2,
             expected_stdout: "",
-            expected_stderr: "Known analyzer backend unavailable: typescript",
+            expected_stderr: "Map capability unavailable for analyzer typescript: native mapping is not implemented",
         },
     ];
     for test_case in &test_cases {
@@ -79,13 +79,13 @@ fn given_explicit_root_and_optional_config_when_mapping_then_invalid_config_neve
 }
 
 #[test]
-fn given_known_unavailable_analyzer_when_mapping_then_backend_error_precedes_discovery() {
+fn given_native_analyzer_without_mapping_when_mapping_then_capability_error_precedes_discovery() {
     let test_cases = [ConfigTargetMappingTestCase {
-        description: "Svelte mapping fails at the backend boundary",
+        description: "Svelte mapping fails at the mapping capability boundary",
         arguments: &["run", "--target", "web", "--no-cache"],
         expected_exit_code: 2,
         expected_stdout: "",
-        expected_stderr: "Known analyzer backend unavailable: svelte",
+        expected_stderr: "Map capability unavailable for analyzer svelte: native mapping is not implemented",
     }];
     let repository = tempfile::tempdir().expect("temporary repository");
     write(

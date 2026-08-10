@@ -53,7 +53,6 @@ pub(crate) struct AnalyzerContractTestCase {
     pub(crate) description: &'static str,
     pub(crate) value: &'static str,
     pub(crate) expected_analyzer: Option<AnalyzerId>,
-    pub(crate) expected_backend_error: Option<&'static str>,
     pub(crate) expected_display: Option<&'static str>,
     pub(crate) expected_cache_contract: Option<&'static str>,
 }

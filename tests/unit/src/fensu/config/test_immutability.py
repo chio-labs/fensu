@@ -123,6 +123,9 @@ def test_given_loaded_config_when_mutating_role_thresholds_then_raises_type_erro
                 "target_root",
                 "ui_kit",
                 "generated",
+                "framework",
+                "shadcn",
+                "openapi",
             ),
         )
     ],

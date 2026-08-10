@@ -15,7 +15,7 @@ from fensu.rules.authoring.types import RuleOptionValue
 def build_config_for_rules(*, raw: Mapping[str, object], rules: tuple[RuleSpec, ...]) -> Config:
     """Validate declarations and overrides and return final immutable configuration."""
 
-    validate_config(raw)
+    validate_config(raw=raw)
     resolved: Mapping[str, Mapping[str, RuleOptionValue]] = resolve_rule_options(
         raw=raw.get("rule_options"), rules=rules
     )

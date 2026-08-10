@@ -30,6 +30,9 @@ const CONFIG_KEYS: &[&str] = &[
     "roles",
     "contracts",
     "ui_kit",
+    "framework",
+    "shadcn",
+    "openapi",
     "rule_exceptions",
     "rule_ignores",
     "threshold_overrides",
@@ -77,18 +80,47 @@ pub(crate) fn validate_for_analyzer(
     if roots.is_empty() {
         return Err("Config must define at least one root in roots.".to_owned());
     }
-    validate_nested_roots(roots)?;
+    validate_nested_roots(roots.clone())?;
     validate_boolean_table(table, "cache", &["enabled", "require_cacheable"])?;
     validate_threshold_table(table.get("thresholds"), "thresholds", false)?;
     validate_roles(table.get("roles"))?;
     validate_contracts(table.get("contracts"))?;
+    if let Some(value) = table.get("framework") {
+        if value.as_str() != Some("sveltekit") {
+            return Err("Config key framework must be 'sveltekit'.".to_owned());
+        }
+        if analyzer != AnalyzerId::Svelte {
+            return Err(
+                "Config key framework is supported only by the Svelte analyzer.".to_owned(),
+            );
+        }
+    }
+    for name in ["shadcn", "openapi"] {
+        if let Some(value) = table.get(name) {
+            let path = value
+                .as_str()
+                .filter(|path| !path.trim().is_empty())
+                .ok_or_else(|| format!("Config key {name} must be a non-empty string."))?;
+            if !portable_target_path(path) {
+                return Err(format!(
+                    "Config key {name} must be a repository-relative path."
+                ));
+            }
+        }
+    }
     if let Some(value) = table.get("ui_kit") {
         let path = value
             .as_str()
             .filter(|path| !path.trim().is_empty())
             .ok_or_else(|| "Config key ui_kit must be a non-empty string.".to_owned())?;
-        if path.starts_with('/') || path.split('/').any(|part| matches!(part, "" | "." | "..")) {
+        if !portable_target_path(path) {
             return Err("Config key ui_kit must be a repository-relative path.".to_owned());
+        }
+        if !roots
+            .iter()
+            .any(|root| path.starts_with(&format!("{root}/")))
+        {
+            return Err("Config key ui_kit must be beneath a configured root.".to_owned());
         }
     }
     validate_threshold_overrides(table.get("threshold_overrides"))?;
@@ -96,6 +128,14 @@ pub(crate) fn validate_for_analyzer(
     validate_rule_ignores(table.get("rule_ignores"))?;
     validate_evaluation(table.get("evaluation"))?;
     Ok(())
+}
+
+fn portable_target_path(path: &str) -> bool {
+    let bytes = path.as_bytes();
+    !path.starts_with(['/', '\\'])
+        && !path.contains('\\')
+        && !(bytes.first().is_some_and(u8::is_ascii_alphabetic) && bytes.get(1) == Some(&b':'))
+        && !path.split('/').any(|part| matches!(part, "" | "." | ".."))
 }
 
 pub(crate) fn select_target(

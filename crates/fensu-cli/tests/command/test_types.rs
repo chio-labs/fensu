@@ -230,3 +230,21 @@ pub(crate) struct WebPolicyCheckTestCase {
     pub(crate) description: &'static str,
     pub(crate) expected_exit_code: i32,
 }
+
+pub(crate) struct WebDiagnosticCountTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) config: &'static str,
+    pub(crate) files: &'static [(&'static str, &'static str)],
+    pub(crate) expected_exit_code: i32,
+    pub(crate) expected_counts: &'static [(&'static str, usize)],
+    pub(crate) expected_absent: Option<&'static str>,
+}
+
+pub(crate) struct MixedWebExecutionTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_exit_code: i32,
+    pub(crate) expected_python_fault: &'static str,
+    pub(crate) expected_web_fault: &'static str,
+    pub(crate) expected_host_count_per_run: usize,
+    pub(crate) expected_host_error: &'static str,
+}

@@ -20,14 +20,22 @@ use crate::configuration::main::validate_exception_targets::validate_exception_t
 use crate::constants::PYTHON_CACHE_DIRECTORY;
 use crate::models::{CheckOptions, Config, ScopedSource, SourcePurpose};
 
-pub(crate) fn prepare_checks(options: &CheckOptions) -> Result<CheckPlans, String> {
+pub(crate) fn prepare_checks(
+    options: &CheckOptions,
+    target_names: Option<&std::collections::HashSet<String>>,
+) -> Result<CheckPlans, String> {
     let invocation = env::current_dir()
         .map_err(|error| error.to_string())?
         .canonicalize()
         .map_err(|error| error.to_string())?;
-    let loaded = load_targets::load_targets(&invocation, options.target.as_deref())?;
-    for (_, config) in &loaded {
-        config.analyzer.require_check_backend()?;
+    let mut loaded = load_targets::load_targets(&invocation, options.target.as_deref())?;
+    if let Some(target_names) = target_names {
+        loaded.retain(|(_, config)| {
+            config
+                .target
+                .as_ref()
+                .is_some_and(|target| target_names.contains(target))
+        });
     }
     if loaded.len() > 1 && !options.paths.is_empty() {
         return Err(
@@ -54,7 +62,7 @@ pub(crate) fn prepare_checks(options: &CheckOptions) -> Result<CheckPlans, Strin
         let project_inputs = if config.analyzer == crate::analyzer::AnalyzerId::Python {
             Vec::new()
         } else {
-            web::discover_project_inputs(&root, &project_root)?
+            web::discover_project_inputs(&root, &project_root, &config)?
         };
         let cache_enabled = options.cache_enabled.unwrap_or(config.cache_enabled);
         let color = use_color(&options.color);

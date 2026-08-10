@@ -14,6 +14,7 @@ from fensu.config.constants import (
     CONFIG_TOP_LEVEL_KEYS,
     CONTRACT_BEHAVIORS,
     DEFAULT_TARGET_ROOT,
+    DEFAULT_WEB_FRAMEWORK,
     DOUBLE_PATH_SEPARATOR,
     EVALUATION_CONFIG_KEYS,
     INVALID_UI_KIT_PATH_PARTS,
@@ -45,7 +46,7 @@ _glob_characters: frozenset[str] = frozenset({"*", "?", "[", "]"})
 _registered_rule_packs: frozenset[str] = frozenset({"dagster"})
 
 
-def validate_config(raw: Mapping[str, object]) -> None:
+def validate_config(*, raw: Mapping[str, object], analyzer: AnalyzerId | None = None) -> None:
     """Raise if a raw config mapping violates the day-one schema."""
 
     _validate_top_level_keys(raw=raw)
@@ -78,17 +79,27 @@ def validate_config(raw: Mapping[str, object]) -> None:
     _validate_role_thresholds(value=raw.get("roles"))
     _validate_threshold_overrides(value=raw.get("threshold_overrides"))
     _validate_contracts(value=raw.get("contracts"))
+    framework: object = raw.get("framework")
+    if framework is not None and framework != DEFAULT_WEB_FRAMEWORK:
+        raise ConfigValidationError("Config key framework must be 'sveltekit'.")
+    if framework is not None and analyzer is not None and analyzer is not AnalyzerId.SVELTE:
+        raise ConfigValidationError(
+            "Config key framework is supported only by the Svelte analyzer."
+        )
+    for path_key in ("shadcn", "openapi"):
+        path_value: object = raw.get(path_key)
+        if path_value is not None and not _is_portable_target_path(value=path_value):
+            raise ConfigValidationError(
+                f"Config key {path_key} must be a non-empty repository-relative path."
+            )
     ui_kit: object = raw.get("ui_kit")
-    if ui_kit is not None and (
-        not isinstance(ui_kit, str)
-        or not ui_kit
-        or ui_kit.startswith("/")
-        or any(part in INVALID_UI_KIT_PATH_PARTS for part in ui_kit.split(PATH_SEPARATOR))
-    ):
+    if ui_kit is not None and not _is_portable_target_path(value=ui_kit):
         raise ConfigValidationError(
             "Config key ui_kit must be a non-empty repository-relative path."
         )
-    _validate_rule_exceptions(value=raw.get("rule_exceptions"))
+    if isinstance(ui_kit, str) and not any(ui_kit.startswith(f"{root}/") for root in roots):
+        raise ConfigValidationError("Config key ui_kit must be beneath a configured root.")
+    _validate_rule_exceptions(value=raw.get("rule_exceptions"), analyzer=analyzer)
     _validate_rule_ignores(value=raw.get("rule_ignores"))
     _validate_cache(value=raw.get("cache"))
     _validate_evaluation(value=raw.get("evaluation"))
@@ -148,7 +159,7 @@ def select_config_target(
         selected: dict[str, object] = dict(typed_value)
         _ = selected.pop("analyzer")
         _ = selected.pop("root", None)
-        validate_config(selected)
+        validate_config(raw=selected, analyzer=analyzer_id)
         validated[name] = (selected, analyzer_id, root)
     selected_name: str
     if target is not None:
@@ -475,18 +486,21 @@ def _validate_contracts(*, value: object) -> None:
             raise ConfigValidationError(f"Unknown contract behavior for {pattern}: {behavior}.")
 
 
-def _validate_rule_exceptions(*, value: object) -> None:
+def _validate_rule_exceptions(*, value: object, analyzer: AnalyzerId | None) -> None:
     if value is None:
         return
     if not isinstance(value, list):
         raise ConfigValidationError("Config key rule_exceptions must be an array of tables.")
     seen: set[tuple[str, str, str | None]] = set()
     for entry in value:
-        seen = _validate_rule_exception_entry(entry=entry, seen=seen)
+        seen = _validate_rule_exception_entry(entry=entry, seen=seen, analyzer=analyzer)
 
 
 def _validate_rule_exception_entry(
-    *, entry: object, seen: set[tuple[str, str, str | None]]
+    *,
+    entry: object,
+    seen: set[tuple[str, str, str | None]],
+    analyzer: AnalyzerId | None,
 ) -> set[tuple[str, str, str | None]]:
     if not isinstance(entry, dict):
         raise ConfigValidationError("Each rule_exceptions entry must be a table.")
@@ -504,7 +518,7 @@ def _validate_rule_exception_entry(
         raise ConfigValidationError("Rule exception reason must be non-empty.")
     if not is_rule_code(rule):
         raise ConfigValidationError(f"Rule exception must use one exact rule code: {rule}.")
-    _validate_exception_path(path)
+    _validate_exception_path(path=path, analyzer=analyzer)
     if RULE_EXCEPTION_SYMBOLS_CONFIG_KEY not in typed_entry:
         key: tuple[str, str, str | None] = (rule, path, None)
         if key in seen:
@@ -537,16 +551,51 @@ def _exception_string(*, entry: Mapping[object, object], key: str) -> str:
     return value
 
 
-def _validate_exception_path(path: str) -> None:
+def _validate_exception_path(*, path: str, analyzer: AnalyzerId | None) -> None:
     parsed: PurePosixPath = PurePosixPath(path)
+    analyzer_name: str = analyzer.value if analyzer is not None else "the configured analyzer"
+    web_suffixes: tuple[str, ...] = (
+        ".ts",
+        ".tsx",
+        ".mts",
+        ".cts",
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs",
+    )
+    supported: bool = (
+        parsed.suffix == _python_file_suffix
+        if analyzer is AnalyzerId.PYTHON
+        else path.endswith(web_suffixes)
+        if analyzer is AnalyzerId.TYPESCRIPT
+        else path.endswith((*web_suffixes, ".svelte"))
+        if analyzer is AnalyzerId.SVELTE
+        else parsed.suffix == _python_file_suffix or path.endswith((*web_suffixes, ".svelte"))
+    )
     if (
         parsed.is_absolute()
+        or PureWindowsPath(path).drive != _empty_string
         or _windows_path_separator in path
         or any(character in path for character in _glob_characters)
         or path != parsed.as_posix()
         or any(part in {_current_path_part, _parent_path_part} for part in parsed.parts)
-        or parsed.suffix != _python_file_suffix
+        or not supported
     ):
         raise ConfigValidationError(
-            f"Rule exception path must be one exact repository-relative POSIX Python file: {path}."
+            "Rule exception path is not an exact repository-relative POSIX source for "
+            f"{analyzer_name}: {path}."
         )
+
+
+def _is_portable_target_path(*, value: object) -> bool:
+    if not isinstance(value, str) or not value:
+        return False
+    parsed: PurePosixPath = PurePosixPath(value)
+    return (
+        not parsed.is_absolute()
+        and PureWindowsPath(value).drive == _empty_string
+        and _windows_path_separator not in value
+        and value == parsed.as_posix()
+        and not any(part in INVALID_UI_KIT_PATH_PARTS for part in parsed.parts)
+    )

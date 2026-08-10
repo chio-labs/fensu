@@ -7,10 +7,11 @@ use oxc_ast::ast::{
     Argument, ArrowFunctionBody, ArrowFunctionExpression, AssignmentExpression, BindingPattern,
     CallExpression, Class, ConditionalExpression, Declaration, ExportDefaultDeclarationKind,
     Expression, FormalParameters, Function, IdentifierReference, IfStatement,
-    ImportDeclarationSpecifier, ImportOrExportKind, MethodDefinition, ObjectProperty, PropertyKey,
-    Statement, StaticMemberExpression, SwitchStatement, TSAnyKeyword, TSAsExpression,
+    ImportDeclarationSpecifier, ImportOrExportKind, MethodDefinition, NewExpression,
+    ObjectProperty, ObjectPropertyKind, PropertyKey, ReturnStatement, Statement,
+    StaticMemberExpression, StringLiteral, SwitchStatement, TSAnyKeyword, TSAsExpression,
     TSInterfaceDeclaration, TSSignature, TSType, TSTypeAliasDeclaration, TSTypeAssertion,
-    UpdateExpression, VariableDeclarator,
+    TemplateLiteral, UpdateExpression, VariableDeclarator,
 };
 use oxc_ast_visit::{walk, Visit};
 use oxc_diagnostics::{Diagnostics, OxcDiagnostic};
@@ -20,9 +21,10 @@ use oxc_span::{FileExtension, GetSpan, SourceType, Span};
 use oxc_syntax::scope::ScopeFlags;
 
 use crate::models::{
-    ClassFact, FunctionFact, ImportBindingFact, ImportFact, JsonCallFact, LocalBindingFact,
-    ModelFact, ModelKind, ModuleFacts, ParameterizedTestFact, ParseDiagnostic, SourceKind,
-    SourceSpan, TestCallFact, TopLevelBindingFact,
+    CallFact, ClassFact, FunctionFact, ImportBindingFact, ImportFact, JsonCallFact,
+    LocalBindingFact, ModelFact, ModelKind, ModuleFacts, MutationFact, ParameterizedTestFact,
+    ParseDiagnostic, ResourceFact, ReturnObjectFact, SourceKind, SourceSpan, StringFact,
+    TestCallFact, TopLevelBindingFact,
 };
 
 const DESCRIPTION_PROPERTY: &str = "description";
@@ -210,6 +212,7 @@ fn collect_facts(source: &str, statements: &[Statement<'_>]) -> ModuleFacts {
         source,
         facts: ModuleFacts::default(),
         exported_functions: HashSet::new(),
+        function_export_owners: HashMap::new(),
         function_names: HashMap::new(),
     };
     for statement in statements {
@@ -222,10 +225,12 @@ fn collect_facts(source: &str, statements: &[Statement<'_>]) -> ModuleFacts {
     for statement in statements {
         name_visitor.visit_statement(statement);
     }
+    let function_names = name_visitor.names;
     let mut visitor = FactVisitor {
         source,
         exported_functions: collector.exported_functions,
-        function_names: name_visitor.names,
+        function_export_owners: collector.function_export_owners,
+        function_names: function_names.clone(),
         function_stack: Vec::new(),
         class_stack: Vec::new(),
         local_names: Vec::new(),
@@ -271,13 +276,298 @@ fn collect_facts(source: &str, statements: &[Statement<'_>]) -> ModuleFacts {
         .sort_by_key(|fact| fact.span.start);
     collector.facts.test_calls = contract_visitor.test_calls;
     collector.facts.public_any = public_any_spans(source, statements);
+    let mut imported_names: HashSet<String> = HashSet::new();
+    for fact in &collector.facts.imports {
+        for binding in &fact.bindings {
+            imported_names.insert(binding.local_name.clone());
+        }
+    }
+    let mut web_visitor = WebFactVisitor {
+        source,
+        imported_names,
+        function_names,
+        function_stack: Vec::new(),
+        binding_stack: Vec::new(),
+        ancestor_calls: Vec::new(),
+        returned_cleanup_depth: 0,
+        calls: Vec::new(),
+        strings: Vec::new(),
+        imported_mutations: Vec::new(),
+        return_objects: Vec::new(),
+        resources: Vec::new(),
+        cleanup_returns: Vec::new(),
+    };
+    for statement in statements {
+        web_visitor.visit_statement(statement);
+    }
+    collector.facts.calls = web_visitor.calls;
+    collector.facts.strings = web_visitor.strings;
+    collector.facts.imported_mutations = web_visitor.imported_mutations;
+    collector.facts.return_objects = web_visitor.return_objects;
+    collector.facts.resources = web_visitor.resources;
+    collector.facts.cleanup_returns = web_visitor.cleanup_returns;
     collector.facts
+}
+
+struct WebFactVisitor<'s> {
+    source: &'s str,
+    imported_names: HashSet<String>,
+    function_names: HashMap<u32, String>,
+    function_stack: Vec<String>,
+    binding_stack: Vec<Option<String>>,
+    ancestor_calls: Vec<String>,
+    returned_cleanup_depth: usize,
+    calls: Vec<CallFact>,
+    strings: Vec<StringFact>,
+    imported_mutations: Vec<MutationFact>,
+    return_objects: Vec<ReturnObjectFact>,
+    resources: Vec<ResourceFact>,
+    cleanup_returns: Vec<SourceSpan>,
+}
+
+impl<'a> Visit<'a> for WebFactVisitor<'_> {
+    fn visit_call_expression(&mut self, call: &CallExpression<'a>) {
+        let name = call_name(self.source, call);
+        let function_argument = call.arguments.first().is_some_and(|argument| {
+            argument.as_expression().is_some_and(|expression| {
+                matches!(
+                    expression,
+                    Expression::ArrowFunctionExpression(_) | Expression::FunctionExpression(_)
+                )
+            })
+        });
+        self.calls.push(CallFact {
+            name: name.clone(),
+            function_name: self.function_stack.last().cloned(),
+            cleanup_target: cleanup_target(self.source, call, &name),
+            ancestor_calls: self.ancestor_calls.clone(),
+            function_argument,
+            returned_cleanup: self.returned_cleanup_depth > 0,
+            span: owned_span(self.source, call.span),
+        });
+        if let Some(family) = call_resource_family(&name) {
+            let binding = self.binding_stack.last().cloned().flatten();
+            self.resources.push(ResourceFact {
+                family: family.to_owned(),
+                binding_name: resource_instance_key(self.source, call, &name, binding),
+                ancestor_calls: self.ancestor_calls.clone(),
+                span: owned_span(self.source, call.span),
+            });
+        }
+        self.ancestor_calls.push(name);
+        walk::walk_call_expression(self, call);
+        let _ = self.ancestor_calls.pop();
+    }
+
+    fn visit_new_expression(&mut self, expression: &NewExpression<'a>) {
+        let name = expression_name(self.source, &expression.callee);
+        if let Some(family) = new_resource_family(&name) {
+            self.resources.push(ResourceFact {
+                family: family.to_owned(),
+                binding_name: self.binding_stack.last().cloned().flatten(),
+                ancestor_calls: self.ancestor_calls.clone(),
+                span: owned_span(self.source, expression.span),
+            });
+        }
+        walk::walk_new_expression(self, expression);
+    }
+
+    fn visit_string_literal(&mut self, literal: &StringLiteral<'a>) {
+        self.strings.push(StringFact {
+            value: literal.value.to_string(),
+            static_segments: vec![literal.value.to_string()],
+            complete: true,
+            span: owned_span(self.source, literal.span),
+        });
+    }
+
+    fn visit_template_literal(&mut self, literal: &TemplateLiteral<'a>) {
+        if let Some(head) = literal.quasis.first() {
+            let static_segments = literal
+                .quasis
+                .iter()
+                .map(|quasi| {
+                    quasi
+                        .value
+                        .cooked
+                        .as_ref()
+                        .unwrap_or(&quasi.value.raw)
+                        .to_string()
+                })
+                .collect::<Vec<_>>();
+            self.strings.push(StringFact {
+                value: head
+                    .value
+                    .cooked
+                    .as_ref()
+                    .unwrap_or(&head.value.raw)
+                    .to_string(),
+                static_segments,
+                complete: literal.expressions.is_empty(),
+                span: owned_span(self.source, literal.span),
+            });
+        }
+        walk::walk_template_literal(self, literal);
+    }
+
+    fn visit_function(&mut self, function: &Function<'a>, flags: ScopeFlags) {
+        let name = function
+            .id
+            .as_ref()
+            .map(|identifier| identifier.name.to_string())
+            .or_else(|| self.function_names.get(&function.span.start).cloned())
+            .unwrap_or_else(|| "<anonymous>".to_owned());
+        self.function_stack.push(name);
+        walk::walk_function(self, function, flags);
+        let _ = self.function_stack.pop();
+    }
+
+    fn visit_arrow_function_expression(&mut self, arrow: &ArrowFunctionExpression<'a>) {
+        let name = self
+            .function_names
+            .get(&arrow.span.start)
+            .cloned()
+            .unwrap_or_else(|| "<anonymous>".to_owned());
+        self.function_stack.push(name);
+        walk::walk_arrow_function_expression(self, arrow);
+        let _ = self.function_stack.pop();
+    }
+
+    fn visit_assignment_expression(&mut self, expression: &AssignmentExpression<'a>) {
+        self.record_imported_mutation(expression.left.span());
+        walk::walk_assignment_expression(self, expression);
+    }
+
+    fn visit_variable_declarator(&mut self, declarator: &VariableDeclarator<'a>) {
+        self.binding_stack
+            .push(binding_name(&declarator.id).map(str::to_owned));
+        walk::walk_variable_declarator(self, declarator);
+        let _ = self.binding_stack.pop();
+    }
+
+    fn visit_update_expression(&mut self, expression: &UpdateExpression<'a>) {
+        self.record_imported_mutation(expression.argument.span());
+        walk::walk_update_expression(self, expression);
+    }
+
+    fn visit_return_statement(&mut self, statement: &ReturnStatement<'a>) {
+        if let Some(Expression::ObjectExpression(object)) = statement.argument.as_ref() {
+            self.return_objects.push(ReturnObjectFact {
+                function_name: self.function_stack.last().cloned(),
+                member_count: object.properties.len(),
+                member_names: object
+                    .properties
+                    .iter()
+                    .filter_map(|property| match property {
+                        ObjectPropertyKind::ObjectProperty(property) => {
+                            Some(property_key_name(self.source, &property.key))
+                        }
+                        ObjectPropertyKind::SpreadProperty(_) => None,
+                    })
+                    .collect(),
+                span: owned_span(self.source, statement.span),
+            });
+        }
+        let returns_cleanup = statement.argument.as_ref().is_some_and(|argument| {
+            matches!(
+                argument,
+                Expression::ArrowFunctionExpression(_) | Expression::FunctionExpression(_)
+            )
+        });
+        if returns_cleanup {
+            self.cleanup_returns
+                .push(owned_span(self.source, statement.span));
+            self.returned_cleanup_depth += 1;
+        }
+        walk::walk_return_statement(self, statement);
+        if returns_cleanup {
+            self.returned_cleanup_depth -= 1;
+        }
+    }
+}
+
+impl WebFactVisitor<'_> {
+    fn record_imported_mutation(&mut self, span: Span) {
+        let text = span_text(self.source, span).trim_start();
+        let root_name = text
+            .split(|character: char| {
+                !character.is_ascii_alphanumeric() && character != '_' && character != '$'
+            })
+            .next()
+            .unwrap_or_default();
+        if self.imported_names.contains(root_name) {
+            self.imported_mutations.push(MutationFact {
+                root_name: root_name.to_owned(),
+                span: owned_span(self.source, span),
+            });
+        }
+    }
+}
+
+fn call_resource_family(name: &str) -> Option<&'static str> {
+    match name.rsplit('.').next().unwrap_or(name) {
+        "setInterval" => Some("interval"),
+        "setTimeout" => Some("timeout"),
+        "addEventListener" => Some("event-listener"),
+        _ => None,
+    }
+}
+
+fn cleanup_target(source: &str, call: &CallExpression<'_>, name: &str) -> Option<String> {
+    match name.rsplit('.').next().unwrap_or(name) {
+        "clearTimeout" | "clearInterval" => call
+            .arguments
+            .first()
+            .and_then(Argument::as_expression)
+            .map(|argument| span_text(source, argument.span()).trim().to_owned()),
+        "removeEventListener" => event_listener_key(source, call, name),
+        "close" | "disconnect" | "terminate" => call_receiver(name),
+        _ => None,
+    }
+}
+
+fn resource_instance_key(
+    source: &str,
+    call: &CallExpression<'_>,
+    name: &str,
+    binding: Option<String>,
+) -> Option<String> {
+    if name.rsplit('.').next() == Some("addEventListener") {
+        return event_listener_key(source, call, name);
+    }
+    binding.or_else(|| call_receiver(name))
+}
+
+fn event_listener_key(source: &str, call: &CallExpression<'_>, name: &str) -> Option<String> {
+    let mut key = call_receiver(name)?;
+    for argument in &call.arguments {
+        let expression = argument.as_expression()?;
+        key.push('|');
+        key.push_str(span_text(source, expression.span()).trim());
+    }
+    Some(key)
+}
+
+fn call_receiver(name: &str) -> Option<String> {
+    name.rsplit_once('.')
+        .map(|(receiver, _)| receiver.to_owned())
+}
+
+fn new_resource_family(name: &str) -> Option<&'static str> {
+    match name.rsplit('.').next().unwrap_or(name) {
+        "WebSocket" => Some("websocket"),
+        "ResizeObserver" | "MutationObserver" | "IntersectionObserver" => Some("observer"),
+        "Worker" | "SharedWorker" => Some("worker"),
+        "BroadcastChannel" => Some("broadcast-channel"),
+        _ => None,
+    }
 }
 
 struct TopLevelCollector<'s> {
     source: &'s str,
     facts: ModuleFacts,
     exported_functions: HashSet<u32>,
+    function_export_owners: HashMap<u32, String>,
     function_names: HashMap<u32, String>,
 }
 
@@ -339,6 +629,8 @@ impl TopLevelCollector<'_> {
                     ExportDefaultDeclarationKind::FunctionDeclaration(function) => {
                         self.facts.runtime_declaration_count += 1;
                         self.exported_functions.insert(function.span.start);
+                        self.function_export_owners
+                            .insert(function.span.start, "default".to_owned());
                     }
                     ExportDefaultDeclarationKind::TSInterfaceDeclaration(interface) => {
                         self.collect_interface(interface, true);
@@ -407,6 +699,10 @@ impl TopLevelCollector<'_> {
                 self.facts.runtime_declaration_count += 1;
                 self.facts.top_level_function_count += 1;
                 self.exported_functions.insert(function.span.start);
+                if let Some(identifier) = &function.id {
+                    self.function_export_owners
+                        .insert(function.span.start, identifier.name.to_string());
+                }
             }
             Declaration::VariableDeclaration(declaration) => {
                 self.facts.runtime_declaration_count += declaration.declarations.len();
@@ -425,6 +721,11 @@ impl TopLevelCollector<'_> {
                         self.exported_functions.insert(initializer.span().start);
                         self.function_names
                             .insert(initializer.span().start, name.to_owned());
+                    }
+                    let mut visitor = ExportedInitializerFunctionVisitor { spans: Vec::new() };
+                    visitor.visit_expression(initializer);
+                    for span in visitor.spans {
+                        self.function_export_owners.insert(span, name.to_owned());
                     }
                 }
             }
@@ -497,6 +798,20 @@ impl TopLevelCollector<'_> {
             property_names: property_names(self.source, &literal.members),
             span: owned_span(self.source, alias.id.span),
         });
+    }
+}
+
+struct ExportedInitializerFunctionVisitor {
+    spans: Vec<u32>,
+}
+
+impl<'a> Visit<'a> for ExportedInitializerFunctionVisitor {
+    fn visit_function(&mut self, function: &Function<'a>, _flags: ScopeFlags) {
+        self.spans.push(function.span.start);
+    }
+
+    fn visit_arrow_function_expression(&mut self, arrow: &ArrowFunctionExpression<'a>) {
+        self.spans.push(arrow.span.start);
     }
 }
 
@@ -1064,6 +1379,7 @@ impl<'a> Visit<'a> for CallbackVisitor<'_, '_, '_> {
 struct FactVisitor<'s> {
     source: &'s str,
     exported_functions: HashSet<u32>,
+    function_export_owners: HashMap<u32, String>,
     function_names: HashMap<u32, String>,
     function_stack: Vec<String>,
     class_stack: Vec<String>,
@@ -1136,6 +1452,10 @@ impl<'a> Visit<'a> for FactVisitor<'_> {
             parameters_annotated,
             return_span: function.return_type.as_ref().map(|value| value.span),
             exported: self.exported_functions.contains(&function.span.start),
+            export_owner: self
+                .function_export_owners
+                .get(&function.span.start)
+                .cloned(),
             metrics,
         }));
         self.function_stack.push(name);
@@ -1172,6 +1492,7 @@ impl<'a> Visit<'a> for FactVisitor<'_> {
             parameters_annotated,
             return_span: arrow.return_type.as_ref().map(|value| value.span),
             exported: self.exported_functions.contains(&arrow.span.start),
+            export_owner: self.function_export_owners.get(&arrow.span.start).cloned(),
             metrics,
         }));
         self.function_stack.push(name);
@@ -1240,6 +1561,7 @@ struct FunctionFactRequest<'a> {
     parameters_annotated: bool,
     return_span: Option<Span>,
     exported: bool,
+    export_owner: Option<String>,
     metrics: FunctionMetrics,
 }
 
@@ -1248,6 +1570,7 @@ fn function_fact(request: FunctionFactRequest<'_>) -> FunctionFact {
         name: request.name.to_owned(),
         qualified_name: request.qualified_name,
         exported: request.exported,
+        export_owner: request.export_owner,
         parameter_count: request.parameter_count,
         parameters_annotated: request.parameters_annotated,
         return_type: request.return_span.map(|value| {

@@ -36,7 +36,7 @@ pub(crate) fn resolve(
         let repo_root = find_project_root(&cwd);
         let (cache_enabled, analyzer) = match load_optional::load_optional(&cwd, target) {
             Ok(Some((_, config))) => {
-                config.analyzer.require_backend()?;
+                require_mapping_backend(config.analyzer)?;
                 (config.cache_enabled, config.analyzer)
             }
             Ok(None) if target.is_some() => {
@@ -75,7 +75,7 @@ pub(crate) fn resolve(
         });
     }
     if let Some((path, loaded)) = load_optional::load_optional(&cwd, target)? {
-        loaded.analyzer.require_backend()?;
+        require_mapping_backend(loaded.analyzer)?;
         let repo_root = dunce::canonicalize(path.parent().unwrap_or(Path::new(".")))
             .map_err(|error| error.to_string())?;
         let project_root = resolve_target_root(&repo_root, &loaded.target_root)?;
@@ -112,6 +112,16 @@ pub(crate) fn resolve(
         cache_enabled: true,
         analyzer: AnalyzerId::Python,
     })
+}
+
+fn require_mapping_backend(analyzer: AnalyzerId) -> Result<(), String> {
+    if analyzer == AnalyzerId::Python {
+        Ok(())
+    } else {
+        Err(format!(
+            "Map capability unavailable for analyzer {analyzer}: native mapping is not implemented."
+        ))
+    }
 }
 
 fn configured_sources(

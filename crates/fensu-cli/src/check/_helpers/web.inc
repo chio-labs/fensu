@@ -53,6 +53,7 @@ fn is_declaration_source(name: &str) -> bool {
 pub(crate) fn discover_project_inputs(
     repository_root: &Path,
     project_root: &Path,
+    config: &crate::models::Config,
 ) -> Result<Vec<ProjectInput>, String> {
     let mut inputs: Vec<ProjectInput> = Vec::new();
     let mut loaded: HashSet<PathBuf> = HashSet::new();
@@ -70,12 +71,35 @@ pub(crate) fn discover_project_inputs(
             &mut inputs,
         )?;
     }
-    for name in AUXILIARY_PROJECT_INPUT_NAMES {
-        let path = project_root.join(name);
+    let mut auxiliary_names = AUXILIARY_PROJECT_INPUT_NAMES
+        .iter()
+        .map(|name| (*name).to_owned())
+        .collect::<Vec<_>>();
+    auxiliary_names.extend(config.shadcn.iter().cloned());
+    auxiliary_names.extend(config.openapi.iter().cloned());
+    auxiliary_names.sort();
+    auxiliary_names.dedup();
+    for name in auxiliary_names {
+        let path = project_root.join(&name);
         if !path.is_file() {
+            if config.shadcn.as_deref() == Some(&name) || config.openapi.as_deref() == Some(&name) {
+                return Err(format!("Configured target-local web dependency does not exist: {name}."));
+            }
             continue;
         }
+        let canonical_root = fs::canonicalize(project_root).map_err(|error| error.to_string())?;
+        let canonical_path = fs::canonicalize(&path).map_err(|error| error.to_string())?;
+        if !canonical_path.starts_with(&canonical_root) {
+            return Err(format!(
+                "Configured target-local web dependency escapes the target: {name}."
+            ));
+        }
         let content = fs::read(&path).map_err(|error| error.to_string())?;
+        if config.shadcn.as_deref() == Some(&name) || config.openapi.as_deref() == Some(&name) {
+            serde_json::from_slice::<Value>(&content).map_err(|error| {
+                format!("Could not parse target-local web dependency {name}: {error}")
+            })?;
+        }
         inputs.push(ProjectInput {
             path: path.clone(),
             extended_configs: Vec::new(),
@@ -84,6 +108,18 @@ pub(crate) fn discover_project_inputs(
             fingerprint: hex_digest(&content),
             content,
         });
+    }
+    if let Some(ui_kit) = config.ui_kit.as_deref() {
+        let path = project_root.join(ui_kit);
+        if path.exists() {
+            let canonical_root = fs::canonicalize(project_root).map_err(|error| error.to_string())?;
+            let canonical_path = fs::canonicalize(&path).map_err(|error| error.to_string())?;
+            if !canonical_path.starts_with(&canonical_root) {
+                return Err(format!(
+                    "Configured target-local UI-kit path escapes the target: {ui_kit}."
+                ));
+            }
+        }
     }
     inputs.sort_by(|left, right| left.repository_path.cmp(&right.repository_path));
     Ok(inputs)

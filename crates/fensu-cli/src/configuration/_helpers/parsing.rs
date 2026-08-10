@@ -75,6 +75,22 @@ pub(crate) fn build(
             .get("ui_kit")
             .and_then(toml::Value::as_str)
             .map(|value| value.trim_end_matches('/').to_owned()),
+        framework: table
+            .get("framework")
+            .and_then(toml::Value::as_str)
+            .map(str::to_owned)
+            .or_else(|| {
+                (selection.analyzer == crate::analyzer::AnalyzerId::Svelte)
+                    .then(|| "sveltekit".to_owned())
+            }),
+        shadcn: table
+            .get("shadcn")
+            .and_then(toml::Value::as_str)
+            .map(str::to_owned),
+        openapi: table
+            .get("openapi")
+            .and_then(toml::Value::as_str)
+            .map(str::to_owned),
         exceptions: exceptions(table.get("rule_exceptions")),
         rule_ignores: rule_ignores(table.get("rule_ignores")),
         skills_name: skills_name(table)?,

@@ -13,7 +13,7 @@ from fensu.config.models import Config
 def build_config(raw: Mapping[str, object]) -> Config:
     """Validate and build configuration from a parsed raw mapping."""
 
-    validate_config(raw)
+    validate_config(raw=raw)
     raw_options: object = raw.get("rule_options")
     if isinstance(raw_options, Mapping) and raw_options:
         raise ConfigValidationError(

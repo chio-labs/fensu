@@ -18,3 +18,5 @@ pub(crate) const VALUE_TRUE: &str = "true";
 pub(crate) const CONFIG_FENSU_FILE: &str = "fensu.toml";
 pub(crate) const CONFIG_PYPROJECT_FILE: &str = "pyproject.toml";
 pub(crate) const PYTHON_CACHE_DIRECTORY: &str = "__pycache__";
+pub(crate) const CUSTOM_CHECK_TARGETS_ENVIRONMENT_VARIABLE: &str =
+    "FENSU_INTERNAL_CUSTOM_CHECK_TARGETS";

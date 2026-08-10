@@ -51,6 +51,7 @@ def execute_check(
     argv: tuple[str, ...] | None = None,
     stdout: TextIO = sys.stdout,
     stderr: TextIO = sys.stderr,
+    target_names: tuple[str | None, ...] | None = None,
 ) -> int:
     """Execute `fensu check` and return its process exit code."""
 
@@ -59,16 +60,18 @@ def execute_check(
     use_color: bool = _use_color(color=args.color, no_color=args.no_color, stdout=stdout)
     _ = resolve_native_backend_version()
     try:
-        target_names: tuple[str | None, ...] = load_project_target_names(
-            start=invocation_dir, target=args.target
+        selected_target_names: tuple[str | None, ...] = (
+            load_project_target_names(start=invocation_dir, target=args.target)
+            if target_names is None
+            else target_names
         )
-        if len(target_names) > 1 and args.paths:
+        if len(selected_target_names) > 1 and args.paths:
             raise CliCommandError(
                 "Positional paths require exactly one selected target; use --target TARGET."
             )
         inputs: tuple[CheckInputs, ...] = tuple(
             _prepare_target(args=args, invocation_dir=invocation_dir, target=target)
-            for target in target_names
+            for target in selected_target_names
         )
         aggregate_cache_enabled: bool = all(item.config.cache.enabled for item in inputs)
         checks: tuple[_TargetCheck, ...] = tuple(

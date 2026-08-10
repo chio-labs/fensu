@@ -1614,7 +1614,7 @@ fn readonly_test_case_type(
     by_path: &HashMap<&str, &ScopedSource>,
 ) -> bool {
     test_case_model(source, test, config, by_path)
-        .is_some_and(|model| model.readonly_shape && !model.property_names.is_empty())
+        .is_some_and(|model| model.readonly_properties && !model.property_names.is_empty())
 }
 
 fn test_case_model<'a>(

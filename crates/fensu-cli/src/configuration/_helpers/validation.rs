@@ -12,6 +12,7 @@ use crate::constants::CONFIG_TARGETS_KEY;
 use crate::models::TargetSelection;
 
 const RECURSIVE_GLOB: &str = "**";
+const EVALUATION_INCLUDE: &str = "include";
 const DEFAULT_TARGET_ROOT: &str = ".";
 pub(crate) const WEB_THRESHOLD_ALIASES: &[(&str, &str)] = &[
     ("max_entry_statements", "max_statements"),
@@ -589,12 +590,12 @@ fn validate_evaluation(value: Option<&toml::Value>) -> Result<(), String> {
     let table = value
         .as_table()
         .ok_or_else(|| "Config key evaluation must be a table.".to_owned())?;
-    for name in ["include", "exclude"] {
+    for name in [EVALUATION_INCLUDE, "exclude"] {
         let Some(value) = table.get(name) else {
             continue;
         };
         let patterns = required_strings(Some(value), &format!("evaluation.{name}"))?;
-        if name == "include" && patterns.is_empty() {
+        if name == EVALUATION_INCLUDE && patterns.is_empty() {
             return Err(format!("Config key evaluation.{name} must not be empty."));
         }
         for pattern in patterns {

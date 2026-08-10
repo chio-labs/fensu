@@ -46,7 +46,7 @@ pub(crate) struct LocalMatrixTestCase {
 pub(crate) struct ModelMatrixTestCase {
     pub(crate) description: &'static str,
     pub(crate) source: &'static str,
-    pub(crate) expected_models: &'static [(&'static str, ModelKind, bool)],
+    pub(crate) expected_models: &'static [(&'static str, ModelKind, bool, bool)],
 }
 
 pub(crate) struct ClassMatrixTestCase {

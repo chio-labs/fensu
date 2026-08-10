@@ -3,8 +3,8 @@ use std::process::Command;
 
 use crate::helpers::{poison_processes, run_internal_web_check_with, write};
 use crate::test_types::{
-    MixedWebExecutionTestCase, WebConfigFailureTestCase, WebDiagnosticCountTestCase,
-    WebSourcePurposeTestCase, WebThresholdCacheIdentityTestCase,
+    CheckCacheTestCase, MixedWebExecutionTestCase, WebConfigFailureTestCase,
+    WebDiagnosticCountTestCase, WebSourcePurposeTestCase, WebThresholdCacheIdentityTestCase,
 };
 
 #[test]
@@ -185,6 +185,69 @@ fn given_alias_and_canonical_web_thresholds_when_caching_then_identity_is_shared
         );
         assert!(
             String::from_utf8_lossy(&warm.stderr).contains(test_case.expected_warm),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_racewatch_web_empty_exclude_when_caching_then_identity_matches_omission() {
+    let test_cases = [CheckCacheTestCase {
+        description: "RaceWatch empty web exclusion reuses the omitted-exclusion cache",
+        expected_exit_code: 0,
+        expected_cold_fragment: "hits=0 misses=1",
+        expected_warm_fragment: "hits=1 misses=0",
+    }];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("RaceWatch web cache repository");
+        let template = "[targets.web]\nanalyzer = \"svelte\"\nroot = \"frontend\"\nframework = \"sveltekit\"\nroots = [\"src\"]\ntests = [\"tests\"]\ntooling = [\"tooling\"]\nui_kit = \"src/ui-kit\"\ntest_layout = \"mirrored\"\nselect = [\"FW\"]\n\n[targets.web.thresholds]\nmax_route_script_lines = 200\nmax_component_script_lines = 250\nmax_state_lines = 300\nmax_imported_bindings = 20\nmax_public_exports = 20\nmax_state_public_members = 20\nmax_state_cells = 15\nmax_total_runes = 20\nmax_state_functions = 15\nmax_resource_families = 1\nmax_main_container_modules = 20\nmax_helpers_container_modules = 10\nmax_role_depth = 1\nmax_function_statements = 70\nmax_entry_statements = 40\nmax_entry_distinct_calls = 20\nmax_entry_locals = 20\nmax_arguments = 10\nmax_file_lines = 2000\nmax_api_lines = 200\nmax_api_exports = 3\n\n[targets.web.evaluation]\ninclude = [\"src/**/*.{ts,js,svelte}\", \"tests/**/*.ts\", \"tooling/**/*.ts\"]\n{}";
+        write(
+            repository.path().join("fensu.toml"),
+            &template.replace("{}", ""),
+        );
+        write(
+            repository.path().join("frontend/src/lib/value.ts"),
+            "export const value = 1;\n",
+        );
+        let process_directory = poison_processes(repository.path());
+        let cold = run_internal_web_check_with(
+            repository.path(),
+            &["--cache", "--cache-stats"],
+            &process_directory,
+        );
+        write(
+            repository.path().join("fensu.toml"),
+            &template.replace("{}", "exclude = []\n"),
+        );
+
+        let warm = run_internal_web_check_with(
+            repository.path(),
+            &["--cache", "--cache-stats"],
+            &process_directory,
+        );
+
+        assert_eq!(
+            cold.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {}",
+            test_case.description,
+            String::from_utf8_lossy(&cold.stderr)
+        );
+        assert_eq!(
+            warm.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {}",
+            test_case.description,
+            String::from_utf8_lossy(&warm.stderr)
+        );
+        assert!(
+            String::from_utf8_lossy(&cold.stderr).contains(test_case.expected_cold_fragment),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&warm.stderr).contains(test_case.expected_warm_fragment),
             "{}",
             test_case.description
         );

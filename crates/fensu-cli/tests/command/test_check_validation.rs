@@ -163,6 +163,48 @@ fn given_python_evaluation_filter_when_checking_then_legacy_summary_text_is_pres
 }
 
 #[test]
+fn given_empty_legacy_evaluation_exclude_when_checking_then_it_is_an_identity_no_op() {
+    let test_cases = [CheckPolicyTestCase {
+        description: "an empty legacy exclusion list selects every Python source",
+        expected_exit_code: 0,
+        expected_present: "Found 0 faults",
+        expected_absent: "Evaluation:",
+    }];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(
+            repository.path().join("fensu.toml"),
+            "roots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = []\n[evaluation]\nexclude = []\n",
+        );
+        write(
+            repository.path().join("src/pkg/module.py"),
+            "value: int = 1\n",
+        );
+
+        let output = run_check(repository.path());
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {}",
+            test_case.description,
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            stdout.contains(test_case.expected_present),
+            "{}: {stdout}",
+            test_case.description
+        );
+        assert!(
+            !stdout.contains(test_case.expected_absent),
+            "{}: {stdout}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
 fn given_non_dot_target_when_project_rule_compares_modules_then_paths_share_target_invariant() {
     let test_cases = [ProjectAwareTargetTestCase {
         description: "external importer clears one FFL105 entry while orphan reports once",
@@ -519,6 +561,18 @@ fn given_invalid_explicit_targets_when_checking_then_configuration_fails_closed(
             config: "[targets.web]\nanalyzer = \"svelte\"\nroots = [\"src\"]\ntest_layout = \"adjacent\"\n",
             expected_exit_code: 2,
             expected_error: "must be 'mirrored' or 'colocated'",
+        },
+        InvalidCheckConfigTestCase {
+            description: "legacy flat configuration rejects empty evaluation include",
+            config: "roots = [\"src/pkg\"]\n[evaluation]\ninclude = []\n",
+            expected_exit_code: 2,
+            expected_error: "evaluation.include must not be empty",
+        },
+        InvalidCheckConfigTestCase {
+            description: "explicit targets reject empty evaluation include",
+            config: "[targets.app]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\n[targets.app.evaluation]\ninclude = []\n",
+            expected_exit_code: 2,
+            expected_error: "evaluation.include must not be empty",
         },
         InvalidCheckConfigTestCase {
             description: "legacy flat configuration rejects web threshold aliases",

@@ -105,6 +105,12 @@ def test_given_skills_identity_when_loading_then_preserves_persistent_name(
             expected_exclude=(),
         ),
         EvaluationConfigTestCase(
+            description="empty evaluation exclude is an identity no-op",
+            config_text='roots = ["src/pkg"]\n[evaluation]\nexclude = []\n',
+            expected_include=(),
+            expected_exclude=(),
+        ),
+        EvaluationConfigTestCase(
             description="include-only evaluation table preserves patterns",
             config_text='roots = ["src/pkg"]\n[evaluation]\ninclude = ["src/pkg/**"]\n',
             expected_include=("src/pkg/**",),

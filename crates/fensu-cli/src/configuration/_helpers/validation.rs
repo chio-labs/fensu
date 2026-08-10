@@ -594,7 +594,7 @@ fn validate_evaluation(value: Option<&toml::Value>) -> Result<(), String> {
             continue;
         };
         let patterns = required_strings(Some(value), &format!("evaluation.{name}"))?;
-        if patterns.is_empty() {
+        if name == "include" && patterns.is_empty() {
             return Err(format!("Config key evaluation.{name} must not be empty."));
         }
         for pattern in patterns {

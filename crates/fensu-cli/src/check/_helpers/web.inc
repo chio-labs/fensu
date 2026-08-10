@@ -1,0 +1,783 @@
+const ARTIFACT_DIRECTORIES: [&str; 6] = [
+    "node_modules",
+    ".svelte-kit",
+    "build",
+    "dist",
+    "coverage",
+    "__pycache__",
+];
+const AUXILIARY_PROJECT_INPUT_NAMES: [&str; 5] = [
+    "package.json",
+    "svelte.config.js",
+    "svelte.config.cjs",
+    "svelte.config.mjs",
+    "svelte.config.ts",
+];
+const RESOLUTION_EXTENSIONS: [&str; 12] = [
+    "", ".ts", ".tsx", ".mts", ".cts", ".d.ts", ".d.mts", ".d.cts", ".js", ".jsx",
+    ".mjs", ".cjs",
+];
+
+pub(crate) fn is_artifact_entry(entry: &DirEntry) -> bool {
+    !entry.file_type().is_dir()
+        || !ARTIFACT_DIRECTORIES.contains(&entry.file_name().to_string_lossy().as_ref())
+}
+
+pub(crate) fn is_web_source(path: &Path, analyzer: AnalyzerId) -> bool {
+    let name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default();
+    let supported = is_declaration_source(name)
+        || matches!(
+            path.extension().and_then(|value| value.to_str()),
+            Some("ts" | "tsx" | "mts" | "cts" | "js" | "jsx" | "mjs" | "cjs")
+        );
+    supported || analyzer == AnalyzerId::Svelte && name.ends_with(".svelte")
+}
+
+pub(crate) fn is_direct_source(path: &Path, analyzer: AnalyzerId) -> bool {
+    if analyzer == AnalyzerId::Svelte {
+        return path.extension().and_then(|value| value.to_str()) == Some("svelte");
+    }
+    !path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .is_some_and(is_declaration_source)
+}
+
+fn is_declaration_source(name: &str) -> bool {
+    name.ends_with(".d.ts") || name.ends_with(".d.mts") || name.ends_with(".d.cts")
+}
+
+pub(crate) fn discover_project_inputs(
+    repository_root: &Path,
+    project_root: &Path,
+) -> Result<Vec<ProjectInput>, String> {
+    let mut inputs: Vec<ProjectInput> = Vec::new();
+    let mut loaded: HashSet<PathBuf> = HashSet::new();
+    let mut visiting: Vec<PathBuf> = Vec::new();
+    let root_config = ["tsconfig.json", "jsconfig.json"]
+        .iter()
+        .map(|name| project_root.join(name))
+        .find(|path| path.is_file());
+    if let Some(path) = root_config {
+        collect_config_inputs(
+            repository_root,
+            &path,
+            &mut loaded,
+            &mut visiting,
+            &mut inputs,
+        )?;
+    }
+    for name in AUXILIARY_PROJECT_INPUT_NAMES {
+        let path = project_root.join(name);
+        if !path.is_file() {
+            continue;
+        }
+        let content = fs::read(&path).map_err(|error| error.to_string())?;
+        inputs.push(ProjectInput {
+            path: path.clone(),
+            extended_configs: Vec::new(),
+            repository_path: relative_text(&path, repository_root)?,
+            target_path: relative_text(&path, project_root)?,
+            fingerprint: hex_digest(&content),
+            content,
+        });
+    }
+    inputs.sort_by(|left, right| left.repository_path.cmp(&right.repository_path));
+    Ok(inputs)
+}
+
+fn collect_config_inputs(
+    repository_root: &Path,
+    path: &Path,
+    loaded: &mut HashSet<PathBuf>,
+    visiting: &mut Vec<PathBuf>,
+    inputs: &mut Vec<ProjectInput>,
+) -> Result<(), String> {
+    let repository_root = fs::canonicalize(repository_root).map_err(|error| {
+        format!(
+            "Could not canonicalize repository root {}: {error}",
+            repository_root.display()
+        )
+    })?;
+    let path = canonicalize_config_path(&repository_root, path)?;
+    let repository_path = relative_text(&path, &repository_root).map_err(|_| {
+        format!(
+            "TypeScript config escapes the repository: {}.",
+            path.display()
+        )
+    })?;
+    if let Some(index) = visiting.iter().position(|candidate| candidate == &path) {
+        let mut cycle = visiting[index..]
+            .iter()
+            .map(|candidate| relative_text(candidate, &repository_root))
+            .collect::<Result<Vec<_>, _>>()?;
+        cycle.push(repository_path);
+        return Err(format!(
+            "TypeScript config extends cycle: {}.",
+            cycle.join(" -> ")
+        ));
+    }
+    if loaded.contains(&path) {
+        return Ok(());
+    }
+    let content = fs::read(&path).map_err(|error| {
+        format!(
+            "Could not read TypeScript config {repository_path}: {error}"
+        )
+    })?;
+    let parsed = parse_jsonc(&content, &repository_path)?;
+    let extends = config_extends(&parsed, &repository_path)?;
+    visiting.push(path.clone());
+    let mut extended_configs: Vec<PathBuf> = Vec::new();
+    for specifier in extends {
+        let resolved = resolve_config_extends(&repository_root, &path, specifier)?;
+        collect_config_inputs(&repository_root, &resolved, loaded, visiting, inputs)?;
+        extended_configs.push(resolved);
+    }
+    let _ = visiting.pop();
+    loaded.insert(path.clone());
+    inputs.push(ProjectInput {
+        path: path.clone(),
+        extended_configs,
+        repository_path: repository_path.clone(),
+        target_path: repository_path,
+        fingerprint: hex_digest(&content),
+        content,
+    });
+    Ok(())
+}
+
+fn config_extends<'a>(parsed: &'a Value, path: &str) -> Result<Vec<&'a str>, String> {
+    let Some(value) = parsed.get("extends") else {
+        return Ok(Vec::new());
+    };
+    if let Some(value) = value.as_str() {
+        return Ok(vec![value]);
+    }
+    let values = value.as_array().ok_or_else(|| {
+        format!("TypeScript config {path} key extends must be a string or array of strings.")
+    })?;
+    let mut extends: Vec<&str> = Vec::with_capacity(values.len());
+    for (index, value) in values.iter().enumerate() {
+        extends.push(value.as_str().ok_or_else(|| {
+            format!(
+                "TypeScript config {path} key extends item {index} must be a string."
+            )
+        })?);
+    }
+    Ok(extends)
+}
+
+fn resolve_config_extends(
+    repository_root: &Path,
+    config: &Path,
+    specifier: &str,
+) -> Result<PathBuf, String> {
+    let parent = config
+        .parent()
+        .ok_or_else(|| format!("TypeScript config has no parent: {}.", config.display()))?;
+    let mut bases: Vec<PathBuf> = Vec::new();
+    if specifier.starts_with('.') {
+        bases.push(parent.join(specifier));
+    } else if Path::new(specifier).is_absolute() {
+        bases.push(PathBuf::from(specifier));
+    } else {
+        for ancestor in parent.ancestors() {
+            if !ancestor.starts_with(repository_root) {
+                break;
+            }
+            bases.push(ancestor.join("node_modules").join(specifier));
+        }
+    }
+    for base in bases {
+        for candidate in config_candidates(&base) {
+            let canonical = canonicalize_config_path(repository_root, &candidate)?;
+            if canonical.is_file() {
+                return Ok(canonical);
+            }
+        }
+    }
+    let owner = relative_text(config, repository_root)
+        .unwrap_or_else(|_| config.to_string_lossy().into_owned());
+    Err(format!(
+        "Could not resolve TypeScript config extends {specifier:?} from {owner}."
+    ))
+}
+
+fn canonicalize_config_path(repository_root: &Path, path: &Path) -> Result<PathBuf, String> {
+    let mut existing = path;
+    let mut missing: Vec<std::ffi::OsString> = Vec::new();
+    while !existing.exists() {
+        let name = existing.file_name().ok_or_else(|| {
+            format!(
+                "Could not resolve TypeScript config path: {}.",
+                path.display()
+            )
+        })?;
+        missing.push(name.to_os_string());
+        existing = existing.parent().ok_or_else(|| {
+            format!(
+                "Could not resolve TypeScript config path: {}.",
+                path.display()
+            )
+        })?;
+    }
+    let mut canonical = fs::canonicalize(existing).map_err(|error| {
+        format!(
+            "Could not canonicalize TypeScript config path {}: {error}",
+            existing.display()
+        )
+    })?;
+    for part in missing.into_iter().rev() {
+        canonical.push(part);
+    }
+    canonical = normalize(&canonical);
+    if !canonical.starts_with(repository_root) {
+        return Err(format!(
+            "TypeScript config path escapes the repository: {}.",
+            path.display()
+        ));
+    }
+    Ok(canonical)
+}
+
+fn config_candidates(base: &Path) -> Vec<PathBuf> {
+    let mut candidates = vec![base.to_path_buf()];
+    if base.extension().and_then(|value| value.to_str()) != Some("json") {
+        candidates.push(PathBuf::from(format!("{}.json", base.to_string_lossy())));
+    }
+    candidates.push(base.join("tsconfig.json"));
+    candidates
+}
+
+fn parse_jsonc(content: &[u8], path: &str) -> Result<Value, String> {
+    let normalized = normalize_jsonc(content, path)?;
+    let parsed: Value = serde_json::from_slice(&normalized).map_err(|error| {
+        format!("Could not parse TypeScript config {path}: {error}")
+    })?;
+    if !parsed.is_object() {
+        return Err(format!(
+            "TypeScript config {path} must contain a JSON object."
+        ));
+    }
+    Ok(parsed)
+}
+
+fn normalize_jsonc(content: &[u8], path: &str) -> Result<Vec<u8>, String> {
+    let mut normalized = content.to_vec();
+    let mut index = 0;
+    let mut in_string = false;
+    let mut escaped = false;
+    while index < normalized.len() {
+        let byte = normalized[index];
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == b'"' {
+                in_string = false;
+            }
+            index += 1;
+            continue;
+        }
+        if byte == b'"' {
+            in_string = true;
+            index += 1;
+            continue;
+        }
+        if normalized[index..].starts_with(b"//") {
+            normalized[index] = b' ';
+            normalized[index + 1] = b' ';
+            index += 2;
+            while index < normalized.len() && normalized[index] != b'\n' {
+                if normalized[index] != b'\r' {
+                    normalized[index] = b' ';
+                }
+                index += 1;
+            }
+            continue;
+        }
+        if normalized[index..].starts_with(b"/*") {
+            let start = index;
+            normalized[index] = b' ';
+            normalized[index + 1] = b' ';
+            index += 2;
+            let mut terminated = false;
+            while index < normalized.len() {
+                if normalized[index..].starts_with(b"*/") {
+                    normalized[index] = b' ';
+                    normalized[index + 1] = b' ';
+                    index += 2;
+                    terminated = true;
+                    break;
+                }
+                if !matches!(normalized[index], b'\n' | b'\r') {
+                    normalized[index] = b' ';
+                }
+                index += 1;
+            }
+            if !terminated {
+                let line = content[..start].iter().filter(|byte| **byte == b'\n').count() + 1;
+                return Err(format!(
+                    "Could not parse TypeScript config {path}: unterminated block comment at line {line}."
+                ));
+            }
+            continue;
+        }
+        index += 1;
+    }
+    strip_trailing_commas(&mut normalized);
+    Ok(normalized)
+}
+
+fn strip_trailing_commas(content: &mut [u8]) {
+    let mut in_string = false;
+    let mut escaped = false;
+    for index in 0..content.len() {
+        let byte = content[index];
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == b'"' {
+                in_string = false;
+            }
+            continue;
+        }
+        if byte == b'"' {
+            in_string = true;
+            continue;
+        }
+        if byte != b',' {
+            continue;
+        }
+        let next = content[index + 1..]
+            .iter()
+            .copied()
+            .find(|candidate| !candidate.is_ascii_whitespace());
+        if matches!(next, Some(b'}' | b']')) {
+            content[index] = b' ';
+        }
+    }
+}
+
+pub(crate) fn parse_sources(
+    analyzer: AnalyzerId,
+    project_root: &Path,
+    mut sources: Vec<ScopedSource>,
+    project_inputs: &[ProjectInput],
+) -> Result<Vec<ScopedSource>, String> {
+    for source in sources.iter_mut() {
+        source.program = Some(parse_source(analyzer, source)?);
+    }
+    populate_import_graph(project_root, sources, project_inputs)
+}
+
+fn parse_source(analyzer: AnalyzerId, source: &ScopedSource) -> Result<ParsedProgram, String> {
+    if source.path.extension().and_then(|value| value.to_str()) == Some("svelte") {
+        if analyzer != AnalyzerId::Svelte {
+            return Err(format!(
+                "Parser dispatch rejected unsupported TypeScript source: {}",
+                source.repository_path
+            ));
+        }
+        return fensu_svelte::parse(&source.content)
+            .map(ParsedProgram::Svelte)
+            .map_err(|diagnostic| {
+                diagnostic_text(
+                    "Svelte",
+                    source,
+                    &diagnostic.message,
+                    (diagnostic.span.line, diagnostic.span.column),
+                )
+            });
+    }
+    let kind = source_kind(&source.path).ok_or_else(|| {
+        format!(
+            "Parser dispatch rejected unsupported {analyzer} source: {}",
+            source.repository_path
+        )
+    })?;
+    fensu_typescript::parse(&source.content, kind)
+        .map(ParsedProgram::TypeScript)
+        .map_err(|diagnostic| {
+            diagnostic_text(
+                "TypeScript",
+                source,
+                &diagnostic.message,
+                (diagnostic.span.line, diagnostic.span.column),
+            )
+        })
+}
+
+fn diagnostic_text(
+    parser: &str,
+    source: &ScopedSource,
+    message: &str,
+    position: (usize, usize),
+) -> String {
+    let (line, column) = position;
+    format!(
+        "Could not parse {parser} source: {}:{line}:{}: {message}",
+        source.repository_path,
+        column + 1
+    )
+}
+
+pub(crate) fn source_kind(path: &Path) -> Option<fensu_typescript::SourceKind> {
+    let name = path.file_name()?.to_str()?;
+    if name.ends_with(".d.mts") {
+        Some(fensu_typescript::SourceKind::TypeScriptModuleDefinition)
+    } else if name.ends_with(".d.cts") {
+        Some(fensu_typescript::SourceKind::TypeScriptCommonJsDefinition)
+    } else if name.ends_with(".d.ts") {
+        Some(fensu_typescript::SourceKind::TypeScriptDefinition)
+    } else if name.ends_with(".mts") {
+        Some(fensu_typescript::SourceKind::TypeScriptModule)
+    } else if name.ends_with(".cts") {
+        Some(fensu_typescript::SourceKind::TypeScriptCommonJs)
+    } else if name.ends_with(".ts") {
+        Some(fensu_typescript::SourceKind::TypeScript)
+    } else if name.ends_with(".tsx") {
+        Some(fensu_typescript::SourceKind::TypeScriptJsx)
+    } else if name.ends_with(".mjs") {
+        Some(fensu_typescript::SourceKind::JavaScriptModule)
+    } else if name.ends_with(".cjs") {
+        Some(fensu_typescript::SourceKind::JavaScriptCommonJs)
+    } else if name.ends_with(".js") {
+        Some(fensu_typescript::SourceKind::JavaScript)
+    } else if name.ends_with(".jsx") {
+        Some(fensu_typescript::SourceKind::JavaScriptJsx)
+    } else {
+        None
+    }
+}
+
+fn populate_import_graph(
+    project_root: &Path,
+    mut sources: Vec<ScopedSource>,
+    project_inputs: &[ProjectInput],
+) -> Result<Vec<ScopedSource>, String> {
+    let known: HashMap<PathBuf, String> = sources
+        .iter()
+        .map(|source| (normalize(&source.path), source.target_path.clone()))
+        .collect();
+    let aliases = aliases(project_root, project_inputs)?;
+    let resolution = ResolutionContext {
+        project_root,
+        known: &known,
+        aliases: &aliases,
+    };
+    for source in &mut sources {
+        let specifiers = import_specifiers(source);
+        source.imports = specifiers
+            .into_iter()
+            .map(|specifier| ImportGraphFact {
+                resolved_path: resolve_import(&specifier, &source.path, &resolution),
+                specifier,
+            })
+            .collect();
+    }
+    Ok(sources)
+}
+
+fn import_specifiers(source: &ScopedSource) -> Vec<String> {
+    let mut specifiers = if let Some(program) = source
+        .program
+        .as_ref()
+        .and_then(ParsedProgram::as_typescript)
+    {
+        program
+            .imports
+            .iter()
+            .map(|fact| fact.specifier.clone())
+            .collect()
+    } else if let Some(program) = source.program.as_ref().and_then(ParsedProgram::as_svelte) {
+        program
+            .scripts
+            .iter()
+            .flat_map(|script| script.facts.imports.iter())
+            .map(|fact| fact.specifier.clone())
+            .collect()
+    } else {
+        Vec::new()
+    };
+    specifiers.sort();
+    specifiers.dedup();
+    specifiers
+}
+
+#[derive(Debug)]
+struct AliasConfig {
+    base: Option<PathBuf>,
+    paths: Vec<AliasPath>,
+    paths_defined: bool,
+}
+
+#[derive(Debug)]
+struct AliasPath {
+    pattern: String,
+    targets: Vec<String>,
+}
+
+fn aliases(project_root: &Path, inputs: &[ProjectInput]) -> Result<AliasConfig, String> {
+    let mut root: Option<&ProjectInput> = None;
+    for name in ["tsconfig.json", "jsconfig.json"] {
+        let candidate = project_root.join(name);
+        if !candidate.is_file() {
+            continue;
+        }
+        let canonical = fs::canonicalize(&candidate).map_err(|error| {
+            format!(
+                "Could not canonicalize TypeScript config {}: {error}",
+                candidate.display()
+            )
+        })?;
+        root = inputs
+            .iter()
+            .find(|input| input.path == canonical);
+        break;
+    }
+    let Some(root) = root else {
+        return Ok(AliasConfig {
+            base: None,
+            paths: Vec::new(),
+            paths_defined: false,
+        });
+    };
+    let by_path = inputs
+        .iter()
+        .map(|input| (normalize(&input.path), input))
+        .collect::<HashMap<_, _>>();
+    effective_aliases(root, &by_path)
+}
+
+fn effective_aliases(
+    input: &ProjectInput,
+    by_path: &HashMap<PathBuf, &ProjectInput>,
+) -> Result<AliasConfig, String> {
+    let mut config = AliasConfig {
+        base: None,
+        paths: Vec::new(),
+        paths_defined: false,
+    };
+    for path in &input.extended_configs {
+            let parent = by_path.get(&normalize(path)).ok_or_else(|| {
+                format!(
+                    "Extended TypeScript config was not discovered: {}.",
+                    path.display()
+                )
+            })?;
+        merge_aliases(&mut config, effective_aliases(parent, by_path)?);
+    }
+    let parsed = parse_jsonc(&input.content, &input.repository_path)?;
+    let Some(compiler) = parsed.get("compilerOptions") else {
+        return Ok(config);
+    };
+    let compiler = compiler.as_object().ok_or_else(|| {
+        format!(
+            "TypeScript config {} key compilerOptions must be an object.",
+            input.repository_path
+        )
+    })?;
+    if let Some(value) = compiler.get("baseUrl") {
+        let value = value.as_str().ok_or_else(|| {
+            format!(
+                "TypeScript config {} key compilerOptions.baseUrl must be a string.",
+                input.repository_path
+            )
+        })?;
+        let parent = input.path.parent().ok_or_else(|| {
+            format!("TypeScript config has no parent: {}.", input.repository_path)
+        })?;
+        config.base = Some(normalize(&parent.join(value)));
+    }
+    if let Some(value) = compiler.get("paths") {
+        let values = value.as_object().ok_or_else(|| {
+            format!(
+                "TypeScript config {} key compilerOptions.paths must be an object.",
+                input.repository_path
+            )
+        })?;
+        let fallback = input.path.parent().ok_or_else(|| {
+            format!("TypeScript config has no parent: {}.", input.repository_path)
+        })?;
+        let target_base = config.base.as_deref().unwrap_or(fallback);
+        let mut paths: Vec<AliasPath> = Vec::new();
+        for (pattern, value) in values {
+            let targets = value.as_array().ok_or_else(|| {
+                format!(
+                    "TypeScript config {} path alias {pattern:?} must be an array of strings.",
+                    input.repository_path
+                )
+            })?;
+            let mut resolved_targets: Vec<String> = Vec::new();
+            for target in targets {
+                let target = target.as_str().ok_or_else(|| {
+                    format!(
+                        "TypeScript config {} path alias {pattern:?} must contain only strings.",
+                        input.repository_path
+                    )
+                })?;
+                resolved_targets.push(
+                    normalize(&target_base.join(target))
+                        .to_string_lossy()
+                        .into_owned(),
+                );
+            }
+            paths.push(AliasPath {
+                pattern: pattern.clone(),
+                targets: resolved_targets,
+            });
+        }
+        paths.sort_by(alias_specificity);
+        config.paths = paths;
+        config.paths_defined = true;
+    }
+    Ok(config)
+}
+
+fn merge_aliases(config: &mut AliasConfig, base: AliasConfig) {
+    if base.base.is_some() {
+        config.base = base.base;
+    }
+    if base.paths_defined {
+        config.paths = base.paths;
+        config.paths_defined = true;
+    }
+}
+
+fn alias_specificity(left: &AliasPath, right: &AliasPath) -> std::cmp::Ordering {
+    let left_wildcard = left.pattern.find('*');
+    let right_wildcard = right.pattern.find('*');
+    match (left_wildcard, right_wildcard) {
+        (None, None) => left.pattern.cmp(&right.pattern),
+        (None, Some(_)) => std::cmp::Ordering::Less,
+        (Some(_), None) => std::cmp::Ordering::Greater,
+        (Some(left_prefix), Some(right_prefix)) => right_prefix
+            .cmp(&left_prefix)
+            .then_with(|| right.pattern.len().cmp(&left.pattern.len()))
+            .then_with(|| left.pattern.cmp(&right.pattern)),
+    }
+}
+
+struct ResolutionContext<'a> {
+    project_root: &'a Path,
+    known: &'a HashMap<PathBuf, String>,
+    aliases: &'a AliasConfig,
+}
+
+fn resolve_import(
+    specifier: &str,
+    importer: &Path,
+    resolution: &ResolutionContext<'_>,
+) -> Option<String> {
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    let relative = specifier.starts_with("./") || specifier.starts_with("../");
+    if relative {
+        candidates.push(importer.parent()?.join(specifier));
+    } else if specifier == "$lib" || specifier.starts_with("$lib/") {
+        let rest = specifier.strip_prefix("$lib/").unwrap_or_default();
+        candidates.push(
+            resolution
+                .project_root
+                .join("src/lib")
+                .join(rest),
+        );
+    } else {
+        for alias in &resolution.aliases.paths {
+            let Some(capture) = alias_capture(&alias.pattern, specifier) else {
+                continue;
+            };
+            for target in &alias.targets {
+                candidates.push(PathBuf::from(target.replace('*', capture)));
+            }
+            break;
+        }
+        if let Some(base) = &resolution.aliases.base {
+            candidates.push(base.join(specifier));
+        }
+    }
+    for candidate in candidates {
+        for path in resolution_candidates(&candidate) {
+            if let Some(resolved) = resolution.known.get(&normalize(&path)) {
+                return Some(resolved.clone());
+            }
+        }
+    }
+    None
+}
+
+fn alias_capture<'a>(pattern: &str, specifier: &'a str) -> Option<&'a str> {
+    match pattern.split_once('*') {
+        Some((prefix, suffix)) => specifier
+            .strip_prefix(prefix)
+            .and_then(|value| value.strip_suffix(suffix)),
+        None if pattern == specifier => Some(""),
+        None => None,
+    }
+}
+
+fn resolution_candidates(path: &Path) -> Vec<PathBuf> {
+    if let Some(candidates) = explicit_javascript_candidates(path) {
+        return candidates;
+    }
+    let text = path.to_string_lossy();
+    let mut candidates = RESOLUTION_EXTENSIONS
+        .iter()
+        .map(|extension| PathBuf::from(format!("{text}{extension}")))
+        .collect::<Vec<_>>();
+    candidates.extend(
+        RESOLUTION_EXTENSIONS
+            .iter()
+            .skip(1)
+            .map(|extension| path.join(format!("index{extension}"))),
+    );
+    candidates.push(path.join("index.svelte"));
+    candidates
+}
+
+fn explicit_javascript_candidates(path: &Path) -> Option<Vec<PathBuf>> {
+    let extension = path.extension()?.to_str()?;
+    let stem = path.with_extension("");
+    let replacements: &[&str] = match extension {
+        "js" => &["ts", "tsx", "d.ts", "js"],
+        "jsx" => &["tsx", "d.ts", "jsx"],
+        "mjs" => &["mts", "d.mts", "mjs"],
+        "cjs" => &["cts", "d.cts", "cjs"],
+        _ => return None,
+    };
+    Some(
+        replacements
+            .iter()
+            .map(|replacement| PathBuf::from(format!("{}.{}", stem.to_string_lossy(), replacement)))
+            .collect(),
+    )
+}
+
+fn normalize(path: &Path) -> PathBuf {
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::ParentDir => {
+                let _ = normalized.pop();
+            }
+            Component::CurDir => {}
+            value => normalized.push(value.as_os_str()),
+        }
+    }
+    normalized
+}
+
+fn relative_text(path: &Path, root: &Path) -> Result<String, String> {
+    Ok(path
+        .strip_prefix(root)
+        .map_err(|error| error.to_string())?
+        .to_string_lossy()
+        .replace('\\', "/"))
+}

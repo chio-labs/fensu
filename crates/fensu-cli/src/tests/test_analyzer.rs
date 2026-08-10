@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use crate::analyzer::AnalyzerId;
-use crate::tests::test_types::AnalyzerContractTestCase;
+use crate::tests::test_types::{AnalyzerContractTestCase, ParserContractTestCase};
 
 #[test]
 fn given_analyzer_spelling_when_resolving_identity_then_contract_is_typed_and_case_sensitive() {
@@ -20,7 +20,7 @@ fn given_analyzer_spelling_when_resolving_identity_then_contract_is_typed_and_ca
             expected_analyzer: Some(AnalyzerId::TypeScript),
             expected_backend_error: Some("Known analyzer backend unavailable: typescript."),
             expected_display: Some("typescript"),
-            expected_cache_contract: Some("typescript-backend-v1"),
+            expected_cache_contract: Some("typescript-backend-v2"),
         },
         AnalyzerContractTestCase {
             description: "Svelte is known but unavailable",
@@ -28,7 +28,7 @@ fn given_analyzer_spelling_when_resolving_identity_then_contract_is_typed_and_ca
             expected_analyzer: Some(AnalyzerId::Svelte),
             expected_backend_error: Some("Known analyzer backend unavailable: svelte."),
             expected_display: Some("svelte"),
-            expected_cache_contract: Some("svelte-backend-v1"),
+            expected_cache_contract: Some("svelte-backend-v2"),
         },
         AnalyzerContractTestCase {
             description: "case variants remain unknown",
@@ -62,6 +62,30 @@ fn given_analyzer_spelling_when_resolving_identity_then_contract_is_typed_and_ca
         assert_eq!(
             parsed.map(AnalyzerId::cache_contract),
             test_case.expected_cache_contract,
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_web_analyzer_when_reading_parser_contract_then_it_matches_owned_parser_crate() {
+    let test_cases = [
+        ParserContractTestCase {
+            description: "TypeScript contract comes from the owned parser",
+            analyzer: AnalyzerId::TypeScript,
+            expected_contract: fensu_typescript::PARSER_CONTRACT_VERSION,
+        },
+        ParserContractTestCase {
+            description: "Svelte contract comes from the owned parser",
+            analyzer: AnalyzerId::Svelte,
+            expected_contract: fensu_svelte::PARSER_CONTRACT_VERSION,
+        },
+    ];
+    for test_case in &test_cases {
+        assert_eq!(
+            test_case.analyzer.parser_contract(),
+            test_case.expected_contract,
             "{}",
             test_case.description
         );

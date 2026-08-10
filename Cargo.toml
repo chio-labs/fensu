@@ -52,6 +52,7 @@ unicode-ident = "1"
 unicode-normalization = "0.1"
 walkdir = "2"
 fensu-typescript = { path = "crates/fensu-typescript" }
+fensu-svelte = { path = "crates/fensu-svelte" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

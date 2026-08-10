@@ -162,3 +162,41 @@ pub(crate) struct PreExecutionCleanupTestCase {
     pub(crate) expected_exit_code: i32,
     pub(crate) expected_path: &'static str,
 }
+
+pub(crate) struct WebCacheCheckTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_cold: &'static str,
+    pub(crate) expected_warm: &'static str,
+    pub(crate) expected_invalidated: &'static str,
+}
+
+pub(crate) struct WebParseDiagnosticTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_svelte: &'static str,
+    pub(crate) expected_typescript: &'static str,
+}
+
+pub(crate) struct InternalGateCommandTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) arguments: &'static [&'static str],
+    pub(crate) expected_error: &'static str,
+}
+
+pub(crate) struct WebConfigFailureTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) files: &'static [(&'static str, &'static str)],
+    pub(crate) expected_error: &'static str,
+}
+
+pub(crate) struct CacheBoundTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) generation_count: usize,
+    pub(crate) expected_namespace_count: i64,
+    pub(crate) expected_record_count: i64,
+}
+
+pub(crate) struct HostedWebPolicyTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) config: &'static str,
+    pub(crate) expected_error: &'static str,
+}

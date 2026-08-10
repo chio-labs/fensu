@@ -76,3 +76,30 @@ pub(crate) struct AnalyzerRenderingTestCase {
     pub(crate) description: &'static str,
     pub(crate) expected_line: &'static str,
 }
+
+pub(crate) struct ParserContractTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) analyzer: AnalyzerId,
+    pub(crate) expected_contract: &'static str,
+}
+
+pub(crate) struct WebImportGraphTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_import_count: usize,
+    pub(crate) expected_resolutions: &'static [(&'static str, Option<&'static str>)],
+}
+
+pub(crate) struct WebDirectSourceTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) path: &'static str,
+    pub(crate) analyzer: AnalyzerId,
+    pub(crate) expected_discovered: bool,
+    pub(crate) expected_direct: bool,
+    pub(crate) expected_source_kind: Option<fensu_typescript::SourceKind>,
+}
+
+pub(crate) struct WebConfigInheritanceTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_input_count: usize,
+    pub(crate) expected_resolutions: &'static [(&'static str, Option<&'static str>)],
+}

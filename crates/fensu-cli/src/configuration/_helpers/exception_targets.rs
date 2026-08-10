@@ -6,6 +6,7 @@ use fensu_facts::parsing::main::parse_strict::parse_strict;
 use ruff_python_ast::visitor::{walk_stmt, Visitor};
 use ruff_python_ast::Stmt;
 
+use crate::analyzer::AnalyzerId;
 use crate::check::main::python_version::python_version;
 use crate::models::Config;
 
@@ -20,6 +21,12 @@ pub(crate) fn validate_targets(config: &Config, project_root: &Path) -> Result<(
         }
         if exception.symbols.is_empty() {
             continue;
+        }
+        if config.analyzer != AnalyzerId::Python {
+            return Err(format!(
+                "Symbol-scoped rule exceptions are unsupported for analyzer {}; owner resolution is unavailable.",
+                config.analyzer
+            ));
         }
         let symbols = defined_symbols(&path)?;
         for symbol in &exception.symbols {

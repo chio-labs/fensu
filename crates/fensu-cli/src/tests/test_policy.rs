@@ -160,15 +160,19 @@ fn given_ambiguous_target_field_concatenations_when_fingerprinting_then_identity
             project_root: repository.path(),
             config: &first,
             sources: &[],
+            project_inputs: &[],
             warnings: false,
-        });
+        })
+        .expect("first check identity");
         let second_identity = check_identity(CheckIdentityRequest {
             root: repository.path(),
             project_root: repository.path(),
             config: &second,
             sources: &[],
+            project_inputs: &[],
             warnings: false,
-        });
+        })
+        .expect("second check identity");
 
         assert_eq!(
             first_identity == second_identity,

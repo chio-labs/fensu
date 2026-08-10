@@ -7,6 +7,7 @@ use ruff_python_ast::PythonVersion;
 use sha2::{Digest, Sha256};
 use walkdir::WalkDir;
 
+use crate::check::_helpers::project as web;
 use crate::check::models::CheckIdentityRequest;
 use crate::constants::{
     GLOB_ALL, PYTHON_CACHE_DIRECTORY, ROLE_HELPERS, ROLE_MAIN, ROLE_RULES, SCOPE_TOOLING,
@@ -235,12 +236,13 @@ pub(crate) fn path_matches(path: &str, pattern: &str) -> bool {
     .matches(0, 0)
 }
 
-pub(crate) fn check_identity(request: CheckIdentityRequest<'_>) -> String {
+pub(crate) fn check_identity(request: CheckIdentityRequest<'_>) -> Result<String, String> {
     let CheckIdentityRequest {
         root,
         project_root,
         config,
         sources,
+        project_inputs,
         warnings,
     } = request;
     let mut digest = Sha256::new();
@@ -249,15 +251,24 @@ pub(crate) fn check_identity(request: CheckIdentityRequest<'_>) -> String {
     digest.update(&config.raw);
     digest_text(&mut digest, &config.analyzer.to_string());
     digest_text(&mut digest, config.analyzer.cache_contract());
+    digest_text(&mut digest, config.analyzer.parser_contract());
     digest_text(&mut digest, config.target.as_deref().unwrap_or_default());
     digest_text(&mut digest, &config.target_root);
     digest.update([u8::from(warnings)]);
     for source in sources {
+        digest_text(&mut digest, &source.analyzer.to_string());
+        digest_text(&mut digest, &source.target_identity);
+        digest_text(&mut digest, source.parser_contract);
         digest_text(&mut digest, &source.repository_path);
         digest_text(&mut digest, &source.fingerprint);
     }
-    digest_project_observations(&mut digest, root, project_root, config);
-    format!("{:x}", digest.finalize())
+    for input in project_inputs {
+        digest_text(&mut digest, &input.repository_path);
+        digest_text(&mut digest, &input.target_path);
+        digest_text(&mut digest, &input.fingerprint);
+    }
+    digest_project_observations(&mut digest, root, project_root, config)?;
+    Ok(format!("{:x}", digest.finalize()))
 }
 
 fn digest_text(digest: &mut Sha256, value: &str) {
@@ -270,7 +281,7 @@ fn digest_project_observations(
     root: &Path,
     project_root: &Path,
     config: &Config,
-) {
+) -> Result<(), String> {
     let mut entries: BTreeMap<String, (u8, PathBuf)> = BTreeMap::new();
     for configured_root in config
         .roots
@@ -278,12 +289,24 @@ fn digest_project_observations(
         .chain(&config.tests)
         .chain(&config.tooling)
     {
-        for entry in WalkDir::new(project_root.join(configured_root))
+        let scan_root = project_root.join(configured_root);
+        if !scan_root.exists() {
+            continue;
+        }
+        for result in WalkDir::new(scan_root)
             .follow_links(false)
             .into_iter()
-            .filter_map(Result::ok)
+            .filter_entry(|entry| {
+                config.analyzer == crate::analyzer::AnalyzerId::Python
+                    || web::is_artifact_entry(entry)
+            })
             .skip(1)
         {
+            let entry = result.map_err(|error| {
+                format!(
+                    "Could not fingerprint project observations under {configured_root}: {error}"
+                )
+            })?;
             if entry.file_type().is_dir() && entry.file_name() == PYTHON_CACHE_DIRECTORY {
                 continue;
             }
@@ -315,17 +338,27 @@ fn digest_project_observations(
         digest.update(path.as_bytes());
         digest.update([kind]);
         if filesystem_path.extension().and_then(|value| value.to_str()) == Some("pyi") {
-            match fs::read(&filesystem_path) {
-                Ok(content) => digest.update(Sha256::digest(content)),
-                Err(error) => digest.update(error.to_string().as_bytes()),
-            }
+            let content = fs::read(&filesystem_path).map_err(|error| {
+                format!(
+                    "Could not fingerprint Python support file {}: {error}",
+                    filesystem_path.display()
+                )
+            })?;
+            digest.update(Sha256::digest(content));
         }
     }
     let pyproject = project_root.join("pyproject.toml");
-    if let Ok(content) = fs::read(pyproject) {
+    if pyproject.exists() {
+        let content = fs::read(&pyproject).map_err(|error| {
+            format!(
+                "Could not fingerprint project input {}: {error}",
+                pyproject.display()
+            )
+        })?;
         digest.update(b"pyproject.toml\0");
         digest.update(Sha256::digest(content));
     }
+    Ok(())
 }
 
 pub(crate) fn hex_digest(bytes: &[u8]) -> String {
@@ -385,5 +418,6 @@ pub(crate) fn program(source: &ScopedSource) -> &ProgramHandle {
     source
         .program
         .as_ref()
+        .and_then(crate::models::ParsedProgram::as_python)
         .unwrap_or_else(|| std::process::abort())
 }

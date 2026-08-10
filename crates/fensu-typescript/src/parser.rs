@@ -13,7 +13,7 @@ use oxc_ast_visit::{walk, Visit};
 use oxc_diagnostics::{Diagnostics, OxcDiagnostic};
 use oxc_parser::Parser;
 use oxc_semantic::SemanticBuilder;
-use oxc_span::{GetSpan, SourceType, Span};
+use oxc_span::{FileExtension, GetSpan, SourceType, Span};
 use oxc_syntax::scope::ScopeFlags;
 
 use crate::models::{
@@ -122,8 +122,21 @@ fn parse_wrapped_syntax(
 fn oxc_source_type(source_kind: SourceKind) -> SourceType {
     match source_kind {
         SourceKind::JavaScript => SourceType::unambiguous(),
+        SourceKind::JavaScriptModule => SourceType::from(FileExtension::Mjs),
+        SourceKind::JavaScriptCommonJs => SourceType::from(FileExtension::Cjs),
         SourceKind::JavaScriptJsx => SourceType::jsx(),
         SourceKind::TypeScript => SourceType::ts(),
+        SourceKind::TypeScriptModule => SourceType::from(FileExtension::Mts),
+        SourceKind::TypeScriptCommonJs => SourceType::from(FileExtension::Cts),
+        SourceKind::TypeScriptDefinition => {
+            SourceType::from(FileExtension::Ts).with_typescript_definition(true)
+        }
+        SourceKind::TypeScriptModuleDefinition => {
+            SourceType::from(FileExtension::Mts).with_typescript_definition(true)
+        }
+        SourceKind::TypeScriptCommonJsDefinition => {
+            SourceType::from(FileExtension::Cts).with_typescript_definition(true)
+        }
         SourceKind::TypeScriptJsx => SourceType::tsx(),
     }
 }

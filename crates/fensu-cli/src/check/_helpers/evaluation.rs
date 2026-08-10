@@ -35,6 +35,9 @@ pub(crate) fn evaluate(request: EvaluationRequest<'_>) -> Result<CheckResult, St
         show_warnings,
     } = request;
     validate_config_tiers(config)?;
+    if config.analyzer != crate::analyzer::AnalyzerId::Python {
+        return evaluate_parser_target(config, sources, excluded, show_warnings);
+    }
     let blocking = selected_rules(config, &config.select, &config.ignore)?;
     let warning_rules = if show_warnings {
         selected_rules(config, &config.warn, &config.ignore)?
@@ -90,7 +93,7 @@ pub(crate) fn evaluate(request: EvaluationRequest<'_>) -> Result<CheckResult, St
             };
             let plans = plan_core_rule_queries(program(source), &implementation_codes, &context);
             context.observations =
-                observe(project_root, &plans, &program_by_path, &program_by_module);
+                observe(project_root, &plans, &program_by_path, &program_by_module)?;
             let rows =
                 evaluate_core_rules(program(source), &implementation_codes, &context, &project)?;
             let mut faults: Vec<Fault> = Vec::new();
@@ -155,12 +158,61 @@ pub(crate) fn evaluate(request: EvaluationRequest<'_>) -> Result<CheckResult, St
         .cloned()
         .collect::<Vec<_>>();
     Ok(CheckResult {
+        analyzer: config.analyzer,
         faults: blocking_faults,
         warnings,
         selected: sources.len(),
         excluded,
         applied_exceptions: applied,
         threshold_uses: uses,
+    })
+}
+
+fn evaluate_parser_target(
+    config: &Config,
+    sources: &[ScopedSource],
+    excluded: usize,
+    show_warnings: bool,
+) -> Result<CheckResult, String> {
+    if !config.rule_paths.is_empty()
+        || !config.rule_modules.is_empty()
+        || !config.rule_options.is_empty()
+    {
+        return Err(format!(
+            "Native {} check integration does not support Python-hosted rule paths, modules, or options.",
+            config.analyzer
+        ));
+    }
+    let blocking = selected_rules(config, &config.select, &config.ignore)?;
+    let warnings = if show_warnings {
+        selected_rules(config, &config.warn, &config.ignore)?
+    } else {
+        Vec::new()
+    };
+    if !blocking.is_empty() || !warnings.is_empty() {
+        return Err(format!(
+            "Native {} policy evaluation is not available; only the internal parser gate is active.",
+            config.analyzer
+        ));
+    }
+    if config
+        .exceptions
+        .iter()
+        .any(|entry| !entry.symbols.is_empty())
+    {
+        return Err(format!(
+            "Symbol-scoped rule exceptions are unsupported for analyzer {}; owner resolution is unavailable.",
+            config.analyzer
+        ));
+    }
+    Ok(CheckResult {
+        analyzer: config.analyzer,
+        faults: Vec::new(),
+        warnings: Vec::new(),
+        selected: sources.iter().filter(|source| source.direct).count(),
+        excluded,
+        applied_exceptions: 0,
+        threshold_uses: Vec::new(),
     })
 }
 
@@ -176,6 +228,9 @@ pub(crate) fn render_results(
         .iter()
         .map(|result| result.applied_exceptions)
         .sum::<usize>();
+    let python_only = results
+        .iter()
+        .all(|result| result.analyzer == crate::analyzer::AnalyzerId::Python);
     let mut faults = results
         .iter_mut()
         .flat_map(|result| std::mem::take(&mut result.faults))
@@ -207,10 +262,17 @@ pub(crate) fn render_results(
     threshold_uses.sort();
     threshold_uses.dedup();
     let summary = (excluded > 0).then(|| {
-        format!(
-            "Evaluation: {selected} of {} Python files ({excluded} excluded by config)",
-            selected + excluded
-        )
+        if python_only {
+            format!(
+                "Evaluation: {selected} of {} Python files ({excluded} excluded by config)",
+                selected + excluded
+            )
+        } else {
+            format!(
+                "Evaluation: {selected} of {} source files ({excluded} excluded by config)",
+                selected + excluded
+            )
+        }
     });
     let output = report(ReportRequest {
         faults: &faults,

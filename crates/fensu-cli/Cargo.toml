@@ -27,6 +27,8 @@ serde_json.workspace = true
 sha2.workspace = true
 fensu-facts = { workspace = true, default-features = false }
 fensu-native = { workspace = true, default-features = false }
+fensu-svelte.workspace = true
+fensu-typescript.workspace = true
 toml.workspace = true
 unicode-normalization.workspace = true
 walkdir.workspace = true

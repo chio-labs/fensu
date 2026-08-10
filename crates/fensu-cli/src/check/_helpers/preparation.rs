@@ -11,6 +11,7 @@ use crate::check::_helpers::options::use_color;
 use crate::check::_helpers::policy::{
     check_identity, hex_digest, path_matches, validate_scope_roots,
 };
+use crate::check::_helpers::project as web;
 use crate::check::_helpers::rule_policy::validate_config_tiers;
 use crate::check::models::{CheckIdentityRequest, CheckPlan, CheckPlans};
 use crate::configuration::main::load_targets;
@@ -26,7 +27,7 @@ pub(crate) fn prepare_checks(options: &CheckOptions) -> Result<CheckPlans, Strin
         .map_err(|error| error.to_string())?;
     let loaded = load_targets::load_targets(&invocation, options.target.as_deref())?;
     for (_, config) in &loaded {
-        config.analyzer.require_backend()?;
+        config.analyzer.require_check_backend()?;
     }
     if loaded.len() > 1 && !options.paths.is_empty() {
         return Err(
@@ -50,6 +51,11 @@ pub(crate) fn prepare_checks(options: &CheckOptions) -> Result<CheckPlans, Strin
         validate_exception_targets(&config, &project_root)?;
         let discovered = discover(&root, &project_root, &config)?;
         let (sources, excluded) = select_sources(discovered, &config);
+        let project_inputs = if config.analyzer == crate::analyzer::AnalyzerId::Python {
+            Vec::new()
+        } else {
+            web::discover_project_inputs(&root, &project_root)?
+        };
         let cache_enabled = options.cache_enabled.unwrap_or(config.cache_enabled);
         let color = use_color(&options.color);
         let identity = check_identity(CheckIdentityRequest {
@@ -57,13 +63,15 @@ pub(crate) fn prepare_checks(options: &CheckOptions) -> Result<CheckPlans, Strin
             project_root: &project_root,
             config: &config,
             sources: &sources,
+            project_inputs: &project_inputs,
             warnings: options.warn,
-        });
+        })?;
         plans.push(CheckPlan {
             root,
             project_root,
             config,
             sources,
+            project_inputs,
             excluded,
             identity,
             cache_enabled,
@@ -97,8 +105,24 @@ pub(crate) fn prepare_checks(options: &CheckOptions) -> Result<CheckPlans, Strin
         .iter()
         .flat_map(|plan| plan.sources.iter().cloned())
         .collect::<Vec<_>>();
-    sources.sort_by(|left, right| left.repository_path.cmp(&right.repository_path));
-    sources.dedup_by(|left, right| left.repository_path == right.repository_path);
+    sources.sort_by(|left, right| {
+        (
+            left.analyzer.to_string(),
+            &left.target_identity,
+            &left.repository_path,
+        )
+            .cmp(&(
+                right.analyzer.to_string(),
+                &right.target_identity,
+                &right.repository_path,
+            ))
+    });
+    sources.dedup_by(|left, right| {
+        left.analyzer == right.analyzer
+            && left.target_identity == right.target_identity
+            && left.repository_path == right.repository_path
+            && left.parser_contract == right.parser_contract
+    });
     Ok(CheckPlans {
         invocation,
         root,
@@ -164,14 +188,27 @@ fn discover(
         if !source_root.exists() {
             continue;
         }
-        for entry in WalkDir::new(&source_root)
+        for result in WalkDir::new(&source_root)
+            .follow_links(false)
             .into_iter()
-            .filter_entry(|entry| entry.file_name() != PYTHON_CACHE_DIRECTORY)
-            .filter_map(Result::ok)
+            .filter_entry(|entry| {
+                if config.analyzer == crate::analyzer::AnalyzerId::Python {
+                    entry.file_name() != PYTHON_CACHE_DIRECTORY
+                } else {
+                    web::is_artifact_entry(entry)
+                }
+            })
         {
-            if !entry.file_type().is_file()
-                || entry.path().extension().and_then(|value| value.to_str()) != Some("py")
-            {
+            let entry = result.map_err(|error| {
+                format!("Could not discover sources under {configured_root}: {error}")
+            })?;
+            let supported = match config.analyzer {
+                crate::analyzer::AnalyzerId::Python => {
+                    entry.path().extension().and_then(|value| value.to_str()) == Some("py")
+                }
+                analyzer => web::is_web_source(entry.path(), analyzer),
+            };
+            if !entry.file_type().is_file() || !supported {
                 continue;
             }
             let path = entry.path().to_path_buf();
@@ -193,6 +230,9 @@ fn discover(
                 .map(|part| part.as_os_str().to_string_lossy().into_owned())
                 .collect();
             sources.push(ScopedSource {
+                analyzer: config.analyzer,
+                target_identity: config.target.clone().unwrap_or_default(),
+                parser_contract: config.analyzer.parser_contract(),
                 path,
                 repository_path,
                 target_path,
@@ -202,6 +242,8 @@ fn discover(
                 relative_parts,
                 fingerprint: hex_digest(&content),
                 content,
+                direct: web::is_direct_source(entry.path(), config.analyzer),
+                imports: Vec::new(),
                 program: None,
             });
         }
@@ -222,22 +264,38 @@ fn discover(
 }
 
 fn select_sources(sources: Vec<ScopedSource>, config: &Config) -> (Vec<ScopedSource>, usize) {
+    if config.analyzer != crate::analyzer::AnalyzerId::Python {
+        let mut excluded = 0;
+        let mut retained = Vec::with_capacity(sources.len());
+        for mut source in sources {
+            if source.direct && !selected_by_evaluation(&source, config) {
+                source.direct = false;
+                excluded += 1;
+            }
+            retained.push(source);
+        }
+        return (retained, excluded);
+    }
     let discovered = sources.len();
     let mut selected: Vec<ScopedSource> = Vec::new();
     for source in sources {
-        let included = config.evaluation_include.is_empty()
-            || config
-                .evaluation_include
-                .iter()
-                .any(|pattern| path_matches(&source.target_path, pattern));
-        let excluded = config
-            .evaluation_exclude
-            .iter()
-            .any(|pattern| path_matches(&source.target_path, pattern));
-        if included && !excluded {
+        if selected_by_evaluation(&source, config) {
             selected.push(source);
         }
     }
     let excluded = discovered - selected.len();
     (selected, excluded)
+}
+
+fn selected_by_evaluation(source: &ScopedSource, config: &Config) -> bool {
+    let included = config.evaluation_include.is_empty()
+        || config
+            .evaluation_include
+            .iter()
+            .any(|pattern| path_matches(&source.target_path, pattern));
+    let excluded = config
+        .evaluation_exclude
+        .iter()
+        .any(|pattern| path_matches(&source.target_path, pattern));
+    included && !excluded
 }

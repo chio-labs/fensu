@@ -64,6 +64,7 @@ pub struct ModelFact {
     pub name: String,
     pub kind: ModelKind,
     pub exported: bool,
+    pub readonly_properties: bool,
     pub readonly_shape: bool,
     pub property_names: Vec<String>,
     pub span: SourceSpan,

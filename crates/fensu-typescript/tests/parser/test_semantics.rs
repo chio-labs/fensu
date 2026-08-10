@@ -125,21 +125,28 @@ fn given_model_declarations_when_collecting_then_matches_expected_immutable_sema
             "export type PrimitiveAlias = string;\n",
         ),
         expected_models: &[
-            ("Immutable", ModelKind::Interface, true),
-            ("MutableProperty", ModelKind::Interface, false),
-            ("MutableArray", ModelKind::Interface, false),
-            ("MutableCollection", ModelKind::Interface, false),
-            ("ReadonlyCollection", ModelKind::Interface, true),
-            ("ImmutableAlias", ModelKind::TypeLiteralAlias, true),
+            ("Immutable", ModelKind::Interface, true, true),
+            ("MutableProperty", ModelKind::Interface, false, false),
+            ("MutableArray", ModelKind::Interface, true, false),
+            ("MutableCollection", ModelKind::Interface, true, false),
+            ("ReadonlyCollection", ModelKind::Interface, true, true),
+            ("ImmutableAlias", ModelKind::TypeLiteralAlias, true, true),
         ],
     }];
 
     for test_case in &test_cases {
         let facts = parse_typescript(test_case.source.as_bytes()).expect("must parse");
-        let models: Vec<(&str, ModelKind, bool)> = facts
+        let models: Vec<(&str, ModelKind, bool, bool)> = facts
             .models
             .iter()
-            .map(|model| (model.name.as_str(), model.kind, model.readonly_shape))
+            .map(|model| {
+                (
+                    model.name.as_str(),
+                    model.kind,
+                    model.readonly_properties,
+                    model.readonly_shape,
+                )
+            })
             .collect();
 
         assert_eq!(
@@ -512,6 +519,44 @@ fn given_nested_functions_when_collecting_then_metrics_exclude_nested_bodies() {
 #[test]
 fn given_parameterized_tests_when_collecting_then_facts_follow_syntax_nodes() {
     let test_cases = [
+        test_types::ParameterizedTestFactTestCase {
+            description: "RaceWatch ApplyEditsTestCase is readonly despite its mutable array value",
+            source: concat!(
+                "interface ApplyEditsTestCase {\n",
+                "  readonly description: string;\n",
+                "  readonly initialHorses: GridHorseData[];\n",
+                "  readonly edits: readonly EditTestCase[];\n",
+                "  readonly expectedValues: Readonly<Record<string, number | null>>;\n",
+                "}\n",
+                "it.each<ApplyEditsTestCase>([{ description: 'case', initialHorses: [], edits: [], expectedValues: {} }])",
+                "('$description', (testCase) => expect(testCase.expectedValues).toEqual({}));\n",
+            ),
+            expected_count: 1,
+            expected_callback_name: "testCase",
+            expected_valid_contract: true,
+        },
+        test_types::ParameterizedTestFactTestCase {
+            description: "RaceWatch FraLayoutTestCase resolves in a nested lexical scope",
+            source: concat!(
+                "describe('French dynamic layouts (region + numBends)', () => {\n",
+                "  interface FraLayoutTestCase {\n",
+                "    readonly description: string;\n",
+                "    readonly course: string;\n",
+                "    readonly distanceMeters: number;\n",
+                "    readonly surfaceType: string | null;\n",
+                "    readonly region: string;\n",
+                "    readonly numBends: number;\n",
+                "    readonly expectedFlooredBends: number;\n",
+                "    readonly expectedSegments: RaceSegment[];\n",
+                "  }\n",
+                "  it.each<FraLayoutTestCase>([{ description: 'case', course: 'PAR', distanceMeters: 1000, surfaceType: 'Turf', region: 'FRA', numBends: 0, expectedFlooredBends: 0, expectedSegments: [] }])",
+                "('$description', (testCase) => expect(testCase.expectedSegments).toEqual([]));\n",
+                "});\n",
+            ),
+            expected_count: 1,
+            expected_callback_name: "testCase",
+            expected_valid_contract: true,
+        },
         test_types::ParameterizedTestFactTestCase {
             description: "syntax nodes distinguish a real typed table from marker text and delimiters",
             source: concat!(

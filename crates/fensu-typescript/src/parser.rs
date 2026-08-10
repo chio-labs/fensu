@@ -218,6 +218,20 @@ fn collect_facts(source: &str, statements: &[Statement<'_>]) -> ModuleFacts {
     for statement in statements {
         collector.collect(statement);
     }
+    let mut model_visitor = ModelVisitor {
+        source,
+        known_spans: collector
+            .facts
+            .models
+            .iter()
+            .map(|model| model.span.start)
+            .collect(),
+        models: Vec::new(),
+    };
+    for statement in statements {
+        model_visitor.visit_statement(statement);
+    }
+    collector.facts.models.extend(model_visitor.models);
     let mut name_visitor = FunctionNameVisitor {
         source,
         names: collector.function_names,
@@ -780,6 +794,7 @@ impl TopLevelCollector<'_> {
             name: interface.id.name.to_string(),
             kind: ModelKind::Interface,
             exported,
+            readonly_properties: readonly_properties(&interface.body.body),
             readonly_shape: readonly_members(self.source, &interface.body.body),
             property_names: property_names(self.source, &interface.body.body),
             span: owned_span(self.source, interface.id.span),
@@ -794,10 +809,53 @@ impl TopLevelCollector<'_> {
             name: alias.id.name.to_string(),
             kind: ModelKind::TypeLiteralAlias,
             exported,
+            readonly_properties: readonly_properties(&literal.members),
             readonly_shape: readonly_members(self.source, &literal.members),
             property_names: property_names(self.source, &literal.members),
             span: owned_span(self.source, alias.id.span),
         });
+    }
+}
+
+struct ModelVisitor<'s> {
+    source: &'s str,
+    known_spans: HashSet<usize>,
+    models: Vec<ModelFact>,
+}
+
+impl<'a> Visit<'a> for ModelVisitor<'_> {
+    fn visit_ts_interface_declaration(&mut self, interface: &TSInterfaceDeclaration<'a>) {
+        let span = owned_span(self.source, interface.id.span);
+        if self.known_spans.insert(span.start) {
+            self.models.push(ModelFact {
+                name: interface.id.name.to_string(),
+                kind: ModelKind::Interface,
+                exported: false,
+                readonly_properties: readonly_properties(&interface.body.body),
+                readonly_shape: readonly_members(self.source, &interface.body.body),
+                property_names: property_names(self.source, &interface.body.body),
+                span,
+            });
+        }
+        walk::walk_ts_interface_declaration(self, interface);
+    }
+
+    fn visit_ts_type_alias_declaration(&mut self, alias: &TSTypeAliasDeclaration<'a>) {
+        if let TSType::TSTypeLiteral(literal) = &alias.type_annotation {
+            let span = owned_span(self.source, alias.id.span);
+            if self.known_spans.insert(span.start) {
+                self.models.push(ModelFact {
+                    name: alias.id.name.to_string(),
+                    kind: ModelKind::TypeLiteralAlias,
+                    exported: false,
+                    readonly_properties: readonly_properties(&literal.members),
+                    readonly_shape: readonly_members(self.source, &literal.members),
+                    property_names: property_names(self.source, &literal.members),
+                    span,
+                });
+            }
+        }
+        walk::walk_ts_type_alias_declaration(self, alias);
     }
 }
 
@@ -840,6 +898,13 @@ fn readonly_members(source: &str, members: &[TSSignature<'_>]) -> bool {
                     readonly_collection(source, &annotation.type_annotation)
                 })
         }
+        _ => true,
+    })
+}
+
+fn readonly_properties(members: &[TSSignature<'_>]) -> bool {
+    members.iter().all(|member| match member {
+        TSSignature::TSPropertySignature(property) => property.readonly,
         _ => true,
     })
 }
@@ -1196,7 +1261,7 @@ fn parameterized_test_fact(
         local_case_type: model.is_some(),
         case_type_name: type_name.clone(),
         local_readonly_case_type: model
-            .is_some_and(|value| value.readonly_shape && !value.property_names.is_empty()),
+            .is_some_and(|value| value.readonly_properties && !value.property_names.is_empty()),
         has_description: model.is_some_and(|value| {
             value
                 .property_names

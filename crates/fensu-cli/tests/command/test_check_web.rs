@@ -1570,6 +1570,51 @@ fn given_parameterized_case_type_when_checking_then_fwt403_requires_a_resolved_n
 ) {
     let test_cases = [
         WebTestCaseTypeResolutionTestCase {
+            description: "RaceWatch ApplyEditsTestCase permits a mutable array value",
+            test_source: "interface ApplyEditsTestCase {\n  readonly description: string;\n  readonly initialHorses: GridHorseData[];\n  readonly edits: readonly EditTestCase[];\n  readonly expectedValues: Readonly<Record<string, number | null>>;\n}\nit.each<ApplyEditsTestCase>([{ description: 'case', initialHorses: [], edits: [], expectedValues: {} }])('$description', (testCase) => expect(testCase.expectedValues).toEqual({}));\n",
+            support_source: "",
+            expected_exit_code: 0,
+            expected_fwt403: false,
+        },
+        WebTestCaseTypeResolutionTestCase {
+            description: "RaceWatch LayoutTestCase permits a mutable array value",
+            test_source: "interface LayoutTestCase {\n  readonly description: string;\n  readonly course: string;\n  readonly distanceMeters: number | null;\n  readonly surfaceType: string | null;\n  readonly expectedNumBends: number;\n  readonly expectedSegments: RaceSegment[];\n}\nit.each<LayoutTestCase>([{ description: 'case', course: 'PAR', distanceMeters: 1000, surfaceType: 'Turf', expectedNumBends: 0, expectedSegments: [] }])('$description', (testCase) => expect(testCase.expectedSegments).toEqual([]));\n",
+            support_source: "",
+            expected_exit_code: 0,
+            expected_fwt403: false,
+        },
+        WebTestCaseTypeResolutionTestCase {
+            description: "RaceWatch nested FraLayoutTestCase resolves within the test module",
+            test_source: concat!(
+                "describe('French dynamic layouts (region + numBends)', () => {\n",
+                "  interface FraLayoutTestCase {\n",
+                "    readonly description: string;\n",
+                "    readonly course: string;\n",
+                "    readonly distanceMeters: number;\n",
+                "    readonly surfaceType: string | null;\n",
+                "    readonly region: string;\n",
+                "    readonly numBends: number;\n",
+                "    readonly expectedFlooredBends: number;\n",
+                "    readonly expectedSegments: RaceSegment[];\n",
+                "  }\n",
+                "  it.each<FraLayoutTestCase>([{ description: 'case', course: 'PAR', distanceMeters: 1000, surfaceType: 'Turf', region: 'FRA', numBends: 0, expectedFlooredBends: 0, expectedSegments: [] }])('$description', (testCase) => expect(testCase.expectedSegments).toEqual([]));\n",
+                "});\n",
+            ),
+            support_source: "",
+            expected_exit_code: 0,
+            expected_fwt403: false,
+        },
+        WebTestCaseTypeResolutionTestCase {
+            description: "readonly type-literal alias permits mutable collection values",
+            test_source: concat!(
+                "type Case = { readonly description: string; readonly values: Set<string>; readonly expectedValues: string[] };\n",
+                "test.each<Case>([{ description: 'case', values: new Set(), expectedValues: [] }])('$description', (testCase) => expect(testCase.values).toEqual(testCase.expectedValues));\n",
+            ),
+            support_source: "",
+            expected_exit_code: 0,
+            expected_fwt403: false,
+        },
+        WebTestCaseTypeResolutionTestCase {
             description: "resolved owner-local readonly case type passes",
             test_source: "import type { Case } from './_test/case'; test.each<Case>([{ description: 'case', expected: 'x' }])('$description', (testCase) => expect(testCase.expected).toBe('x'));\n",
             support_source:
@@ -1580,6 +1625,13 @@ fn given_parameterized_case_type_when_checking_then_fwt403_requires_a_resolved_n
         WebTestCaseTypeResolutionTestCase {
             description: "comment text cannot spoof an owner-local type import",
             test_source: "// import type { Case } from './_test/case';\ntest.each<Case>([{ description: 'case', expected: 'x' }])('$description', (testCase) => expect(testCase.expected).toBe('x'));\n",
+            support_source: "",
+            expected_exit_code: 1,
+            expected_fwt403: true,
+        },
+        WebTestCaseTypeResolutionTestCase {
+            description: "one non-readonly property fails the case contract",
+            test_source: "interface Case { readonly description: string; values: string[]; readonly expectedValues: string[]; } test.each<Case>([{ description: 'case', values: [], expectedValues: [] }])('$description', (testCase) => expect(testCase.values).toEqual(testCase.expectedValues));\n",
             support_source: "",
             expected_exit_code: 1,
             expected_fwt403: true,

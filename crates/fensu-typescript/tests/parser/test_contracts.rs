@@ -9,9 +9,9 @@ fn given_native_parser_when_reading_contracts_then_versions_are_explicit() {
     let cli_analyzer_source = include_str!("../../../fensu-cli/src/analyzer.rs");
     let test_cases = [test_types::ContractTestCase {
         description: "owned facts and the CLI analyzer share one TypeScript cache identity",
-        expected_parser_contract: "typescript-backend-v10",
-        expected_cache_contract: "typescript-backend-v10",
-        expected_cli_contract_fragment: "Self::TypeScript => \"typescript-backend-v10\"",
+        expected_parser_contract: "typescript-backend-v11",
+        expected_cache_contract: "typescript-backend-v11",
+        expected_cli_contract_fragment: "Self::TypeScript => \"typescript-backend-v11\"",
     }];
 
     for test_case in &test_cases {

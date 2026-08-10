@@ -1,8 +1,11 @@
 //! Initialisation survey and layout models.
 
+use crate::models::DetectedTarget;
+
 #[derive(Debug)]
 pub(crate) struct RepositorySurvey {
     pub(crate) package_roots: Vec<String>,
+    pub(crate) targets: Vec<DetectedTarget>,
     pub(crate) empty: bool,
 }
 
@@ -12,4 +15,5 @@ pub(crate) struct InitPlan {
     pub(crate) tests: Vec<String>,
     pub(crate) tooling: Vec<String>,
     pub(crate) project_name: Option<String>,
+    pub(crate) targets: Vec<DetectedTarget>,
 }

@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 
+from fensu.config.types import AnalyzerId
 from fensu.rules.authoring.models import RuleSpec
 from fensu.rules.authoring.types import RuleOptionValue
 
@@ -39,6 +40,113 @@ class InvalidConfigTestCase:
     config_text: str
     expected_error_type: type[Exception]
     expected_error_fragment: str
+
+
+@dataclass(frozen=True)
+class TargetConfigTestCase:
+    """Explicit target configuration and expected selected identity."""
+
+    description: str
+    config_text: str
+    target: str | None
+    expected_target: str
+    expected_target_root: str
+    expected_roots: tuple[str, ...]
+    expected_select: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class WebTargetDefaultsTestCase:
+    """Web analyzer configuration and expected framework-local defaults."""
+
+    description: str
+    analyzer: str
+    extra_config: str
+    expected_framework: str | None
+    expected_shadcn: str | None
+    expected_ui_kit: str | None
+    expected_test_layout: str
+
+
+@dataclass(frozen=True)
+class WebThresholdAliasTestCase:
+    """Web analyzer whose compatibility thresholds must normalize canonically."""
+
+    description: str
+    analyzer: str
+    expected_analyzer: str
+    expected_fingerprints_equal: bool
+
+
+@dataclass(frozen=True)
+class WebInMemoryConfigBuildTestCase:
+    """In-memory web config and expected analyzer-local values."""
+
+    description: str
+    raw_config: dict[str, object]
+    analyzer: AnalyzerId
+    expected_test_layout: str
+    expected_analyzer: AnalyzerId
+
+
+@dataclass(frozen=True)
+class WebTestLayoutFingerprintTestCase:
+    """Two web test layouts and their expected fingerprint relationship."""
+
+    description: str
+    first_layout: str
+    second_layout: str
+    expected_equal: bool
+
+
+@dataclass(frozen=True)
+class WebExceptionPathTestCase:
+    """Web analyzer and exact exception path expected to be accepted."""
+
+    description: str
+    analyzer: str
+    expected_path: str
+
+
+@dataclass(frozen=True)
+class CanonicalTargetRootTestCase:
+    """A symlink target spelling and expected canonical effective identity."""
+
+    description: str
+    alias: str
+    configured_alias: str
+    canonical: str
+    expected_target_root: str
+
+
+@dataclass(frozen=True)
+class InvalidTargetConfigTestCase:
+    """Invalid explicit target configuration and expected selection error."""
+
+    description: str
+    config_text: str
+    target: str | None
+    expected_error_fragment: str
+
+
+@dataclass(frozen=True)
+class AnalyzerIdentityTestCase:
+    """Configured analyzer spelling and expected typed parse outcome."""
+
+    description: str
+    value: str
+    expected_analyzer: AnalyzerId | None
+    expected_error_fragment: str | None
+
+
+@dataclass(frozen=True)
+class AnalyzerCapabilityTestCase:
+    """Known analyzer and expected backend capability outcome."""
+
+    description: str
+    analyzer: AnalyzerId
+    expected_available: bool
+    expected_cache_contract: str
 
 
 @dataclass(frozen=True)
@@ -96,6 +204,16 @@ class EvaluationConfigTestCase:
     config_text: str
     expected_include: tuple[str, ...]
     expected_exclude: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class EvaluationFingerprintTestCase:
+    """Evaluation config shape and expected canonical fingerprint values."""
+
+    description: str
+    config_text: str
+    target: str
+    expected_include: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -194,6 +312,24 @@ class PathPatternTestCase:
 
 
 @dataclass(frozen=True)
+class PathPatternExpansionTestCase:
+    """A brace path glob and its expected deterministic expansion."""
+
+    description: str
+    pattern: str
+    expected_patterns: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class PathPatternErrorTestCase:
+    """A malformed brace path glob and its expected error detail."""
+
+    description: str
+    pattern: str
+    expected_error: str
+
+
+@dataclass(frozen=True)
 class PathPatternSpecificityTestCase:
     """A normalized path glob and its expected semantic specificity tuple."""
 
@@ -213,12 +349,29 @@ class ConfigContractTestCase:
 
 
 @dataclass(frozen=True)
+class AbsentConfigContractTestCase:
+    """Analyzer-specific contract that must not enter Python defaults."""
+
+    description: str
+    config_text: str
+    expected_absent_pattern: str
+
+
+@dataclass(frozen=True)
 class ConfigImmutabilityTestCase:
     """A config mutation attempt and the expected exception type."""
 
     description: str
     config_text: str
     expected_error_type: type[Exception]
+
+
+@dataclass(frozen=True)
+class ConfigPositionalCompatibilityTestCase:
+    """Expected positional field order retained by the Config constructor."""
+
+    description: str
+    expected_field_names: tuple[str, ...]
 
 
 @dataclass(frozen=True)

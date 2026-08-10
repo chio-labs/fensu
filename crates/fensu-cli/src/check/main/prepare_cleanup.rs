@@ -4,6 +4,6 @@ use std::path::Path;
 
 use crate::check::models::CleanupPlan;
 
-pub(crate) fn prepare_cleanup(invocation: &Path) -> Option<CleanupPlan> {
-    crate::check::_helpers::cleanup::prepare(invocation)
+pub(crate) fn prepare_cleanup(invocation: &Path, target: Option<&str>) -> Vec<CleanupPlan> {
+    crate::check::_helpers::cleanup::prepare(invocation, target)
 }

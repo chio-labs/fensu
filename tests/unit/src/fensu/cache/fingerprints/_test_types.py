@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from fensu.cache.fingerprints.types import CanonicalValue
+from fensu.config.types import AnalyzerId
 from fensu.rules.authoring.models import RuleOption
 from fensu.rules.authoring.types import ExecutionOwner, RuleOptionValue
 
@@ -27,6 +28,18 @@ class ConfigFingerprintTestCase:
     first_threshold: int
     second_threshold: int
     reverse_mapping_order: bool
+    expected_equal: bool
+
+
+@dataclass(frozen=True)
+class TargetFingerprintTestCase:
+    """Two target identities and whether config fingerprints must match."""
+
+    description: str
+    first_target: str | None
+    second_target: str | None
+    first_root: str
+    second_root: str
     expected_equal: bool
 
 
@@ -242,6 +255,18 @@ class GlobalRuntimeFingerprintTestCase:
     second_python_implementation: str
     first_contract_version: int
     second_contract_version: int
+    expected_equal: bool
+
+
+@dataclass(frozen=True)
+class AnalyzerContractFingerprintTestCase:
+    """Two analyzer cache contracts and expected identity relationship."""
+
+    description: str
+    first_analyzer: AnalyzerId
+    second_analyzer: AnalyzerId
+    first_contract: str
+    second_contract: str
     expected_equal: bool
 
 

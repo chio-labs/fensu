@@ -19,6 +19,7 @@ use crate::skills::models::{HostResponse, RuleSelection};
 
 const CORE_KIND: &str = "core";
 const CORE_PREFIX: &str = "FF";
+const WEB_CORE_PREFIX: &str = "FW";
 const CUSTOM_KIND: &str = "custom";
 const CUSTOM_PREFIX: char = 'X';
 const PACK_KIND: &str = "pack";
@@ -46,11 +47,29 @@ pub(crate) fn selection(config: &Config, project_root: &Path) -> Result<RuleSele
         || !config.rule_modules.is_empty()
         || config.rule_options.keys().any(|code| code.starts_with('X'))
     {
-        return hosted_selection(project_root);
+        if config.analyzer != crate::analyzer::AnalyzerId::Python {
+            return Err(format!(
+                "Native {} skills do not support Python-hosted rule paths, modules, or options.",
+                config.analyzer
+            ));
+        }
+        return hosted_selection(project_root, config.target.as_deref());
     }
     let configured_catalogue = configured_rule_catalogue(&config.rule_packs)?;
-    validate_config_selectors(config, &configured_catalogue)?;
-    let catalogue = configured_catalogue
+    let applicable_catalogue = configured_catalogue
+        .iter()
+        .copied()
+        .filter(|rule| {
+            rule.analyzers.contains(&config.analyzer)
+                && (rule.frameworks.is_empty()
+                    || config
+                        .framework
+                        .as_ref()
+                        .is_some_and(|framework| rule.frameworks.contains(framework)))
+        })
+        .collect::<Vec<_>>();
+    validate_config_selectors(config, &applicable_catalogue, &configured_catalogue)?;
+    let catalogue = applicable_catalogue
         .into_iter()
         .cloned()
         .collect::<Vec<_>>();
@@ -73,10 +92,11 @@ pub(crate) fn selection(config: &Config, project_root: &Path) -> Result<RuleSele
     })
 }
 
-fn hosted_selection(project_root: &Path) -> Result<RuleSelection, String> {
+fn hosted_selection(project_root: &Path, target: Option<&str>) -> Result<RuleSelection, String> {
     let request = serde_json::to_vec(&json!({
         "protocol": SKILLS_METADATA_PROTOCOL_VERSION,
         "project_root": project_root.to_string_lossy(),
+        "target": target,
     }))
     .map_err(|error| error.to_string())?;
     let raw = run_skills_metadata_host(&request)?;
@@ -130,9 +150,11 @@ fn validate_host_shape(raw: &[u8]) -> Result<(), String> {
         "severity",
         "enabled_by_default",
         "execution_owner",
+        "frameworks",
         "kind",
         "pack",
         "alias_of",
+        "analyzers",
         "source",
         "cacheable",
         "options",
@@ -165,7 +187,7 @@ fn validate_host_catalogue(catalogue: &[RuleMetadata]) -> Result<(), String> {
                 item.code
             ));
         }
-        let core = item.code.starts_with(CORE_PREFIX);
+        let core = item.code.starts_with(CORE_PREFIX) || item.code.starts_with(WEB_CORE_PREFIX);
         let pack = item.code.starts_with(PACK_PREFIX);
         if (core && item.kind != CORE_KIND)
             || (pack && item.kind != PACK_KIND)
@@ -204,6 +226,11 @@ fn validate_host_catalogue(catalogue: &[RuleMetadata]) -> Result<(), String> {
                 .alias_of
                 .as_ref()
                 .is_some_and(|target| target == &item.code)
+            || item.analyzers.is_empty()
+            || item.analyzers.iter().collect::<HashSet<_>>().len() != item.analyzers.len()
+            || (item.kind == CUSTOM_KIND
+                && item.analyzers.as_slice() != [crate::analyzer::AnalyzerId::Python])
+            || (item.kind == CUSTOM_KIND && !item.frameworks.is_empty())
         {
             return Err(format!(
                 "Catalogue rule {} contains incompatible metadata.",

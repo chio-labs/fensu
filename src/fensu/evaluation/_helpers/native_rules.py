@@ -15,6 +15,7 @@ from fensu.analysis.models import (
     RuleTestAssociationFact,
 )
 from fensu.analysis.types import Analysis
+from fensu.config.constants import DEFAULT_TARGET_ROOT
 from fensu.config.main.resolve_threshold import resolve_threshold
 from fensu.config.models import Config, ThresholdResolution
 from fensu.discovery.main.position import position_facts
@@ -103,7 +104,9 @@ def prepare_native_execution_request(
                         matched_pattern=resolution.matched_pattern,
                         reason=resolution.reason,
                         override_order=resolution.override_order,
-                        repository_path=resolution.repository_path,
+                        repository_path=_visible_repository_path(
+                            config=config, path=resolution.repository_path
+                        ),
                     )
                 )
     request: NativeExecutionRequest = (
@@ -152,6 +155,10 @@ def _native_rule_options(*, config: Config, codes: tuple[str, ...]) -> NativeRul
             for name, value in sorted(current.items())
         }
     return values
+
+
+def _visible_repository_path(*, config: Config, path: str) -> str:
+    return path if config.target_root == DEFAULT_TARGET_ROOT else f"{config.target_root}/{path}"
 
 
 def record_native_parses(*, sources: tuple[str, ...]) -> None:

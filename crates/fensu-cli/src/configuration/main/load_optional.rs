@@ -3,6 +3,9 @@ use std::path::{Path, PathBuf};
 use crate::configuration::_helpers::loading;
 use crate::models::Config;
 
-pub(crate) fn load_optional(start: &Path) -> Result<Option<(PathBuf, Config)>, String> {
-    loading::load_optional(start)
+pub(crate) fn load_optional(
+    start: &Path,
+    target: Option<&str>,
+) -> Result<Option<(PathBuf, Config)>, String> {
+    loading::load_optional(start, target)
 }

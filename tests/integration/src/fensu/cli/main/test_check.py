@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -11,6 +12,8 @@ from fensu.cache.results.classes.result_cache import ResultCache
 from fensu.cache.results.models import CacheStats
 from fensu.cache.storage.constants import CACHE_DATABASE_RELATIVE_PATH
 from fensu.cache.storage.exceptions import CacheRecordError
+from fensu.cli._helpers.check_command import execute_structured_check
+from fensu.cli.constants import CUSTOM_CHECK_PROTOCOL_VERSION
 from fensu.cli.main.custom_check_host import run_custom_check as run_check
 from fensu.instrumentation.constants import (
     EVALUATION_WORKER_PARTITION_OPERATION,
@@ -32,6 +35,7 @@ from tests.integration.src.fensu.cli.main._test_types import (
     ReplayFastPathTestCase,
     ScopedCacheWarningTestCase,
     ShortCircuitCheckTestCase,
+    StructuredHostCheckTestCase,
     ThresholdOverrideCheckTestCase,
     WarningCacheIdentityTestCase,
     WarningCheckTestCase,
@@ -49,6 +53,52 @@ from tests.integration.src.fensu.cli.main.helpers import (
     write_cli_no_fault_project,
     write_cli_stale_exception_project,
 )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        StructuredHostCheckTestCase(
+            description="hosted diagnostics use the versioned structured protocol",
+            expected_code="FFA001",
+            expected_warning=False,
+            expected_selected=1,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_hosted_target_when_requesting_structured_check_then_returns_versioned_fault_rows(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: StructuredHostCheckTestCase,
+) -> None:
+    (tmp_path / "fensu.toml").write_text(
+        "[targets.backend]\n"
+        'analyzer = "python"\n'
+        'roots = ["src/pkg"]\n'
+        "tests = []\n"
+        "tooling = []\n"
+        'select = ["FFA001"]\n'
+        "[targets.backend.cache]\n"
+        "enabled = false\n",
+        encoding="utf-8",
+    )
+    package: Path = tmp_path / "src/pkg"
+    package.mkdir(parents=True)
+    (package / "module.py").write_text("def untyped(value):\n    return value\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    response: dict[str, object] = execute_structured_check(
+        argv=("--no-color", "--no-cache"), target_names=("backend",)
+    )
+    results: list[dict[str, object]] = cast("list[dict[str, object]]", response["results"])
+    faults: list[dict[str, object]] = cast("list[dict[str, object]]", results[0]["faults"])
+
+    assert response["protocol"] == CUSTOM_CHECK_PROTOCOL_VERSION
+    assert response["error"] is None
+    assert faults[0]["code"] == test_case.expected_code
+    assert faults[0]["warning"] is test_case.expected_warning
+    assert results[0]["selected"] == test_case.expected_selected
 
 
 @pytest.mark.parametrize(

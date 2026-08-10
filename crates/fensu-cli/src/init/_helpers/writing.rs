@@ -1,33 +1,48 @@
 //! Write the generated configuration and ignore files.
 
-use std::fs;
 use std::path::Path;
 
+use crate::configuration::main::render_target_config::render_target_config;
 use crate::configuration::main::validate_document::validate_document;
 use crate::init::constants::FENSU_IGNORE;
 use crate::init::models::InitPlan;
+use crate::repository_io::main::open_repository::open_repository;
+use crate::repository_io::main::read_optional::read_optional;
+use crate::repository_io::main::write_if_unchanged::write_if_unchanged;
+use crate::repository_io::models::{SafeFileSnapshot, WriteRequest};
 
 pub(crate) fn write_project_files(
     repository: &Path,
     plan: &InitPlan,
-    empty: bool,
+    python_scaffold: bool,
 ) -> Result<(), String> {
-    write_config(repository, &plan.roots, &plan.tests, &plan.tooling)?;
-    write_gitignore(repository, empty)
+    let directory = open_repository(repository)?;
+    let gitignore = read_optional(&directory, Path::new(".gitignore"))?;
+    write_config(&directory, plan)?;
+    write_gitignore(&directory, gitignore.as_ref(), python_scaffold)
 }
 
-fn write_config(
-    repository: &Path,
+fn write_config(repository: &cap_std::fs::Dir, plan: &InitPlan) -> Result<(), String> {
+    let text = if plan.targets.is_empty() {
+        legacy_config_text(&plan.roots, &plan.tests, &plan.tooling)?
+    } else {
+        render_target_config(&plan.targets)?
+    };
+    validate_config_text(&text)?;
+    write_if_unchanged(WriteRequest {
+        repository,
+        path: Path::new("fensu.toml"),
+        expected: None,
+        content: text.as_bytes(),
+        temporary_prefix: "fensu-init-config",
+    })
+}
+
+fn legacy_config_text(
     roots: &[String],
     tests: &[String],
     tooling: &[String],
-) -> Result<(), String> {
-    let text = config_text(roots, tests, tooling)?;
-    validate_config_text(&text)?;
-    fs::write(repository.join("fensu.toml"), text).map_err(|error| error.to_string())
-}
-
-fn config_text(roots: &[String], tests: &[String], tooling: &[String]) -> Result<String, String> {
+) -> Result<String, String> {
     let mut text = format!(
         "roots = {}\ntests = {}\n",
         serde_json::to_string(roots).map_err(|error| error.to_string())?,
@@ -44,7 +59,7 @@ fn config_text(roots: &[String], tests: &[String], tooling: &[String]) -> Result
 }
 
 fn validate_config_text(text: &str) -> Result<(), String> {
-    validate_document(text).map_err(|error| {
+    validate_document(text, false).map_err(|error| {
         format!(
             "{error}\nRefusing to write fensu.toml. Choose the scopes explicitly, for example: \
              fensu init --yes --root src/<package>"
@@ -52,11 +67,14 @@ fn validate_config_text(text: &str) -> Result<(), String> {
     })
 }
 
-fn write_gitignore(repository: &Path, empty: bool) -> Result<(), String> {
-    let path = repository.join(".gitignore");
-    let mut value = if path.is_file() {
-        fs::read(&path).map_err(|error| error.to_string())?
-    } else if empty {
+fn write_gitignore(
+    repository: &cap_std::fs::Dir,
+    existing: Option<&SafeFileSnapshot>,
+    python_scaffold: bool,
+) -> Result<(), String> {
+    let mut value = if let Some(existing) = existing {
+        existing.content.clone()
+    } else if python_scaffold {
         include_bytes!(concat!(env!("OUT_DIR"), "/python.gitignore")).to_vec()
     } else {
         Vec::new()
@@ -67,5 +85,11 @@ fn write_gitignore(repository: &Path, empty: bool) -> Result<(), String> {
     if !String::from_utf8_lossy(&value).contains(".fensu/cache/") {
         value.extend_from_slice(FENSU_IGNORE.as_bytes());
     }
-    fs::write(path, value).map_err(|error| error.to_string())
+    write_if_unchanged(WriteRequest {
+        repository,
+        path: Path::new(".gitignore"),
+        expected: existing,
+        content: &value,
+        temporary_prefix: "fensu-init-ignore",
+    })
 }

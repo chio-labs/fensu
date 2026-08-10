@@ -16,7 +16,7 @@ from fensu.analysis.models import SourceLocation
 from fensu.config.constants import RULE_CONFIGURATION_INPUTS
 from fensu.config.exceptions import ConfigError
 from fensu.config.models import Config
-from fensu.config.types import ContractBehavior
+from fensu.config.types import AnalyzerId, ContractBehavior
 from fensu.discovery.constants import INIT_MODULE_FILE_NAME
 from fensu.rules.authoring.main._inspect import rule_specs_in_module
 from fensu.rules.authoring.main.is_rule_code import is_rule_code
@@ -61,31 +61,43 @@ def build_rule_selection_from_config(
 
 
 def build_rule_selection_from_catalogue(
-    *, config: Config, catalogue: tuple[RuleSpec, ...], repo_root: Path | None = None
+    *,
+    config: Config,
+    catalogue: tuple[RuleSpec, ...],
+    repo_root: Path | None = None,
+    project_root: Path | None = None,
 ) -> RuleSelection:
     """Resolve blocking, warning, and ignored tiers from one discovered catalogue."""
 
-    _validate_config_selectors(config=config, rules=catalogue)
-    ignored: tuple[RuleSpec, ...] = _matching_rules(rules=catalogue, selectors=config.ignore)
-    selected: tuple[RuleSpec, ...] = _selected_rules(rules=catalogue, selectors=config.select)
+    applicable: tuple[RuleSpec, ...] = tuple(
+        rule for rule in catalogue if config.analyzer in rule.analyzers
+    )
+    _validate_config_selectors(config=config, rules=applicable, configured_rules=catalogue)
+    ignored: tuple[RuleSpec, ...] = _matching_rules(rules=applicable, selectors=config.ignore)
+    selected: tuple[RuleSpec, ...] = _selected_rules(rules=applicable, selectors=config.select)
     ignored_codes: frozenset[str] = frozenset(rule.code for rule in ignored)
     blocking: tuple[RuleSpec, ...] = tuple(
         rule for rule in selected if rule.code not in ignored_codes
     )
-    warnings: tuple[RuleSpec, ...] = _selected_rules(rules=catalogue, selectors=config.warn)
+    warnings: tuple[RuleSpec, ...] = _selected_rules(rules=applicable, selectors=config.warn)
     _validate_unique_implementations(rules=blocking)
     _validate_unique_implementations(rules=warnings)
     _validate_tier_overlaps(blocking=blocking, warnings=warnings, ignored=ignored)
     _validate_unique_implementations(rules=(*blocking, *warnings))
     return RuleSelection(
-        catalogue=catalogue,
+        catalogue=applicable,
         blocking=blocking,
         warnings=warnings,
         ignored=ignored,
         custom_registrations=_custom_registrations(
-            rules=catalogue,
+            rules=applicable,
             config=config,
             repo_root=(Path.cwd() if repo_root is None else repo_root).resolve(),
+            project_root=(
+                (Path.cwd() if repo_root is None else repo_root).resolve()
+                if project_root is None
+                else project_root.resolve()
+            ),
         ),
     )
 
@@ -109,9 +121,22 @@ def build_catalogue_from_config(
     _validate_rule_constraints(rules=all_rules)
     _validate_rule_limits(rules=all_rules)
     _validate_rule_inputs(rules=all_rules)
+    _validate_rule_analyzers(rules=all_rules)
     _validate_native_rule_options(rules=all_rules)
     _validate_exception_codes(config=config, rules=all_rules)
     return all_rules
+
+
+def _validate_rule_analyzers(*, rules: tuple[RuleSpec, ...]) -> None:
+    for rule in rules:
+        if (
+            not rule.analyzers
+            or len(rule.analyzers) != len(set(rule.analyzers))
+            or any(not isinstance(analyzer, AnalyzerId) for analyzer in rule.analyzers)
+        ):
+            raise ConfigError(f"rule {rule.code} declares invalid analyzer applicability")
+        if rule.kind is RuleKind.CUSTOM and rule.analyzers != (AnalyzerId.PYTHON,):
+            raise ConfigError(f"Custom rule {rule.code} must use analyzer python.")
 
 
 def _validate_rule_constraints(*, rules: tuple[RuleSpec, ...]) -> None:
@@ -260,6 +285,8 @@ def _remove_repository_import_path(repository_path: str) -> None:
 
 
 def _displace_conflicting_modules(repo_root: Path) -> dict[str, ModuleType]:
+    if not repo_root.is_dir():
+        return {}
     package_names: frozenset[str] = frozenset(
         path.name for path in repo_root.iterdir() if (path / "__init__.py").is_file()
     )
@@ -298,6 +325,8 @@ def _with_custom_source(*, rules: tuple[RuleSpec, ...], source: str) -> tuple[Ru
             )
         if not rule.code.startswith("X") or rule.kind is not RuleKind.CUSTOM:
             raise ConfigError(f"Custom rule {rule.code} from {source} must use the X* namespace.")
+        if rule.analyzers != (AnalyzerId.PYTHON,):
+            raise ConfigError(f"Custom rule {rule.code} from {source} must use analyzer python.")
         result.append(
             replace(
                 rule,
@@ -326,7 +355,7 @@ def _repository_module_path(*, module: ModuleType, module_name: str, repo_root: 
 
 
 def _custom_registrations(
-    *, rules: tuple[RuleSpec, ...], config: Config, repo_root: Path
+    *, rules: tuple[RuleSpec, ...], config: Config, repo_root: Path, project_root: Path
 ) -> tuple[CustomRuleRegistration, ...]:
     registrations: list[CustomRuleRegistration] = []
     for rule in rules:
@@ -339,7 +368,7 @@ def _custom_registrations(
                 "FFR707 requires repository-owned rule sources for diagnostic and cache identity."
             )
         module_name: str = _configured_module_name(
-            rule=rule, source_path=source_path, config=config, repo_root=repo_root
+            rule=rule, source_path=source_path, config=config, repo_root=project_root
         )
         function_value: object = getattr(rule.check, "__name__", None)
         if not isinstance(function_value, str):
@@ -430,23 +459,54 @@ def _matching_rules(
     return tuple(rule for rule in rules if _rule_matches_select(rule=rule, select=selectors))
 
 
-def _validate_config_selectors(*, config: Config, rules: tuple[RuleSpec, ...]) -> None:
+def _validate_config_selectors(
+    *, config: Config, rules: tuple[RuleSpec, ...], configured_rules: tuple[RuleSpec, ...]
+) -> None:
     for name, selectors in (
         ("select", config.select),
         ("warn", config.warn),
         ("ignore", config.ignore),
     ):
-        _validate_selector_group(name=name, selectors=selectors, rules=rules)
+        _validate_selector_group(
+            name=name,
+            selectors=selectors,
+            rules=rules,
+            configured_rules=configured_rules,
+            analyzer=config.analyzer,
+        )
     for entry in config.rule_ignores:
-        _validate_selector_group(name="rule_ignores.rules", selectors=entry.rules, rules=rules)
+        _validate_selector_group(
+            name="rule_ignores.rules",
+            selectors=entry.rules,
+            rules=rules,
+            configured_rules=configured_rules,
+            analyzer=config.analyzer,
+        )
 
 
 def _validate_selector_group(
-    *, name: str, selectors: tuple[str, ...], rules: tuple[RuleSpec, ...]
+    *,
+    name: str,
+    selectors: tuple[str, ...],
+    rules: tuple[RuleSpec, ...],
+    configured_rules: tuple[RuleSpec, ...],
+    analyzer: AnalyzerId,
 ) -> None:
     for selector in selectors:
         if any(matches_rule_selector(code=rule.code, selector=selector) for rule in rules):
             continue
+        if any(
+            matches_rule_selector(code=rule.code, selector=selector) for rule in configured_rules
+        ):
+            selection: str = (
+                f"selects rule {selector}"
+                if is_rule_code(selector)
+                else f"contains selector {selector}"
+            )
+            raise ConfigError(
+                f"Config key {name} {selection}, but matching rules are not applicable to "
+                f"analyzer {analyzer.value}."
+            )
         raise ConfigError(
             f"Config key {name} contains selector {selector}, but it matches no rules in the "
             "configured catalogue. Activate the required rule pack, or correct or remove the "
@@ -513,7 +573,7 @@ def _validate_rule_identities(*, rules: tuple[RuleSpec, ...]) -> None:
             raise ConfigError(f"Catalogue rule {rule.code} must use one valid Family member.")
         expected_kind: RuleKind = (
             RuleKind.CORE
-            if rule.code.startswith("FF")
+            if rule.code.startswith(("FF", "FW"))
             else RuleKind.PACK
             if rule.code.startswith("FP")
             else RuleKind.CUSTOM

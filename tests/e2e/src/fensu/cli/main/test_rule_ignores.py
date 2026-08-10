@@ -57,8 +57,11 @@ from tests.e2e.src.fensu.cli.main.helpers import run_cli_check, write_project_fi
                 ),
             ),
             expected_exit_code=1,
-            expected_present_fragments=("context-visible=True", "src/pkg/generated.py:1:0"),
-            expected_absent_fragment="src/pkg/{generated,vendored}.py:1:0",
+            expected_present_fragments=(
+                "context-visible=True",
+                "src/pkg/{generated,vendored}.py:1:0",
+            ),
+            expected_absent_fragment="src/pkg/generated.py:1:0",
         )
     ],
     ids=lambda case: case.description,

@@ -3,5 +3,5 @@
 use crate::check::models::CleanupPlan;
 
 pub(crate) fn clean_caches(plan: &CleanupPlan) {
-    crate::check::_helpers::cleanup::cleanup_configured_roots(&plan.repository, &plan.config);
+    crate::check::_helpers::cleanup::cleanup_configured_roots(&plan.repository, &plan.configs);
 }

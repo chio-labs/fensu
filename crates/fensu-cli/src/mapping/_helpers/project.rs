@@ -5,9 +5,12 @@ use std::path::{Path, PathBuf};
 use fensu_facts::snapshot::main::walk_python_files::walk_python_files;
 use sha2::{Digest, Sha256};
 
+use crate::analyzer::AnalyzerId;
 use crate::configuration::main::load_optional;
+use crate::configuration::main::resolve_target_root::resolve_target_root;
 use crate::mapping::constants::INIT_MODULE;
 use crate::mapping::models::{MappingProject, MappingSource, SourceSnapshot};
+use crate::repository_io::main::relative_path::relative_path;
 
 const EXCLUDED: &[&str] = &[
     ".git",
@@ -24,14 +27,27 @@ const EXCLUDED: &[&str] = &[
     "venv",
 ];
 
-pub(crate) fn resolve(explicit_roots: &[String]) -> Result<MappingProject, String> {
+pub(crate) fn resolve(
+    explicit_roots: &[String],
+    target: Option<&str>,
+) -> Result<MappingProject, String> {
     let cwd = dunce::canonicalize(std::env::current_dir().map_err(|error| error.to_string())?)
         .map_err(|error| error.to_string())?;
     if !explicit_roots.is_empty() {
         let repo_root = find_project_root(&cwd);
-        let cache_enabled = match load_optional::load_optional(&cwd) {
-            Ok(Some((_, config))) => config.cache_enabled,
-            Ok(None) | Err(_) => true,
+        let (cache_enabled, analyzer) = match load_optional::load_optional(&cwd, target) {
+            Ok(Some((_, config))) => {
+                require_mapping_backend(config.analyzer)?;
+                (config.cache_enabled, config.analyzer)
+            }
+            Ok(None) if target.is_some() => {
+                return Err(format!(
+                    "Unknown target name: {}.",
+                    target.unwrap_or_default()
+                ));
+            }
+            Ok(None) => (true, AnalyzerId::Python),
+            Err(error) => return Err(error),
         };
         let mut sources: Vec<MappingSource> = Vec::new();
         for value in explicit_roots {
@@ -56,17 +72,24 @@ pub(crate) fn resolve(explicit_roots: &[String]) -> Result<MappingProject, Strin
             repo_root,
             sources,
             cache_enabled,
+            analyzer,
         });
     }
-    if let Some((path, loaded)) = load_optional::load_optional(&cwd)? {
+    if let Some((path, loaded)) = load_optional::load_optional(&cwd, target)? {
+        require_mapping_backend(loaded.analyzer)?;
         let repo_root = dunce::canonicalize(path.parent().unwrap_or(Path::new(".")))
             .map_err(|error| error.to_string())?;
-        let sources = configured_sources(&repo_root, &loaded)?;
+        let project_root = resolve_target_root(&repo_root, &loaded.target_root)?;
+        let sources = configured_sources(&project_root, &loaded)?;
         return Ok(MappingProject {
             repo_root,
             sources,
             cache_enabled: loaded.cache_enabled,
+            analyzer: loaded.analyzer,
         });
+    }
+    if let Some(target) = target {
+        return Err(format!("Unknown target name: {target}."));
     }
     let repo_root = find_project_root(&cwd);
     let source_root = if repo_root.join("src").is_dir() {
@@ -88,7 +111,18 @@ pub(crate) fn resolve(explicit_roots: &[String]) -> Result<MappingProject, Strin
             exclude_artifact_directories: true,
         }],
         cache_enabled: true,
+        analyzer: AnalyzerId::Python,
     })
+}
+
+fn require_mapping_backend(analyzer: AnalyzerId) -> Result<(), String> {
+    if analyzer == AnalyzerId::Python {
+        Ok(())
+    } else {
+        Err(format!(
+            "Map capability unavailable for analyzer {analyzer}: native mapping is not implemented."
+        ))
+    }
 }
 
 fn configured_sources(
@@ -138,7 +172,7 @@ fn resolve_configured_paths(repo_root: &Path, values: &[String]) -> Result<Vec<P
                 repo_root.join(configured)
             };
             let resolved = dunce::canonicalize(&joined).unwrap_or_else(|_| normalize_path(&joined));
-            if resolved.strip_prefix(repo_root).is_err() {
+            if relative_path(&resolved, repo_root).is_none() {
                 return Err(format!(
                     "Configured path must resolve inside the repository: {value}"
                 ));

@@ -4,6 +4,10 @@ use crate::catalogue::models::RuleMetadata;
 use crate::models::Config;
 use crate::skills::_helpers::content::option_rendering::rule_option_lines;
 
+const CONTRACTS_CONFIGURATION_INPUT: &str = "contracts";
+const TEST_LAYOUT_CONFIGURATION_INPUT: &str = "test_layout";
+const UI_KIT_CONFIGURATION_INPUT: &str = "ui_kit";
+
 pub(crate) fn tier_lines(heading: &str, rules: &[RuleMetadata], config: &Config) -> Vec<String> {
     let mut lines = vec![format!("## {heading}"), String::new()];
     if rules.is_empty() {
@@ -17,6 +21,26 @@ pub(crate) fn tier_lines(heading: &str, rules: &[RuleMetadata], config: &Config)
             format!("### {}: {}", rule.code, rule.slug),
             String::new(),
             format!("Family: `{}`", rule.family),
+            format!(
+                "Analyzers: {}",
+                rule.analyzers
+                    .iter()
+                    .map(|analyzer| format!("`{analyzer}`"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            format!(
+                "Frameworks: {}",
+                if rule.frameworks.is_empty() {
+                    "none".to_owned()
+                } else {
+                    rule.frameworks
+                        .iter()
+                        .map(|framework| format!("`{framework}`"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                }
+            ),
             String::new(),
             rule.message.clone(),
             String::new(),
@@ -60,10 +84,45 @@ fn rule_configuration_lines(rule: &RuleMetadata, config: &Config) -> Vec<String>
     let mut names = rule.configuration_inputs.iter().collect::<Vec<_>>();
     names.sort();
     for name in names {
+        if name == CONTRACTS_CONFIGURATION_INPUT {
+            let mut contracts = config.contracts.iter().collect::<Vec<_>>();
+            contracts.sort();
+            lines.push(format!(
+                "- `contracts`: {}",
+                contracts
+                    .iter()
+                    .map(|(pattern, behavior)| format!("`{pattern}` = `{behavior}`"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+            continue;
+        }
+        if name == UI_KIT_CONFIGURATION_INPUT {
+            lines.push(format!(
+                "- `ui_kit`: {}",
+                config.ui_kit.as_deref().unwrap_or("not configured")
+            ));
+            continue;
+        }
+        if matches!(name.as_str(), "framework" | "shadcn" | "openapi") {
+            let value = match name.as_str() {
+                "framework" => config.framework.as_deref(),
+                "shadcn" => config.shadcn.as_deref(),
+                "openapi" => config.openapi.as_deref(),
+                _ => None,
+            };
+            lines.push(format!("- `{name}`: {}", value.unwrap_or("not configured")));
+            continue;
+        }
+        if name == TEST_LAYOUT_CONFIGURATION_INPUT {
+            lines.push(format!("- `test_layout`: {}", config.test_layout));
+            continue;
+        }
         let values = match name.as_str() {
             "roots" => &config.roots,
             "tests" => &config.tests,
             "tooling" => &config.tooling,
+            "generated" => &config.generated,
             "test_scopes" => &config.test_scopes,
             _ => continue,
         };

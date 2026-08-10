@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from fensu.config._helpers.path_patterns import path_pattern_matches, path_pattern_specificity
+from fensu.config._helpers.path_patterns import matching_path_pattern_specificity
 from fensu.config.models import Config, ThresholdOverride, ThresholdResolution
 from fensu.rules.authoring.types import Threshold
 
@@ -19,10 +19,13 @@ def resolve_threshold(
         if name not in override.thresholds:
             continue
         for pattern in override.paths:
-            if not path_pattern_matches(pattern=pattern, path=path):
+            specificity: tuple[int, int, int, int] | None = matching_path_pattern_specificity(
+                pattern=pattern, path=path
+            )
+            if specificity is None:
                 continue
             candidate: tuple[tuple[int, int, int, int], int, ThresholdOverride, str] = (
-                path_pattern_specificity(pattern),
+                specificity,
                 declaration_order,
                 override,
                 pattern,

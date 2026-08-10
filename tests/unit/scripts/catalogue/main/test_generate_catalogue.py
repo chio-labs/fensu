@@ -9,6 +9,7 @@ import pytest
 
 from fensu.analysis.constants import NATIVE_FACT_MODULE_NAME
 from fensu.cli._helpers.rule_metadata import serialized_rule_catalogue
+from fensu.config.types import AnalyzerId
 from fensu.rules.catalog.constants import CORE_RULES, SHIPPED_RULES
 from fensu.rules.dagster.constants import FPDG_NATIVE_CODES
 from fensu.rules.exemplars.constants import NATIVE_CUSTOM_RULE_EQUIVALENTS
@@ -120,19 +121,28 @@ def test_given_core_rule_surfaces_when_comparing_registries_then_no_codes_drift(
     embedded_codes: set[str] = set(
         str(row["code"]) for row in filter(lambda row: row.get("pack") is None, embedded_rows)
     )
+    python_codes: set[str] = {
+        rule.code for rule in filter(lambda item: AnalyzerId.PYTHON in item.analyzers, CORE_RULES)
+    }
     native_codes: set[str] = {code for code, _ in native.native_rule_fact_families()}.difference(
         FPDG_NATIVE_CODES
     )
     expected_policy_owners: set[str] = set(
-        rule.code for rule in filter(lambda rule: bool(rule.constraints or rule.limits), CORE_RULES)
+        rule.code
+        for rule in filter(
+            lambda rule: (
+                AnalyzerId.PYTHON in rule.analyzers and bool(rule.constraints or rule.limits)
+            ),
+            CORE_RULES,
+        )
     )
     generated_policy_owners: set[str] = set(native.native_generated_policy_owners())
     exemplar_codes: set[str] = set(NATIVE_CUSTOM_RULE_EQUIVALENTS)
     surfaces: tuple[tuple[str, set[str], set[str]], ...] = (
         ("embedded", core_codes, embedded_codes),
-        ("native", core_codes, native_codes),
+        ("native", python_codes, native_codes),
         ("generated-policy", expected_policy_owners, generated_policy_owners),
-        ("exemplar", core_codes, exemplar_codes),
+        ("exemplar", python_codes, exemplar_codes),
     )
     mismatch_rows: list[str] = []
     for surface, expected, actual in surfaces:

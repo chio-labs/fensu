@@ -12,7 +12,10 @@ use crate::skills::_helpers::installation::filesystem::{
     capture_bundle, normalization_collision, safe_read, sorted_entries,
 };
 use crate::skills::_helpers::installation::plan::skills_directory;
-use crate::skills::models::{FreshnessIssue, FreshnessReason, FreshnessResult, InstallPlan};
+use crate::skills::models::{
+    FreshnessIssue, FreshnessReason, FreshnessResult, GeneratedSkillMigration, InstallPlan,
+    Ownership,
+};
 
 pub(crate) fn check(plan: &InstallPlan, authoritative: bool) -> Result<FreshnessResult, String> {
     let expected = if authoritative {
@@ -43,10 +46,47 @@ pub(crate) fn check(plan: &InstallPlan, authoritative: bool) -> Result<Freshness
     if authoritative {
         result = inspect_project_targets(plan, result)?;
     }
+    result = inspect_migrations(plan, result)?;
     result.inspected_paths.sort();
     result
         .issues
         .sort_by(|left, right| left.path.cmp(&right.path));
+    Ok(result)
+}
+
+fn inspect_migrations(
+    plan: &InstallPlan,
+    mut result: FreshnessResult,
+) -> Result<FreshnessResult, String> {
+    for migration in &plan.migrations {
+        if plan
+            .targets
+            .iter()
+            .any(|target| target.path == migration.path)
+        {
+            continue;
+        }
+        let Some(content) = safe_read(&migration.path)? else {
+            continue;
+        };
+        if !generated_marker_present(&content) {
+            continue;
+        }
+        let Some(ownership) = parse_ownership(&content) else {
+            continue;
+        };
+        let current = ownership.identity == migration.identity
+            && ownership.owner == migration.owner
+            && content_fingerprint_matches(&content, &ownership);
+        let legacy = legacy_ownership_matches(&content, &ownership, &migration.identity);
+        if current || legacy {
+            result.inspected_paths.push(migration.path.clone());
+            result.issues.push(FreshnessIssue {
+                path: migration.path.clone(),
+                reason: FreshnessReason::Stale,
+            });
+        }
+    }
     Ok(result)
 }
 
@@ -71,6 +111,9 @@ fn inspect_generated(
         return Ok(authoritative.then_some(FreshnessReason::MalformedMarker));
     };
     if ownership.identity != plan.context.identity {
+        if matching_migration(plan, path, &content, &ownership) {
+            return Ok(Some(FreshnessReason::Stale));
+        }
         return Ok(authoritative.then_some(FreshnessReason::Collision));
     }
     if ownership.schema == LEGACY_OWNERSHIP_SCHEMA {
@@ -95,6 +138,28 @@ fn inspect_generated(
         return Ok(Some(FreshnessReason::Divergent));
     }
     Ok(None)
+}
+
+fn matching_migration(
+    plan: &InstallPlan,
+    path: &Path,
+    content: &[u8],
+    ownership: &Ownership,
+) -> bool {
+    plan.migrations
+        .iter()
+        .any(|migration| migration.path == path && migration_matches(migration, content, ownership))
+}
+
+fn migration_matches(
+    migration: &GeneratedSkillMigration,
+    content: &[u8],
+    ownership: &Ownership,
+) -> bool {
+    generated_marker_present(content)
+        && ownership.identity == migration.identity
+        && ownership.owner == migration.owner
+        && content_fingerprint_matches(content, ownership)
 }
 
 fn inspect_project_targets(

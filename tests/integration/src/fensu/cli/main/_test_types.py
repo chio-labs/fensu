@@ -18,6 +18,26 @@ class CheckCommandTestCase:
 
 
 @dataclass(frozen=True)
+class UnavailableAnalyzerHostTestCase:
+    """Unavailable target analyzer and expected fail-closed host error."""
+
+    description: str
+    analyzer: str
+    expected_exit_code: int
+    expected_error_fragment: str
+
+
+@dataclass(frozen=True)
+class AggregateAnalyzerPreflightTestCase:
+    """Aggregate target ordering and expected analyzer preflight result."""
+
+    description: str
+    expected_exit_code: int
+    expected_error_fragment: str
+    expected_absent_fragment: str
+
+
+@dataclass(frozen=True)
 class CheckColorTestCase:
     """CLI check command color mode and expected ANSI styling."""
 
@@ -100,6 +120,51 @@ class CheckErrorTestCase:
 
 
 @dataclass(frozen=True)
+class TargetCheckTestCase:
+    """Named custom-rule target selection and expected diagnostics."""
+
+    description: str
+    argv: tuple[str, ...]
+    expected_exit_code: int
+    expected_stdout_fragment: str
+    expected_stderr_fragment: str
+
+
+@dataclass(frozen=True)
+class MultiTargetCacheCheckTestCase:
+    """All-target custom-host cache modes and expected aggregate observations."""
+
+    description: str
+    beta_cache_enabled: bool
+    argv: tuple[str, ...]
+    expected_cold_stats: str
+    expected_warm_stats: str
+    expected_database_count: int
+
+
+@dataclass(frozen=True)
+class MultiTargetThresholdOrderTestCase:
+    """Cross-process aggregate threshold ordering expectations."""
+
+    description: str
+    expected_first: str
+    expected_second: str
+    expected_exit_code: int
+
+
+@dataclass(frozen=True)
+class CanonicalAliasCheckTestCase:
+    """Internal target alias and canonical repository-visible diagnostics."""
+
+    description: str
+    expected_exit_code: int
+    expected_present: str
+    expected_alias_absent: str
+    expected_double_prefix_absent: str
+    expected_stderr: str
+
+
+@dataclass(frozen=True)
 class CustomRuleCoverageTestCase:
     """Configured custom rules and expected source-owned FFR707 diagnostics."""
 
@@ -147,6 +212,16 @@ class EvaluationCheckTestCase:
     expected_evaluation_footer: str
     expected_fault_fragment: str
     expected_absent_fragment: str
+
+
+@dataclass(frozen=True)
+class StructuredHostCheckTestCase:
+    """Versioned hosted-check result expectations."""
+
+    description: str
+    expected_code: str
+    expected_warning: bool
+    expected_selected: int
 
 
 @dataclass(frozen=True)

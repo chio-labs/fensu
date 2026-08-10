@@ -15,6 +15,18 @@ pub(crate) const DEFAULT_THRESHOLDS: &[(&str, u32)] = &[
     ("max_script_entrypoint_lines", 80),
     ("min_shared_domain_prefix_packages", 2),
     ("min_custom_rule_test_cases", 1),
+    ("max_imported_bindings", 20),
+    ("max_public_exports", 20),
+    ("max_route_script_lines", 200),
+    ("max_component_script_lines", 250),
+    ("max_state_lines", 300),
+    ("max_state_public_members", 20),
+    ("max_state_cells", 15),
+    ("max_total_runes", 20),
+    ("max_state_functions", 15),
+    ("max_resource_families", 1),
+    ("max_api_lines", 200),
+    ("max_api_exports", 3),
 ];
 
 #[rustfmt::skip]
@@ -29,6 +41,12 @@ pub(crate) const DEFAULT_CONTRACTS: &[(&str, &str)] = &[
     ("to_*", "returns-value"),
     ("as_*", "returns-value"),
     ("iter_*", "returns-iterator"),
+];
+
+#[rustfmt::skip]
+pub(crate) const WEB_DEFAULT_CONTRACTS: &[(&str, &str)] = &[
+    ("should_*", "returns-bool"),
+    ("iterate_*", "returns-iterator"),
 ];
 
 #[rustfmt::skip]
@@ -60,7 +78,7 @@ pub(crate) const DEFAULT_CACHE_ENABLED: bool = true;
 
 pub(crate) const DEFAULT_CACHE_REQUIRE_CACHEABLE: bool = false;
 
-pub(crate) const SKILLS_METADATA_PROTOCOL_VERSION: u32 = 3;
+pub(crate) const SKILLS_METADATA_PROTOCOL_VERSION: u32 = 4;
 
 #[rustfmt::skip]
 pub(crate) const CONFIG_ROLE_NAMES: &[&str] = &[
@@ -84,8 +102,15 @@ pub(crate) const CONTRACT_BEHAVIORS: &[&str] = &[
 
 #[rustfmt::skip]
 pub(crate) const RULE_CONFIGURATION_INPUTS: &[&str] = &[
+    "contracts",
+    "framework",
+    "generated",
+    "openapi",
     "roots",
+    "shadcn",
+    "test_layout",
     "test_scopes",
     "tests",
     "tooling",
+    "ui_kit",
 ];

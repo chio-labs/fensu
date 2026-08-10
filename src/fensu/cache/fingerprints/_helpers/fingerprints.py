@@ -33,6 +33,7 @@ from fensu.cache.fingerprints.models import CacheFingerprint
 from fensu.cache.fingerprints.types import CanonicalValue
 from fensu.cache.storage.constants import CACHE_SCHEMA_VERSION
 from fensu.config.models import Config, RuleExceptionEntry
+from fensu.config.types import AnalyzerId
 from fensu.instrumentation.constants import CANONICAL_ENCODE_OPERATION, OPERATION_COUNTERS
 from fensu.rules.authoring.constants import MISSING
 from fensu.rules.authoring.models import RuleOption, RuleSpec
@@ -65,6 +66,7 @@ def config_fingerprint(config: Config) -> CacheFingerprint:
     """Return a deterministic identity for semantic evaluation configuration."""
 
     payload: CanonicalValue = {
+        "analyzer": config.analyzer,
         "contracts": dict(sorted(config.contracts.items())),
         "evaluation": {
             "exclude": list(config.evaluation.exclude),
@@ -86,6 +88,8 @@ def config_fingerprint(config: Config) -> CacheFingerprint:
         "skills": {"name": config.skills.name},
         "test_scopes": list(config.test_scopes),
         "tests": list(config.tests),
+        "target": config.target,
+        "target_root": config.target_root,
         "threshold_overrides": [
             {
                 "paths": list(item.paths),
@@ -98,6 +102,8 @@ def config_fingerprint(config: Config) -> CacheFingerprint:
         "tooling": list(config.tooling),
         "warn": list(config.warn),
     }
+    if config.analyzer != AnalyzerId.PYTHON:
+        payload["test_layout"] = config.test_layout
     return canonical_fingerprint(payload)
 
 
@@ -125,6 +131,7 @@ def _rule_spec_value(
         "kind": rule.kind.value,
         "pack": rule.pack,
         "alias_of": rule.alias_of,
+        "analyzers": [analyzer.value for analyzer in rule.analyzers],
         "message": rule.message,
         "options": _rule_option_schemas(rule.options),
         "remediation": rule.remediation,
@@ -301,6 +308,7 @@ def global_fingerprint(
     ruleset: CacheFingerprint,
     custom_rules: CacheFingerprint,
     native_backend_version: str,
+    analyzer_contract: str = "python-ruff-py312-v1",
     warnings_enabled: bool = False,
     fensu_version: str | None = None,
 ) -> CacheFingerprint:
@@ -308,6 +316,7 @@ def global_fingerprint(
 
     payload: CanonicalValue = {
         "config": config.value,
+        "analyzer_contract": analyzer_contract,
         "custom_rules": custom_rules.value,
         "evaluation_contract_version": EVALUATION_FINGERPRINT_CONTRACT_VERSION,
         "native_backend_version": native_backend_version,

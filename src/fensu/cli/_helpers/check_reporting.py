@@ -32,18 +32,51 @@ def write_check_diagnostics(
         show_stats=show_stats,
         disabled_reason=disabled_reason,
     )
-    if stats is not None:
-        undeclared: tuple[str, ...] = undeclared_cacheable_codes(
-            rules=(*selection.blocking, *selection.warnings),
-            allowed_packages=frozenset(
-                name.partition(".")[0] for name in loaded.config.rule_modules
-            ),
+    write_check_cacheability_diagnostics(
+        loaded=loaded,
+        selection=selection,
+        stderr=stderr,
+        cache_attempted=stats is not None,
+    )
+
+
+def write_check_cacheability_diagnostics(
+    *,
+    loaded: LoadedConfig,
+    selection: RuleSelection,
+    stderr: TextIO,
+    cache_attempted: bool,
+) -> None:
+    """Write custom-rule cacheability advice without cache operation status."""
+
+    if not cache_attempted:
+        return
+    undeclared: tuple[str, ...] = cacheability_advice_codes(
+        loaded=loaded,
+        selection=selection,
+        cache_attempted=cache_attempted,
+    )
+    if undeclared:
+        stderr.write(
+            "Custom rules appear cacheable; declare cacheable=True to enable "
+            f"caching for them: {', '.join(undeclared)}\n"
         )
-        if undeclared:
-            stderr.write(
-                "Custom rules appear cacheable; declare cacheable=True to enable "
-                f"caching for them: {', '.join(undeclared)}\n"
-            )
+
+
+def cacheability_advice_codes(
+    *,
+    loaded: LoadedConfig,
+    selection: RuleSelection,
+    cache_attempted: bool,
+) -> tuple[str, ...]:
+    """Return deterministic undeclared-cacheable custom rule codes."""
+
+    if not cache_attempted:
+        return ()
+    return undeclared_cacheable_codes(
+        rules=(*selection.blocking, *selection.warnings),
+        allowed_packages=frozenset(name.partition(".")[0] for name in loaded.config.rule_modules),
+    )
 
 
 def render_check_result(

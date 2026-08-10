@@ -28,6 +28,10 @@ pub(crate) fn write(path: impl AsRef<Path>, contents: &str) {
     write_bytes(path, contents.as_bytes());
 }
 
+pub(crate) fn write_optional_config(root: &Path, contents: Option<&str>) {
+    let _ = contents.map(|value| write(root.join("fensu.toml"), value));
+}
+
 pub(crate) fn write_bytes(path: impl AsRef<Path>, contents: &[u8]) {
     let path = path.as_ref();
     fs::create_dir_all(path.parent().expect("fixture parent")).expect("fixture directory");

@@ -31,6 +31,7 @@ pub(crate) struct SkillOptions {
     pub(crate) force: bool,
     pub(crate) check: bool,
     pub(crate) install_root: Option<String>,
+    pub(crate) config_target: Option<String>,
     pub(crate) help: bool,
 }
 
@@ -47,6 +48,8 @@ pub(crate) struct SkillContext {
     pub(crate) warnings: Vec<RuleMetadata>,
     pub(crate) ignored: Vec<RuleMetadata>,
     pub(crate) config: Config,
+    pub(crate) targets: Vec<SkillContext>,
+    pub(crate) migration_contexts: Vec<SkillContext>,
 }
 
 #[derive(Clone, Debug)]
@@ -87,9 +90,17 @@ pub(crate) struct InstallPlan {
     pub(crate) targets: Vec<InstallTarget>,
     pub(crate) project_targets: Vec<ProjectInstallTarget>,
     pub(crate) legacy_paths: Vec<PathBuf>,
+    pub(crate) migrations: Vec<GeneratedSkillMigration>,
     pub(crate) owner: String,
     pub(crate) input_fingerprint: String,
     pub(crate) synchronize_project_skills: bool,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct GeneratedSkillMigration {
+    pub(crate) path: PathBuf,
+    pub(crate) identity: String,
+    pub(crate) owner: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

@@ -20,22 +20,33 @@ use crate::check::_helpers::rule_policy::{
     display_codes_by_implementation, resolved_thresholds, selected_rules, validate_config_tiers,
     validate_unique_implementations,
 };
-use crate::check::models::EvaluationRequest;
+use crate::check::models::{CheckResult, EvaluationRequest};
+use crate::check::web_policy::{self, WebPolicyRequest};
 use crate::constants::SCOPE_TEST;
 use crate::models::{Config, Fault, ScopedSource, ThresholdUse};
 use crate::reporting::main::report::report;
 use crate::reporting::models::ReportRequest;
 
-pub(crate) fn evaluate_and_render(request: EvaluationRequest<'_>) -> Result<(String, i32), String> {
+pub(crate) fn evaluate(request: EvaluationRequest<'_>) -> Result<CheckResult, String> {
     let EvaluationRequest {
-        root,
+        project_root,
         config,
         sources,
+        project_inputs,
         excluded,
         show_warnings,
-        color,
     } = request;
     validate_config_tiers(config)?;
+    if config.analyzer != crate::analyzer::AnalyzerId::Python {
+        return evaluate_parser_target(EvaluationRequest {
+            project_root,
+            config,
+            sources,
+            project_inputs,
+            excluded,
+            show_warnings,
+        });
+    }
     let blocking = selected_rules(config, &config.select, &config.ignore)?;
     let warning_rules = if show_warnings {
         selected_rules(config, &config.warn, &config.ignore)?
@@ -50,14 +61,14 @@ pub(crate) fn evaluate_and_render(request: EvaluationRequest<'_>) -> Result<(Str
         .map(|rule| rule.code.as_str())
         .collect::<HashSet<_>>();
     let codes_by_source = owner_plan(sources, &all_rules)?;
-    let project = project_plane(root, config, sources)?;
+    let project = project_plane(project_root, config, sources)?;
     let program_by_path = sources
         .iter()
-        .map(|source| (source.repository_path.as_str(), program(source)))
+        .map(|source| (source.target_path.as_str(), program(source)))
         .collect::<HashMap<_, _>>();
     let mut program_by_module: HashMap<String, &ProgramHandle> = HashMap::new();
     for source in sources.iter().filter(|source| source.scope != SCOPE_TEST) {
-        program_by_module.insert(source_module_name(source, root), program(source));
+        program_by_module.insert(source_module_name(source, project_root), program(source));
     }
     let warning_codes = warning_rules
         .iter()
@@ -76,7 +87,7 @@ pub(crate) fn evaluate_and_render(request: EvaluationRequest<'_>) -> Result<(Str
                 role: role(source),
                 is_main_module: is_main_module(source),
                 thresholds,
-                repository_path: source.repository_path.clone(),
+                repository_path: source.target_path.clone(),
                 contracts: config.contracts.clone(),
                 relative_parts: source.relative_parts.clone(),
                 is_entry_module: is_entry_module(source),
@@ -86,11 +97,12 @@ pub(crate) fn evaluate_and_render(request: EvaluationRequest<'_>) -> Result<(Str
                 test_scopes: config.test_scopes.clone(),
                 observations: HashMap::new(),
                 custom_registrations: Vec::new(),
-                repo_root: root.to_string_lossy().into_owned(),
+                repo_root: project_root.to_string_lossy().into_owned(),
                 rule_options: native_rule_options(codes, config)?,
             };
             let plans = plan_core_rule_queries(program(source), &implementation_codes, &context);
-            context.observations = observe(root, &plans, &program_by_path, &program_by_module);
+            context.observations =
+                observe(project_root, &plans, &program_by_path, &program_by_module)?;
             let rows =
                 evaluate_core_rules(program(source), &implementation_codes, &context, &project)?;
             let mut faults: Vec<Fault> = Vec::new();
@@ -100,12 +112,12 @@ pub(crate) fn evaluate_and_render(request: EvaluationRequest<'_>) -> Result<(Str
                 })?;
                 let metadata = rule_metadata(display_code)?
                     .ok_or_else(|| format!("Unknown native rule code: {display_code}"))?;
-                let path = row.path.unwrap_or_else(|| source.repository_path.clone());
+                let path = row.path.unwrap_or_else(|| source.target_path.clone());
                 faults.push(Fault {
                     warning: warning_codes.contains(display_code.as_str()),
                     code: display_code.clone(),
                     alias_of: metadata.alias_of.clone(),
-                    path: root.join(path).to_string_lossy().into_owned(),
+                    path: project_root.join(path).to_string_lossy().into_owned(),
                     line: Some(row.line),
                     column: Some(row.column),
                     message: row.message.unwrap_or_else(|| metadata.message.clone()),
@@ -139,11 +151,11 @@ pub(crate) fn evaluate_and_render(request: EvaluationRequest<'_>) -> Result<(Str
     let (faults, applied) = apply_exceptions(ApplyExceptionsRequest {
         faults,
         sources,
-        root,
+        project_root,
         evaluated_codes: &evaluated_codes,
         config,
     })?;
-    let faults = apply_rule_ignores(faults, root, config);
+    let faults = apply_rule_ignores(faults, project_root, config);
     let blocking_faults = faults
         .iter()
         .filter(|fault| !fault.warning)
@@ -154,25 +166,199 @@ pub(crate) fn evaluate_and_render(request: EvaluationRequest<'_>) -> Result<(Str
         .filter(|fault| fault.warning)
         .cloned()
         .collect::<Vec<_>>();
-    let summary = (excluded > 0).then(|| {
-        format!(
-            "Evaluation: {} of {} Python files ({} excluded by config)",
-            sources.len(),
-            sources.len() + excluded,
-            excluded
+    Ok(CheckResult {
+        analyzer: config.analyzer,
+        faults: blocking_faults,
+        warnings,
+        selected: sources.len(),
+        excluded,
+        applied_exceptions: applied,
+        threshold_uses: uses,
+    })
+}
+
+fn evaluate_parser_target(request: EvaluationRequest<'_>) -> Result<CheckResult, String> {
+    let EvaluationRequest {
+        project_root,
+        config,
+        sources,
+        project_inputs,
+        excluded,
+        show_warnings,
+    } = request;
+    if !config.rule_paths.is_empty()
+        || !config.rule_modules.is_empty()
+        || !config.rule_options.is_empty()
+    {
+        return Err(format!(
+            "Native {} check integration does not support Python-hosted rule paths, modules, or options.",
+            config.analyzer
+        ));
+    }
+    let blocking = selected_rules(config, &config.select, &config.ignore)?;
+    let warning_rules = if show_warnings {
+        selected_rules(config, &config.warn, &config.ignore)?
+    } else {
+        Vec::new()
+    };
+    let mut all_rules = blocking.clone();
+    all_rules.extend(warning_rules.iter().copied());
+    validate_unique_implementations(&all_rules)?;
+    let selected_codes = all_rules
+        .iter()
+        .map(|rule| rule.code.as_str())
+        .collect::<HashSet<_>>();
+    let warning_codes = warning_rules
+        .iter()
+        .map(|rule| rule.code.as_str())
+        .collect::<HashSet<_>>();
+    let code_values = all_rules
+        .iter()
+        .map(|rule| rule.code.clone())
+        .collect::<Vec<_>>();
+    let mut threshold_values: HashMap<(String, String), u32> = HashMap::new();
+    let mut uses: Vec<ThresholdUse> = Vec::new();
+    for source in sources {
+        let (values, source_uses) = resolved_thresholds(source, config, &code_values)?;
+        for (name, value) in values {
+            threshold_values.insert((source.target_path.clone(), name), value);
+        }
+        uses.extend(source_uses);
+    }
+    let rows = web_policy::evaluate(WebPolicyRequest {
+        config,
+        sources,
+        project_inputs,
+        selected_codes: &selected_codes,
+        thresholds: &threshold_values,
+    });
+    let mut faults: Vec<Fault> = Vec::with_capacity(rows.len());
+    for row in rows {
+        let metadata = rule_metadata(row.code)?
+            .ok_or_else(|| format!("Unknown native web rule code: {}", row.code))?;
+        faults.push(Fault {
+            warning: warning_codes.contains(row.code),
+            code: row.code.to_owned(),
+            alias_of: None,
+            path: project_root.join(row.path).to_string_lossy().into_owned(),
+            line: row.line,
+            column: row.column,
+            message: row.message,
+            remediation: metadata.remediation.clone(),
+        });
+    }
+    let evaluated_codes = selected_codes;
+    let (faults, applied) = apply_exceptions(ApplyExceptionsRequest {
+        faults,
+        sources,
+        project_root,
+        evaluated_codes: &evaluated_codes,
+        config,
+    })?;
+    let faults = apply_rule_ignores(faults, project_root, config);
+    let blocking_faults: Vec<Fault> = faults
+        .iter()
+        .filter(|fault| !fault.warning)
+        .cloned()
+        .collect();
+    let warnings: Vec<Fault> = faults
+        .iter()
+        .filter(|fault| fault.warning)
+        .cloned()
+        .collect();
+    uses.sort();
+    uses.dedup();
+    Ok(CheckResult {
+        analyzer: config.analyzer,
+        faults: blocking_faults,
+        warnings,
+        selected: sources
+            .iter()
+            .filter(|source| {
+                source.purpose.is_direct()
+                    || config.analyzer == crate::analyzer::AnalyzerId::Svelte
+                        && source.purpose == crate::models::SourcePurpose::Support
+                        && crate::check::_helpers::project::is_direct_source(
+                            &source.path,
+                            crate::analyzer::AnalyzerId::TypeScript,
+                        )
+            })
+            .count(),
+        excluded,
+        applied_exceptions: applied,
+        threshold_uses: uses,
+    })
+}
+
+pub(crate) fn render_results(
+    mut results: Vec<CheckResult>,
+    root: &Path,
+    color: bool,
+    show_warnings: bool,
+) -> (String, i32) {
+    let selected = results.iter().map(|result| result.selected).sum::<usize>();
+    let excluded = results.iter().map(|result| result.excluded).sum::<usize>();
+    let applied_exceptions = results
+        .iter()
+        .map(|result| result.applied_exceptions)
+        .sum::<usize>();
+    let python_only = results
+        .iter()
+        .all(|result| result.analyzer == crate::analyzer::AnalyzerId::Python);
+    let mut faults = results
+        .iter_mut()
+        .flat_map(|result| std::mem::take(&mut result.faults))
+        .collect::<Vec<_>>();
+    let mut warnings = results
+        .iter_mut()
+        .flat_map(|result| std::mem::take(&mut result.warnings))
+        .collect::<Vec<_>>();
+    let mut threshold_uses = results
+        .iter_mut()
+        .flat_map(|result| std::mem::take(&mut result.threshold_uses))
+        .collect::<Vec<_>>();
+    let fault_order = |left: &Fault, right: &Fault| {
+        (
+            &left.path,
+            left.line.unwrap_or(0),
+            left.column.unwrap_or(0),
+            &left.code,
         )
+            .cmp(&(
+                &right.path,
+                right.line.unwrap_or(0),
+                right.column.unwrap_or(0),
+                &right.code,
+            ))
+    };
+    faults.sort_by(fault_order);
+    warnings.sort_by(fault_order);
+    threshold_uses.sort();
+    threshold_uses.dedup();
+    let summary = (excluded > 0).then(|| {
+        if python_only {
+            format!(
+                "Evaluation: {selected} of {} Python files ({excluded} excluded by config)",
+                selected + excluded
+            )
+        } else {
+            format!(
+                "Evaluation: {selected} of {} source files ({excluded} excluded by config)",
+                selected + excluded
+            )
+        }
     });
     let output = report(ReportRequest {
-        faults: &blocking_faults,
+        faults: &faults,
         warnings: &warnings,
         root,
         color,
         show_warnings,
         evaluation_summary: summary.as_deref(),
-        applied_exceptions: applied,
-        threshold_uses: &uses,
+        applied_exceptions,
+        threshold_uses: &threshold_uses,
     });
-    Ok((output, i32::from(!blocking_faults.is_empty())))
+    (output, i32::from(!faults.is_empty()))
 }
 
 fn native_rule_options(
@@ -247,7 +433,7 @@ pub(crate) fn owner_plan(
     let targets: Vec<NativeExecutionTarget> = sources
         .iter()
         .map(|source| NativeExecutionTarget {
-            repository_path: source.repository_path.clone(),
+            repository_path: source.target_path.clone(),
             scope: source.scope.clone(),
             root: source.root_text.clone(),
             relative_parts: source.relative_parts.clone(),

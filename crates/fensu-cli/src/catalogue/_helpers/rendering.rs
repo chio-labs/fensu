@@ -83,13 +83,19 @@ pub(crate) fn render_configuration_inputs(
     output
 }
 
-fn configuration_values<'a>(name: &str, config: &'a Config) -> &'a [String] {
+fn configuration_values(name: &str, config: &Config) -> Vec<String> {
     match name {
-        "roots" => &config.roots,
-        "tests" => &config.tests,
-        "tooling" => &config.tooling,
-        "test_scopes" => &config.test_scopes,
-        _ => &[],
+        "roots" => config.roots.clone(),
+        "tests" => config.tests.clone(),
+        "tooling" => config.tooling.clone(),
+        "test_scopes" => config.test_scopes.clone(),
+        "test_layout" => vec![config.test_layout.to_string()],
+        "generated" => config.generated.clone(),
+        "ui_kit" => config.ui_kit.iter().cloned().collect(),
+        "framework" => config.framework.iter().cloned().collect(),
+        "shadcn" => config.shadcn.iter().cloned().collect(),
+        "openapi" => config.openapi.iter().cloned().collect(),
+        _ => Vec::new(),
     }
 }
 
@@ -176,12 +182,28 @@ pub(crate) fn render_metadata(mut output: String, metadata: &RuleMetadata, color
         Some(false) => "false",
         Some(true) => "true",
     };
+    let mut analyzers = metadata
+        .analyzers
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>();
+    analyzers.sort();
+    let analyzer_text = analyzers.join(", ");
+    let framework_text = if metadata.frameworks.is_empty() {
+        "None".to_owned()
+    } else {
+        let mut frameworks = metadata.frameworks.clone();
+        frameworks.sort();
+        frameworks.join(", ")
+    };
     for (label, value) in [
         ("Family", metadata.family.as_str()),
         ("Severity", metadata.severity.as_str()),
         ("Kind", metadata.kind.as_str()),
         ("Pack", metadata.pack.as_deref().unwrap_or("None")),
         ("Alias", metadata.alias_of.as_deref().unwrap_or("None")),
+        ("Analyzers", analyzer_text.as_str()),
+        ("Frameworks", framework_text.as_str()),
         ("Enabled by default", yes_no(metadata.enabled_by_default)),
         ("Execution owner", metadata.execution_owner.as_str()),
         ("Cacheability", cacheable),

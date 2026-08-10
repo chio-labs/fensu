@@ -97,10 +97,10 @@ def test_given_invalid_rule_ignore_when_loading_then_raises_validation_error(
             expected_error_fragment="evaluation.include must be a list",
         ),
         InvalidConfigTestCase(
-            description="evaluation exclude list must not be empty",
-            config_text='roots = ["src/pkg"]\n[evaluation]\nexclude = []\n',
+            description="evaluation include list must not be empty",
+            config_text='roots = ["src/pkg"]\n[evaluation]\ninclude = []\n',
             expected_error_type=ConfigValidationError,
-            expected_error_fragment="evaluation.exclude must not be empty",
+            expected_error_fragment="evaluation.include must not be empty",
         ),
         InvalidConfigTestCase(
             description="evaluation patterns must be nonempty strings",
@@ -149,6 +149,18 @@ def test_given_invalid_rule_ignore_when_loading_then_raises_validation_error(
             config_text='roots = ["src/pkg"]\n[evaluation]\ninclude = ["src/**/**/file.py"]\n',
             expected_error_type=ConfigValidationError,
             expected_error_fragment="repository-relative POSIX glob",
+        ),
+        InvalidConfigTestCase(
+            description="evaluation rejects unmatched opening brace",
+            config_text='roots = ["src/pkg"]\n[evaluation]\ninclude = ["src/**/*.{py,pyi"]\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="unmatched opening brace",
+        ),
+        InvalidConfigTestCase(
+            description="evaluation rejects empty brace alternative",
+            config_text='roots = ["src/pkg"]\n[evaluation]\ninclude = ["src/**/*.{py,}"]\n',
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="at least two non-empty alternatives",
         ),
     ],
     ids=lambda case: case.description,

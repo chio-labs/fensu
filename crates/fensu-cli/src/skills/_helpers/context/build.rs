@@ -1,9 +1,11 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
-use crate::configuration::main::load;
+use crate::configuration::main::resolve_target_root::resolve_target_root;
 use crate::configuration::main::validate_exception_targets::validate_exception_targets;
+use crate::configuration::main::{load_target, load_targets};
 use crate::models::Config;
+use crate::repository_io::main::relative_path::relative_path;
 use crate::skills::_helpers::context::{exceptions, identity, selection};
 use crate::skills::models::{SkillContext, SkillOptions};
 
@@ -11,30 +13,49 @@ const ROOT_SCOPE: &str = "roots";
 const RUNTIME_SCOPE_LABEL: &str = "Runtime";
 
 pub(crate) fn build(invocation: &Path, options: &SkillOptions) -> Result<SkillContext, String> {
-    let invocation = invocation
-        .canonicalize()
-        .map_err(|error| error.to_string())?;
-    let (config_path, config) = load::load(&invocation)?;
-    let config_path = config_path
-        .canonicalize()
+    let invocation = dunce::canonicalize(invocation).map_err(|error| error.to_string())?;
+    if options.config_target.is_some() {
+        let loaded = load_target::load_target(&invocation, options.config_target.as_deref())?;
+        return build_loaded(&invocation, options, loaded);
+    }
+    let loaded = load_targets::load_targets(&invocation, None)?;
+    let mut contexts = loaded
+        .into_iter()
+        .map(|target| build_loaded(&invocation, options, target))
+        .collect::<Result<Vec<_>, _>>()?;
+    if contexts.len() == 1 {
+        return contexts
+            .pop()
+            .ok_or_else(|| "No configured target was loaded.".to_owned());
+    }
+    aggregate(&invocation, options, contexts)
+}
+
+fn build_loaded(
+    invocation: &Path,
+    options: &SkillOptions,
+    loaded: (PathBuf, Config),
+) -> Result<SkillContext, String> {
+    let (config_path, config) = loaded;
+    let config_path = dunce::canonicalize(&config_path)
         .map_err(|error| format!("Could not resolve {}: {error}", config_path.display()))?;
-    let project_root = config_path
+    let repository_root = config_path
         .parent()
         .ok_or_else(|| "Configuration has no parent directory.".to_owned())?
         .to_path_buf();
+    let project_root = resolve_target_root(&repository_root, &config.target_root)?;
     selection::validate_config_policy(&config)?;
     validate_layout(&config, &project_root)?;
     let git_root = identity::find_git_root(&project_root);
     let install_root = identity::resolve_install_root(
         options.install_root.as_deref(),
         &project_root,
-        &invocation,
+        invocation,
         git_root.as_deref(),
     )?;
-    let project_prefix = match project_root.strip_prefix(&install_root) {
-        Ok(path) => path.to_string_lossy().replace('\\', "/"),
-        Err(_) => String::new(),
-    };
+    let project_prefix = relative_path(&project_root, &install_root)
+        .map(|path| path.to_string_lossy().replace('\\', "/"))
+        .unwrap_or_default();
     let identity =
         identity::resolve_identity(&config, &config_path, &project_root, git_root.as_deref())?;
     let selection = selection::selection(&config, &project_root)?;
@@ -52,7 +73,67 @@ pub(crate) fn build(invocation: &Path, options: &SkillOptions) -> Result<SkillCo
         warnings: selection.warnings,
         ignored: selection.ignored,
         config,
+        targets: Vec::new(),
+        migration_contexts: Vec::new(),
     })
+}
+
+fn aggregate(
+    invocation: &Path,
+    options: &SkillOptions,
+    mut targets: Vec<SkillContext>,
+) -> Result<SkillContext, String> {
+    let mut context = targets
+        .first()
+        .cloned()
+        .ok_or_else(|| "No configured target was loaded.".to_owned())?;
+    let repository_root = context
+        .config_path
+        .parent()
+        .ok_or_else(|| "Configuration has no parent directory.".to_owned())?
+        .to_path_buf();
+    let git_root = identity::find_git_root(&repository_root);
+    let install_root = identity::resolve_install_root(
+        options.install_root.as_deref(),
+        &repository_root,
+        invocation,
+        git_root.as_deref(),
+    )?;
+    let migration_contexts = targets.clone();
+    for target in &mut targets {
+        target.install_root.clone_from(&install_root);
+        target.git_root.clone_from(&git_root);
+        target.project_prefix = relative_path(&target.project_root, &install_root)
+            .map(|path| path.to_string_lossy().replace('\\', "/"))
+            .unwrap_or_default();
+    }
+    let common_name = common_skills_name(&targets);
+    context.config.skills_name = common_name;
+    context.project_root = repository_root;
+    context.install_root = install_root;
+    context.git_root = git_root;
+    context.project_prefix = relative_path(&context.project_root, &context.install_root)
+        .map(|path| path.to_string_lossy().replace('\\', "/"))
+        .unwrap_or_default();
+    context.identity = identity::resolve_identity(
+        &context.config,
+        &context.config_path,
+        &context.project_root,
+        context.git_root.as_deref(),
+    )?;
+    context.targets = targets;
+    context.migration_contexts = migration_contexts;
+    Ok(context)
+}
+
+fn common_skills_name(targets: &[SkillContext]) -> Option<String> {
+    let name = targets.first()?.config.skills_name.clone()?;
+    for target in targets {
+        if target.config.skills_name.as_deref() != Some(name.as_str()) {
+            return None;
+        }
+    }
+    Some(name)
 }
 
 fn validate_layout(config: &Config, project_root: &Path) -> Result<(), String> {
@@ -70,7 +151,7 @@ fn validate_layout(config: &Config, project_root: &Path) -> Result<(), String> {
             } else {
                 project_root.join(value)
             });
-            if !path.starts_with(project_root) {
+            if relative_path(&path, project_root).is_none() {
                 return Err(format!(
                     "Configured path must resolve inside the repository: {value}"
                 ));

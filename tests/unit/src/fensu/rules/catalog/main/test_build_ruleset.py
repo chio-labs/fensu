@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib
 import sys
 from dataclasses import replace
+from operator import attrgetter, itemgetter, methodcaller
 from pathlib import Path
 from types import ModuleType
 
@@ -13,18 +14,21 @@ import pytest
 from fensu.config.exceptions import ConfigError, ConfigValidationError
 from fensu.config.main.load_project_config import load_project_config
 from fensu.config.models import Config, RuleExceptionEntry, RuleIgnoreEntry
+from fensu.config.types import AnalyzerId
 from fensu.rules.authoring.main.define import rule
 from fensu.rules.authoring.models import RuleOption, RuleSpec
 from fensu.rules.authoring.types import Family, RuleKind
 from fensu.rules.catalog._helpers import loading as loading_module
-from fensu.rules.catalog.constants import CORE_RULES
+from fensu.rules.catalog.constants import CORE_RULES, WEB_RULE_MIGRATION, WEB_RULES
 from fensu.rules.catalog.main._build_rule_selection import build_rule_selection
 from fensu.rules.catalog.main.build_catalogue import build_catalogue
 from fensu.rules.catalog.main.build_ruleset import build_ruleset
 from fensu.rules.catalog.models import RuleSelection
 from fensu.rules.dagster.constants import FPDG_RULES
 from tests.unit.src.fensu.rules.catalog.main._test_types import (
+    AnalyzerRuleSelectionTestCase,
     CatalogueQualityTestCase,
+    CustomRuleAnalyzerTestCase,
     CustomRuleLoadTestCase,
     DirectRuleSpecErrorTestCase,
     ModuleIsolationTestCase,
@@ -35,6 +39,8 @@ from tests.unit.src.fensu.rules.catalog.main._test_types import (
     RuleSelectionTestCase,
     SelectCompositionTestCase,
     UnselectedRuleOptionTestCase,
+    WebMigrationTestCase,
+    WebPolicyProvenanceTestCase,
 )
 from tests.unit.src.fensu.rules.catalog.main.helpers import (
     catalogue_quality_issues,
@@ -81,6 +87,228 @@ def test_given_dagster_pack_when_building_catalogue_then_registers_complete_stan
     assert pack_codes <= catalogue_codes
     assert all(rule.code.startswith("FPDG") for rule in FPDG_RULES)
     assert all(rule.code.startswith("FPDG") for rule in ruleset)
+    assert all(rule.analyzers == (AnalyzerId.PYTHON,) for rule in FPDG_RULES)
+    assert all(
+        rule.analyzers
+        in ((AnalyzerId.PYTHON,), (AnalyzerId.SVELTE,), (AnalyzerId.TYPESCRIPT, AnalyzerId.SVELTE))
+        for rule in CORE_RULES
+    )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        WebMigrationTestCase(
+            description="all legacy web rules have one retained or deferred classification",
+            expected_rule_count=88,
+            expected_categories=frozenset(
+                {
+                    "generic-typescript",
+                    "svelte",
+                    "sveltekit",
+                }
+            ),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_legacy_web_policy_when_reading_migration_then_every_rule_is_classified_once(
+    test_case: WebMigrationTestCase,
+) -> None:
+    codes: tuple[str, ...] = tuple(entry[0] for entry in WEB_RULE_MIGRATION)
+    categories: set[str] = {entry[1] for entry in WEB_RULE_MIGRATION}
+    retained: set[str] = {entry[0] for entry in filter(lambda item: item[2], WEB_RULE_MIGRATION)}
+
+    assert len(codes) == test_case.expected_rule_count
+    assert len(codes) == len(set(codes))
+    assert categories == test_case.expected_categories
+    assert retained == {rule.code for rule in WEB_RULES}
+    assert all(entry[3] for entry in WEB_RULE_MIGRATION)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        WebPolicyProvenanceTestCase(
+            description="retained web rules expose UI-kit and source-purpose configuration provenance",
+            expected_ui_kit_rules=frozenset(
+                {
+                    "FWA003",
+                    "FWL102",
+                    "FWL103",
+                    "FWR001",
+                    "FWR002",
+                    "FWR003",
+                    "FWR201",
+                    "FWR304",
+                    "FWR310",
+                    "FWR401",
+                    "FWR403",
+                    "FWR404",
+                    "FWR405",
+                    "FWR501",
+                    "FWS106",
+                    "FWV104",
+                    "FWU001",
+                    "FWU002",
+                    "FWU003",
+                }
+            ),
+            expected_fwp_reason_fragment="trusted parse failures emit FWP001",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_retained_web_rules_when_reading_provenance_then_configuration_inputs_are_complete(
+    test_case: WebPolicyProvenanceTestCase,
+) -> None:
+    rules_by_code: dict[str, RuleSpec] = dict(
+        zip(map(attrgetter("code"), WEB_RULES), WEB_RULES, strict=True)
+    )
+    ui_kit_rules: tuple[RuleSpec, ...] = tuple(
+        map(rules_by_code.__getitem__, sorted(test_case.expected_ui_kit_rules))
+    )
+    non_ui_kit_rules: tuple[RuleSpec, ...] = tuple(
+        map(
+            rules_by_code.__getitem__,
+            sorted(rules_by_code.keys() - test_case.expected_ui_kit_rules),
+        )
+    )
+    migration_by_code: dict[str, tuple[str, str, bool, str]] = dict(
+        zip(map(itemgetter(0), WEB_RULE_MIGRATION), WEB_RULE_MIGRATION, strict=True)
+    )
+    fwp_reason: str = migration_by_code["FWP001"][3]
+
+    assert tuple(
+        map(
+            methodcaller("__contains__", "ui_kit"),
+            map(attrgetter("configuration_inputs"), ui_kit_rules),
+        )
+    ) == (True,) * len(ui_kit_rules)
+    assert tuple(
+        map(
+            methodcaller("__contains__", "ui_kit"),
+            map(attrgetter("configuration_inputs"), non_ui_kit_rules),
+        )
+    ) == (False,) * len(non_ui_kit_rules)
+    assert all("test_layout" in rule.configuration_inputs for rule in WEB_RULES)
+    assert tuple(
+        map(
+            methodcaller("__contains__", "generated"),
+            map(attrgetter("configuration_inputs"), WEB_RULES),
+        )
+    ) == (True,) * len(WEB_RULES)
+    assert test_case.expected_fwp_reason_fragment in fwp_reason
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        AnalyzerRuleSelectionTestCase(
+            description="broad selector retains only TypeScript rules",
+            analyzer=AnalyzerId.TYPESCRIPT,
+            select=("FF",),
+            expected_codes=("FFT001",),
+            expected_error_fragment=None,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_mixed_analyzer_catalogue_when_selecting_broadly_then_only_applicable_rules_remain(
+    tmp_path: Path, test_case: AnalyzerRuleSelectionTestCase
+) -> None:
+    python_rule: RuleSpec = make_core_rule(code="FFA001", family=Family.ANNOTATIONS)
+    typescript_rule: RuleSpec = replace(
+        make_core_rule(code="FFT001", family=Family.TESTS),
+        analyzers=(test_case.analyzer,),
+    )
+    config: Config = Config(
+        roots=("src",),
+        select=test_case.select,
+        analyzer=test_case.analyzer,
+    )
+
+    selection: RuleSelection = loading_module.build_rule_selection_from_catalogue(
+        config=config,
+        catalogue=(python_rule, typescript_rule),
+        repo_root=tmp_path,
+    )
+
+    assert tuple(rule.code for rule in selection.catalogue) == test_case.expected_codes
+    assert tuple(rule.code for rule in selection.blocking) == test_case.expected_codes
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        AnalyzerRuleSelectionTestCase(
+            description="broad Python selector is incompatible with TypeScript",
+            analyzer=AnalyzerId.TYPESCRIPT,
+            select=("FFA",),
+            expected_codes=(),
+            expected_error_fragment="selector FFA.*not applicable to analyzer typescript",
+        ),
+        AnalyzerRuleSelectionTestCase(
+            description="exact Python rule is incompatible with Svelte",
+            analyzer=AnalyzerId.SVELTE,
+            select=("FFA001",),
+            expected_codes=(),
+            expected_error_fragment="FFA001.*not applicable to analyzer svelte",
+        ),
+        AnalyzerRuleSelectionTestCase(
+            description="exact incompatible alias fails closed",
+            analyzer=AnalyzerId.TYPESCRIPT,
+            select=("FFA001",),
+            expected_codes=(),
+            expected_error_fragment="FFA001.*not applicable to analyzer typescript",
+            alias_of="FFA002",
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_exact_incompatible_rule_when_selecting_then_error_names_analyzer(
+    test_case: AnalyzerRuleSelectionTestCase,
+) -> None:
+    python_rule: RuleSpec = replace(
+        make_core_rule(code="FFA001", family=Family.ANNOTATIONS),
+        alias_of=test_case.alias_of,
+    )
+    config: Config = Config(
+        roots=("src",),
+        select=test_case.select,
+        analyzer=test_case.analyzer,
+    )
+    expected_error: str | None = test_case.expected_error_fragment
+    assert expected_error is not None
+
+    with pytest.raises(ConfigError, match=expected_error):
+        loading_module.build_rule_selection_from_catalogue(
+            config=config,
+            catalogue=(python_rule,),
+        )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CustomRuleAnalyzerTestCase(
+            description="TypeScript custom rule fails closed",
+            analyzer=AnalyzerId.TYPESCRIPT,
+            expected_error_fragment="XTS001.*must use analyzer python",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_custom_rule_with_non_python_applicability_when_registering_then_fails_closed(
+    test_case: CustomRuleAnalyzerTestCase,
+) -> None:
+    custom_rule: RuleSpec = replace(
+        make_core_rule(code="XTS001", family=Family.CUSTOM),
+        analyzers=(test_case.analyzer,),
+    )
+
+    with pytest.raises(ConfigError, match=test_case.expected_error_fragment):
+        loading_module._with_custom_source(rules=(custom_rule,), source="rules/custom.py")
 
 
 @pytest.mark.parametrize(

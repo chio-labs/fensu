@@ -69,13 +69,16 @@ pub(crate) fn create_directory(path: impl AsRef<Path>) {
     fs::create_dir_all(path).expect("fixture directory");
 }
 
+#[cfg(unix)]
 pub(crate) fn workspace_python() -> PathBuf {
     let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    if cfg!(windows) {
-        workspace.join(".venv/Scripts/python.exe")
-    } else {
-        workspace.join(".venv/bin/python")
-    }
+    workspace.join(".venv/bin/python")
+}
+
+#[cfg(windows)]
+pub(crate) fn workspace_python() -> PathBuf {
+    let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    workspace.join(".venv/Scripts/python.exe")
 }
 
 #[cfg(unix)]

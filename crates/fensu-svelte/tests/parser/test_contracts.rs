@@ -9,8 +9,8 @@ fn given_native_parser_when_reading_contracts_then_versions_are_explicit() {
     let cli_analyzer_source = include_str!("../../../fensu-cli/src/analyzer.rs");
     let test_cases = [test_types::ContractTestCase {
         description: "owned facts and the CLI analyzer share one Svelte cache identity",
-        expected_parser_contract: "svelte-backend-v1",
-        expected_cache_contract: "svelte-backend-v1",
+        expected_parser_contract: "svelte-backend-v2",
+        expected_cache_contract: "svelte-backend-v2",
         expected_recovery_kinds: &[
             "attribute_expected_equals_tail",
             "attribute_sequence_recovery_tail",
@@ -21,7 +21,7 @@ fn given_native_parser_when_reading_contracts_then_versions_are_explicit() {
             "orphan_branch",
             "tag_missing_whitespace_trailing",
         ],
-        expected_cli_contract_fragment: "Self::Svelte => \"svelte-backend-v1\"",
+        expected_cli_contract_fragment: "Self::Svelte => \"svelte-backend-v2\"",
     }];
 
     for test_case in &test_cases {

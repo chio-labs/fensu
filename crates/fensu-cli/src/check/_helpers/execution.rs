@@ -5,8 +5,9 @@ use fensu_facts::extension::models::ProgramHandle;
 use crate::check::_helpers::cache;
 use crate::check::_helpers::evaluation::{evaluate, render_results};
 use crate::check::_helpers::policy::python_version;
+use crate::check::_helpers::project as web;
 use crate::check::models::{CheckPlans, EvaluationRequest};
-use crate::models::{CachedOutput, CheckOptions, CliOutput, ScopedSource};
+use crate::models::{CachedOutput, CheckOptions, CliOutput, ParsedProgram, ScopedSource};
 use crate::skills::main::core_freshness;
 
 pub(crate) fn cached_output(plan: &CheckPlans, options: &CheckOptions) -> Option<CliOutput> {
@@ -35,7 +36,12 @@ pub(crate) fn render_check(
 ) -> Result<CliOutput, String> {
     let mut results = Vec::with_capacity(plan.plans.len());
     for target in &mut plan.plans {
-        parse_sources(&mut target.sources)?;
+        target.sources = parse_sources(
+            target.config.analyzer,
+            &target.project_root,
+            std::mem::take(&mut target.sources),
+            &target.project_inputs,
+        )?;
         results.push(evaluate(EvaluationRequest {
             project_root: &target.project_root,
             config: &target.config,
@@ -95,7 +101,15 @@ fn freshness(plan: &CheckPlans) -> String {
     messages.concat()
 }
 
-fn parse_sources(sources: &mut [ScopedSource]) -> Result<(), String> {
+fn parse_sources(
+    analyzer: crate::analyzer::AnalyzerId,
+    project_root: &std::path::Path,
+    mut sources: Vec<ScopedSource>,
+    project_inputs: &[crate::models::ProjectInput],
+) -> Result<Vec<ScopedSource>, String> {
+    if analyzer != crate::analyzer::AnalyzerId::Python {
+        return web::parse_sources(analyzer, project_root, sources, project_inputs);
+    }
     let parsed = ProgramHandle::parse_many(
         sources
             .iter()
@@ -104,10 +118,9 @@ fn parse_sources(sources: &mut [ScopedSource]) -> Result<(), String> {
         python_version(),
     );
     for (source, program) in sources.iter_mut().zip(parsed) {
-        source.program =
-            Some(program.ok_or_else(|| {
-                format!("Could not parse Python source: {}", source.repository_path)
-            })?);
+        source.program = Some(ParsedProgram::Python(program.ok_or_else(|| {
+            format!("Could not parse Python source: {}", source.repository_path)
+        })?));
     }
-    Ok(())
+    Ok(sources)
 }

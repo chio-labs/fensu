@@ -30,7 +30,7 @@ pub(crate) fn load_target(start: &Path, target: Option<&str>) -> Result<(PathBuf
         )
     })?;
     let selection = validation::select_target(table, target)?;
-    validation::validate(&selection.table)?;
+    validation::validate_for_analyzer(&selection.table, selection.analyzer)?;
     let config = parsing::build(selection, raw, pyproject)?;
     let repository_root = path
         .parent()

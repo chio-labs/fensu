@@ -1,8 +1,8 @@
 use crate::helpers::{run_check, write};
 use crate::test_types::{
-    CanonicalAliasDiagnosticTestCase, CheckPolicyTestCase, ConfigDiscoveryTestCase,
-    InvalidCheckConfigTestCase, ProjectAwareTargetTestCase, TargetCacheCheckTestCase,
-    TargetCheckTestCase, ThresholdPrecedenceTestCase,
+    CacheBoundTestCase, CanonicalAliasDiagnosticTestCase, CheckPolicyTestCase,
+    ConfigDiscoveryTestCase, InvalidCheckConfigTestCase, ProjectAwareTargetTestCase,
+    TargetCacheCheckTestCase, TargetCheckTestCase, ThresholdPrecedenceTestCase,
 };
 
 #[cfg(unix)]
@@ -57,6 +57,106 @@ fn given_internal_target_alias_when_checking_then_diagnostic_uses_canonical_pref
         assert!(
             !stdout.contains(test_case.expected_double_prefix_absent),
             "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_many_python_cache_surfaces_when_checking_then_stale_namespaces_are_bounded() {
+    let test_cases = [CacheBoundTestCase {
+        description: "Python cache retains only the bounded set of recent source surfaces",
+        generation_count: 20,
+        expected_namespace_count: 16,
+        expected_record_count: 32,
+    }];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        for generation in 0..test_case.generation_count {
+            let root = format!("src/generation_{generation}");
+            write(
+                repository.path().join("fensu.toml"),
+                &format!("roots = [\"{root}\"]\ntests = []\ntooling = []\nselect = []\n"),
+            );
+            write(
+                repository.path().join(&root).join("module.py"),
+                &format!("value: int = {generation}\n"),
+            );
+
+            let output = crate::helpers::run_check_with(repository.path(), &["--cache"]);
+
+            assert_eq!(
+                output.status.code(),
+                Some(0),
+                "{}: generation {generation}: {}",
+                test_case.description,
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+        let connection = rusqlite::Connection::open(repository.path().join(".fensu/cache/v4.db"))
+            .expect("native cache database");
+        let namespace_count: i64 = connection
+            .query_row("SELECT COUNT(*) FROM cache_namespaces", [], |row| {
+                row.get(0)
+            })
+            .expect("namespace count");
+        let record_count: i64 = connection
+            .query_row("SELECT COUNT(*) FROM records", [], |row| row.get(0))
+            .expect("record count");
+
+        assert_eq!(
+            namespace_count, test_case.expected_namespace_count,
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            record_count, test_case.expected_record_count,
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_python_evaluation_filter_when_checking_then_legacy_summary_text_is_preserved() {
+    let test_cases = [CheckPolicyTestCase {
+        description: "Python-only filtered checks keep the historical summary",
+        expected_exit_code: 0,
+        expected_present: "Evaluation: 1 of 2 Python files (1 excluded by config)",
+        expected_absent: "source files",
+    }];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(
+            repository.path().join("fensu.toml"),
+            "roots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = []\n[evaluation]\nexclude = [\"src/pkg/excluded.py\"]\n",
+        );
+        write(
+            repository.path().join("src/pkg/selected.py"),
+            "value: int = 1\n",
+        );
+        write(
+            repository.path().join("src/pkg/excluded.py"),
+            "value: int = 2\n",
+        );
+
+        let output = run_check(repository.path());
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            stdout.contains(test_case.expected_present),
+            "{}: {stdout}",
+            test_case.description
+        );
+        assert!(
+            !stdout.contains(test_case.expected_absent),
+            "{}: {stdout}",
             test_case.description
         );
     }
@@ -775,7 +875,7 @@ fn given_alternating_all_and_single_target_caches_when_checking_then_surfaces_ne
             test_case.description
         );
         assert!(
-            String::from_utf8_lossy(&all_again.stderr).contains("misses=2"),
+            String::from_utf8_lossy(&all_again.stderr).contains(test_case.expected_stderr),
             "{}",
             test_case.description
         );

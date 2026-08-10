@@ -3,8 +3,15 @@
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SourceKind {
     JavaScript,
+    JavaScriptModule,
+    JavaScriptCommonJs,
     JavaScriptJsx,
     TypeScript,
+    TypeScriptModule,
+    TypeScriptCommonJs,
+    TypeScriptDefinition,
+    TypeScriptModuleDefinition,
+    TypeScriptCommonJsDefinition,
     TypeScriptJsx,
 }
 

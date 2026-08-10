@@ -1,10 +1,11 @@
 use std::collections::HashSet;
 
+use crate::analyzer::AnalyzerId;
 use crate::configuration::_helpers::selectors::valid_code;
 
 const RULE_EXCEPTION_SYMBOLS: &str = "symbols";
 
-pub(crate) fn validate(value: Option<&toml::Value>) -> Result<(), String> {
+pub(crate) fn validate(value: Option<&toml::Value>, analyzer: AnalyzerId) -> Result<(), String> {
     let Some(value) = value else {
         return Ok(());
     };
@@ -35,7 +36,7 @@ pub(crate) fn validate(value: Option<&toml::Value>) -> Result<(), String> {
                 "Rule exception must use one exact rule code: {rule}."
             ));
         }
-        validate_path(&path)?;
+        validate_path(&path, analyzer)?;
         let symbols = match table.get(RULE_EXCEPTION_SYMBOLS) {
             Some(value) => {
                 super::validation::required_strings(Some(value), "rule_exceptions.symbols")?
@@ -92,16 +93,33 @@ fn valid_qualified_symbol(value: &str) -> bool {
     first && second.is_none_or(valid) && parts.next().is_none()
 }
 
-fn validate_path(path: &str) -> Result<(), String> {
+fn validate_path(path: &str, analyzer: AnalyzerId) -> Result<(), String> {
+    let supported = match analyzer {
+        AnalyzerId::Python => path.ends_with(".py"),
+        AnalyzerId::TypeScript => web_source_path(path),
+        AnalyzerId::Svelte => path.ends_with(".svelte") || web_source_path(path),
+    };
     if path.starts_with('/')
         || path.contains('\\')
         || path.contains(['*', '?', '[', ']'])
         || path.split('/').any(|part| matches!(part, "" | "." | ".."))
-        || !path.ends_with(".py")
+        || !supported
     {
-        return Err(format!(
-            "Rule exception path must be one exact repository-relative POSIX Python file: {path}."
-        ));
+        let source = match analyzer {
+            AnalyzerId::Python => "Python",
+            AnalyzerId::TypeScript => "TypeScript",
+            AnalyzerId::Svelte => "Svelte",
+        };
+        return Err(format!("Rule exception path must be one exact repository-relative POSIX {source} source file: {path}."));
     }
     Ok(())
+}
+
+fn web_source_path(path: &str) -> bool {
+    path.ends_with(".d.ts")
+        || path.ends_with(".d.mts")
+        || path.ends_with(".d.cts")
+        || [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"]
+            .iter()
+            .any(|suffix| path.ends_with(suffix))
 }

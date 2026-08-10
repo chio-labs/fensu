@@ -1,19 +1,24 @@
 //! Native project-plane identities are target-relative; reporting prefixes the target exactly once.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::path::Path;
+use std::path::{Component, Path, PathBuf};
 
 use fensu_facts::extension::models::ProgramHandle;
 use fensu_native::rules::models::{NativeProjectModule, NativeProjectPlane};
 use globset::GlobBuilder;
+use serde_json::Value;
+use walkdir::DirEntry;
 use walkdir::WalkDir;
 
-use crate::check::_helpers::policy::{bool_text, program, python_version, relative};
+use crate::analyzer::AnalyzerId;
+use crate::check::_helpers::policy::{bool_text, hex_digest, program, python_version, relative};
 use crate::constants::{SCOPE_TEST, STEM_INIT, VALUE_TRUE};
-use crate::models::{Config, ScopedSource};
+use crate::models::{Config, ImportGraphFact, ParsedProgram, ProjectInput, ScopedSource};
 
 const ENTRYPOINT_SECTIONS: [&str; 3] = ["scripts", "gui-scripts", "entry-points"];
+
+include!("web.inc");
 
 pub(crate) fn project_plane(
     root: &Path,
@@ -49,7 +54,13 @@ pub(crate) fn project_plane(
         .chain(config.tooling.iter().map(|path| ("tooling", path)))
     {
         let scan_root = root.join(configured_root);
-        for entry in WalkDir::new(&scan_root).into_iter().filter_map(Result::ok) {
+        if !scan_root.exists() {
+            continue;
+        }
+        for result in WalkDir::new(&scan_root) {
+            let entry = result.map_err(|error| {
+                format!("Could not discover Python support files under {configured_root}: {error}")
+            })?;
             if !entry.file_type().is_file()
                 || entry.path().extension().and_then(|value| value.to_str()) != Some("pyi")
             {
@@ -139,7 +150,7 @@ pub(crate) fn observe(
     plans: &[fensu_native::rules::models::NativeProjectQuery],
     programs: &HashMap<&str, &ProgramHandle>,
     modules: &HashMap<String, &ProgramHandle>,
-) -> HashMap<String, Vec<String>> {
+) -> Result<HashMap<String, Vec<String>>, String> {
     let mut answers: HashMap<String, Vec<String>> = HashMap::new();
     for query in plans {
         let path = root.join(&query.path);
@@ -175,32 +186,41 @@ pub(crate) fn observe(
             "package_anchor" => vec![bool_text(package_anchor(
                 &path,
                 &root.join(&query.argument),
-            ))],
+            )?)],
             "custom_rule_coverage" => Vec::new(),
-            "directory_entries" => directory_entries(&path, root),
-            "glob" => glob_answers(&path, root, &query.argument),
-            "python_anchor" => python_anchor(&path, root).into_iter().collect(),
+            "directory_entries" => directory_entries(&path, root)?,
+            "glob" => glob_answers(&path, root, &query.argument)?,
+            "python_anchor" => python_anchor(&path, root)?.into_iter().collect(),
             _ => Vec::new(),
         };
         answers.insert(query.key(), value);
     }
-    answers
+    Ok(answers)
 }
 
-pub(crate) fn directory_entries(path: &Path, root: &Path) -> Vec<String> {
+pub(crate) fn directory_entries(path: &Path, root: &Path) -> Result<Vec<String>, String> {
     let mut entries: Vec<String> = Vec::new();
-    let Ok(directory) = path.read_dir() else {
-        return entries;
-    };
-    for entry in directory.flatten() {
+    if !path.exists() {
+        return Ok(entries);
+    }
+    let directory = path
+        .read_dir()
+        .map_err(|error| format!("Could not read directory {}: {error}", path.display()))?;
+    for result in directory {
+        let entry = result
+            .map_err(|error| format!("Could not read directory {}: {error}", path.display()))?;
         if let Ok(relative) = entry.path().strip_prefix(root) {
             entries.push(relative.to_string_lossy().replace('\\', "/"));
         }
     }
-    entries
+    Ok(entries)
 }
 
-pub(crate) fn glob_answers(path: &Path, root: &Path, argument: &str) -> Vec<String> {
+pub(crate) fn glob_answers(
+    path: &Path,
+    root: &Path,
+    argument: &str,
+) -> Result<Vec<String>, String> {
     let (pattern, recursive) = argument.split_once('\0').unwrap_or((argument, "false"));
     let depth = if recursive == VALUE_TRUE {
         usize::MAX
@@ -208,56 +228,75 @@ pub(crate) fn glob_answers(path: &Path, root: &Path, argument: &str) -> Vec<Stri
         1
     };
     let Ok(glob) = GlobBuilder::new(pattern).literal_separator(true).build() else {
-        return Vec::new();
+        return Ok(Vec::new());
     };
     let matcher = glob.compile_matcher();
     let mut answers: Vec<String> = Vec::new();
-    for entry in WalkDir::new(path)
-        .min_depth(1)
-        .max_depth(depth)
-        .into_iter()
-        .filter_map(Result::ok)
-        .filter(|entry| matcher.is_match(entry.path().strip_prefix(path).unwrap_or(entry.path())))
-    {
+    if !path.exists() {
+        return Ok(answers);
+    }
+    for result in WalkDir::new(path).min_depth(1).max_depth(depth).into_iter() {
+        let entry = result.map_err(|error| {
+            format!("Could not evaluate glob under {}: {error}", path.display())
+        })?;
+        if !matcher.is_match(entry.path().strip_prefix(path).unwrap_or(entry.path())) {
+            continue;
+        }
         if let Ok(relative) = entry.path().strip_prefix(root) {
             answers.push(relative.to_string_lossy().replace('\\', "/"));
         }
     }
-    answers
+    Ok(answers)
 }
 
-pub(crate) fn python_anchor(path: &Path, root: &Path) -> Option<String> {
+pub(crate) fn python_anchor(path: &Path, root: &Path) -> Result<Option<String>, String> {
+    if !path.exists() {
+        return Ok(None);
+    }
     let init = path.join("__init__.py");
     if init.is_file() {
-        return relative(&init, root);
+        return Ok(relative(&init, root));
     }
-    let mut files = WalkDir::new(path)
-        .into_iter()
-        .filter_map(Result::ok)
-        .filter(|entry| {
-            entry.file_type().is_file()
-                && entry.path().extension().and_then(|value| value.to_str()) == Some("py")
-        })
-        .map(|entry| entry.into_path())
-        .collect::<Vec<_>>();
+    let mut files: Vec<PathBuf> = Vec::new();
+    for result in WalkDir::new(path) {
+        let entry = result.map_err(|error| {
+            format!(
+                "Could not discover Python anchor under {}: {error}",
+                path.display()
+            )
+        })?;
+        if entry.file_type().is_file()
+            && entry.path().extension().and_then(|value| value.to_str()) == Some("py")
+        {
+            files.push(entry.into_path());
+        }
+    }
     files.sort();
-    files.first().and_then(|file| relative(file, root))
+    Ok(files.first().and_then(|file| relative(file, root)))
 }
 
-pub(crate) fn package_anchor(package: &Path, reported: &Path) -> bool {
+pub(crate) fn package_anchor(package: &Path, reported: &Path) -> Result<bool, String> {
+    if !package.exists() {
+        return Ok(false);
+    }
     let init = package.join("__init__.py");
     if init.exists() {
-        return reported == init;
+        return Ok(reported == init);
     }
-    let mut files = WalkDir::new(package)
-        .into_iter()
-        .filter_map(Result::ok)
-        .filter(|entry| {
-            entry.file_type().is_file()
-                && entry.path().extension().and_then(|value| value.to_str()) == Some("py")
-        })
-        .map(|entry| entry.into_path())
-        .collect::<Vec<_>>();
+    let mut files: Vec<PathBuf> = Vec::new();
+    for result in WalkDir::new(package) {
+        let entry = result.map_err(|error| {
+            format!(
+                "Could not discover package anchor under {}: {error}",
+                package.display()
+            )
+        })?;
+        if entry.file_type().is_file()
+            && entry.path().extension().and_then(|value| value.to_str()) == Some("py")
+        {
+            files.push(entry.into_path());
+        }
+    }
     files.sort();
-    files.first() == Some(&reported.to_path_buf())
+    Ok(files.first() == Some(&reported.to_path_buf()))
 }

@@ -354,6 +354,8 @@ dependencies = [
  "encoding_rs",
  "fensu-facts",
  "fensu-native",
+ "fensu-svelte",
+ "fensu-typescript",
  "globset",
  "rayon",
  "ruff_python_ast",

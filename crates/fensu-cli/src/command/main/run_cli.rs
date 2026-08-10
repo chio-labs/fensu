@@ -1,6 +1,7 @@
 use std::env;
 use std::path::Path;
 
+use crate::analyzer::AnalyzerId;
 use crate::check::main::check_routing::check_routing;
 use crate::check::main::clean_caches::clean_caches;
 use crate::check::main::custom_freshness::all_target_custom_freshness;
@@ -48,11 +49,20 @@ fn dispatch_check(arguments: &[String]) -> Result<CliOutput, String> {
     if routing.help {
         return check::run(arguments);
     }
-    for (_, config) in load_targets::load_targets(Path::new("."), routing.target)? {
-        config.analyzer.require_backend()?;
+    let loaded = load_targets::load_targets(Path::new("."), routing.target)?;
+    for (_, config) in &loaded {
+        config.analyzer.require_check_backend()?;
     }
+    let hosted_web_policy = loaded.iter().any(|(_, config)| {
+        config.analyzer != AnalyzerId::Python
+            && (!config.rule_paths.is_empty()
+                || !config.rule_modules.is_empty()
+                || !config.rule_options.is_empty())
+    });
     let cleanup = prepare_cleanup(Path::new("."), routing.target);
-    let result = if custom_rules::custom_rules_are_configured(Path::new("."), routing.target)? {
+    let result = if custom_rules::custom_rules_are_configured(Path::new("."), routing.target)?
+        && !hosted_web_policy
+    {
         let exit_code = run_custom_check_host(arguments)?;
         Ok(CliOutput {
             stdout: String::new(),

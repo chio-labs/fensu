@@ -5,7 +5,8 @@ use std::path::PathBuf;
 
 use cap_std::fs::Dir;
 
-use crate::models::{Config, Fault, ScopedSource, ThresholdUse};
+use crate::analyzer::AnalyzerId;
+use crate::models::{Config, Fault, ProjectInput, ScopedSource, ThresholdUse};
 
 #[derive(Debug)]
 pub(crate) struct CheckIdentityRequest<'a> {
@@ -13,6 +14,7 @@ pub(crate) struct CheckIdentityRequest<'a> {
     pub(crate) project_root: &'a Path,
     pub(crate) config: &'a Config,
     pub(crate) sources: &'a [ScopedSource],
+    pub(crate) project_inputs: &'a [ProjectInput],
     pub(crate) warnings: bool,
 }
 
@@ -22,6 +24,7 @@ pub(crate) struct CheckPlan {
     pub(crate) project_root: PathBuf,
     pub(crate) config: Config,
     pub(crate) sources: Vec<ScopedSource>,
+    pub(crate) project_inputs: Vec<ProjectInput>,
     pub(crate) excluded: usize,
     pub(crate) identity: String,
     pub(crate) cache_enabled: bool,
@@ -41,6 +44,7 @@ pub(crate) struct CheckPlans {
 
 #[derive(Debug)]
 pub(crate) struct CheckResult {
+    pub(crate) analyzer: AnalyzerId,
     pub(crate) faults: Vec<Fault>,
     pub(crate) warnings: Vec<Fault>,
     pub(crate) selected: usize,

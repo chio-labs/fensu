@@ -38,6 +38,13 @@ const CONFIG_KEYS: &[&str] = &[
 type ValidatedTargets = HashMap<String, (toml::map::Map<String, toml::Value>, AnalyzerId, String)>;
 
 pub(crate) fn validate(table: &toml::map::Map<String, toml::Value>) -> Result<(), String> {
+    validate_for_analyzer(table, AnalyzerId::Python)
+}
+
+pub(crate) fn validate_for_analyzer(
+    table: &toml::map::Map<String, toml::Value>,
+    analyzer: AnalyzerId,
+) -> Result<(), String> {
     validate_keys(table, CONFIG_KEYS, "")
         .map_err(|error| error.replace("Unknown  config", "Unknown config"))?;
     validate_optional_table(table, "cache", &["enabled", "require_cacheable"])?;
@@ -73,7 +80,7 @@ pub(crate) fn validate(table: &toml::map::Map<String, toml::Value>) -> Result<()
     validate_roles(table.get("roles"))?;
     validate_contracts(table.get("contracts"))?;
     validate_threshold_overrides(table.get("threshold_overrides"))?;
-    exceptions::validate(table.get("rule_exceptions"))?;
+    exceptions::validate(table.get("rule_exceptions"), analyzer)?;
     validate_rule_ignores(table.get("rule_ignores"))?;
     validate_evaluation(table.get("evaluation"))?;
     Ok(())
@@ -219,7 +226,7 @@ fn validated_targets(
         let mut selected = values.clone();
         selected.remove("analyzer");
         selected.remove("root");
-        validate(&selected)?;
+        validate_for_analyzer(&selected, analyzer)?;
         validated.insert(name.clone(), (selected, analyzer, root));
     }
     Ok(validated)

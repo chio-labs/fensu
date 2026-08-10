@@ -105,6 +105,9 @@ pub(crate) struct RuleIgnore {
 
 #[derive(Clone, Debug)]
 pub(crate) struct ScopedSource {
+    pub(crate) analyzer: AnalyzerId,
+    pub(crate) target_identity: String,
+    pub(crate) parser_contract: &'static str,
     pub(crate) path: PathBuf,
     pub(crate) repository_path: String,
     pub(crate) target_path: String,
@@ -114,7 +117,55 @@ pub(crate) struct ScopedSource {
     pub(crate) relative_parts: Vec<String>,
     pub(crate) content: Vec<u8>,
     pub(crate) fingerprint: String,
-    pub(crate) program: Option<ProgramHandle>,
+    pub(crate) direct: bool,
+    pub(crate) imports: Vec<ImportGraphFact>,
+    pub(crate) program: Option<ParsedProgram>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) enum ParsedProgram {
+    Python(ProgramHandle),
+    TypeScript(fensu_typescript::ModuleFacts),
+    Svelte(fensu_svelte::SvelteFacts),
+}
+
+impl ParsedProgram {
+    pub(crate) fn as_python(&self) -> Option<&ProgramHandle> {
+        match self {
+            Self::Python(program) => Some(program),
+            Self::TypeScript(_) | Self::Svelte(_) => None,
+        }
+    }
+
+    pub(crate) fn as_typescript(&self) -> Option<&fensu_typescript::ModuleFacts> {
+        match self {
+            Self::TypeScript(program) => Some(program),
+            Self::Python(_) | Self::Svelte(_) => None,
+        }
+    }
+
+    pub(crate) fn as_svelte(&self) -> Option<&fensu_svelte::SvelteFacts> {
+        match self {
+            Self::Svelte(program) => Some(program),
+            Self::Python(_) | Self::TypeScript(_) => None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct ImportGraphFact {
+    pub(crate) specifier: String,
+    pub(crate) resolved_path: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct ProjectInput {
+    pub(crate) path: PathBuf,
+    pub(crate) extended_configs: Vec<PathBuf>,
+    pub(crate) repository_path: String,
+    pub(crate) target_path: String,
+    pub(crate) content: Vec<u8>,
+    pub(crate) fingerprint: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

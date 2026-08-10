@@ -120,5 +120,6 @@ fn fault_owner(fault: &Fault, source: &ScopedSource) -> Option<String> {
     source
         .program
         .as_ref()?
+        .as_python()?
         .owner_symbol_at(fault.line?, fault.column.unwrap_or(0))
 }

@@ -19,14 +19,13 @@ use crate::configuration::main::resolve_target_root::resolve_target_root;
 use crate::configuration::main::validate_exception_targets::validate_exception_targets;
 use crate::constants::{PYTHON_CACHE_DIRECTORY, SCOPE_TEST};
 use crate::models::{CheckOptions, Config, ScopedSource, SourcePurpose};
+use crate::repository_io::main::relative_path::relative_path;
 
 pub(crate) fn prepare_checks(
     options: &CheckOptions,
     target_names: Option<&std::collections::HashSet<String>>,
 ) -> Result<CheckPlans, String> {
-    let invocation = env::current_dir()
-        .map_err(|error| error.to_string())?
-        .canonicalize()
+    let invocation = dunce::canonicalize(env::current_dir().map_err(|error| error.to_string())?)
         .map_err(|error| error.to_string())?;
     let mut loaded = load_targets::load_targets(&invocation, options.target.as_deref())?;
     if let Some(target_names) = target_names {
@@ -44,11 +43,12 @@ pub(crate) fn prepare_checks(
     }
     let mut plans = Vec::with_capacity(loaded.len());
     for (config_path, mut config) in loaded {
-        let root = config_path
-            .parent()
-            .ok_or_else(|| "Configuration has no parent directory.".to_owned())?
-            .canonicalize()
-            .map_err(|error| error.to_string())?;
+        let root = dunce::canonicalize(
+            config_path
+                .parent()
+                .ok_or_else(|| "Configuration has no parent directory.".to_owned())?,
+        )
+        .map_err(|error| error.to_string())?;
         let project_root = resolve_target_root(&root, &config.target_root)?;
         if !options.paths.is_empty() {
             config.roots = configured_paths(options, &invocation, &project_root)?;
@@ -169,13 +169,10 @@ fn configured_paths(
 ) -> Result<Vec<String>, String> {
     let mut configured: Vec<String> = Vec::new();
     for path in &options.paths {
-        let absolute = invocation
-            .join(path)
-            .canonicalize()
-            .map_err(|error| error.to_string())?;
-        let relative = absolute
-            .strip_prefix(root)
-            .map_err(|error| error.to_string())?;
+        let absolute =
+            dunce::canonicalize(invocation.join(path)).map_err(|error| error.to_string())?;
+        let relative = relative_path(&absolute, root)
+            .ok_or_else(|| format!("Positional path must resolve inside the target: {path}"))?;
         configured.push(relative.to_string_lossy().replace('\\', "/"));
     }
     Ok(configured)
@@ -194,7 +191,19 @@ fn discover(
         .chain(config.tests.iter().map(|path| ("test", path)))
         .chain(config.tooling.iter().map(|path| ("tooling", path)))
     {
-        let source_root = project_root.join(configured_root);
+        let candidate = project_root.join(configured_root);
+        let source_root = if candidate.exists() {
+            dunce::canonicalize(&candidate).map_err(|error| {
+                format!("Could not resolve configured source root {configured_root}: {error}")
+            })?
+        } else {
+            candidate
+        };
+        if relative_path(&source_root, project_root).is_none() {
+            return Err(format!(
+                "Configured source root must resolve inside the target: {configured_root}"
+            ));
+        }
         if !source_root.exists() {
             continue;
         }

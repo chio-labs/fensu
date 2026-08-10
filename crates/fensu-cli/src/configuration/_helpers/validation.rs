@@ -157,10 +157,10 @@ pub(crate) fn validate_for_analyzer(
 
 fn portable_target_path(path: &str) -> bool {
     let bytes = path.as_bytes();
-    !path.starts_with(['/', '\\'])
-        && !path.contains('\\')
-        && !(bytes.first().is_some_and(u8::is_ascii_alphabetic) && bytes.get(1) == Some(&b':'))
-        && !path.split('/').any(|part| matches!(part, "" | "." | ".."))
+    !(path.starts_with(['/', '\\'])
+        || path.contains('\\')
+        || bytes.first().is_some_and(u8::is_ascii_alphabetic) && bytes.get(1) == Some(&b':')
+        || path.split('/').any(|part| matches!(part, "" | "." | "..")))
 }
 
 pub(crate) fn select_target(

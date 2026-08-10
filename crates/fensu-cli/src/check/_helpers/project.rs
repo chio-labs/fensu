@@ -17,6 +17,7 @@ use crate::constants::{SCOPE_TEST, STEM_INIT, VALUE_TRUE};
 use crate::models::{
     Config, ImportGraphFact, ParsedProgram, ProjectInput, ScopedSource, WebParseFailure,
 };
+use crate::repository_io::main::relative_path::relative_path;
 
 const ENTRYPOINT_SECTIONS: [&str; 3] = ["scripts", "gui-scripts", "entry-points"];
 

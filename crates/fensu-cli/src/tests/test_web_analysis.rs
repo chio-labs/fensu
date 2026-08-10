@@ -8,7 +8,8 @@ use crate::tests::test_types::WebConfigInheritanceTestCase;
 use crate::tests::test_types::WebTestSourceTestCase;
 use crate::tests::test_types::{
     DynamicSvelteAliasTestCase, OptionalGeneratedConfigTestCase, SvelteKitAliasResolutionTestCase,
-    WebDirectSourceTestCase, WebImportGraphTestCase,
+    WebDirectSourceTestCase, WebImportGraphTestCase, WebProjectPathTestCase,
+    WebSymlinkResolutionTestCase,
 };
 
 #[test]
@@ -76,6 +77,228 @@ fn given_fresh_sveltekit_config_when_resolving_then_generated_extends_and_litera
 
         assert_eq!(
             generated.present, test_case.expected_generated_present,
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            parsed[0]
+                .imports
+                .iter()
+                .map(|fact| (fact.specifier.as_str(), fact.resolved_path.as_deref()))
+                .collect::<Vec<_>>(),
+            test_case.expected_resolutions,
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn given_symlinked_web_roots_when_resolving_then_internal_targets_work_and_escapes_fail() {
+    use std::os::unix::fs::symlink;
+
+    let test_cases = [WebSymlinkResolutionTestCase {
+        description: "canonical source roots resolve internal aliases and reject external roots",
+        expected_resolutions: &[
+            ("$lib/value", Some("real/src/lib/value.ts")),
+            ("$shared/value", Some("real/src/lib/value.ts")),
+            ("@/lib/value", Some("real/src/lib/value.ts")),
+        ],
+        expected_source_escape_error: "Web source root escapes the target: escaped.",
+        expected_alias_escape_error: "Web import candidate escapes the target:",
+        expected_base_url_escape_error: "Web import candidate escapes the target:",
+    }];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        let external = tempfile::tempdir().expect("external source root");
+        let root = repository.path();
+        fs::create_dir_all(root.join("real/src/lib")).expect("real source root");
+        fs::write(
+            root.join("real/src/App.svelte"),
+            "<script lang=\"ts\">import lib from '$lib/value'; import shared from '$shared/value'; import alias from '@/lib/value';</script>\n",
+        )
+        .expect("component");
+        fs::write(root.join("real/src/lib/value.ts"), "export default 1;\n")
+            .expect("library module");
+        fs::write(
+            root.join("real/src/AliasEscape.svelte"),
+            "<script lang=\"ts\">import value from '@escape/value';</script>\n",
+        )
+        .expect("path alias escape importer");
+        fs::write(
+            root.join("real/src/BaseEscape.svelte"),
+            "<script lang=\"ts\">import value from 'value';</script>\n",
+        )
+        .expect("base URL escape importer");
+        fs::write(external.path().join("value.ts"), "export default 1;\n")
+            .expect("external module");
+        fs::write(
+            root.join("tsconfig.json"),
+            "{ \"compilerOptions\": { \"baseUrl\": \".\", \"paths\": { \"@/*\": [\"src/*\"] } } }\n",
+        )
+        .expect("TypeScript config");
+        fs::write(
+            root.join("svelte.config.js"),
+            "export default { kit: { alias: { '$shared': 'src/lib' } } };\n",
+        )
+        .expect("Svelte config");
+        symlink(root.join("real/src"), root.join("src")).expect("internal source alias");
+        symlink(external.path(), root.join("escaped")).expect("external source alias");
+        symlink(external.path(), root.join("outside")).expect("external import alias");
+        let inputs = web::discover_project_inputs(root, root, &crate::models::Config::default())
+            .expect("project inputs");
+
+        let parsed = web::parse_sources(
+            AnalyzerId::Svelte,
+            root,
+            vec![
+                web_source(root, "real/src/App.svelte"),
+                web_source(root, "real/src/lib/value.ts"),
+            ],
+            &inputs,
+            &["src".to_owned()],
+        )
+        .expect("internal symlink aliases resolve");
+        let source_escape = web::parse_sources(
+            AnalyzerId::Svelte,
+            root,
+            Vec::new(),
+            &inputs,
+            &["escaped".to_owned()],
+        )
+        .expect_err("external source root is rejected");
+        fs::write(
+            root.join("tsconfig.json"),
+            "{ \"compilerOptions\": { \"baseUrl\": \".\", \"paths\": { \"@escape/*\": [\"outside/*\"] } } }\n",
+        )
+        .expect("escaping path alias config");
+        let alias_inputs =
+            web::discover_project_inputs(root, root, &crate::models::Config::default())
+                .expect("path alias project inputs");
+        let alias_escape = web::parse_sources(
+            AnalyzerId::Svelte,
+            root,
+            vec![web_source(root, "real/src/AliasEscape.svelte")],
+            &alias_inputs,
+            &["src".to_owned()],
+        )
+        .expect_err("external path alias is rejected");
+        fs::write(
+            root.join("tsconfig.json"),
+            "{ \"compilerOptions\": { \"baseUrl\": \"outside\" } }\n",
+        )
+        .expect("escaping base URL config");
+        let base_inputs =
+            web::discover_project_inputs(root, root, &crate::models::Config::default())
+                .expect("base URL project inputs");
+        let base_url_escape = web::parse_sources(
+            AnalyzerId::Svelte,
+            root,
+            vec![web_source(root, "real/src/BaseEscape.svelte")],
+            &base_inputs,
+            &["src".to_owned()],
+        )
+        .expect_err("external base URL is rejected");
+
+        assert_eq!(
+            parsed[0]
+                .imports
+                .iter()
+                .map(|fact| (fact.specifier.as_str(), fact.resolved_path.as_deref()))
+                .collect::<Vec<_>>(),
+            test_case.expected_resolutions,
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            source_escape, test_case.expected_source_escape_error,
+            "{}",
+            test_case.description
+        );
+        assert!(
+            alias_escape.contains(test_case.expected_alias_escape_error),
+            "{}: {alias_escape}",
+            test_case.description
+        );
+        assert!(
+            base_url_escape.contains(test_case.expected_base_url_escape_error),
+            "{}: {base_url_escape}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_nested_sveltekit_target_when_resolving_then_filesystem_and_reported_paths_stay_separate() {
+    let test_cases = [WebProjectPathTestCase {
+        description: "nested generated config and aliases retain target-relative POSIX identities",
+        expected_repository_path: "apps/site/.svelte-kit/tsconfig.json",
+        expected_target_path: ".svelte-kit/tsconfig.json",
+        expected_resolutions: &[
+            ("$lib/value", Some("src/lib/value.ts")),
+            ("$ui/button", Some("src/ui/button.ts")),
+            ("@/value", Some("src/value.ts")),
+        ],
+    }];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        let project_root = repository.path().join("apps/site");
+        fs::create_dir_all(project_root.join("src/lib")).expect("library directory");
+        fs::create_dir_all(project_root.join("src/ui")).expect("UI directory");
+        fs::write(
+            project_root.join("tsconfig.json"),
+            "{ \"extends\": \"./.svelte-kit/tsconfig.json\", \"compilerOptions\": { \"baseUrl\": \".\", \"paths\": { \"@/*\": [\"src/*\"] } } }\n",
+        )
+        .expect("nested TypeScript config");
+        fs::write(
+            project_root.join("svelte.config.js"),
+            "export default { kit: { alias: { '$ui': 'src/ui' } } };\n",
+        )
+        .expect("nested Svelte config");
+        fs::write(
+            project_root.join("src/App.svelte"),
+            "<script lang=\"ts\">import button from '$ui/button'; import value from '@/value'; import lib from '$lib/value';</script>\n",
+        )
+        .expect("component");
+        fs::write(project_root.join("src/ui/button.ts"), "export default 1;\n").expect("UI module");
+        fs::write(project_root.join("src/value.ts"), "export default 1;\n")
+            .expect("aliased module");
+        fs::write(project_root.join("src/lib/value.ts"), "export default 1;\n")
+            .expect("library module");
+        let config = crate::models::Config {
+            analyzer: AnalyzerId::Svelte,
+            framework: Some("sveltekit".to_owned()),
+            ..crate::models::Config::default()
+        };
+
+        let inputs = web::discover_project_inputs(repository.path(), &project_root, &config)
+            .expect("nested project inputs");
+        let generated = inputs
+            .iter()
+            .find(|input| !input.present)
+            .expect("missing generated input");
+        let parsed = web::parse_sources(
+            AnalyzerId::Svelte,
+            &project_root,
+            vec![
+                web_source(&project_root, "src/App.svelte"),
+                web_source(&project_root, "src/ui/button.ts"),
+                web_source(&project_root, "src/value.ts"),
+                web_source(&project_root, "src/lib/value.ts"),
+            ],
+            &inputs,
+            &["src".to_owned()],
+        )
+        .expect("nested aliases resolve");
+
+        assert_eq!(
+            generated.repository_path, test_case.expected_repository_path,
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            generated.target_path, test_case.expected_target_path,
             "{}",
             test_case.description
         );

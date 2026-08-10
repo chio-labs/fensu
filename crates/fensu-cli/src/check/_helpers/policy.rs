@@ -16,6 +16,7 @@ use crate::constants::{
     SUFFIX_INIT,
 };
 use crate::models::{Config, Fault, ScopedSource};
+use crate::repository_io::main::relative_path::relative_path;
 
 pub(crate) fn role(source: &ScopedSource) -> Option<String> {
     let file = source.relative_parts.last()?;
@@ -156,13 +157,12 @@ fn resolve_scope_path(root: &Path, value: &str) -> Result<PathBuf, String> {
     };
     let normalized = normalize_path(&candidate);
     let resolved = if normalized.exists() {
-        normalized
-            .canonicalize()
+        dunce::canonicalize(&normalized)
             .map_err(|error| format!("Could not resolve configured path {value}: {error}"))?
     } else {
         normalized
     };
-    if !resolved.starts_with(root) {
+    if relative_path(&resolved, root).is_none() {
         return Err(format!(
             "Configured path must resolve inside the repository: {value}"
         ));
@@ -295,7 +295,7 @@ fn digest_project_observations(
             {
                 continue;
             }
-            let Ok(path) = entry.path().strip_prefix(root) else {
+            let Some(path) = relative_path(entry.path(), root) else {
                 continue;
             };
             let repository_path = path.to_string_lossy().replace('\\', "/");
@@ -378,9 +378,7 @@ pub(crate) fn bool_text(value: bool) -> String {
 }
 
 pub(crate) fn relative(path: &Path, root: &Path) -> Option<String> {
-    let Ok(relative) = path.strip_prefix(root) else {
-        return None;
-    };
+    let relative = relative_path(path, root)?;
     Some(relative.to_string_lossy().replace('\\', "/"))
 }
 

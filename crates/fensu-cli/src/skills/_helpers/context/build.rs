@@ -5,6 +5,7 @@ use crate::configuration::main::resolve_target_root::resolve_target_root;
 use crate::configuration::main::validate_exception_targets::validate_exception_targets;
 use crate::configuration::main::{load_target, load_targets};
 use crate::models::Config;
+use crate::repository_io::main::relative_path::relative_path;
 use crate::skills::_helpers::context::{exceptions, identity, selection};
 use crate::skills::models::{SkillContext, SkillOptions};
 
@@ -12,9 +13,7 @@ const ROOT_SCOPE: &str = "roots";
 const RUNTIME_SCOPE_LABEL: &str = "Runtime";
 
 pub(crate) fn build(invocation: &Path, options: &SkillOptions) -> Result<SkillContext, String> {
-    let invocation = invocation
-        .canonicalize()
-        .map_err(|error| error.to_string())?;
+    let invocation = dunce::canonicalize(invocation).map_err(|error| error.to_string())?;
     if options.config_target.is_some() {
         let loaded = load_target::load_target(&invocation, options.config_target.as_deref())?;
         return build_loaded(&invocation, options, loaded);
@@ -38,8 +37,7 @@ fn build_loaded(
     loaded: (PathBuf, Config),
 ) -> Result<SkillContext, String> {
     let (config_path, config) = loaded;
-    let config_path = config_path
-        .canonicalize()
+    let config_path = dunce::canonicalize(&config_path)
         .map_err(|error| format!("Could not resolve {}: {error}", config_path.display()))?;
     let repository_root = config_path
         .parent()
@@ -55,10 +53,9 @@ fn build_loaded(
         invocation,
         git_root.as_deref(),
     )?;
-    let project_prefix = match project_root.strip_prefix(&install_root) {
-        Ok(path) => path.to_string_lossy().replace('\\', "/"),
-        Err(_) => String::new(),
-    };
+    let project_prefix = relative_path(&project_root, &install_root)
+        .map(|path| path.to_string_lossy().replace('\\', "/"))
+        .unwrap_or_default();
     let identity =
         identity::resolve_identity(&config, &config_path, &project_root, git_root.as_deref())?;
     let selection = selection::selection(&config, &project_root)?;
@@ -106,9 +103,7 @@ fn aggregate(
     for target in &mut targets {
         target.install_root.clone_from(&install_root);
         target.git_root.clone_from(&git_root);
-        target.project_prefix = target
-            .project_root
-            .strip_prefix(&install_root)
+        target.project_prefix = relative_path(&target.project_root, &install_root)
             .map(|path| path.to_string_lossy().replace('\\', "/"))
             .unwrap_or_default();
     }
@@ -117,9 +112,7 @@ fn aggregate(
     context.project_root = repository_root;
     context.install_root = install_root;
     context.git_root = git_root;
-    context.project_prefix = context
-        .project_root
-        .strip_prefix(&context.install_root)
+    context.project_prefix = relative_path(&context.project_root, &context.install_root)
         .map(|path| path.to_string_lossy().replace('\\', "/"))
         .unwrap_or_default();
     context.identity = identity::resolve_identity(
@@ -158,7 +151,7 @@ fn validate_layout(config: &Config, project_root: &Path) -> Result<(), String> {
             } else {
                 project_root.join(value)
             });
-            if !path.starts_with(project_root) {
+            if relative_path(&path, project_root).is_none() {
                 return Err(format!(
                     "Configured path must resolve inside the repository: {value}"
                 ));

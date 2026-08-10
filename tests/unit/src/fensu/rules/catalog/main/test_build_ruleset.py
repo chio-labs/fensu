@@ -190,6 +190,7 @@ def test_given_retained_web_rules_when_reading_provenance_then_configuration_inp
             map(attrgetter("configuration_inputs"), non_ui_kit_rules),
         )
     ) == (False,) * len(non_ui_kit_rules)
+    assert all("test_layout" in rule.configuration_inputs for rule in WEB_RULES)
     assert tuple(
         map(
             methodcaller("__contains__", "generated"),

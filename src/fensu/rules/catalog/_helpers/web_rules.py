@@ -953,6 +953,7 @@ _BASE_CONFIGURATION_INPUTS: tuple[str, ...] = (
     "framework",
     "generated",
     "roots",
+    "test_layout",
     "tests",
     "tooling",
 )

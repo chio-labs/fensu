@@ -41,7 +41,7 @@ def _load_project_config(*, start: Path | None, target: str | None) -> LoadedCon
     validate_config(raw=raw_config, analyzer=analyzer)
     bootstrap_raw: dict[str, object] = dict(raw_config)
     _ = bootstrap_raw.pop("rule_options", None)
-    base_bootstrap: Config = build_config(bootstrap_raw)
+    base_bootstrap: Config = build_config(bootstrap_raw, analyzer=analyzer)
     bootstrap: Config = replace(
         base_bootstrap,
         analyzer=analyzer,
@@ -71,7 +71,7 @@ def _load_project_config(*, start: Path | None, target: str | None) -> LoadedCon
         config=bootstrap,
         repo_root=resolved_target.path,
     )
-    base_config: Config = build_config_for_rules(raw=raw_config, rules=catalogue)
+    base_config: Config = build_config_for_rules(raw=raw_config, rules=catalogue, analyzer=analyzer)
     config: Config = replace(
         base_config,
         analyzer=analyzer,

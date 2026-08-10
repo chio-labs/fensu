@@ -10,10 +10,11 @@ from types import MappingProxyType
 from fensu.config.constants import (
     DEFAULT_CACHE_ENABLED,
     DEFAULT_CONTRACTS,
+    DEFAULT_TEST_LAYOUT,
     DEFAULT_TEST_SCOPES,
     DEFAULT_THRESHOLDS,
 )
-from fensu.config.types import AnalyzerId, ConfigSourceKind
+from fensu.config.types import AnalyzerId, ConfigSourceKind, TestLayout
 from fensu.rules.authoring.models import RuleSpec
 from fensu.rules.authoring.types import RuleOptionValue, Threshold
 
@@ -151,6 +152,7 @@ class Config:
     framework: str | None = None
     shadcn: str | None = None
     openapi: str | None = None
+    test_layout: TestLayout = DEFAULT_TEST_LAYOUT
 
     def __post_init__(self) -> None:
         """Freeze defensive copies of nested rule-option mappings."""

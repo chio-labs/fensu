@@ -6,6 +6,23 @@ use serde::{Deserialize, Serialize};
 
 use crate::analyzer::AnalyzerId;
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum TestLayout {
+    #[default]
+    Mirrored,
+    Colocated,
+}
+
+impl std::fmt::Display for TestLayout {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::Mirrored => "mirrored",
+            Self::Colocated => "colocated",
+        })
+    }
+}
+
 #[derive(Debug)]
 pub(crate) struct CliOutput {
     pub(crate) stdout: String,
@@ -52,6 +69,7 @@ pub(crate) struct DetectedTarget {
     pub(crate) roots: Vec<String>,
     pub(crate) tests: Vec<String>,
     pub(crate) tooling: Vec<String>,
+    pub(crate) test_layout: TestLayout,
     pub(crate) framework: Option<String>,
     pub(crate) rule_packs: Vec<String>,
     pub(crate) select: Vec<String>,
@@ -65,6 +83,7 @@ pub(crate) struct Config {
     pub(crate) roots: Vec<String>,
     pub(crate) tests: Vec<String>,
     pub(crate) test_scopes: Vec<String>,
+    pub(crate) test_layout: TestLayout,
     pub(crate) tooling: Vec<String>,
     pub(crate) generated: Vec<String>,
     pub(crate) select: Vec<String>,
@@ -131,6 +150,7 @@ pub(crate) struct ScopedSource {
     pub(crate) path: PathBuf,
     pub(crate) repository_path: String,
     pub(crate) target_path: String,
+    pub(crate) test_owner_path: Option<String>,
     pub(crate) root: PathBuf,
     pub(crate) root_text: String,
     pub(crate) scope: String,

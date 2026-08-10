@@ -8,6 +8,7 @@ use crate::models::Config;
 use crate::tests::test_types::{
     CacheIdentityFramingTestCase, EscapingSymlinkTargetTestCase, MapCacheIdentityTestCase,
     MissingSuffixSymlinkTargetTestCase, PathMatchTestCase, TargetRootRepresentationTestCase,
+    WebTestLayoutIdentityTestCase,
 };
 
 #[cfg(unix)]
@@ -176,6 +177,48 @@ fn given_ambiguous_target_field_concatenations_when_fingerprinting_then_identity
 
         assert_eq!(
             first_identity == second_identity,
+            test_case.expected_equal,
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_web_test_layout_change_when_fingerprinting_then_check_identity_changes() {
+    let test_cases = [WebTestLayoutIdentityTestCase {
+        description: "mirrored and colocated layouts have distinct identities",
+        first_layout: crate::models::TestLayout::Mirrored,
+        second_layout: crate::models::TestLayout::Colocated,
+        expected_equal: false,
+    }];
+    let repository = tempfile::tempdir().expect("cache identity repository");
+    for test_case in test_cases {
+        let first = Config {
+            analyzer: AnalyzerId::TypeScript,
+            target: Some("web".to_owned()),
+            test_layout: test_case.first_layout,
+            raw: b"same config source".to_vec(),
+            ..Config::default()
+        };
+        let second = Config {
+            test_layout: test_case.second_layout,
+            ..first.clone()
+        };
+        let identity = |config| {
+            check_identity(CheckIdentityRequest {
+                root: repository.path(),
+                project_root: repository.path(),
+                config,
+                sources: &[],
+                project_inputs: &[],
+                warnings: false,
+            })
+            .expect("check identity")
+        };
+
+        assert_eq!(
+            identity(&first) == identity(&second),
             test_case.expected_equal,
             "{}",
             test_case.description

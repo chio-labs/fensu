@@ -43,14 +43,20 @@ fn summary_text(repository: &Path, plan: &InitPlan) -> String {
     if !plan.targets.is_empty() {
         let mut output = "-> Detected analyzer targets\n".to_owned();
         for target in &plan.targets {
+            let test_layout = if target.analyzer == crate::analyzer::AnalyzerId::Python {
+                String::new()
+            } else {
+                format!(", test_layout={}", target.test_layout)
+            };
             output.push_str(&format!(
-                "    {}: analyzer={}, root={}, roots={}, tests={}, tooling={}, packs={}\n",
+                "    {}: analyzer={}, root={}, roots={}, tests={}, tooling={}{}, packs={}\n",
                 target.name,
                 target.analyzer,
                 target.root,
                 target.roots.join(","),
                 target.tests.join(","),
                 target.tooling.join(","),
+                test_layout,
                 target.rule_packs.join(",")
             ));
         }

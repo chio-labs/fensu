@@ -7,6 +7,7 @@ import pytest
 from fensu.config.exceptions import ConfigError, ConfigValidationError
 from fensu.config.main.build_config import build_config
 from fensu.config.models import Config
+from fensu.config.types import AnalyzerId
 from fensu.rules.authoring.types import Threshold
 from tests.unit.src.fensu.config._test_types import (
     InMemoryConfigBuildTestCase,
@@ -62,6 +63,16 @@ def test_given_valid_raw_mapping_when_building_then_returns_config(
     )
 
 
+def test_given_explicit_web_analyzer_when_building_then_accepts_test_layout() -> None:
+    config: Config = build_config(
+        {"roots": ["src"], "test_layout": "colocated"},
+        analyzer=AnalyzerId.TYPESCRIPT,
+    )
+
+    assert config.test_layout == "colocated"
+    assert config.analyzer == AnalyzerId.TYPESCRIPT
+
+
 @pytest.mark.parametrize(
     "test_case",
     [
@@ -82,6 +93,12 @@ def test_given_valid_raw_mapping_when_building_then_returns_config(
             raw_config={"roots": ["src", "src/pkg"]},
             expected_error_type=ConfigError,
             expected_error_fragment="nested",
+        ),
+        InvalidInMemoryConfigTestCase(
+            description="test layout without an explicit web analyzer is rejected",
+            raw_config={"roots": ["src/pkg"], "test_layout": "mirrored"},
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="supported only by TypeScript and Svelte analyzers",
         ),
         InvalidInMemoryConfigTestCase(
             description="unknown native rule pack is rejected",

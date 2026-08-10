@@ -15,7 +15,7 @@ pub(crate) fn run_target(arguments: &[String]) -> Result<CliOutput, String> {
     let repository = env::current_dir().map_err(|error| error.to_string())?;
     addition::add_target(&repository, &request)?;
     Ok(CliOutput::success(format!(
-        "Added target {} (analyzer=svelte, root={}, roots=src, tests=, tooling=, packs=) to fensu.toml\n",
+        "Added target {} (analyzer=svelte, root={}, roots=src, tests=, tooling=, test_layout=mirrored, packs=) to fensu.toml\n",
         request.name, request.path
     )))
 }

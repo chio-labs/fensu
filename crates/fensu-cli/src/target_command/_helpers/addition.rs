@@ -4,7 +4,7 @@ use std::time::Duration;
 use crate::analyzer::AnalyzerId;
 use crate::configuration::main::render_target_config::render_target_config;
 use crate::configuration::main::validate_document::validate_document;
-use crate::models::DetectedTarget;
+use crate::models::{DetectedTarget, TestLayout};
 use crate::repository_io::main::acquire_operation_lock::acquire_operation_lock;
 use crate::repository_io::main::open_repository::open_repository;
 use crate::repository_io::main::read_optional::read_optional;
@@ -33,6 +33,7 @@ pub(crate) fn add_target(repository: &Path, request: &AddRequest) -> Result<(), 
         roots: vec!["src".to_owned()],
         tests: Vec::new(),
         tooling: Vec::new(),
+        test_layout: TestLayout::Mirrored,
         framework: Some("sveltekit".to_owned()),
         rule_packs: Vec::new(),
         select: vec!["FW".to_owned()],

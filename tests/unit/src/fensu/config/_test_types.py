@@ -65,6 +65,7 @@ class WebTargetDefaultsTestCase:
     expected_framework: str | None
     expected_shadcn: str | None
     expected_ui_kit: str | None
+    expected_test_layout: str
 
 
 @dataclass(frozen=True)

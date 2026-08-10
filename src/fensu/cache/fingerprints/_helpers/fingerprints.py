@@ -33,6 +33,7 @@ from fensu.cache.fingerprints.models import CacheFingerprint
 from fensu.cache.fingerprints.types import CanonicalValue
 from fensu.cache.storage.constants import CACHE_SCHEMA_VERSION
 from fensu.config.models import Config, RuleExceptionEntry
+from fensu.config.types import AnalyzerId
 from fensu.instrumentation.constants import CANONICAL_ENCODE_OPERATION, OPERATION_COUNTERS
 from fensu.rules.authoring.constants import MISSING
 from fensu.rules.authoring.models import RuleOption, RuleSpec
@@ -101,6 +102,8 @@ def config_fingerprint(config: Config) -> CacheFingerprint:
         "tooling": list(config.tooling),
         "warn": list(config.warn),
     }
+    if config.analyzer != AnalyzerId.PYTHON:
+        payload["test_layout"] = config.test_layout
     return canonical_fingerprint(payload)
 
 

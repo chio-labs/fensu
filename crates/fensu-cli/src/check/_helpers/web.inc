@@ -46,6 +46,69 @@ pub(crate) fn is_direct_source(path: &Path, analyzer: AnalyzerId) -> bool {
         .is_some_and(is_declaration_source)
 }
 
+pub(crate) fn is_web_test_source(path: &Path) -> bool {
+    let name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default();
+    if is_declaration_source(name) {
+        return false;
+    }
+    let stem = [
+        ".svelte.ts",
+        ".svelte.js",
+        ".tsx",
+        ".jsx",
+        ".mts",
+        ".cts",
+        ".mjs",
+        ".cjs",
+        ".ts",
+        ".js",
+    ]
+    .iter()
+    .find_map(|suffix| name.strip_suffix(suffix))
+    .unwrap_or(name);
+    stem.ends_with(".test") || stem.ends_with(".spec")
+}
+
+pub(crate) fn web_test_identity(path: &Path) -> Option<String> {
+    let stem = web_module_stem(path.file_name()?.to_str()?);
+    let identity = [".test", ".spec"]
+        .iter()
+        .find_map(|suffix| stem.strip_suffix(suffix))?;
+    Some(
+        [".integration", ".e2e"]
+            .iter()
+            .find_map(|scope| identity.strip_suffix(scope))
+            .unwrap_or(identity)
+            .to_owned(),
+    )
+}
+
+pub(crate) fn web_source_identity(path: &Path) -> Option<String> {
+    let stem = web_module_stem(path.file_name()?.to_str()?);
+    Some(stem.strip_suffix(".svelte").unwrap_or(stem).to_owned())
+}
+
+fn web_module_stem(name: &str) -> &str {
+    [
+        ".svelte.ts",
+        ".svelte.js",
+        ".tsx",
+        ".jsx",
+        ".mts",
+        ".cts",
+        ".mjs",
+        ".cjs",
+        ".ts",
+        ".js",
+    ]
+    .iter()
+    .find_map(|suffix| name.strip_suffix(suffix))
+    .unwrap_or(name)
+}
+
 fn is_declaration_source(name: &str) -> bool {
     name.ends_with(".d.ts") || name.ends_with(".d.mts") || name.ends_with(".d.cts")
 }

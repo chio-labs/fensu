@@ -14,7 +14,7 @@ use crate::init::constants::{
     DEFAULT_TARGET_ROOT, PYTHON_TARGET_NAME, TESTS_ROOT, WEB_TARGET_NAME,
 };
 use crate::init::models::RepositorySurvey;
-use crate::models::{CliOutput, DetectedTarget, InitOptions};
+use crate::models::{CliOutput, DetectedTarget, InitOptions, TestLayout};
 use crate::repository_io::main::open_repository::open_repository;
 use crate::repository_io::main::read_optional::read_optional;
 
@@ -73,6 +73,7 @@ fn detected_sveltekit_target(repository: &Path, root: &Path) -> Option<DetectedT
         roots: vec!["src".to_owned()],
         tests,
         tooling: Vec::new(),
+        test_layout: TestLayout::Mirrored,
         framework: Some("sveltekit".to_owned()),
         rule_packs: Vec::new(),
         select: vec!["FW".to_owned()],

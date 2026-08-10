@@ -21,6 +21,12 @@ pub(crate) fn render_target_config(targets: &[DetectedTarget]) -> Result<String,
             "tooling = {}\n",
             serde_json::to_string(&target.tooling).map_err(|error| error.to_string())?
         ));
+        if target.analyzer != crate::analyzer::AnalyzerId::Python {
+            text.push_str(&format!(
+                "test_layout = {:?}\n",
+                target.test_layout.to_string()
+            ));
+        }
         if let Some(framework) = &target.framework {
             text.push_str(&format!("framework = {framework:?}\n"));
         }

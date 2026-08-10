@@ -5,6 +5,7 @@ use crate::models::Config;
 use crate::skills::_helpers::content::option_rendering::rule_option_lines;
 
 const CONTRACTS_CONFIGURATION_INPUT: &str = "contracts";
+const TEST_LAYOUT_CONFIGURATION_INPUT: &str = "test_layout";
 const UI_KIT_CONFIGURATION_INPUT: &str = "ui_kit";
 
 pub(crate) fn tier_lines(heading: &str, rules: &[RuleMetadata], config: &Config) -> Vec<String> {
@@ -99,6 +100,10 @@ fn rule_configuration_lines(rule: &RuleMetadata, config: &Config) -> Vec<String>
                 _ => None,
             };
             lines.push(format!("- `{name}`: {}", value.unwrap_or("not configured")));
+            continue;
+        }
+        if name == TEST_LAYOUT_CONFIGURATION_INPUT {
+            lines.push(format!("- `test_layout`: {}", config.test_layout));
             continue;
         }
         let values = match name.as_str() {

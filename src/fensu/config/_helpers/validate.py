@@ -32,7 +32,7 @@ from fensu.config.constants import (
     THRESHOLD_OVERRIDE_KEYS,
 )
 from fensu.config.exceptions import ConfigError, ConfigValidationError
-from fensu.config.types import AnalyzerId
+from fensu.config.types import AnalyzerId, TestLayout
 from fensu.rules.authoring.main.is_rule_code import is_rule_code
 from fensu.rules.authoring.main.is_rule_selector import is_rule_selector
 from fensu.rules.authoring.types import Threshold
@@ -56,6 +56,14 @@ def validate_config(*, raw: Mapping[str, object], analyzer: AnalyzerId | None = 
     _validate_no_nested_paths(name="roots", paths=roots)
     _validate_optional_string_sequence(name="tests", value=raw.get("tests"))
     _validate_test_scopes(value=raw.get("test_scopes"))
+    test_layout: object = raw.get("test_layout")
+    if test_layout is not None:
+        if analyzer not in {AnalyzerId.TYPESCRIPT, AnalyzerId.SVELTE}:
+            raise ConfigValidationError(
+                "Config key test_layout is supported only by TypeScript and Svelte analyzers."
+            )
+        if test_layout not in {layout.value for layout in TestLayout}:
+            raise ConfigValidationError("Config key test_layout must be 'mirrored' or 'colocated'.")
     _validate_optional_string_sequence(name="tooling", value=raw.get("tooling"))
     _validate_optional_string_sequence(name="generated", value=raw.get("generated"))
     _validate_optional_string_sequence(name="rule_paths", value=raw.get("rule_paths"))

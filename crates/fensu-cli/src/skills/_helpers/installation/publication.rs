@@ -3,8 +3,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::skills::_helpers::content::fingerprint::{
-    generated_marker_present, legacy_ownership_matches, owned_project_content,
-    ownership_marker_present, parse_ownership, project_marker_present,
+    content_fingerprint_matches, generated_marker_present, legacy_ownership_matches,
+    owned_project_content, ownership_marker_present, parse_ownership, project_marker_present,
 };
 use crate::skills::_helpers::installation::filesystem::{
     capture, capture_bundle, ensure_safe_directory, normalization_collision, sorted_entries,
@@ -12,7 +12,7 @@ use crate::skills::_helpers::installation::filesystem::{
 };
 use crate::skills::_helpers::installation::plan::skills_directory;
 use crate::skills::_helpers::installation::transaction::{self, Publication};
-use crate::skills::models::InstallPlan;
+use crate::skills::models::{GeneratedSkillMigration, InstallPlan, Ownership};
 
 struct PreflightRequest<'a> {
     root: &'a Path,
@@ -20,6 +20,7 @@ struct PreflightRequest<'a> {
     identity: &'a str,
     project: bool,
     force: bool,
+    migrations: &'a [GeneratedSkillMigration],
 }
 
 pub(crate) fn install(
@@ -42,6 +43,7 @@ pub(crate) fn install(
             identity: &plan.context.identity,
             project: false,
             force,
+            migrations: &plan.migrations,
         })?;
         let by_path = existing
             .iter()
@@ -70,6 +72,7 @@ pub(crate) fn install(
             identity: &target.bundle.identity,
             project: true,
             force,
+            migrations: &[],
         })?;
         let by_path = existing
             .iter()
@@ -107,6 +110,20 @@ pub(crate) fn install(
             deletions.insert(path.clone(), snapshot);
         }
     }
+    for migration in &plan.migrations {
+        if plan
+            .targets
+            .iter()
+            .any(|target| target.path == migration.path)
+        {
+            continue;
+        }
+        if let Some(snapshot) =
+            capture_legacy(&migration.path, &migration.owner, &migration.identity)?
+        {
+            deletions.insert(migration.path.clone(), snapshot);
+        }
+    }
     transaction::publish(publications, deletions.into_values().collect())?;
     cleanup_empty_roots(plan, stale_roots);
     Ok(written)
@@ -119,6 +136,7 @@ fn preflight_bundle(request: PreflightRequest<'_>) -> Result<Vec<Snapshot>, Stri
         identity,
         project,
         force,
+        migrations,
     } = request;
     if let Some(collision) = normalization_collision(&root.join("SKILL.md"))? {
         return Err(format!(
@@ -138,9 +156,17 @@ fn preflight_bundle(request: PreflightRequest<'_>) -> Result<Vec<Snapshot>, Stri
         .and_then(|item| item.content.as_deref())
         .and_then(parse_ownership);
     let content = document.and_then(|item| item.content.as_deref());
-    let migratable = ownership.as_ref().is_some_and(|item| {
+    let legacy_migration = ownership.as_ref().is_some_and(|item| {
         content.is_some_and(|bytes| legacy_ownership_matches(bytes, item, identity))
     });
+    let owned_migration = ownership.as_ref().is_some_and(|item| {
+        content.is_some_and(|bytes| {
+            migrations.iter().any(|migration| {
+                migration.path == root.join("SKILL.md") && migration_matches(migration, bytes, item)
+            })
+        })
+    });
+    let migratable = legacy_migration || owned_migration;
     if ownership.as_ref().is_some_and(|item| {
         item.identity != identity || (item.owner != expected_owner && !migratable)
     }) {
@@ -171,6 +197,17 @@ fn preflight_bundle(request: PreflightRequest<'_>) -> Result<Vec<Snapshot>, Stri
         ));
     }
     Ok(existing)
+}
+
+fn migration_matches(
+    migration: &GeneratedSkillMigration,
+    content: &[u8],
+    ownership: &Ownership,
+) -> bool {
+    generated_marker_present(content)
+        && ownership.identity == migration.identity
+        && ownership.owner == migration.owner
+        && content_fingerprint_matches(content, ownership)
 }
 
 fn capture_stale_bundles(
@@ -245,14 +282,14 @@ fn capture_legacy(
     if ownership_marker_present(content) && parse_ownership(content).is_none() {
         return Ok(None);
     }
-    if let Some(ownership) = parse_ownership(content) {
-        if ownership.owner != expected_owner
-            && !legacy_ownership_matches(content, &ownership, expected_identity)
-        {
-            return Ok(None);
-        }
-    }
-    Ok(Some(snapshot))
+    let Some(ownership) = parse_ownership(content) else {
+        return Ok(None);
+    };
+    let current = ownership.identity == expected_identity
+        && ownership.owner == expected_owner
+        && content_fingerprint_matches(content, &ownership);
+    let legacy = legacy_ownership_matches(content, &ownership, expected_identity);
+    Ok((current || legacy).then_some(snapshot))
 }
 
 fn cleanup_empty_roots(plan: &InstallPlan, stale_roots: Vec<PathBuf>) {
@@ -264,6 +301,11 @@ fn cleanup_empty_roots(plan: &InstallPlan, stale_roots: Vec<PathBuf>) {
             plan.legacy_paths
                 .iter()
                 .filter_map(|path| path.parent().map(Path::to_path_buf)),
+        )
+        .chain(
+            plan.migrations
+                .iter()
+                .filter_map(|migration| migration.path.parent().map(Path::to_path_buf)),
         )
         .chain(stale_roots)
         .collect::<HashSet<_>>();

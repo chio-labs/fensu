@@ -25,6 +25,8 @@ def rule_metadata_value(
         "remediation": rule.remediation,
         "severity": rule.severity.value,
         "enabled_by_default": rule.enabled_by_default,
+        "analyzers": [analyzer.value for analyzer in rule.analyzers],
+        "frameworks": rule.frameworks,
         "execution_owner": rule.execution_owner.value,
         "kind": rule.kind.value,
         "pack": rule.pack,

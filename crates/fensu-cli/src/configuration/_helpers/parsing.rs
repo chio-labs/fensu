@@ -4,14 +4,18 @@ use crate::configuration::_helpers::validation::required_strings;
 use crate::configuration::constants::{
     DEFAULT_CACHE_ENABLED, DEFAULT_CACHE_REQUIRE_CACHEABLE, DEFAULT_CONTRACTS, DEFAULT_IGNORE,
     DEFAULT_SELECT, DEFAULT_TEST_PATHS, DEFAULT_TEST_SCOPES, DEFAULT_THRESHOLDS, DEFAULT_WARN,
+    WEB_DEFAULT_CONTRACTS,
 };
-use crate::models::{Config, RuleException, RuleIgnore, ThresholdOverride};
+use crate::models::{
+    Config, RuleException, RuleIgnore, TargetSelection, TestLayout, ThresholdOverride,
+};
 
 pub(crate) fn build(
-    table: &toml::map::Map<String, toml::Value>,
+    selection: TargetSelection,
     raw: Vec<u8>,
     pyproject: bool,
 ) -> Result<Config, String> {
+    let table = &selection.table;
     let roots = required_strings(table.get("roots"), "roots")?;
     if roots.is_empty() {
         return Err("Config must define at least one root in roots.".to_owned());
@@ -21,15 +25,31 @@ pub(crate) fn build(
         .map(|(name, value)| ((*name).to_owned(), *value))
         .collect::<HashMap<_, _>>();
     thresholds.extend(numbers(table.get("thresholds")));
-    let contracts = contracts(table.get("contracts"));
+    let contracts = contracts(table.get("contracts"), selection.analyzer);
     let cache = table.get("cache").and_then(toml::Value::as_table);
     let evaluation = table.get("evaluation").and_then(toml::Value::as_table);
+    let identity_raw = identity_raw(table)?;
     Ok(Config {
+        analyzer: selection.analyzer,
+        target: selection.target,
+        target_root: selection.root,
         roots,
         tests: strings_or(table.get("tests"), DEFAULT_TEST_PATHS),
         test_scopes: strings_or(table.get("test_scopes"), DEFAULT_TEST_SCOPES),
+        test_layout: match table.get("test_layout").and_then(toml::Value::as_str) {
+            Some("colocated") => TestLayout::Colocated,
+            _ => TestLayout::Mirrored,
+        },
         tooling: strings(table.get("tooling")),
-        select: strings_or(table.get("select"), DEFAULT_SELECT),
+        generated: strings(table.get("generated")),
+        select: strings_or(
+            table.get("select"),
+            if selection.analyzer == crate::analyzer::AnalyzerId::Python {
+                DEFAULT_SELECT
+            } else {
+                &["FW"]
+            },
+        ),
         warn: strings_or(table.get("warn"), DEFAULT_WARN),
         ignore: strings_or(table.get("ignore"), DEFAULT_IGNORE),
         rule_paths: strings(table.get("rule_paths")),
@@ -58,19 +78,73 @@ pub(crate) fn build(
         role_thresholds: role_thresholds(table.get("roles")),
         threshold_overrides: threshold_overrides(table.get("threshold_overrides")),
         contracts,
+        ui_kit: table
+            .get("ui_kit")
+            .and_then(toml::Value::as_str)
+            .map(|value| value.trim_end_matches('/').to_owned()),
+        framework: table
+            .get("framework")
+            .and_then(toml::Value::as_str)
+            .map(str::to_owned)
+            .or_else(|| {
+                (selection.analyzer == crate::analyzer::AnalyzerId::Svelte)
+                    .then(|| "sveltekit".to_owned())
+            }),
+        shadcn: table
+            .get("shadcn")
+            .and_then(toml::Value::as_str)
+            .map(str::to_owned),
+        openapi: table
+            .get("openapi")
+            .and_then(toml::Value::as_str)
+            .map(str::to_owned),
         exceptions: exceptions(table.get("rule_exceptions")),
         rule_ignores: rule_ignores(table.get("rule_ignores")),
         skills_name: skills_name(table)?,
         source_kind: if pyproject { "pyproject" } else { "fensu_toml" }.to_owned(),
         raw,
+        identity_raw,
     })
 }
 
-fn contracts(value: Option<&toml::Value>) -> Vec<(String, String)> {
+fn identity_raw(table: &toml::map::Map<String, toml::Value>) -> Result<Vec<u8>, String> {
+    let mut identity = table.clone();
+    let empty_evaluation = identity
+        .get_mut("evaluation")
+        .and_then(toml::Value::as_table_mut)
+        .is_some_and(|evaluation| {
+            if evaluation
+                .get("exclude")
+                .and_then(toml::Value::as_array)
+                .is_some_and(|patterns| patterns.is_empty())
+            {
+                evaluation.remove("exclude");
+            }
+            evaluation.is_empty()
+        });
+    if empty_evaluation {
+        identity.remove("evaluation");
+    }
+    toml::to_string(&identity)
+        .map(String::into_bytes)
+        .map_err(|error| format!("Could not normalize selected configuration: {error}"))
+}
+
+fn contracts(
+    value: Option<&toml::Value>,
+    analyzer: crate::analyzer::AnalyzerId,
+) -> Vec<(String, String)> {
     let mut contracts = DEFAULT_CONTRACTS
         .iter()
         .map(|(pattern, behavior)| ((*pattern).to_owned(), (*behavior).to_owned()))
         .collect::<Vec<_>>();
+    if analyzer != crate::analyzer::AnalyzerId::Python {
+        contracts.extend(
+            WEB_DEFAULT_CONTRACTS
+                .iter()
+                .map(|(pattern, behavior)| ((*pattern).to_owned(), (*behavior).to_owned())),
+        );
+    }
     if let Some(values) = value.and_then(toml::Value::as_table) {
         for (name, value) in values {
             if let Some(text) = value.as_str() {

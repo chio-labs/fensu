@@ -6,6 +6,16 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from fensu.analysis.types import RuleCaseForm
+from fensu.config.types import AnalyzerId
+
+
+@dataclass(frozen=True, slots=True)
+class AnalyzerCapability:
+    """One known analyzer's backend availability and cache identity."""
+
+    analyzer: AnalyzerId
+    available: bool
+    cache_contract: str
 
 
 @dataclass(frozen=True, slots=True)

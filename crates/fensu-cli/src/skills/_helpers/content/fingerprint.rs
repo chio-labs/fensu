@@ -17,7 +17,22 @@ const PROJECT_MARKER: &str = "<!-- synchronized-project-skill-by: fensu skills -
 const UNICODE_BASIC_PLANE_MAX: u32 = 0xffff;
 
 pub(crate) fn input_fingerprint(context: &SkillContext) -> Result<String, String> {
-    let encoded = canonical_ascii(&input_value(context))?;
+    let mut value = input_value(context);
+    if context.targets.is_empty() {
+        value.insert("web_inputs", web_inputs_value(context)?);
+    } else {
+        let targets = context
+            .targets
+            .iter()
+            .map(|target| {
+                let mut value = input_value(target);
+                value.insert("web_inputs", web_inputs_value(target)?);
+                Ok(json!(value))
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        value.insert("targets", json!(targets));
+    }
+    let encoded = canonical_ascii(&value)?;
     Ok(digest(encoded.as_bytes()))
 }
 
@@ -251,7 +266,7 @@ fn config_value(config: &Config) -> Value {
         role_thresholds.insert(role.clone(), json!(values));
     }
     let contracts = config.contracts.iter().cloned().collect::<BTreeMap<_, _>>();
-    json!({
+    let mut value = json!({
         "roots": config.roots,
         "tests": config.tests,
         "tooling": config.tooling,
@@ -271,13 +286,41 @@ fn config_value(config: &Config) -> Value {
         "evaluation": {"include": config.evaluation_include, "exclude": config.evaluation_exclude},
         "skills": {"name": config.skills_name},
         "thresholds": thresholds,
+        "framework": config.framework,
+        "ui_kit": config.ui_kit,
+        "shadcn": config.shadcn,
+        "openapi": config.openapi,
         "role_thresholds": role_thresholds,
         "threshold_overrides": config.threshold_overrides.iter().map(|item| {
             let values = item.thresholds.iter().map(|(key, value)| (key.clone(), json!(value))).collect::<BTreeMap<_, _>>();
             json!({"paths": item.paths, "thresholds": values, "reason": item.reason})
         }).collect::<Vec<_>>(),
         "contracts": contracts,
-    })
+    });
+    if config.target.is_some() {
+        value["analyzer"] = json!(config.analyzer);
+        value["target"] = json!(config.target);
+        value["target_root"] = json!(config.target_root);
+    }
+    if config.analyzer != crate::analyzer::AnalyzerId::Python {
+        value["test_layout"] = json!(config.test_layout);
+    }
+    value
+}
+
+fn web_inputs_value(context: &SkillContext) -> Result<Value, String> {
+    let mut inputs: BTreeMap<String, String> = BTreeMap::new();
+    for path in [&context.config.shadcn, &context.config.openapi]
+        .into_iter()
+        .flatten()
+    {
+        let absolute = context.project_root.join(path);
+        let content = std::fs::read(&absolute).map_err(|error| {
+            format!("Could not fingerprint target-local web dependency {path}: {error}")
+        })?;
+        inputs.insert(path.clone(), digest(&content));
+    }
+    Ok(json!(inputs))
 }
 
 fn rules_value(context: &SkillContext, rules: &[RuleMetadata]) -> Value {
@@ -381,11 +424,14 @@ fn posix(path: &Path) -> String {
 }
 
 fn stable_config_path(context: &SkillContext) -> String {
+    if let Ok(relative) = context.config_path.strip_prefix(&context.project_root) {
+        return posix(&Path::new(&context.project_prefix).join(relative));
+    }
     let relative = context
         .config_path
-        .strip_prefix(&context.project_root)
+        .strip_prefix(&context.install_root)
         .unwrap_or(&context.config_path);
-    posix(&Path::new(&context.project_prefix).join(relative))
+    posix(relative)
 }
 
 fn stable_rule_source(context: &SkillContext, source: &str) -> String {

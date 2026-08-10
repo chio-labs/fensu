@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from fensu.config.models import Config
-from fensu.discovery.models import DiscoveredTree
+from fensu.discovery.models import DiscoveredTree, RepoRoot
 from fensu.evaluation.main._evaluate_native_core_rules import evaluate_native_core_rules
 from fensu.evaluation.main.evaluate_target import evaluate_target
 from fensu.evaluation.models import EvaluationTarget, FileEvaluation, NativeCoreRuleEvaluation
@@ -22,17 +22,18 @@ def evaluate_target_chunk(
 ) -> tuple[FileEvaluation, ...]:
     """Evaluate one bounded target chunk through its registered execution owners."""
 
+    project_root: RepoRoot = tree.repo_root if tree.project_root is None else tree.project_root
     scope_roots: tuple[tuple[str, str], ...] = (
         *(
-            ("root", source.path.relative_to(tree.repo_root.path).as_posix())
+            ("root", source.path.relative_to(project_root.path).as_posix())
             for source in tree.layout.runtime_sources
         ),
         *(
-            ("tooling", source.path.relative_to(tree.repo_root.path).as_posix())
+            ("tooling", source.path.relative_to(project_root.path).as_posix())
             for source in tree.layout.tooling_sources
         ),
         *(
-            ("test", root.path.relative_to(tree.repo_root.path).as_posix())
+            ("test", root.path.relative_to(project_root.path).as_posix())
             for root in tree.layout.test_roots
         ),
     )
@@ -41,7 +42,7 @@ def evaluate_target_chunk(
         ruleset=ruleset,
         warning_rules=warning_rules,
         config=config,
-        repo_root=tree.repo_root.path,
+        repo_root=project_root.path,
         tooling_packages=tuple(source.package_name for source in tree.layout.tooling_sources),
         project=project,
         scope_roots=scope_roots,

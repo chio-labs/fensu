@@ -4,6 +4,9 @@ use std::fs;
 use std::path::PathBuf;
 
 #[allow(dead_code)]
+#[path = "src/analyzer.rs"]
+mod analyzer;
+#[allow(dead_code)]
 #[path = "src/catalogue/models.rs"]
 mod catalogue_models;
 
@@ -13,6 +16,7 @@ const TRAILING_SPACE_ESCAPE_LF: &str = "\\x20\n";
 const TRAILING_SPACE_ESCAPE_CRLF: &str = "\\x20\r\n";
 const RULE_FIELDS: &[&str] = &[
     "alias_of",
+    "analyzers",
     "cacheable",
     "code",
     "configuration_inputs",
@@ -21,6 +25,7 @@ const RULE_FIELDS: &[&str] = &[
     "enabled_by_default",
     "execution_owner",
     "family",
+    "frameworks",
     "kind",
     "limits",
     "message",

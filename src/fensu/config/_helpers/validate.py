@@ -4,28 +4,38 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping
-from pathlib import PurePosixPath
+from pathlib import PurePosixPath, PureWindowsPath
 from typing import cast
 
+from fensu.config._helpers.path_patterns import expand_path_pattern
 from fensu.config.constants import (
     CACHE_ENABLED_CONFIG_KEY,
     CACHE_REQUIRE_CACHEABLE_CONFIG_KEY,
     CONFIG_ROLE_NAMES,
     CONFIG_TOP_LEVEL_KEYS,
     CONTRACT_BEHAVIORS,
+    DEFAULT_TARGET_ROOT,
+    DEFAULT_WEB_FRAMEWORK,
     DOUBLE_PATH_SEPARATOR,
     EVALUATION_CONFIG_KEYS,
+    EVALUATION_INCLUDE_CONFIG_KEY,
+    INVALID_UI_KIT_PATH_PARTS,
     MAX_THRESHOLD_VALUE,
     PATH_SEPARATOR,
+    PYTHON_ANALYZER,
     RECURSIVE_GLOB,
     RULE_EXCEPTION_SYMBOLS_CONFIG_KEY,
     RULE_IGNORE_KEYS,
     SKILLS_CONFIG_KEYS,
     SKILLS_NAME_CONFIG_KEY,
+    TARGET_CONFIG_KEYS,
+    TARGETS_CONFIG_KEY,
     TEST_SCOPE_PATTERN,
     THRESHOLD_OVERRIDE_KEYS,
+    WEB_THRESHOLD_ALIASES,
 )
 from fensu.config.exceptions import ConfigError, ConfigValidationError
+from fensu.config.types import AnalyzerId, TestLayout
 from fensu.rules.authoring.main.is_rule_code import is_rule_code
 from fensu.rules.authoring.main.is_rule_selector import is_rule_selector
 from fensu.rules.authoring.types import Threshold
@@ -39,7 +49,7 @@ _glob_characters: frozenset[str] = frozenset({"*", "?", "[", "]"})
 _registered_rule_packs: frozenset[str] = frozenset({"dagster"})
 
 
-def validate_config(raw: Mapping[str, object]) -> None:
+def validate_config(*, raw: Mapping[str, object], analyzer: AnalyzerId | None = None) -> None:
     """Raise if a raw config mapping violates the day-one schema."""
 
     _validate_top_level_keys(raw=raw)
@@ -49,7 +59,20 @@ def validate_config(raw: Mapping[str, object]) -> None:
     _validate_no_nested_paths(name="roots", paths=roots)
     _validate_optional_string_sequence(name="tests", value=raw.get("tests"))
     _validate_test_scopes(value=raw.get("test_scopes"))
+    test_layout: object = raw.get("test_layout")
+    if test_layout is not None:
+        if analyzer not in {AnalyzerId.TYPESCRIPT, AnalyzerId.SVELTE}:
+            raise ConfigValidationError(
+                "Config key test_layout is supported only by TypeScript and Svelte analyzers."
+            )
+        if test_layout not in {layout.value for layout in TestLayout}:
+            raise ConfigValidationError("Config key test_layout must be 'mirrored' or 'colocated'.")
     _validate_optional_string_sequence(name="tooling", value=raw.get("tooling"))
+    generated: object = raw.get("generated")
+    _validate_optional_string_sequence(name="generated", value=generated)
+    if generated is not None:
+        for pattern in _validate_string_sequence(name="generated", value=generated):
+            _validate_path_pattern(pattern=pattern, owner="Generated path")
     _validate_optional_string_sequence(name="rule_paths", value=raw.get("rule_paths"))
     _validate_optional_string_sequence(name="rule_modules", value=raw.get("rule_modules"))
     raw_rule_packs: object = raw.get("rule_packs")
@@ -71,11 +94,197 @@ def validate_config(raw: Mapping[str, object]) -> None:
     _validate_role_thresholds(value=raw.get("roles"))
     _validate_threshold_overrides(value=raw.get("threshold_overrides"))
     _validate_contracts(value=raw.get("contracts"))
-    _validate_rule_exceptions(value=raw.get("rule_exceptions"))
+    framework: object = raw.get("framework")
+    if framework is not None and framework != DEFAULT_WEB_FRAMEWORK:
+        raise ConfigValidationError("Config key framework must be 'sveltekit'.")
+    if framework is not None and analyzer is not None and analyzer is not AnalyzerId.SVELTE:
+        raise ConfigValidationError(
+            "Config key framework is supported only by the Svelte analyzer."
+        )
+    for path_key in ("shadcn", "openapi"):
+        path_value: object = raw.get(path_key)
+        if path_value is not None and not _is_portable_target_path(value=path_value):
+            raise ConfigValidationError(
+                f"Config key {path_key} must be a non-empty repository-relative path."
+            )
+    ui_kit: object = raw.get("ui_kit")
+    if ui_kit is not None and not _is_portable_target_path(value=ui_kit):
+        raise ConfigValidationError(
+            "Config key ui_kit must be a non-empty repository-relative path."
+        )
+    if isinstance(ui_kit, str) and not any(ui_kit.startswith(f"{root}/") for root in roots):
+        raise ConfigValidationError("Config key ui_kit must be beneath a configured root.")
+    _validate_rule_exceptions(value=raw.get("rule_exceptions"), analyzer=analyzer)
     _validate_rule_ignores(value=raw.get("rule_ignores"))
     _validate_cache(value=raw.get("cache"))
     _validate_evaluation(value=raw.get("evaluation"))
     _validate_skills(value=raw.get("skills"))
+
+
+def select_config_target(
+    *, raw: Mapping[str, object], target: str | None
+) -> tuple[Mapping[str, object], str | None, AnalyzerId, str]:
+    """Select and validate one explicit target, or preserve legacy flat configuration."""
+
+    if TARGETS_CONFIG_KEY not in raw:
+        if target is not None:
+            raise ConfigValidationError(f"Unknown target name: {target}.")
+        return raw, None, PYTHON_ANALYZER, DEFAULT_TARGET_ROOT
+    mixed_keys: set[str] = set(raw) - {TARGETS_CONFIG_KEY}
+    if mixed_keys:
+        names: str = ", ".join(sorted(mixed_keys))
+        raise ConfigValidationError(
+            f"Explicit targets cannot be mixed with legacy top-level config keys: {names}."
+        )
+    targets: object = raw.get(TARGETS_CONFIG_KEY)
+    if not isinstance(targets, dict):
+        raise ConfigValidationError("Config key targets must be a table of named targets.")
+    if not targets:
+        raise ConfigValidationError("Config key targets must define at least one named target.")
+    validated: dict[str, tuple[dict[str, object], AnalyzerId, str]] = {}
+    for name, value in sorted(targets.items()):
+        if not isinstance(name, str) or not name:
+            raise ConfigValidationError("Target names must be non-empty strings.")
+        if not isinstance(value, dict):
+            raise ConfigValidationError(f"Config target {name} must be a table.")
+        typed_value: dict[str, object] = cast("dict[str, object]", value)
+        unknown_keys: set[str] = (
+            set(typed_value) - set(CONFIG_TOP_LEVEL_KEYS) - set(TARGET_CONFIG_KEYS)
+        )
+        if unknown_keys:
+            names = ", ".join(sorted(unknown_keys))
+            raise ConfigValidationError(f"Unknown targets.{name} config key(s): {names}.")
+        analyzer: object = typed_value.get("analyzer")
+        if not isinstance(analyzer, str) or not analyzer:
+            raise ConfigValidationError(
+                f"Config key targets.{name}.analyzer must be a non-empty string."
+            )
+        try:
+            analyzer_id: AnalyzerId = AnalyzerId(analyzer)
+        except ValueError:
+            raise ConfigValidationError(
+                f"Unknown analyzer for target {name}: {analyzer}."
+            ) from None
+        root_value: object = typed_value.get("root", DEFAULT_TARGET_ROOT)
+        if not isinstance(root_value, str) or not root_value:
+            raise ConfigValidationError(
+                f"Config key targets.{name}.root must be a non-empty string."
+            )
+        root: str = _normalize_target_root(name=name, value=root_value)
+        selected: dict[str, object] = dict(typed_value)
+        _ = selected.pop("analyzer")
+        _ = selected.pop("root", None)
+        if analyzer_id in {AnalyzerId.TYPESCRIPT, AnalyzerId.SVELTE}:
+            selected = _normalize_web_threshold_aliases(raw=selected)
+        validate_config(raw=selected, analyzer=analyzer_id)
+        validated[name] = (selected, analyzer_id, root)
+    selected_name: str
+    if target is not None:
+        if target not in validated:
+            raise ConfigValidationError(f"Unknown target name: {target}.")
+        selected_name = target
+    elif len(validated) == 1:
+        selected_name = next(iter(validated))
+    else:
+        raise ConfigValidationError(
+            "Multiple targets are configured; select one with --target TARGET."
+        )
+    selected_config, analyzer, root = validated[selected_name]
+    return selected_config, selected_name, analyzer, root
+
+
+def selected_config_target_names(
+    *, raw: Mapping[str, object], target: str | None
+) -> tuple[str | None, ...]:
+    """Return validated selected target names in deterministic order."""
+
+    if target is not None or TARGETS_CONFIG_KEY not in raw:
+        _, selected, _, _ = select_config_target(raw=raw, target=target)
+        return (selected,)
+    targets: object = raw.get(TARGETS_CONFIG_KEY)
+    if not isinstance(targets, dict) or not targets:
+        _ = select_config_target(raw=raw, target=None)
+        raise ConfigValidationError("Config key targets must define at least one named target.")
+    names: tuple[str, ...] = tuple(sorted(str(name) for name in targets))
+    for name in names:
+        _ = select_config_target(raw=raw, target=name)
+    return names
+
+
+def _normalize_target_root(*, name: str, value: str) -> str:
+    windows_path: PureWindowsPath = PureWindowsPath(value)
+    configured: PurePosixPath = PurePosixPath(
+        value.replace(_windows_path_separator, PATH_SEPARATOR)
+    )
+    if configured.is_absolute() or windows_path.is_absolute() or windows_path.drive:
+        raise ConfigValidationError(f"Target {name} root {value!r} must be repository-relative.")
+    parts: list[str] = []
+    for part in configured.parts:
+        if part in {_empty_string, _current_path_part}:
+            continue
+        if part == _parent_path_part:
+            if not parts:
+                raise ConfigValidationError(
+                    f"Target {name} root {value!r} must not escape the repository."
+                )
+            _ = parts.pop()
+            continue
+        parts.append(part)
+    return PurePosixPath(*parts).as_posix() if parts else DEFAULT_TARGET_ROOT
+
+
+def _normalize_web_threshold_aliases(*, raw: dict[str, object]) -> dict[str, object]:
+    normalized: dict[str, object] = dict(raw)
+    thresholds: object = raw.get("thresholds")
+    if isinstance(thresholds, dict):
+        normalized["thresholds"] = _normalize_web_threshold_table(
+            values=cast("dict[str, object]", thresholds), owner="thresholds"
+        )
+    roles: object = raw.get("roles")
+    if isinstance(roles, dict):
+        typed_roles: dict[str, object] = cast("dict[str, object]", roles)
+        normalized_roles: dict[str, object] = dict(typed_roles)
+        for role, values in typed_roles.items():
+            if isinstance(values, dict):
+                normalized_roles[role] = _normalize_web_threshold_table(
+                    values=cast("dict[str, object]", values), owner=f"roles.{role}"
+                )
+        normalized["roles"] = normalized_roles
+    overrides: object = raw.get("threshold_overrides")
+    if isinstance(overrides, list):
+        normalized_overrides: list[object] = []
+        for entry in overrides:
+            if not isinstance(entry, dict) or not isinstance(entry.get("thresholds"), dict):
+                normalized_overrides.append(entry)
+                continue
+            typed_entry: dict[str, object] = cast("dict[str, object]", entry)
+            typed_thresholds: dict[str, object] = cast(
+                "dict[str, object]", typed_entry["thresholds"]
+            )
+            normalized_entry: dict[str, object] = dict(typed_entry)
+            normalized_entry["thresholds"] = _normalize_web_threshold_table(
+                values=typed_thresholds, owner="threshold_overrides.thresholds"
+            )
+            normalized_overrides.append(normalized_entry)
+        normalized["threshold_overrides"] = normalized_overrides
+    return normalized
+
+
+def _normalize_web_threshold_table(
+    *, values: Mapping[str, object], owner: str
+) -> dict[str, object]:
+    normalized: dict[str, object] = dict(values)
+    for alias, threshold in WEB_THRESHOLD_ALIASES.items():
+        if alias not in normalized:
+            continue
+        canonical: str = threshold.value
+        if canonical in normalized and normalized[canonical] != normalized[alias]:
+            raise ConfigValidationError(
+                f"Conflicting threshold values in {owner}: {alias} and {canonical}."
+            )
+        normalized[canonical] = normalized[alias]
+        del normalized[alias]
+    return normalized
 
 
 def _validate_top_level_keys(*, raw: Mapping[str, object]) -> None:
@@ -149,7 +358,7 @@ def _validate_evaluation(*, value: object) -> None:
         patterns: tuple[str, ...] = _validate_string_sequence(
             name=f"evaluation.{key}", value=typed_value[key]
         )
-        if not patterns:
+        if key == EVALUATION_INCLUDE_CONFIG_KEY and not patterns:
             raise ConfigValidationError(f"Config key evaluation.{key} must not be empty.")
         for pattern in patterns:
             _validate_path_pattern(pattern=pattern, owner=f"Evaluation {key}")
@@ -314,26 +523,30 @@ def _validate_rule_ignores(*, value: object) -> None:
 
 
 def _validate_path_pattern(*, pattern: str, owner: str) -> None:
-    parsed: PurePosixPath = PurePosixPath(pattern)
-    malformed: bool = (
-        pattern.startswith("/")
-        or pattern.endswith("/")
-        or DOUBLE_PATH_SEPARATOR in pattern
-        or any(character in pattern for character in {"?", "[", "]"})
-        or any(
-            RECURSIVE_GLOB in part and part != RECURSIVE_GLOB
-            for part in pattern.split(PATH_SEPARATOR)
+    expanded: tuple[str, ...] = expand_path_pattern(pattern=pattern)
+    for candidate in expanded:
+        parsed: PurePosixPath = PurePosixPath(candidate)
+        malformed: bool = (
+            candidate.startswith("/")
+            or candidate.endswith("/")
+            or DOUBLE_PATH_SEPARATOR in candidate
+            or any(character in candidate for character in {"?", "[", "]"})
+            or any(
+                RECURSIVE_GLOB in part and part != RECURSIVE_GLOB
+                for part in candidate.split(PATH_SEPARATOR)
+            )
+            or f"{RECURSIVE_GLOB}{PATH_SEPARATOR}{RECURSIVE_GLOB}" in candidate
         )
-        or f"{RECURSIVE_GLOB}{PATH_SEPARATOR}{RECURSIVE_GLOB}" in pattern
-    )
-    if (
-        parsed.is_absolute()
-        or _windows_path_separator in pattern
-        or pattern != parsed.as_posix()
-        or malformed
-        or any(part in {_current_path_part, _parent_path_part} for part in parsed.parts)
-    ):
-        raise ConfigValidationError(f"{owner} must be a repository-relative POSIX glob: {pattern}.")
+        if (
+            parsed.is_absolute()
+            or _windows_path_separator in candidate
+            or candidate != parsed.as_posix()
+            or malformed
+            or any(part in {_current_path_part, _parent_path_part} for part in parsed.parts)
+        ):
+            raise ConfigValidationError(
+                f"{owner} must be a repository-relative POSIX glob: {pattern}."
+            )
 
 
 def _validate_contracts(*, value: object) -> None:
@@ -348,18 +561,21 @@ def _validate_contracts(*, value: object) -> None:
             raise ConfigValidationError(f"Unknown contract behavior for {pattern}: {behavior}.")
 
 
-def _validate_rule_exceptions(*, value: object) -> None:
+def _validate_rule_exceptions(*, value: object, analyzer: AnalyzerId | None) -> None:
     if value is None:
         return
     if not isinstance(value, list):
         raise ConfigValidationError("Config key rule_exceptions must be an array of tables.")
     seen: set[tuple[str, str, str | None]] = set()
     for entry in value:
-        seen = _validate_rule_exception_entry(entry=entry, seen=seen)
+        seen = _validate_rule_exception_entry(entry=entry, seen=seen, analyzer=analyzer)
 
 
 def _validate_rule_exception_entry(
-    *, entry: object, seen: set[tuple[str, str, str | None]]
+    *,
+    entry: object,
+    seen: set[tuple[str, str, str | None]],
+    analyzer: AnalyzerId | None,
 ) -> set[tuple[str, str, str | None]]:
     if not isinstance(entry, dict):
         raise ConfigValidationError("Each rule_exceptions entry must be a table.")
@@ -377,7 +593,7 @@ def _validate_rule_exception_entry(
         raise ConfigValidationError("Rule exception reason must be non-empty.")
     if not is_rule_code(rule):
         raise ConfigValidationError(f"Rule exception must use one exact rule code: {rule}.")
-    _validate_exception_path(path)
+    _validate_exception_path(path=path, analyzer=analyzer)
     if RULE_EXCEPTION_SYMBOLS_CONFIG_KEY not in typed_entry:
         key: tuple[str, str, str | None] = (rule, path, None)
         if key in seen:
@@ -410,16 +626,51 @@ def _exception_string(*, entry: Mapping[object, object], key: str) -> str:
     return value
 
 
-def _validate_exception_path(path: str) -> None:
+def _validate_exception_path(*, path: str, analyzer: AnalyzerId | None) -> None:
     parsed: PurePosixPath = PurePosixPath(path)
+    analyzer_name: str = analyzer.value if analyzer is not None else "the configured analyzer"
+    web_suffixes: tuple[str, ...] = (
+        ".ts",
+        ".tsx",
+        ".mts",
+        ".cts",
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs",
+    )
+    supported: bool = (
+        parsed.suffix == _python_file_suffix
+        if analyzer is AnalyzerId.PYTHON
+        else path.endswith(web_suffixes)
+        if analyzer is AnalyzerId.TYPESCRIPT
+        else path.endswith((*web_suffixes, ".svelte"))
+        if analyzer is AnalyzerId.SVELTE
+        else parsed.suffix == _python_file_suffix or path.endswith((*web_suffixes, ".svelte"))
+    )
     if (
         parsed.is_absolute()
+        or PureWindowsPath(path).drive != _empty_string
         or _windows_path_separator in path
         or any(character in path for character in _glob_characters)
         or path != parsed.as_posix()
         or any(part in {_current_path_part, _parent_path_part} for part in parsed.parts)
-        or parsed.suffix != _python_file_suffix
+        or not supported
     ):
         raise ConfigValidationError(
-            f"Rule exception path must be one exact repository-relative POSIX Python file: {path}."
+            "Rule exception path is not an exact repository-relative POSIX source for "
+            f"{analyzer_name}: {path}."
         )
+
+
+def _is_portable_target_path(*, value: object) -> bool:
+    if not isinstance(value, str) or not value:
+        return False
+    parsed: PurePosixPath = PurePosixPath(value)
+    return (
+        not parsed.is_absolute()
+        and PureWindowsPath(value).drive == _empty_string
+        and _windows_path_separator not in value
+        and value == parsed.as_posix()
+        and not any(part in INVALID_UI_KIT_PATH_PARTS for part in parsed.parts)
+    )

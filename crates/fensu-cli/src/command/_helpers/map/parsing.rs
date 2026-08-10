@@ -7,6 +7,7 @@ const LONG_OPTIONS: &[&str] = &[
     "--direction",
     "--depth",
     "--root",
+    "--target",
     "--paths",
     "--color",
     "--cache",
@@ -19,6 +20,7 @@ pub(crate) fn parse(arguments: &[String]) -> Result<Option<MapOptions>, String> 
     let mut direction = MapDirection::Downstream;
     let mut depth = 3;
     let mut roots: Vec<String> = Vec::new();
+    let mut target = None;
     let mut path_mode = PathMode::Relative;
     let mut color = "auto".to_owned();
     let mut cache_enabled = None;
@@ -84,6 +86,14 @@ pub(crate) fn parse(arguments: &[String]) -> Result<Option<MapOptions>, String> 
                 position = next_position;
                 roots.push(value.to_owned());
             }
+            "--target" => {
+                let (value, next_position) = option_value(arguments, position, resolved, inline)?;
+                if inline.is_none() && value.starts_with('-') {
+                    return Err(parser_error("argument --target: expected one argument"));
+                }
+                position = next_position;
+                target = Some(value.to_owned());
+            }
             "--paths" => {
                 let (value, next_position) = option_value(arguments, position, resolved, inline)?;
                 position = next_position;
@@ -137,6 +147,7 @@ pub(crate) fn parse(arguments: &[String]) -> Result<Option<MapOptions>, String> 
         direction,
         depth,
         roots,
+        target,
         path_mode,
         color,
         cache_enabled,

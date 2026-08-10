@@ -5,6 +5,21 @@ from __future__ import annotations
 from enum import StrEnum
 
 
+class AnalyzerId(StrEnum):
+    """Stable analyzer identities accepted by target configuration."""
+
+    PYTHON = "python"
+    TYPESCRIPT = "typescript"
+    SVELTE = "svelte"
+
+
+class TestLayout(StrEnum):
+    """Supported web target test ownership layouts."""
+
+    MIRRORED = "mirrored"
+    COLOCATED = "colocated"
+
+
 class ConfigSourceKind(StrEnum):
     """Supported configuration source formats."""
 

@@ -4,7 +4,7 @@ const ARGUMENT_TERMINATOR: &str = "--";
 const HELP_OPTION: &str = "help";
 const HELP_SHORT_OPTION: &str = "-h";
 
-pub(crate) const HELP: &str = "usage: fensu skills [-h] [--global] [--target {opencode,claude,agents}]\n                    [--force] [--check] [--install-root git|project|PATH]\n\noptions:\n  -h, --help            show this help message and exit\n  --global\n  --target {opencode,claude,agents}\n  --force\n  --check               verify deterministic installed bytes without writing\n                        files\n  --install-root git|project|PATH\n                        install locally at the Git root, project root, or an\n                        explicit path\n";
+pub(crate) const HELP: &str = "usage: fensu skills [-h] [--global] [--target {opencode,claude,agents}]\n                    [--config-target TARGET] [--force] [--check]\n                    [--install-root git|project|PATH]\n\noptions:\n  -h, --help            show this help message and exit\n  --global\n  --target {opencode,claude,agents}\n  --config-target TARGET\n                        named analyzer target supplying project configuration\n  --force\n  --check               verify deterministic installed bytes without writing\n                        files\n  --install-root git|project|PATH\n                        install locally at the Git root, project root, or an\n                        explicit path\n";
 
 pub(crate) fn parse_options(arguments: &[String]) -> Result<SkillOptions, String> {
     let mut options = SkillOptions::default();
@@ -55,6 +55,12 @@ pub(crate) fn parse_options(arguments: &[String]) -> Result<SkillOptions, String
                 })?;
                 options.targets.push(target);
             }
+            "config-target" => {
+                let (value, next_index) =
+                    option_value(arguments, index, inline, "--config-target")?;
+                index = next_index;
+                options.config_target = Some(value.to_owned());
+            }
             "install-root" => {
                 let (value, next_index) = option_value(arguments, index, inline, "--install-root")?;
                 index = next_index;
@@ -86,6 +92,7 @@ fn option_name(value: &str) -> Result<&'static str, String> {
         HELP_OPTION,
         "global",
         "target",
+        "config-target",
         "force",
         "check",
         "install-root",

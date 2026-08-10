@@ -5,6 +5,7 @@ from __future__ import annotations
 from importlib.metadata import PackageNotFoundError
 from pathlib import Path
 
+from fensu.analysis.main.analyzer_capability import analyzer_capability
 from fensu.analysis.main.resolve_native_backend_version import resolve_native_backend_version
 from fensu.cache.fingerprints._helpers.fingerprints import (
     collect_implementation_paths,
@@ -15,6 +16,7 @@ from fensu.cache.fingerprints._helpers.fingerprints import (
     installed_implementation_fingerprint,
     ruleset_fingerprint,
 )
+from fensu.cache.fingerprints.constants import NO_CACHEABLE_RULES_REASON
 from fensu.cache.fingerprints.models import CacheFingerprint, GlobalFingerprintBuild
 from fensu.config.models import Config
 from fensu.rules.authoring.models import RuleSpec
@@ -26,6 +28,7 @@ def build_global_fingerprint(
     config: Config,
     ruleset: tuple[RuleSpec, ...],
     repo_root: Path,
+    custom_rule_root: Path | None = None,
     warnings_enabled: bool = False,
 ) -> GlobalFingerprintBuild:
     """Return a complete installed/editable identity or the reason it is unavailable."""
@@ -33,7 +36,7 @@ def build_global_fingerprint(
     if ruleset and all(rule.kind is RuleKind.CUSTOM and not rule.cacheable for rule in ruleset):
         return GlobalFingerprintBuild(
             fingerprint=None,
-            disabled_reason="no cacheable rules are selected",
+            disabled_reason=NO_CACHEABLE_RULES_REASON,
         )
     package_root: Path | None = _loaded_package_root()
     if package_root is None:
@@ -65,7 +68,7 @@ def build_global_fingerprint(
             )
         custom_rules: CacheFingerprint | None = custom_rules_fingerprint(
             config=config,
-            repo_root=repo_root,
+            repo_root=repo_root if custom_rule_root is None else custom_rule_root,
         )
         if custom_rules is None:
             return GlobalFingerprintBuild(
@@ -79,6 +82,7 @@ def build_global_fingerprint(
                 ruleset=ruleset_fingerprint(ruleset),
                 custom_rules=custom_rules,
                 native_backend_version=resolve_native_backend_version(),
+                analyzer_contract=analyzer_capability(config.analyzer).cache_contract,
                 warnings_enabled=warnings_enabled,
             )
         )

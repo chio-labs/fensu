@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from fensu.config.types import AnalyzerId
 from fensu.rules.authoring.constants import MISSING
 from fensu.rules.authoring.types import (
     ExecutionOwner,
@@ -202,6 +203,8 @@ class RuleSpec:
     alias_of: str | None = None
     source: str | None = None
     enabled_by_default: bool = True
+    analyzers: tuple[AnalyzerId, ...] = (AnalyzerId.PYTHON,)
+    frameworks: tuple[str, ...] = ()
     cacheable: bool | None = None
     uses_module: bool = False
     execution_owner: ExecutionOwner = ExecutionOwner.FILE

@@ -40,6 +40,29 @@ pub(crate) fn finish_report(
 }
 
 fn summary_text(repository: &Path, plan: &InitPlan) -> String {
+    if !plan.targets.is_empty() {
+        let mut output = "-> Detected analyzer targets\n".to_owned();
+        for target in &plan.targets {
+            let test_layout = if target.analyzer == crate::analyzer::AnalyzerId::Python {
+                String::new()
+            } else {
+                format!(", test_layout={}", target.test_layout)
+            };
+            output.push_str(&format!(
+                "    {}: analyzer={}, root={}, roots={}, tests={}, tooling={}{}, packs={}\n",
+                target.name,
+                target.analyzer,
+                target.root,
+                target.roots.join(","),
+                target.tests.join(","),
+                target.tooling.join(","),
+                test_layout,
+                target.rule_packs.join(",")
+            ));
+        }
+        output.push_str("    Wrote fensu.toml\n");
+        return output;
+    }
     let Some(name) = plan.project_name.as_ref() else {
         let runtime_count = plan
             .roots
@@ -68,10 +91,10 @@ fn drift_text(repository: &Path) -> Result<String, String> {
 fn native_drift(repository: &Path) -> Result<(usize, usize), String> {
     let invocation = env::current_dir().map_err(|error| error.to_string())?;
     env::set_current_dir(repository).map_err(|error| error.to_string())?;
-    let result = crate::check::main::execute_check::execute_check(&[
-        "--no-color".to_owned(),
-        "--cache".to_owned(),
-    ]);
+    let result = crate::check::main::execute_check::execute_check(
+        &["--no-color".to_owned(), "--cache".to_owned()],
+        None,
+    );
     env::set_current_dir(invocation).map_err(|error| error.to_string())?;
     let stdout = result?.stdout;
     let faults = stdout.matches(" --> ").count();

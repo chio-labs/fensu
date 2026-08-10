@@ -1,12 +1,214 @@
 use std::process::Command;
 
-use crate::helpers::write;
+use crate::helpers::{workspace_python, write};
 use crate::test_types::{
-    EffectiveRulePolicyTestCase, RuleColorTestCase, RulePackLookupTestCase, RuleRemediationTestCase,
+    ConfigCommandTargetTestCase, EffectiveRulePolicyTestCase, RuleColorTestCase,
+    RulePackLookupTestCase, RuleRemediationTestCase,
 };
 
 const CONFIG: &str =
     "roots = [\"src\"]\ntests = [\"tests\"]\ntooling = [\"scripts\"]\nselect = [\"FFA\"]\n";
+
+#[test]
+fn given_web_analyzer_when_inspecting_rule_then_native_catalogue_is_available() {
+    let test_cases = [
+        ConfigCommandTargetTestCase {
+            description: "TypeScript rule lookup renders retained native metadata",
+            arguments: &["rule", "FWA001", "--target", "web", "--color", "never"],
+            expected_exit_code: 0,
+            expected_stdout: "Analyzers: svelte, typescript",
+            expected_stderr: "",
+        },
+        ConfigCommandTargetTestCase {
+            description: "SvelteKit rule lookup renders framework provenance",
+            arguments: &["rule", "FWU001", "--target", "web", "--color", "never"],
+            expected_exit_code: 0,
+            expected_stdout: "framework: sveltekit",
+            expected_stderr: "",
+        },
+        ConfigCommandTargetTestCase {
+            description: "OpenAPI rule lookup renders target-local dependency provenance",
+            arguments: &["rule", "FWC201", "--target", "web", "--color", "never"],
+            expected_exit_code: 0,
+            expected_stdout: "openapi: contracts/openapi.json",
+            expected_stderr: "",
+        },
+        ConfigCommandTargetTestCase {
+            description: "test layout rule lookup renders analyzer-local layout provenance",
+            arguments: &["rule", "FWT002", "--target", "web", "--color", "never"],
+            expected_exit_code: 0,
+            expected_stdout: "test_layout: colocated",
+            expected_stderr: "",
+        },
+        ConfigCommandTargetTestCase {
+            description: "entry statement alias renders canonical rule provenance",
+            arguments: &["rule", "FWS001", "--target", "web", "--color", "never"],
+            expected_exit_code: 0,
+            expected_stdout: "max_statements: 41",
+            expected_stderr: "",
+        },
+        ConfigCommandTargetTestCase {
+            description: "entry call alias renders canonical rule provenance",
+            arguments: &["rule", "FWS002", "--target", "web", "--color", "never"],
+            expected_exit_code: 0,
+            expected_stdout: "max_distinct_calls: 21",
+            expected_stderr: "",
+        },
+        ConfigCommandTargetTestCase {
+            description: "entry local alias renders canonical rule provenance",
+            arguments: &["rule", "FWS003", "--target", "web", "--color", "never"],
+            expected_exit_code: 0,
+            expected_stdout: "max_locals: 22",
+            expected_stderr: "",
+        },
+        ConfigCommandTargetTestCase {
+            description: "function statement alias renders canonical rule provenance",
+            arguments: &["rule", "FWS011", "--target", "web", "--color", "never"],
+            expected_exit_code: 0,
+            expected_stdout: "max_statements_global: 71",
+            expected_stderr: "",
+        },
+    ];
+    let repository = tempfile::tempdir().expect("temporary repository");
+    write(
+        repository.path().join("fensu.toml"),
+        "[targets.web]\nanalyzer = \"svelte\"\nframework = \"sveltekit\"\nroots = [\"src\"]\ntest_layout = \"colocated\"\nui_kit = \"src/ui-kit\"\nshadcn = \"config/components.json\"\nopenapi = \"contracts/openapi.json\"\n[targets.web.thresholds]\nmax_entry_statements = 41\nmax_entry_distinct_calls = 21\nmax_entry_locals = 22\nmax_function_statements = 71\n",
+    );
+
+    for test_case in &test_cases {
+        let output = Command::new(env!("CARGO_BIN_EXE_fensu"))
+            .args(test_case.arguments)
+            .current_dir(repository.path())
+            .output()
+            .expect("native rule process runs");
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {}",
+            test_case.description,
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stdout).contains(test_case.expected_stdout),
+            "{}: {}",
+            test_case.description,
+            String::from_utf8_lossy(&output.stdout)
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains(test_case.expected_stderr),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_target_local_custom_rule_when_inspecting_then_rule_uses_selected_root() {
+    let python = workspace_python();
+    assert!(python.is_file(), "workspace Python is required");
+    let test_cases = [ConfigCommandTargetTestCase {
+        description: "rule resolves a custom rule path from the selected frontend root",
+        arguments: &["rule", "XRT001", "--target", "frontend", "--color", "never"],
+        expected_exit_code: 0,
+        expected_stdout: "target-root custom rule",
+        expected_stderr: "",
+    }];
+    let repository = tempfile::tempdir().expect("temporary repository");
+    write(
+        repository.path().join("fensu.toml"),
+        "[targets.frontend]\nanalyzer = \"python\"\nroot = \"frontend\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"XRT001\"]\nrule_paths = [\"rules/custom.py\"]\n",
+    );
+    write(repository.path().join("frontend/src/pkg/__init__.py"), "");
+    write(
+        repository.path().join("frontend/rules/custom.py"),
+        "import ast\nfrom fensu import Family, Fault, RuleContext, rule\n@rule(code='XRT001', family=Family.CUSTOM, slug='target-root', message='target-root custom rule')\ndef target_root(module: ast.Module, ctx: RuleContext) -> list[Fault]:\n    return []\n",
+    );
+
+    for test_case in &test_cases {
+        let output = Command::new(env!("CARGO_BIN_EXE_fensu"))
+            .args(test_case.arguments)
+            .current_dir(repository.path())
+            .env("FENSU_PYTHON", &python)
+            .output()
+            .expect("native rule process runs");
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {}",
+            test_case.description,
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stdout).contains(test_case.expected_stdout),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains(test_case.expected_stderr),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_multiple_targets_when_inspecting_rule_then_requires_and_uses_named_selection() {
+    let test_cases = [
+        ConfigCommandTargetTestCase {
+            description: "rule selection accepts a named target",
+            arguments: &["rule", "FFA002", "--target=second", "--color", "never"],
+            expected_exit_code: 0,
+            expected_stdout: "Blocking: yes",
+            expected_stderr: "",
+        },
+        ConfigCommandTargetTestCase {
+            description: "rule selection rejects ambiguous configuration",
+            arguments: &["rule", "FFA002", "--color", "never"],
+            expected_exit_code: 2,
+            expected_stdout: "",
+            expected_stderr: "select one with --target TARGET",
+        },
+        ConfigCommandTargetTestCase {
+            description: "rule help documents named target selection",
+            arguments: &["rule", "--help"],
+            expected_exit_code: 0,
+            expected_stdout: "--target TARGET",
+            expected_stderr: "",
+        },
+    ];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(
+            repository.path().join("fensu.toml"),
+            "[targets.first]\nanalyzer = \"python\"\nroots = [\"src\"]\nselect = [\"FFA001\"]\n[targets.second]\nanalyzer = \"python\"\nroots = [\"src\"]\nselect = [\"FFA002\"]\n",
+        );
+
+        let output = Command::new(env!("CARGO_BIN_EXE_fensu"))
+            .args(test_case.arguments)
+            .current_dir(repository.path())
+            .output()
+            .expect("native rule process runs");
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stdout).contains(test_case.expected_stdout),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains(test_case.expected_stderr),
+            "{}",
+            test_case.description
+        );
+    }
+}
 
 #[test]
 fn given_loaded_project_policy_when_inspecting_rule_then_discloses_effective_state() {
@@ -16,6 +218,7 @@ fn given_loaded_project_policy_when_inspecting_rule_then_discloses_effective_sta
             config: "roots = [\"src\"]\nselect = [\"FFA001\"]\n",
             expected_fragments: &[
                 "Authored metadata:",
+                "Analyzers: python",
                 "Execution owner: file",
                 "Cacheability: undeclared",
                 "Loaded project policy:",

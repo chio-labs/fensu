@@ -34,12 +34,15 @@ def evaluated_check(
     rule_selection: RuleSelection,
     project_dir: Path,
     warn: bool,
+    allow_short_circuit: bool = True,
+    cache_storage_root: Path | None = None,
     jobs: int | None = None,
 ) -> CheckEvaluation:
     """Evaluate the tree with caching when available and return observability."""
 
     ruleset: tuple[RuleSpec, ...] = rule_selection.blocking
     warning_rules: tuple[RuleSpec, ...] = rule_selection.warnings if warn else ()
+    target_dir: Path = project_dir if tree.project_root is None else tree.project_root.path
     resolved_jobs: int = (
         jobs if jobs is not None else resolve_worker_count(target_count=len(tree.files))
     )
@@ -50,6 +53,7 @@ def evaluated_check(
                 config=config,
                 ruleset=(*ruleset, *warning_rules),
                 repo_root=project_dir,
+                custom_rule_root=target_dir,
                 warnings_enabled=warn,
             ),
         )
@@ -90,6 +94,8 @@ def evaluated_check(
             config=config,
             global_fingerprint=global_fingerprint,
             custom_rule_registrations=rule_selection.custom_registrations,
+            allow_short_circuit=allow_short_circuit,
+            cache_storage_root=cache_storage_root,
             jobs=resolved_jobs,
         ),
     )

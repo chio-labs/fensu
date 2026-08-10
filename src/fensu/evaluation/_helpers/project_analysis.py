@@ -44,7 +44,9 @@ class _EvaluationProjectAnalysis:
     def __init__(self, *, tree: DiscoveredTree) -> None:
         """Index discovered files without parsing them eagerly."""
 
-        self._repo_root: Path = tree.repo_root.path
+        self._repo_root: Path = (
+            tree.repo_root.path if tree.project_root is None else tree.project_root.path
+        )
         self._observer: QueryObserver = QueryObserver()
         self._sources: tuple[ProjectSource, ...] = (
             *tree.layout.runtime_sources,

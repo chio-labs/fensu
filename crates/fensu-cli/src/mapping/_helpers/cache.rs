@@ -6,15 +6,16 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+use crate::analyzer::AnalyzerId;
 use crate::mapping::models::{MapCacheStats, ProjectIndex, SourceSnapshot};
 
 const DATABASE: &str = ".fensu/cache/v4.db";
 const APPLICATION_ID: i32 = 0x5354_5241;
-const PREFIX: &str = "native/mapping/v2/";
-const MANIFEST_KEY: &str = "native/mapping/v2/manifest";
-const MANIFEST_KIND: &str = "native-map-manifest-v2";
-const FILE_KIND: &str = "native-map-file-v2";
-const CONTRACT: &str = "native-map-v2-ruff-py312";
+const PREFIX: &str = "native/mapping/v3/";
+const MANIFEST_KEY: &str = "native/mapping/v3/manifest";
+const MANIFEST_KIND: &str = "native-map-manifest-v3";
+const FILE_KIND: &str = "native-map-file-v3";
+const CONTRACT: &str = "native-map-v3";
 
 #[derive(Deserialize, Serialize)]
 struct CacheRecord<T> {
@@ -28,13 +29,17 @@ pub(crate) struct CacheGeneration {
     pub(crate) file_identities: Vec<String>,
 }
 
-pub(crate) fn generation(snapshots: &[SourceSnapshot]) -> CacheGeneration {
-    let file_identities = snapshots.iter().map(file_identity).collect::<Vec<_>>();
+pub(crate) fn generation(analyzer: AnalyzerId, snapshots: &[SourceSnapshot]) -> CacheGeneration {
+    let file_identities = snapshots
+        .iter()
+        .map(|snapshot| file_identity(analyzer, snapshot))
+        .collect::<Vec<_>>();
     let mut digest = Sha256::new();
-    digest.update(CONTRACT.as_bytes());
+    digest_text(&mut digest, CONTRACT);
+    digest_text(&mut digest, &analyzer.to_string());
+    digest_text(&mut digest, analyzer.cache_contract());
     for identity in &file_identities {
-        digest.update(identity.as_bytes());
-        digest.update([0]);
+        digest_text(&mut digest, identity);
     }
     CacheGeneration {
         project_identity: format!("{:x}", digest.finalize()),
@@ -165,17 +170,21 @@ pub(crate) fn stats_text(stats: MapCacheStats) -> String {
     )
 }
 
-fn file_identity(snapshot: &SourceSnapshot) -> String {
+fn file_identity(analyzer: AnalyzerId, snapshot: &SourceSnapshot) -> String {
     let mut digest = Sha256::new();
-    digest.update(CONTRACT.as_bytes());
-    digest.update(snapshot.relative_path.as_bytes());
-    digest.update([0]);
-    digest.update(snapshot.module_name.as_bytes());
-    digest.update([0]);
-    digest.update(snapshot.import_root_identity.as_bytes());
-    digest.update([0]);
-    digest.update(snapshot.source_fingerprint.as_bytes());
+    digest_text(&mut digest, CONTRACT);
+    digest_text(&mut digest, &analyzer.to_string());
+    digest_text(&mut digest, analyzer.cache_contract());
+    digest_text(&mut digest, &snapshot.relative_path);
+    digest_text(&mut digest, &snapshot.module_name);
+    digest_text(&mut digest, &snapshot.import_root_identity);
+    digest_text(&mut digest, &snapshot.source_fingerprint);
     format!("{:x}", digest.finalize())
+}
+
+fn digest_text(digest: &mut Sha256, value: &str) {
+    digest.update(value.len().to_be_bytes());
+    digest.update(value.as_bytes());
 }
 
 fn file_key(identity: &str) -> String {

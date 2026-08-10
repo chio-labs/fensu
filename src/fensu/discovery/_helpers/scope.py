@@ -20,9 +20,13 @@ def discover_scoped_files(*, layout: ProjectLayout) -> tuple[ScopedFile, ...]:
     for scope, root, walked in _walked_scope_roots(scope_roots=scope_roots):
         resolved_root: Path = normalize_path_spelling(root.resolve())
         for path, canonical, parts in walked:
+            if path.is_symlink():
+                continue
             resolved_path: Path = normalize_path_spelling(
                 canonical if canonical is not None else path.resolve()
             )
+            if not resolved_path.is_relative_to(resolved_root):
+                continue
             if resolved_path in discovered:
                 continue
             discovered[resolved_path] = ScopedFile(

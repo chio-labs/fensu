@@ -4,8 +4,15 @@ from __future__ import annotations
 
 import pytest
 
-from fensu.config._helpers.path_patterns import path_pattern_matches, path_pattern_specificity
+from fensu.config._helpers.path_patterns import (
+    expand_path_pattern,
+    path_pattern_matches,
+    path_pattern_specificity,
+)
+from fensu.config.exceptions import ConfigValidationError
 from tests.unit.src.fensu.config._test_types import (
+    PathPatternErrorTestCase,
+    PathPatternExpansionTestCase,
     PathPatternSpecificityTestCase,
     PathPatternTestCase,
 )
@@ -50,6 +57,18 @@ from tests.unit.src.fensu.config._test_types import (
             path="src/pkg/orders/main.py",
             expected_matches=True,
         ),
+        PathPatternTestCase(
+            description="brace alternatives match a RaceWatch Svelte source",
+            pattern="src/**/*.{ts,js,svelte}",
+            path="src/routes/admin/+page.svelte",
+            expected_matches=True,
+        ),
+        PathPatternTestCase(
+            description="brace alternatives reject an extension outside the group",
+            pattern="src/**/*.{ts,js,svelte}",
+            path="src/routes/admin/styles.css",
+            expected_matches=False,
+        ),
     ],
     ids=lambda case: case.description,
 )
@@ -59,6 +78,68 @@ def test_given_path_pattern_when_matching_reported_path_then_applies_posix_glob_
     matches: bool = path_pattern_matches(pattern=test_case.pattern, path=test_case.path)
 
     assert matches is test_case.expected_matches
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        PathPatternExpansionTestCase(
+            description="multiple groups expand left to right",
+            pattern="{src,tests}/**/*.{ts,svelte}",
+            expected_patterns=(
+                "src/**/*.ts",
+                "src/**/*.svelte",
+                "tests/**/*.ts",
+                "tests/**/*.svelte",
+            ),
+        ),
+        PathPatternExpansionTestCase(
+            description="nested alternatives retain declaration order",
+            pattern="src/**/*.{ts,{js,svelte}}",
+            expected_patterns=("src/**/*.ts", "src/**/*.js", "src/**/*.svelte"),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_brace_groups_when_expanding_then_returns_deterministic_cartesian_patterns(
+    test_case: PathPatternExpansionTestCase,
+) -> None:
+    expanded: tuple[str, ...] = expand_path_pattern(pattern=test_case.pattern)
+
+    assert expanded == test_case.expected_patterns
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        PathPatternErrorTestCase(
+            description="unmatched opening brace",
+            pattern="src/**/*.{ts,svelte",
+            expected_error="unmatched opening brace",
+        ),
+        PathPatternErrorTestCase(
+            description="unmatched closing brace",
+            pattern="src/**/*.ts}",
+            expected_error="unmatched closing brace",
+        ),
+        PathPatternErrorTestCase(
+            description="single brace alternative",
+            pattern="src/**/*.{ts}",
+            expected_error="at least two non-empty alternatives",
+        ),
+        PathPatternErrorTestCase(
+            description="empty brace alternative",
+            pattern="src/**/*.{ts,}",
+            expected_error="at least two non-empty alternatives",
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_malformed_brace_group_when_expanding_then_raises_clear_error(
+    test_case: PathPatternErrorTestCase,
+) -> None:
+    with pytest.raises(ConfigValidationError, match=test_case.expected_error):
+        expand_path_pattern(pattern=test_case.pattern)
 
 
 @pytest.mark.parametrize(

@@ -1,57 +1,22 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
 use fensu_facts::extension::models::ProgramHandle;
+use globset::GlobBuilder;
 use ruff_python_ast::PythonVersion;
 use sha2::{Digest, Sha256};
 use walkdir::WalkDir;
 
+use crate::check::_helpers::project as web;
+use crate::check::models::CheckIdentityRequest;
+use crate::configuration::main::expand_path_pattern::expand_path_pattern;
 use crate::constants::{
     GLOB_ALL, PYTHON_CACHE_DIRECTORY, ROLE_HELPERS, ROLE_MAIN, ROLE_RULES, SCOPE_TOOLING,
     SUFFIX_INIT,
 };
 use crate::models::{Config, Fault, ScopedSource};
-
-struct WildcardMatcher<'a> {
-    path: &'a [u8],
-    pattern: &'a [u8],
-    memo: HashMap<(usize, usize), bool>,
-}
-
-impl WildcardMatcher<'_> {
-    fn matches(&mut self, path_index: usize, pattern_index: usize) -> bool {
-        if let Some(result) = self.memo.get(&(path_index, pattern_index)) {
-            return *result;
-        }
-        let result = if pattern_index == self.pattern.len() {
-            path_index == self.path.len()
-        } else if self.pattern[pattern_index..].starts_with(b"**/") {
-            self.matches(path_index, pattern_index + 3)
-                || (path_index..self.path.len()).any(|index| {
-                    self.path[index] == b'/' && self.matches(index + 1, pattern_index + 3)
-                })
-        } else if self.pattern[pattern_index..].starts_with(b"**") {
-            (path_index..=self.path.len()).any(|index| self.matches(index, pattern_index + 2))
-        } else if self.pattern[pattern_index] == b'*' {
-            let mut index = path_index;
-            let mut matched = false;
-            while index <= self.path.len() {
-                matched |= self.matches(index, pattern_index + 1);
-                if matched || index == self.path.len() || self.path[index] == b'/' {
-                    break;
-                }
-                index += 1;
-            }
-            matched
-        } else {
-            self.path.get(path_index) == self.pattern.get(pattern_index)
-                && self.matches(path_index + 1, pattern_index + 1)
-        };
-        self.memo.insert((path_index, pattern_index), result);
-        result
-    }
-}
+use crate::repository_io::main::relative_path::relative_path;
 
 pub(crate) fn role(source: &ScopedSource) -> Option<String> {
     let file = source.relative_parts.last()?;
@@ -192,13 +157,12 @@ fn resolve_scope_path(root: &Path, value: &str) -> Result<PathBuf, String> {
     };
     let normalized = normalize_path(&candidate);
     let resolved = if normalized.exists() {
-        normalized
-            .canonicalize()
+        dunce::canonicalize(&normalized)
             .map_err(|error| format!("Could not resolve configured path {value}: {error}"))?
     } else {
         normalized
     };
-    if !resolved.starts_with(root) {
+    if relative_path(&resolved, root).is_none() {
         return Err(format!(
             "Configured path must resolve inside the repository: {value}"
         ));
@@ -221,39 +185,80 @@ fn normalize_path(path: &Path) -> PathBuf {
 }
 
 pub(crate) fn path_matches(path: &str, pattern: &str) -> bool {
-    let value = if pattern.contains('/') || pattern == GLOB_ALL {
-        pattern.as_bytes().to_vec()
-    } else {
-        format!("**/{pattern}").into_bytes()
-    };
-    WildcardMatcher {
-        path: path.as_bytes(),
-        pattern: &value,
-        memo: HashMap::new(),
-    }
-    .matches(0, 0)
+    expand_path_pattern(pattern).is_ok_and(|patterns| {
+        patterns
+            .iter()
+            .any(|pattern| wildcard_matches(path, pattern))
+    })
 }
 
-pub(crate) fn check_identity(
-    root: &Path,
-    config: &Config,
-    sources: &[ScopedSource],
-    warnings: bool,
-) -> String {
+fn wildcard_matches(path: &str, pattern: &str) -> bool {
+    let value = if pattern.contains('/') || pattern == GLOB_ALL {
+        pattern.to_owned()
+    } else {
+        format!("**/{pattern}")
+    };
+    GlobBuilder::new(&value)
+        .literal_separator(true)
+        .backslash_escape(false)
+        .build()
+        .is_ok_and(|glob| glob.compile_matcher().is_match(path))
+}
+
+pub(crate) fn check_identity(request: CheckIdentityRequest<'_>) -> Result<String, String> {
+    let CheckIdentityRequest {
+        root,
+        project_root,
+        config,
+        sources,
+        project_inputs,
+        warnings,
+    } = request;
     let mut digest = Sha256::new();
-    digest.update(b"fensu-native-check-v3\0");
+    digest.update(b"fensu-native-check-v5\0");
     digest.update(env!("CARGO_PKG_VERSION").as_bytes());
-    digest.update(&config.raw);
+    digest.update(if config.identity_raw.is_empty() {
+        &config.raw
+    } else {
+        &config.identity_raw
+    });
+    digest_text(&mut digest, &config.analyzer.to_string());
+    digest_text(&mut digest, config.analyzer.cache_contract());
+    digest_text(&mut digest, config.analyzer.parser_contract());
+    digest_text(&mut digest, config.target.as_deref().unwrap_or_default());
+    digest_text(&mut digest, &config.target_root);
+    if config.analyzer != crate::analyzer::AnalyzerId::Python {
+        digest_text(&mut digest, &config.test_layout.to_string());
+    }
     digest.update([u8::from(warnings)]);
     for source in sources {
-        digest.update(source.repository_path.as_bytes());
-        digest.update(source.fingerprint.as_bytes());
+        digest_text(&mut digest, &source.analyzer.to_string());
+        digest_text(&mut digest, &source.target_identity);
+        digest_text(&mut digest, source.parser_contract);
+        digest_text(&mut digest, &source.repository_path);
+        digest_text(&mut digest, &source.fingerprint);
     }
-    digest_project_observations(&mut digest, root, config);
-    format!("{:x}", digest.finalize())
+    for input in project_inputs {
+        digest_text(&mut digest, &input.repository_path);
+        digest_text(&mut digest, &input.target_path);
+        digest_text(&mut digest, &input.fingerprint);
+        digest.update([u8::from(input.present)]);
+    }
+    digest_project_observations(&mut digest, root, project_root, config)?;
+    Ok(format!("{:x}", digest.finalize()))
 }
 
-fn digest_project_observations(digest: &mut Sha256, root: &Path, config: &Config) {
+fn digest_text(digest: &mut Sha256, value: &str) {
+    digest.update(value.len().to_be_bytes());
+    digest.update(value.as_bytes());
+}
+
+fn digest_project_observations(
+    digest: &mut Sha256,
+    root: &Path,
+    project_root: &Path,
+    config: &Config,
+) -> Result<(), String> {
     let mut entries: BTreeMap<String, (u8, PathBuf)> = BTreeMap::new();
     for configured_root in config
         .roots
@@ -261,12 +266,24 @@ fn digest_project_observations(digest: &mut Sha256, root: &Path, config: &Config
         .chain(&config.tests)
         .chain(&config.tooling)
     {
-        for entry in WalkDir::new(root.join(configured_root))
+        let scan_root = project_root.join(configured_root);
+        if !scan_root.exists() {
+            continue;
+        }
+        for result in WalkDir::new(scan_root)
             .follow_links(false)
             .into_iter()
-            .filter_map(Result::ok)
+            .filter_entry(|entry| {
+                config.analyzer == crate::analyzer::AnalyzerId::Python
+                    || web::is_artifact_entry(entry)
+            })
             .skip(1)
         {
+            let entry = result.map_err(|error| {
+                format!(
+                    "Could not fingerprint project observations under {configured_root}: {error}"
+                )
+            })?;
             if entry.file_type().is_dir() && entry.file_name() == PYTHON_CACHE_DIRECTORY {
                 continue;
             }
@@ -278,7 +295,7 @@ fn digest_project_observations(digest: &mut Sha256, root: &Path, config: &Config
             {
                 continue;
             }
-            let Ok(path) = entry.path().strip_prefix(root) else {
+            let Some(path) = relative_path(entry.path(), root) else {
                 continue;
             };
             let repository_path = path.to_string_lossy().replace('\\', "/");
@@ -298,17 +315,27 @@ fn digest_project_observations(digest: &mut Sha256, root: &Path, config: &Config
         digest.update(path.as_bytes());
         digest.update([kind]);
         if filesystem_path.extension().and_then(|value| value.to_str()) == Some("pyi") {
-            match fs::read(&filesystem_path) {
-                Ok(content) => digest.update(Sha256::digest(content)),
-                Err(error) => digest.update(error.to_string().as_bytes()),
-            }
+            let content = fs::read(&filesystem_path).map_err(|error| {
+                format!(
+                    "Could not fingerprint Python support file {}: {error}",
+                    filesystem_path.display()
+                )
+            })?;
+            digest.update(Sha256::digest(content));
         }
     }
-    let pyproject = root.join("pyproject.toml");
-    if let Ok(content) = fs::read(pyproject) {
+    let pyproject = project_root.join("pyproject.toml");
+    if pyproject.exists() {
+        let content = fs::read(&pyproject).map_err(|error| {
+            format!(
+                "Could not fingerprint project input {}: {error}",
+                pyproject.display()
+            )
+        })?;
         digest.update(b"pyproject.toml\0");
         digest.update(Sha256::digest(content));
     }
+    Ok(())
 }
 
 pub(crate) fn hex_digest(bytes: &[u8]) -> String {
@@ -351,9 +378,7 @@ pub(crate) fn bool_text(value: bool) -> String {
 }
 
 pub(crate) fn relative(path: &Path, root: &Path) -> Option<String> {
-    let Ok(relative) = path.strip_prefix(root) else {
-        return None;
-    };
+    let relative = relative_path(path, root)?;
     Some(relative.to_string_lossy().replace('\\', "/"))
 }
 
@@ -368,5 +393,6 @@ pub(crate) fn program(source: &ScopedSource) -> &ProgramHandle {
     source
         .program
         .as_ref()
+        .and_then(crate::models::ParsedProgram::as_python)
         .unwrap_or_else(|| std::process::abort())
 }

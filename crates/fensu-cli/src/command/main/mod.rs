@@ -6,3 +6,4 @@ pub(super) mod map;
 pub(super) mod rule;
 pub(super) mod run_cli;
 pub(super) mod skills;
+pub(super) mod target;

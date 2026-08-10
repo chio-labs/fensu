@@ -150,11 +150,17 @@ pub(crate) fn effective_config_lines(context: &SkillContext) -> Result<Vec<Strin
         format!("- Project root from installation root: {}", relative_json(&context.project_root, &context.install_root)?),
         format!("- Installation root: {}", relative_json(&context.install_root, &context.install_root)?),
         format!("- Current skill identity: {}", py_json(&json!(context.identity))?),
+        format!("- Analyzer: `{}`", config.analyzer),
         format!("- Complete loaded catalogue size: {}", context.catalogue.len()), String::new(),
         "### Scopes".to_owned(), String::new(),
         format!("- Product roots: {}", path_list(context, &config.roots)?),
         format!("- Test roots: {}", path_list(context, &config.tests)?),
         format!("- Tooling roots: {}", path_list(context, &config.tooling)?), String::new(),
+        format!("- Generated source patterns: {}", sorted_json(&config.generated)?), String::new(),
+        format!("- UI-kit root: {}", py_json(&json!(config.ui_kit))?), String::new(),
+        format!("- Framework pack: {}", py_json(&json!(config.framework))?),
+        format!("- shadcn config: {}", py_json(&json!(config.shadcn))?),
+        format!("- OpenAPI document: {}", py_json(&json!(config.openapi))?), String::new(),
         "### Configured Rule Selectors".to_owned(), String::new(),
         format!("- Blocking selectors (`select`): {}", sorted_json(&config.select)?),
         format!("- Warning selectors (`warn`): {}", sorted_json(&config.warn)?),
@@ -175,6 +181,16 @@ pub(crate) fn effective_config_lines(context: &SkillContext) -> Result<Vec<Strin
         format!("- Evaluation exclude boundaries: {}", path_list(context, &config.evaluation_exclude)?), String::new(),
         "### Effective Global Thresholds".to_owned(), String::new(),
     ];
+    if config.analyzer != crate::analyzer::AnalyzerId::Python {
+        let tooling_index = lines
+            .iter()
+            .position(|line| line.starts_with("- Tooling roots:"))
+            .ok_or_else(|| "Effective configuration has no tooling roots line.".to_owned())?;
+        lines.insert(
+            tooling_index,
+            format!("- Test layout: `{}`", config.test_layout),
+        );
+    }
     for (name, value) in config.thresholds.iter().collect::<BTreeMap<_, _>>() {
         lines.push(format!("- `{name}` = {value}"));
     }
@@ -200,6 +216,8 @@ pub(crate) fn effective_config_lines(context: &SkillContext) -> Result<Vec<Strin
         String::new(),
         "### Configured Path Threshold Overrides".to_owned(),
         String::new(),
+        threshold_match_basis(context),
+        String::new(),
     ]);
     if config.threshold_overrides.is_empty() {
         lines.push("- None.".to_owned());
@@ -209,7 +227,7 @@ pub(crate) fn effective_config_lines(context: &SkillContext) -> Result<Vec<Strin
             lines.push(format!(
                 "- Declaration {}: paths={}; thresholds={}; reason={}",
                 index + 1,
-                path_list(context, &item.paths)?,
+                sorted_json(&item.paths)?,
                 py_json(&json!(values))?,
                 py_json(&json!(item.reason))?
             ));
@@ -279,6 +297,18 @@ pub(crate) fn effective_config_lines(context: &SkillContext) -> Result<Vec<Strin
     }
     lines.push(String::new());
     Ok(lines)
+}
+
+fn threshold_match_basis(context: &SkillContext) -> String {
+    if context.project_prefix.is_empty() {
+        "- Match basis: target-relative analyzer paths; reported repository paths use the same paths for this target."
+            .to_owned()
+    } else {
+        format!(
+            "- Match basis: target-relative analyzer paths; reported repository paths are prefixed with `{}/`.",
+            context.project_prefix
+        )
+    }
 }
 
 pub(crate) fn governed_path(context: &SkillContext) -> String {

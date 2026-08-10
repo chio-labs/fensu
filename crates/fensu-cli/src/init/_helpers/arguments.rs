@@ -1,5 +1,6 @@
 //! Parse and normalise initialisation arguments.
 
+use crate::init::constants::SVELTEKIT_PRESET;
 use crate::models::InitOptions;
 
 pub(crate) fn parse_init(arguments: &[String]) -> Result<InitOptions, String> {
@@ -15,7 +16,17 @@ pub(crate) fn parse_init(arguments: &[String]) -> Result<InitOptions, String> {
                 index += 1;
                 options.name = Some(required_value(arguments, index, "--name")?);
             }
-            "--root" | "--tests" | "--tooling" => {
+            "--preset" => {
+                index += 1;
+                let preset = required_value(arguments, index, "--preset")?;
+                if preset != SVELTEKIT_PRESET {
+                    return Err(format!(
+                        "fensu init: error: unknown preset {preset:?}; expected sveltekit"
+                    ));
+                }
+                options.preset = Some(preset);
+            }
+            "--root" | "--tests" | "--tooling" | "--exclude-target" => {
                 let option = arguments[index].clone();
                 let mut values: Vec<String> = Vec::new();
                 while index + 1 < arguments.len() && !arguments[index + 1].starts_with('-') {
@@ -30,7 +41,8 @@ pub(crate) fn parse_init(arguments: &[String]) -> Result<InitOptions, String> {
                 match option.as_str() {
                     "--root" => options.roots.extend(values),
                     "--tests" => options.tests.extend(values),
-                    _ => options.tooling.extend(values),
+                    "--tooling" => options.tooling.extend(values),
+                    _ => options.excluded_targets.extend(values),
                 }
             }
             value => {
@@ -57,6 +69,8 @@ pub(crate) fn requests_scopes(options: &InitOptions) -> bool {
         || !options.tests.is_empty()
         || !options.tooling.is_empty()
         || options.name.is_some()
+        || options.preset.is_some()
+        || !options.excluded_targets.is_empty()
 }
 
 pub(crate) fn normalize_name(value: &str) -> Result<String, String> {

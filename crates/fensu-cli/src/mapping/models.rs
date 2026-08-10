@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+use crate::analyzer::AnalyzerId;
 use crate::mapping::_helpers::identity::{build_class_key, build_function_key, qualify};
 
 #[derive(Clone, Debug)]
@@ -17,6 +18,7 @@ pub(crate) struct MappingProject {
     pub(crate) repo_root: PathBuf,
     pub(crate) sources: Vec<MappingSource>,
     pub(crate) cache_enabled: bool,
+    pub(crate) analyzer: AnalyzerId,
 }
 
 #[derive(Clone, Debug)]
@@ -208,6 +210,7 @@ pub(crate) struct MapOptions {
     pub(crate) direction: MapDirection,
     pub(crate) depth: usize,
     pub(crate) roots: Vec<String>,
+    pub(crate) target: Option<String>,
     pub(crate) path_mode: PathMode,
     pub(crate) color: String,
     pub(crate) cache_enabled: Option<bool>,

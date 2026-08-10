@@ -13,6 +13,7 @@ from fensu.config.constants import (
     DEFAULT_CONTRACTS,
     DEFAULT_IGNORE,
     DEFAULT_SELECT,
+    DEFAULT_TEST_LAYOUT,
     DEFAULT_TEST_PATHS,
     DEFAULT_TEST_SCOPES,
     DEFAULT_THRESHOLDS,
@@ -29,6 +30,7 @@ from fensu.config.models import (
     SkillsConfig,
     ThresholdOverride,
 )
+from fensu.config.types import TestLayout
 from fensu.rules.authoring.types import RuleOptionValue, Threshold
 
 
@@ -57,10 +59,12 @@ def build_config(
                 if isinstance(key, str) and isinstance(value, str)
             }
         )
+    raw_ui_kit: object = raw.get("ui_kit")
     return Config(
         roots=_string_tuple(value=raw["roots"]),
         tests=_string_tuple(value=raw.get("tests"), default=DEFAULT_TEST_PATHS),
         test_scopes=_string_tuple(value=raw.get("test_scopes"), default=DEFAULT_TEST_SCOPES),
+        test_layout=TestLayout(str(raw.get("test_layout", DEFAULT_TEST_LAYOUT))),
         tooling=_string_tuple(value=raw.get("tooling"), default=DEFAULT_TOOLING_PATHS),
         select=_string_tuple(value=raw.get("select"), default=DEFAULT_SELECT),
         warn=_string_tuple(value=raw.get("warn"), default=DEFAULT_WARN),
@@ -78,6 +82,11 @@ def build_config(
         role_thresholds=MappingProxyType(role_thresholds),
         threshold_overrides=_threshold_overrides(raw.get("threshold_overrides")),
         contracts=MappingProxyType(contracts),
+        ui_kit=raw_ui_kit if isinstance(raw_ui_kit, str) else None,
+        framework=str(raw["framework"]) if isinstance(raw.get("framework"), str) else None,
+        shadcn=str(raw["shadcn"]) if isinstance(raw.get("shadcn"), str) else None,
+        openapi=str(raw["openapi"]) if isinstance(raw.get("openapi"), str) else None,
+        generated=_string_tuple(value=raw.get("generated")),
     )
 
 

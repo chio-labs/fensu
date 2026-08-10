@@ -1,8 +1,126 @@
-use crate::helpers::{run_check, run_check_colored, write};
+use std::process::Command;
+
+use crate::helpers::{run_check, run_check_colored, run_check_with, write};
 use crate::test_types::{
     CheckPolicyTestCase, ColoredCheckTestCase, InvalidCheckConfigTestCase, NativeRulePackTestCase,
-    OwnerPlanningTestCase, RuleOptionsCheckRoutingTestCase,
+    OwnerPlanningTestCase, RuleOptionsCheckRoutingTestCase, TargetSkillFreshnessTestCase,
 };
+
+#[test]
+fn given_selected_target_with_stale_skill_when_checking_then_cached_and_uncached_paths_warn() {
+    let test_cases = [TargetSkillFreshnessTestCase {
+        description: "selected target reaches skill freshness on fresh and cached checks",
+        expected_exit_code: 0,
+        expected_stderr: "Fensu skill files are out of date",
+    }];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("multi-target freshness repository");
+        let initial_config = "[targets.selected]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA001\"]\n[targets.selected.skills]\nname = \"selected\"\n[targets.other]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA001\"]\n";
+        write(repository.path().join("fensu.toml"), initial_config);
+        write(
+            repository.path().join("src/pkg/module.py"),
+            "value: int = 1\n",
+        );
+        let generated = Command::new(env!("CARGO_BIN_EXE_fensu"))
+            .args([
+                "skills",
+                "--target",
+                "agents",
+                "--config-target",
+                "selected",
+            ])
+            .current_dir(repository.path())
+            .env(
+                "FENSU_PYTHON",
+                repository.path().join("python-does-not-exist"),
+            )
+            .output()
+            .expect("native skills process runs");
+        assert_eq!(
+            generated.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {}",
+            test_case.description,
+            String::from_utf8_lossy(&generated.stderr)
+        );
+        write(
+            repository.path().join("fensu.toml"),
+            &initial_config.replacen("select = [\"FFA001\"]", "select = [\"FFA002\"]", 1),
+        );
+
+        let uncached = run_check_with(repository.path(), &["--target", "selected", "--no-cache"]);
+        let cold = run_check_with(repository.path(), &["--target", "selected", "--cache"]);
+        let warm = run_check_with(repository.path(), &["--target", "selected", "--cache"]);
+
+        for output in [&uncached, &cold, &warm] {
+            assert_eq!(
+                output.status.code(),
+                Some(test_case.expected_exit_code),
+                "{}",
+                test_case.description
+            );
+            assert!(
+                String::from_utf8_lossy(&output.stderr).contains(test_case.expected_stderr),
+                "{}: {}",
+                test_case.description,
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+    }
+}
+
+#[test]
+fn given_all_targets_with_one_stale_skill_when_checking_then_freshness_covers_every_target() {
+    let test_cases = [TargetSkillFreshnessTestCase {
+        description: "all-target freshness reaches a stale second target",
+        expected_exit_code: 0,
+        expected_stderr: "Fensu skill files are out of date",
+    }];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("multi-target freshness repository");
+        let initial_config = "[targets.alpha]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA001\"]\n[targets.alpha.skills]\nname = \"alpha\"\n[targets.beta]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA002\"]\n[targets.beta.skills]\nname = \"beta\"\n";
+        write(repository.path().join("fensu.toml"), initial_config);
+        write(
+            repository.path().join("src/pkg/module.py"),
+            "value: int = 1\n",
+        );
+        for target in ["alpha", "beta"] {
+            let generated = Command::new(env!("CARGO_BIN_EXE_fensu"))
+                .args(["skills", "--target", "agents", "--config-target", target])
+                .current_dir(repository.path())
+                .env(
+                    "FENSU_PYTHON",
+                    repository.path().join("python-does-not-exist"),
+                )
+                .output()
+                .expect("native skills process runs");
+            assert_eq!(
+                generated.status.code(),
+                Some(test_case.expected_exit_code),
+                "{}",
+                test_case.description
+            );
+        }
+        write(
+            repository.path().join("fensu.toml"),
+            &initial_config.replacen("select = [\"FFA002\"]", "select = [\"FFA101\"]", 1),
+        );
+
+        let output = run_check_with(repository.path(), &["--no-cache"]);
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains(test_case.expected_stderr),
+            "{}",
+            test_case.description
+        );
+    }
+}
 
 #[test]
 fn given_role_directories_in_one_leaf_when_planning_then_evaluates_owner_once() {
@@ -247,19 +365,19 @@ fn given_path_scoped_rule_ignore_when_checking_then_only_matching_reported_paths
 }
 
 #[test]
-fn given_braced_rule_ignore_pattern_when_checking_then_braces_are_matched_literally() {
+fn given_braced_rule_ignore_pattern_when_checking_then_alternatives_are_expanded() {
     let test_cases = [CheckPolicyTestCase {
-        description: "brace characters are literals in native path patterns",
+        description: "brace alternatives filter each expanded native path",
         expected_exit_code: 1,
-        expected_present: "src/pkg/generated.py",
-        expected_absent: "src/pkg/{generated,vendored}.py",
+        expected_present: "src/pkg/{generated,vendored}.py",
+        expected_absent: "src/pkg/generated.py",
     }];
 
     for test_case in &test_cases {
         let repository = tempfile::tempdir().expect("temporary repository");
         write(
             repository.path().join("fensu.toml"),
-            "roots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA001\"]\n\n[[rule_ignores]]\nrules = [\"FFA001\"]\npaths = [\"src/pkg/{generated,vendored}.py\"]\nreason = \"Literal generated filename.\"\n",
+            "roots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA001\"]\n\n[[rule_ignores]]\nrules = [\"FFA001\"]\npaths = [\"src/pkg/{generated,vendored}.py\"]\nreason = \"Generated interfaces are accepted.\"\n",
         );
         write(
             repository.path().join("src/pkg/{generated,vendored}.py"),

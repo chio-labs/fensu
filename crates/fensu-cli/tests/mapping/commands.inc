@@ -2,9 +2,179 @@ use std::fs;
 
 use crate::helpers::{
     ambiguous_protocol_project, basic_project, method_project, run, run_colored,
-    sibling_method_project, text, write, write_bytes,
+    sibling_method_project, text, write, write_bytes, write_optional_config,
 };
-use crate::test_types::ConfiguredPackageMappingTestCase;
+use crate::test_types::{
+    ConfigTargetMappingTestCase, ConfiguredPackageMappingTestCase,
+    ExplicitRootConfigMappingTestCase,
+};
+
+#[test]
+fn given_explicit_root_and_optional_config_when_mapping_then_invalid_config_never_falls_back() {
+    let test_cases = [
+        ExplicitRootConfigMappingTestCase {
+            description: "explicit root without config infers Python",
+            config: None,
+            expected_exit_code: 0,
+            expected_stdout: "src/pkg/module.py:1",
+            expected_stderr: "",
+        },
+        ExplicitRootConfigMappingTestCase {
+            description: "explicit root rejects malformed config",
+            config: Some("roots = \"src/pkg\"\n"),
+            expected_exit_code: 2,
+            expected_stdout: "",
+            expected_stderr: "Config key roots must be a list of strings",
+        },
+        ExplicitRootConfigMappingTestCase {
+            description: "explicit root rejects unknown analyzer",
+            config: Some(
+                "[targets.web]\nanalyzer = \"ruby\"\nroots = [\"ignored\"]\n",
+            ),
+            expected_exit_code: 2,
+            expected_stdout: "",
+            expected_stderr: "Unknown analyzer for target web: ruby",
+        },
+        ExplicitRootConfigMappingTestCase {
+            description: "explicit root rejects analyzer without mapping capability",
+            config: Some(
+                "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"ignored\"]\n",
+            ),
+            expected_exit_code: 2,
+            expected_stdout: "",
+            expected_stderr: "Map capability unavailable for analyzer typescript: native mapping is not implemented",
+        },
+    ];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("explicit-root mapping repository");
+        write(
+            repository.path().join("src/pkg/module.py"),
+            "def run() -> None:\n    pass\n",
+        );
+        write_optional_config(repository.path(), test_case.config);
+
+        let output = run(
+            repository.path(),
+            &["run", "--root", "src/pkg", "--no-cache"],
+        );
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {}",
+            test_case.description,
+            text(&output.stderr)
+        );
+        assert!(
+            text(&output.stdout).contains(test_case.expected_stdout),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            text(&output.stderr).contains(test_case.expected_stderr),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_native_analyzer_without_mapping_when_mapping_then_capability_error_precedes_discovery() {
+    let test_cases = [ConfigTargetMappingTestCase {
+        description: "Svelte mapping fails at the mapping capability boundary",
+        arguments: &["run", "--target", "web", "--no-cache"],
+        expected_exit_code: 2,
+        expected_stdout: "",
+        expected_stderr: "Map capability unavailable for analyzer svelte: native mapping is not implemented",
+    }];
+    let repository = tempfile::tempdir().expect("temporary repository");
+    write(
+        repository.path().join("fensu.toml"),
+        "[targets.web]\nanalyzer = \"svelte\"\nroots = [\"missing\"]\n",
+    );
+
+    for test_case in &test_cases {
+        let output = run(repository.path(), test_case.arguments);
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout),
+            test_case.expected_stdout,
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains(test_case.expected_stderr),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_multiple_targets_when_mapping_from_config_then_requires_and_uses_named_selection() {
+    let test_cases = [
+        ConfigTargetMappingTestCase {
+            description: "map selects configured roots from an inline named target",
+            arguments: &["second_fn", "--target=second", "--no-cache"],
+            expected_exit_code: 0,
+            expected_stdout: "frontend/src/second/module.py:1",
+            expected_stderr: "",
+        },
+        ConfigTargetMappingTestCase {
+            description: "map rejects ambiguous configured roots",
+            arguments: &["second_fn", "--no-cache"],
+            expected_exit_code: 2,
+            expected_stdout: "",
+            expected_stderr: "select one with --target TARGET",
+        },
+        ConfigTargetMappingTestCase {
+            description: "map help documents named target selection",
+            arguments: &["--help"],
+            expected_exit_code: 0,
+            expected_stdout: "--target TARGET",
+            expected_stderr: "",
+        },
+    ];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("multi-target mapping repository");
+        write(
+            repository.path().join("fensu.toml"),
+            "[targets.first]\nanalyzer = \"python\"\nroots = [\"src/first\"]\ntests = []\ntooling = []\n[targets.second]\nanalyzer = \"python\"\nroot = \"frontend\"\nroots = [\"src/second\"]\ntests = []\ntooling = []\n",
+        );
+        write(
+            repository.path().join("src/first/module.py"),
+            "def first_fn() -> int:\n    return 1\n",
+        );
+        write(
+            repository.path().join("frontend/src/second/module.py"),
+            "def second_fn() -> int:\n    return 2\n",
+        );
+
+        let output = run(repository.path(), test_case.arguments);
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            text(&output.stdout).contains(test_case.expected_stdout),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            text(&output.stderr).contains(test_case.expected_stderr),
+            "{}",
+            test_case.description
+        );
+    }
+}
 
 #[test]
 fn given_artifact_named_package_in_configured_root_when_mapping_then_symbols_and_edges_are_complete() {

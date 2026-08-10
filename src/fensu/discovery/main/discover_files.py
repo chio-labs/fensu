@@ -5,7 +5,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from fensu.config.models import Config
+from fensu.config.main.resolve_target_root import resolve_target_root
+from fensu.config.models import Config, ResolvedTargetRoot
 from fensu.discovery._helpers.layout import build_project_layout
 from fensu.discovery._helpers.repo_root import resolve_repo_root
 from fensu.discovery._helpers.scope import discover_scoped_files
@@ -18,10 +19,19 @@ def discover_files(*, config: Config, repo_root: Path | None = None) -> Discover
     """Discover Python files under configured roots, tests, and tooling paths."""
 
     resolved_root: RepoRoot = resolve_repo_root(path=repo_root)
-    layout: ProjectLayout = build_project_layout(config=config, repo_root=resolved_root)
+    resolved_target: ResolvedTargetRoot = resolve_target_root(
+        config=config, repo_root=resolved_root.path
+    )
+    project_root: RepoRoot = RepoRoot(path=resolved_target.path)
+    layout: ProjectLayout = build_project_layout(config=config, repo_root=project_root)
     files: tuple[ScopedFile, ...] = discover_scoped_files(layout=layout)
     _seed_snapshot(repo_root=resolved_root, files=files)
-    return DiscoveredTree(files=files, repo_root=resolved_root, layout=layout)
+    return DiscoveredTree(
+        files=files,
+        repo_root=resolved_root,
+        layout=layout,
+        project_root=project_root,
+    )
 
 
 def _seed_snapshot(*, repo_root: RepoRoot, files: tuple[ScopedFile, ...]) -> None:

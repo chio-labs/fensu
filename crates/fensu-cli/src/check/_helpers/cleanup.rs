@@ -7,24 +7,39 @@ use cap_std::ambient_authority;
 use cap_std::fs::{Dir, DirEntry};
 
 use crate::check::models::CleanupPlan;
-use crate::configuration::main::load;
+use crate::configuration::main::load_targets;
 use crate::constants::PYTHON_CACHE_DIRECTORY;
 use crate::models::Config;
+use crate::repository_io::main::relative_path::relative_path;
 
-pub(crate) fn prepare(invocation: &Path) -> Option<CleanupPlan> {
+pub(crate) fn prepare(invocation: &Path, target: Option<&str>) -> Vec<CleanupPlan> {
+    let Ok(configs) = load_targets::load_targets(invocation, target) else {
+        return Vec::new();
+    };
+    let Some(config_path) = configs.first().map(|(path, _)| path.clone()) else {
+        return Vec::new();
+    };
+    let selected: Vec<Config> = configs.into_iter().map(|(_, config)| config).collect();
+    prepare_target(invocation, &config_path, selected)
+        .into_iter()
+        .collect()
+}
+
+fn prepare_target(
+    invocation: &Path,
+    config_path: &Path,
+    configs: Vec<Config>,
+) -> Option<CleanupPlan> {
     let Ok(invocation_directory) = Dir::open_ambient_dir(invocation, ambient_authority()) else {
         return None;
     };
-    let Ok(invocation_path) = invocation.canonicalize() else {
+    let Ok(invocation_path) = dunce::canonicalize(invocation) else {
         return None;
     };
-    let Ok((config_path, config)) = load::load(invocation) else {
+    let Ok(repository_path) = dunce::canonicalize(config_path.parent()?) else {
         return None;
     };
-    let repository_path = config_path.parent()?;
-    let Ok(relative) = invocation_path.strip_prefix(repository_path) else {
-        return None;
-    };
+    let relative = relative_path(&invocation_path, &repository_path)?;
     let mut repository = invocation_directory;
     for _ in relative.components() {
         let Ok(parent) = repository.open_parent_dir(ambient_authority()) else {
@@ -36,11 +51,17 @@ pub(crate) fn prepare(invocation: &Path) -> Option<CleanupPlan> {
     let Ok(raw) = repository.read(config_name) else {
         return None;
     };
-    (raw == config.raw).then_some(CleanupPlan { repository, config })
+    configs
+        .iter()
+        .all(|config| raw == config.raw)
+        .then_some(CleanupPlan {
+            repository,
+            configs,
+        })
 }
 
-pub(crate) fn cleanup_configured_roots(repository: &Dir, config: &Config) {
-    let protected_roots = configured_roots(config);
+pub(crate) fn cleanup_configured_roots(repository: &Dir, configs: &[Config]) {
+    let protected_roots = configured_roots(configs);
     for configured_root in &protected_roots {
         let Some(directory) = open_directory(repository, configured_root) else {
             continue;
@@ -49,14 +70,26 @@ pub(crate) fn cleanup_configured_roots(repository: &Dir, config: &Config) {
     }
 }
 
-fn configured_roots(config: &Config) -> BTreeSet<PathBuf> {
-    config
-        .roots
-        .iter()
-        .chain(&config.tests)
-        .chain(&config.tooling)
-        .filter_map(|path| resolve_configured_root(path))
-        .collect()
+fn configured_roots(configs: &[Config]) -> BTreeSet<PathBuf> {
+    let mut roots: BTreeSet<PathBuf> = BTreeSet::new();
+    for config in configs {
+        let target_root = resolve_configured_root(&config.target_root);
+        for path in config
+            .roots
+            .iter()
+            .chain(&config.tests)
+            .chain(&config.tooling)
+        {
+            let Some(resolved) = resolve_configured_root(path) else {
+                continue;
+            };
+            roots.insert(match &target_root {
+                Some(target) => target.join(resolved),
+                None => resolved,
+            });
+        }
+    }
+    roots
 }
 
 fn resolve_configured_root(configured: &str) -> Option<PathBuf> {

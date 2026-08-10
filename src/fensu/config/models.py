@@ -10,10 +10,11 @@ from types import MappingProxyType
 from fensu.config.constants import (
     DEFAULT_CACHE_ENABLED,
     DEFAULT_CONTRACTS,
+    DEFAULT_TEST_LAYOUT,
     DEFAULT_TEST_SCOPES,
     DEFAULT_THRESHOLDS,
 )
-from fensu.config.types import ConfigSourceKind
+from fensu.config.types import AnalyzerId, ConfigSourceKind, TestLayout
 from fensu.rules.authoring.models import RuleSpec
 from fensu.rules.authoring.types import RuleOptionValue, Threshold
 
@@ -33,6 +34,14 @@ class LoadedConfig:
     config: Config
     source: ConfigSource
     catalogue: tuple[RuleSpec, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class ResolvedTargetRoot:
+    """Canonical target path and its canonical repository-relative identity."""
+
+    path: Path
+    repository_relative: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -135,6 +144,15 @@ class Config:
     contracts: Mapping[str, str] = field(
         default_factory=lambda: MappingProxyType(dict(DEFAULT_CONTRACTS))
     )
+    analyzer: AnalyzerId = AnalyzerId.PYTHON
+    target: str | None = None
+    target_root: str = "."
+    ui_kit: str | None = None
+    generated: tuple[str, ...] = ()
+    framework: str | None = None
+    shadcn: str | None = None
+    openapi: str | None = None
+    test_layout: TestLayout = DEFAULT_TEST_LAYOUT
 
     def __post_init__(self) -> None:
         """Freeze defensive copies of nested rule-option mappings."""

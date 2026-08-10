@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.10.0](https://github.com/chio-labs/fensu/compare/v0.9.4...v0.10.0) (2026-08-10)
+
+
+### Features
+
+* add named analyzer targets ([f7b4ca2](https://github.com/chio-labs/fensu/commit/f7b4ca2c8d774846eec6855d5f9100c1fad30cad))
+* add native SvelteKit architecture policy ([0450940](https://github.com/chio-labs/fensu/commit/04509402dcb4c9c6b22b6f1a1db983ff3131d965))
+* add native TypeScript and Svelte parsers ([65d9633](https://github.com/chio-labs/fensu/commit/65d96334f9b7df5659211eff29812d3389d56a6b))
+* add native TypeScript architecture policy ([8c02914](https://github.com/chio-labs/fensu/commit/8c02914c1003132562ba580917b99fac80ef3b0a))
+* add SvelteKit target onboarding ([55f86ba](https://github.com/chio-labs/fensu/commit/55f86ba0ed8d9ffad06e88fb9689a01102cd1451))
+* add typed analyzer contracts ([d08db9b](https://github.com/chio-labs/fensu/commit/d08db9b0927b9f6c1572c27e08cd6ed7624211ce))
+* aggregate checks across analyzer targets ([802c94b](https://github.com/chio-labs/fensu/commit/802c94bf355e354bef92b772567ab500c5f05fbe))
+* complete native SvelteKit analyzer support ([9551751](https://github.com/chio-labs/fensu/commit/9551751beb28bb537c589f2faa26dda49300c3e6))
+* configure web test layouts ([dac54b2](https://github.com/chio-labs/fensu/commit/dac54b2891b401a1ee2b9329a15f9e4bf84943fb))
+* preserve web threshold compatibility ([ff92bbc](https://github.com/chio-labs/fensu/commit/ff92bbc02dc77e3e25791a528d9ca5392e0318b8))
+* support nested analyzer target roots ([3bf2c87](https://github.com/chio-labs/fensu/commit/3bf2c87c10acdee61f74f745aaeade79cbacf6d8))
+* wire native frontend analyzer execution ([d2640e3](https://github.com/chio-labs/fensu/commit/d2640e3f7ef89399ce955daf39060cc9da08ba94))
+
+
+### Bug Fixes
+
+* allow empty evaluation exclusions ([951b6b7](https://github.com/chio-labs/fensu/commit/951b6b7b3b890982cb5a94e4f450d1a4bd9decfd))
+* normalize cross-platform repository paths ([99e5bce](https://github.com/chio-labs/fensu/commit/99e5bce2c8cc02dc83c753fd1394b6cafa5fd564))
+* preserve readonly web test cases ([b10e2d0](https://github.com/chio-labs/fensu/commit/b10e2d0d36714ddad9a8775781487d3867f2697a))
+* provision cross-platform test runtimes ([556f899](https://github.com/chio-labs/fensu/commit/556f8990e80df61f3a62239b746bf1eac8d6650b))
+
 ## [0.9.4](https://github.com/chio-labs/fensu/compare/v0.9.3...v0.9.4) (2026-08-09)
 
 

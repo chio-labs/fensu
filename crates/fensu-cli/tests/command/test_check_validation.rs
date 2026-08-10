@@ -5,6 +5,80 @@ use crate::test_types::{
     TargetCacheCheckTestCase, TargetCheckTestCase, ThresholdPrecedenceTestCase,
 };
 
+#[cfg(windows)]
+#[test]
+fn given_installed_windows_cli_when_checking_then_relative_paths_and_cache_share_one_root() {
+    let test_cases = [TargetCheckTestCase {
+        description: "relative roots, positional paths, all targets, cache, and init use one Windows identity",
+        arguments: &["--cache"],
+        expected_exit_code: 0,
+        expected_stdout: "Found 0 faults",
+        expected_stderr: "",
+    }];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary Windows repository");
+        write(
+            repository.path().join("fensu.toml"),
+            "[targets.alpha]\nanalyzer = \"python\"\nroot = \"alpha-root\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = []\n[targets.beta]\nanalyzer = \"python\"\nroot = \"beta-root\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = []\n",
+        );
+        write(
+            repository.path().join("alpha-root/src/pkg/module.py"),
+            "VALUE: int = 1\n",
+        );
+        write(
+            repository.path().join("beta-root/src/pkg/module.py"),
+            "VALUE: int = 1\n",
+        );
+        let child = repository.path().join("child");
+        std::fs::create_dir(&child).expect("child invocation directory");
+
+        let all_targets = crate::helpers::run_check_with(&child, test_case.arguments);
+        let positional = crate::helpers::run_check_with(
+            &child,
+            &["--target", "alpha", "../alpha-root/src/pkg", "--no-cache"],
+        );
+
+        for output in [&all_targets, &positional] {
+            assert_eq!(
+                output.status.code(),
+                Some(test_case.expected_exit_code),
+                "{}: {}",
+                test_case.description,
+                String::from_utf8_lossy(&output.stderr)
+            );
+            assert!(
+                String::from_utf8_lossy(&output.stdout).contains(test_case.expected_stdout),
+                "{}",
+                test_case.description
+            );
+            assert!(
+                String::from_utf8_lossy(&output.stderr).contains(test_case.expected_stderr),
+                "{}",
+                test_case.description
+            );
+        }
+        assert!(
+            repository.path().join(".fensu/cache/v4.db").is_file(),
+            "{}",
+            test_case.description
+        );
+
+        let initialized = tempfile::tempdir().expect("temporary Windows init repository");
+        let init = crate::helpers::run_web_command(
+            initialized.path(),
+            &["init", "--yes", "--no-skills", "--name", "sample"],
+        );
+        assert_eq!(
+            init.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {}",
+            test_case.description,
+            String::from_utf8_lossy(&init.stderr)
+        );
+        assert!(initialized.path().join("fensu.toml").is_file());
+    }
+}
+
 #[cfg(unix)]
 #[test]
 fn given_internal_target_alias_when_checking_then_diagnostic_uses_canonical_prefix_once() {

@@ -13,7 +13,8 @@ const AUXILIARY_PROJECT_INPUT_NAMES: [&str; 5] = [
     "svelte.config.mjs",
     "svelte.config.ts",
 ];
-const SVELTEKIT_GENERATED_TSCONFIG: &str = ".svelte-kit/tsconfig.json";
+const SVELTEKIT_DIRECTORY: &str = ".svelte-kit";
+const TSCONFIG_FILE: &str = "tsconfig.json";
 const RESOLUTION_EXTENSIONS: [&str; 12] = [
     "", ".ts", ".tsx", ".mts", ".cts", ".d.ts", ".d.mts", ".d.cts", ".js", ".jsx",
     ".mjs", ".cjs",
@@ -119,19 +120,37 @@ pub(crate) fn discover_project_inputs(
     project_root: &Path,
     config: &crate::models::Config,
 ) -> Result<Vec<ProjectInput>, String> {
+    let repository_root = dunce::canonicalize(repository_root).map_err(|error| {
+        format!(
+            "Could not canonicalize repository root {}: {error}",
+            repository_root.display()
+        )
+    })?;
+    let project_root = dunce::canonicalize(project_root).map_err(|error| {
+        format!(
+            "Could not canonicalize target root {}: {error}",
+            project_root.display()
+        )
+    })?;
+    if relative_path(&project_root, &repository_root).is_none() {
+        return Err(format!(
+            "Target root escapes the repository: {}.",
+            project_root.display()
+        ));
+    }
     let mut inputs: Vec<ProjectInput> = Vec::new();
     let mut loaded: HashSet<PathBuf> = HashSet::new();
     let mut visiting: Vec<PathBuf> = Vec::new();
     let optional_generated = (config.framework.as_deref() == Some("sveltekit"))
-        .then(|| normalize(&project_root.join(SVELTEKIT_GENERATED_TSCONFIG)));
-    let root_config = ["tsconfig.json", "jsconfig.json"]
+        .then(|| project_root.join(SVELTEKIT_DIRECTORY).join(TSCONFIG_FILE));
+    let root_config = [TSCONFIG_FILE, "jsconfig.json"]
         .iter()
         .map(|name| project_root.join(name))
         .find(|path| path.is_file());
     if let Some(path) = root_config {
         collect_config_inputs(
-            repository_root,
-            project_root,
+            &repository_root,
+            &project_root,
             &path,
             optional_generated.as_deref(),
             &mut loaded,
@@ -155,9 +174,8 @@ pub(crate) fn discover_project_inputs(
             }
             continue;
         }
-        let canonical_root = fs::canonicalize(project_root).map_err(|error| error.to_string())?;
-        let canonical_path = fs::canonicalize(&path).map_err(|error| error.to_string())?;
-        if !canonical_path.starts_with(&canonical_root) {
+        let canonical_path = dunce::canonicalize(&path).map_err(|error| error.to_string())?;
+        if relative_path(&canonical_path, &project_root).is_none() {
             return Err(format!(
                 "Configured target-local web dependency escapes the target: {name}."
             ));
@@ -169,10 +187,10 @@ pub(crate) fn discover_project_inputs(
             })?;
         }
         inputs.push(ProjectInput {
-            path: path.clone(),
+            path: canonical_path.clone(),
             extended_configs: Vec::new(),
-            repository_path: relative_text(&path, repository_root)?,
-            target_path: relative_text(&path, project_root)?,
+            repository_path: relative_text(&canonical_path, &repository_root)?,
+            target_path: relative_text(&canonical_path, &project_root)?,
             fingerprint: hex_digest(&content),
             content,
             present: true,
@@ -181,9 +199,8 @@ pub(crate) fn discover_project_inputs(
     if let Some(ui_kit) = config.ui_kit.as_deref() {
         let path = project_root.join(ui_kit);
         if path.exists() {
-            let canonical_root = fs::canonicalize(project_root).map_err(|error| error.to_string())?;
-            let canonical_path = fs::canonicalize(&path).map_err(|error| error.to_string())?;
-            if !canonical_path.starts_with(&canonical_root) {
+            let canonical_path = dunce::canonicalize(&path).map_err(|error| error.to_string())?;
+            if relative_path(&canonical_path, &project_root).is_none() {
                 return Err(format!(
                     "Configured target-local UI-kit path escapes the target: {ui_kit}."
                 ));
@@ -203,7 +220,7 @@ fn collect_config_inputs(
     visiting: &mut Vec<PathBuf>,
     inputs: &mut Vec<ProjectInput>,
 ) -> Result<(), String> {
-    let repository_root = fs::canonicalize(repository_root).map_err(|error| {
+    let repository_root = dunce::canonicalize(repository_root).map_err(|error| {
         format!(
             "Could not canonicalize repository root {}: {error}",
             repository_root.display()
@@ -282,7 +299,7 @@ fn collect_config_inputs(
         path: path.clone(),
         extended_configs,
         repository_path: repository_path.clone(),
-        target_path: repository_path,
+        target_path: relative_text(&path, project_root)?,
         fingerprint: hex_digest(&content),
         content,
         present: true,
@@ -332,7 +349,7 @@ fn resolve_config_extends(
         bases.push(PathBuf::from(specifier));
     } else {
         for ancestor in parent.ancestors() {
-            if !ancestor.starts_with(repository_root) {
+            if relative_path(ancestor, repository_root).is_none() {
                 break;
             }
             bases.push(ancestor.join("node_modules").join(specifier));
@@ -374,7 +391,7 @@ fn canonicalize_config_path(repository_root: &Path, path: &Path) -> Result<PathB
             )
         })?;
     }
-    let mut canonical = fs::canonicalize(existing).map_err(|error| {
+    let mut canonical = dunce::canonicalize(existing).map_err(|error| {
         format!(
             "Could not canonicalize TypeScript config path {}: {error}",
             existing.display()
@@ -384,7 +401,7 @@ fn canonicalize_config_path(repository_root: &Path, path: &Path) -> Result<PathB
         canonical.push(part);
     }
     canonical = normalize(&canonical);
-    if !canonical.starts_with(repository_root) {
+    if relative_path(&canonical, repository_root).is_none() {
         return Err(format!(
             "TypeScript config path escapes the repository: {}.",
             path.display()
@@ -396,7 +413,9 @@ fn canonicalize_config_path(repository_root: &Path, path: &Path) -> Result<PathB
 fn config_candidates(base: &Path) -> Vec<PathBuf> {
     let mut candidates = vec![base.to_path_buf()];
     if base.extension().and_then(|value| value.to_str()) != Some("json") {
-        candidates.push(PathBuf::from(format!("{}.json", base.to_string_lossy())));
+        let mut with_extension = base.as_os_str().to_os_string();
+        with_extension.push(".json");
+        candidates.push(PathBuf::from(with_extension));
     }
     candidates.push(base.join("tsconfig.json"));
     candidates
@@ -522,10 +541,41 @@ pub(crate) fn parse_sources(
     project_inputs: &[ProjectInput],
     source_roots: &[String],
 ) -> Result<Vec<ScopedSource>, String> {
+    let project_root = dunce::canonicalize(project_root).map_err(|error| {
+        format!(
+            "Could not canonicalize target root {}: {error}",
+            project_root.display()
+        )
+    })?;
+    let source_roots = canonical_source_roots(&project_root, source_roots)?;
     for source in sources.iter_mut() {
         source.program = Some(parse_source(analyzer, source)?);
     }
-    populate_import_graph(project_root, sources, project_inputs, source_roots)
+    populate_import_graph(&project_root, sources, project_inputs, &source_roots)
+}
+
+fn canonical_source_roots(
+    project_root: &Path,
+    configured_roots: &[String],
+) -> Result<Vec<PathBuf>, String> {
+    let mut roots: Vec<PathBuf> = Vec::with_capacity(configured_roots.len());
+    for configured in configured_roots {
+        let candidate = project_root.join(configured);
+        let resolved = if candidate.exists() {
+            dunce::canonicalize(&candidate).map_err(|error| {
+                format!("Could not canonicalize web source root {configured}: {error}")
+            })?
+        } else {
+            normalize(&candidate)
+        };
+        if relative_path(&resolved, project_root).is_none() {
+            return Err(format!(
+                "Web source root escapes the target: {configured}."
+            ));
+        }
+        roots.push(resolved);
+    }
+    Ok(roots)
 }
 
 fn parse_source(analyzer: AnalyzerId, source: &ScopedSource) -> Result<ParsedProgram, String> {
@@ -593,12 +643,24 @@ fn populate_import_graph(
     project_root: &Path,
     mut sources: Vec<ScopedSource>,
     project_inputs: &[ProjectInput],
-    source_roots: &[String],
+    source_roots: &[PathBuf],
 ) -> Result<Vec<ScopedSource>, String> {
-    let known: HashMap<PathBuf, String> = sources
-        .iter()
-        .map(|source| (normalize(&source.path), source.target_path.clone()))
-        .collect();
+    let mut known: HashMap<PathBuf, String> = HashMap::new();
+    for source in &sources {
+        let path = dunce::canonicalize(&source.path).map_err(|error| {
+            format!(
+                "Could not canonicalize web source {}: {error}",
+                source.path.display()
+            )
+        })?;
+        if relative_path(&path, project_root).is_none() {
+            return Err(format!(
+                "Web source escapes the target: {}.",
+                source.path.display()
+            ));
+        }
+        known.insert(path, source.target_path.clone());
+    }
     let aliases = aliases(project_root, project_inputs)?;
     let resolution = ResolutionContext {
         project_root,
@@ -608,11 +670,17 @@ fn populate_import_graph(
     };
     for source in &mut sources {
         let specifiers = import_specifiers(source);
+        let importer = dunce::canonicalize(&source.path).map_err(|error| {
+            format!(
+                "Could not canonicalize web source {}: {error}",
+                source.path.display()
+            )
+        })?;
         source.imports = specifiers
             .into_iter()
             .map(|specifier| {
                 Ok(ImportGraphFact {
-                    resolved_path: resolve_import(&specifier, &source.path, &resolution)?,
+                    resolved_path: resolve_import(&specifier, &importer, &resolution)?,
                     specifier,
                 })
             })
@@ -659,7 +727,7 @@ struct AliasConfig {
 #[derive(Debug)]
 struct AliasPath {
     pattern: String,
-    targets: Vec<String>,
+    targets: Vec<PathBuf>,
 }
 
 #[derive(Debug)]
@@ -675,7 +743,7 @@ fn aliases(project_root: &Path, inputs: &[ProjectInput]) -> Result<AliasConfig, 
         if !candidate.is_file() {
             continue;
         }
-        let canonical = fs::canonicalize(&candidate).map_err(|error| {
+        let canonical = dunce::canonicalize(&candidate).map_err(|error| {
             format!(
                 "Could not canonicalize TypeScript config {}: {error}",
                 candidate.display()
@@ -766,7 +834,7 @@ fn effective_aliases(
                     input.repository_path
                 )
             })?;
-            let mut resolved_targets: Vec<String> = Vec::new();
+            let mut resolved_targets: Vec<PathBuf> = Vec::new();
             for target in targets {
                 let target = target.as_str().ok_or_else(|| {
                     format!(
@@ -774,11 +842,7 @@ fn effective_aliases(
                         input.repository_path
                     )
                 })?;
-                resolved_targets.push(
-                    normalize(&target_base.join(target))
-                        .to_string_lossy()
-                        .into_owned(),
-                );
+                resolved_targets.push(normalize(&target_base.join(target)));
             }
             paths.push(AliasPath {
                 pattern: pattern.clone(),
@@ -812,16 +876,15 @@ fn merge_svelte_config_aliases(
     config: &mut AliasConfig,
 ) -> Result<(), String> {
     for input in inputs.iter().filter(|input| {
-        matches!(
-            input.target_path.as_str(),
-            "svelte.config.js" | "svelte.config.cjs" | "svelte.config.mjs" | "svelte.config.ts"
-        )
+        input
+            .path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| AUXILIARY_PROJECT_INPUT_NAMES[1..].contains(&name))
     }) {
         let parsed = parse_svelte_aliases(&input.content, &input.repository_path)?;
         for (pattern, target) in parsed.literal {
-            let resolved = normalize(&project_root.join(target))
-                .to_string_lossy()
-                .into_owned();
+            let resolved = normalize(&project_root.join(target));
             config.paths.retain(|alias| {
                 alias.pattern != pattern && alias.pattern != format!("{pattern}/*")
             });
@@ -831,7 +894,7 @@ fn merge_svelte_config_aliases(
             });
             config.paths.push(AliasPath {
                 pattern: format!("{pattern}/*"),
-                targets: vec![format!("{resolved}/*")],
+                targets: vec![resolved.join("*")],
             });
         }
         config.dynamic_paths.extend(
@@ -1075,7 +1138,7 @@ struct ResolutionContext<'a> {
     project_root: &'a Path,
     known: &'a HashMap<PathBuf, String>,
     aliases: &'a AliasConfig,
-    source_roots: &'a [String],
+    source_roots: &'a [PathBuf],
 }
 
 fn resolve_import(
@@ -1083,6 +1146,12 @@ fn resolve_import(
     importer: &Path,
     resolution: &ResolutionContext<'_>,
 ) -> Result<Option<String>, String> {
+    if relative_path(importer, resolution.project_root).is_none() {
+        return Err(format!(
+            "Web importer escapes the target: {}.",
+            importer.display()
+        ));
+    }
     let mut candidates: Vec<PathBuf> = Vec::new();
     let relative = specifier.starts_with("./") || specifier.starts_with("../");
     if relative {
@@ -1095,8 +1164,7 @@ fn resolve_import(
         if let Some(root) = resolution
             .source_roots
             .iter()
-            .map(|root| resolution.project_root.join(root))
-            .filter(|root| importer.starts_with(root))
+            .filter(|root| relative_path(importer, root).is_some())
             .max_by_key(|root| root.components().count())
         {
             candidates.push(root.join("lib").join(rest));
@@ -1107,7 +1175,7 @@ fn resolve_import(
                 continue;
             };
             for target in &alias.targets {
-                candidates.push(PathBuf::from(target.replace('*', capture)));
+                candidates.push(alias_target(target, capture));
             }
             break;
         }
@@ -1117,7 +1185,23 @@ fn resolve_import(
     }
     for candidate in candidates {
         for path in resolution_candidates(&candidate) {
-            if let Some(resolved) = resolution.known.get(&normalize(&path)) {
+            let identity = if path.exists() {
+                dunce::canonicalize(&path).map_err(|error| {
+                    format!(
+                        "Could not canonicalize web import candidate {}: {error}",
+                        path.display()
+                    )
+                })?
+            } else {
+                normalize(&path)
+            };
+            if relative_path(&identity, resolution.project_root).is_none() {
+                return Err(format!(
+                    "Web import candidate escapes the target: {}.",
+                    path.display()
+                ));
+            }
+            if let Some(resolved) = resolution.known.get(&identity) {
                 return Ok(Some(resolved.clone()));
             }
         }
@@ -1165,10 +1249,13 @@ fn resolution_candidates(path: &Path) -> Vec<PathBuf> {
     if let Some(candidates) = explicit_javascript_candidates(path) {
         return candidates;
     }
-    let text = path.to_string_lossy();
     let mut candidates = RESOLUTION_EXTENSIONS
         .iter()
-        .map(|extension| PathBuf::from(format!("{text}{extension}")))
+        .map(|extension| {
+            let mut candidate = path.as_os_str().to_os_string();
+            candidate.push(extension);
+            PathBuf::from(candidate)
+        })
         .collect::<Vec<_>>();
     candidates.extend(
         RESOLUTION_EXTENSIONS
@@ -1193,9 +1280,22 @@ fn explicit_javascript_candidates(path: &Path) -> Option<Vec<PathBuf>> {
     Some(
         replacements
             .iter()
-            .map(|replacement| PathBuf::from(format!("{}.{}", stem.to_string_lossy(), replacement)))
+            .map(|replacement| stem.with_extension(replacement))
             .collect(),
     )
+}
+
+fn alias_target(target: &Path, capture: &str) -> PathBuf {
+    let mut resolved = PathBuf::new();
+    for component in target.components() {
+        match component {
+            Component::Normal(part) => {
+                resolved.push(part.to_string_lossy().replace('*', capture));
+            }
+            value => resolved.push(value.as_os_str()),
+        }
+    }
+    resolved
 }
 
 fn normalize(path: &Path) -> PathBuf {
@@ -1213,9 +1313,8 @@ fn normalize(path: &Path) -> PathBuf {
 }
 
 fn relative_text(path: &Path, root: &Path) -> Result<String, String> {
-    Ok(path
-        .strip_prefix(root)
-        .map_err(|error| error.to_string())?
+    Ok(relative_path(path, root)
+        .ok_or_else(|| format!("{} is outside {}", path.display(), root.display()))?
         .to_string_lossy()
         .replace('\\', "/"))
 }

@@ -1,6 +1,8 @@
 use std::ffi::OsString;
 use std::path::{Component, Path, PathBuf};
 
+use crate::repository_io::main::relative_path::relative_path;
+
 pub(crate) fn normalize_target_root(name: &str, value: &str) -> Result<String, String> {
     let bytes = value.as_bytes();
     let windows_absolute = value.starts_with('\\')
@@ -49,7 +51,7 @@ pub(crate) fn resolve_target_root(
     })?;
     let candidate = repository.join(configured);
     let resolved = canonicalize_with_missing_suffix(&candidate)?;
-    if resolved.strip_prefix(&repository).is_err() {
+    if relative_path(&resolved, &repository).is_none() {
         return Err(format!(
             "Target root '{configured}' must not escape the repository."
         ));

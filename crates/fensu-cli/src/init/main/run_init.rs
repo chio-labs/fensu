@@ -16,7 +16,8 @@ pub(crate) fn run_init(arguments: &[String]) -> Result<CliOutput, String> {
     if options.help {
         return Ok(CliOutput::success(INIT_USAGE.to_owned()));
     }
-    let repository = env::current_dir().map_err(|error| error.to_string())?;
+    let repository = dunce::canonicalize(env::current_dir().map_err(|error| error.to_string())?)
+        .map_err(|error| error.to_string())?;
     if let Some(path) = local_config(&repository)? {
         return existing_configuration(&path, &options);
     }

@@ -6,11 +6,101 @@ use crate::configuration::main::resolve_target_root::resolve_target_root;
 use crate::mapping::_helpers::cache::generation;
 use crate::mapping::models::SourceSnapshot;
 use crate::models::Config;
+use crate::repository_io::main::relative_path::relative_path;
 use crate::tests::test_types::{
     CacheIdentityFramingTestCase, EscapingSymlinkTargetTestCase, MapCacheIdentityTestCase,
     MissingSuffixSymlinkTargetTestCase, PathExpansionTestCase, PathMatchTestCase,
     TargetRootRepresentationTestCase, WebTestLayoutIdentityTestCase,
+    WindowsFilesystemContainmentTestCase, WindowsPathContainmentTestCase,
 };
+
+#[cfg(windows)]
+#[test]
+fn given_case_sensitive_windows_siblings_when_resolving_then_names_do_not_alias() {
+    let test_cases = [WindowsFilesystemContainmentTestCase {
+        description: "case-sensitive sibling names and symlinks remain outside the repository",
+        run: crate::tests::helpers::case_sensitive_windows_siblings_remain_confined,
+        expected_confined: true,
+    }];
+    for test_case in &test_cases {
+        let actual = (test_case.run)().unwrap_or(test_case.expected_confined);
+
+        assert_eq!(
+            actual, test_case.expected_confined,
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[cfg(not(windows))]
+#[test]
+fn given_case_sensitive_windows_probe_when_not_supported_then_result_is_unavailable() {
+    let test_cases = [WindowsFilesystemContainmentTestCase {
+        description: "case-sensitive Windows filesystem probe is unavailable off Windows",
+        run: crate::tests::helpers::case_sensitive_windows_siblings_remain_confined,
+        expected_confined: false,
+    }];
+    for test_case in &test_cases {
+        let actual = (test_case.run)().unwrap_or(test_case.expected_confined);
+
+        assert_eq!(
+            actual, test_case.expected_confined,
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_windows_path_spellings_when_stripping_repository_then_comparison_is_prefix_safe() {
+    let test_cases = [
+        WindowsPathContainmentTestCase {
+            description: "verbatim drive paths compare after prefix normalization",
+            path: r"\\?\C:\work\repo\Src\Module.py",
+            root: r"C:\work\repo",
+            expected_relative: Some("Src/Module.py"),
+        },
+        WindowsPathContainmentTestCase {
+            description: "verbatim UNC paths compare by complete components",
+            path: r"\\?\unc\Server\Share\Repo\src\module.py",
+            root: r"\\Server\Share\Repo",
+            expected_relative: Some("src/module.py"),
+        },
+        WindowsPathContainmentTestCase {
+            description: "case-distinct lexical paths fail safely",
+            path: r"C:\work\Repo\src\module.py",
+            root: r"C:\work\repo",
+            expected_relative: None,
+        },
+        WindowsPathContainmentTestCase {
+            description: "text prefixes do not grant repository containment",
+            path: r"C:\work\repository\src\module.py",
+            root: r"C:\work\repo",
+            expected_relative: None,
+        },
+        WindowsPathContainmentTestCase {
+            description: "parent traversal is not normalized into containment",
+            path: r"C:\work\repo\..\outside\module.py",
+            root: r"C:\work\repo",
+            expected_relative: None,
+        },
+    ];
+    for test_case in &test_cases {
+        let actual = relative_path(
+            std::path::Path::new(test_case.path),
+            std::path::Path::new(test_case.root),
+        )
+        .map(|path| path.to_string_lossy().replace('\\', "/"));
+
+        assert_eq!(
+            actual.as_deref(),
+            test_case.expected_relative,
+            "{}",
+            test_case.description
+        );
+    }
+}
 
 #[cfg(unix)]
 #[test]

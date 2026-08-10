@@ -10,6 +10,7 @@ use crate::check::models::CleanupPlan;
 use crate::configuration::main::load_targets;
 use crate::constants::PYTHON_CACHE_DIRECTORY;
 use crate::models::Config;
+use crate::repository_io::main::relative_path::relative_path;
 
 pub(crate) fn prepare(invocation: &Path, target: Option<&str>) -> Vec<CleanupPlan> {
     let Ok(configs) = load_targets::load_targets(invocation, target) else {
@@ -32,13 +33,13 @@ fn prepare_target(
     let Ok(invocation_directory) = Dir::open_ambient_dir(invocation, ambient_authority()) else {
         return None;
     };
-    let Ok(invocation_path) = invocation.canonicalize() else {
+    let Ok(invocation_path) = dunce::canonicalize(invocation) else {
         return None;
     };
-    let repository_path = config_path.parent()?;
-    let Ok(relative) = invocation_path.strip_prefix(repository_path) else {
+    let Ok(repository_path) = dunce::canonicalize(config_path.parent()?) else {
         return None;
     };
+    let relative = relative_path(&invocation_path, &repository_path)?;
     let mut repository = invocation_directory;
     for _ in relative.components() {
         let Ok(parent) = repository.open_parent_dir(ambient_authority()) else {

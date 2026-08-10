@@ -43,6 +43,19 @@ pub(crate) struct TargetRootRepresentationTestCase {
     pub(crate) expected_root: &'static str,
 }
 
+pub(crate) struct WindowsPathContainmentTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) path: &'static str,
+    pub(crate) root: &'static str,
+    pub(crate) expected_relative: Option<&'static str>,
+}
+
+pub(crate) struct WindowsFilesystemContainmentTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) run: fn() -> Option<bool>,
+    pub(crate) expected_confined: bool,
+}
+
 pub(crate) struct MissingSuffixSymlinkTargetTestCase {
     pub(crate) description: &'static str,
     pub(crate) configured: &'static str,
@@ -126,6 +139,21 @@ pub(crate) struct SvelteKitAliasResolutionTestCase {
     pub(crate) description: &'static str,
     pub(crate) expected_generated_present: bool,
     pub(crate) expected_resolutions: &'static [(&'static str, Option<&'static str>)],
+}
+
+pub(crate) struct WebProjectPathTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_repository_path: &'static str,
+    pub(crate) expected_target_path: &'static str,
+    pub(crate) expected_resolutions: &'static [(&'static str, Option<&'static str>)],
+}
+
+pub(crate) struct WebSymlinkResolutionTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_resolutions: &'static [(&'static str, Option<&'static str>)],
+    pub(crate) expected_source_escape_error: &'static str,
+    pub(crate) expected_alias_escape_error: &'static str,
+    pub(crate) expected_base_url_escape_error: &'static str,
 }
 
 pub(crate) struct DynamicSvelteAliasTestCase {

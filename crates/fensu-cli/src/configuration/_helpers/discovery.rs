@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use crate::constants::{CONFIG_FENSU_FILE, CONFIG_PYPROJECT_FILE};
 
 pub(crate) fn find(start: &Path) -> Result<(PathBuf, bool), String> {
-    let resolved = start.canonicalize().map_err(|error| error.to_string())?;
+    let resolved = dunce::canonicalize(start).map_err(|error| error.to_string())?;
     for directory in resolved.ancestors() {
         let fensu = directory.join(CONFIG_FENSU_FILE);
         if fensu.is_file() {

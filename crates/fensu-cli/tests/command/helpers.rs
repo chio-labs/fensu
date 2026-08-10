@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 pub(crate) fn run_check(repository: &Path) -> Output {
@@ -67,6 +67,15 @@ pub(crate) fn write_bytes(path: impl AsRef<Path>, contents: &[u8]) {
 
 pub(crate) fn create_directory(path: impl AsRef<Path>) {
     fs::create_dir_all(path).expect("fixture directory");
+}
+
+pub(crate) fn workspace_python() -> PathBuf {
+    let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    if cfg!(windows) {
+        workspace.join(".venv/Scripts/python.exe")
+    } else {
+        workspace.join(".venv/bin/python")
+    }
 }
 
 #[cfg(unix)]

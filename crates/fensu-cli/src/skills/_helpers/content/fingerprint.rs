@@ -18,7 +18,20 @@ const UNICODE_BASIC_PLANE_MAX: u32 = 0xffff;
 
 pub(crate) fn input_fingerprint(context: &SkillContext) -> Result<String, String> {
     let mut value = input_value(context);
-    value.insert("web_inputs", web_inputs_value(context)?);
+    if context.targets.is_empty() {
+        value.insert("web_inputs", web_inputs_value(context)?);
+    } else {
+        let targets = context
+            .targets
+            .iter()
+            .map(|target| {
+                let mut value = input_value(target);
+                value.insert("web_inputs", web_inputs_value(target)?);
+                Ok(json!(value))
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        value.insert("targets", json!(targets));
+    }
     let encoded = canonical_ascii(&value)?;
     Ok(digest(encoded.as_bytes()))
 }

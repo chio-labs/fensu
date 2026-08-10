@@ -133,6 +133,8 @@ pub(crate) fn prepare_checks(
     });
     Ok(CheckPlans {
         invocation,
+        config_target: options.target.clone(),
+        check_skill_freshness: target_names.is_none(),
         root,
         plans,
         sources,

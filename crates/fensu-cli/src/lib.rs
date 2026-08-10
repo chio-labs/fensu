@@ -13,7 +13,9 @@ mod init;
 mod mapping;
 mod models;
 mod reporting;
+mod repository_io;
 mod skills;
+mod target_command;
 
 #[cfg(test)]
 mod tests;

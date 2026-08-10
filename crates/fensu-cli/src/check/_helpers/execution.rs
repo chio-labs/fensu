@@ -90,16 +90,11 @@ fn stored_output(plan: &CheckPlans, output: &str, exit_code: i32, cache_stats: b
 }
 
 fn freshness(plan: &CheckPlans) -> String {
-    let mut messages: Vec<String> = Vec::new();
-    for target in &plan.plans {
-        let message =
-            core_freshness::core_freshness(&plan.invocation, target.config.target.as_deref())
-                .unwrap_or_default();
-        if !message.is_empty() && !messages.contains(&message) {
-            messages.push(message);
-        }
+    if !plan.check_skill_freshness {
+        return String::new();
     }
-    messages.concat()
+    core_freshness::core_freshness(&plan.invocation, plan.config_target.as_deref())
+        .unwrap_or_default()
 }
 
 fn parse_sources(

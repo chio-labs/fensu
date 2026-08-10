@@ -3,6 +3,7 @@ pub(crate) mod is_rule_selector;
 pub(crate) mod load_optional;
 pub(crate) mod load_target;
 pub(crate) mod load_targets;
+pub(crate) mod render_target_config;
 pub(crate) mod resolve_target_root;
 pub(crate) mod validate_document;
 pub(crate) mod validate_exception_targets;

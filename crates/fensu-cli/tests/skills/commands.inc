@@ -72,6 +72,201 @@ fn given_web_analyzer_when_generating_skills_then_native_catalogue_is_rendered()
 }
 
 #[test]
+fn given_python_and_svelte_targets_when_generating_skills_then_one_guidance_surface_is_aggregated() {
+    let repository = tempfile::tempdir().expect("mixed skill repository");
+    write(repository.path().join(".git/keep"), b"");
+    write(
+        repository.path().join("fensu.toml"),
+        b"[targets.backend]\nanalyzer = \"python\"\nroot = \".\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nrule_packs = []\nselect = [\"FFS010\"]\n[targets.backend.skills]\nname = \"mixed\"\n[[targets.backend.threshold_overrides]]\npaths = [\"src/pkg/*.py\"]\nthresholds = { max_arguments = 12 }\nreason = \"Adapter boundary.\"\n[targets.web]\nanalyzer = \"svelte\"\nroot = \"frontend\"\nroots = [\"src\"]\ntests = []\ntooling = []\nframework = \"sveltekit\"\nrule_packs = []\nselect = [\"FWV105\"]\n[targets.web.skills]\nname = \"mixed\"\n",
+    );
+    write(repository.path().join("src/pkg/__init__.py"), b"");
+    write(
+        repository.path().join("frontend/src/routes/+page.svelte"),
+        b"<p>ok</p>\n",
+    );
+
+    let output = native(repository.path(), &["--target", "agents"]);
+    let guidance = fs::read_to_string(target(repository.path(), ".agents", "fensu-mixed"))
+        .expect("aggregate mixed guidance");
+
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    assert_eq!(text(&output.stdout).matches("SKILL.md").count(), 1);
+    assert!(guidance.contains("### `backend` (python)"));
+    assert!(guidance.contains("### `web` (svelte)"));
+    assert!(guidance.contains("python-ruff-py312-v1"));
+    assert!(guidance.contains("svelte-backend-v10"));
+    assert!(guidance.contains("Blocking rule codes: [\"FFS010\"]"));
+    assert!(guidance.contains("Blocking rule codes: [\"FWV105\"]"));
+    assert_eq!(guidance.matches("Target policy fingerprint").count(), 2);
+    assert!(guidance.contains("#### Effective Project Configuration"));
+    assert!(!guidance.contains("\n### Effective Project Configuration"));
+    assert!(guidance.contains("#### Configured Threshold Overrides"));
+    assert!(guidance.contains("Patterns match target-relative analyzer paths"));
+    assert!(guidance.contains(
+        "reported repository paths are prefixed with `frontend/`"
+    ));
+    assert!(guidance.contains("paths = [\"src/pkg/*.py\"]"));
+    assert!(!guidance.contains("paths = [\"frontend/src/pkg/*.py\"]"));
+}
+
+#[test]
+fn given_owned_per_target_skills_when_generating_aggregate_then_only_safe_owned_guidance_migrates() {
+    let repository = tempfile::tempdir().expect("skill migration repository");
+    write(repository.path().join(".git/keep"), b"");
+    write(
+        repository.path().join("fensu.toml"),
+        b"[targets.backend]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA001\"]\n[targets.backend.skills]\nname = \"backend\"\n[targets.web]\nanalyzer = \"svelte\"\nroot = \"frontend\"\nroots = [\"src\"]\ntests = []\ntooling = []\nframework = \"sveltekit\"\nselect = [\"FWV105\"]\n[targets.web.skills]\nname = \"web\"\n",
+    );
+    write(repository.path().join("src/pkg/__init__.py"), b"");
+    write(
+        repository.path().join("frontend/src/routes/+page.svelte"),
+        b"<p>ok</p>\n",
+    );
+    for name in ["backend", "web"] {
+        let scoped = native(
+            repository.path(),
+            &["--target", "agents", "--config-target", name],
+        );
+        assert_eq!(scoped.status.code(), Some(0), "{}", text(&scoped.stderr));
+    }
+    let backend = target(repository.path(), ".agents", "fensu-backend");
+    let web = target(repository.path(), ".agents", "fensu-web");
+    write(
+        backend.parent().expect("backend skill root").join("user.txt"),
+        b"preserve\n",
+    );
+    let divergent_web = [fs::read(&web).expect("web guidance"), b"manual\n".to_vec()].concat();
+    write(&web, &divergent_web);
+
+    let aggregate = native(repository.path(), &["--target", "agents"]);
+
+    assert_eq!(aggregate.status.code(), Some(0), "{}", text(&aggregate.stderr));
+    assert!(!backend.exists());
+    assert_eq!(
+        fs::read(backend.parent().expect("backend root").join("user.txt"))
+            .expect("preserved sibling"),
+        b"preserve\n"
+    );
+    assert_eq!(fs::read(&web).expect("divergent web preserved"), divergent_web);
+}
+
+#[test]
+fn given_prior_target_skill_at_aggregate_path_when_generating_then_valid_owner_migrates_in_place() {
+    for foreign_owner in [false, true] {
+        let checkout = tempfile::tempdir().expect("same-path migration checkout");
+        let repository = checkout.path().join("backend");
+        write(repository.join(".git/keep"), b"");
+        write(
+            repository.join("fensu.toml"),
+            b"[targets.backend]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA001\"]\n[targets.backend.skills]\nname = \"backend\"\n[targets.web]\nanalyzer = \"svelte\"\nroot = \"frontend\"\nroots = [\"src\"]\ntests = []\ntooling = []\nframework = \"sveltekit\"\nselect = [\"FWV105\"]\n[targets.web.skills]\nname = \"web\"\n",
+        );
+        write(repository.join("src/pkg/__init__.py"), b"");
+        write(
+            repository.join("frontend/src/routes/+page.svelte"),
+            b"<p>ok</p>\n",
+        );
+        let scoped = native(
+            &repository,
+            &["--target", "agents", "--config-target", "backend"],
+        );
+        assert_eq!(scoped.status.code(), Some(0), "{}", text(&scoped.stderr));
+        let path = target(&repository, ".agents", "fensu-backend");
+        let _prior = fs::read(&path).expect("prior target skill");
+        if foreign_owner {
+            let foreign_checkout = tempfile::tempdir().expect("foreign checkout");
+            write(foreign_checkout.path().join(".git/keep"), b"");
+            let foreign = foreign_checkout.path().join("foreign");
+            write(
+                foreign.join("fensu.toml"),
+                b"roots = [\"src/pkg\"]\ntests = []\nselect = [\"FFA001\"]\n[skills]\nname = \"backend\"\n",
+            );
+            write(foreign.join("src/pkg/__init__.py"), b"");
+            let generated = native(&foreign, &["--target", "agents"]);
+            assert_eq!(generated.status.code(), Some(0), "{}", text(&generated.stderr));
+            write(
+                &path,
+                fs::read(target(
+                    foreign_checkout.path(),
+                    ".agents",
+                    "fensu-backend",
+                ))
+                .expect("foreign owned guidance"),
+            );
+        }
+        let before_aggregate = fs::read(&path).expect("same-path preflight content");
+        let freshness = native(&repository, &["--target", "agents", "--check"]);
+        if foreign_owner {
+            assert_eq!(freshness.status.code(), Some(2));
+            assert!(text(&freshness.stdout).contains(": collision\n"));
+        } else {
+            assert_eq!(freshness.status.code(), Some(1));
+            assert!(text(&freshness.stdout).contains(": stale\n"));
+            assert!(!text(&freshness.stdout).contains(": collision\n"));
+        }
+
+        let aggregate = native(&repository, &["--target", "agents"]);
+
+        if foreign_owner {
+            assert_eq!(aggregate.status.code(), Some(2));
+            assert_eq!(
+                fs::read(&path).expect("preserved collision"),
+                before_aggregate
+            );
+        } else {
+            assert_eq!(aggregate.status.code(), Some(0), "{}", text(&aggregate.stderr));
+            let guidance = fs::read_to_string(&path).expect("aggregate replacement");
+            assert!(guidance.contains("## Analyzer Targets"));
+            assert!(guidance.contains("### `backend` (python)"));
+            assert!(guidance.contains("### `web` (svelte)"));
+        }
+    }
+}
+
+#[test]
+fn given_aggregate_and_scoped_skills_when_checking_then_freshness_uses_matching_identity() {
+    let repository = tempfile::tempdir().expect("skill freshness repository");
+    write(repository.path().join(".git/keep"), b"");
+    write(
+        repository.path().join("fensu.toml"),
+        b"[targets.backend]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA001\"]\n[targets.backend.skills]\nname = \"backend\"\n[targets.web]\nanalyzer = \"svelte\"\nroot = \"frontend\"\nroots = [\"src\"]\ntests = []\ntooling = []\nframework = \"sveltekit\"\nselect = [\"FWV105\"]\n[targets.web.skills]\nname = \"web\"\n",
+    );
+    write(repository.path().join("src/pkg/__init__.py"), b"");
+    write(
+        repository.path().join("frontend/src/routes/+page.svelte"),
+        b"<p>ok</p>\n",
+    );
+    let aggregate = native(repository.path(), &["--target", "agents"]);
+    assert_eq!(aggregate.status.code(), Some(0), "{}", text(&aggregate.stderr));
+    let scoped = native(
+        repository.path(),
+        &["--target", "agents", "--config-target", "backend"],
+    );
+    assert_eq!(scoped.status.code(), Some(0), "{}", text(&scoped.stderr));
+
+    let all = Command::new(env!("CARGO_BIN_EXE_fensu"))
+        .args(["check", "--no-color", "--no-cache"])
+        .current_dir(repository.path())
+        .env("FENSU_PYTHON", repository.path().join("missing-python"))
+        .output()
+        .expect("aggregate freshness check");
+    let selected = Command::new(env!("CARGO_BIN_EXE_fensu"))
+        .args([
+            "check",
+            "--no-color",
+            "--no-cache",
+            "--target",
+            "backend",
+        ])
+        .current_dir(repository.path())
+        .env("FENSU_PYTHON", repository.path().join("missing-python"))
+        .output()
+        .expect("scoped freshness check");
+
+    assert!(text(&all.stderr).contains("Fensu skill files are out of date"));
+    assert!(!text(&selected.stderr).contains("Fensu skill files are out of date"));
+}
+
+#[test]
 fn given_web_dependency_content_when_checking_skill_then_content_change_is_stale() {
     let test_cases = [SkillsCommandTestCase {
         description: "shadcn and OpenAPI content identities participate in skill freshness",
@@ -136,11 +331,11 @@ fn given_multiple_targets_when_generating_skills_then_config_target_selects_poli
             expected_stderr: "",
         },
         ConfigTargetSkillsTestCase {
-            description: "skills rejects ambiguous project configuration",
+            description: "skills aggregate every project target by default",
             arguments: &["--target", "agents"],
-            expected_exit_code: 2,
-            expected_stdout: "",
-            expected_stderr: "select one with --config-target TARGET",
+            expected_exit_code: 0,
+            expected_stdout: "SKILL.md",
+            expected_stderr: "",
         },
         ConfigTargetSkillsTestCase {
             description: "skills help documents project target without replacing agent target",
@@ -182,7 +377,7 @@ fn given_multiple_targets_when_generating_skills_then_config_target_selects_poli
             "{}",
             test_case.description
         );
-        if test_case.expected_exit_code == 0 && !test_case.arguments.contains(&"--help") {
+        if test_case.expected_exit_code == 0 && !test_case.arguments.contains(&"--help") && test_case.arguments.contains(&"--config-target") {
             let guidance = fs::read_to_string(target(
                 repository.path(),
                 ".agents",
@@ -204,6 +399,17 @@ fn given_multiple_targets_when_generating_skills_then_config_target_selects_poli
                 "{}",
                 test_case.description
             );
+        } else if test_case.expected_exit_code == 0 && !test_case.arguments.contains(&"--help") {
+            let entries = fs::read_dir(repository.path().join(".agents/skills"))
+                .expect("aggregate skills directory")
+                .collect::<Result<Vec<_>, _>>()
+                .expect("aggregate skill entries");
+            assert_eq!(entries.len(), 1, "{}", test_case.description);
+            let guidance = fs::read_to_string(entries[0].path().join("SKILL.md"))
+                .expect("aggregate target guidance");
+            assert!(guidance.contains("### `first` (python)"));
+            assert!(guidance.contains("### `second` (python)"));
+            assert!(guidance.contains("Target policy fingerprint"));
         }
     }
 }
@@ -375,7 +581,7 @@ fn given_destination_change_during_staging_when_publishing_then_rolls_back_prior
             .spawn()
             .expect("racing native update");
         let mut staging_observed = false;
-        for _ in 0..10_000 {
+        for _ in 0..30_000 {
             staging_observed = fs::read_dir(installed.parent().expect("installed parent"))
                 .expect("installed directory")
                 .filter_map(Result::ok)

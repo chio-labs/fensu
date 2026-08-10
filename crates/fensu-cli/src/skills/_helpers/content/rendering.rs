@@ -36,6 +36,108 @@ const PROFILE: &[u8] = include_bytes!(concat!(
 ));
 
 pub(crate) fn generate(context: &SkillContext) -> Result<String, String> {
+    if context.targets.is_empty() {
+        return generate_single(context);
+    }
+    generate_aggregate(context)
+}
+
+fn generate_aggregate(context: &SkillContext) -> Result<String, String> {
+    let project_name = context
+        .identity
+        .strip_prefix("fensu-")
+        .unwrap_or(&context.identity);
+    let analyzers = context
+        .targets
+        .iter()
+        .map(|target| target.config.analyzer.to_string())
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>()
+        .join(", ");
+    let governed = governed_path(context);
+    let mut lines = vec![
+        "---".to_owned(),
+        format!("name: {}", py_json(&json!(context.identity))?),
+        format!(
+            "description: {}",
+            py_json(&json!(format!(
+                "Use when modifying the {project_name} project governed by {governed}. Includes aggregate Fensu guidance for analyzers: {analyzers}."
+            )))?
+        ),
+        "---".to_owned(),
+        String::new(),
+        GENERATED_MARKER.to_owned(),
+        String::new(),
+        "# Fensu".to_owned(),
+        String::new(),
+        "Fensu checks code ownership, dependency boundaries, module roles, function shape, and test conventions. This skill aggregates the active policy for every configured analyzer target."
+            .to_owned(),
+        "Load this guidance before running any `fensu` command or changing Fensu configuration."
+            .to_owned(),
+        String::new(),
+        "## Commands".to_owned(),
+        String::new(),
+        "- Run `fensu check` after architecture-relevant changes.".to_owned(),
+        "- Run `fensu rule <CODE>` to inspect a diagnostic and its remediation.".to_owned(),
+        "- Run `fensu skills` after changing any target's rule selection or custom rules."
+            .to_owned(),
+    ];
+    if context
+        .targets
+        .iter()
+        .any(|target| target.config.analyzer == AnalyzerId::Python)
+    {
+        lines.push("- Run `fensu map <SYMBOL>` for Python call-flow navigation.".to_owned());
+    }
+    lines.extend([
+        String::new(),
+        "## Analyzer Targets".to_owned(),
+        String::new(),
+    ]);
+    for target in &context.targets {
+        let name = target.config.target.as_deref().unwrap_or("legacy");
+        lines.extend([
+            format!("### `{name}` ({})", target.config.analyzer),
+            String::new(),
+            format!("- Analyzer: `{}`", target.config.analyzer),
+            format!(
+                "- Parser provenance: `{}`; cache contract: `{}`",
+                target.config.analyzer.parser_contract(),
+                target.config.analyzer.cache_contract()
+            ),
+            format!(
+                "- Target policy fingerprint: `{}`",
+                crate::skills::_helpers::content::fingerprint::input_fingerprint(target)?
+            ),
+            String::new(),
+        ]);
+        let generated = generate_single(target)?;
+        let body = policy_body(&generated);
+        lines.extend(body.lines().map(demote_heading));
+        lines.push(String::new());
+    }
+    Ok(format!("{}\n", lines.join("\n").trim_end()))
+}
+
+fn policy_body(generated: &str) -> &str {
+    let after_commands = generated
+        .split_once("## Commands\n")
+        .map_or(generated, |(_, value)| value);
+    after_commands
+        .find("\n## ")
+        .map_or(after_commands, |index| &after_commands[index + 1..])
+}
+
+fn demote_heading(line: &str) -> String {
+    if line.starts_with("##") {
+        format!("##{line}")
+    } else {
+        line.to_owned()
+    }
+}
+
+fn generate_single(context: &SkillContext) -> Result<String, String> {
     let governed = governed_path(context);
     let project_name = context
         .identity
@@ -389,7 +491,7 @@ fn configured_threshold_lines(context: &SkillContext) -> Result<Vec<String>, Str
     let mut lines = vec![
         "## Configured Threshold Overrides".to_owned(),
         String::new(),
-        "Patterns match reported repository paths. Specificity is compared as `(literal segments, literal characters, -globstars, -wildcards, declaration order)`; the greatest tuple wins. Literal segments contain no `*`, literal characters exclude `/` and `*`, globstars count `**` segments, and wildcards count remaining `*` tokens.".to_owned(),
+        "Patterns match target-relative analyzer paths, not repository-prefixed reported paths. Specificity is compared as `(literal segments, literal characters, -globstars, -wildcards)`; the greatest specificity wins, then later override declarations and later paths within a declaration win ties. Literal segments contain no `*`, literal characters exclude `/` and `*`, globstars count `**` segments, and wildcards count remaining `*` tokens.".to_owned(),
         String::new(),
         "```toml".to_owned(),
     ];

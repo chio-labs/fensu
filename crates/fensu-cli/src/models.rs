@@ -39,7 +39,22 @@ pub(crate) struct InitOptions {
     pub(crate) tooling: Vec<String>,
     pub(crate) skills: Option<bool>,
     pub(crate) name: Option<String>,
+    pub(crate) preset: Option<String>,
+    pub(crate) excluded_targets: Vec<String>,
     pub(crate) help: bool,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct DetectedTarget {
+    pub(crate) name: String,
+    pub(crate) analyzer: AnalyzerId,
+    pub(crate) root: String,
+    pub(crate) roots: Vec<String>,
+    pub(crate) tests: Vec<String>,
+    pub(crate) tooling: Vec<String>,
+    pub(crate) framework: Option<String>,
+    pub(crate) rule_packs: Vec<String>,
+    pub(crate) select: Vec<String>,
 }
 
 #[derive(Clone, Debug, Default)]

@@ -206,6 +206,8 @@ pub(crate) fn effective_config_lines(context: &SkillContext) -> Result<Vec<Strin
         String::new(),
         "### Configured Path Threshold Overrides".to_owned(),
         String::new(),
+        threshold_match_basis(context),
+        String::new(),
     ]);
     if config.threshold_overrides.is_empty() {
         lines.push("- None.".to_owned());
@@ -215,7 +217,7 @@ pub(crate) fn effective_config_lines(context: &SkillContext) -> Result<Vec<Strin
             lines.push(format!(
                 "- Declaration {}: paths={}; thresholds={}; reason={}",
                 index + 1,
-                path_list(context, &item.paths)?,
+                sorted_json(&item.paths)?,
                 py_json(&json!(values))?,
                 py_json(&json!(item.reason))?
             ));
@@ -285,6 +287,18 @@ pub(crate) fn effective_config_lines(context: &SkillContext) -> Result<Vec<Strin
     }
     lines.push(String::new());
     Ok(lines)
+}
+
+fn threshold_match_basis(context: &SkillContext) -> String {
+    if context.project_prefix.is_empty() {
+        "- Match basis: target-relative analyzer paths; reported repository paths use the same paths for this target."
+            .to_owned()
+    } else {
+        format!(
+            "- Match basis: target-relative analyzer paths; reported repository paths are prefixed with `{}/`.",
+            context.project_prefix
+        )
+    }
 }
 
 pub(crate) fn governed_path(context: &SkillContext) -> String {

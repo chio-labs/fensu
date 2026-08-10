@@ -32,6 +32,9 @@ jobs:
           toolchain: 1.95.0
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
+      - uses: astral-sh/setup-uv@v6
+      - run: uv python install 3.12
+      - run: uv sync
       - run: make check-rust
       - run: make skills-content-check
       - run: make test-rust
@@ -62,6 +65,7 @@ jobs:
         with:
           enable-cache: true
       - run: uv python install 3.12
+      - run: uv sync
       - run: cargo test -p fensu-cli --test command
       - run: uv run pytest tests -q -n auto
 

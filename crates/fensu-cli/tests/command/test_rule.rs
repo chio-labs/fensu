@@ -1,6 +1,6 @@
 use std::process::Command;
 
-use crate::helpers::write;
+use crate::helpers::{workspace_python, write};
 use crate::test_types::{
     ConfigCommandTargetTestCase, EffectiveRulePolicyTestCase, RuleColorTestCase,
     RulePackLookupTestCase, RuleRemediationTestCase,
@@ -105,7 +105,8 @@ fn given_web_analyzer_when_inspecting_rule_then_native_catalogue_is_available() 
 
 #[test]
 fn given_target_local_custom_rule_when_inspecting_then_rule_uses_selected_root() {
-    let python = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.venv/bin/python");
+    let python = workspace_python();
+    assert!(python.is_file(), "workspace Python is required");
     let test_cases = [ConfigCommandTargetTestCase {
         description: "rule resolves a custom rule path from the selected frontend root",
         arguments: &["rule", "XRT001", "--target", "frontend", "--color", "never"],

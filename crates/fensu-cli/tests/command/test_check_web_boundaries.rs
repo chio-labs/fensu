@@ -446,8 +446,7 @@ fn given_python_custom_and_native_web_targets_when_checking_then_one_host_and_na
         expected_host_count_per_run: 1,
         expected_host_error: "fensu is not installed beside fensu-cli",
     }];
-    let workspace_python =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.venv/bin/python");
+    let workspace_python = crate::helpers::workspace_python();
     for test_case in &test_cases {
         assert!(workspace_python.is_file(), "workspace Python is required");
         let repository = tempfile::tempdir().expect("mixed analyzer repository");

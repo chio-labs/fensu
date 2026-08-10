@@ -737,7 +737,7 @@ struct DynamicAlias {
 }
 
 fn aliases(project_root: &Path, inputs: &[ProjectInput]) -> Result<AliasConfig, String> {
-    let mut root: Option<&ProjectInput> = None;
+    let mut root: Option<(PathBuf, &ProjectInput)> = None;
     for name in ["tsconfig.json", "jsconfig.json"] {
         let candidate = project_root.join(name);
         if !candidate.is_file() {
@@ -749,17 +749,18 @@ fn aliases(project_root: &Path, inputs: &[ProjectInput]) -> Result<AliasConfig, 
                 candidate.display()
             )
         })?;
-        root = inputs
-            .iter()
-            .find(|input| input.path == canonical);
+        root = inputs.iter().find_map(|input| {
+            let identity = project_input_identity(&input.path);
+            (identity == canonical).then_some((identity, input))
+        });
         break;
     }
-    let mut config = if let Some(root) = root {
+    let mut config = if let Some((root_path, root)) = root {
         let by_path = inputs
             .iter()
-            .map(|input| (normalize(&input.path), input))
+            .map(|input| (project_input_identity(&input.path), input))
             .collect::<HashMap<_, _>>();
-        effective_aliases(root, &by_path)?
+        effective_aliases(&root_path, root, &by_path)?
     } else {
         AliasConfig {
             base: None,
@@ -773,7 +774,12 @@ fn aliases(project_root: &Path, inputs: &[ProjectInput]) -> Result<AliasConfig, 
     Ok(config)
 }
 
+fn project_input_identity(path: &Path) -> PathBuf {
+    dunce::canonicalize(path).unwrap_or_else(|_| normalize(path))
+}
+
 fn effective_aliases(
+    input_path: &Path,
     input: &ProjectInput,
     by_path: &HashMap<PathBuf, &ProjectInput>,
 ) -> Result<AliasConfig, String> {
@@ -785,13 +791,17 @@ fn effective_aliases(
         unknown_dynamic: None,
     };
     for path in &input.extended_configs {
-            let parent = by_path.get(&normalize(path)).ok_or_else(|| {
-                format!(
-                    "Extended TypeScript config was not discovered: {}.",
-                    path.display()
-                )
-            })?;
-        merge_aliases(&mut config, effective_aliases(parent, by_path)?);
+        let parent_path = project_input_identity(path);
+        let parent = by_path.get(&parent_path).ok_or_else(|| {
+            format!(
+                "Extended TypeScript config was not discovered: {}.",
+                path.display()
+            )
+        })?;
+        merge_aliases(
+            &mut config,
+            effective_aliases(&parent_path, parent, by_path)?,
+        );
     }
     let parsed = parse_jsonc(&input.content, &input.repository_path)?;
     let Some(compiler) = parsed.get("compilerOptions") else {
@@ -810,7 +820,7 @@ fn effective_aliases(
                 input.repository_path
             )
         })?;
-        let parent = input.path.parent().ok_or_else(|| {
+        let parent = input_path.parent().ok_or_else(|| {
             format!("TypeScript config has no parent: {}.", input.repository_path)
         })?;
         config.base = Some(normalize(&parent.join(value)));
@@ -822,7 +832,7 @@ fn effective_aliases(
                 input.repository_path
             )
         })?;
-        let fallback = input.path.parent().ok_or_else(|| {
+        let fallback = input_path.parent().ok_or_else(|| {
             format!("TypeScript config has no parent: {}.", input.repository_path)
         })?;
         let target_base = config.base.as_deref().unwrap_or(fallback);

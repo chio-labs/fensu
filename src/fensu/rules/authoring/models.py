@@ -204,6 +204,7 @@ class RuleSpec:
     source: str | None = None
     enabled_by_default: bool = True
     analyzers: tuple[AnalyzerId, ...] = (AnalyzerId.PYTHON,)
+    frameworks: tuple[str, ...] = ()
     cacheable: bool | None = None
     uses_module: bool = False
     execution_owner: ExecutionOwner = ExecutionOwner.FILE

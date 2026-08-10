@@ -29,6 +29,38 @@ fn given_web_symbol_exception_when_checking_then_only_the_owned_function_is_supp
 }
 
 #[test]
+fn given_effect_beyond_legacy_lifecycle_probe_when_checking_then_nested_effect_is_not_reported() {
+    let test_cases = [WebPolicyCheckTestCase {
+        description: "legacy lifecycle probe inspects at most one thousand characters",
+        expected_exit_code: 0,
+    }];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(
+            repository.path().join("fensu.toml"),
+            "[targets.web]\nanalyzer = \"svelte\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FWV107\"]\n[targets.web.cache]\nenabled = false\n",
+        );
+        let source = format!(
+            "<script lang=\"ts\">import {{ onMount }} from 'svelte'; onMount(() => {{ const padding = '{}'; $effect(() => {{}}); }});</script>\n",
+            "x".repeat(1_001)
+        );
+        write(repository.path().join("src/App.svelte"), &source);
+        let process_directory = poison_processes(repository.path());
+
+        let output =
+            run_internal_web_check_with(repository.path(), &["--no-cache"], &process_directory);
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {}",
+            test_case.description,
+            String::from_utf8_lossy(&output.stdout)
+        );
+    }
+}
+
+#[test]
 fn given_every_retained_web_rule_when_checking_exact_fixtures_then_fail_pass_and_near_miss_are_distinct(
 ) {
     let test_cases = web_rule_fixtures();
@@ -85,8 +117,9 @@ fn run_web_rule_fixture(
     write(
         repository.path().join("fensu.toml"),
         &format!(
-            "[targets.web]\nanalyzer = \"{}\"\nroots = [\"src\"]\ntests = [\"tests\"]\ntooling = [\"tooling\"]\nselect = [\"{}\"]\n{}{}[targets.web.cache]\nenabled = false\n{threshold}",
-            if files.iter().any(|(path, _)| path.ends_with(".svelte")) || sveltekit_rule(test_case.code) { "svelte" } else { "typescript" },
+            "[targets.web]\nanalyzer = \"{}\"\n{}roots = [\"src\"]\ntests = [\"tests\"]\ntooling = [\"tooling\"]\nselect = [\"{}\"]\n{}{}[targets.web.cache]\nenabled = false\n{threshold}",
+            if files.iter().any(|(path, _)| path.ends_with(".svelte")) || svelte_rule(test_case.code) { "svelte" } else { "typescript" },
+            if sveltekit_rule(test_case.code) { "framework = \"sveltekit\"\n" } else { "" },
             test_case.code,
             if test_case.code.starts_with("FWU") { "ui_kit = \"src/ui-kit\"\n" } else { "" },
             if test_case.code == "FWC201" { "openapi = \"openapi.json\"\n" } else if test_case.code == "FWU001" { "shadcn = \"components.json\"\n" } else { "" }
@@ -105,19 +138,32 @@ fn run_web_rule_fixture(
 fn sveltekit_rule(code: &str) -> bool {
     matches!(
         code,
-        "FWS101"
-            | "FWS102"
-            | "FWS103"
-            | "FWS104"
-            | "FWS107"
-            | "FWS108"
-            | "FWS109"
+        "FWS103"
             | "FWA101"
             | "FWA102"
             | "FWA103"
             | "FWL104"
             | "FWL106"
             | "FWL107"
+            | "FWU001"
+            | "FWU002"
+            | "FWU003"
+            | "FWC201"
+    )
+}
+
+fn svelte_rule(code: &str) -> bool {
+    sveltekit_rule(code)
+        || matches!(
+            code,
+            "FWR404"
+            | "FWR405"
+            | "FWS101"
+            | "FWS102"
+            | "FWS104"
+            | "FWS107"
+            | "FWS108"
+            | "FWS109"
             | "FWV101"
             | "FWV102"
             | "FWV103"
@@ -127,11 +173,7 @@ fn sveltekit_rule(code: &str) -> bool {
             | "FWV107"
             | "FWV201"
             | "FWV202"
-            | "FWU001"
-            | "FWU002"
-            | "FWU003"
-            | "FWC201"
-    )
+        )
 }
 
 fn web_rule_fixtures() -> Vec<WebRuleFixture> {
@@ -145,7 +187,7 @@ fn web_rule_fixtures() -> Vec<WebRuleFixture> {
         role_fixture("FWR301", &[("src/lib/orders/main/one.ts", ENTRY), ("src/lib/orders/main/two.ts", ENTRY)], &[("src/lib/orders/main/one.ts", ENTRY)], &[("src/lib/orders/main/group/one.ts", ENTRY)], Some(("max_main_container_modules", 1))),
         fixture("FWR304", &[("src/lib/orders/loose.js", "export const value = 1;\n")], &[("src/lib/orders/models.mjs", "export {};\n")], &[("src/loose.cjs", "const value = 1;\n")]),
         role_fixture("FWR306", &[("src/lib/orders/main/run.ts", ENTRY), ("src/lib/orders/history/main/run.ts", ENTRY)], &[("src/lib/orders/main/run.ts", ENTRY), ("src/lib/orders/types.ts", "export type Value = string;\n")], &[("src/lib/orders/history/main/run.ts", ENTRY)], None),
-        fixture("FWR309", &[("src/lib/orders/types.ts", "export type Value = string;\n")], &[("src/lib/orders/main/run.ts", ENTRY)], &[("src/value.ts", "export const value = 1;\n")]),
+        fixture("FWR309", &[("src/lib/orders/types.ts", "export type Value = string;\n")], &[("src/lib/orders/main/run.ts", ENTRY)], &[("src/lib/Counter.svelte", "<p>counter</p>\n")]),
         fixture("FWR310", &[("src/lib/orders/helpers/value.ts", "export const value = 1;\n")], &[("src/lib/orders/_helpers/value.ts", "export const value = 1;\n")], &[("src/lib/orders/helper/value.ts", "export const value = 1;\n")]),
         role_fixture("FWR311", &[("src/lib/orders/main/run.ts", ENTRY), ("src/lib/orders/types.ts", "")], &[("src/lib/orders/main/run.ts", ENTRY), ("src/lib/orders/_helpers/load.ts", ENTRY)], &[("src/lib/orders/main/run.ts", ENTRY), ("src/lib/orders/models.ts", "export interface Order { readonly id: string; }\n")], None),
         fixture("FWR401", &[("src/lib/orders/main/run.ts", "export function one(): void {}\nexport function two(): void {}\n")], &[("src/lib/orders/main/run.ts", ENTRY)], &[("src/lib/orders/main/run.ts", "function helper(): void {}\nexport function run(): void { helper(); }\n")]),
@@ -175,7 +217,7 @@ fn web_rule_fixtures() -> Vec<WebRuleFixture> {
         fixture("FWH009", &[("src/run.ts", "initialize();\n")], &[("src/run.ts", "export function initialize(): void {}\n")], &[("tests/run.ts", "initialize();\n")]),
         fixture("FWC101", &[("src/run.ts", "export async function run(response: Response): Promise<unknown> { return response.json \n ( ); }\n")], &[("src/run.ts", "export async function run(response: Response): Promise<unknown> { return Schema.parse \n (await response.json ( )); }\n")], &[("tests/run.ts", "export async function run(response: Response): Promise<unknown> { return response.json(); }\n")]),
         fixture("FWC102", &[("src/run.ts", "export async function run(response: Response): Promise<Data> { return await response.json (\n ) as\n Data; }\n")], &[("src/run.ts", "export async function run(response: Response): Promise<Data> { return DataSchema.parse(await response.json()); }\n")], &[("src/run.ts", "export const text = '.json() as Data';\n")]),
-        fixture("FWC103", &[("src/run.ts", "interface Props {\n  value:\n    any;\n}\n")], &[("src/run.ts", "export function run(value: unknown): unknown { return value; }\n")], &[("src/run.ts", "function run(value: any): any { return value; }\n")]),
+        fixture("FWC103", &[("src/run.ts", "interface Props {\n  value:\n    any;\n}\n")], &[("src/run.ts", "export type WithoutChild<T> = T extends { child?: any } ? Omit<T, 'child'> : T;\n")], &[("src/run.ts", "function run(value: any): any { return value; }\n")]),
         test_fixture("FWT001", &[("src/value.ts", VALUE), ("tests/value.test.ts", "test.skip('pending', () => {});\n")], &[("src/value.ts", VALUE), ("tests/value.test.ts", GOOD_TEST)], &[("src/value.ts", VALUE), ("tests/value.test.ts", "const text = 'test.skip('; test('given text when read then works', () => expect(text).toBe(text));\n")]),
         test_fixture("FWT002", &[("src/lib/orders/value.ts", VALUE), ("tests/orphan/value.test.ts", GOOD_TEST)], &[("src/lib/orders/value.ts", VALUE), ("tests/lib/orders/value.test.ts", GOOD_TEST), ("tests/setup.ts", "setup();\n")], &[("src/value.ts", VALUE), ("src/value.test.ts", GOOD_TEST)]),
         test_fixture("FWT003", &[("src/lib/orders/_state/order.state.svelte.ts", ENTRY)], &[("src/lib/orders/_state/order.state.svelte.ts", ENTRY), ("tests/lib/orders/_state/order.state.test.ts", GOOD_TEST)], &[("src/lib/orders/_helpers/order.ts", ENTRY)]),
@@ -201,8 +243,8 @@ fn web_rule_fixtures() -> Vec<WebRuleFixture> {
         shape_fixture("FWS103", "max_route_script_lines", &[("src/routes/orders/+page.svelte", "<script lang=\"ts\">\nconst one = 1;\nconst two = 2;\n</script>\n")], &[("src/routes/orders/+page.svelte", "<script lang=\"ts\">const one = 1;</script>\n")], &[("src/routes/orders/+page.ts", "const one = 1;\nconst two = 2;\n")]),
         shape_fixture("FWS104", "max_component_script_lines", &[("src/lib/orders/components/Card.svelte", "<script lang=\"ts\">\nconst one = 1;\nconst two = 2;\n</script>\n")], &[("src/lib/orders/components/Card.svelte", "<script lang=\"ts\">const one = 1;</script>\n")], &[("src/lib/orders/components/card.ts", "const one = 1;\nconst two = 2;\n")]),
         shape_fixture("FWS107", "max_state_cells", &[("src/lib/orders/_state/order.state.svelte.ts", "export function createOrderState(): object { const one = $state(1); const two = $state(2); return { one, two }; }\n")], &[("src/lib/orders/_state/order.state.svelte.ts", "export function createOrderState(): object { const one = $state(1); return { one }; }\n")], &[("src/lib/orders/_state/order.state.ts", "export function createOrderState(): object { const one = 1; const two = 2; return { one, two }; }\n")]),
-        shape_fixture("FWS108", "max_total_runes", &[("src/lib/orders/_state/order.state.svelte.ts", "export function createOrderState(): object { const one = $state(1); const two = $derived(one + 1); return { one, two }; }\n")], &[("src/lib/orders/_state/order.state.svelte.ts", "export function createOrderState(): object { const one = $state(1); return { one }; }\n")], &[("src/lib/orders/_state/order.state.svelte.ts", "export function createOrderState(): object { const text = '$state(1) $derived(2)'; return { text }; }\n")]),
-        shape_fixture("FWS109", "max_state_functions", &[("src/lib/orders/_state/order.state.svelte.ts", "function update(): void {} export function createOrderState(): object { return { update }; }\n")], &[("src/lib/orders/_state/order.state.svelte.ts", "export function createOrderState(): object { return {}; }\n")], &[("src/lib/orders/_state/order.ts", "function update(): void {} export function createOrderState(): object { return { update }; }\n")]),
+        shape_fixture("FWS108", "max_total_runes", &[("src/lib/orders/_state/order.state.svelte.ts", "export function createOrderState(): object { const one = $state(1); const text = '$derived(2)'; return { one, text }; }\n")], &[("src/lib/orders/_state/order.state.svelte.ts", "export function createOrderState(): object { const one = $state(1); return { one }; }\n")], &[("src/lib/orders/_state/order.state.svelte.ts", "export function createOrderState(): object { const one = $host(); const two = $host(); return { one, two }; }\n")]),
+        shape_fixture("FWS109", "max_state_functions", &[("src/lib/orders/_state/order.state.svelte.ts", "function update(): void {} export function createOrderState(): object { return { update }; }\n")], &[("src/lib/orders/_state/order.state.svelte.ts", "export function createOrderState(): object { const one = (): void => {}; const two = (): void => {}; return { one, two }; }\n")], &[("src/lib/orders/_state/order.ts", "function update(): void {} export function createOrderState(): object { return { update }; }\n")]),
         shape_fixture("FWS110", "max_api_lines", &[("src/lib/orders/_api/order.ts", "const one = 1;\nconst two = 2;\n")], &[("src/lib/orders/_api/order.ts", "const one = 1;\n")], &[("src/lib/orders/api/order.ts", "const one = 1;\nconst two = 2;\n")]),
         shape_fixture("FWS111", "max_api_exports", &[("src/lib/orders/_api/order.ts", "export const one = 1; export const two = 2;\n")], &[("src/lib/orders/_api/order.ts", "export const one = 1;\n")], &[("src/lib/orders/api/order.ts", "export const one = 1; export const two = 2;\n")]),
         fixture("FWA101", &[("src/lib/orders/components/Card.svelte", "<script lang=\"ts\">fetch('/orders');</script>\n")], &[("src/lib/orders/_api/order.ts", "export function load(): Promise<Response> { return fetch('/orders'); }\n")], &[("src/lib/orders/components/Card.svelte", "<p>fetch('/orders')</p><!-- fetch('/orders') -->\n")]),
@@ -217,9 +259,9 @@ fn web_rule_fixtures() -> Vec<WebRuleFixture> {
         import_fixture("FWV104", &[("src/state.ts", "export const state = { value: 1 };\n"), ("src/use.ts", "import { state } from './state'; state.value += 1;\n")], &[("src/state.ts", "export const state = { value: 1, update(): void {} };\n"), ("src/use.ts", "import { state } from './state'; state.update();\n")], &[("src/use.ts", "const state = { value: 1 }; state.value += 1;\n")]),
         fixture("FWV105", &[("src/value.svelte.ts", "export function create(): object { const value = $derived(() => 1); return { value }; }\n")], &[("src/value.svelte.ts", "export function create(): object { const value = $derived.by(() => 1); return { value }; }\n")], &[("src/value.svelte.ts", "export function create(): object { const value = $derived(1 + 1); return { value }; }\n")]),
         fixture("FWV106", &[("src/value.svelte.ts", "export function create(): void { $effect(() => { fetch('/orders'); }); }\n")], &[("src/value.svelte.ts", "export function create(): void { fetch('/orders'); $effect(() => {}); }\n")], &[("src/value.svelte.ts", "export function create(): void { $effect(() => { const text = 'fetch()'; }); }\n")]),
-        fixture("FWV107", &[("src/App.svelte", "<script lang=\"ts\">import { onMount } from 'svelte'; onMount(() => { $effect(() => {}); });</script>\n")], &[("src/App.svelte", "<script lang=\"ts\">import { onMount } from 'svelte'; onMount(() => {}); $effect(() => {});</script>\n")], &[("src/App.svelte", "<p>onMount(() =&gt; $effect())</p><!-- onMount(() => $effect()) -->\n")]),
-        fixture("FWV201", &[("src/lib/orders/main/open.ts", "export function open(): WebSocket { return new WebSocket('ws://x'); }\n")], &[("src/lib/orders/_resources/socket.resource.ts", "export function open(): object { const socket = new WebSocket('ws://x'); return { socket, stop(): void { socket.close(); } }; }\n")], &[("src/lib/orders/components/Card.svelte", "<p>new WebSocket('ws://x')</p><!-- new WebSocket('ws://x') -->\n")]),
-        fixture("FWV202", &[("src/lib/orders/_resources/socket.resource.ts", "export function open(): object { const primary = new WebSocket('ws://one'); const secondary = new WebSocket('ws://two'); function stop(): void { primary.close(); } return { primary, secondary, stop }; }\n")], &[("src/lib/orders/_resources/socket.resource.ts", "export function open(): object { const primary = new WebSocket('ws://one'); const secondary = new WebSocket('ws://two'); function stop(): void { primary.close(); secondary.close(); } return { primary, secondary, stop }; }\n")], &[("src/lib/orders/_resources/socket.resource.ts", "export function stop(): void { clearInterval(1); }\n")]),
+        fixture("FWV107", &[("src/App.svelte", "<script lang=\"ts\">import { onMount } from 'svelte'; onMount(() => { $effect(() => {}); $effect(() => {}); });</script>\n")], &[("src/App.svelte", "<script lang=\"ts\">import { onMount } from 'svelte'; $effect(() => {}); onMount(() => {});</script>\n")], &[("src/App.svelte", "<p>onMount and $effect are lifecycle names</p>\n")]),
+        fixture("FWV201", &[("src/lib/orders/main/open.ts", "export function open(): WebSocket { return new WebSocket('ws://x'); }\n")], &[("src/lib/orders/components/Card.svelte", "<script lang=\"ts\">import { onMount } from 'svelte'; function later(): void { setTimeout(() => {}, 1); } onMount(() => {});</script><p>card</p>\n")], &[("src/lib/orders/components/Card.svelte", "<p>new WebSocket('ws://x')</p><!-- new WebSocket('ws://x') -->\n")]),
+        fixture("FWV202", &[("src/lib/orders/_resources/socket.resource.ts", "export function open(): WebSocket { return new WebSocket('ws://one'); }\n")], &[("src/lib/orders/_resources/create-debounce.resource.ts", "export function debounce(): void { const timeout = setTimeout(() => {}, 1); clearTimeout(timeout); }\n")], &[("src/lib/orders/_resources/socket.resource.ts", "export function stop(): void { clearInterval(1); }\n")]),
         fixture("FWU001", &[("components.json", "{\"aliases\":{\"ui\":\"$ui-kit\",\"utils\":\"$lib/utils\"}}\n")], &[("components.json", "{\"aliases\":{\"ui\":\"$ui-kit\",\"utils\":\"$ui-kit/utils\"}}\n")], &[("components.json", "{\"aliases\":{\"ui\":\"$ui-kit\",\"utils\":\"$ui-kit/utils\"}}\n"), ("src/value.ts", "export const text = '$ui-kit $ui-kit/utils';\n")]),
         import_fixture("FWU002", &[("src/lib/orders/main/value.ts", VALUE), ("src/ui-kit/button/button.ts", "import { value } from '$lib/orders/main/value'; export const button = value;\n")], &[("src/ui-kit/utils.ts", VALUE), ("src/ui-kit/button/button.ts", "import { value } from '../utils'; export const button = value;\n")], &[("src/ui-kit/button/button.ts", "import { value } from 'external'; export const button = value;\n")]),
         fixture("FWU003", &[("src/ui-kit/button/nested/button.svelte", "<button>bad</button>\n")], &[("src/ui-kit/button/button.svelte", "<button>good</button>\n")], &[("src/ui-kit/utils.ts", VALUE)]),

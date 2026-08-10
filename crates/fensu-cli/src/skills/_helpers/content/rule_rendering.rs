@@ -29,6 +29,18 @@ pub(crate) fn tier_lines(heading: &str, rules: &[RuleMetadata], config: &Config)
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
+            format!(
+                "Frameworks: {}",
+                if rule.frameworks.is_empty() {
+                    "none".to_owned()
+                } else {
+                    rule.frameworks
+                        .iter()
+                        .map(|framework| format!("`{framework}`"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                }
+            ),
             String::new(),
             rule.message.clone(),
             String::new(),

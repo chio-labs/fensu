@@ -527,9 +527,15 @@ from tests.e2e.src.fensu.cli.main.helpers import (
                         'roots = ["src"]\n'
                         "tests = []\n"
                         "tooling = []\n"
+                        'test_layout = "mirrored"\n'
                         'framework = "sveltekit"\n'
                         "rule_packs = []\n"
                         'select = ["FW"]\n'
+                        "[targets.web.thresholds]\n"
+                        "max_entry_statements = 40\n"
+                        "max_entry_distinct_calls = 20\n"
+                        "max_entry_locals = 20\n"
+                        "max_function_statements = 70\n"
                     ),
                 ),
                 CliProjectFile(relative_path="svelte.config.js", source="export default {};\n"),
@@ -543,7 +549,7 @@ from tests.e2e.src.fensu.cli.main.helpers import (
             expected_config_values=(),
             expected_stdout_fragments=(
                 "Detected analyzer targets",
-                "web: analyzer=svelte, root=., roots=src, tests=, tooling=, packs=",
+                "web: analyzer=svelte, root=., roots=src, tests=, tooling=, test_layout=mirrored",
                 "Wrote fensu.toml",
             ),
             expected_stderr_fragments=(),

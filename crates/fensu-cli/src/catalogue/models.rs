@@ -15,6 +15,7 @@ pub(crate) struct RuleMetadata {
     pub(crate) severity: String,
     pub(crate) enabled_by_default: bool,
     pub(crate) analyzers: Vec<AnalyzerId>,
+    pub(crate) frameworks: Vec<String>,
     pub(crate) execution_owner: String,
     pub(crate) kind: String,
     #[serde(default)]

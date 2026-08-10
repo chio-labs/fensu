@@ -1,8 +1,7 @@
-//! Locate the environment interpreter and read process exit codes.
+//! Locate the environment interpreter.
 
 use std::env;
 use std::path::PathBuf;
-use std::process::ExitStatus;
 
 pub(crate) fn python_executable() -> Result<PathBuf, String> {
     if let Some(value) = env::var_os("FENSU_PYTHON") {
@@ -19,8 +18,4 @@ pub(crate) fn python_executable() -> Result<PathBuf, String> {
         }
     }
     Err("Could not locate the environment's Python interpreter for this command.".to_owned())
-}
-
-pub(crate) fn exit_code(status: ExitStatus) -> i32 {
-    status.code().unwrap_or(2)
 }

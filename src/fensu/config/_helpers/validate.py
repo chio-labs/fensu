@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from pathlib import PurePosixPath, PureWindowsPath
 from typing import cast
 
+from fensu.config._helpers.path_patterns import expand_path_pattern
 from fensu.config.constants import (
     CACHE_ENABLED_CONFIG_KEY,
     CACHE_REQUIRE_CACHEABLE_CONFIG_KEY,
@@ -67,7 +68,11 @@ def validate_config(*, raw: Mapping[str, object], analyzer: AnalyzerId | None = 
         if test_layout not in {layout.value for layout in TestLayout}:
             raise ConfigValidationError("Config key test_layout must be 'mirrored' or 'colocated'.")
     _validate_optional_string_sequence(name="tooling", value=raw.get("tooling"))
-    _validate_optional_string_sequence(name="generated", value=raw.get("generated"))
+    generated: object = raw.get("generated")
+    _validate_optional_string_sequence(name="generated", value=generated)
+    if generated is not None:
+        for pattern in _validate_string_sequence(name="generated", value=generated):
+            _validate_path_pattern(pattern=pattern, owner="Generated path")
     _validate_optional_string_sequence(name="rule_paths", value=raw.get("rule_paths"))
     _validate_optional_string_sequence(name="rule_modules", value=raw.get("rule_modules"))
     raw_rule_packs: object = raw.get("rule_packs")
@@ -518,26 +523,30 @@ def _validate_rule_ignores(*, value: object) -> None:
 
 
 def _validate_path_pattern(*, pattern: str, owner: str) -> None:
-    parsed: PurePosixPath = PurePosixPath(pattern)
-    malformed: bool = (
-        pattern.startswith("/")
-        or pattern.endswith("/")
-        or DOUBLE_PATH_SEPARATOR in pattern
-        or any(character in pattern for character in {"?", "[", "]"})
-        or any(
-            RECURSIVE_GLOB in part and part != RECURSIVE_GLOB
-            for part in pattern.split(PATH_SEPARATOR)
+    expanded: tuple[str, ...] = expand_path_pattern(pattern=pattern)
+    for candidate in expanded:
+        parsed: PurePosixPath = PurePosixPath(candidate)
+        malformed: bool = (
+            candidate.startswith("/")
+            or candidate.endswith("/")
+            or DOUBLE_PATH_SEPARATOR in candidate
+            or any(character in candidate for character in {"?", "[", "]"})
+            or any(
+                RECURSIVE_GLOB in part and part != RECURSIVE_GLOB
+                for part in candidate.split(PATH_SEPARATOR)
+            )
+            or f"{RECURSIVE_GLOB}{PATH_SEPARATOR}{RECURSIVE_GLOB}" in candidate
         )
-        or f"{RECURSIVE_GLOB}{PATH_SEPARATOR}{RECURSIVE_GLOB}" in pattern
-    )
-    if (
-        parsed.is_absolute()
-        or _windows_path_separator in pattern
-        or pattern != parsed.as_posix()
-        or malformed
-        or any(part in {_current_path_part, _parent_path_part} for part in parsed.parts)
-    ):
-        raise ConfigValidationError(f"{owner} must be a repository-relative POSIX glob: {pattern}.")
+        if (
+            parsed.is_absolute()
+            or _windows_path_separator in candidate
+            or candidate != parsed.as_posix()
+            or malformed
+            or any(part in {_current_path_part, _parent_path_part} for part in parsed.parts)
+        ):
+            raise ConfigValidationError(
+                f"{owner} must be a repository-relative POSIX glob: {pattern}."
+            )
 
 
 def _validate_contracts(*, value: object) -> None:

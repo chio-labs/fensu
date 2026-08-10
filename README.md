@@ -43,12 +43,12 @@ host only for the policy metadata or callbacks they require.
 
 Built-in commands are available only through the native `fensu` executable;
 `python -m fensu` is retired. Installing `fensu-cli` from its source
-distribution requires Rust.
+distribution requires Rust 1.95 or newer.
 
 Fensu requires Python 3.12+ and includes a compiled analysis core. Prebuilt
 wheels cover Linux (x86_64, aarch64), macOS (Intel, Apple silicon), and Windows
 (x86_64). On other platforms, `pip` builds from source and requires a Rust
-toolchain.
+toolchain at version 1.95 or newer.
 
 ## Quick Start
 

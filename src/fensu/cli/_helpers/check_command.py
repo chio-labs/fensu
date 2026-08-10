@@ -23,6 +23,7 @@ from fensu.cli.constants import (
     COLOR_ALWAYS,
     COLOR_AUTO,
     COLOR_NEVER,
+    CUSTOM_CHECK_PROTOCOL_VERSION,
     NO_COLOR_ENVIRONMENT_VARIABLE,
 )
 from fensu.cli.exceptions import CliCommandError
@@ -33,7 +34,7 @@ if TYPE_CHECKING:
     from fensu.cache.fingerprints.models import CacheFingerprint
     from fensu.cache.results.models import CacheStats
     from fensu.cli.models import CheckEvaluation, CheckInputs
-    from fensu.evaluation.models import EvaluationResult, ThresholdOverrideUse
+    from fensu.evaluation.models import EvaluationResult, EvaluationSelection, ThresholdOverrideUse
     from fensu.reporting.models import RenderedReport
     from fensu.rules.authoring.models import Fault
 
@@ -106,6 +107,141 @@ def execute_check(
     return _write_aggregate_check(
         checks=checks, args=args, stdout=stdout, stderr=stderr, use_color=use_color
     )
+
+
+def execute_structured_check(
+    *,
+    argv: tuple[str, ...],
+    target_names: tuple[str | None, ...],
+) -> dict[str, object]:
+    """Evaluate hosted targets and return the versioned native aggregation protocol."""
+
+    args: argparse.Namespace = _parser().parse_args(argv)
+    invocation_dir: Path = Path.cwd().resolve()
+    try:
+        inputs: tuple[CheckInputs, ...] = tuple(
+            _prepare_target(args=args, invocation_dir=invocation_dir, target=target)
+            for target in target_names
+        )
+        aggregate_cache_enabled: bool = all(item.config.cache.enabled for item in inputs)
+        checks: tuple[_TargetCheck, ...] = tuple(
+            _evaluate_target(
+                args=args,
+                inputs=_with_cache_enabled(inputs=item, enabled=aggregate_cache_enabled),
+                allow_short_circuit=False,
+                cache_storage_root=(
+                    _target_cache_storage_root(inputs=item)
+                    if len(inputs) > 1 and aggregate_cache_enabled
+                    else None
+                ),
+            )
+            for item in inputs
+        )
+    except (CliCommandError, ConfigError) as error:
+        return {
+            "protocol": CUSTOM_CHECK_PROTOCOL_VERSION,
+            "package_version": _package_version(),
+            "error": str(error),
+            "results": [],
+            "cache": None,
+            "messages": [],
+            "show_cache_stats": args.cache_stats,
+        }
+    messages: list[str] = []
+    for check in checks:
+        codes: tuple[str, ...] = cacheability_advice_codes(
+            loaded=check.inputs.loaded,
+            selection=check.inputs.rule_selection,
+            cache_attempted=check.evaluation.stats is not None,
+        )
+        if codes:
+            messages.append(
+                "Custom rules appear cacheable; declare cacheable=True to enable caching for "
+                f"them: {', '.join(codes)}"
+            )
+    stats: CacheStats | None = _combined_cache_stats(checks=checks)
+    if stats is not None and stats.internal_error:
+        messages.append(
+            "Warning: an internal cache error prevented some results from being cached. "
+            "Diagnostics are complete and computed fresh. This is a Fensu bug; please report it."
+        )
+    elif stats is not None and stats.storage_failed:
+        messages.append(
+            "Warning: cache publication failed; existing cache data may have been reused. "
+            "If this persists, check permissions or delete .fensu/cache and rerun."
+        )
+    return {
+        "protocol": CUSTOM_CHECK_PROTOCOL_VERSION,
+        "package_version": _package_version(),
+        "error": None,
+        "results": [
+            _structured_result(check=check)
+            for check in checks
+            if check.evaluation.result is not None
+        ],
+        "cache": _structured_cache(stats=stats),
+        "messages": messages,
+        "show_cache_stats": args.cache_stats,
+    }
+
+
+def _package_version() -> str:
+    from importlib.metadata import version
+
+    return version("fensu")
+
+
+def _structured_result(*, check: _TargetCheck) -> dict[str, object]:
+    result: EvaluationResult | None = check.evaluation.result
+    if result is None:
+        raise CliCommandError("Cached evaluation returned no result.")
+    selection: EvaluationSelection | None = result.selection
+    return {
+        "analyzer": "python",
+        "faults": [_structured_fault(fault=fault, warning=False) for fault in result.faults],
+        "warnings": [_structured_fault(fault=fault, warning=True) for fault in result.warnings],
+        "selected": (
+            selection.discovered_count - selection.excluded_count if selection is not None else 0
+        ),
+        "excluded": selection.excluded_count if selection is not None else 0,
+        "applied_exceptions": result.applied_exception_count,
+        "threshold_uses": [
+            {
+                "repository_path": use.repository_path,
+                "threshold": use.threshold.value,
+                "override_order": use.override_order,
+                "matched_pattern": use.matched_pattern,
+                "reason": use.reason,
+                "effective_value": use.effective_value,
+            }
+            for use in result.threshold_override_uses
+        ],
+    }
+
+
+def _structured_fault(*, fault: Fault, warning: bool) -> dict[str, object]:
+    return {
+        "code": fault.code,
+        "alias_of": None,
+        "path": fault.path.as_posix(),
+        "line": fault.line,
+        "column": fault.column,
+        "message": fault.message,
+        "remediation": fault.remediation,
+        "warning": warning,
+    }
+
+
+def _structured_cache(*, stats: CacheStats | None) -> dict[str, object] | None:
+    if stats is None:
+        return None
+    return {
+        "hits": stats.hits,
+        "misses": stats.misses,
+        "invalidations": stats.invalidations,
+        "writes": stats.writes,
+        "non_cacheable": stats.non_cacheable,
+    }
 
 
 def _prepare_target(

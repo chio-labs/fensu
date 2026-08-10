@@ -937,7 +937,7 @@ fn given_configured_ui_kit_when_checking_then_deliberate_surface_exemptions_appl
         let repository = tempfile::tempdir().expect("temporary repository");
         write(
         repository.path().join("fensu.toml"),
-        "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = []\ntooling = []\nui_kit = \"src/ui-kit\"\nselect = [\"FWA003\", \"FWL102\", \"FWL103\", \"FWR001\", \"FWR002\", \"FWR003\", \"FWR201\", \"FWR304\", \"FWR310\", \"FWR401\", \"FWR403\", \"FWR404\", \"FWR405\", \"FWR501\", \"FWS106\"]\n[targets.web.thresholds]\nmax_public_exports = 1\n[targets.web.cache]\nenabled = false\n",
+        "[targets.web]\nanalyzer = \"svelte\"\nroots = [\"src\"]\ntests = []\ntooling = []\nui_kit = \"src/ui-kit\"\nselect = [\"FWA003\", \"FWL102\", \"FWL103\", \"FWR001\", \"FWR002\", \"FWR003\", \"FWR201\", \"FWR304\", \"FWR310\", \"FWR401\", \"FWR403\", \"FWR404\", \"FWR405\", \"FWR501\", \"FWS106\"]\n[targets.web.thresholds]\nmax_public_exports = 1\n[targets.web.cache]\nenabled = false\n",
     );
         write(
             repository.path().join("src/ui-kit/family/button.ts"),

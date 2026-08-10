@@ -365,19 +365,19 @@ fn given_path_scoped_rule_ignore_when_checking_then_only_matching_reported_paths
 }
 
 #[test]
-fn given_braced_rule_ignore_pattern_when_checking_then_braces_are_matched_literally() {
+fn given_braced_rule_ignore_pattern_when_checking_then_alternatives_are_expanded() {
     let test_cases = [CheckPolicyTestCase {
-        description: "brace characters are literals in native path patterns",
+        description: "brace alternatives filter each expanded native path",
         expected_exit_code: 1,
-        expected_present: "src/pkg/generated.py",
-        expected_absent: "src/pkg/{generated,vendored}.py",
+        expected_present: "src/pkg/{generated,vendored}.py",
+        expected_absent: "src/pkg/generated.py",
     }];
 
     for test_case in &test_cases {
         let repository = tempfile::tempdir().expect("temporary repository");
         write(
             repository.path().join("fensu.toml"),
-            "roots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA001\"]\n\n[[rule_ignores]]\nrules = [\"FFA001\"]\npaths = [\"src/pkg/{generated,vendored}.py\"]\nreason = \"Literal generated filename.\"\n",
+            "roots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA001\"]\n\n[[rule_ignores]]\nrules = [\"FFA001\"]\npaths = [\"src/pkg/{generated,vendored}.py\"]\nreason = \"Generated interfaces are accepted.\"\n",
         );
         write(
             repository.path().join("src/pkg/{generated,vendored}.py"),

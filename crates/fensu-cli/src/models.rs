@@ -237,6 +237,7 @@ pub(crate) struct ProjectInput {
     pub(crate) target_path: String,
     pub(crate) content: Vec<u8>,
     pub(crate) fingerprint: String,
+    pub(crate) present: bool,
 }
 
 impl ProjectInput {

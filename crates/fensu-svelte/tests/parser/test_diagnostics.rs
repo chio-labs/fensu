@@ -414,6 +414,60 @@ fn given_malformed_block_when_parsing_then_rejects_expected_recovery_structure()
 }
 
 #[test]
+fn given_invalid_dotted_component_closing_tags_when_parsing_then_reports_original_offsets() {
+    let test_cases = [
+        test_types::DiagnosticTestCase {
+            description: "a mismatched dotted component member is rejected at its closing tag",
+            source: b"<Card.Root><p>value</p></Card.Other>",
+            expected_message: None,
+            expected_message_prefix: Some("invalid Svelte structure:"),
+            expected_line: 1,
+            expected_column: Some(23),
+            expected_start: Some(23),
+        },
+        test_types::DiagnosticTestCase {
+            description: "an unterminated dotted component closing tag remains invalid",
+            source: b"<Card.Root>value</Card.Root",
+            expected_message: None,
+            expected_message_prefix: Some("invalid Svelte structure:"),
+            expected_line: 1,
+            expected_column: Some(27),
+            expected_start: Some(27),
+        },
+    ];
+
+    for test_case in &test_cases {
+        let diagnostic = parse(test_case.source).expect_err("must fail");
+
+        assert_eq!(
+            diagnostic.span.line, test_case.expected_line,
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            diagnostic.span.column,
+            test_case.expected_column.unwrap_or_default(),
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            diagnostic.span.start,
+            test_case.expected_start.unwrap_or_default(),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            diagnostic
+                .message
+                .starts_with(test_case.expected_message_prefix.unwrap_or_default()),
+            "{}: {}",
+            test_case.description,
+            diagnostic.message
+        );
+    }
+}
+
+#[test]
 fn given_incomplete_attribute_when_parsing_then_rejects_expected_named_recovery_form() {
     let test_cases = [test_types::DiagnosticTestCase {
         description: "an attribute missing its value is rejected even when the grammar recovers",

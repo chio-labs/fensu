@@ -8,6 +8,7 @@ use crate::configuration::_helpers::roots::{normalize_target_root, validate_nest
 use crate::configuration::_helpers::scopes::validate_test_scopes;
 use crate::configuration::_helpers::selectors::valid_selector;
 use crate::configuration::constants::{CONFIG_ROLE_NAMES, CONTRACT_BEHAVIORS, DEFAULT_THRESHOLDS};
+use crate::configuration::main::expand_path_pattern::expand_path_pattern;
 use crate::constants::CONFIG_TARGETS_KEY;
 use crate::models::TargetSelection;
 
@@ -92,6 +93,11 @@ pub(crate) fn validate_for_analyzer(
     ] {
         if let Some(value) = table.get(name) {
             let _ = required_strings(Some(value), name)?;
+        }
+    }
+    if let Some(value) = table.get("generated") {
+        for pattern in required_strings(Some(value), "generated")? {
+            validate_path_pattern(&pattern, "Generated path")?;
         }
     }
     validate_rule_packs(table.get("rule_packs"))?;
@@ -606,20 +612,23 @@ fn validate_evaluation(value: Option<&toml::Value>) -> Result<(), String> {
 }
 
 fn validate_path_pattern(pattern: &str, owner: &str) -> Result<(), String> {
-    let malformed = pattern.starts_with('/')
-        || pattern.ends_with('/')
-        || pattern.contains("//")
-        || pattern.contains('\\')
-        || pattern.contains(['?', '[', ']'])
-        || pattern.split('/').any(|part| {
-            matches!(part, "" | "." | "..")
-                || part.contains(RECURSIVE_GLOB) && part != RECURSIVE_GLOB
-        })
-        || pattern.contains("**/**");
-    if malformed {
-        return Err(format!(
-            "{owner} must be a repository-relative POSIX glob: {pattern}."
-        ));
+    let expanded = expand_path_pattern(pattern)?;
+    for candidate in expanded {
+        let malformed = candidate.starts_with('/')
+            || candidate.ends_with('/')
+            || candidate.contains("//")
+            || candidate.contains('\\')
+            || candidate.contains(['?', '[', ']'])
+            || candidate.split('/').any(|part| {
+                matches!(part, "" | "." | "..")
+                    || part.contains(RECURSIVE_GLOB) && part != RECURSIVE_GLOB
+            })
+            || candidate.contains("**/**");
+        if malformed {
+            return Err(format!(
+                "{owner} must be a repository-relative POSIX glob: {pattern}."
+            ));
+        }
     }
     Ok(())
 }

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 SKILLS_METADATA_PROTOCOL_VERSION: int = 4
+CUSTOM_CHECK_PROTOCOL_VERSION: int = 1
 COLOR_ALWAYS: str = "always"
 COLOR_AUTO: str = "auto"
 COLOR_NEVER: str = "never"

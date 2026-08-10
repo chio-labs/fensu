@@ -15,6 +15,10 @@ _GENERIC_REASON: str = "Framework-independent TypeScript/JavaScript architecture
 _SVELTE_REASON: str = "Requires Svelte component or rune semantics."
 _SVELTEKIT_REASON: str = "Requires SvelteKit route, loader, server, or browser/runtime semantics."
 _CONFIGURED_WEB_REASON: str = "Framework policy driven by target-local SvelteKit configuration."
+_GENERIC_TYPESCRIPT_CATEGORY: str = "generic-typescript"
+_SVELTE_CATEGORY: str = "svelte"
+_GENERIC_WEB_ANALYZERS: tuple[AnalyzerId, ...] = (AnalyzerId.TYPESCRIPT, AnalyzerId.SVELTE)
+_SVELTE_ANALYZERS: tuple[AnalyzerId, ...] = (AnalyzerId.SVELTE,)
 
 _WEB_RULE_MIGRATION: tuple[_WebRuleMigration, ...] = (
     (
@@ -799,7 +803,6 @@ _PROJECT_RULES: frozenset[str] = frozenset(
         "FWU001",
     }
 )
-_ANALYZERS: tuple[AnalyzerId, ...] = (AnalyzerId.TYPESCRIPT, AnalyzerId.SVELTE)
 _CONSTRAINTS: dict[str, tuple[RuleConstraint, ...]] = {
     "FWR201": (
         RuleConstraint(
@@ -984,6 +987,15 @@ _CONTRACT_BEHAVIORS: dict[str, tuple[str, ...]] = {
 }
 
 
+def _applicability(code: str) -> tuple[tuple[AnalyzerId, ...], tuple[str, ...]]:
+    category: str = next(entry[1] for entry in _WEB_RULE_MIGRATION if entry[0] == code)
+    if category == _GENERIC_TYPESCRIPT_CATEGORY:
+        return _GENERIC_WEB_ANALYZERS, ()
+    if category == _SVELTE_CATEGORY:
+        return _SVELTE_ANALYZERS, ()
+    return _SVELTE_ANALYZERS, ("sveltekit",)
+
+
 def _web_rules() -> tuple[RuleSpec, ...]:
     return tuple(
         RuleSpec(
@@ -992,7 +1004,8 @@ def _web_rules() -> tuple[RuleSpec, ...]:
             slug=slug,
             message=message,
             remediation=remediation,
-            analyzers=_ANALYZERS,
+            analyzers=_applicability(code)[0],
+            frameworks=_applicability(code)[1],
             execution_owner=(
                 ExecutionOwner.PROJECT if code in _PROJECT_RULES else ExecutionOwner.FILE
             ),

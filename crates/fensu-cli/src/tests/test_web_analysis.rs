@@ -6,7 +6,192 @@ use crate::models::ProjectInput;
 use crate::tests::helpers::web_source;
 use crate::tests::test_types::WebConfigInheritanceTestCase;
 use crate::tests::test_types::WebTestSourceTestCase;
-use crate::tests::test_types::{WebDirectSourceTestCase, WebImportGraphTestCase};
+use crate::tests::test_types::{
+    DynamicSvelteAliasTestCase, OptionalGeneratedConfigTestCase, SvelteKitAliasResolutionTestCase,
+    WebDirectSourceTestCase, WebImportGraphTestCase,
+};
+
+#[test]
+fn given_fresh_sveltekit_config_when_resolving_then_generated_extends_and_literal_aliases_are_static(
+) {
+    let test_cases = [SvelteKitAliasResolutionTestCase {
+        description: "fresh generated extends and quoted/unquoted aliases resolve statically",
+        expected_generated_present: false,
+        expected_resolutions: &[
+            ("$ui-kit/button", Some("src/ui-kit/button/index.ts")),
+            ("plain/value", Some("src/plain/value.ts")),
+        ],
+    }];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        let root = repository.path();
+        fs::create_dir_all(root.join("src/ui-kit/button")).expect("UI-kit directory");
+        fs::create_dir_all(root.join("src/plain")).expect("plain alias directory");
+        fs::write(
+            root.join("tsconfig.json"),
+            "{ \"extends\": \"./.svelte-kit/tsconfig.json\" }\n",
+        )
+        .expect("fresh SvelteKit tsconfig");
+        fs::write(
+        root.join("svelte.config.js"),
+        "const config = { kit: { alias: { '$ui-kit': 'src/ui-kit', plain: \"src/plain\" } } }; export default config;\n",
+    )
+    .expect("Svelte config");
+        fs::write(
+        root.join("src/App.svelte"),
+        "<script lang=\"ts\">import { Button } from '$ui-kit/button'; import { value } from 'plain/value';</script>\n",
+    )
+    .expect("component");
+        fs::write(
+            root.join("src/ui-kit/button/index.ts"),
+            "export const Button = 1;\n",
+        )
+        .expect("UI-kit module");
+        fs::write(root.join("src/plain/value.ts"), "export const value = 1;\n")
+            .expect("plain alias module");
+        let config = crate::models::Config {
+            analyzer: AnalyzerId::Svelte,
+            framework: Some("sveltekit".to_owned()),
+            ..crate::models::Config::default()
+        };
+
+        let inputs =
+            web::discover_project_inputs(root, root, &config).expect("fresh project inputs");
+        let generated = inputs
+            .iter()
+            .find(|input| input.target_path == ".svelte-kit/tsconfig.json")
+            .expect("tracked generated config");
+        let parsed = web::parse_sources(
+            AnalyzerId::Svelte,
+            root,
+            vec![
+                web_source(root, "src/App.svelte"),
+                web_source(root, "src/ui-kit/button/index.ts"),
+                web_source(root, "src/plain/value.ts"),
+            ],
+            &inputs,
+            &["src".to_owned()],
+        )
+        .expect("static aliases resolve");
+
+        assert_eq!(
+            generated.present, test_case.expected_generated_present,
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            parsed[0]
+                .imports
+                .iter()
+                .map(|fact| (fact.specifier.as_str(), fact.resolved_path.as_deref()))
+                .collect::<Vec<_>>(),
+            test_case.expected_resolutions,
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_dynamic_sveltekit_alias_when_resolution_needs_it_then_error_requires_literal_value() {
+    let test_cases = [DynamicSvelteAliasTestCase {
+        description: "a referenced dynamic alias value fails with literal remediation",
+        expected_error_fragments: &[
+            "uses a dynamic value required to resolve import \"$ui-kit/button\"",
+            "use a literal kit.alias value",
+        ],
+    }];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        let root = repository.path();
+        fs::create_dir_all(root.join("src")).expect("source directory");
+        fs::write(
+        root.join("svelte.config.ts"),
+        "const target = 'src/ui-kit'; export default { kit: { alias: { '$ui-kit': target } } };\n",
+    )
+    .expect("dynamic Svelte config");
+        fs::write(
+            root.join("src/App.svelte"),
+            "<script>import value from '$ui-kit/button';</script>\n",
+        )
+        .expect("component");
+        let inputs = web::discover_project_inputs(root, root, &crate::models::Config::default())
+            .expect("project inputs");
+
+        let error = web::parse_sources(
+            AnalyzerId::Svelte,
+            root,
+            vec![web_source(root, "src/App.svelte")],
+            &inputs,
+            &["src".to_owned()],
+        )
+        .expect_err("dynamic alias is required");
+
+        assert!(
+            test_case
+                .expected_error_fragments
+                .iter()
+                .all(|fragment| error.contains(fragment)),
+            "{}: {error}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_optional_generated_config_when_it_appears_then_project_input_presence_changes() {
+    let test_cases = [OptionalGeneratedConfigTestCase {
+        description: "generated config appearance changes tracked project input identity",
+        expected_missing_present: false,
+        expected_generated_present: true,
+    }];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        let root = repository.path();
+        fs::write(
+            root.join("tsconfig.json"),
+            "{ \"extends\": \"./.svelte-kit/tsconfig.json\" }\n",
+        )
+        .expect("fresh SvelteKit tsconfig");
+        let config = crate::models::Config {
+            analyzer: AnalyzerId::Svelte,
+            framework: Some("sveltekit".to_owned()),
+            ..crate::models::Config::default()
+        };
+        let missing =
+            web::discover_project_inputs(root, root, &config).expect("missing generated input");
+        fs::create_dir_all(root.join(".svelte-kit")).expect("generated directory");
+        fs::write(root.join(".svelte-kit/tsconfig.json"), "{}\n").expect("generated config");
+
+        let present =
+            web::discover_project_inputs(root, root, &config).expect("present generated input");
+
+        assert_eq!(
+            missing.iter().all(|input| input.present),
+            test_case.expected_missing_present,
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            present.iter().all(|input| input.present),
+            test_case.expected_generated_present,
+            "{}",
+            test_case.description
+        );
+        assert_ne!(
+            missing
+                .iter()
+                .find(|input| input.target_path == ".svelte-kit/tsconfig.json")
+                .map(|input| input.fingerprint.as_str()),
+            present
+                .iter()
+                .find(|input| input.target_path == ".svelte-kit/tsconfig.json")
+                .map(|input| input.fingerprint.as_str()),
+            "{}",
+            test_case.description
+        );
+    }
+}
 
 #[test]
 fn given_multiple_source_roots_when_resolving_lib_then_each_importer_uses_its_own_root() {
@@ -161,6 +346,7 @@ fn given_relative_lib_and_tsconfig_imports_when_parsing_then_graph_resolves_proj
             target_path: "jsconfig.json".to_owned(),
             content: config.to_vec(),
             fingerprint: "config-fingerprint".to_owned(),
+            present: true,
         }];
 
         let parsed = web::parse_sources(

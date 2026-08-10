@@ -8,6 +8,7 @@ use crate::models::Config;
 use crate::skills::_helpers::context::selection;
 use crate::tests::test_types::{
     AnalyzerCatalogueTestCase, AnalyzerRenderingTestCase, CoreRuleRenderingTestCase,
+    WebRuleApplicabilityTestCase,
 };
 
 #[test]
@@ -23,6 +24,7 @@ fn given_every_core_rule_when_rendering_then_complete_authored_metadata_is_visib
             "Pack: None",
             "Alias: None",
             "Analyzers:",
+            "Frameworks:",
             "Enabled by default:",
             "Execution owner:",
             "Cacheability:",
@@ -83,6 +85,7 @@ fn given_every_core_rule_when_rendering_then_complete_authored_metadata_is_visib
             );
             assert!(
                 metadata.analyzers == [AnalyzerId::Python]
+                    || metadata.analyzers == [AnalyzerId::Svelte]
                     || metadata.analyzers == [AnalyzerId::TypeScript, AnalyzerId::Svelte]
             );
         }
@@ -97,17 +100,14 @@ fn given_python_catalogue_and_other_analyzer_when_selecting_then_applicability_p
         analyzer: AnalyzerId::TypeScript,
         select: &[],
         expected_codes: &[
-            "FWA001", "FWA002", "FWA003", "FWA101", "FWA102", "FWA103", "FWC101", "FWC102",
-            "FWC103", "FWC201", "FWH009", "FWL101", "FWL102", "FWL103", "FWL104", "FWL105",
-            "FWL106", "FWL107", "FWL108", "FWL109", "FWL201", "FWN001", "FWN002", "FWN003",
-            "FWN004", "FWP001", "FWR001", "FWR002", "FWR003", "FWR201", "FWR204", "FWR301",
-            "FWR304", "FWR306", "FWR309", "FWR310", "FWR311", "FWR401", "FWR403", "FWR404",
-            "FWR405", "FWR501", "FWS001", "FWS002", "FWS003", "FWS010", "FWS011", "FWS101",
-            "FWS102", "FWS103", "FWS104", "FWS105", "FWS106", "FWS107", "FWS108", "FWS109",
+            "FWA001", "FWA002", "FWA003", "FWC101", "FWC102", "FWC103", "FWH009", "FWL101",
+            "FWL102", "FWL103", "FWL105", "FWL108", "FWL109", "FWL201", "FWN001", "FWN002",
+            "FWN003", "FWN004", "FWP001", "FWR001", "FWR002", "FWR003", "FWR201", "FWR204",
+            "FWR301", "FWR304", "FWR306", "FWR309", "FWR310", "FWR311", "FWR401", "FWR403",
+            "FWR501", "FWS001", "FWS002", "FWS003", "FWS010", "FWS011", "FWS105", "FWS106",
             "FWS110", "FWS111", "FWS201", "FWS601", "FWT001", "FWT002", "FWT003", "FWT004",
             "FWT201", "FWT202", "FWT302", "FWT401", "FWT402", "FWT403", "FWT404", "FWT405",
-            "FWT406", "FWT410", "FWT411", "FWT412", "FWU001", "FWU002", "FWU003", "FWV101",
-            "FWV102", "FWV103", "FWV104", "FWV105", "FWV106", "FWV107", "FWV201", "FWV202",
+            "FWT406", "FWT410", "FWT411", "FWT412",
         ],
         expected_error: None,
     }];
@@ -181,6 +181,57 @@ fn given_incompatible_python_selector_when_selecting_then_error_names_analyzer()
         );
         assert!(
             test_case.expected_codes.is_empty(),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_web_rule_applicability_when_selecting_then_analyzer_and_framework_fail_closed() {
+    let test_cases = [WebRuleApplicabilityTestCase {
+        description: "Svelte-only and SvelteKit rules reject incompatible targets while generic remains shared",
+        expected_analyzer_error: "not applicable to analyzer typescript",
+        expected_framework_error: "require framework sveltekit for analyzer svelte",
+        expected_generic_code: "FWS010",
+    }];
+    let root = tempfile::tempdir().expect("catalogue selection root");
+    for test_case in &test_cases {
+        let typescript = Config {
+            analyzer: AnalyzerId::TypeScript,
+            select: vec!["FWV101".to_owned()],
+            ..Config::default()
+        };
+        let svelte_without_kit = Config {
+            analyzer: AnalyzerId::Svelte,
+            select: vec!["FWL106".to_owned()],
+            ..Config::default()
+        };
+        let generic_svelte = Config {
+            analyzer: AnalyzerId::Svelte,
+            select: vec!["FWS010".to_owned()],
+            ..Config::default()
+        };
+
+        let analyzer_error = selection::selection(&typescript, root.path())
+            .expect_err("Svelte rule is incompatible with TypeScript");
+        let framework_error = selection::selection(&svelte_without_kit, root.path())
+            .expect_err("SvelteKit rule requires framework");
+        let generic = selection::selection(&generic_svelte, root.path())
+            .expect("generic web rule remains available to Svelte");
+
+        assert!(
+            analyzer_error.contains(test_case.expected_analyzer_error),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            framework_error.contains(test_case.expected_framework_error),
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            generic.blocking[0].code, test_case.expected_generic_code,
             "{}",
             test_case.description
         );

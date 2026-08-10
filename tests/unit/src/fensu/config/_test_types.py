@@ -312,6 +312,24 @@ class PathPatternTestCase:
 
 
 @dataclass(frozen=True)
+class PathPatternExpansionTestCase:
+    """A brace path glob and its expected deterministic expansion."""
+
+    description: str
+    pattern: str
+    expected_patterns: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class PathPatternErrorTestCase:
+    """A malformed brace path glob and its expected error detail."""
+
+    description: str
+    pattern: str
+    expected_error: str
+
+
+@dataclass(frozen=True)
 class PathPatternSpecificityTestCase:
     """A normalized path glob and its expected semantic specificity tuple."""
 

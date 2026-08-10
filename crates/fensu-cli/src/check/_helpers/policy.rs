@@ -1,59 +1,21 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
 use fensu_facts::extension::models::ProgramHandle;
+use globset::GlobBuilder;
 use ruff_python_ast::PythonVersion;
 use sha2::{Digest, Sha256};
 use walkdir::WalkDir;
 
 use crate::check::_helpers::project as web;
 use crate::check::models::CheckIdentityRequest;
+use crate::configuration::main::expand_path_pattern::expand_path_pattern;
 use crate::constants::{
     GLOB_ALL, PYTHON_CACHE_DIRECTORY, ROLE_HELPERS, ROLE_MAIN, ROLE_RULES, SCOPE_TOOLING,
     SUFFIX_INIT,
 };
 use crate::models::{Config, Fault, ScopedSource};
-
-struct WildcardMatcher<'a> {
-    path: &'a [u8],
-    pattern: &'a [u8],
-    memo: HashMap<(usize, usize), bool>,
-}
-
-impl WildcardMatcher<'_> {
-    fn matches(&mut self, path_index: usize, pattern_index: usize) -> bool {
-        if let Some(result) = self.memo.get(&(path_index, pattern_index)) {
-            return *result;
-        }
-        let result = if pattern_index == self.pattern.len() {
-            path_index == self.path.len()
-        } else if self.pattern[pattern_index..].starts_with(b"**/") {
-            self.matches(path_index, pattern_index + 3)
-                || (path_index..self.path.len()).any(|index| {
-                    self.path[index] == b'/' && self.matches(index + 1, pattern_index + 3)
-                })
-        } else if self.pattern[pattern_index..].starts_with(b"**") {
-            (path_index..=self.path.len()).any(|index| self.matches(index, pattern_index + 2))
-        } else if self.pattern[pattern_index] == b'*' {
-            let mut index = path_index;
-            let mut matched = false;
-            while index <= self.path.len() {
-                matched |= self.matches(index, pattern_index + 1);
-                if matched || index == self.path.len() || self.path[index] == b'/' {
-                    break;
-                }
-                index += 1;
-            }
-            matched
-        } else {
-            self.path.get(path_index) == self.pattern.get(pattern_index)
-                && self.matches(path_index + 1, pattern_index + 1)
-        };
-        self.memo.insert((path_index, pattern_index), result);
-        result
-    }
-}
 
 pub(crate) fn role(source: &ScopedSource) -> Option<String> {
     let file = source.relative_parts.last()?;
@@ -223,17 +185,24 @@ fn normalize_path(path: &Path) -> PathBuf {
 }
 
 pub(crate) fn path_matches(path: &str, pattern: &str) -> bool {
+    expand_path_pattern(pattern).is_ok_and(|patterns| {
+        patterns
+            .iter()
+            .any(|pattern| wildcard_matches(path, pattern))
+    })
+}
+
+fn wildcard_matches(path: &str, pattern: &str) -> bool {
     let value = if pattern.contains('/') || pattern == GLOB_ALL {
-        pattern.as_bytes().to_vec()
+        pattern.to_owned()
     } else {
-        format!("**/{pattern}").into_bytes()
+        format!("**/{pattern}")
     };
-    WildcardMatcher {
-        path: path.as_bytes(),
-        pattern: &value,
-        memo: HashMap::new(),
-    }
-    .matches(0, 0)
+    GlobBuilder::new(&value)
+        .literal_separator(true)
+        .backslash_escape(false)
+        .build()
+        .is_ok_and(|glob| glob.compile_matcher().is_match(path))
 }
 
 pub(crate) fn check_identity(request: CheckIdentityRequest<'_>) -> Result<String, String> {
@@ -273,6 +242,7 @@ pub(crate) fn check_identity(request: CheckIdentityRequest<'_>) -> Result<String
         digest_text(&mut digest, &input.repository_path);
         digest_text(&mut digest, &input.target_path);
         digest_text(&mut digest, &input.fingerprint);
+        digest.update([u8::from(input.present)]);
     }
     digest_project_observations(&mut digest, root, project_root, config)?;
     Ok(format!("{:x}", digest.finalize()))

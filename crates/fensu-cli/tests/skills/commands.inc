@@ -474,7 +474,7 @@ fn given_web_test_layout_when_generating_skills_then_rule_and_effective_config_r
     write(repository.path().join(".git/keep"), b"");
     write(
         repository.path().join("fensu.toml"),
-        b"[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = []\ntooling = []\ntest_layout = \"colocated\"\nselect = [\"FWL101\", \"FWT002\"]\n[targets.web.skills]\nname = \"Web\"\n",
+        b"[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = []\ntooling = []\ntest_layout = \"colocated\"\nselect = [\"FWL101\", \"FWS001\", \"FWT002\"]\n[targets.web.thresholds]\nmax_entry_statements = 41\nmax_entry_distinct_calls = 21\nmax_entry_locals = 22\nmax_function_statements = 71\n[[targets.web.threshold_overrides]]\npaths = [\"src/orders.ts\"]\nthresholds = { max_entry_statements = 51 }\nreason = \"Wide entry.\"\n[targets.web.skills]\nname = \"Web\"\n",
     );
     write(repository.path().join("src/orders.ts"), b"export const orders = [];\n");
 
@@ -484,7 +484,10 @@ fn given_web_test_layout_when_generating_skills_then_rule_and_effective_config_r
     let guidance = fs::read_to_string(target(repository.path(), ".agents", "fensu-web"))
         .expect("generated web guidance");
     assert!(guidance.contains("- Test layout: `colocated`"));
-    assert_eq!(guidance.matches("- `test_layout`: colocated").count(), 2);
+    assert_eq!(guidance.matches("- `test_layout`: colocated").count(), 3);
+    assert!(guidance.contains("- `max_statements` = 41"));
+    assert!(guidance.contains("\"max_statements\": 51"));
+    assert!(!guidance.contains("max_entry_statements"));
 }
 
 #[test]

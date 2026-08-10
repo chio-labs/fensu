@@ -248,7 +248,11 @@ pub(crate) fn check_identity(request: CheckIdentityRequest<'_>) -> Result<String
     let mut digest = Sha256::new();
     digest.update(b"fensu-native-check-v5\0");
     digest.update(env!("CARGO_PKG_VERSION").as_bytes());
-    digest.update(&config.raw);
+    digest.update(if config.identity_raw.is_empty() {
+        &config.raw
+    } else {
+        &config.identity_raw
+    });
     digest_text(&mut digest, &config.analyzer.to_string());
     digest_text(&mut digest, config.analyzer.cache_contract());
     digest_text(&mut digest, config.analyzer.parser_contract());

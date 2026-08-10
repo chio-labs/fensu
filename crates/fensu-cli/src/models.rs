@@ -110,6 +110,7 @@ pub(crate) struct Config {
     pub(crate) skills_name: Option<String>,
     pub(crate) source_kind: String,
     pub(crate) raw: Vec<u8>,
+    pub(crate) identity_raw: Vec<u8>,
 }
 
 #[derive(Clone, Debug)]

@@ -69,6 +69,37 @@ class WebTargetDefaultsTestCase:
 
 
 @dataclass(frozen=True)
+class WebThresholdAliasTestCase:
+    """Web analyzer whose compatibility thresholds must normalize canonically."""
+
+    description: str
+    analyzer: str
+    expected_analyzer: str
+    expected_fingerprints_equal: bool
+
+
+@dataclass(frozen=True)
+class WebInMemoryConfigBuildTestCase:
+    """In-memory web config and expected analyzer-local values."""
+
+    description: str
+    raw_config: dict[str, object]
+    analyzer: AnalyzerId
+    expected_test_layout: str
+    expected_analyzer: AnalyzerId
+
+
+@dataclass(frozen=True)
+class WebTestLayoutFingerprintTestCase:
+    """Two web test layouts and their expected fingerprint relationship."""
+
+    description: str
+    first_layout: str
+    second_layout: str
+    expected_equal: bool
+
+
+@dataclass(frozen=True)
 class WebExceptionPathTestCase:
     """Web analyzer and exact exception path expected to be accepted."""
 

@@ -42,7 +42,7 @@ pub(crate) fn sveltekit_only_repository_writes_explicit_web_target() {
     );
     assert_eq!(
         config,
-        "[targets.web]\nanalyzer = \"svelte\"\nroot = \".\"\nroots = [\"src\"]\ntests = []\ntooling = []\ntest_layout = \"mirrored\"\nframework = \"sveltekit\"\nrule_packs = []\nselect = [\"FW\"]\n"
+        "[targets.web]\nanalyzer = \"svelte\"\nroot = \".\"\nroots = [\"src\"]\ntests = []\ntooling = []\ntest_layout = \"mirrored\"\nframework = \"sveltekit\"\nrule_packs = []\nselect = [\"FW\"]\n[targets.web.thresholds]\nmax_entry_statements = 40\nmax_entry_distinct_calls = 20\nmax_entry_locals = 20\nmax_function_statements = 70\n"
     );
     assert!(!repository.path().join("src/web/__init__.py").exists());
     assert_eq!(
@@ -207,6 +207,7 @@ pub(crate) fn explicit_config_addition_preserves_comments_and_refuses_unsafe_cas
     assert!(updated.starts_with(original));
     assert!(updated.contains("[targets.web]\nanalyzer = \"svelte\""));
     assert!(updated.contains("test_layout = \"mirrored\""));
+    assert!(updated.contains("max_entry_statements = 40"));
     assert!(String::from_utf8_lossy(&added.stdout).contains("test_layout=mirrored"));
 
     let duplicate = run(

@@ -28,6 +28,15 @@ pub(crate) fn build(
     let contracts = contracts(table.get("contracts"), selection.analyzer);
     let cache = table.get("cache").and_then(toml::Value::as_table);
     let evaluation = table.get("evaluation").and_then(toml::Value::as_table);
+    let identity_raw = if selection.target.is_some()
+        && selection.analyzer != crate::analyzer::AnalyzerId::Python
+    {
+        toml::to_string(table)
+            .map_err(|error| format!("Could not normalize selected configuration: {error}"))?
+            .into_bytes()
+    } else {
+        raw.clone()
+    };
     Ok(Config {
         analyzer: selection.analyzer,
         target: selection.target,
@@ -102,6 +111,7 @@ pub(crate) fn build(
         skills_name: skills_name(table)?,
         source_kind: if pyproject { "pyproject" } else { "fensu_toml" }.to_owned(),
         raw,
+        identity_raw,
     })
 }
 

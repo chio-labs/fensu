@@ -134,6 +134,12 @@ DEFAULT_WEB_FRAMEWORK: str = "sveltekit"
 SINGLE_COMPONENT_GLOB: str = "*"
 RECURSIVE_GLOB: str = "**"
 THRESHOLD_OVERRIDE_KEYS: frozenset[str] = frozenset({"paths", "thresholds", "reason"})
+WEB_THRESHOLD_ALIASES: dict[str, Threshold] = {
+    "max_entry_statements": Threshold.MAX_STATEMENTS,
+    "max_entry_distinct_calls": Threshold.MAX_DISTINCT_CALLS,
+    "max_entry_locals": Threshold.MAX_LOCALS,
+    "max_function_statements": Threshold.MAX_STATEMENTS_GLOBAL,
+}
 RULE_IGNORE_KEYS: frozenset[str] = frozenset({"rules", "paths", "reason"})
 EVALUATION_CONFIG_KEYS: frozenset[str] = frozenset({"include", "exclude"})
 SKILLS_CONFIG_KEYS: frozenset[str] = frozenset({SKILLS_NAME_CONFIG_KEY})

@@ -4,7 +4,7 @@ use std::process::Command;
 use crate::helpers::{poison_processes, run_internal_web_check_with, write};
 use crate::test_types::{
     MixedWebExecutionTestCase, WebConfigFailureTestCase, WebDiagnosticCountTestCase,
-    WebSourcePurposeTestCase,
+    WebSourcePurposeTestCase, WebThresholdCacheIdentityTestCase,
 };
 
 #[test]
@@ -57,7 +57,7 @@ fn given_route_roles_and_server_exports_when_checking_then_boundaries_apply_with
         },
         WebDiagnosticCountTestCase {
         description: "server load, action, and HTTP handler exports receive entry budgets",
-        config: "[targets.web]\nanalyzer = \"svelte\"\nframework = \"sveltekit\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FWS001\", \"FWS002\", \"FWS003\"]\n[targets.web.thresholds]\nmax_statements = 0\nmax_distinct_calls = 0\nmax_locals = 0\n[targets.web.cache]\nenabled = false\n",
+        config: "[targets.web]\nanalyzer = \"svelte\"\nframework = \"sveltekit\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FWS001\", \"FWS002\", \"FWS003\"]\n[targets.web.thresholds]\nmax_entry_statements = 0\nmax_entry_distinct_calls = 0\nmax_entry_locals = 0\nmax_function_statements = 70\n[targets.web.cache]\nenabled = false\n",
         files: &[
             (
                 "src/routes/orders/+page.server.ts",
@@ -71,6 +71,23 @@ fn given_route_roles_and_server_exports_when_checking_then_boundaries_apply_with
         expected_exit_code: 1,
         expected_counts: &[("FWS001", 3), ("FWS002", 3), ("FWS003", 3)],
         expected_absent: None,
+        },
+        WebDiagnosticCountTestCase {
+            description: "web threshold alias retains path override behavior",
+            config: "[targets.web]\nanalyzer = \"svelte\"\nframework = \"sveltekit\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FWS001\"]\n[targets.web.thresholds]\nmax_entry_statements = 0\n[[targets.web.threshold_overrides]]\npaths = [\"src/routes/relaxed/+page.server.ts\"]\nthresholds = { max_entry_statements = 10 }\nreason = \"Relaxed generated entry.\"\n[targets.web.cache]\nenabled = false\n",
+            files: &[
+                (
+                    "src/routes/strict/+page.server.ts",
+                    "export function load(): number { return 1; }\n",
+                ),
+                (
+                    "src/routes/relaxed/+page.server.ts",
+                    "export function load(): number { return 1; }\n",
+                ),
+            ],
+            expected_exit_code: 1,
+            expected_counts: &[("FWS001", 1)],
+            expected_absent: None,
         },
     ];
     for test_case in &test_cases {
@@ -108,6 +125,69 @@ fn given_route_roles_and_server_exports_when_checking_then_boundaries_apply_with
             test_case.description
         );
         assert!(!repository.path().join("process-invoked").exists());
+    }
+}
+
+#[test]
+fn given_alias_and_canonical_web_thresholds_when_caching_then_identity_is_shared() {
+    let test_cases = [WebThresholdCacheIdentityTestCase {
+        description: "alias and canonical threshold spellings share native cache identity",
+        alias: "max_entry_statements",
+        canonical: "max_statements",
+        expected_exit_code: 0,
+        expected_cold: "hits=0 misses=1",
+        expected_warm: "hits=1 misses=0",
+    }];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("web threshold cache repository");
+        let template = "[targets.web]\nanalyzer = \"svelte\"\nframework = \"sveltekit\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FWS001\"]\n[targets.web.thresholds]\n{} = 40\n";
+        write(
+            repository.path().join("fensu.toml"),
+            &template.replace("{}", test_case.alias),
+        );
+        write(
+            repository.path().join("src/routes/+page.server.ts"),
+            "export function load(): number { return 1; }\n",
+        );
+        let process_directory = poison_processes(repository.path());
+        let cold = run_internal_web_check_with(
+            repository.path(),
+            &["--cache", "--cache-stats"],
+            &process_directory,
+        );
+        write(
+            repository.path().join("fensu.toml"),
+            &template.replace("{}", test_case.canonical),
+        );
+
+        let warm = run_internal_web_check_with(
+            repository.path(),
+            &["--cache", "--cache-stats"],
+            &process_directory,
+        );
+
+        assert_eq!(
+            cold.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            warm.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&cold.stderr).contains(test_case.expected_cold),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&warm.stderr).contains(test_case.expected_warm),
+            "{}",
+            test_case.description
+        );
     }
 }
 

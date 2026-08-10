@@ -30,6 +30,7 @@ from fensu.config.constants import (
     TARGETS_CONFIG_KEY,
     TEST_SCOPE_PATTERN,
     THRESHOLD_OVERRIDE_KEYS,
+    WEB_THRESHOLD_ALIASES,
 )
 from fensu.config.exceptions import ConfigError, ConfigValidationError
 from fensu.config.types import AnalyzerId, TestLayout
@@ -167,6 +168,8 @@ def select_config_target(
         selected: dict[str, object] = dict(typed_value)
         _ = selected.pop("analyzer")
         _ = selected.pop("root", None)
+        if analyzer_id in {AnalyzerId.TYPESCRIPT, AnalyzerId.SVELTE}:
+            selected = _normalize_web_threshold_aliases(raw=selected)
         validate_config(raw=selected, analyzer=analyzer_id)
         validated[name] = (selected, analyzer_id, root)
     selected_name: str
@@ -222,6 +225,60 @@ def _normalize_target_root(*, name: str, value: str) -> str:
             continue
         parts.append(part)
     return PurePosixPath(*parts).as_posix() if parts else DEFAULT_TARGET_ROOT
+
+
+def _normalize_web_threshold_aliases(*, raw: dict[str, object]) -> dict[str, object]:
+    normalized: dict[str, object] = dict(raw)
+    thresholds: object = raw.get("thresholds")
+    if isinstance(thresholds, dict):
+        normalized["thresholds"] = _normalize_web_threshold_table(
+            values=cast("dict[str, object]", thresholds), owner="thresholds"
+        )
+    roles: object = raw.get("roles")
+    if isinstance(roles, dict):
+        typed_roles: dict[str, object] = cast("dict[str, object]", roles)
+        normalized_roles: dict[str, object] = dict(typed_roles)
+        for role, values in typed_roles.items():
+            if isinstance(values, dict):
+                normalized_roles[role] = _normalize_web_threshold_table(
+                    values=cast("dict[str, object]", values), owner=f"roles.{role}"
+                )
+        normalized["roles"] = normalized_roles
+    overrides: object = raw.get("threshold_overrides")
+    if isinstance(overrides, list):
+        normalized_overrides: list[object] = []
+        for entry in overrides:
+            if not isinstance(entry, dict) or not isinstance(entry.get("thresholds"), dict):
+                normalized_overrides.append(entry)
+                continue
+            typed_entry: dict[str, object] = cast("dict[str, object]", entry)
+            typed_thresholds: dict[str, object] = cast(
+                "dict[str, object]", typed_entry["thresholds"]
+            )
+            normalized_entry: dict[str, object] = dict(typed_entry)
+            normalized_entry["thresholds"] = _normalize_web_threshold_table(
+                values=typed_thresholds, owner="threshold_overrides.thresholds"
+            )
+            normalized_overrides.append(normalized_entry)
+        normalized["threshold_overrides"] = normalized_overrides
+    return normalized
+
+
+def _normalize_web_threshold_table(
+    *, values: Mapping[str, object], owner: str
+) -> dict[str, object]:
+    normalized: dict[str, object] = dict(values)
+    for alias, threshold in WEB_THRESHOLD_ALIASES.items():
+        if alias not in normalized:
+            continue
+        canonical: str = threshold.value
+        if canonical in normalized and normalized[canonical] != normalized[alias]:
+            raise ConfigValidationError(
+                f"Conflicting threshold values in {owner}: {alias} and {canonical}."
+            )
+        normalized[canonical] = normalized[alias]
+        del normalized[alias]
+    return normalized
 
 
 def _validate_top_level_keys(*, raw: Mapping[str, object]) -> None:

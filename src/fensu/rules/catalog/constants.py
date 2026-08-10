@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fensu.rules.annotations.constants import FFA_RULES
 from fensu.rules.authoring.models import RuleSpec
+from fensu.rules.catalog._helpers.web_rules import web_rule_migration, web_rules
 from fensu.rules.dagster.constants import FPDG_RULES
 from fensu.rules.hygiene.constants import FFH_RULES
 from fensu.rules.layers.constants import FFL_RULES
@@ -11,6 +12,9 @@ from fensu.rules.naming.constants import FFN_RULES
 from fensu.rules.roles.constants import FFR_RULES
 from fensu.rules.shape.constants import FFS_RULES
 from fensu.rules.tests.constants import FFT_RULES
+
+WEB_RULE_MIGRATION: tuple[tuple[str, str, bool, str], ...] = web_rule_migration()
+WEB_RULES: tuple[RuleSpec, ...] = web_rules()
 
 CORE_RULES: tuple[RuleSpec, ...] = (
     *FFA_RULES,
@@ -20,6 +24,7 @@ CORE_RULES: tuple[RuleSpec, ...] = (
     *FFT_RULES,
     *FFR_RULES,
     *FFN_RULES,
+    *WEB_RULES,
 )
 SHIPPED_RULES: tuple[RuleSpec, ...] = (*CORE_RULES, *FPDG_RULES)
 FENSU_PACKAGE_NAME: str = "fensu"

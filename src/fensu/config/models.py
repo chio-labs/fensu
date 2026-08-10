@@ -146,6 +146,8 @@ class Config:
     analyzer: AnalyzerId = AnalyzerId.PYTHON
     target: str | None = None
     target_root: str = "."
+    ui_kit: str | None = None
+    generated: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         """Freeze defensive copies of nested rule-option mappings."""

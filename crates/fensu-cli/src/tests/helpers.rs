@@ -2,8 +2,7 @@ use std::fs;
 use std::path::Path;
 
 use crate::analyzer::AnalyzerId;
-use crate::check::_helpers::project;
-use crate::models::ScopedSource;
+use crate::models::{ScopedSource, SourcePurpose};
 
 pub(crate) fn web_source(root: &Path, target_path: &str) -> ScopedSource {
     let path = root.join(target_path);
@@ -20,7 +19,7 @@ pub(crate) fn web_source(root: &Path, target_path: &str) -> ScopedSource {
         relative_parts: target_path.split('/').skip(1).map(str::to_owned).collect(),
         fingerprint: "source-fingerprint".to_owned(),
         content: fs::read(&path).expect("web source content"),
-        direct: project::is_direct_source(&path, AnalyzerId::TypeScript),
+        purpose: SourcePurpose::Direct,
         imports: Vec::new(),
         program: None,
     }

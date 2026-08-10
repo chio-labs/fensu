@@ -37,7 +37,7 @@ pub(crate) fn render_check(
     let mut results = Vec::with_capacity(plan.plans.len());
     for target in &mut plan.plans {
         target.sources = parse_sources(
-            target.config.analyzer,
+            &target.config,
             &target.project_root,
             std::mem::take(&mut target.sources),
             &target.project_inputs,
@@ -102,13 +102,19 @@ fn freshness(plan: &CheckPlans) -> String {
 }
 
 fn parse_sources(
-    analyzer: crate::analyzer::AnalyzerId,
+    config: &crate::models::Config,
     project_root: &std::path::Path,
     mut sources: Vec<ScopedSource>,
     project_inputs: &[crate::models::ProjectInput],
 ) -> Result<Vec<ScopedSource>, String> {
-    if analyzer != crate::analyzer::AnalyzerId::Python {
-        return web::parse_sources(analyzer, project_root, sources, project_inputs);
+    if config.analyzer != crate::analyzer::AnalyzerId::Python {
+        return web::parse_sources(
+            config.analyzer,
+            project_root,
+            sources,
+            project_inputs,
+            &config.roots,
+        );
     }
     let parsed = ProgramHandle::parse_many(
         sources

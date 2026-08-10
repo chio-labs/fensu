@@ -176,6 +176,31 @@ pub(crate) struct WebParseDiagnosticTestCase {
     pub(crate) expected_typescript: &'static str,
 }
 
+pub(crate) struct WebSourcePurposeTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) config: &'static str,
+    pub(crate) files: &'static [(&'static str, &'static str)],
+    pub(crate) expected_exit_code: i32,
+    pub(crate) expected_present: Option<&'static str>,
+    pub(crate) expected_absent: Option<&'static str>,
+}
+
+pub(crate) struct WebTestCaseTypeResolutionTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) test_source: &'static str,
+    pub(crate) support_source: &'static str,
+    pub(crate) expected_exit_code: i32,
+    pub(crate) expected_fwt403: bool,
+}
+
+pub(crate) struct WebExceptionOwnerTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) symbol: &'static str,
+    pub(crate) expected_exit_code: i32,
+    pub(crate) expected_stdout: &'static str,
+    pub(crate) expected_stderr: &'static str,
+}
+
 pub(crate) struct InternalGateCommandTestCase {
     pub(crate) description: &'static str,
     pub(crate) arguments: &'static [&'static str],
@@ -199,4 +224,9 @@ pub(crate) struct HostedWebPolicyTestCase {
     pub(crate) description: &'static str,
     pub(crate) config: &'static str,
     pub(crate) expected_error: &'static str,
+}
+
+pub(crate) struct WebPolicyCheckTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_exit_code: i32,
 }

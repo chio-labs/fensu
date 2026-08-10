@@ -123,6 +123,31 @@ fn given_module_runes_when_parsing_then_collects_expected_top_level_calls_only()
 }
 
 #[test]
+fn given_component_shells_when_parsing_then_meaningful_markup_excludes_nonmarkup_sections() {
+    let test_cases = [
+        test_types::ComponentMarkupTestCase {
+            description: "comments, scripts, and styles do not count as component markup",
+            source: "<!-- only a comment --><script lang=\"ts\">const value = 1;</script><style>.x { color: red; }</style>",
+            expected_markup: false,
+        },
+        test_types::ComponentMarkupTestCase {
+            description: "a rendered element counts as component markup",
+            source: "<script>const value = 1;</script><p>value</p>",
+            expected_markup: true,
+        },
+    ];
+    for test_case in &test_cases {
+        let facts = parse(test_case.source.as_bytes()).expect("component source");
+
+        assert_eq!(
+            facts.has_component_markup, test_case.expected_markup,
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
 fn given_valid_template_bindings_when_parsing_then_accepts_compiler_syntax() {
     let test_cases = [
         test_types::TemplateSuccessTestCase {

@@ -18,16 +18,16 @@ impl AnalyzerId {
     pub(crate) const fn cache_contract(self) -> &'static str {
         match self {
             Self::Python => "python-ruff-py312-v1",
-            Self::TypeScript => "typescript-backend-v2",
-            Self::Svelte => "svelte-backend-v2",
+            Self::TypeScript => "typescript-policy-v3",
+            Self::Svelte => "svelte-policy-v3",
         }
     }
 
     pub(crate) const fn parser_contract(self) -> &'static str {
         match self {
             Self::Python => "python-ruff-py312-v1",
-            Self::TypeScript => "typescript-backend-v2",
-            Self::Svelte => "svelte-backend-v2",
+            Self::TypeScript => "typescript-backend-v6",
+            Self::Svelte => "svelte-backend-v6",
         }
     }
 

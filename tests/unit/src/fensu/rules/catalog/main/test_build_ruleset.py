@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib
 import sys
 from dataclasses import replace
+from operator import attrgetter, itemgetter, methodcaller
 from pathlib import Path
 from types import ModuleType
 
@@ -18,7 +19,7 @@ from fensu.rules.authoring.main.define import rule
 from fensu.rules.authoring.models import RuleOption, RuleSpec
 from fensu.rules.authoring.types import Family, RuleKind
 from fensu.rules.catalog._helpers import loading as loading_module
-from fensu.rules.catalog.constants import CORE_RULES
+from fensu.rules.catalog.constants import CORE_RULES, WEB_RULE_MIGRATION, WEB_RULES
 from fensu.rules.catalog.main._build_rule_selection import build_rule_selection
 from fensu.rules.catalog.main.build_catalogue import build_catalogue
 from fensu.rules.catalog.main.build_ruleset import build_ruleset
@@ -38,6 +39,8 @@ from tests.unit.src.fensu.rules.catalog.main._test_types import (
     RuleSelectionTestCase,
     SelectCompositionTestCase,
     UnselectedRuleOptionTestCase,
+    WebMigrationTestCase,
+    WebPolicyProvenanceTestCase,
 )
 from tests.unit.src.fensu.rules.catalog.main.helpers import (
     catalogue_quality_issues,
@@ -84,7 +87,113 @@ def test_given_dagster_pack_when_building_catalogue_then_registers_complete_stan
     assert pack_codes <= catalogue_codes
     assert all(rule.code.startswith("FPDG") for rule in FPDG_RULES)
     assert all(rule.code.startswith("FPDG") for rule in ruleset)
-    assert all(rule.analyzers == (AnalyzerId.PYTHON,) for rule in (*CORE_RULES, *FPDG_RULES))
+    assert all(rule.analyzers == (AnalyzerId.PYTHON,) for rule in FPDG_RULES)
+    assert all(
+        rule.analyzers in ((AnalyzerId.PYTHON,), (AnalyzerId.TYPESCRIPT, AnalyzerId.SVELTE))
+        for rule in CORE_RULES
+    )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        WebMigrationTestCase(
+            description="all legacy web rules have one retained or deferred classification",
+            expected_rule_count=88,
+            expected_categories=frozenset(
+                {
+                    "generic-typescript",
+                    "svelte",
+                    "sveltekit",
+                    "racewatch-specific/deferred",
+                }
+            ),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_legacy_web_policy_when_reading_migration_then_every_rule_is_classified_once(
+    test_case: WebMigrationTestCase,
+) -> None:
+    codes: tuple[str, ...] = tuple(entry[0] for entry in WEB_RULE_MIGRATION)
+    categories: set[str] = {entry[1] for entry in WEB_RULE_MIGRATION}
+    retained: set[str] = {entry[0] for entry in filter(lambda item: item[2], WEB_RULE_MIGRATION)}
+
+    assert len(codes) == test_case.expected_rule_count
+    assert len(codes) == len(set(codes))
+    assert categories == test_case.expected_categories
+    assert retained == {rule.code for rule in WEB_RULES}
+    assert all(entry[3] for entry in WEB_RULE_MIGRATION)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        WebPolicyProvenanceTestCase(
+            description="retained web rules expose UI-kit and source-purpose configuration provenance",
+            expected_ui_kit_rules=frozenset(
+                {
+                    "FWA003",
+                    "FWL102",
+                    "FWL103",
+                    "FWR001",
+                    "FWR002",
+                    "FWR003",
+                    "FWR201",
+                    "FWR304",
+                    "FWR310",
+                    "FWR401",
+                    "FWR403",
+                    "FWR404",
+                    "FWR405",
+                    "FWR501",
+                    "FWS106",
+                }
+            ),
+            expected_fwp_reason_fragment="trusted parse failures emit FWP001",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_retained_web_rules_when_reading_provenance_then_configuration_inputs_are_complete(
+    test_case: WebPolicyProvenanceTestCase,
+) -> None:
+    rules_by_code: dict[str, RuleSpec] = dict(
+        zip(map(attrgetter("code"), WEB_RULES), WEB_RULES, strict=True)
+    )
+    ui_kit_rules: tuple[RuleSpec, ...] = tuple(
+        map(rules_by_code.__getitem__, sorted(test_case.expected_ui_kit_rules))
+    )
+    non_ui_kit_rules: tuple[RuleSpec, ...] = tuple(
+        map(
+            rules_by_code.__getitem__,
+            sorted(rules_by_code.keys() - test_case.expected_ui_kit_rules),
+        )
+    )
+    migration_by_code: dict[str, tuple[str, str, bool, str]] = dict(
+        zip(map(itemgetter(0), WEB_RULE_MIGRATION), WEB_RULE_MIGRATION, strict=True)
+    )
+    fwp_reason: str = migration_by_code["FWP001"][3]
+
+    assert tuple(
+        map(
+            methodcaller("__contains__", "ui_kit"),
+            map(attrgetter("configuration_inputs"), ui_kit_rules),
+        )
+    ) == (True,) * len(ui_kit_rules)
+    assert tuple(
+        map(
+            methodcaller("__contains__", "ui_kit"),
+            map(attrgetter("configuration_inputs"), non_ui_kit_rules),
+        )
+    ) == (False,) * len(non_ui_kit_rules)
+    assert tuple(
+        map(
+            methodcaller("__contains__", "generated"),
+            map(attrgetter("configuration_inputs"), WEB_RULES),
+        )
+    ) == (True,) * len(WEB_RULES)
+    assert test_case.expected_fwp_reason_fragment in fwp_reason
 
 
 @pytest.mark.parametrize(

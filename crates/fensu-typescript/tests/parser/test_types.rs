@@ -90,3 +90,31 @@ pub(crate) struct TopLevelBindingTestCase {
     pub(crate) source: &'static str,
     pub(crate) expected_bindings: &'static [(&'static str, Option<&'static str>)],
 }
+
+pub(crate) struct PolicyFactsTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) source: &'static str,
+    pub(crate) expected_public_exports: usize,
+    pub(crate) expected_runtime_declarations: usize,
+    pub(crate) expected_top_level_functions: usize,
+    pub(crate) expected_re_exports: usize,
+    pub(crate) expected_top_level_calls: usize,
+    pub(crate) expected_call_name: &'static str,
+    pub(crate) expected_error_class: bool,
+}
+
+pub(crate) struct ParameterizedTestFactTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) source: &'static str,
+    pub(crate) expected_count: usize,
+    pub(crate) expected_callback_name: &'static str,
+    pub(crate) expected_valid_contract: bool,
+}
+
+pub(crate) struct ContractFactsTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) source: &'static str,
+    pub(crate) expected_json_states: &'static [(bool, bool)],
+    pub(crate) expected_test_names: &'static [&'static str],
+    pub(crate) expected_public_any: usize,
+}

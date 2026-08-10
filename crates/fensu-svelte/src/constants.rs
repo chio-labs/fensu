@@ -1,7 +1,8 @@
 //! Stable Svelte parser identities and syntax names.
 
-pub const CACHE_CONTRACT_VERSION: &str = "svelte-backend-v2";
-pub const PARSER_CONTRACT_VERSION: &str = "svelte-backend-v2";
+pub const CACHE_CONTRACT_VERSION: &str = "svelte-backend-v6";
+pub const PARSER_CONTRACT_VERSION: &str = "svelte-backend-v6";
+pub(crate) const COMMENT_KIND: &str = "comment";
 pub const RECOVERY_NODE_KINDS: [&str; 8] = [
     "attribute_expected_equals_tail",
     "attribute_sequence_recovery_tail",

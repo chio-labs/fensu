@@ -20,7 +20,7 @@ fn given_analyzer_spelling_when_resolving_identity_then_contract_is_typed_and_ca
             expected_analyzer: Some(AnalyzerId::TypeScript),
             expected_backend_error: Some("Known analyzer backend unavailable: typescript."),
             expected_display: Some("typescript"),
-            expected_cache_contract: Some("typescript-backend-v2"),
+            expected_cache_contract: Some("typescript-policy-v3"),
         },
         AnalyzerContractTestCase {
             description: "Svelte is known but unavailable",
@@ -28,7 +28,7 @@ fn given_analyzer_spelling_when_resolving_identity_then_contract_is_typed_and_ca
             expected_analyzer: Some(AnalyzerId::Svelte),
             expected_backend_error: Some("Known analyzer backend unavailable: svelte."),
             expected_display: Some("svelte"),
-            expected_cache_contract: Some("svelte-backend-v2"),
+            expected_cache_contract: Some("svelte-policy-v3"),
         },
         AnalyzerContractTestCase {
             description: "case variants remain unknown",

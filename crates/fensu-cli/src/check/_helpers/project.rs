@@ -14,7 +14,9 @@ use walkdir::WalkDir;
 use crate::analyzer::AnalyzerId;
 use crate::check::_helpers::policy::{bool_text, hex_digest, program, python_version, relative};
 use crate::constants::{SCOPE_TEST, STEM_INIT, VALUE_TRUE};
-use crate::models::{Config, ImportGraphFact, ParsedProgram, ProjectInput, ScopedSource};
+use crate::models::{
+    Config, ImportGraphFact, ParsedProgram, ProjectInput, ScopedSource, WebParseFailure,
+};
 
 const ENTRYPOINT_SECTIONS: [&str; 3] = ["scripts", "gui-scripts", "entry-points"];
 

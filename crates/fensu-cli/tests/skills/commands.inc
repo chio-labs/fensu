@@ -13,19 +13,21 @@ use crate::test_types::{
 };
 
 #[test]
-fn given_known_unavailable_analyzer_when_generating_skills_then_backend_error_precedes_layout() {
+fn given_web_analyzer_when_generating_skills_then_native_catalogue_is_rendered() {
     let test_cases = [ConfigTargetSkillsTestCase {
-        description: "TypeScript skills fail at the backend boundary",
+        description: "TypeScript skills render retained rules without opening the check gate",
         arguments: &["--target", "agents", "--config-target", "web"],
-        expected_exit_code: 2,
-        expected_stdout: "",
-        expected_stderr: "Known analyzer backend unavailable: typescript",
+        expected_exit_code: 0,
+        expected_stdout: "SKILL.md",
+        expected_stderr: "",
     }];
     let repository = tempfile::tempdir().expect("temporary repository");
     write(
         repository.path().join("fensu.toml"),
-        "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"missing\"]\n",
+        "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FWA001\"]\n[targets.web.skills]\nname = \"web\"\n",
     );
+    write(repository.path().join(".git/keep"), b"");
+    write(repository.path().join("src/value.ts"), b"export const value = 1;\n");
 
     for test_case in &test_cases {
         let output = native(repository.path(), test_case.arguments);
@@ -35,9 +37,8 @@ fn given_known_unavailable_analyzer_when_generating_skills_then_backend_error_pr
             "{}",
             test_case.description
         );
-        assert_eq!(
-            String::from_utf8_lossy(&output.stdout),
-            test_case.expected_stdout,
+        assert!(
+            String::from_utf8_lossy(&output.stdout).contains(test_case.expected_stdout),
             "{}",
             test_case.description
         );
@@ -46,6 +47,15 @@ fn given_known_unavailable_analyzer_when_generating_skills_then_backend_error_pr
             "{}",
             test_case.description
         );
+        let guidance = fs::read_to_string(target(repository.path(), ".agents", "fensu-web"))
+            .expect("web target guidance");
+        assert!(guidance.contains("Blocking rule codes: [\"FWA001\"]"));
+        assert!(guidance.contains("Analyzers: `typescript`, `svelte`"));
+        assert!(guidance.contains("FW diagnostics and native TypeScript/Svelte architecture policy"));
+        assert!(!guidance.contains("FF diagnostics"));
+        assert!(!guidance.contains("Python"));
+        assert!(!guidance.contains("fensu map"));
+        assert!(!guidance.contains("RuleContext"));
     }
 }
 

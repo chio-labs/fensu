@@ -21,6 +21,7 @@ use crate::check::_helpers::rule_policy::{
     validate_unique_implementations,
 };
 use crate::check::models::{CheckResult, EvaluationRequest};
+use crate::check::web_policy::{self, WebPolicyRequest};
 use crate::constants::SCOPE_TEST;
 use crate::models::{Config, Fault, ScopedSource, ThresholdUse};
 use crate::reporting::main::report::report;
@@ -36,7 +37,13 @@ pub(crate) fn evaluate(request: EvaluationRequest<'_>) -> Result<CheckResult, St
     } = request;
     validate_config_tiers(config)?;
     if config.analyzer != crate::analyzer::AnalyzerId::Python {
-        return evaluate_parser_target(config, sources, excluded, show_warnings);
+        return evaluate_parser_target(EvaluationRequest {
+            project_root,
+            config,
+            sources,
+            excluded,
+            show_warnings,
+        });
     }
     let blocking = selected_rules(config, &config.select, &config.ignore)?;
     let warning_rules = if show_warnings {
@@ -168,12 +175,14 @@ pub(crate) fn evaluate(request: EvaluationRequest<'_>) -> Result<CheckResult, St
     })
 }
 
-fn evaluate_parser_target(
-    config: &Config,
-    sources: &[ScopedSource],
-    excluded: usize,
-    show_warnings: bool,
-) -> Result<CheckResult, String> {
+fn evaluate_parser_target(request: EvaluationRequest<'_>) -> Result<CheckResult, String> {
+    let EvaluationRequest {
+        project_root,
+        config,
+        sources,
+        excluded,
+        show_warnings,
+    } = request;
     if !config.rule_paths.is_empty()
         || !config.rule_modules.is_empty()
         || !config.rule_options.is_empty()
@@ -184,35 +193,88 @@ fn evaluate_parser_target(
         ));
     }
     let blocking = selected_rules(config, &config.select, &config.ignore)?;
-    let warnings = if show_warnings {
+    let warning_rules = if show_warnings {
         selected_rules(config, &config.warn, &config.ignore)?
     } else {
         Vec::new()
     };
-    if !blocking.is_empty() || !warnings.is_empty() {
-        return Err(format!(
-            "Native {} policy evaluation is not available; only the internal parser gate is active.",
-            config.analyzer
-        ));
-    }
-    if config
-        .exceptions
+    let mut all_rules = blocking.clone();
+    all_rules.extend(warning_rules.iter().copied());
+    validate_unique_implementations(&all_rules)?;
+    let selected_codes = all_rules
         .iter()
-        .any(|entry| !entry.symbols.is_empty())
-    {
-        return Err(format!(
-            "Symbol-scoped rule exceptions are unsupported for analyzer {}; owner resolution is unavailable.",
-            config.analyzer
-        ));
+        .map(|rule| rule.code.as_str())
+        .collect::<HashSet<_>>();
+    let warning_codes = warning_rules
+        .iter()
+        .map(|rule| rule.code.as_str())
+        .collect::<HashSet<_>>();
+    let code_values = all_rules
+        .iter()
+        .map(|rule| rule.code.clone())
+        .collect::<Vec<_>>();
+    let mut threshold_values: HashMap<(String, String), u32> = HashMap::new();
+    let mut uses: Vec<ThresholdUse> = Vec::new();
+    for source in sources {
+        let (values, source_uses) = resolved_thresholds(source, config, &code_values)?;
+        for (name, value) in values {
+            threshold_values.insert((source.target_path.clone(), name), value);
+        }
+        uses.extend(source_uses);
     }
+    let rows = web_policy::evaluate(WebPolicyRequest {
+        config,
+        sources,
+        selected_codes: &selected_codes,
+        thresholds: &threshold_values,
+    });
+    let mut faults: Vec<Fault> = Vec::with_capacity(rows.len());
+    for row in rows {
+        let metadata = rule_metadata(row.code)?
+            .ok_or_else(|| format!("Unknown native web rule code: {}", row.code))?;
+        faults.push(Fault {
+            warning: warning_codes.contains(row.code),
+            code: row.code.to_owned(),
+            alias_of: None,
+            path: project_root.join(row.path).to_string_lossy().into_owned(),
+            line: row.line,
+            column: row.column,
+            message: row.message,
+            remediation: metadata.remediation.clone(),
+        });
+    }
+    let evaluated_codes = selected_codes;
+    let (faults, applied) = apply_exceptions(ApplyExceptionsRequest {
+        faults,
+        sources,
+        project_root,
+        evaluated_codes: &evaluated_codes,
+        config,
+    })?;
+    let faults = apply_rule_ignores(faults, project_root, config);
+    let blocking_faults: Vec<Fault> = faults
+        .iter()
+        .filter(|fault| !fault.warning)
+        .cloned()
+        .collect();
+    let warnings: Vec<Fault> = faults
+        .iter()
+        .filter(|fault| fault.warning)
+        .cloned()
+        .collect();
+    uses.sort();
+    uses.dedup();
     Ok(CheckResult {
         analyzer: config.analyzer,
-        faults: Vec::new(),
-        warnings: Vec::new(),
-        selected: sources.iter().filter(|source| source.direct).count(),
+        faults: blocking_faults,
+        warnings,
+        selected: sources
+            .iter()
+            .filter(|source| source.purpose.is_direct())
+            .count(),
         excluded,
-        applied_exceptions: 0,
-        threshold_uses: Vec::new(),
+        applied_exceptions: applied,
+        threshold_uses: uses,
     })
 }
 

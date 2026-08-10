@@ -185,6 +185,71 @@ fn given_runtime_classes_when_collecting_then_keeps_expected_top_level_export_in
 }
 
 #[test]
+fn given_policy_owned_top_level_declarations_when_collecting_then_retains_only_compact_facts() {
+    let test_cases = [test_types::PolicyFactsTestCase {
+        description: "policy facts retain declarations, exports, calls, and error ancestry",
+        source: concat!(
+            "export function run(): void {}\n",
+            "export const value: number = 1;\n",
+            "export class DomainError extends Error {}\n",
+            "export enum State { Ready }\n",
+            "export { external } from './external';\n",
+            "export * from './all';\n",
+            "initialize();\n",
+        ),
+        expected_public_exports: 6,
+        expected_runtime_declarations: 4,
+        expected_top_level_functions: 1,
+        expected_re_exports: 2,
+        expected_top_level_calls: 1,
+        expected_call_name: "initialize",
+        expected_error_class: true,
+    }];
+    for test_case in test_cases {
+        let facts = parse_typescript(test_case.source.as_bytes()).expect("must parse");
+
+        assert_eq!(
+            facts.public_export_count, test_case.expected_public_exports,
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            facts.runtime_declaration_count, test_case.expected_runtime_declarations,
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            facts.top_level_function_count, test_case.expected_top_level_functions,
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            facts.re_exports.len(),
+            test_case.expected_re_exports,
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            facts.top_level_calls.len(),
+            test_case.expected_top_level_calls,
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            facts.top_level_calls[0].initializer_call.as_deref(),
+            Some(test_case.expected_call_name),
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            facts.classes[0].error_class, test_case.expected_error_class,
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
 fn given_import_matrix_when_collecting_then_counts_expected_bindings_and_kinds() {
     let test_cases = [test_types::ImportMatrixTestCase {
         description:
@@ -327,6 +392,145 @@ fn given_nested_functions_when_collecting_then_metrics_exclude_nested_bodies() {
 
         assert_eq!(
             functions, test_case.expected_functions,
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_parameterized_tests_when_collecting_then_facts_follow_syntax_nodes() {
+    let test_cases = [
+        test_types::ParameterizedTestFactTestCase {
+            description: "syntax nodes distinguish a real typed table from marker text and delimiters",
+            source: concat!(
+                "interface Case { readonly description: string; readonly expectedValue: string; }\n",
+                "const text = \"test.each<Case>([])('fake', () => {})\";\n",
+                "test.each<Case>([{ description: 'comma, bracket ]', expectedValue: 'x' }])",
+                "('$description', (testCase) => expect(testCase.expectedValue).toBe('x'));\n",
+            ),
+            expected_count: 1,
+            expected_callback_name: "testCase",
+            expected_valid_contract: true,
+        },
+        test_types::ParameterizedTestFactTestCase {
+            description: "nested function behavior does not contribute callback metrics",
+            source: concat!(
+                "interface Case { readonly description: string; readonly expectedValue: string; }\n",
+                "test.each<Case>([{ description: 'case', expectedValue: 'x' }])",
+                "('$description', (testCase) => {\n",
+                "  expect(testCase.expectedValue).toBe('x');\n",
+                "  const nested = (): void => { if (testCase.expectedValue) { testCase.expectedValue = 'y'; } };\n",
+                "  void nested;\n",
+                "});\n",
+            ),
+            expected_count: 1,
+            expected_callback_name: "testCase",
+            expected_valid_contract: true,
+        },
+    ];
+    for test_case in &test_cases {
+        let facts =
+            parse_typescript(test_case.source.as_bytes()).expect("parameterized test source");
+        assert_eq!(
+            facts.parameterized_tests.len(),
+            test_case.expected_count,
+            "{}",
+            test_case.description
+        );
+        let test = &facts.parameterized_tests[0];
+        for actual in [
+            test.typed,
+            test.local_case_type,
+            test.local_readonly_case_type,
+            test.has_description,
+            test.has_expected,
+            test.inline_cases,
+            test.nonempty_cases,
+            test.object_cases,
+            test.title_uses_description,
+            test.has_expectation,
+            test.uses_expected,
+        ] {
+            assert_eq!(
+                actual, test_case.expected_valid_contract,
+                "{}",
+                test_case.description
+            );
+        }
+        assert_eq!(
+            test.callback_name.as_deref(),
+            Some(test_case.expected_callback_name),
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            test.has_branch, !test_case.expected_valid_contract,
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            test.mutates_case, !test_case.expected_valid_contract,
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_contract_syntax_when_collecting_then_json_and_public_any_facts_are_owned() {
+    let test_cases = [test_types::ContractFactsTestCase {
+        description: "JSON result flows and whitespace test calls remain independent syntax facts",
+        source: concat!(
+            "interface Props { value:\n any; }\n",
+            "export async function run(firstResponse: Response, secondResponse: Response): Promise<Data> {\n",
+            "  const first = await firstResponse.json (\n );\n",
+            "  const firstAlias = first;\n",
+            "  FirstSchema.safeParse(firstAlias);\n",
+            "  const second = await secondResponse.json\n( );\n",
+            "  Date.parse(second);\n",
+            "  const asserted = second as Data;\n",
+            "  return asserted;\n",
+            "}\n",
+            "declare const deferredResponse: Response;\n",
+            "const deferred = (): Promise<unknown> => deferredResponse.json();\n",
+            "DeferredSchema.parse(deferred);\n",
+            "const text = \"test('bad name', () => {})\";\n",
+            "// it('also bad', () => {});\n",
+            "test\n( 'given input when read then returns output', () => {});\n",
+            "it \n ( 'bad name', () => {});\n",
+        ),
+        expected_json_states: &[(false, true), (true, false), (false, false)],
+        expected_test_names: &["given input when read then returns output", "bad name"],
+        expected_public_any: 1,
+    }];
+    for test_case in &test_cases {
+        let facts = parse_typescript(test_case.source.as_bytes()).expect("contract source");
+
+        let json_states = facts
+            .json_calls
+            .iter()
+            .map(|call| (call.asserted, call.schema_decoded))
+            .collect::<Vec<_>>();
+        let test_names = facts
+            .test_calls
+            .iter()
+            .map(|call| call.name.as_str())
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            json_states, test_case.expected_json_states,
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            test_names, test_case.expected_test_names,
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            facts.public_any.len(),
+            test_case.expected_public_any,
             "{}",
             test_case.description
         );

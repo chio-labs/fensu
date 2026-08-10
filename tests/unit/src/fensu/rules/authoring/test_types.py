@@ -12,7 +12,7 @@ from tests.unit.src.fensu.rules.authoring._test_types import EnumMembersTestCase
     "test_case",
     [
         EnumMembersTestCase(
-            description="Family has all eight taxonomy members",
+            description="Family has all ten taxonomy members",
             actual_members={member.name: member.value for member in Family},
             expected_members={
                 "LAYERS": "layers",
@@ -22,6 +22,8 @@ from tests.unit.src.fensu.rules.authoring._test_types import EnumMembersTestCase
                 "HYGIENE": "hygiene",
                 "TESTS": "tests",
                 "ANNOTATIONS": "annotations",
+                "CONTRACTS": "contracts",
+                "PARSING": "parsing",
                 "CUSTOM": "custom",
             },
         ),
@@ -36,7 +38,7 @@ from tests.unit.src.fensu.rules.authoring._test_types import EnumMembersTestCase
             expected_members={"CORE": "core", "PACK": "pack", "CUSTOM": "custom"},
         ),
         EnumMembersTestCase(
-            description="Threshold has all thirteen named limits",
+            description="Threshold has all fifteen named limits",
             actual_members={member.name: member.value for member in Threshold},
             expected_members={
                 "MAX_STATEMENTS": "max_statements",
@@ -52,6 +54,8 @@ from tests.unit.src.fensu.rules.authoring._test_types import EnumMembersTestCase
                 "MAX_SCRIPT_ENTRYPOINT_LINES": "max_script_entrypoint_lines",
                 "MIN_SHARED_DOMAIN_PREFIX_PACKAGES": "min_shared_domain_prefix_packages",
                 "MIN_CUSTOM_RULE_TEST_CASES": "min_custom_rule_test_cases",
+                "MAX_IMPORTED_BINDINGS": "max_imported_bindings",
+                "MAX_PUBLIC_EXPORTS": "max_public_exports",
             },
         ),
     ],

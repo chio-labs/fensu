@@ -573,7 +573,7 @@ def _validate_rule_identities(*, rules: tuple[RuleSpec, ...]) -> None:
             raise ConfigError(f"Catalogue rule {rule.code} must use one valid Family member.")
         expected_kind: RuleKind = (
             RuleKind.CORE
-            if rule.code.startswith("FF")
+            if rule.code.startswith(("FF", "FW"))
             else RuleKind.PACK
             if rule.code.startswith("FP")
             else RuleKind.CUSTOM

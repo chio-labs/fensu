@@ -11,7 +11,6 @@ use crate::skills::main::catalogue::load_rule_selection;
 pub(crate) fn rule_output(arguments: &[String]) -> Result<String, String> {
     let (color, code, target) = parse_arguments(arguments)?;
     let (config_path, loaded) = load_target::load_target(Path::new("."), target.as_deref())?;
-    loaded.analyzer.require_backend()?;
     let project_root = config_path
         .parent()
         .ok_or_else(|| "Configuration has no parent directory.".to_owned())?;

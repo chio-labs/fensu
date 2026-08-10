@@ -4,6 +4,7 @@ use std::sync::OnceLock;
 
 use serde_json::{json, Value};
 
+use crate::analyzer::AnalyzerId;
 use crate::models::ThresholdOverride;
 use crate::skills::_helpers::content::rule_rendering::tier_lines;
 use crate::skills::_helpers::content::sections::{
@@ -40,13 +41,19 @@ pub(crate) fn generate(context: &SkillContext) -> Result<String, String> {
         .identity
         .strip_prefix("fensu-")
         .unwrap_or(&context.identity);
+    let python = context.config.analyzer == AnalyzerId::Python;
+    let capability = if python {
+        "FF diagnostics, repository architecture, and multi-module Python call-flow work"
+    } else {
+        "FW diagnostics and native TypeScript/Svelte architecture policy"
+    };
     let mut lines = vec![
         "---".to_owned(),
         format!("name: {}", py_json(&json!(context.identity))?),
         format!(
             "description: {}",
             py_json(&json!(format!(
-                "Use when modifying the {project_name} project governed by {governed}. Includes Fensu configuration, commands, FF diagnostics, repository architecture, and multi-module Python call-flow work."
+                "Use when modifying the {project_name} project governed by {governed}. Includes Fensu configuration, commands, and {capability}."
             )))?
         ),
         "---".to_owned(),
@@ -62,13 +69,22 @@ pub(crate) fn generate(context: &SkillContext) -> Result<String, String> {
         String::new(),
         "- Run `fensu check` after architecture-relevant changes.".to_owned(),
         "- Run `fensu rule <CODE>` to inspect a diagnostic and its remediation.".to_owned(),
-        "- Run `fensu map <SYMBOL>` for proven callees, or add `--direction upstream` for proven callers.".to_owned(),
-        "- Run `fensu skills` after changing rule selection or custom rules.".to_owned(),
+        if python {
+            "- Run `fensu skills` after changing rule selection or custom rules.".to_owned()
+        } else {
+            "- Run `fensu skills` after changing rule selection.".to_owned()
+        },
         String::new(),
     ];
-    lines.extend(profile_lines("navigation")?);
-    lines.extend(profile_lines("work_practices")?);
-    lines.extend(repository_lines(context)?);
+    if python {
+        lines.insert(
+            lines.len() - 2,
+            "- Run `fensu map <SYMBOL>` for proven callees, or add `--direction upstream` for proven callers.".to_owned(),
+        );
+        lines.extend(profile_lines("navigation")?);
+        lines.extend(profile_lines("work_practices")?);
+        lines.extend(repository_lines(context)?);
+    }
     lines.extend(configured_threshold_lines(context)?);
     lines.extend(effective_config_lines(context)?);
     if !context.warnings.is_empty() {
@@ -77,11 +93,13 @@ pub(crate) fn generate(context: &SkillContext) -> Result<String, String> {
             "`fensu check` evaluates blocking rules only. `fensu check --warn` additionally evaluates the configured warning tier; warning-only findings do not fail the command. Treat warnings as evidence to investigate, not proof that code is safe to remove or architecture should change.", "",
         ].into_iter().map(str::to_owned));
     }
-    lines.extend(profile_lines("custom_authority")?);
-    lines.extend(rule_context_lines()?);
-    lines.extend(profile_lines("authoring_lookup")?);
-    lines.extend(custom_rule_testing_lines(context));
-    lines.extend(cacheability_lines(context));
+    if python {
+        lines.extend(profile_lines("custom_authority")?);
+        lines.extend(rule_context_lines()?);
+        lines.extend(profile_lines("authoring_lookup")?);
+        lines.extend(custom_rule_testing_lines(context));
+        lines.extend(cacheability_lines(context));
+    }
     lines.extend(tier_lines(
         "Blocking Rules",
         &context.blocking,

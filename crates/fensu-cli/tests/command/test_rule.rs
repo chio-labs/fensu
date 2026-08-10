@@ -10,13 +10,13 @@ const CONFIG: &str =
     "roots = [\"src\"]\ntests = [\"tests\"]\ntooling = [\"scripts\"]\nselect = [\"FFA\"]\n";
 
 #[test]
-fn given_known_unavailable_analyzer_when_inspecting_rule_then_backend_error_precedes_catalogue() {
+fn given_web_analyzer_when_inspecting_rule_then_native_catalogue_is_available() {
     let test_cases = [ConfigCommandTargetTestCase {
-        description: "TypeScript rule lookup fails at the backend boundary",
-        arguments: &["rule", "FFA001", "--target", "web"],
-        expected_exit_code: 2,
-        expected_stdout: "",
-        expected_stderr: "Known analyzer backend unavailable: typescript",
+        description: "TypeScript rule lookup renders retained native metadata",
+        arguments: &["rule", "FWA001", "--target", "web", "--color", "never"],
+        expected_exit_code: 0,
+        expected_stdout: "Analyzers: svelte, typescript",
+        expected_stderr: "",
     }];
     let repository = tempfile::tempdir().expect("temporary repository");
     write(
@@ -37,9 +37,8 @@ fn given_known_unavailable_analyzer_when_inspecting_rule_then_backend_error_prec
             "{}",
             test_case.description
         );
-        assert_eq!(
-            String::from_utf8_lossy(&output.stdout),
-            test_case.expected_stdout,
+        assert!(
+            String::from_utf8_lossy(&output.stdout).contains(test_case.expected_stdout),
             "{}",
             test_case.description
         );

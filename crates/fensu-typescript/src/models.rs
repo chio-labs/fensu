@@ -35,13 +35,21 @@ pub struct ImportFact {
     pub binding_count: usize,
     pub type_only: bool,
     pub namespace: bool,
+    pub bindings: Vec<ImportBindingFact>,
     pub span: SourceSpan,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ImportBindingFact {
+    pub local_name: String,
+    pub imported_name: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ClassFact {
     pub name: String,
     pub exported: bool,
+    pub error_class: bool,
     pub span: SourceSpan,
 }
 
@@ -57,12 +65,34 @@ pub struct ModelFact {
     pub kind: ModelKind,
     pub exported: bool,
     pub readonly_shape: bool,
+    pub property_names: Vec<String>,
     pub span: SourceSpan,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ParameterizedTestFact {
+    pub span: SourceSpan,
+    pub typed: bool,
+    pub local_case_type: bool,
+    pub case_type_name: Option<String>,
+    pub local_readonly_case_type: bool,
+    pub has_description: bool,
+    pub has_expected: bool,
+    pub inline_cases: bool,
+    pub nonempty_cases: bool,
+    pub object_cases: bool,
+    pub title_uses_description: bool,
+    pub callback_name: Option<String>,
+    pub has_expectation: bool,
+    pub uses_expected: bool,
+    pub has_branch: bool,
+    pub mutates_case: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FunctionFact {
     pub name: String,
+    pub qualified_name: String,
     pub exported: bool,
     pub parameter_count: usize,
     pub parameters_annotated: bool,
@@ -70,6 +100,19 @@ pub struct FunctionFact {
     pub statement_count: usize,
     pub distinct_call_count: usize,
     pub local_count: usize,
+    pub span: SourceSpan,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct JsonCallFact {
+    pub asserted: bool,
+    pub schema_decoded: bool,
+    pub span: SourceSpan,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TestCallFact {
+    pub name: String,
     pub span: SourceSpan,
 }
 
@@ -111,4 +154,13 @@ pub struct ModuleFacts {
     pub functions: Vec<FunctionFact>,
     pub local_bindings: Vec<LocalBindingFact>,
     pub top_level_bindings: Vec<TopLevelBindingFact>,
+    pub top_level_calls: Vec<TopLevelBindingFact>,
+    pub re_exports: Vec<SourceSpan>,
+    pub public_export_count: usize,
+    pub runtime_declaration_count: usize,
+    pub top_level_function_count: usize,
+    pub parameterized_tests: Vec<ParameterizedTestFact>,
+    pub test_calls: Vec<TestCallFact>,
+    pub json_calls: Vec<JsonCallFact>,
+    pub public_any: Vec<SourceSpan>,
 }

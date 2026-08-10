@@ -4,12 +4,12 @@ use fensu_typescript::{ModuleFacts, SourceSpan};
 use tree_sitter::{Node, Parser};
 
 use crate::constants::{
-    ATTRIBUTE_KIND, ATTRIBUTE_NAME_FIELD, ATTRIBUTE_VALUE_FIELD, CONTEXT_ATTRIBUTE, ELEMENT_KIND,
-    END_TAG_KIND, EXPRESSION_KIND, EXPRESSION_VALUE_KIND, KNOWN_RUNES, LANGUAGE_ATTRIBUTE,
-    MODULE_ATTRIBUTE, MODULE_CONTEXT_VALUE, NAME_FIELD, PARSER_NO_TREE_MESSAGE, PATTERN_KIND,
-    RAW_TEXT_KIND, RECOVERY_NODE_KINDS, SCRIPT_TAG, SNIPPET_BLOCK_KIND, SNIPPET_PARAMETERS_KIND,
-    SNIPPET_TYPE_PARAMETERS_KIND, START_TAG_KIND, STYLE_TAG, TAG_NAME_KIND,
-    TYPESCRIPT_LANGUAGE_VALUE,
+    ATTRIBUTE_KIND, ATTRIBUTE_NAME_FIELD, ATTRIBUTE_VALUE_FIELD, COMMENT_KIND, CONTEXT_ATTRIBUTE,
+    ELEMENT_KIND, END_TAG_KIND, EXPRESSION_KIND, EXPRESSION_VALUE_KIND, KNOWN_RUNES,
+    LANGUAGE_ATTRIBUTE, MODULE_ATTRIBUTE, MODULE_CONTEXT_VALUE, NAME_FIELD, PARSER_NO_TREE_MESSAGE,
+    PATTERN_KIND, RAW_TEXT_KIND, RECOVERY_NODE_KINDS, SCRIPT_TAG, SNIPPET_BLOCK_KIND,
+    SNIPPET_PARAMETERS_KIND, SNIPPET_TYPE_PARAMETERS_KIND, START_TAG_KIND, STYLE_TAG,
+    TAG_NAME_KIND, TYPESCRIPT_LANGUAGE_VALUE,
 };
 use crate::models::{ParseDiagnostic, RuneFact, ScriptContext, ScriptFact, SvelteFacts};
 
@@ -30,11 +30,15 @@ pub fn parse(source: &[u8]) -> Result<SvelteFacts, ParseDiagnostic> {
             span: node_span(source, node),
         });
     }
+    let has_component_markup = component_markup(text, tree.root_node());
     let scripts: Vec<ScriptNode> = script_nodes(source, text, tree.root_node())?;
     validate_script_contexts(source, &scripts)?;
     let component_source_kind = component_source_kind(&scripts);
     validate_template_syntax(source, tree.root_node(), component_source_kind)?;
-    let mut facts = SvelteFacts::default();
+    let mut facts = SvelteFacts {
+        has_component_markup,
+        ..SvelteFacts::default()
+    };
     for script in scripts {
         let content = &source[script.content_start..script.content_end];
         let parsed =
@@ -53,6 +57,26 @@ pub fn parse(source: &[u8]) -> Result<SvelteFacts, ParseDiagnostic> {
         });
     }
     Ok(facts)
+}
+
+fn component_markup(source: &str, root: Node<'_>) -> bool {
+    let mut cursor = root.walk();
+    let found = root.children(&mut cursor).any(|node| {
+        if node.kind() == COMMENT_KIND {
+            return false;
+        }
+        if node.kind() == ELEMENT_KIND
+            && element_tag(source, node).is_some_and(|(_, name)| {
+                name.eq_ignore_ascii_case(SCRIPT_TAG) || name.eq_ignore_ascii_case(STYLE_TAG)
+            })
+        {
+            return false;
+        }
+        source
+            .get(node.start_byte()..node.end_byte())
+            .is_some_and(|value| !value.trim().is_empty())
+    });
+    found
 }
 
 #[derive(Clone, Copy)]
@@ -343,6 +367,28 @@ fn shift_module_facts(source: &[u8], mut facts: ModuleFacts, offset: usize) -> M
             .initializer_call_span
             .take()
             .map(|span| shifted_span(source, span, offset));
+    }
+    for call in &mut facts.top_level_calls {
+        call.span = shifted_span(source, call.span.clone(), offset);
+        call.initializer_call_span = call
+            .initializer_call_span
+            .take()
+            .map(|span| shifted_span(source, span, offset));
+    }
+    for span in &mut facts.re_exports {
+        *span = shifted_span(source, span.clone(), offset);
+    }
+    for test in &mut facts.parameterized_tests {
+        test.span = shifted_span(source, test.span.clone(), offset);
+    }
+    for test in &mut facts.test_calls {
+        test.span = shifted_span(source, test.span.clone(), offset);
+    }
+    for call in &mut facts.json_calls {
+        call.span = shifted_span(source, call.span.clone(), offset);
+    }
+    for span in &mut facts.public_any {
+        *span = shifted_span(source, span.clone(), offset);
     }
     facts
 }

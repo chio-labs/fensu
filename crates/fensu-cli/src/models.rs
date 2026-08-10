@@ -51,6 +51,7 @@ pub(crate) struct Config {
     pub(crate) tests: Vec<String>,
     pub(crate) test_scopes: Vec<String>,
     pub(crate) tooling: Vec<String>,
+    pub(crate) generated: Vec<String>,
     pub(crate) select: Vec<String>,
     pub(crate) warn: Vec<String>,
     pub(crate) ignore: Vec<String>,
@@ -66,6 +67,7 @@ pub(crate) struct Config {
     pub(crate) role_thresholds: HashMap<String, HashMap<String, u32>>,
     pub(crate) threshold_overrides: Vec<ThresholdOverride>,
     pub(crate) contracts: Vec<(String, String)>,
+    pub(crate) ui_kit: Option<String>,
     pub(crate) exceptions: Vec<RuleException>,
     pub(crate) rule_ignores: Vec<RuleIgnore>,
     pub(crate) skills_name: Option<String>,
@@ -117,37 +119,67 @@ pub(crate) struct ScopedSource {
     pub(crate) relative_parts: Vec<String>,
     pub(crate) content: Vec<u8>,
     pub(crate) fingerprint: String,
-    pub(crate) direct: bool,
+    pub(crate) purpose: SourcePurpose,
     pub(crate) imports: Vec<ImportGraphFact>,
     pub(crate) program: Option<ParsedProgram>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum SourcePurpose {
+    Direct,
+    Support,
+    Excluded,
+    Generated,
+}
+
+impl SourcePurpose {
+    pub(crate) const fn is_direct(self) -> bool {
+        matches!(self, Self::Direct)
+    }
+
+    pub(crate) const fn reports_parse_failure(self) -> bool {
+        matches!(self, Self::Direct | Self::Support)
+    }
+
+    pub(crate) const fn is_generated(self) -> bool {
+        matches!(self, Self::Generated)
+    }
 }
 
 #[derive(Clone, Debug)]
 pub(crate) enum ParsedProgram {
     Python(ProgramHandle),
-    TypeScript(fensu_typescript::ModuleFacts),
+    TypeScript(Box<fensu_typescript::ModuleFacts>),
     Svelte(fensu_svelte::SvelteFacts),
+    Malformed(WebParseFailure),
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct WebParseFailure {
+    pub(crate) message: String,
+    pub(crate) line: u32,
+    pub(crate) column: u32,
 }
 
 impl ParsedProgram {
     pub(crate) fn as_python(&self) -> Option<&ProgramHandle> {
         match self {
             Self::Python(program) => Some(program),
-            Self::TypeScript(_) | Self::Svelte(_) => None,
+            Self::TypeScript(_) | Self::Svelte(_) | Self::Malformed(_) => None,
         }
     }
 
     pub(crate) fn as_typescript(&self) -> Option<&fensu_typescript::ModuleFacts> {
         match self {
-            Self::TypeScript(program) => Some(program),
-            Self::Python(_) | Self::Svelte(_) => None,
+            Self::TypeScript(program) => Some(program.as_ref()),
+            Self::Python(_) | Self::Svelte(_) | Self::Malformed(_) => None,
         }
     }
 
     pub(crate) fn as_svelte(&self) -> Option<&fensu_svelte::SvelteFacts> {
         match self {
             Self::Svelte(program) => Some(program),
-            Self::Python(_) | Self::TypeScript(_) => None,
+            Self::Python(_) | Self::TypeScript(_) | Self::Malformed(_) => None,
         }
     }
 }

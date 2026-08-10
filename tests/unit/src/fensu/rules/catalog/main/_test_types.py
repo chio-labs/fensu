@@ -202,3 +202,21 @@ class NativeRulePackCatalogueTestCase:
     expected_active_count: int
     expected_alias_count: int
     expected_native_count: int
+
+
+@dataclass(frozen=True)
+class WebMigrationTestCase:
+    """Expected complete web migration inventory facts."""
+
+    description: str
+    expected_rule_count: int
+    expected_categories: frozenset[str]
+
+
+@dataclass(frozen=True)
+class WebPolicyProvenanceTestCase:
+    """Expected configuration provenance for retained web policy."""
+
+    description: str
+    expected_ui_kit_rules: frozenset[str]
+    expected_fwp_reason_fragment: str

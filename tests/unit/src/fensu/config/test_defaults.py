@@ -17,6 +17,7 @@ from fensu.config.models import (
 )
 from fensu.rules.authoring.types import Threshold
 from tests.unit.src.fensu.config._test_types import (
+    AbsentConfigContractTestCase,
     CacheConfigTestCase,
     ConfigContractTestCase,
     ConfigDefaultsTestCase,
@@ -274,6 +275,12 @@ def test_given_valid_config_when_loading_then_applies_defaults(
             config_text='roots = ["src/pkg"]\ntooling = ["scripts", "tools"]\n',
             expected_field_name="tooling",
             expected_value=("scripts", "tools"),
+        ),
+        ConfigListFieldTestCase(
+            description="generated source patterns are normalized",
+            config_text='roots = ["src/pkg"]\ngenerated = ["src/pkg/generated/**"]\n',
+            expected_field_name="generated",
+            expected_value=("src/pkg/generated/**",),
         ),
         ConfigListFieldTestCase(
             description="select override is normalized",
@@ -647,3 +654,30 @@ def test_given_contract_config_when_loading_then_defaults_and_user_contracts_app
 
     assert config.contracts[test_case.expected_pattern] == test_case.expected_behavior
     assert config.contracts["enforce_*"] == "no-return"
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        AbsentConfigContractTestCase(
+            description="should predicate remains a web-only default",
+            config_text='roots = ["src/pkg"]\n',
+            expected_absent_pattern="should_*",
+        ),
+        AbsentConfigContractTestCase(
+            description="iterate contract remains a web-only default",
+            config_text='roots = ["src/pkg"]\n',
+            expected_absent_pattern="iterate_*",
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_python_defaults_when_loading_then_web_only_contracts_are_absent(
+    tmp_path: Path,
+    test_case: AbsentConfigContractTestCase,
+) -> None:
+    write_fensu_toml(root=tmp_path, contents=test_case.config_text)
+
+    config: Config = load_config(tmp_path)
+
+    assert test_case.expected_absent_pattern not in config.contracts

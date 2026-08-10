@@ -34,6 +34,8 @@ class Family(StrEnum):
     HYGIENE = "hygiene"
     TESTS = "tests"
     ANNOTATIONS = "annotations"
+    CONTRACTS = "contracts"
+    PARSING = "parsing"
     CUSTOM = "custom"
 
 
@@ -96,6 +98,8 @@ class Threshold(StrEnum):
     MAX_SCRIPT_ENTRYPOINT_LINES = "max_script_entrypoint_lines"
     MIN_SHARED_DOMAIN_PREFIX_PACKAGES = "min_shared_domain_prefix_packages"
     MIN_CUSTOM_RULE_TEST_CASES = "min_custom_rule_test_cases"
+    MAX_IMPORTED_BINDINGS = "max_imported_bindings"
+    MAX_PUBLIC_EXPORTS = "max_public_exports"
 
 
 class RuleContext(Protocol):

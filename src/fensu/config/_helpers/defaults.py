@@ -57,6 +57,7 @@ def build_config(
                 if isinstance(key, str) and isinstance(value, str)
             }
         )
+    raw_ui_kit: object = raw.get("ui_kit")
     return Config(
         roots=_string_tuple(value=raw["roots"]),
         tests=_string_tuple(value=raw.get("tests"), default=DEFAULT_TEST_PATHS),
@@ -78,6 +79,8 @@ def build_config(
         role_thresholds=MappingProxyType(role_thresholds),
         threshold_overrides=_threshold_overrides(raw.get("threshold_overrides")),
         contracts=MappingProxyType(contracts),
+        ui_kit=raw_ui_kit if isinstance(raw_ui_kit, str) else None,
+        generated=_string_tuple(value=raw.get("generated")),
     )
 
 

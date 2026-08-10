@@ -68,3 +68,9 @@ pub(crate) struct DuplicateScriptTestCase {
     pub(crate) expected_line: usize,
     pub(crate) expected_column: usize,
 }
+
+pub(crate) struct ComponentMarkupTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) source: &'static str,
+    pub(crate) expected_markup: bool,
+}

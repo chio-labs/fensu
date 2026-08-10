@@ -20,20 +20,27 @@ from fensu.config.constants import (
     DEFAULT_THRESHOLDS,
     DEFAULT_WARN,
     RULE_CONFIGURATION_INPUTS,
+    WEB_DEFAULT_CONTRACTS,
 )
+from fensu.config.types import AnalyzerId
 from fensu.rules.authoring.models import RuleConstraint, RuleLimit, RuleSpec
 
 
 def serialized_native_policy(*, rules: Sequence[RuleSpec]) -> bytes:
     """Return deterministic Rust source for every fixed core constraint."""
 
-    owners: tuple[str, ...] = tuple(rule.code for rule in rules if rule.constraints or rule.limits)
+    native_rules: tuple[RuleSpec, ...] = tuple(
+        rule for rule in rules if AnalyzerId.PYTHON in rule.analyzers
+    )
+    owners: tuple[str, ...] = tuple(
+        rule.code for rule in native_rules if rule.constraints or rule.limits
+    )
     lines: list[str] = [
         "//! Generated fixed core-rule policy. Do not edit by hand.",
         "",
     ]
     lines.extend(_string_lines(name="GENERATED_POLICY_OWNERS", values=owners))
-    for rule in rules:
+    for rule in native_rules:
         for constraint in sorted(rule.constraints, key=lambda item: item.name):
             lines.extend(_constraint_lines(code=rule.code, constraint=constraint))
         for limit in sorted(rule.limits, key=lambda item: item.name):
@@ -62,6 +69,15 @@ def serialized_cli_defaults() -> bytes:
             rust_type="(&str, &str)",
             values=tuple(
                 (pattern, str(behavior)) for pattern, behavior in DEFAULT_CONTRACTS.items()
+            ),
+        )
+    )
+    lines.extend(
+        _pair_lines(
+            name="WEB_DEFAULT_CONTRACTS",
+            rust_type="(&str, &str)",
+            values=tuple(
+                (pattern, str(behavior)) for pattern, behavior in WEB_DEFAULT_CONTRACTS.items()
             ),
         )
     )

@@ -8,6 +8,69 @@ use crate::tests::test_types::WebConfigInheritanceTestCase;
 use crate::tests::test_types::{WebDirectSourceTestCase, WebImportGraphTestCase};
 
 #[test]
+fn given_multiple_source_roots_when_resolving_lib_then_each_importer_uses_its_own_root() {
+    let test_cases = [WebImportGraphTestCase {
+        description: "$lib resolution remains relative to each importing source root",
+        expected_import_count: 1,
+        expected_resolutions: &[
+            ("first root", Some("apps/one/src/lib/value.ts")),
+            ("second root", Some("apps/two/src/lib/value.ts")),
+        ],
+    }];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        let root = repository.path();
+        for source_root in ["apps/one/src", "apps/two/src"] {
+            fs::create_dir_all(root.join(source_root).join("lib")).expect("source root");
+            fs::write(
+                root.join(source_root).join("feature.ts"),
+                "import { value } from '$lib/value'; export const result = value;\n",
+            )
+            .expect("importer");
+            fs::write(
+                root.join(source_root).join("lib/value.ts"),
+                "export const value: number = 1;\n",
+            )
+            .expect("library module");
+        }
+        let sources = [
+            "apps/one/src/feature.ts",
+            "apps/one/src/lib/value.ts",
+            "apps/two/src/feature.ts",
+            "apps/two/src/lib/value.ts",
+        ]
+        .iter()
+        .map(|path| web_source(root, path))
+        .collect();
+
+        let parsed = web::parse_sources(
+            AnalyzerId::TypeScript,
+            root,
+            sources,
+            &[],
+            &["apps/one/src".to_owned(), "apps/two/src".to_owned()],
+        )
+        .expect("multi-root TypeScript parse");
+
+        for (index, (_, expected)) in test_case.expected_resolutions.iter().enumerate() {
+            let importer = &parsed[index * 2];
+            assert_eq!(
+                importer.imports.len(),
+                test_case.expected_import_count,
+                "{}",
+                test_case.description
+            );
+            assert_eq!(
+                importer.imports[0].resolved_path.as_deref(),
+                *expected,
+                "{}",
+                test_case.description
+            );
+        }
+    }
+}
+
+#[test]
 fn given_relative_lib_and_tsconfig_imports_when_parsing_then_graph_resolves_project_support_files()
 {
     let test_cases = [WebImportGraphTestCase {
@@ -99,8 +162,14 @@ fn given_relative_lib_and_tsconfig_imports_when_parsing_then_graph_resolves_proj
             fingerprint: "config-fingerprint".to_owned(),
         }];
 
-        let parsed = web::parse_sources(AnalyzerId::TypeScript, root, sources, &inputs)
-            .expect("native TypeScript parse");
+        let parsed = web::parse_sources(
+            AnalyzerId::TypeScript,
+            root,
+            sources,
+            &inputs,
+            &["src".to_owned()],
+        )
+        .expect("native TypeScript parse");
 
         assert_eq!(
             parsed[0].imports.len(),
@@ -166,8 +235,14 @@ fn given_recursive_jsonc_config_when_resolving_then_child_compiler_options_overr
             web_source(root, "src/new/value.ts"),
         ];
 
-        let parsed = web::parse_sources(AnalyzerId::TypeScript, root, sources, &inputs)
-            .expect("native TypeScript parse");
+        let parsed = web::parse_sources(
+            AnalyzerId::TypeScript,
+            root,
+            sources,
+            &inputs,
+            &["src".to_owned()],
+        )
+        .expect("native TypeScript parse");
 
         assert_eq!(
             inputs.len(),
@@ -246,8 +321,14 @@ fn given_ordered_extends_array_when_resolving_then_later_bases_precede_child_ove
             web_source(root, "src/child.ts"),
         ];
 
-        let parsed = web::parse_sources(AnalyzerId::TypeScript, root, sources, &inputs)
-            .expect("native TypeScript parse");
+        let parsed = web::parse_sources(
+            AnalyzerId::TypeScript,
+            root,
+            sources,
+            &inputs,
+            &["src".to_owned()],
+        )
+        .expect("native TypeScript parse");
 
         assert_eq!(
             inputs.len(),

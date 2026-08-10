@@ -31,4 +31,5 @@ pub struct RuneFact {
 pub struct SvelteFacts {
     pub scripts: Vec<ScriptFact>,
     pub module_runes: Vec<RuneFact>,
+    pub has_component_markup: bool,
 }

@@ -15,6 +15,8 @@ pub(crate) const DEFAULT_THRESHOLDS: &[(&str, u32)] = &[
     ("max_script_entrypoint_lines", 80),
     ("min_shared_domain_prefix_packages", 2),
     ("min_custom_rule_test_cases", 1),
+    ("max_imported_bindings", 20),
+    ("max_public_exports", 20),
 ];
 
 #[rustfmt::skip]
@@ -29,6 +31,12 @@ pub(crate) const DEFAULT_CONTRACTS: &[(&str, &str)] = &[
     ("to_*", "returns-value"),
     ("as_*", "returns-value"),
     ("iter_*", "returns-iterator"),
+];
+
+#[rustfmt::skip]
+pub(crate) const WEB_DEFAULT_CONTRACTS: &[(&str, &str)] = &[
+    ("should_*", "returns-bool"),
+    ("iterate_*", "returns-iterator"),
 ];
 
 #[rustfmt::skip]
@@ -84,8 +92,11 @@ pub(crate) const CONTRACT_BEHAVIORS: &[&str] = &[
 
 #[rustfmt::skip]
 pub(crate) const RULE_CONFIGURATION_INPUTS: &[&str] = &[
+    "contracts",
+    "generated",
     "roots",
     "test_scopes",
     "tests",
     "tooling",
+    "ui_kit",
 ];

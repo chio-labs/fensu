@@ -14,7 +14,7 @@ use crate::tests::test_types::{
 fn given_every_core_rule_when_rendering_then_complete_authored_metadata_is_visible() {
     let test_cases = [CoreRuleRenderingTestCase {
         description: "every native core registration renders the complete stable metadata frame",
-        expected_core_count: 111,
+        expected_core_count: 171,
         expected_labels: &[
             "Authored metadata:",
             "Family:",
@@ -22,7 +22,7 @@ fn given_every_core_rule_when_rendering_then_complete_authored_metadata_is_visib
             "Kind: core",
             "Pack: None",
             "Alias: None",
-            "Analyzers: python",
+            "Analyzers:",
             "Enabled by default:",
             "Execution owner:",
             "Cacheability:",
@@ -81,7 +81,10 @@ fn given_every_core_rule_when_rendering_then_complete_authored_metadata_is_visib
                 test_case.description,
                 metadata.code
             );
-            assert_eq!(metadata.analyzers, [AnalyzerId::Python]);
+            assert!(
+                metadata.analyzers == [AnalyzerId::Python]
+                    || metadata.analyzers == [AnalyzerId::TypeScript, AnalyzerId::Svelte]
+            );
         }
     }
 }
@@ -93,7 +96,16 @@ fn given_python_catalogue_and_other_analyzer_when_selecting_then_applicability_p
         description: "broad catalogue view contains no Python rules for TypeScript",
         analyzer: AnalyzerId::TypeScript,
         select: &[],
-        expected_codes: &[],
+        expected_codes: &[
+            "FWA001", "FWA002", "FWA003", "FWC101", "FWC102", "FWC103", "FWH009", "FWL101",
+            "FWL102", "FWL103", "FWL105", "FWL108", "FWL109", "FWL201", "FWN001", "FWN002",
+            "FWN003", "FWN004", "FWP001", "FWR001", "FWR002", "FWR003", "FWR201", "FWR204",
+            "FWR301", "FWR304", "FWR306", "FWR309", "FWR310", "FWR311", "FWR401", "FWR403",
+            "FWR404", "FWR405", "FWR501", "FWS001", "FWS002", "FWS003", "FWS010", "FWS011",
+            "FWS105", "FWS106", "FWS201", "FWS601", "FWT001", "FWT002", "FWT003", "FWT004",
+            "FWT201", "FWT202", "FWT302", "FWT401", "FWT402", "FWT403", "FWT404", "FWT405",
+            "FWT406", "FWT410", "FWT411", "FWT412",
+        ],
         expected_error: None,
     }];
     let root = tempfile::tempdir().expect("catalogue selection root");
@@ -110,13 +122,14 @@ fn given_python_catalogue_and_other_analyzer_when_selecting_then_applicability_p
         let selected =
             selection::selection(&config, root.path()).expect("applicable catalogue selection");
         assert_eq!(test_case.expected_error, None, "{}", test_case.description);
+        let mut actual_codes = selected
+            .catalogue
+            .iter()
+            .map(|rule| rule.code.as_str())
+            .collect::<Vec<_>>();
+        actual_codes.sort_unstable();
         assert_eq!(
-            selected
-                .catalogue
-                .iter()
-                .map(|rule| rule.code.as_str())
-                .collect::<Vec<_>>(),
-            test_case.expected_codes,
+            actual_codes, test_case.expected_codes,
             "{}",
             test_case.description
         );

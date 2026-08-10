@@ -5,6 +5,10 @@ use crate::models::{Config, Fault, RuleException, ScopedSource};
 
 type ExceptionKey = (String, String, Option<String>);
 
+struct FaultOwner {
+    identities: Vec<String>,
+}
+
 pub(crate) struct ApplyExceptionsRequest<'a> {
     pub(crate) faults: Vec<Fault>,
     pub(crate) sources: &'a [ScopedSource],
@@ -34,7 +38,8 @@ pub(crate) fn apply_exceptions(
     let mut retained: Vec<Fault> = Vec::new();
     for fault in faults {
         let reported = repository_path(&fault.path, project_root);
-        let mut owner: Option<String> = None;
+        let mut owner: Option<FaultOwner> = None;
+        let mut matched_symbol: Option<String> = None;
         let mut matching = None;
         for entry in &config.exceptions {
             if entry.rule != fault.code || entry.path != reported {
@@ -49,16 +54,22 @@ pub(crate) fn apply_exceptions(
                     .get(reported.as_str())
                     .and_then(|source| fault_owner(&fault, source));
             }
-            if owner
-                .as_ref()
-                .is_some_and(|symbol| entry.symbols.iter().any(|item| item == symbol))
-            {
+            matched_symbol = owner.as_ref().and_then(|owner| {
+                entry
+                    .symbols
+                    .iter()
+                    .find(|symbol| owner.identities.contains(symbol))
+                    .cloned()
+            });
+            if matched_symbol.is_some() {
                 matching = Some(entry);
                 break;
             }
         }
         if let Some(entry) = matching {
-            let symbol = (!entry.symbols.is_empty()).then(|| owner.clone()).flatten();
+            let symbol = (!entry.symbols.is_empty())
+                .then(|| matched_symbol.clone())
+                .flatten();
             applied.insert((entry.rule.clone(), entry.path.clone(), symbol));
         } else {
             retained.push(fault);
@@ -116,10 +127,83 @@ fn configured_symbols(entry: &RuleException) -> Vec<Option<String>> {
         .collect()
 }
 
-fn fault_owner(fault: &Fault, source: &ScopedSource) -> Option<String> {
-    source
-        .program
-        .as_ref()?
-        .as_python()?
-        .owner_symbol_at(fault.line?, fault.column.unwrap_or(0))
+fn fault_owner(fault: &Fault, source: &ScopedSource) -> Option<FaultOwner> {
+    let program = source.program.as_ref()?;
+    if let Some(program) = program.as_python() {
+        return program
+            .owner_symbol_at(fault.line?, fault.column.unwrap_or(0))
+            .map(|symbol| FaultOwner {
+                identities: vec![symbol],
+            });
+    }
+    web_fault_owner(
+        source,
+        fault.line? as usize,
+        fault.column.unwrap_or(0) as usize,
+    )
+}
+
+fn web_fault_owner(source: &ScopedSource, line: usize, column: usize) -> Option<FaultOwner> {
+    let offset = source_offset(&source.content, line, column)?;
+    let mut candidates: Vec<(usize, Vec<String>)> = Vec::new();
+    let facts = match source.program.as_ref()? {
+        crate::models::ParsedProgram::TypeScript(facts) => vec![facts.as_ref()],
+        crate::models::ParsedProgram::Svelte(facts) => {
+            facts.scripts.iter().map(|script| &script.facts).collect()
+        }
+        crate::models::ParsedProgram::Python(_) | crate::models::ParsedProgram::Malformed(_) => {
+            Vec::new()
+        }
+    };
+    for facts in facts {
+        for item in &facts.functions {
+            if let Some(length) = span_owner(&item.span, offset) {
+                let mut identities = vec![item.qualified_name.clone()];
+                if item.qualified_name != item.name {
+                    identities.push(item.name.clone());
+                }
+                candidates.push((length, identities));
+            }
+        }
+        for item in &facts.classes {
+            if let Some(length) = span_owner(&item.span, offset) {
+                candidates.push((length, vec![item.name.clone()]));
+            }
+        }
+        for item in &facts.models {
+            if let Some(length) = span_owner(&item.span, offset) {
+                candidates.push((length, vec![item.name.clone()]));
+            }
+        }
+    }
+    candidates.sort();
+    let (length, identities) = candidates.first()?.clone();
+    let ambiguous = candidates
+        .iter()
+        .skip(1)
+        .take_while(|(candidate_length, _)| *candidate_length == length)
+        .any(|(_, candidate)| candidate != &identities);
+    (!ambiguous).then_some(FaultOwner { identities })
+}
+
+fn span_owner(span: &fensu_typescript::SourceSpan, offset: usize) -> Option<usize> {
+    (span.start <= offset && offset < span.end).then_some(span.end.saturating_sub(span.start))
+}
+
+fn source_offset(source: &[u8], line: usize, column: usize) -> Option<usize> {
+    if line == 0 {
+        return None;
+    }
+    let mut current_line = 1;
+    let mut line_start = 0;
+    for (index, byte) in source.iter().enumerate() {
+        if current_line == line {
+            return Some((line_start + column).min(source.len()));
+        }
+        if *byte == b'\n' {
+            current_line += 1;
+            line_start = index + 1;
+        }
+    }
+    (current_line == line).then_some((line_start + column).min(source.len()))
 }

@@ -22,6 +22,8 @@ DEFAULT_THRESHOLDS: dict[Threshold, int] = {
     Threshold.MAX_SCRIPT_ENTRYPOINT_LINES: 80,
     Threshold.MIN_SHARED_DOMAIN_PREFIX_PACKAGES: 2,
     Threshold.MIN_CUSTOM_RULE_TEST_CASES: 1,
+    Threshold.MAX_IMPORTED_BINDINGS: 20,
+    Threshold.MAX_PUBLIC_EXPORTS: 20,
 }
 MAX_THRESHOLD_VALUE: int = 2**32 - 1
 
@@ -52,6 +54,7 @@ CONFIG_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
         "tests",
         "test_scopes",
         "tooling",
+        "generated",
         "select",
         "warn",
         "ignore",
@@ -62,6 +65,7 @@ CONFIG_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
         "thresholds",
         "roles",
         "contracts",
+        "ui_kit",
         "rule_exceptions",
         "rule_ignores",
         "threshold_overrides",
@@ -72,7 +76,9 @@ CONFIG_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
 )
 CONFIG_ROLE_NAMES: frozenset[str] = frozenset(RoleName)
 CONTRACT_BEHAVIORS: frozenset[str] = frozenset(ContractBehavior)
-RULE_CONFIGURATION_INPUTS: frozenset[str] = frozenset({"roots", "tests", "tooling", "test_scopes"})
+RULE_CONFIGURATION_INPUTS: frozenset[str] = frozenset(
+    {"contracts", "generated", "roots", "tests", "test_scopes", "tooling", "ui_kit"}
+)
 DEFAULT_CONTRACTS: dict[str, str] = {
     "validate_*": ContractBehavior.NO_RETURN,
     "enforce_*": ContractBehavior.NO_RETURN,
@@ -85,11 +91,16 @@ DEFAULT_CONTRACTS: dict[str, str] = {
     "as_*": ContractBehavior.RETURNS_VALUE,
     "iter_*": ContractBehavior.RETURNS_ITERATOR,
 }
+WEB_DEFAULT_CONTRACTS: dict[str, str] = {
+    "should_*": ContractBehavior.RETURNS_BOOL,
+    "iterate_*": ContractBehavior.RETURNS_ITERATOR,
+}
 
 MAX_ENTRY_PUBLIC_FUNCTIONS: int = 1
 MAX_ENTRY_PRIVATE_FUNCTIONS: int = 2
 PATH_SEPARATOR: str = "/"
 DOUBLE_PATH_SEPARATOR: str = "//"
+INVALID_UI_KIT_PATH_PARTS: frozenset[str] = frozenset({"", ".", ".."})
 SINGLE_COMPONENT_GLOB: str = "*"
 RECURSIVE_GLOB: str = "**"
 THRESHOLD_OVERRIDE_KEYS: frozenset[str] = frozenset({"paths", "thresholds", "reason"})

@@ -18,7 +18,7 @@ use crate::configuration::main::load_targets;
 use crate::configuration::main::resolve_target_root::resolve_target_root;
 use crate::configuration::main::validate_exception_targets::validate_exception_targets;
 use crate::constants::PYTHON_CACHE_DIRECTORY;
-use crate::models::{CheckOptions, Config, ScopedSource};
+use crate::models::{CheckOptions, Config, ScopedSource, SourcePurpose};
 
 pub(crate) fn prepare_checks(options: &CheckOptions) -> Result<CheckPlans, String> {
     let invocation = env::current_dir()
@@ -229,6 +229,17 @@ fn discover(
                 .components()
                 .map(|part| part.as_os_str().to_string_lossy().into_owned())
                 .collect();
+            let purpose = if config
+                .generated
+                .iter()
+                .any(|pattern| path_matches(&target_path, pattern))
+            {
+                SourcePurpose::Generated
+            } else if web::is_direct_source(entry.path(), config.analyzer) {
+                SourcePurpose::Direct
+            } else {
+                SourcePurpose::Support
+            };
             sources.push(ScopedSource {
                 analyzer: config.analyzer,
                 target_identity: config.target.clone().unwrap_or_default(),
@@ -242,7 +253,7 @@ fn discover(
                 relative_parts,
                 fingerprint: hex_digest(&content),
                 content,
-                direct: web::is_direct_source(entry.path(), config.analyzer),
+                purpose,
                 imports: Vec::new(),
                 program: None,
             });
@@ -268,8 +279,12 @@ fn select_sources(sources: Vec<ScopedSource>, config: &Config) -> (Vec<ScopedSou
         let mut excluded = 0;
         let mut retained = Vec::with_capacity(sources.len());
         for mut source in sources {
-            if source.direct && !selected_by_evaluation(&source, config) {
-                source.direct = false;
+            let evaluated: bool = source.purpose.is_direct()
+                || config.analyzer == crate::analyzer::AnalyzerId::Svelte
+                    && source.purpose == SourcePurpose::Support
+                    && web::is_direct_source(&source.path, crate::analyzer::AnalyzerId::TypeScript);
+            if evaluated && !selected_by_evaluation(&source, config) {
+                source.purpose = SourcePurpose::Excluded;
                 excluded += 1;
             }
             retained.push(source);

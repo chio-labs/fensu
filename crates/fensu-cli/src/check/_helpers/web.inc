@@ -371,11 +371,12 @@ pub(crate) fn parse_sources(
     project_root: &Path,
     mut sources: Vec<ScopedSource>,
     project_inputs: &[ProjectInput],
+    source_roots: &[String],
 ) -> Result<Vec<ScopedSource>, String> {
     for source in sources.iter_mut() {
         source.program = Some(parse_source(analyzer, source)?);
     }
-    populate_import_graph(project_root, sources, project_inputs)
+    populate_import_graph(project_root, sources, project_inputs, source_roots)
 }
 
 fn parse_source(analyzer: AnalyzerId, source: &ScopedSource) -> Result<ParsedProgram, String> {
@@ -386,16 +387,13 @@ fn parse_source(analyzer: AnalyzerId, source: &ScopedSource) -> Result<ParsedPro
                 source.repository_path
             ));
         }
-        return fensu_svelte::parse(&source.content)
+        return Ok(fensu_svelte::parse(&source.content)
             .map(ParsedProgram::Svelte)
-            .map_err(|diagnostic| {
-                diagnostic_text(
-                    "Svelte",
-                    source,
-                    &diagnostic.message,
-                    (diagnostic.span.line, diagnostic.span.column),
-                )
-            });
+            .unwrap_or_else(|diagnostic| ParsedProgram::Malformed(WebParseFailure {
+                message: diagnostic.message,
+                line: diagnostic.span.line as u32,
+                column: diagnostic.span.column as u32,
+            })));
     }
     let kind = source_kind(&source.path).ok_or_else(|| {
         format!(
@@ -403,30 +401,14 @@ fn parse_source(analyzer: AnalyzerId, source: &ScopedSource) -> Result<ParsedPro
             source.repository_path
         )
     })?;
-    fensu_typescript::parse(&source.content, kind)
+    Ok(fensu_typescript::parse(&source.content, kind)
+        .map(Box::new)
         .map(ParsedProgram::TypeScript)
-        .map_err(|diagnostic| {
-            diagnostic_text(
-                "TypeScript",
-                source,
-                &diagnostic.message,
-                (diagnostic.span.line, diagnostic.span.column),
-            )
-        })
-}
-
-fn diagnostic_text(
-    parser: &str,
-    source: &ScopedSource,
-    message: &str,
-    position: (usize, usize),
-) -> String {
-    let (line, column) = position;
-    format!(
-        "Could not parse {parser} source: {}:{line}:{}: {message}",
-        source.repository_path,
-        column + 1
-    )
+        .unwrap_or_else(|diagnostic| ParsedProgram::Malformed(WebParseFailure {
+            message: diagnostic.message,
+            line: diagnostic.span.line as u32,
+            column: diagnostic.span.column as u32,
+        })))
 }
 
 pub(crate) fn source_kind(path: &Path) -> Option<fensu_typescript::SourceKind> {
@@ -462,6 +444,7 @@ fn populate_import_graph(
     project_root: &Path,
     mut sources: Vec<ScopedSource>,
     project_inputs: &[ProjectInput],
+    source_roots: &[String],
 ) -> Result<Vec<ScopedSource>, String> {
     let known: HashMap<PathBuf, String> = sources
         .iter()
@@ -472,6 +455,7 @@ fn populate_import_graph(
         project_root,
         known: &known,
         aliases: &aliases,
+        source_roots,
     };
     for source in &mut sources {
         let specifiers = import_specifiers(source);
@@ -670,6 +654,7 @@ struct ResolutionContext<'a> {
     project_root: &'a Path,
     known: &'a HashMap<PathBuf, String>,
     aliases: &'a AliasConfig,
+    source_roots: &'a [String],
 }
 
 fn resolve_import(
@@ -683,12 +668,15 @@ fn resolve_import(
         candidates.push(importer.parent()?.join(specifier));
     } else if specifier == "$lib" || specifier.starts_with("$lib/") {
         let rest = specifier.strip_prefix("$lib/").unwrap_or_default();
-        candidates.push(
-            resolution
-                .project_root
-                .join("src/lib")
-                .join(rest),
-        );
+        if let Some(root) = resolution
+            .source_roots
+            .iter()
+            .map(|root| resolution.project_root.join(root))
+            .filter(|root| importer.starts_with(root))
+            .max_by_key(|root| root.components().count())
+        {
+            candidates.push(root.join("lib").join(rest));
+        }
     } else {
         for alias in &resolution.aliases.paths {
             let Some(capture) = alias_capture(&alias.pattern, specifier) else {

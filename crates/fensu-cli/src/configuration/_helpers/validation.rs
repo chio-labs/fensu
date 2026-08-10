@@ -18,6 +18,7 @@ const CONFIG_KEYS: &[&str] = &[
     "tests",
     "test_scopes",
     "tooling",
+    "generated",
     "select",
     "warn",
     "ignore",
@@ -28,6 +29,7 @@ const CONFIG_KEYS: &[&str] = &[
     "thresholds",
     "roles",
     "contracts",
+    "ui_kit",
     "rule_exceptions",
     "rule_ignores",
     "threshold_overrides",
@@ -58,6 +60,7 @@ pub(crate) fn validate_for_analyzer(
     for name in [
         "tests",
         "tooling",
+        "generated",
         "select",
         "warn",
         "ignore",
@@ -79,6 +82,15 @@ pub(crate) fn validate_for_analyzer(
     validate_threshold_table(table.get("thresholds"), "thresholds", false)?;
     validate_roles(table.get("roles"))?;
     validate_contracts(table.get("contracts"))?;
+    if let Some(value) = table.get("ui_kit") {
+        let path = value
+            .as_str()
+            .filter(|path| !path.trim().is_empty())
+            .ok_or_else(|| "Config key ui_kit must be a non-empty string.".to_owned())?;
+        if path.starts_with('/') || path.split('/').any(|part| matches!(part, "" | "." | "..")) {
+            return Err("Config key ui_kit must be a repository-relative path.".to_owned());
+        }
+    }
     validate_threshold_overrides(table.get("threshold_overrides"))?;
     exceptions::validate(table.get("rule_exceptions"), analyzer)?;
     validate_rule_ignores(table.get("rule_ignores"))?;

@@ -24,7 +24,6 @@ pub(crate) fn build(invocation: &Path, options: &SkillOptions) -> Result<SkillCo
                 )
             },
         )?;
-    config.analyzer.require_backend()?;
     let config_path = config_path
         .canonicalize()
         .map_err(|error| format!("Could not resolve {}: {error}", config_path.display()))?;

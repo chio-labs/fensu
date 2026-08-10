@@ -16,6 +16,7 @@ from fensu.config.constants import (
     DEFAULT_TARGET_ROOT,
     DOUBLE_PATH_SEPARATOR,
     EVALUATION_CONFIG_KEYS,
+    INVALID_UI_KIT_PATH_PARTS,
     MAX_THRESHOLD_VALUE,
     PATH_SEPARATOR,
     PYTHON_ANALYZER,
@@ -55,6 +56,7 @@ def validate_config(raw: Mapping[str, object]) -> None:
     _validate_optional_string_sequence(name="tests", value=raw.get("tests"))
     _validate_test_scopes(value=raw.get("test_scopes"))
     _validate_optional_string_sequence(name="tooling", value=raw.get("tooling"))
+    _validate_optional_string_sequence(name="generated", value=raw.get("generated"))
     _validate_optional_string_sequence(name="rule_paths", value=raw.get("rule_paths"))
     _validate_optional_string_sequence(name="rule_modules", value=raw.get("rule_modules"))
     raw_rule_packs: object = raw.get("rule_packs")
@@ -76,6 +78,16 @@ def validate_config(raw: Mapping[str, object]) -> None:
     _validate_role_thresholds(value=raw.get("roles"))
     _validate_threshold_overrides(value=raw.get("threshold_overrides"))
     _validate_contracts(value=raw.get("contracts"))
+    ui_kit: object = raw.get("ui_kit")
+    if ui_kit is not None and (
+        not isinstance(ui_kit, str)
+        or not ui_kit
+        or ui_kit.startswith("/")
+        or any(part in INVALID_UI_KIT_PATH_PARTS for part in ui_kit.split(PATH_SEPARATOR))
+    ):
+        raise ConfigValidationError(
+            "Config key ui_kit must be a non-empty repository-relative path."
+        )
     _validate_rule_exceptions(value=raw.get("rule_exceptions"))
     _validate_rule_ignores(value=raw.get("rule_ignores"))
     _validate_cache(value=raw.get("cache"))

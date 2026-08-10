@@ -268,6 +268,15 @@ class ConfigContractTestCase:
 
 
 @dataclass(frozen=True)
+class AbsentConfigContractTestCase:
+    """Analyzer-specific contract that must not enter Python defaults."""
+
+    description: str
+    config_text: str
+    expected_absent_pattern: str
+
+
+@dataclass(frozen=True)
 class ConfigImmutabilityTestCase:
     """A config mutation attempt and the expected exception type."""
 

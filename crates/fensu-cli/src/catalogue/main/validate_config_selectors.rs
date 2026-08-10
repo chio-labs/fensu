@@ -50,6 +50,21 @@ fn validate_selector_group(
             } else {
                 format!("contains selector {selector}")
             };
+            let required_frameworks = catalogues
+                .configured
+                .iter()
+                .filter(|rule| {
+                    rule.code.starts_with(selector) && rule.analyzers.contains(&config.analyzer)
+                })
+                .flat_map(|rule| rule.frameworks.iter().map(String::as_str))
+                .collect::<std::collections::BTreeSet<_>>();
+            if !required_frameworks.is_empty() {
+                return Err(format!(
+                    "Config key {name} {selection}, but matching rules require framework {} for analyzer {}.",
+                    required_frameworks.into_iter().collect::<Vec<_>>().join(", "),
+                    config.analyzer
+                ));
+            }
             return Err(format!(
                 "Config key {name} {selection}, but matching rules are not applicable to analyzer {}.",
                 config.analyzer

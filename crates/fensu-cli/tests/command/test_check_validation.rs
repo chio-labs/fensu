@@ -575,6 +575,18 @@ fn given_invalid_explicit_targets_when_checking_then_configuration_fails_closed(
             expected_error: "evaluation.include must not be empty",
         },
         InvalidCheckConfigTestCase {
+            description: "evaluation rejects unmatched opening brace",
+            config: "roots = [\"src/pkg\"]\n[evaluation]\ninclude = [\"src/**/*.{py,pyi\"]\n",
+            expected_exit_code: 2,
+            expected_error: "unmatched opening brace",
+        },
+        InvalidCheckConfigTestCase {
+            description: "evaluation rejects empty brace alternative",
+            config: "roots = [\"src/pkg\"]\n[evaluation]\ninclude = [\"src/**/*.{py,}\"]\n",
+            expected_exit_code: 2,
+            expected_error: "at least two non-empty alternatives",
+        },
+        InvalidCheckConfigTestCase {
             description: "legacy flat configuration rejects web threshold aliases",
             config: "roots = [\"src/pkg\"]\n[thresholds]\nmax_entry_statements = 40\n",
             expected_exit_code: 2,

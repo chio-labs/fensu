@@ -1,14 +1,15 @@
 use crate::analyzer::AnalyzerId;
 use crate::check::_helpers::policy::{check_identity, path_matches};
 use crate::check::models::CheckIdentityRequest;
+use crate::configuration::main::expand_path_pattern::expand_path_pattern;
 use crate::configuration::main::resolve_target_root::resolve_target_root;
 use crate::mapping::_helpers::cache::generation;
 use crate::mapping::models::SourceSnapshot;
 use crate::models::Config;
 use crate::tests::test_types::{
     CacheIdentityFramingTestCase, EscapingSymlinkTargetTestCase, MapCacheIdentityTestCase,
-    MissingSuffixSymlinkTargetTestCase, PathMatchTestCase, TargetRootRepresentationTestCase,
-    WebTestLayoutIdentityTestCase,
+    MissingSuffixSymlinkTargetTestCase, PathExpansionTestCase, PathMatchTestCase,
+    TargetRootRepresentationTestCase, WebTestLayoutIdentityTestCase,
 };
 
 #[cfg(unix)]
@@ -301,12 +302,54 @@ fn given_recursive_include_when_matching_nested_path_then_matches() {
             pattern: "dagster_example/*/**",
             expected_matches: true,
         },
+        PathMatchTestCase {
+            description: "brace alternatives match a RaceWatch Svelte source",
+            path: "src/routes/admin/+page.svelte",
+            pattern: "src/**/*.{ts,js,svelte}",
+            expected_matches: true,
+        },
+        PathMatchTestCase {
+            description: "brace alternatives reject an extension outside the group",
+            path: "src/routes/admin/styles.css",
+            pattern: "src/**/*.{ts,js,svelte}",
+            expected_matches: false,
+        },
     ];
 
     for test_case in &test_cases {
         assert_eq!(
             path_matches(test_case.path, test_case.pattern),
             test_case.expected_matches,
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_nested_brace_groups_when_expanding_then_order_is_deterministic() {
+    let test_cases = [
+        PathExpansionTestCase {
+            description: "multiple groups expand left to right",
+            pattern: "{src,tests}/**/*.{ts,svelte}",
+            expected_patterns: &[
+                "src/**/*.ts",
+                "src/**/*.svelte",
+                "tests/**/*.ts",
+                "tests/**/*.svelte",
+            ],
+        },
+        PathExpansionTestCase {
+            description: "nested alternatives retain declaration order",
+            pattern: "src/**/*.{ts,{js,svelte}}",
+            expected_patterns: &["src/**/*.ts", "src/**/*.js", "src/**/*.svelte"],
+        },
+    ];
+
+    for test_case in &test_cases {
+        let expanded = expand_path_pattern(test_case.pattern).expect("valid brace path glob");
+        assert_eq!(
+            expanded, test_case.expected_patterns,
             "{}",
             test_case.description
         );

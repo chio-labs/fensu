@@ -25,6 +25,7 @@ const RULE_FIELDS: &[&str] = &[
     "enabled_by_default",
     "execution_owner",
     "family",
+    "frameworks",
     "kind",
     "limits",
     "message",

@@ -1,5 +1,7 @@
 //! Strict Svelte structure validation and embedded script parsing.
 
+use std::borrow::Cow;
+
 use fensu_typescript::{ModuleFacts, SourceSpan};
 use tree_sitter::{Node, Parser};
 
@@ -20,8 +22,9 @@ pub fn parse(source: &[u8]) -> Result<SvelteFacts, ParseDiagnostic> {
     parser
         .set_language(&tree_sitter_htmlx_svelte::LANGUAGE.into())
         .map_err(|error| parser_setup_diagnostic(source, &error.to_string()))?;
+    let parser_text = parser_compatible_source(text);
     let tree = parser
-        .parse(text, None)
+        .parse(parser_text.as_ref(), None)
         .ok_or_else(|| parser_setup_diagnostic(source, PARSER_NO_TREE_MESSAGE))?;
     validate_snippet_names(source, tree.root_node())?;
     if let Some(node) = earliest_invalid_node(tree.root_node()) {
@@ -57,6 +60,56 @@ pub fn parse(source: &[u8]) -> Result<SvelteFacts, ParseDiagnostic> {
         });
     }
     Ok(facts)
+}
+
+fn parser_compatible_source(source: &str) -> Cow<'_, str> {
+    let original = source.as_bytes();
+    let mut normalized = None;
+    let mut index = 0;
+    while index < original.len() {
+        if original[index] != b'<' {
+            index += 1;
+            continue;
+        }
+        let mut name_start = index + 1;
+        if original.get(name_start) == Some(&b'/') {
+            name_start += 1;
+        }
+        if !original
+            .get(name_start)
+            .is_some_and(|byte| is_tag_name_start(*byte))
+        {
+            index += 1;
+            continue;
+        }
+        let mut name_end = name_start + 1;
+        while original
+            .get(name_end)
+            .is_some_and(|byte| is_tag_name_byte(*byte))
+        {
+            name_end += 1;
+        }
+        if original[name_start..name_end].contains(&b'.') {
+            let bytes = normalized.get_or_insert_with(|| original.to_vec());
+            for byte in &mut bytes[name_start..name_end] {
+                if *byte == b'.' {
+                    *byte = b'-';
+                }
+            }
+        }
+        index = name_end;
+    }
+    normalized.map_or(Cow::Borrowed(source), |bytes| {
+        Cow::Owned(String::from_utf8(bytes).unwrap_or_else(|_| std::process::abort()))
+    })
+}
+
+fn is_tag_name_start(byte: u8) -> bool {
+    byte.is_ascii_alphabetic() || matches!(byte, b'_' | b'$')
+}
+
+fn is_tag_name_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'$' | b':' | b'-' | b'.')
 }
 
 fn component_markup(source: &str, root: Node<'_>) -> bool {

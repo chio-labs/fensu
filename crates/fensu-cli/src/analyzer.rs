@@ -26,8 +26,8 @@ impl AnalyzerId {
     pub(crate) const fn parser_contract(self) -> &'static str {
         match self {
             Self::Python => "python-ruff-py312-v1",
-            Self::TypeScript => "typescript-backend-v11",
-            Self::Svelte => "svelte-backend-v11",
+            Self::TypeScript => fensu_typescript::PARSER_CONTRACT_VERSION,
+            Self::Svelte => fensu_svelte::PARSER_CONTRACT_VERSION,
         }
     }
 }

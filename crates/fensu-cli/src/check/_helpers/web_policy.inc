@@ -762,6 +762,7 @@ fn hygiene_and_contract_diagnostics(
         if let Some(span) = module_facts(source)
             .iter()
             .flat_map(|facts| &facts.public_any)
+            .filter(|span| legacy_public_any(source, span.start))
             .min_by_key(|span| span.start)
         {
             push_span(
@@ -1082,11 +1083,7 @@ fn sveltekit_diagnostics(
             "state module has",
             "mutable cells",
         );
-        let runes = facts
-            .iter()
-            .flat_map(|value| &value.calls)
-            .filter(|call| is_rune_name(&call.name))
-            .count();
+        let runes = legacy_rune_count(source);
         check_named_budget(
             source,
             request,
@@ -1097,10 +1094,7 @@ fn sveltekit_diagnostics(
             "state module has",
             "runes",
         );
-        let functions = facts
-            .iter()
-            .map(|value| value.functions.len())
-            .sum::<usize>();
+        let functions = legacy_function_count(source);
         check_named_budget(
             source,
             request,
@@ -1271,18 +1265,14 @@ fn state_policy_diagnostics(
                 "effect performs raw transport",
             );
         }
-        if active(request, "FWV107")
-            && call.name == "$effect"
-            && call
-                .ancestor_calls
-                .iter()
-                .any(|name| name.rsplit('.').next() == Some("onMount"))
-        {
-            push_span(
+    }
+    if active(request, "FWV107") {
+        if let Some(offset) = legacy_nested_effect_offset(source) {
+            push_offset(
                 diagnostics,
                 "FWV107",
                 source,
-                &call.span,
+                offset,
                 "effect is nested inside onMount",
             );
         }
@@ -1302,15 +1292,9 @@ fn resource_policy_diagnostics(
         .flat_map(|value| &value.resources)
         .collect::<Vec<_>>();
     let resource_role = role_for(source, request.config).as_deref() == Some("_resources");
-    if active(request, "FWV201") {
-        if let Some(resource) = resources.iter().find(|resource| {
-            !resource_role
-                && !(component
-                    && resource
-                        .ancestor_calls
-                        .iter()
-                        .any(|name| matches!(name.as_str(), "onMount" | "$effect")))
-        }) {
+    let lifecycle_owner = component && legacy_lifecycle_call(source);
+    if active(request, "FWV201") && !resource_role && !lifecycle_owner {
+        if let Some(resource) = resources.first() {
             push_span(
                 diagnostics,
                 "FWV201",
@@ -1339,25 +1323,17 @@ fn resource_policy_diagnostics(
             }
         }
     }
-    if active(request, "FWV202") && resource_role && !resources.is_empty() {
-        let missing = resources.iter().find(|resource| {
-            resource
-                .binding_name
-                .as_deref()
-                .is_none_or(|target| !has_exposed_resource_cleanup(facts, &resource.family, target))
-        });
-        if let Some(resource) = missing {
-            push_path(
-                diagnostics,
-                "FWV202",
-                source,
-                &format!(
-                    "resource owner does not expose cleanup for {} instance '{}'",
-                    resource.family,
-                    resource.binding_name.as_deref().unwrap_or("<unbound>")
-                ),
-            );
-        }
+    if active(request, "FWV202")
+        && resource_role
+        && !resources.is_empty()
+        && !legacy_resource_cleanup(source)
+    {
+        push_path(
+            diagnostics,
+            "FWV202",
+            source,
+            "resource owner does not expose cleanup",
+        );
     }
 }
 
@@ -2178,7 +2154,7 @@ fn owner_segments(source: &ScopedSource, config: &Config) -> Vec<String> {
 fn owner_for(source: &ScopedSource, config: &Config) -> Option<String> {
     let relative = relative_to_source_root(source, config)?;
     let parts = relative.split('/').collect::<Vec<_>>();
-    (parts.first() == Some(&"lib"))
+    (parts.first() == Some(&"lib") && parts.len() >= 3)
         .then(|| parts.get(1).map(|part| (*part).to_owned()))
         .flatten()
 }
@@ -2803,53 +2779,190 @@ fn node_builtin(specifier: &str) -> bool {
         .any(|name| specifier == *name || specifier.starts_with(&format!("{name}/")))
 }
 
-fn has_exposed_resource_cleanup(
-    facts: &[&ModuleFacts],
-    family: &str,
-    resource_target: &str,
-) -> bool {
-    let returned_members = facts
-        .iter()
-        .flat_map(|facts| &facts.return_objects)
-        .flat_map(|returned| &returned.member_names)
-        .map(String::as_str)
-        .collect::<HashSet<_>>();
-    let exported_cleanup = facts
-        .iter()
-        .flat_map(|facts| &facts.functions)
-        .filter(|function| {
-            function.exported
-                && matches!(
-                    function.name.as_str(),
-                    "stop" | "destroy" | "cleanup" | "close"
-                )
-        })
-        .map(|function| function.name.as_str())
-        .collect::<HashSet<_>>();
-    facts.iter().flat_map(|facts| &facts.calls).any(|call| {
-        cleanup_matches_family(&call.name, family)
-            && call
-                .cleanup_target
-                .as_deref()
-                .is_some_and(|target| target == resource_target)
-            && (call.returned_cleanup
-                || call.function_name.as_deref().is_some_and(|name| {
-                    returned_members.contains(name) || exported_cleanup.contains(name)
-                }))
+fn legacy_rune_count(source: &ScopedSource) -> usize {
+    let bytes = source_text(source).as_bytes();
+    let mut count = 0;
+    for index in 0..bytes.len() {
+        if bytes[index] != b'$' {
+            continue;
+        }
+        for rune in ["state", "derived", "effect", "props", "bindable", "inspect"] {
+            let mut end = index + 1 + rune.len();
+            if bytes.get(index + 1..end) != Some(rune.as_bytes()) {
+                continue;
+            }
+            if bytes.get(end) == Some(&b'.') {
+                end += 1;
+                let member_start = end;
+                while bytes.get(end).is_some_and(|byte| word_byte(*byte)) {
+                    end += 1;
+                }
+                if end == member_start {
+                    continue;
+                }
+            }
+            if call_parenthesis(bytes, end).is_some() {
+                count += 1;
+                break;
+            }
+        }
+    }
+    count
+}
+
+fn legacy_function_count(source: &ScopedSource) -> usize {
+    let bytes = source_text(source).as_bytes();
+    let mut count = 0;
+    for index in 0..bytes.len() {
+        if !word_at(bytes, index, b"function") {
+            continue;
+        }
+        let mut cursor = index + "function".len();
+        if !bytes.get(cursor).is_some_and(u8::is_ascii_whitespace) {
+            continue;
+        }
+        while bytes.get(cursor).is_some_and(u8::is_ascii_whitespace) {
+            cursor += 1;
+        }
+        let name_start = cursor;
+        while bytes.get(cursor).is_some_and(|byte| word_byte(*byte)) {
+            cursor += 1;
+        }
+        if cursor > name_start && call_parenthesis(bytes, cursor).is_some() {
+            count += 1;
+        }
+    }
+    count
+}
+
+fn legacy_nested_effect_offset(source: &ScopedSource) -> Option<usize> {
+    let bytes = source_text(source).as_bytes();
+    for index in 0..bytes.len() {
+        if !word_at(bytes, index, b"onMount") {
+            continue;
+        }
+        let Some(open) = call_parenthesis(bytes, index + "onMount".len()) else {
+            continue;
+        };
+        let end = (open + 1_002).min(bytes.len());
+        for effect in open + 1..end {
+            if bytes.get(effect..effect + "$effect".len()) == Some(b"$effect")
+                && call_parenthesis(bytes, effect + "$effect".len()).is_some()
+            {
+                return Some(index);
+            }
+        }
+    }
+    None
+}
+
+fn legacy_lifecycle_call(source: &ScopedSource) -> bool {
+    let bytes = source_text(source).as_bytes();
+    (0..bytes.len()).any(|index| {
+        word_at(bytes, index, b"onMount")
+            && call_parenthesis(bytes, index + "onMount".len()).is_some()
+            || bytes.get(index..index + "$effect".len()) == Some(b"$effect")
+                && call_parenthesis(bytes, index + "$effect".len()).is_some()
     })
 }
 
-fn cleanup_matches_family(name: &str, family: &str) -> bool {
-    let operation = name.rsplit('.').next().unwrap_or(name);
-    matches!(
-        (family, operation),
-        ("timeout", "clearTimeout")
-            | ("interval", "clearInterval")
-            | ("event-listener", "removeEventListener")
-            | ("websocket" | "broadcast-channel", "close")
-            | ("observer", "disconnect")
-            | ("worker", "terminate")
-    )
+fn legacy_resource_cleanup(source: &ScopedSource) -> bool {
+    let bytes = source_text(source).as_bytes();
+    (0..bytes.len()).any(|index| {
+        ["stop", "destroy", "cleanup"]
+            .iter()
+            .any(|name| word_at(bytes, index, name.as_bytes()))
+            || ["clearTimeout", "clearInterval"].iter().any(|name| {
+                word_at(bytes, index, name.as_bytes())
+                    && call_parenthesis(bytes, index + name.len()).is_some()
+            })
+            || bytes.get(index..index + ".removeEventListener".len())
+                == Some(b".removeEventListener")
+                && call_parenthesis(bytes, index + ".removeEventListener".len()).is_some()
+            || word_at(bytes, index, b"return") && returned_arrow(bytes, index + "return".len())
+    })
+}
+
+fn legacy_public_any(source: &ScopedSource, offset: usize) -> bool {
+    let bytes = source_text(source).as_bytes();
+    let bounded = offset.min(bytes.len());
+    for index in 0..bounded {
+        if index + "export".len() <= bounded
+            && word_at(bytes, index, b"export")
+            && !bytes[index + "export".len()..bounded]
+                .iter()
+                .any(|byte| matches!(byte, b'{' | b';' | b'\n'))
+        {
+            return true;
+        }
+        if !word_at(bytes, index, b"interface") {
+            continue;
+        }
+        let mut cursor = index + "interface".len();
+        if !bytes.get(cursor).is_some_and(u8::is_ascii_whitespace) {
+            continue;
+        }
+        while bytes.get(cursor).is_some_and(u8::is_ascii_whitespace) {
+            cursor += 1;
+        }
+        if !word_at(bytes, cursor, b"Props") {
+            continue;
+        }
+        cursor += "Props".len();
+        while bytes.get(cursor).is_some_and(u8::is_ascii_whitespace) {
+            cursor += 1;
+        }
+        if bytes.get(cursor) == Some(&b'{')
+            && cursor < bounded
+            && !bytes[cursor + 1..bounded].contains(&b'}')
+        {
+            return true;
+        }
+    }
+    false
+}
+
+fn call_parenthesis(bytes: &[u8], mut index: usize) -> Option<usize> {
+    while bytes.get(index).is_some_and(u8::is_ascii_whitespace) {
+        index += 1;
+    }
+    (bytes.get(index) == Some(&b'(')).then_some(index)
+}
+
+fn returned_arrow(bytes: &[u8], mut index: usize) -> bool {
+    while bytes.get(index).is_some_and(u8::is_ascii_whitespace) {
+        index += 1;
+    }
+    if bytes.get(index) != Some(&b'(') {
+        return false;
+    }
+    index += 1;
+    while bytes.get(index).is_some_and(u8::is_ascii_whitespace) {
+        index += 1;
+    }
+    if bytes.get(index) != Some(&b')') {
+        return false;
+    }
+    index += 1;
+    while bytes.get(index).is_some_and(u8::is_ascii_whitespace) {
+        index += 1;
+    }
+    bytes.get(index..index + 2) == Some(b"=>")
+}
+
+fn word_at(bytes: &[u8], index: usize, word: &[u8]) -> bool {
+    bytes.get(index..index + word.len()) == Some(word)
+        && index
+            .checked_sub(1)
+            .and_then(|before| bytes.get(before))
+            .is_none_or(|byte| !word_byte(*byte))
+        && bytes
+            .get(index + word.len())
+            .is_none_or(|byte| !word_byte(*byte))
+}
+
+fn word_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || byte == b'_'
 }
 
 fn push_path(

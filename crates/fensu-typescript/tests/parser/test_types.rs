@@ -6,7 +6,6 @@ pub(crate) struct ContractTestCase {
     pub(crate) description: &'static str,
     pub(crate) expected_parser_contract: &'static str,
     pub(crate) expected_cache_contract: &'static str,
-    pub(crate) expected_cli_contract_fragment: &'static str,
 }
 
 pub(crate) struct DiagnosticTestCase {

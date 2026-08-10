@@ -255,18 +255,28 @@ fn given_nested_resources_when_parsing_then_only_top_level_resources_are_semanti
 
 #[test]
 fn given_svelte_five_constructs_when_parsing_then_accepts_expected_supported_grammar() {
-    let test_cases = [test_types::CompatibilityTestCase {
-        description: "snippet type parameters, render tags, and attach tags parse together",
-        source: concat!(
-            "<script lang=\"ts\">\n",
-            "const attach = (node: Element): void => { void node; };\n",
-            "</script>\n",
-            "{#snippet item<T>(value: T)}<span>{value}</span>{/snippet}\n",
-            "{@render item('value')}\n",
-            "<div {@attach attach}></div>\n",
-        ),
-        expected_script_count: 1,
-    }];
+    let test_cases = [
+        test_types::CompatibilityTestCase {
+            description: "snippet type parameters, render tags, and attach tags parse together",
+            source: concat!(
+                "<script lang=\"ts\">\n",
+                "const attach = (node: Element): void => { void node; };\n",
+                "</script>\n",
+                "{#snippet item<T>(value: T)}<span>{value}</span>{/snippet}\n",
+                "{@render item('value')}\n",
+                "<div {@attach attach}></div>\n",
+            ),
+            expected_script_count: 1,
+        },
+        test_types::CompatibilityTestCase {
+            description: "nested dotted component members retain strict matching structure",
+            source: concat!(
+                "<script lang=\"ts\">import * as Card from './card';</script>\n",
+                "<Card.Root><Card.Header>Title</Card.Header></Card.Root>\n",
+            ),
+            expected_script_count: 1,
+        },
+    ];
 
     for test_case in &test_cases {
         let facts = parse(test_case.source.as_bytes()).expect("must parse");

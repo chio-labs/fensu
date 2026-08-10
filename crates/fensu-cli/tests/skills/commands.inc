@@ -58,7 +58,9 @@ fn given_web_analyzer_when_generating_skills_then_native_catalogue_is_rendered()
         let guidance = fs::read_to_string(target(repository.path(), ".agents", "fensu-web"))
             .expect("web target guidance");
         assert!(guidance.contains("Blocking rule codes: [\"FWC201\", \"FWU001\", \"FWV105\"]"));
-        assert!(guidance.contains("Analyzers: `typescript`, `svelte`"));
+        assert!(guidance.contains("Analyzers: `svelte`"));
+        assert!(guidance.contains("Frameworks: `sveltekit`"));
+        assert!(!guidance.contains("Analyzers: `typescript`"));
         assert!(guidance.contains("FW diagnostics and native TypeScript/Svelte architecture policy"));
         assert!(guidance.contains("Framework pack: \"sveltekit\""));
         assert!(guidance.contains("shadcn config: \"config/components.json\""));
@@ -94,7 +96,7 @@ fn given_python_and_svelte_targets_when_generating_skills_then_one_guidance_surf
     assert!(guidance.contains("### `backend` (python)"));
     assert!(guidance.contains("### `web` (svelte)"));
     assert!(guidance.contains("python-ruff-py312-v1"));
-    assert!(guidance.contains("svelte-backend-v10"));
+    assert!(guidance.contains("svelte-backend-v12"));
     assert!(guidance.contains("Blocking rule codes: [\"FFS010\"]"));
     assert!(guidance.contains("Blocking rule codes: [\"FWV105\"]"));
     assert_eq!(guidance.matches("Target policy fingerprint").count(), 2);

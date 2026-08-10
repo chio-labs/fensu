@@ -215,6 +215,16 @@ class EvaluationCheckTestCase:
 
 
 @dataclass(frozen=True)
+class StructuredHostCheckTestCase:
+    """Versioned hosted-check result expectations."""
+
+    description: str
+    expected_code: str
+    expected_warning: bool
+    expected_selected: int
+
+
+@dataclass(frozen=True)
 class ParallelCheckTestCase:
     """One parallel mode and its expected serial-equivalent result."""
 

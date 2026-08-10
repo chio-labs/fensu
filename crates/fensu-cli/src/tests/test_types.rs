@@ -13,6 +13,12 @@ pub(crate) struct PathMatchTestCase {
     pub(crate) expected_matches: bool,
 }
 
+pub(crate) struct PathExpansionTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) pattern: &'static str,
+    pub(crate) expected_patterns: &'static [&'static str],
+}
+
 pub(crate) struct CacheIdentityFramingTestCase {
     pub(crate) description: &'static str,
     pub(crate) first_analyzer: AnalyzerId,
@@ -114,4 +120,28 @@ pub(crate) struct WebConfigInheritanceTestCase {
     pub(crate) description: &'static str,
     pub(crate) expected_input_count: usize,
     pub(crate) expected_resolutions: &'static [(&'static str, Option<&'static str>)],
+}
+
+pub(crate) struct SvelteKitAliasResolutionTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_generated_present: bool,
+    pub(crate) expected_resolutions: &'static [(&'static str, Option<&'static str>)],
+}
+
+pub(crate) struct DynamicSvelteAliasTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_error_fragments: &'static [&'static str],
+}
+
+pub(crate) struct OptionalGeneratedConfigTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_missing_present: bool,
+    pub(crate) expected_generated_present: bool,
+}
+
+pub(crate) struct WebRuleApplicabilityTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_analyzer_error: &'static str,
+    pub(crate) expected_framework_error: &'static str,
+    pub(crate) expected_generic_code: &'static str,
 }

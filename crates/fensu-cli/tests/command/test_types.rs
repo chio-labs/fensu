@@ -257,3 +257,11 @@ pub(crate) struct MixedWebExecutionTestCase {
     pub(crate) expected_host_count_per_run: usize,
     pub(crate) expected_host_error: &'static str,
 }
+
+pub(crate) struct FreshSvelteKitCheckTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_exit_code: i32,
+    pub(crate) expected_cold_cache: &'static str,
+    pub(crate) expected_warm_cache: &'static str,
+    pub(crate) expected_appearance_cache: &'static str,
+}

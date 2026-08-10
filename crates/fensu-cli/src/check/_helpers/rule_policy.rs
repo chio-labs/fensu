@@ -6,11 +6,13 @@ use crate::catalogue::main::rule_metadata::rule_metadata;
 use crate::catalogue::main::validate_config_selectors::validate_config_selectors;
 use crate::catalogue::models::RuleMetadata;
 use crate::check::_helpers::policy::{path_matches, role};
+use crate::configuration::main::expand_path_pattern::expand_path_pattern;
 use crate::models::{Config, ScopedSource, ThresholdUse};
 
 const PATH_SEPARATOR: char = '/';
 const RECURSIVE_GLOB: &str = "**";
 const WILDCARD: char = '*';
+type PathSpecificity = (usize, usize, Reverse<usize>, Reverse<usize>);
 
 pub(crate) fn display_codes_by_implementation(
     codes: &[String],
@@ -36,7 +38,7 @@ pub(crate) fn selected_rules(
 ) -> Result<Vec<&'static RuleMetadata>, String> {
     let mut rules: Vec<&'static RuleMetadata> = Vec::new();
     for rule in configured_rule_catalogue(&config.rule_packs)? {
-        if !rule.analyzers.contains(&config.analyzer) {
+        if !applicable(rule, config) {
             continue;
         }
         let selected = matches_selector(&rule.code, select);
@@ -55,7 +57,7 @@ pub(crate) fn validate_config_tiers(config: &Config) -> Result<(), String> {
     let catalogue = configured_catalogue
         .iter()
         .copied()
-        .filter(|rule| rule.analyzers.contains(&config.analyzer))
+        .filter(|rule| applicable(rule, config))
         .collect::<Vec<_>>();
     validate_config_selectors(config, &catalogue, &configured_catalogue)?;
     let blocking = selected_rules(config, &config.select, &[])?;
@@ -75,7 +77,7 @@ pub(crate) fn validate_config_tiers(config: &Config) -> Result<(), String> {
     }
     let ignored_codes = configured_rule_catalogue(&config.rule_packs)?
         .into_iter()
-        .filter(|rule| rule.analyzers.contains(&config.analyzer))
+        .filter(|rule| applicable(rule, config))
         .filter(|rule| matches_selector(&rule.code, &config.ignore))
         .map(|rule| rule.code.as_str())
         .collect::<HashSet<_>>();
@@ -118,10 +120,11 @@ pub(crate) fn resolved_thresholds(
                 continue;
             };
             for (pattern_order, pattern) in override_.paths.iter().enumerate() {
-                if !path_matches(&source.target_path, pattern) {
+                let Some(specificity) = matching_path_specificity(&source.target_path, pattern)?
+                else {
                     continue;
-                }
-                let rank = (path_specificity(pattern), order, pattern_order);
+                };
+                let rank = (specificity, order, pattern_order);
                 if winner
                     .as_ref()
                     .is_none_or(|(current, _, _, _, _)| rank >= *current)
@@ -150,7 +153,16 @@ fn matches_selector(code: &str, selectors: &[String]) -> bool {
     selectors.iter().any(|selector| code.starts_with(selector))
 }
 
-fn path_specificity(pattern: &str) -> (usize, usize, Reverse<usize>, Reverse<usize>) {
+fn applicable(rule: &RuleMetadata, config: &Config) -> bool {
+    rule.analyzers.contains(&config.analyzer)
+        && (rule.frameworks.is_empty()
+            || config
+                .framework
+                .as_ref()
+                .is_some_and(|framework| rule.frameworks.contains(framework)))
+}
+
+fn path_specificity(pattern: &str) -> PathSpecificity {
     let segments = pattern.split(PATH_SEPARATOR).collect::<Vec<_>>();
     let literal_segments = segments
         .iter()
@@ -170,6 +182,13 @@ fn path_specificity(pattern: &str) -> (usize, usize, Reverse<usize>, Reverse<usi
         Reverse(globstars),
         Reverse(wildcard_count(&segments)),
     )
+}
+
+fn matching_path_specificity(path: &str, pattern: &str) -> Result<Option<PathSpecificity>, String> {
+    Ok(expand_path_pattern(pattern)?
+        .into_iter()
+        .filter_map(|expanded| path_matches(path, &expanded).then(|| path_specificity(&expanded)))
+        .max())
 }
 
 pub(crate) fn validate_unique_implementations(rules: &[&RuleMetadata]) -> Result<(), String> {

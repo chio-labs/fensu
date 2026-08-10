@@ -20,3 +20,6 @@ pub(crate) const CONFIG_PYPROJECT_FILE: &str = "pyproject.toml";
 pub(crate) const PYTHON_CACHE_DIRECTORY: &str = "__pycache__";
 pub(crate) const CUSTOM_CHECK_TARGETS_ENVIRONMENT_VARIABLE: &str =
     "FENSU_INTERNAL_CUSTOM_CHECK_TARGETS";
+pub(crate) const CUSTOM_CHECK_PROTOCOL_VERSION: u32 = 1;
+pub(crate) const MAX_EXPANDED_PATH_PATTERNS: usize = 256;
+pub(crate) const MIN_BRACE_ALTERNATIVES: usize = 2;

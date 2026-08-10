@@ -89,7 +89,8 @@ def test_given_dagster_pack_when_building_catalogue_then_registers_complete_stan
     assert all(rule.code.startswith("FPDG") for rule in ruleset)
     assert all(rule.analyzers == (AnalyzerId.PYTHON,) for rule in FPDG_RULES)
     assert all(
-        rule.analyzers in ((AnalyzerId.PYTHON,), (AnalyzerId.TYPESCRIPT, AnalyzerId.SVELTE))
+        rule.analyzers
+        in ((AnalyzerId.PYTHON,), (AnalyzerId.SVELTE,), (AnalyzerId.TYPESCRIPT, AnalyzerId.SVELTE))
         for rule in CORE_RULES
     )
 

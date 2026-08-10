@@ -3,9 +3,104 @@ use std::process::Command;
 
 use crate::helpers::{poison_processes, run_internal_web_check_with, write};
 use crate::test_types::{
-    CheckCacheTestCase, MixedWebExecutionTestCase, WebConfigFailureTestCase,
-    WebDiagnosticCountTestCase, WebSourcePurposeTestCase, WebThresholdCacheIdentityTestCase,
+    CheckCacheTestCase, FreshSvelteKitCheckTestCase, MixedWebExecutionTestCase,
+    WebConfigFailureTestCase, WebDiagnosticCountTestCase, WebSourcePurposeTestCase,
+    WebThresholdCacheIdentityTestCase,
 };
+
+#[test]
+fn given_fresh_racewatch_sveltekit_shape_when_checking_then_ui_alias_resolves_without_node() {
+    let test_cases = [FreshSvelteKitCheckTestCase {
+        description:
+            "RaceWatch literal $ui-kit alias resolves before generated SvelteKit config exists",
+        expected_exit_code: 0,
+        expected_cold_cache: "hits=0 misses=2",
+        expected_warm_cache: "hits=2 misses=0",
+        expected_appearance_cache: "hits=0 misses=2",
+    }];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("fresh SvelteKit repository");
+        write(
+            repository.path().join("fensu.toml"),
+            "[targets.web]\nanalyzer = \"svelte\"\nframework = \"sveltekit\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = []\n[targets.web.cache]\nenabled = true\n",
+        );
+        write(
+            repository.path().join("tsconfig.json"),
+            "{ \"extends\": \"./.svelte-kit/tsconfig.json\" }\n",
+        );
+        write(
+            repository.path().join("svelte.config.js"),
+            "import adapter from '@sveltejs/adapter-static';\nconst config = { kit: { adapter: adapter(), alias: { $lib: 'src/lib', '$ui-kit': 'src/ui-kit' } } };\nexport default config;\n",
+        );
+        write(
+            repository.path().join("src/App.svelte"),
+            "<script lang=\"ts\">import * as Button from '$ui-kit/button';</script>\n<Button.Button />\n",
+        );
+        write(
+            repository.path().join("src/ui-kit/button/index.ts"),
+            "export const Button = 1;\n",
+        );
+        let process_directory = poison_processes(repository.path());
+
+        let cold = run_internal_web_check_with(
+            repository.path(),
+            &["--cache", "--cache-stats"],
+            &process_directory,
+        );
+        let warm = run_internal_web_check_with(
+            repository.path(),
+            &["--cache", "--cache-stats"],
+            &process_directory,
+        );
+        crate::helpers::create_directory(repository.path().join(".svelte-kit"));
+        write(repository.path().join(".svelte-kit/tsconfig.json"), "{}\n");
+        let generated_appeared = run_internal_web_check_with(
+            repository.path(),
+            &["--cache", "--cache-stats"],
+            &process_directory,
+        );
+
+        assert_eq!(
+            cold.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            warm.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            generated_appeared.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&cold.stderr).contains(test_case.expected_cold_cache),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&warm.stderr).contains(test_case.expected_warm_cache),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            String::from_utf8_lossy(&generated_appeared.stderr)
+                .contains(test_case.expected_appearance_cache),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            !repository.path().join("process-invoked").exists(),
+            "{}",
+            test_case.description
+        );
+    }
+}
 
 #[test]
 fn given_route_roles_and_server_exports_when_checking_then_boundaries_apply_without_lib_ownership()
@@ -267,13 +362,13 @@ fn given_parser_and_framework_boundaries_when_checking_then_fail_closed_and_rema
             expected_absent: None,
         },
         WebSourcePurposeTestCase {
-            description: "generic TypeScript does not activate SvelteKit resource policy",
+            description: "generic TypeScript rejects Svelte resource policy",
             config: "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FWV201\"]\n[targets.web.cache]\nenabled = false\n",
             files: &[(
                 "src/lib/orders/main/read.ts",
                 "export function read(): WebSocket { return new WebSocket('ws://localhost'); }\n",
             )],
-            expected_exit_code: 0,
+            expected_exit_code: 2,
             expected_present: None,
             expected_absent: Some("FWV201"),
         },
@@ -358,18 +453,22 @@ fn given_python_custom_and_native_web_targets_when_checking_then_one_host_and_na
         let repository = tempfile::tempdir().expect("mixed analyzer repository");
         write(
             repository.path().join("fensu.toml"),
-            "[targets.backend]\nanalyzer = \"python\"\nroots = [\"src/backend\"]\ntests = []\ntooling = []\nselect = [\"FFA001\", \"XMIX001\"]\nrule_paths = [\"rules/mixed.py\"]\n[targets.backend.cache]\nenabled = true\n[targets.frontend]\nanalyzer = \"svelte\"\nframework = \"sveltekit\"\nroots = [\"src/frontend\"]\ntests = []\ntooling = []\nselect = [\"FWA102\"]\n[targets.frontend.cache]\nenabled = true\n",
+            "[targets.backend]\nanalyzer = \"python\"\nroots = [\"src/z-backend\"]\ntests = []\ntooling = []\nselect = [\"FFA001\", \"XMIX001\"]\nrule_paths = [\"rules/mixed.py\"]\n[targets.backend.evaluation]\nexclude = [\"src/z-backend/excluded.py\"]\n[targets.backend.cache]\nenabled = true\n[targets.frontend]\nanalyzer = \"svelte\"\nframework = \"sveltekit\"\nroots = [\"src/a-frontend\"]\ntests = []\ntooling = []\nselect = [\"FWA102\"]\n[targets.frontend.cache]\nenabled = true\n",
         );
         write(
-            repository.path().join("src/backend/module.py"),
+            repository.path().join("src/z-backend/module.py"),
             "def untyped(value):\n    return value\n",
+        );
+        write(
+            repository.path().join("src/z-backend/excluded.py"),
+            "def excluded(value):\n    return value\n",
         );
         write(
             repository.path().join("rules/mixed.py"),
             "import ast\nimport os\nfrom pathlib import Path\nfrom fensu import Family, Fault, RuleContext, rule\nmarker = Path(os.environ['FENSU_HOST_MARKER'])\nmarker.write_text((marker.read_text() if marker.exists() else '') + 'x')\n@rule(code='XMIX001', family=Family.CUSTOM, slug='mixed', message='mixed')\ndef mixed(module: ast.Module, ctx: RuleContext) -> list[Fault]:\n    return []\n",
         );
         write(
-            repository.path().join("src/frontend/Card.svelte"),
+            repository.path().join("src/a-frontend/Card.svelte"),
             "<script lang=\"ts\">const endpoint = '/api/orders';</script>\n",
         );
         let process_directory = poison_processes(repository.path());
@@ -399,6 +498,17 @@ fn given_python_custom_and_native_web_targets_when_checking_then_one_host_and_na
         );
         assert!(stdout.contains(test_case.expected_python_fault));
         assert!(stdout.contains(test_case.expected_web_fault));
+        assert!(
+            stdout.find("src/a-frontend/Card.svelte") < stdout.find("src/z-backend/module.py"),
+            "{}: {stdout}",
+            test_case.description
+        );
+        assert_eq!(
+            stdout.matches("Evaluation:").count(),
+            1,
+            "{}: {stdout}",
+            test_case.description
+        );
         assert_eq!(
             stderr.matches("Cache:").count(),
             1,

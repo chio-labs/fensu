@@ -31,7 +31,7 @@ def load_config(start: Path | None = None) -> Config:
     validate_config(raw=raw, analyzer=analyzer)
     if raw.get("rule_options"):
         return load_project_config(start).config
-    base_config: Config = build_config(raw, analyzer=analyzer)
+    base_config: Config = build_config(raw=raw, analyzer=analyzer)
     config: Config = replace(
         base_config,
         analyzer=analyzer,

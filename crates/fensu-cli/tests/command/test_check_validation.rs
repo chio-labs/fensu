@@ -521,6 +521,30 @@ fn given_invalid_explicit_targets_when_checking_then_configuration_fails_closed(
             expected_error: "must be 'mirrored' or 'colocated'",
         },
         InvalidCheckConfigTestCase {
+            description: "legacy flat configuration rejects web threshold aliases",
+            config: "roots = [\"src/pkg\"]\n[thresholds]\nmax_entry_statements = 40\n",
+            expected_exit_code: 2,
+            expected_error: "Unknown threshold key in thresholds: max_entry_statements",
+        },
+        InvalidCheckConfigTestCase {
+            description: "Python targets reject web threshold aliases",
+            config: "[targets.app]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\n[targets.app.thresholds]\nmax_function_statements = 70\n",
+            expected_exit_code: 2,
+            expected_error: "Unknown threshold key in thresholds: max_function_statements",
+        },
+        InvalidCheckConfigTestCase {
+            description: "web targets reject conflicting alias and canonical thresholds",
+            config: "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\n[targets.web.thresholds]\nmax_entry_statements = 40\nmax_statements = 41\n",
+            expected_exit_code: 2,
+            expected_error: "Conflicting threshold values in thresholds",
+        },
+        InvalidCheckConfigTestCase {
+            description: "web overrides reject conflicting alias and canonical thresholds",
+            config: "[targets.web]\nanalyzer = \"svelte\"\nroots = [\"src\"]\n[[targets.web.threshold_overrides]]\npaths = [\"src/**\"]\nreason = \"conflict\"\nthresholds = { max_entry_locals = 20, max_locals = 21 }\n",
+            expected_exit_code: 2,
+            expected_error: "Conflicting threshold values in threshold_overrides.thresholds",
+        },
+        InvalidCheckConfigTestCase {
             description: "SvelteKit framework values fail closed",
             config: "[targets.web]\nanalyzer = \"svelte\"\nframework = \"react\"\nroots = [\"src\"]\n",
             expected_exit_code: 2,

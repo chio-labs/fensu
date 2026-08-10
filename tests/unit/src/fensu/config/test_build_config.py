@@ -13,6 +13,7 @@ from tests.unit.src.fensu.config._test_types import (
     InMemoryConfigBuildTestCase,
     InvalidInMemoryConfigTestCase,
     RulePackConfigTestCase,
+    WebInMemoryConfigBuildTestCase,
 )
 
 
@@ -30,7 +31,7 @@ from tests.unit.src.fensu.config._test_types import (
 def test_given_registered_rule_pack_when_building_then_returns_pack_configuration(
     test_case: RulePackConfigTestCase,
 ) -> None:
-    config: Config = build_config(test_case.raw_config)
+    config: Config = build_config(raw=test_case.raw_config)
 
     assert config.rule_packs == test_case.expected_rule_packs
 
@@ -52,7 +53,7 @@ def test_given_registered_rule_pack_when_building_then_returns_pack_configuratio
 def test_given_valid_raw_mapping_when_building_then_returns_config(
     test_case: InMemoryConfigBuildTestCase,
 ) -> None:
-    config: Config = build_config(test_case.raw_config)
+    config: Config = build_config(raw=test_case.raw_config)
 
     assert config.roots == test_case.expected_roots
     assert config.select == test_case.expected_select
@@ -63,14 +64,29 @@ def test_given_valid_raw_mapping_when_building_then_returns_config(
     )
 
 
-def test_given_explicit_web_analyzer_when_building_then_accepts_test_layout() -> None:
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        WebInMemoryConfigBuildTestCase(
+            description="TypeScript analyzer accepts a colocated test layout",
+            raw_config={"roots": ["src"], "test_layout": "colocated"},
+            analyzer=AnalyzerId.TYPESCRIPT,
+            expected_test_layout="colocated",
+            expected_analyzer=AnalyzerId.TYPESCRIPT,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_explicit_web_analyzer_when_building_then_accepts_test_layout(
+    test_case: WebInMemoryConfigBuildTestCase,
+) -> None:
     config: Config = build_config(
-        {"roots": ["src"], "test_layout": "colocated"},
-        analyzer=AnalyzerId.TYPESCRIPT,
+        raw=test_case.raw_config,
+        analyzer=test_case.analyzer,
     )
 
-    assert config.test_layout == "colocated"
-    assert config.analyzer == AnalyzerId.TYPESCRIPT
+    assert config.test_layout == test_case.expected_test_layout
+    assert config.analyzer == test_case.expected_analyzer
 
 
 @pytest.mark.parametrize(
@@ -101,6 +117,12 @@ def test_given_explicit_web_analyzer_when_building_then_accepts_test_layout() ->
             expected_error_fragment="supported only by TypeScript and Svelte analyzers",
         ),
         InvalidInMemoryConfigTestCase(
+            description="web threshold alias without an explicit target is rejected",
+            raw_config={"roots": ["src/pkg"], "thresholds": {"max_entry_statements": 40}},
+            expected_error_type=ConfigValidationError,
+            expected_error_fragment="max_entry_statements",
+        ),
+        InvalidInMemoryConfigTestCase(
             description="unknown native rule pack is rejected",
             raw_config={"roots": ["src/pkg"], "rule_packs": ["unknown"]},
             expected_error_type=ConfigValidationError,
@@ -119,6 +141,6 @@ def test_given_invalid_raw_mapping_when_building_then_raises_validation_error(
     test_case: InvalidInMemoryConfigTestCase,
 ) -> None:
     with pytest.raises(test_case.expected_error_type) as error:
-        build_config(test_case.raw_config)
+        build_config(raw=test_case.raw_config)
 
     assert test_case.expected_error_fragment in str(error.value)

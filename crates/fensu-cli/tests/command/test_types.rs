@@ -17,6 +17,15 @@ pub(crate) struct CheckCacheTestCase {
     pub(crate) expected_warm_fragment: &'static str,
 }
 
+pub(crate) struct WebThresholdCacheIdentityTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) alias: &'static str,
+    pub(crate) canonical: &'static str,
+    pub(crate) expected_exit_code: i32,
+    pub(crate) expected_cold: &'static str,
+    pub(crate) expected_warm: &'static str,
+}
+
 pub(crate) struct CheckPolicyTestCase {
     pub(crate) description: &'static str,
     pub(crate) expected_exit_code: i32,

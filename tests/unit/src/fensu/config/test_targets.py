@@ -17,6 +17,7 @@ from fensu.config.exceptions import ConfigError
 from fensu.config.main.load_target_project_config import load_target_project_config
 from fensu.config.models import Config
 from fensu.config.types import AnalyzerId
+from fensu.rules.authoring.types import Threshold
 from tests.unit.src.fensu.config._test_types import (
     AnalyzerCapabilityTestCase,
     AnalyzerIdentityTestCase,
@@ -25,6 +26,8 @@ from tests.unit.src.fensu.config._test_types import (
     TargetConfigTestCase,
     WebExceptionPathTestCase,
     WebTargetDefaultsTestCase,
+    WebTestLayoutFingerprintTestCase,
+    WebThresholdAliasTestCase,
 )
 from tests.unit.src.fensu.config.helpers import write_fensu_toml
 
@@ -211,21 +214,120 @@ def test_given_web_target_when_loading_then_defaults_follow_analyzer_contract(
     assert config.test_layout == test_case.expected_test_layout
 
 
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        WebTestLayoutFingerprintTestCase(
+            description="mirrored and colocated web layouts have distinct fingerprints",
+            first_layout="mirrored",
+            second_layout="colocated",
+            expected_equal=False,
+        )
+    ],
+    ids=lambda case: case.description,
+)
 def test_given_web_test_layout_change_when_fingerprinting_then_identity_changes(
-    tmp_path: Path,
+    tmp_path: Path, test_case: WebTestLayoutFingerprintTestCase
 ) -> None:
     template: str = '[targets.web]\nanalyzer = "typescript"\nroots = ["src"]\ntest_layout = "{}"\n'
     (tmp_path / "src").mkdir()
-    write_fensu_toml(root=tmp_path, contents=template.format("mirrored"))
-    mirrored: CacheFingerprint = config_fingerprint(
+    write_fensu_toml(root=tmp_path, contents=template.format(test_case.first_layout))
+    first: CacheFingerprint = config_fingerprint(
         load_target_project_config(start=tmp_path, target="web").config
     )
-    write_fensu_toml(root=tmp_path, contents=template.format("colocated"))
-    colocated: CacheFingerprint = config_fingerprint(
+    write_fensu_toml(root=tmp_path, contents=template.format(test_case.second_layout))
+    second: CacheFingerprint = config_fingerprint(
         load_target_project_config(start=tmp_path, target="web").config
     )
 
-    assert mirrored != colocated
+    assert (first == second) is test_case.expected_equal
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        WebThresholdAliasTestCase(
+            description="TypeScript target normalizes familiar web thresholds",
+            analyzer="typescript",
+            expected_analyzer="typescript",
+            expected_fingerprints_equal=True,
+        ),
+        WebThresholdAliasTestCase(
+            description="Svelte target normalizes familiar web thresholds",
+            analyzer="svelte",
+            expected_analyzer="svelte",
+            expected_fingerprints_equal=True,
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_explicit_web_threshold_aliases_when_loading_then_canonical_identity_is_preserved(
+    tmp_path: Path, test_case: WebThresholdAliasTestCase
+) -> None:
+    write_fensu_toml(
+        root=tmp_path,
+        contents=(
+            "[targets.web]\n"
+            f'analyzer = "{test_case.analyzer}"\n'
+            'roots = ["src"]\n'
+            "[targets.web.thresholds]\n"
+            "max_entry_statements = 41\n"
+            "max_entry_distinct_calls = 21\n"
+            "max_entry_locals = 22\n"
+            "max_function_statements = 71\n"
+            "[targets.web.roles.main]\n"
+            "max_entry_statements = 31\n"
+            "[[targets.web.threshold_overrides]]\n"
+            'paths = ["src/routes/**"]\n'
+            'reason = "Route-specific entry budget."\n'
+            "thresholds = { max_entry_statements = 51, max_function_statements = 81 }\n"
+        ),
+    )
+
+    config: Config = load_target_project_config(start=tmp_path, target="web").config
+
+    assert config.analyzer == test_case.expected_analyzer
+    assert config.thresholds[Threshold.MAX_STATEMENTS] == 41
+    assert config.thresholds[Threshold.MAX_DISTINCT_CALLS] == 21
+    assert config.thresholds[Threshold.MAX_LOCALS] == 22
+    assert config.thresholds[Threshold.MAX_STATEMENTS_GLOBAL] == 71
+    assert config.role_thresholds["main"][Threshold.MAX_STATEMENTS] == 31
+    assert config.threshold_overrides[0].thresholds == {
+        Threshold.MAX_STATEMENTS: 51,
+        Threshold.MAX_STATEMENTS_GLOBAL: 81,
+    }
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        WebThresholdAliasTestCase(
+            description="alias and canonical web thresholds share a fingerprint",
+            analyzer="typescript",
+            expected_analyzer="typescript",
+            expected_fingerprints_equal=True,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_alias_and_canonical_web_configs_when_fingerprinting_then_identity_matches(
+    tmp_path: Path, test_case: WebThresholdAliasTestCase
+) -> None:
+    template: str = (
+        f'[targets.web]\nanalyzer = "{test_case.analyzer}"\nroots = ["src"]\n'
+        "[targets.web.thresholds]\n{} = 41\n"
+    )
+    (tmp_path / "src").mkdir()
+    write_fensu_toml(root=tmp_path, contents=template.format("max_entry_statements"))
+    alias: CacheFingerprint = config_fingerprint(
+        load_target_project_config(start=tmp_path, target="web").config
+    )
+    write_fensu_toml(root=tmp_path, contents=template.format("max_statements"))
+    canonical: CacheFingerprint = config_fingerprint(
+        load_target_project_config(start=tmp_path, target="web").config
+    )
+
+    assert (alias == canonical) is test_case.expected_fingerprints_equal
 
 
 @pytest.mark.parametrize(
@@ -406,6 +508,41 @@ def test_given_analyzer_compatible_web_exception_when_loading_then_path_is_accep
             ),
             target="web",
             expected_error_fragment="must be 'mirrored' or 'colocated'",
+        ),
+        InvalidTargetConfigTestCase(
+            description="legacy flat config rejects web threshold aliases",
+            config_text=('roots = ["src/app"]\n[thresholds]\nmax_entry_statements = 40\n'),
+            target=None,
+            expected_error_fragment="Unknown threshold key in thresholds: max_entry_statements",
+        ),
+        InvalidTargetConfigTestCase(
+            description="Python targets reject web threshold aliases",
+            config_text=(
+                '[targets.app]\nanalyzer = "python"\nroots = ["src/app"]\n'
+                "[targets.app.thresholds]\nmax_function_statements = 70\n"
+            ),
+            target="app",
+            expected_error_fragment="Unknown threshold key in thresholds: max_function_statements",
+        ),
+        InvalidTargetConfigTestCase(
+            description="web targets reject conflicting alias and canonical thresholds",
+            config_text=(
+                '[targets.web]\nanalyzer = "typescript"\nroots = ["src"]\n'
+                "[targets.web.thresholds]\nmax_entry_statements = 40\nmax_statements = 41\n"
+            ),
+            target="web",
+            expected_error_fragment="Conflicting threshold values in thresholds",
+        ),
+        InvalidTargetConfigTestCase(
+            description="web overrides reject conflicting alias and canonical thresholds",
+            config_text=(
+                '[targets.web]\nanalyzer = "svelte"\nroots = ["src"]\n'
+                "[[targets.web.threshold_overrides]]\n"
+                'paths = ["src/**"]\nreason = "conflict"\n'
+                "thresholds = { max_entry_locals = 20, max_locals = 21 }\n"
+            ),
+            target="web",
+            expected_error_fragment="Conflicting threshold values in threshold_overrides.thresholds",
         ),
         InvalidTargetConfigTestCase(
             description="TypeScript cannot activate the SvelteKit framework",

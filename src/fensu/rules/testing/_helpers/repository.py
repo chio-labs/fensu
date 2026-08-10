@@ -42,7 +42,7 @@ def build_harness_config(
     if rule_options is not None:
         raw["rule_options"] = {rule.code: _plain_mapping(value=rule_options)}
     if not rule.options and rule_options is None:
-        return build_config(raw)
+        return build_config(raw=raw)
     return build_config_for_rules(raw=raw, rules=(rule,))
 
 

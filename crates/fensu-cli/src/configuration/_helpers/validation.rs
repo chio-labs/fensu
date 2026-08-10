@@ -13,6 +13,12 @@ use crate::models::TargetSelection;
 
 const RECURSIVE_GLOB: &str = "**";
 const DEFAULT_TARGET_ROOT: &str = ".";
+pub(crate) const WEB_THRESHOLD_ALIASES: &[(&str, &str)] = &[
+    ("max_entry_statements", "max_statements"),
+    ("max_entry_distinct_calls", "max_distinct_calls"),
+    ("max_entry_locals", "max_locals"),
+    ("max_function_statements", "max_statements_global"),
+];
 const CONFIG_KEYS: &[&str] = &[
     "roots",
     "tests",
@@ -290,10 +296,92 @@ fn validated_targets(
         let mut selected = values.clone();
         selected.remove("analyzer");
         selected.remove("root");
+        let selected = normalize_web_aliases(selected, analyzer)?;
         validate_for_analyzer(&selected, analyzer)?;
         validated.insert(name.clone(), (selected, analyzer, root));
     }
     Ok(validated)
+}
+
+fn normalize_web_aliases(
+    mut table: toml::map::Map<String, toml::Value>,
+    analyzer: AnalyzerId,
+) -> Result<toml::map::Map<String, toml::Value>, String> {
+    if analyzer == AnalyzerId::Python {
+        return Ok(table);
+    }
+    if let Some(value) = table.remove("thresholds") {
+        let normalized = match value {
+            toml::Value::Table(values) => {
+                toml::Value::Table(normalize_web_threshold_table(values, "thresholds")?)
+            }
+            other => other,
+        };
+        table.insert("thresholds".to_owned(), normalized);
+    }
+    if let Some(value) = table.remove("roles") {
+        let normalized = match value {
+            toml::Value::Table(mut roles) => {
+                for (role, value) in &mut roles {
+                    if let toml::Value::Table(values) = value {
+                        *values = normalize_web_threshold_table(
+                            std::mem::take(values),
+                            &format!("roles.{role}"),
+                        )?;
+                    }
+                }
+                toml::Value::Table(roles)
+            }
+            other => other,
+        };
+        table.insert("roles".to_owned(), normalized);
+    }
+    if let Some(value) = table.remove("threshold_overrides") {
+        let normalized = match value {
+            toml::Value::Array(mut overrides) => {
+                for entry in &mut overrides {
+                    let Some(values) = entry
+                        .as_table_mut()
+                        .and_then(|item| item.get_mut("thresholds"))
+                    else {
+                        continue;
+                    };
+                    if let toml::Value::Table(thresholds) = values {
+                        *thresholds = normalize_web_threshold_table(
+                            std::mem::take(thresholds),
+                            "threshold_overrides.thresholds",
+                        )?;
+                    }
+                }
+                toml::Value::Array(overrides)
+            }
+            other => other,
+        };
+        table.insert("threshold_overrides".to_owned(), normalized);
+    }
+    Ok(table)
+}
+
+fn normalize_web_threshold_table(
+    mut values: toml::map::Map<String, toml::Value>,
+    owner: &str,
+) -> Result<toml::map::Map<String, toml::Value>, String> {
+    for (alias, canonical) in WEB_THRESHOLD_ALIASES {
+        let Some(alias_value) = values.get(*alias).cloned() else {
+            continue;
+        };
+        if values
+            .get(*canonical)
+            .is_some_and(|canonical_value| canonical_value != &alias_value)
+        {
+            return Err(format!(
+                "Conflicting threshold values in {owner}: {alias} and {canonical}."
+            ));
+        }
+        values.insert((*canonical).to_owned(), alias_value);
+        values.remove(*alias);
+    }
+    Ok(values)
 }
 
 fn validate_boolean_table(

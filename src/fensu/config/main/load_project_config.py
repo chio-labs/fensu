@@ -41,7 +41,7 @@ def _load_project_config(*, start: Path | None, target: str | None) -> LoadedCon
     validate_config(raw=raw_config, analyzer=analyzer)
     bootstrap_raw: dict[str, object] = dict(raw_config)
     _ = bootstrap_raw.pop("rule_options", None)
-    base_bootstrap: Config = build_config(bootstrap_raw, analyzer=analyzer)
+    base_bootstrap: Config = build_config(raw=bootstrap_raw, analyzer=analyzer)
     bootstrap: Config = replace(
         base_bootstrap,
         analyzer=analyzer,

@@ -12,7 +12,7 @@ from fensu.config.models import Config
 from fensu.config.types import AnalyzerId
 
 
-def build_config(raw: Mapping[str, object], *, analyzer: AnalyzerId = AnalyzerId.PYTHON) -> Config:
+def build_config(*, raw: Mapping[str, object], analyzer: AnalyzerId = AnalyzerId.PYTHON) -> Config:
     """Validate and build configuration from a parsed raw mapping."""
 
     validate_config(raw=raw, analyzer=analyzer)

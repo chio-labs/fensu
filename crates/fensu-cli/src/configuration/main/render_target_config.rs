@@ -1,3 +1,5 @@
+use crate::configuration::_helpers::validation::WEB_THRESHOLD_ALIASES;
+use crate::configuration::constants::DEFAULT_THRESHOLDS;
 use crate::models::DetectedTarget;
 
 pub(crate) fn render_target_config(targets: &[DetectedTarget]) -> Result<String, String> {
@@ -38,6 +40,18 @@ pub(crate) fn render_target_config(targets: &[DetectedTarget]) -> Result<String,
             "select = {}\n",
             serde_json::to_string(&target.select).map_err(|error| error.to_string())?
         ));
+        if target.analyzer == crate::analyzer::AnalyzerId::Svelte
+            && target.framework.as_deref() == Some("sveltekit")
+        {
+            text.push_str(&format!("[targets.{}.thresholds]\n", target.name));
+            for (alias, canonical) in WEB_THRESHOLD_ALIASES {
+                let value = DEFAULT_THRESHOLDS
+                    .iter()
+                    .find_map(|(name, value)| (*name == *canonical).then_some(value))
+                    .ok_or_else(|| format!("Missing default threshold {canonical}."))?;
+                text.push_str(&format!("{alias} = {value}\n"));
+            }
+        }
     }
     Ok(text)
 }

@@ -5,6 +5,7 @@ use crate::check::_helpers::project as web;
 use crate::models::ProjectInput;
 use crate::tests::helpers::web_source;
 use crate::tests::test_types::WebConfigInheritanceTestCase;
+use crate::tests::test_types::WebTestSourceTestCase;
 use crate::tests::test_types::{WebDirectSourceTestCase, WebImportGraphTestCase};
 
 #[test]
@@ -449,6 +450,45 @@ fn given_svelte_target_when_classifying_sources_then_scripts_are_support_only() 
         assert_eq!(
             web::source_kind(std::path::Path::new(test_case.path)),
             test_case.expected_source_kind,
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_web_filename_when_classifying_colocated_tests_then_only_test_and_spec_suffixes_match() {
+    let test_cases = [
+        WebTestSourceTestCase {
+            description: "test suffix is recognized",
+            path: "src/setup.test.ts",
+            expected_test: true,
+        },
+        WebTestSourceTestCase {
+            description: "spec suffix is recognized",
+            path: "scripts/setup.spec.js",
+            expected_test: true,
+        },
+        WebTestSourceTestCase {
+            description: "arbitrary runtime setup module is not a test",
+            path: "src/setup.ts",
+            expected_test: false,
+        },
+        WebTestSourceTestCase {
+            description: "setupTests near miss is not a test",
+            path: "src/setupTests.ts",
+            expected_test: false,
+        },
+        WebTestSourceTestCase {
+            description: "declaration near miss is not a test",
+            path: "src/setup.test.d.ts",
+            expected_test: false,
+        },
+    ];
+    for test_case in test_cases {
+        assert_eq!(
+            web::is_web_test_source(std::path::Path::new(test_case.path)),
+            test_case.expected_test,
             "{}",
             test_case.description
         );

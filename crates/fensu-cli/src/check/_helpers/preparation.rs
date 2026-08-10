@@ -17,7 +17,7 @@ use crate::check::models::{CheckIdentityRequest, CheckPlan, CheckPlans};
 use crate::configuration::main::load_targets;
 use crate::configuration::main::resolve_target_root::resolve_target_root;
 use crate::configuration::main::validate_exception_targets::validate_exception_targets;
-use crate::constants::PYTHON_CACHE_DIRECTORY;
+use crate::constants::{PYTHON_CACHE_DIRECTORY, SCOPE_TEST};
 use crate::models::{CheckOptions, Config, ScopedSource, SourcePurpose};
 
 pub(crate) fn prepare_checks(
@@ -250,6 +250,15 @@ fn discover(
             } else {
                 SourcePurpose::Support
             };
+            let source_scope = if config.analyzer != crate::analyzer::AnalyzerId::Python
+                && config.test_layout == crate::models::TestLayout::Colocated
+                && scope != SCOPE_TEST
+                && web::is_web_test_source(entry.path())
+            {
+                "test"
+            } else {
+                scope
+            };
             sources.push(ScopedSource {
                 analyzer: config.analyzer,
                 target_identity: config.target.clone().unwrap_or_default(),
@@ -257,9 +266,10 @@ fn discover(
                 path,
                 repository_path,
                 target_path,
+                test_owner_path: None,
                 root: source_root.clone(),
                 root_text: configured_root.clone(),
-                scope: scope.to_owned(),
+                scope: source_scope.to_owned(),
                 relative_parts,
                 fingerprint: hex_digest(&content),
                 content,
@@ -281,7 +291,39 @@ fn discover(
             })
     });
     sources.dedup_by(|left, right| left.repository_path == right.repository_path);
+    if config.test_layout == crate::models::TestLayout::Colocated {
+        assign_colocated_test_owners(&mut sources, config);
+    }
     Ok(sources)
+}
+
+fn assign_colocated_test_owners(sources: &mut [ScopedSource], config: &Config) {
+    let owners = sources
+        .iter()
+        .filter(|source| source.scope != SCOPE_TEST)
+        .map(|source| (source.target_path.clone(), source.path.clone()))
+        .collect::<Vec<_>>();
+    for source in sources
+        .iter_mut()
+        .filter(|source| source.scope == SCOPE_TEST)
+    {
+        if !config
+            .roots
+            .iter()
+            .chain(&config.tooling)
+            .any(|root| source.target_path.starts_with(&format!("{root}/")))
+        {
+            continue;
+        }
+        let Some(identity) = web::web_test_identity(&source.path) else {
+            continue;
+        };
+        source.test_owner_path = owners
+            .iter()
+            .filter(|(_, path)| path.parent() == source.path.parent())
+            .find(|(_, path)| web::web_source_identity(path).as_deref() == Some(&identity))
+            .map(|(target_path, _)| target_path.clone());
+    }
 }
 
 fn select_sources(sources: Vec<ScopedSource>, config: &Config) -> (Vec<ScopedSource>, usize) {

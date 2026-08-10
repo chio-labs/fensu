@@ -1160,6 +1160,98 @@ fn given_tooling_tests_when_checking_mirror_then_one_configured_tooling_prefix_i
 }
 
 #[test]
+fn given_colocated_test_owner_when_checking_boundaries_and_coverage_then_uses_adjacent_capability()
+{
+    let test_cases = [
+        WebSourcePurposeTestCase {
+            description: "colocated test importing its adjacent internal API stays capability-local",
+            config: "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = []\ntooling = []\ntest_layout = \"colocated\"\nselect = [\"FWL101\"]\n[targets.web.cache]\nenabled = false\n",
+            files: &[
+                (
+                    "src/lib/orders/_api/client.ts",
+                    "export function client(): string { return 'ok'; }\n",
+                ),
+                (
+                    "src/lib/orders/_api/client.test.ts",
+                    "import { client } from './client'; test('client', () => client());\n",
+                ),
+            ],
+            expected_exit_code: 0,
+            expected_present: None,
+            expected_absent: Some("FWL101"),
+        },
+        WebSourcePurposeTestCase {
+            description: "colocated focused state test satisfies critical-role coverage",
+            config: "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = []\ntooling = []\ntest_layout = \"colocated\"\nselect = [\"FWT003\"]\n[targets.web.cache]\nenabled = false\n",
+            files: &[
+                (
+                    "src/lib/orders/_state/orders.state.ts",
+                    "export const orders: string[] = [];\n",
+                ),
+                (
+                    "src/lib/orders/_state/orders.state.test.ts",
+                    "test('orders state', () => {});\n",
+                ),
+            ],
+            expected_exit_code: 0,
+            expected_present: None,
+            expected_absent: Some("FWT003"),
+        },
+        WebSourcePurposeTestCase {
+            description: "colocated integration adapter test satisfies both coverage rules",
+            config: "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = []\ntooling = []\ntest_layout = \"colocated\"\nselect = [\"FWT003\", \"FWT004\"]\n[targets.web.cache]\nenabled = false\n",
+            files: &[
+                (
+                    "src/lib/orders/_adapters/payment.ts",
+                    "export function payment(): string { return 'ok'; }\n",
+                ),
+                (
+                    "src/lib/orders/_adapters/payment.integration.test.ts",
+                    "test('payment integration', () => {});\n",
+                ),
+            ],
+            expected_exit_code: 0,
+            expected_present: None,
+            expected_absent: Some("FWT00"),
+        },
+    ];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(repository.path().join("fensu.toml"), test_case.config);
+        for (path, source) in test_case.files {
+            write(repository.path().join(path), source);
+        }
+        let process_directory = poison_processes(repository.path());
+
+        let output =
+            run_internal_web_check_with(repository.path(), &["--no-cache"], &process_directory);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {stdout} {}",
+            test_case.description,
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            test_case
+                .expected_present
+                .is_none_or(|code| stdout.contains(code)),
+            "{}: {stdout}",
+            test_case.description
+        );
+        assert!(
+            test_case
+                .expected_absent
+                .is_none_or(|code| !stdout.contains(code)),
+            "{}: {stdout}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
 fn given_multiple_json_results_when_checking_contracts_then_each_flow_is_evaluated_independently() {
     let test_cases = [WebPolicyCheckTestCase {
         description:

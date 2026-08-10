@@ -6,7 +6,9 @@ use crate::configuration::constants::{
     DEFAULT_SELECT, DEFAULT_TEST_PATHS, DEFAULT_TEST_SCOPES, DEFAULT_THRESHOLDS, DEFAULT_WARN,
     WEB_DEFAULT_CONTRACTS,
 };
-use crate::models::{Config, RuleException, RuleIgnore, TargetSelection, ThresholdOverride};
+use crate::models::{
+    Config, RuleException, RuleIgnore, TargetSelection, TestLayout, ThresholdOverride,
+};
 
 pub(crate) fn build(
     selection: TargetSelection,
@@ -33,6 +35,10 @@ pub(crate) fn build(
         roots,
         tests: strings_or(table.get("tests"), DEFAULT_TEST_PATHS),
         test_scopes: strings_or(table.get("test_scopes"), DEFAULT_TEST_SCOPES),
+        test_layout: match table.get("test_layout").and_then(toml::Value::as_str) {
+            Some("colocated") => TestLayout::Colocated,
+            _ => TestLayout::Mirrored,
+        },
         tooling: strings(table.get("tooling")),
         generated: strings(table.get("generated")),
         select: strings_or(

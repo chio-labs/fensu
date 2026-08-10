@@ -9,7 +9,7 @@ use crate::init::constants::{
     DEFAULT_TARGET_ROOT, PYTHON_TARGET_NAME, SVELTEKIT_PRESET, TESTS_ROOT, WEB_TARGET_NAME,
 };
 use crate::init::models::{InitPlan, RepositorySurvey};
-use crate::models::{DetectedTarget, InitOptions};
+use crate::models::{DetectedTarget, InitOptions, TestLayout};
 
 pub(crate) fn plan_layout(
     repository: &Path,
@@ -48,6 +48,7 @@ pub(crate) fn plan_layout(
                 roots: python_roots,
                 tests: vec![TESTS_ROOT.to_owned()],
                 tooling: Vec::new(),
+                test_layout: TestLayout::Mirrored,
                 framework: None,
                 rule_packs: Vec::new(),
                 select: vec!["FF".to_owned()],
@@ -119,6 +120,7 @@ fn sveltekit_target(name: &str, root: &str) -> DetectedTarget {
         roots: vec!["src".to_owned()],
         tests: Vec::new(),
         tooling: Vec::new(),
+        test_layout: TestLayout::Mirrored,
         framework: Some("sveltekit".to_owned()),
         rule_packs: Vec::new(),
         select: vec!["FW".to_owned()],

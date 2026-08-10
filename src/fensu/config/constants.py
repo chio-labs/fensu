@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from fensu.config.types import AnalyzerId, ContractBehavior, RuleSelector
+from fensu.config.types import AnalyzerId, ContractBehavior, RuleSelector, TestLayout
 from fensu.discovery.types import RoleName
 from fensu.rules.authoring.types import Threshold
 
@@ -43,6 +43,7 @@ DEFAULT_ROLE_FILE_NAMES: frozenset[str] = frozenset(
 
 DEFAULT_TEST_PATHS: tuple[str, ...] = ("tests",)
 DEFAULT_TEST_SCOPES: tuple[str, ...] = ("unit", "integration", "e2e")
+DEFAULT_TEST_LAYOUT: TestLayout = TestLayout.MIRRORED
 TEST_SCOPE_PATTERN: re.Pattern[str] = re.compile(r"^[a-z][a-z0-9]*(?:[_-][a-z0-9]+)*$")
 DEFAULT_TOOLING_PATHS: tuple[str, ...] = ()
 DEFAULT_SELECT: tuple[str, ...] = (RuleSelector.ALL,)
@@ -65,6 +66,7 @@ CONFIG_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
         "roots",
         "tests",
         "test_scopes",
+        "test_layout",
         "tooling",
         "generated",
         "select",
@@ -101,6 +103,7 @@ RULE_CONFIGURATION_INPUTS: frozenset[str] = frozenset(
         "shadcn",
         "tests",
         "test_scopes",
+        "test_layout",
         "tooling",
         "ui_kit",
     }

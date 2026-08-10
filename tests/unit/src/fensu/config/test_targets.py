@@ -167,6 +167,7 @@ def test_given_explicit_targets_when_loading_then_selects_flat_python_config(
             expected_framework=None,
             expected_shadcn=None,
             expected_ui_kit=None,
+            expected_test_layout="mirrored",
         ),
         WebTargetDefaultsTestCase(
             description="Svelte defaults to its SvelteKit framework contract only",
@@ -175,14 +176,16 @@ def test_given_explicit_targets_when_loading_then_selects_flat_python_config(
             expected_framework="sveltekit",
             expected_shadcn=None,
             expected_ui_kit=None,
+            expected_test_layout="mirrored",
         ),
         WebTargetDefaultsTestCase(
             description="nested UI-kit remains contained beneath a source root",
             analyzer="svelte",
-            extra_config='ui_kit = "src/lib/design/ui-kit"\n',
+            extra_config=('ui_kit = "src/lib/design/ui-kit"\ntest_layout = "colocated"\n'),
             expected_framework="sveltekit",
             expected_shadcn=None,
             expected_ui_kit="src/lib/design/ui-kit",
+            expected_test_layout="colocated",
         ),
     ],
     ids=lambda case: case.description,
@@ -205,6 +208,24 @@ def test_given_web_target_when_loading_then_defaults_follow_analyzer_contract(
     assert config.framework == test_case.expected_framework
     assert config.shadcn == test_case.expected_shadcn
     assert config.ui_kit == test_case.expected_ui_kit
+    assert config.test_layout == test_case.expected_test_layout
+
+
+def test_given_web_test_layout_change_when_fingerprinting_then_identity_changes(
+    tmp_path: Path,
+) -> None:
+    template: str = '[targets.web]\nanalyzer = "typescript"\nroots = ["src"]\ntest_layout = "{}"\n'
+    (tmp_path / "src").mkdir()
+    write_fensu_toml(root=tmp_path, contents=template.format("mirrored"))
+    mirrored: CacheFingerprint = config_fingerprint(
+        load_target_project_config(start=tmp_path, target="web").config
+    )
+    write_fensu_toml(root=tmp_path, contents=template.format("colocated"))
+    colocated: CacheFingerprint = config_fingerprint(
+        load_target_project_config(start=tmp_path, target="web").config
+    )
+
+    assert mirrored != colocated
 
 
 @pytest.mark.parametrize(
@@ -362,6 +383,29 @@ def test_given_analyzer_compatible_web_exception_when_loading_then_path_is_accep
             ),
             target="valid",
             expected_error_fragment="must define at least one root in roots",
+        ),
+        InvalidTargetConfigTestCase(
+            description="legacy flat config cannot configure web test layout",
+            config_text='roots = ["src/app"]\ntest_layout = "mirrored"\n',
+            target=None,
+            expected_error_fragment="supported only by TypeScript and Svelte analyzers",
+        ),
+        InvalidTargetConfigTestCase(
+            description="Python targets cannot configure web test layout",
+            config_text=(
+                '[targets.app]\nanalyzer = "python"\nroots = ["src/app"]\n'
+                'test_layout = "mirrored"\n'
+            ),
+            target="app",
+            expected_error_fragment="supported only by TypeScript and Svelte analyzers",
+        ),
+        InvalidTargetConfigTestCase(
+            description="web test layout values fail closed",
+            config_text=(
+                '[targets.web]\nanalyzer = "svelte"\nroots = ["src"]\ntest_layout = "adjacent"\n'
+            ),
+            target="web",
+            expected_error_fragment="must be 'mirrored' or 'colocated'",
         ),
         InvalidTargetConfigTestCase(
             description="TypeScript cannot activate the SvelteKit framework",

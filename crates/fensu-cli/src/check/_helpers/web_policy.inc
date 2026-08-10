@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use fensu_typescript::{FunctionFact, ModelFact, ModuleFacts, SourceSpan, StringFact};
 
 use crate::analyzer::AnalyzerId;
-use crate::models::{Config, ParsedProgram, ProjectInput, ScopedSource, SourcePurpose};
+use crate::models::{Config, ParsedProgram, ProjectInput, ScopedSource, SourcePurpose, TestLayout};
 
 const GENERIC_OWNERS: &[&str] = &[
     "common",
@@ -863,12 +863,7 @@ fn test_diagnostics(
     if !source_is_test(source) {
         return;
     }
-    if request.config.tests.iter().any(|root| {
-        source
-            .target_path
-            .strip_prefix(&format!("{root}/"))
-            .is_some_and(|relative| !relative.contains('/') && module_stem(relative) == "setup")
-    }) {
+    if test_setup_file(source, request.config) {
         return;
     }
     let text = source_text(source);
@@ -2077,11 +2072,7 @@ fn required_test_diagnostics(request: &WebPolicyRequest<'_>, diagnostics: &mut V
         }
         if active(request, "FWT004")
             && role == "_adapters"
-            && !matching_tests.iter().any(|test| {
-                test.target_path
-                    .split('/')
-                    .any(|part| matches!(part, "integration" | "e2e"))
-            })
+            && !matching_tests.iter().any(|test| integration_test(test))
         {
             push_project_source(
                 diagnostics,
@@ -2194,8 +2185,7 @@ fn owner_for(source: &ScopedSource, config: &Config) -> Option<String> {
 
 fn relative_to_source_root<'a>(source: &'a ScopedSource, config: &Config) -> Option<&'a str> {
     let root = source_root_for(source, config)?;
-    source
-        .target_path
+    ownership_path(source)
         .strip_prefix(root)
         .and_then(|value| value.strip_prefix('/'))
 }
@@ -2205,7 +2195,8 @@ fn source_root_for<'a>(source: &ScopedSource, config: &'a Config) -> Option<&'a 
         .roots
         .iter()
         .filter(|root| {
-            source.target_path == **root || source.target_path.starts_with(&format!("{root}/"))
+            ownership_path(source) == **root
+                || ownership_path(source).starts_with(&format!("{root}/"))
         })
         .max_by_key(|root| root.len())
         .map(String::as_str)
@@ -2236,9 +2227,13 @@ fn role_for(source: &ScopedSource, config: &Config) -> Option<String> {
 }
 
 fn capability_for(source: &ScopedSource, config: &Config) -> Option<String> {
-    if source_is_test(source) {
+    if source_is_test(source) && source.test_owner_path.is_none() {
         return test_capability(source, config);
     }
+    runtime_capability(source, config).or_else(|| tooling_capability(source, config))
+}
+
+fn runtime_capability(source: &ScopedSource, config: &Config) -> Option<String> {
     let owner = owner_for(source, config)?;
     let segments = owner_segments(source, config);
     let end = role_index(&segments).unwrap_or(segments.len().saturating_sub(1));
@@ -2249,12 +2244,56 @@ fn capability_for(source: &ScopedSource, config: &Config) -> Option<String> {
 
 fn capability_identity(source: &ScopedSource, config: &Config) -> Option<(String, String)> {
     let capability = capability_for(source, config)?;
-    let root = if source_is_test(source) {
+    let root = if source_is_test(source) && source.test_owner_path.is_none() {
         test_source_root(source, config)?
     } else {
-        source_root_for(source, config)?.to_owned()
+        source_root_for(source, config)
+            .or_else(|| tooling_root_for(source, config))?
+            .to_owned()
     };
     Some((root, capability))
+}
+
+fn tooling_capability(source: &ScopedSource, config: &Config) -> Option<String> {
+    let root = tooling_root_for(source, config)?;
+    let relative = ownership_path(source)
+        .strip_prefix(root)
+        .and_then(|value| value.strip_prefix('/'))?;
+    Some(
+        Path::new(relative)
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .map_or_else(
+                || "__root__".to_owned(),
+                |parent| parent.to_string_lossy().into_owned(),
+            ),
+    )
+}
+
+fn tooling_root_for<'a>(source: &ScopedSource, config: &'a Config) -> Option<&'a str> {
+    config
+        .tooling
+        .iter()
+        .filter(|root| ownership_path(source).starts_with(&format!("{root}/")))
+        .max_by_key(|root| root.len())
+        .map(String::as_str)
+}
+
+fn ownership_path(source: &ScopedSource) -> &str {
+    source
+        .test_owner_path
+        .as_deref()
+        .unwrap_or(&source.target_path)
+}
+
+fn integration_test(source: &ScopedSource) -> bool {
+    source
+        .target_path
+        .split('/')
+        .any(|part| matches!(part, "integration" | "e2e"))
+        || module_stem(basename(source))
+            .split('.')
+            .any(|part| matches!(part, "integration" | "e2e"))
 }
 
 fn test_source_root(source: &ScopedSource, config: &Config) -> Option<String> {
@@ -2495,6 +2534,9 @@ fn wildcard_match(value: &str, pattern: &str) -> bool {
 }
 
 fn test_mirrors_source(source: &ScopedSource, request: &WebPolicyRequest<'_>) -> bool {
+    if request.config.test_layout == TestLayout::Colocated {
+        return test_is_colocated(source);
+    }
     let Some(relative) = request.config.tests.iter().find_map(|root| {
         source
             .target_path
@@ -2532,6 +2574,24 @@ fn test_mirrors_source(source: &ScopedSource, request: &WebPolicyRequest<'_>) ->
                     .starts_with(&format!("{tooling_owner}/"))
             }))
     })
+}
+
+fn test_is_colocated(source: &ScopedSource) -> bool {
+    source.test_owner_path.is_some()
+}
+
+fn test_setup_file(source: &ScopedSource, config: &Config) -> bool {
+    let configured_setup = module_stem(basename(source)) == "setup"
+        && config.tests.iter().any(|root| {
+            source
+                .target_path
+                .strip_prefix(&format!("{root}/"))
+                .is_some_and(|relative| !relative.contains('/'))
+        });
+    let colocated_setup = config.test_layout == TestLayout::Colocated
+        && crate::check::_helpers::project::web_test_identity(&source.path).as_deref()
+            == Some("setup");
+    configured_setup || colocated_setup
 }
 
 fn participates_in_file_policy(source: &ScopedSource, config: &Config) -> bool {

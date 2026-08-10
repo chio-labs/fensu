@@ -13,6 +13,13 @@ class AnalyzerId(StrEnum):
     SVELTE = "svelte"
 
 
+class TestLayout(StrEnum):
+    """Supported web target test ownership layouts."""
+
+    MIRRORED = "mirrored"
+    COLOCATED = "colocated"
+
+
 class ConfigSourceKind(StrEnum):
     """Supported configuration source formats."""
 

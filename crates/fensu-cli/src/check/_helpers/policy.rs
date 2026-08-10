@@ -254,6 +254,9 @@ pub(crate) fn check_identity(request: CheckIdentityRequest<'_>) -> Result<String
     digest_text(&mut digest, config.analyzer.parser_contract());
     digest_text(&mut digest, config.target.as_deref().unwrap_or_default());
     digest_text(&mut digest, &config.target_root);
+    if config.analyzer != crate::analyzer::AnalyzerId::Python {
+        digest_text(&mut digest, &config.test_layout.to_string());
+    }
     digest.update([u8::from(warnings)]);
     for source in sources {
         digest_text(&mut digest, &source.analyzer.to_string());

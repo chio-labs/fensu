@@ -469,6 +469,25 @@ fn given_custom_rule_target_when_generating_skills_then_python_host_uses_same_se
 }
 
 #[test]
+fn given_web_test_layout_when_generating_skills_then_rule_and_effective_config_retain_provenance() {
+    let repository = tempfile::tempdir().expect("web skills project");
+    write(repository.path().join(".git/keep"), b"");
+    write(
+        repository.path().join("fensu.toml"),
+        b"[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = []\ntooling = []\ntest_layout = \"colocated\"\nselect = [\"FWL101\", \"FWT002\"]\n[targets.web.skills]\nname = \"Web\"\n",
+    );
+    write(repository.path().join("src/orders.ts"), b"export const orders = [];\n");
+
+    let result = native(repository.path(), &["--target", "agents"]);
+
+    assert_eq!(result.status.code(), Some(0), "{}", text(&result.stderr));
+    let guidance = fs::read_to_string(target(repository.path(), ".agents", "fensu-web"))
+        .expect("generated web guidance");
+    assert!(guidance.contains("- Test layout: `colocated`"));
+    assert_eq!(guidance.matches("- `test_layout`: colocated").count(), 2);
+}
+
+#[test]
 fn given_unmatched_selector_when_generating_skills_then_configuration_fails_closed() {
     let test_cases = [InvalidSkillsConfigTestCase {
         description: "skills reject selectors absent from the configured catalogue",

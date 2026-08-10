@@ -24,6 +24,13 @@ pub(crate) struct CacheIdentityFramingTestCase {
     pub(crate) expected_equal: bool,
 }
 
+pub(crate) struct WebTestLayoutIdentityTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) first_layout: crate::models::TestLayout,
+    pub(crate) second_layout: crate::models::TestLayout,
+    pub(crate) expected_equal: bool,
+}
+
 pub(crate) struct TargetRootRepresentationTestCase {
     pub(crate) description: &'static str,
     pub(crate) configured: &'static str,
@@ -95,6 +102,12 @@ pub(crate) struct WebDirectSourceTestCase {
     pub(crate) expected_discovered: bool,
     pub(crate) expected_direct: bool,
     pub(crate) expected_source_kind: Option<fensu_typescript::SourceKind>,
+}
+
+pub(crate) struct WebTestSourceTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) path: &'static str,
+    pub(crate) expected_test: bool,
 }
 
 pub(crate) struct WebConfigInheritanceTestCase {

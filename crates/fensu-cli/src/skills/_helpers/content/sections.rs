@@ -181,6 +181,16 @@ pub(crate) fn effective_config_lines(context: &SkillContext) -> Result<Vec<Strin
         format!("- Evaluation exclude boundaries: {}", path_list(context, &config.evaluation_exclude)?), String::new(),
         "### Effective Global Thresholds".to_owned(), String::new(),
     ];
+    if config.analyzer != crate::analyzer::AnalyzerId::Python {
+        let tooling_index = lines
+            .iter()
+            .position(|line| line.starts_with("- Tooling roots:"))
+            .ok_or_else(|| "Effective configuration has no tooling roots line.".to_owned())?;
+        lines.insert(
+            tooling_index,
+            format!("- Test layout: `{}`", config.test_layout),
+        );
+    }
     for (name, value) in config.thresholds.iter().collect::<BTreeMap<_, _>>() {
         lines.push(format!("- `{name}` = {value}"));
     }

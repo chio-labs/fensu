@@ -13,6 +13,7 @@ pub(crate) fn web_source(root: &Path, target_path: &str) -> ScopedSource {
         path: path.clone(),
         repository_path: target_path.to_owned(),
         target_path: target_path.to_owned(),
+        test_owner_path: None,
         root: root.join("src"),
         root_text: "src".to_owned(),
         scope: "root".to_owned(),

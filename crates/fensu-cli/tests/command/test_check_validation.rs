@@ -503,6 +503,24 @@ fn given_invalid_explicit_targets_when_checking_then_configuration_fails_closed(
             expected_error: "does not support Python-hosted rule paths",
         },
         InvalidCheckConfigTestCase {
+            description: "legacy flat configuration rejects web test layout",
+            config: "roots = [\"src/pkg\"]\ntest_layout = \"mirrored\"\n",
+            expected_exit_code: 2,
+            expected_error: "supported only by TypeScript and Svelte analyzers",
+        },
+        InvalidCheckConfigTestCase {
+            description: "Python targets reject web test layout",
+            config: "[targets.app]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\ntest_layout = \"mirrored\"\n",
+            expected_exit_code: 2,
+            expected_error: "supported only by TypeScript and Svelte analyzers",
+        },
+        InvalidCheckConfigTestCase {
+            description: "web test layout values fail closed",
+            config: "[targets.web]\nanalyzer = \"svelte\"\nroots = [\"src\"]\ntest_layout = \"adjacent\"\n",
+            expected_exit_code: 2,
+            expected_error: "must be 'mirrored' or 'colocated'",
+        },
+        InvalidCheckConfigTestCase {
             description: "SvelteKit framework values fail closed",
             config: "[targets.web]\nanalyzer = \"svelte\"\nframework = \"react\"\nroots = [\"src\"]\n",
             expected_exit_code: 2,

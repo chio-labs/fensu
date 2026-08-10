@@ -17,6 +17,7 @@ const CONFIG_KEYS: &[&str] = &[
     "roots",
     "tests",
     "test_scopes",
+    "test_layout",
     "tooling",
     "generated",
     "select",
@@ -57,6 +58,17 @@ pub(crate) fn validate_for_analyzer(
     validate_optional_table(table, "skills", &["name"])?;
     validate_rule_options(table.get("rule_options"))?;
     validate_test_scopes(table.get("test_scopes"))?;
+    if let Some(value) = table.get("test_layout") {
+        if analyzer == AnalyzerId::Python {
+            return Err(
+                "Config key test_layout is supported only by TypeScript and Svelte analyzers."
+                    .to_owned(),
+            );
+        }
+        if !matches!(value.as_str(), Some("mirrored" | "colocated")) {
+            return Err("Config key test_layout must be 'mirrored' or 'colocated'.".to_owned());
+        }
+    }
     for name in ["select", "warn", "ignore"] {
         validate_selectors(table.get(name), name)?;
     }

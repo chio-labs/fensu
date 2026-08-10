@@ -33,11 +33,18 @@ fn given_web_analyzer_when_inspecting_rule_then_native_catalogue_is_available() 
             expected_stdout: "openapi: contracts/openapi.json",
             expected_stderr: "",
         },
+        ConfigCommandTargetTestCase {
+            description: "test layout rule lookup renders analyzer-local layout provenance",
+            arguments: &["rule", "FWT002", "--target", "web", "--color", "never"],
+            expected_exit_code: 0,
+            expected_stdout: "test_layout: colocated",
+            expected_stderr: "",
+        },
     ];
     let repository = tempfile::tempdir().expect("temporary repository");
     write(
         repository.path().join("fensu.toml"),
-        "[targets.web]\nanalyzer = \"svelte\"\nframework = \"sveltekit\"\nroots = [\"src\"]\nui_kit = \"src/ui-kit\"\nshadcn = \"config/components.json\"\nopenapi = \"contracts/openapi.json\"\n",
+        "[targets.web]\nanalyzer = \"svelte\"\nframework = \"sveltekit\"\nroots = [\"src\"]\ntest_layout = \"colocated\"\nui_kit = \"src/ui-kit\"\nshadcn = \"config/components.json\"\nopenapi = \"contracts/openapi.json\"\n",
     );
 
     for test_case in &test_cases {

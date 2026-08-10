@@ -42,14 +42,16 @@ pub(crate) fn sveltekit_only_repository_writes_explicit_web_target() {
     );
     assert_eq!(
         config,
-        "[targets.web]\nanalyzer = \"svelte\"\nroot = \".\"\nroots = [\"src\"]\ntests = []\ntooling = []\nframework = \"sveltekit\"\nrule_packs = []\nselect = [\"FW\"]\n"
+        "[targets.web]\nanalyzer = \"svelte\"\nroot = \".\"\nroots = [\"src\"]\ntests = []\ntooling = []\ntest_layout = \"mirrored\"\nframework = \"sveltekit\"\nrule_packs = []\nselect = [\"FW\"]\n"
     );
     assert!(!repository.path().join("src/web/__init__.py").exists());
     assert_eq!(
         fs::read_to_string(repository.path().join(".gitignore")).expect("Svelte ignore"),
         "# Fensu\n.fensu/cache/\n"
     );
-    assert!(String::from_utf8_lossy(&output.stdout).contains("web: analyzer=svelte, root=."));
+    assert!(String::from_utf8_lossy(&output.stdout).contains(
+        "web: analyzer=svelte, root=., roots=src, tests=, tooling=, test_layout=mirrored"
+    ));
 }
 
 pub(crate) fn generic_node_and_incomplete_svelte_evidence_do_not_detect_target() {
@@ -96,14 +98,13 @@ pub(crate) fn mixed_repository_with_colliding_web_names_is_deterministic() {
     sveltekit(&repository.path().join("apps/second/web"));
 
     let output = run(repository.path(), &["init", "--yes", "--no-skills"]);
-    let config = fs::read_to_string(repository.path().join("fensu.toml")).expect("configuration");
-
     assert_eq!(
         output.status.code(),
         Some(0),
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
+    let config = fs::read_to_string(repository.path().join("fensu.toml")).expect("configuration");
     assert!(config.starts_with("[targets.python]\nanalyzer = \"python\""));
     assert!(config.contains("[targets.web]\n"));
     assert!(config.contains("root = \"apps/first/web\""));
@@ -205,6 +206,8 @@ pub(crate) fn explicit_config_addition_preserves_comments_and_refuses_unsafe_cas
     );
     assert!(updated.starts_with(original));
     assert!(updated.contains("[targets.web]\nanalyzer = \"svelte\""));
+    assert!(updated.contains("test_layout = \"mirrored\""));
+    assert!(String::from_utf8_lossy(&added.stdout).contains("test_layout=mirrored"));
 
     let duplicate = run(
         repository.path(),

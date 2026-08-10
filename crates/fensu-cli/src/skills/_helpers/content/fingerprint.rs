@@ -302,6 +302,9 @@ fn config_value(config: &Config) -> Value {
         value["target"] = json!(config.target);
         value["target_root"] = json!(config.target_root);
     }
+    if config.analyzer != crate::analyzer::AnalyzerId::Python {
+        value["test_layout"] = json!(config.test_layout);
+    }
     value
 }
 

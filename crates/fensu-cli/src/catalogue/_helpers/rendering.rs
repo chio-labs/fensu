@@ -89,6 +89,7 @@ fn configuration_values(name: &str, config: &Config) -> Vec<String> {
         "tests" => config.tests.clone(),
         "tooling" => config.tooling.clone(),
         "test_scopes" => config.test_scopes.clone(),
+        "test_layout" => vec![config.test_layout.to_string()],
         "generated" => config.generated.clone(),
         "ui_kit" => config.ui_kit.iter().cloned().collect(),
         "framework" => config.framework.iter().cloned().collect(),

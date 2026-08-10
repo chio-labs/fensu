@@ -13,6 +13,7 @@ from fensu.config.constants import (
     DEFAULT_CONTRACTS,
     DEFAULT_IGNORE,
     DEFAULT_SELECT,
+    DEFAULT_TEST_LAYOUT,
     DEFAULT_TEST_PATHS,
     DEFAULT_TEST_SCOPES,
     DEFAULT_THRESHOLDS,
@@ -29,6 +30,7 @@ from fensu.config.models import (
     SkillsConfig,
     ThresholdOverride,
 )
+from fensu.config.types import TestLayout
 from fensu.rules.authoring.types import RuleOptionValue, Threshold
 
 
@@ -62,6 +64,7 @@ def build_config(
         roots=_string_tuple(value=raw["roots"]),
         tests=_string_tuple(value=raw.get("tests"), default=DEFAULT_TEST_PATHS),
         test_scopes=_string_tuple(value=raw.get("test_scopes"), default=DEFAULT_TEST_SCOPES),
+        test_layout=TestLayout(str(raw.get("test_layout", DEFAULT_TEST_LAYOUT))),
         tooling=_string_tuple(value=raw.get("tooling"), default=DEFAULT_TOOLING_PATHS),
         select=_string_tuple(value=raw.get("select"), default=DEFAULT_SELECT),
         warn=_string_tuple(value=raw.get("warn"), default=DEFAULT_WARN),

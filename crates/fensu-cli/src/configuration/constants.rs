@@ -108,6 +108,7 @@ pub(crate) const RULE_CONFIGURATION_INPUTS: &[&str] = &[
     "openapi",
     "roots",
     "shadcn",
+    "test_layout",
     "test_scopes",
     "tests",
     "tooling",

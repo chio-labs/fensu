@@ -35,13 +35,13 @@ from tests.unit.src.fensu.config.helpers import write_fensu_toml
 RACEWATCH_WEB_CONFIG: str = """[targets.web]
 analyzer = "svelte"
 root = "frontend"
-framework = "sveltekit"
 roots = ["src"]
 tests = ["tests"]
 tooling = ["tooling"]
 ui_kit = "src/ui-kit"
 test_layout = "mirrored"
-select = ["FW"]
+rule_packs = ["sveltekit"]
+select = ["FPSK"]
 
 [targets.web.thresholds]
 max_route_script_lines = 200
@@ -207,25 +207,29 @@ def test_given_explicit_targets_when_loading_then_selects_flat_python_config(
             description="generic TypeScript has no SvelteKit or shadcn default",
             analyzer="typescript",
             extra_config="",
-            expected_framework=None,
+            expected_rule_packs=(),
             expected_shadcn=None,
             expected_ui_kit=None,
             expected_test_layout="mirrored",
         ),
         WebTargetDefaultsTestCase(
-            description="Svelte defaults to its SvelteKit framework contract only",
+            description="Svelte does not imply a SvelteKit policy pack",
             analyzer="svelte",
             extra_config="",
-            expected_framework="sveltekit",
+            expected_rule_packs=(),
             expected_shadcn=None,
             expected_ui_kit=None,
             expected_test_layout="mirrored",
         ),
         WebTargetDefaultsTestCase(
-            description="nested UI-kit remains contained beneath a source root",
+            description="SvelteKit policy activation remains explicit",
             analyzer="svelte",
-            extra_config=('ui_kit = "src/lib/design/ui-kit"\ntest_layout = "colocated"\n'),
-            expected_framework="sveltekit",
+            extra_config=(
+                'rule_packs = ["sveltekit"]\n'
+                'ui_kit = "src/lib/design/ui-kit"\n'
+                'test_layout = "colocated"\n'
+            ),
+            expected_rule_packs=("sveltekit",),
             expected_shadcn=None,
             expected_ui_kit="src/lib/design/ui-kit",
             expected_test_layout="colocated",
@@ -233,7 +237,7 @@ def test_given_explicit_targets_when_loading_then_selects_flat_python_config(
     ],
     ids=lambda case: case.description,
 )
-def test_given_web_target_when_loading_then_defaults_follow_analyzer_contract(
+def test_given_web_target_when_loading_then_rule_pack_activation_is_explicit(
     tmp_path: Path, test_case: WebTargetDefaultsTestCase
 ) -> None:
     write_fensu_toml(
@@ -248,7 +252,7 @@ def test_given_web_target_when_loading_then_defaults_follow_analyzer_contract(
 
     config: Config = load_target_project_config(start=tmp_path, target="web").config
 
-    assert config.framework == test_case.expected_framework
+    assert config.rule_packs == test_case.expected_rule_packs
     assert config.shadcn == test_case.expected_shadcn
     assert config.ui_kit == test_case.expected_ui_kit
     assert config.test_layout == test_case.expected_test_layout
@@ -434,9 +438,9 @@ def test_given_analyzer_compatible_web_exception_when_loading_then_path_is_accep
         contents=(
             "[targets.web]\n"
             f'analyzer = "{test_case.analyzer}"\n'
-            'roots = ["src"]\nselect = ["FWA003"]\n'
+            'roots = ["src"]\nrule_packs = ["typescript"]\nselect = ["FPTSA003"]\n'
             "[[targets.web.rule_exceptions]]\n"
-            'rule = "FWA003"\n'
+            'rule = "FPTSA003"\n'
             f'path = "{test_case.expected_path}"\n'
             'reason = "external contract"\n'
         ),
@@ -629,18 +633,18 @@ def test_given_analyzer_compatible_web_exception_when_loading_then_path_is_accep
             expected_error_fragment="evaluation.include must not be empty",
         ),
         InvalidTargetConfigTestCase(
-            description="TypeScript cannot activate the SvelteKit framework",
+            description="removed framework configuration is rejected",
             config_text=(
-                '[targets.web]\nanalyzer = "typescript"\nroots = ["src"]\nframework = "sveltekit"\n'
+                '[targets.web]\nanalyzer = "svelte"\nroots = ["src"]\nframework = "sveltekit"\n'
             ),
             target="web",
-            expected_error_fragment="framework is supported only by the Svelte analyzer",
+            expected_error_fragment="Unknown targets.web config key(s): framework",
         ),
         InvalidTargetConfigTestCase(
             description="TypeScript exceptions reject Python paths",
             config_text=(
                 '[targets.web]\nanalyzer = "typescript"\nroots = ["src"]\n'
-                '[[targets.web.rule_exceptions]]\nrule = "FWA003"\n'
+                '[[targets.web.rule_exceptions]]\nrule = "FPTSA003"\n'
                 'path = "src/module.py"\nreason = "wrong analyzer"\n'
             ),
             target="web",

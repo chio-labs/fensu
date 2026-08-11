@@ -19,7 +19,13 @@ from fensu.rules.authoring.main.define import rule
 from fensu.rules.authoring.models import RuleOption, RuleSpec
 from fensu.rules.authoring.types import Family, RuleKind
 from fensu.rules.catalog._helpers import loading as loading_module
-from fensu.rules.catalog.constants import CORE_RULES, WEB_RULE_MIGRATION, WEB_RULES
+from fensu.rules.catalog.constants import (
+    CORE_RULES,
+    FPSK_RULES,
+    FPTS_RULES,
+    SHIPPED_RULES,
+    WEB_RULE_MIGRATION,
+)
 from fensu.rules.catalog.main._build_rule_selection import build_rule_selection
 from fensu.rules.catalog.main.build_catalogue import build_catalogue
 from fensu.rules.catalog.main.build_ruleset import build_ruleset
@@ -33,6 +39,7 @@ from tests.unit.src.fensu.rules.catalog.main._test_types import (
     DirectRuleSpecErrorTestCase,
     ModuleIsolationTestCase,
     NativeRulePackCatalogueTestCase,
+    NativeWebPackCatalogueTestCase,
     RegistryErrorTestCase,
     RuleExceptionCodeTestCase,
     RuleSelectionErrorTestCase,
@@ -88,11 +95,49 @@ def test_given_dagster_pack_when_building_catalogue_then_registers_complete_stan
     assert all(rule.code.startswith("FPDG") for rule in FPDG_RULES)
     assert all(rule.code.startswith("FPDG") for rule in ruleset)
     assert all(rule.analyzers == (AnalyzerId.PYTHON,) for rule in FPDG_RULES)
-    assert all(
-        rule.analyzers
-        in ((AnalyzerId.PYTHON,), (AnalyzerId.SVELTE,), (AnalyzerId.TYPESCRIPT, AnalyzerId.SVELTE))
-        for rule in CORE_RULES
-    )
+    assert all(rule.analyzers == (AnalyzerId.PYTHON,) for rule in CORE_RULES)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        NativeWebPackCatalogueTestCase(
+            description="TypeScript and SvelteKit packs are complete and standalone",
+            expected_typescript_count=60,
+            expected_sveltekit_count=88,
+            expected_alias_count=60,
+            expected_native_count=28,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_native_web_packs_when_building_catalogue_then_each_pack_is_standalone(
+    test_case: NativeWebPackCatalogueTestCase,
+) -> None:
+    fpts_by_implementation: dict[str, RuleSpec] = {
+        rule.implementation_code or "": rule for rule in FPTS_RULES
+    }
+    fpsk_by_implementation: dict[str, RuleSpec] = {
+        rule.implementation_code or "": rule for rule in FPSK_RULES
+    }
+
+    expected_alias_codes: set[str] = {rule.code for rule in FPTS_RULES}
+    actual_alias_codes: set[str] = set(filter(None, map(attrgetter("alias_of"), FPSK_RULES)))
+    fpsk_codes: set[str] = {rule.code for rule in FPSK_RULES}
+
+    assert len(FPTS_RULES) == test_case.expected_typescript_count
+    assert len(FPSK_RULES) == test_case.expected_sveltekit_count
+    assert len(actual_alias_codes) == test_case.expected_alias_count
+    assert len(FPSK_RULES) - len(actual_alias_codes) == test_case.expected_native_count
+    assert all(rule.code.startswith("FPTS") and rule.pack == "typescript" for rule in FPTS_RULES)
+    assert all(rule.code.startswith("FPSK") and rule.pack == "sveltekit" for rule in FPSK_RULES)
+    assert all(rule.alias_of is None for rule in FPTS_RULES)
+    assert actual_alias_codes.isdisjoint(fpsk_codes)
+    assert actual_alias_codes == expected_alias_codes
+    assert {
+        fpsk_by_implementation[implementation].alias_of for implementation in fpts_by_implementation
+    } == expected_alias_codes
+    assert not any(rule.code.startswith("FW") for rule in SHIPPED_RULES)
 
 
 @pytest.mark.parametrize(
@@ -118,11 +163,14 @@ def test_given_legacy_web_policy_when_reading_migration_then_every_rule_is_class
     codes: tuple[str, ...] = tuple(entry[0] for entry in WEB_RULE_MIGRATION)
     categories: set[str] = {entry[1] for entry in WEB_RULE_MIGRATION}
     retained: set[str] = {entry[0] for entry in filter(lambda item: item[2], WEB_RULE_MIGRATION)}
+    implementations: set[str] = {
+        rule.implementation_code or "" for rule in (*FPTS_RULES, *FPSK_RULES)
+    }
 
     assert len(codes) == test_case.expected_rule_count
     assert len(codes) == len(set(codes))
     assert categories == test_case.expected_categories
-    assert retained == {rule.code for rule in WEB_RULES}
+    assert retained == implementations
     assert all(entry[3] for entry in WEB_RULE_MIGRATION)
 
 
@@ -162,9 +210,9 @@ def test_given_legacy_web_policy_when_reading_migration_then_every_rule_is_class
 def test_given_retained_web_rules_when_reading_provenance_then_configuration_inputs_are_complete(
     test_case: WebPolicyProvenanceTestCase,
 ) -> None:
-    rules_by_code: dict[str, RuleSpec] = dict(
-        zip(map(attrgetter("code"), WEB_RULES), WEB_RULES, strict=True)
-    )
+    rules_by_code: dict[str, RuleSpec] = {
+        rule.implementation_code or "": rule for rule in FPSK_RULES
+    }
     ui_kit_rules: tuple[RuleSpec, ...] = tuple(
         map(rules_by_code.__getitem__, sorted(test_case.expected_ui_kit_rules))
     )
@@ -191,13 +239,13 @@ def test_given_retained_web_rules_when_reading_provenance_then_configuration_inp
             map(attrgetter("configuration_inputs"), non_ui_kit_rules),
         )
     ) == (False,) * len(non_ui_kit_rules)
-    assert all("test_layout" in rule.configuration_inputs for rule in WEB_RULES)
+    assert all("test_layout" in rule.configuration_inputs for rule in FPSK_RULES)
     assert tuple(
         map(
             methodcaller("__contains__", "generated"),
-            map(attrgetter("configuration_inputs"), WEB_RULES),
+            map(attrgetter("configuration_inputs"), FPSK_RULES),
         )
-    ) == (True,) * len(WEB_RULES)
+    ) == (True,) * len(FPSK_RULES)
     assert test_case.expected_fwp_reason_fragment in fwp_reason
 
 

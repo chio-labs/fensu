@@ -20,6 +20,7 @@ from fensu.config.constants import (
     DEFAULT_THRESHOLDS,
     DEFAULT_WARN,
     RULE_CONFIGURATION_INPUTS,
+    SVELTEKIT_RULE_PACK,
     WEB_DEFAULT_CONTRACTS,
 )
 from fensu.config.types import AnalyzerId
@@ -92,6 +93,12 @@ def serialized_cli_defaults() -> bytes:
             rust_type="bool",
             value=DEFAULT_CACHE_ENABLED,
         )
+    )
+    lines.extend(
+        [
+            f"pub(crate) const SVELTEKIT_RULE_PACK: &str = {json.dumps(SVELTEKIT_RULE_PACK)};",
+            "",
+        ]
     )
     lines.extend(
         _value_line(

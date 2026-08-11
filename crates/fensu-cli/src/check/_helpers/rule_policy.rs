@@ -153,13 +153,8 @@ fn matches_selector(code: &str, selectors: &[String]) -> bool {
     selectors.iter().any(|selector| code.starts_with(selector))
 }
 
-fn applicable(rule: &RuleMetadata, config: &Config) -> bool {
+pub(crate) fn applicable(rule: &RuleMetadata, config: &Config) -> bool {
     rule.analyzers.contains(&config.analyzer)
-        && (rule.frameworks.is_empty()
-            || config
-                .framework
-                .as_ref()
-                .is_some_and(|framework| rule.frameworks.contains(framework)))
 }
 
 fn path_specificity(pattern: &str) -> PathSpecificity {

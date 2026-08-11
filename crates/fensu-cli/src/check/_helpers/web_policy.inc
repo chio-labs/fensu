@@ -1046,7 +1046,12 @@ fn sveltekit_diagnostics(
     by_path: &HashMap<&str, &ScopedSource>,
     diagnostics: &mut Vec<WebDiagnostic>,
 ) {
-    if request.config.framework.as_deref() != Some("sveltekit") {
+    if !request
+        .config
+        .rule_packs
+        .iter()
+        .any(|pack| pack == "sveltekit")
+    {
         return;
     }
     if source_is_test(source) || source_is_tooling(source) {
@@ -2709,7 +2714,7 @@ fn route_local_role(source: &ScopedSource, config: &Config) -> Option<String> {
 }
 
 fn is_server_route_entry(source: &ScopedSource, config: &Config, function: &FunctionFact) -> bool {
-    if config.framework.as_deref() != Some("sveltekit")
+    if !config.rule_packs.iter().any(|pack| pack == "sveltekit")
         || !is_route_module(source, config)
         || !is_server_module(source, config)
     {

@@ -15,7 +15,6 @@ from fensu.config.constants import (
     CONFIG_TOP_LEVEL_KEYS,
     CONTRACT_BEHAVIORS,
     DEFAULT_TARGET_ROOT,
-    DEFAULT_WEB_FRAMEWORK,
     DOUBLE_PATH_SEPARATOR,
     EVALUATION_CONFIG_KEYS,
     EVALUATION_INCLUDE_CONFIG_KEY,
@@ -46,7 +45,7 @@ _current_path_part: str = "."
 _parent_path_part: str = ".."
 _python_file_suffix: str = ".py"
 _glob_characters: frozenset[str] = frozenset({"*", "?", "[", "]"})
-_registered_rule_packs: frozenset[str] = frozenset({"dagster"})
+_registered_rule_packs: frozenset[str] = frozenset({"dagster", "sveltekit", "typescript"})
 
 
 def validate_config(*, raw: Mapping[str, object], analyzer: AnalyzerId | None = None) -> None:
@@ -94,13 +93,6 @@ def validate_config(*, raw: Mapping[str, object], analyzer: AnalyzerId | None = 
     _validate_role_thresholds(value=raw.get("roles"))
     _validate_threshold_overrides(value=raw.get("threshold_overrides"))
     _validate_contracts(value=raw.get("contracts"))
-    framework: object = raw.get("framework")
-    if framework is not None and framework != DEFAULT_WEB_FRAMEWORK:
-        raise ConfigValidationError("Config key framework must be 'sveltekit'.")
-    if framework is not None and analyzer is not None and analyzer is not AnalyzerId.SVELTE:
-        raise ConfigValidationError(
-            "Config key framework is supported only by the Svelte analyzer."
-        )
     for path_key in ("shadcn", "openapi"):
         path_value: object = raw.get(path_key)
         if path_value is not None and not _is_portable_target_path(value=path_value):

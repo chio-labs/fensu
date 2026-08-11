@@ -147,7 +147,7 @@ fn generate_single(context: &SkillContext) -> Result<String, String> {
     let capability = if python {
         "FF diagnostics, repository architecture, and multi-module Python call-flow work"
     } else {
-        "FW diagnostics and native TypeScript/Svelte architecture policy"
+        "FPTS/FPSK diagnostics and native TypeScript/Svelte architecture policy"
     };
     let mut lines = vec![
         "---".to_owned(),

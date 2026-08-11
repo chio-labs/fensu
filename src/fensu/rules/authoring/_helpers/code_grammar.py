@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import re
 
-_CORE_RULE_CODE: re.Pattern[str] = re.compile(r"F[FW][A-Z][0-9]{3}")
+_CORE_RULE_CODE: re.Pattern[str] = re.compile(r"FF[A-Z][0-9]{3}")
 _PACK_RULE_CODE: re.Pattern[str] = re.compile(r"FP[A-Z]+[0-9]+")
 _CUSTOM_RULE_CODE: re.Pattern[str] = re.compile(r"X[A-Z]*[0-9]+")
-_CORE_RULE_SELECTOR: re.Pattern[str] = re.compile(r"F[FW](?:[A-Z][0-9]{0,3})?")
+_CORE_RULE_SELECTOR: re.Pattern[str] = re.compile(r"FF(?:[A-Z][0-9]{0,3})?")
 _PACK_RULE_SELECTOR: re.Pattern[str] = re.compile(r"FP[A-Z]*(?:[0-9]+)?")
 _CUSTOM_RULE_SELECTOR: re.Pattern[str] = re.compile(r"X[A-Z]*(?:[0-9]+)?")
 

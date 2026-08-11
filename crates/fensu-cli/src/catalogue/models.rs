@@ -15,13 +15,14 @@ pub(crate) struct RuleMetadata {
     pub(crate) severity: String,
     pub(crate) enabled_by_default: bool,
     pub(crate) analyzers: Vec<AnalyzerId>,
-    pub(crate) frameworks: Vec<String>,
     pub(crate) execution_owner: String,
     pub(crate) kind: String,
     #[serde(default)]
     pub(crate) pack: Option<String>,
     #[serde(default)]
     pub(crate) alias_of: Option<String>,
+    #[serde(default)]
+    pub(crate) implementation_code: Option<String>,
     #[serde(default)]
     pub(crate) source: Option<String>,
     #[serde(default)]

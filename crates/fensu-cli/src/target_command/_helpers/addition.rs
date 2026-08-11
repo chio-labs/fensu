@@ -34,9 +34,8 @@ pub(crate) fn add_target(repository: &Path, request: &AddRequest) -> Result<(), 
         tests: Vec::new(),
         tooling: Vec::new(),
         test_layout: TestLayout::Mirrored,
-        framework: Some("sveltekit".to_owned()),
-        rule_packs: Vec::new(),
-        select: vec!["FW".to_owned()],
+        rule_packs: vec!["sveltekit".to_owned()],
+        select: vec!["FPSK".to_owned()],
     };
     let mut candidate = original;
     if !candidate.ends_with('\n') {

@@ -24,7 +24,7 @@ fn given_web_analyzer_when_generating_skills_then_native_catalogue_is_rendered()
     let repository = tempfile::tempdir().expect("temporary repository");
     write(
         repository.path().join("fensu.toml"),
-        "[targets.web]\nanalyzer = \"svelte\"\nframework = \"sveltekit\"\nroots = [\"src\"]\ntests = []\ntooling = []\nui_kit = \"src/ui-kit\"\nshadcn = \"config/components.json\"\nopenapi = \"contracts/openapi.json\"\nselect = [\"FWU001\", \"FWC201\", \"FWV105\"]\n[targets.web.skills]\nname = \"web\"\n",
+        "[targets.web]\nanalyzer = \"svelte\"\nrule_packs = [\"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nui_kit = \"src/ui-kit\"\nshadcn = \"config/components.json\"\nopenapi = \"contracts/openapi.json\"\nselect = [\"FPSKU001\", \"FPSKC201\", \"FPSKV105\"]\n[targets.web.skills]\nname = \"web\"\n",
     );
     write(repository.path().join(".git/keep"), b"");
     write(repository.path().join("src/value.ts"), b"export const value = 1;\n");
@@ -57,12 +57,11 @@ fn given_web_analyzer_when_generating_skills_then_native_catalogue_is_rendered()
         );
         let guidance = fs::read_to_string(target(repository.path(), ".agents", "fensu-web"))
             .expect("web target guidance");
-        assert!(guidance.contains("Blocking rule codes: [\"FWC201\", \"FWU001\", \"FWV105\"]"));
+        assert!(guidance.contains("Blocking rule codes: [\"FPSKC201\", \"FPSKU001\", \"FPSKV105\"]"));
         assert!(guidance.contains("Analyzers: `svelte`"));
-        assert!(guidance.contains("Frameworks: `sveltekit`"));
         assert!(!guidance.contains("Analyzers: `typescript`"));
-        assert!(guidance.contains("FW diagnostics and native TypeScript/Svelte architecture policy"));
-        assert!(guidance.contains("Framework pack: \"sveltekit\""));
+        assert!(guidance.contains("FPTS/FPSK diagnostics and native TypeScript/Svelte architecture policy"));
+        assert!(guidance.contains("`rule_packs`: [\"sveltekit\"]"));
         assert!(guidance.contains("shadcn config: \"config/components.json\""));
         assert!(guidance.contains("OpenAPI document: \"contracts/openapi.json\""));
         assert!(guidance.contains("max_state_public_members"));
@@ -79,7 +78,7 @@ fn given_python_and_svelte_targets_when_generating_skills_then_one_guidance_surf
     write(repository.path().join(".git/keep"), b"");
     write(
         repository.path().join("fensu.toml"),
-        b"[targets.backend]\nanalyzer = \"python\"\nroot = \".\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nrule_packs = []\nselect = [\"FFS010\"]\n[targets.backend.skills]\nname = \"mixed\"\n[[targets.backend.threshold_overrides]]\npaths = [\"src/pkg/*.py\"]\nthresholds = { max_arguments = 12 }\nreason = \"Adapter boundary.\"\n[targets.web]\nanalyzer = \"svelte\"\nroot = \"frontend\"\nroots = [\"src\"]\ntests = []\ntooling = []\nframework = \"sveltekit\"\nrule_packs = []\nselect = [\"FWV105\"]\n[targets.web.skills]\nname = \"mixed\"\n",
+        b"[targets.backend]\nanalyzer = \"python\"\nroot = \".\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFS010\"]\n[targets.backend.skills]\nname = \"mixed\"\n[[targets.backend.threshold_overrides]]\npaths = [\"src/pkg/*.py\"]\nthresholds = { max_arguments = 12 }\nreason = \"Adapter boundary.\"\n[targets.web]\nanalyzer = \"svelte\"\nrule_packs = [\"sveltekit\"]\nroot = \"frontend\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FPSKV105\"]\n[targets.web.skills]\nname = \"mixed\"\n",
     );
     write(repository.path().join("src/pkg/__init__.py"), b"");
     write(
@@ -98,7 +97,7 @@ fn given_python_and_svelte_targets_when_generating_skills_then_one_guidance_surf
     assert!(guidance.contains("python-ruff-py312-v1"));
     assert!(guidance.contains("svelte-backend-v12"));
     assert!(guidance.contains("Blocking rule codes: [\"FFS010\"]"));
-    assert!(guidance.contains("Blocking rule codes: [\"FWV105\"]"));
+    assert!(guidance.contains("Blocking rule codes: [\"FPSKV105\"]"));
     assert_eq!(guidance.matches("Target policy fingerprint").count(), 2);
     assert!(guidance.contains("#### Effective Project Configuration"));
     assert!(!guidance.contains("\n### Effective Project Configuration"));
@@ -117,7 +116,7 @@ fn given_owned_per_target_skills_when_generating_aggregate_then_only_safe_owned_
     write(repository.path().join(".git/keep"), b"");
     write(
         repository.path().join("fensu.toml"),
-        b"[targets.backend]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA001\"]\n[targets.backend.skills]\nname = \"backend\"\n[targets.web]\nanalyzer = \"svelte\"\nroot = \"frontend\"\nroots = [\"src\"]\ntests = []\ntooling = []\nframework = \"sveltekit\"\nselect = [\"FWV105\"]\n[targets.web.skills]\nname = \"web\"\n",
+        b"[targets.backend]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA001\"]\n[targets.backend.skills]\nname = \"backend\"\n[targets.web]\nanalyzer = \"svelte\"\nrule_packs = [\"sveltekit\"]\nroot = \"frontend\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FPSKV105\"]\n[targets.web.skills]\nname = \"web\"\n",
     );
     write(repository.path().join("src/pkg/__init__.py"), b"");
     write(
@@ -160,7 +159,7 @@ fn given_prior_target_skill_at_aggregate_path_when_generating_then_valid_owner_m
         write(repository.join(".git/keep"), b"");
         write(
             repository.join("fensu.toml"),
-            b"[targets.backend]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA001\"]\n[targets.backend.skills]\nname = \"backend\"\n[targets.web]\nanalyzer = \"svelte\"\nroot = \"frontend\"\nroots = [\"src\"]\ntests = []\ntooling = []\nframework = \"sveltekit\"\nselect = [\"FWV105\"]\n[targets.web.skills]\nname = \"web\"\n",
+            b"[targets.backend]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA001\"]\n[targets.backend.skills]\nname = \"backend\"\n[targets.web]\nanalyzer = \"svelte\"\nrule_packs = [\"sveltekit\"]\nroot = \"frontend\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FPSKV105\"]\n[targets.web.skills]\nname = \"web\"\n",
         );
         write(repository.join("src/pkg/__init__.py"), b"");
         write(
@@ -230,7 +229,7 @@ fn given_aggregate_and_scoped_skills_when_checking_then_freshness_uses_matching_
     write(repository.path().join(".git/keep"), b"");
     write(
         repository.path().join("fensu.toml"),
-        b"[targets.backend]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA001\"]\n[targets.backend.skills]\nname = \"backend\"\n[targets.web]\nanalyzer = \"svelte\"\nroot = \"frontend\"\nroots = [\"src\"]\ntests = []\ntooling = []\nframework = \"sveltekit\"\nselect = [\"FWV105\"]\n[targets.web.skills]\nname = \"web\"\n",
+        b"[targets.backend]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFA001\"]\n[targets.backend.skills]\nname = \"backend\"\n[targets.web]\nanalyzer = \"svelte\"\nrule_packs = [\"sveltekit\"]\nroot = \"frontend\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FPSKV105\"]\n[targets.web.skills]\nname = \"web\"\n",
     );
     write(repository.path().join("src/pkg/__init__.py"), b"");
     write(
@@ -279,7 +278,7 @@ fn given_web_dependency_content_when_checking_skill_then_content_change_is_stale
         write(repository.path().join(".git/keep"), b"");
         write(
             repository.path().join("fensu.toml"),
-            b"[targets.web]\nanalyzer = \"svelte\"\nframework = \"sveltekit\"\nroots = [\"src\"]\ntests = []\ntooling = []\nui_kit = \"src/lib/design/ui-kit\"\nshadcn = \"config/components.json\"\nopenapi = \"contracts/openapi.json\"\nselect = [\"FWU001\", \"FWC201\"]\n[targets.web.skills]\nname = \"web\"\n",
+            b"[targets.web]\nanalyzer = \"svelte\"\nrule_packs = [\"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nui_kit = \"src/lib/design/ui-kit\"\nshadcn = \"config/components.json\"\nopenapi = \"contracts/openapi.json\"\nselect = [\"FPSKU001\", \"FPSKC201\"]\n[targets.web.skills]\nname = \"web\"\n",
         );
         write(repository.path().join("src/App.svelte"), b"<p>app</p>\n");
         write(
@@ -476,7 +475,7 @@ fn given_web_test_layout_when_generating_skills_then_rule_and_effective_config_r
     write(repository.path().join(".git/keep"), b"");
     write(
         repository.path().join("fensu.toml"),
-        b"[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = []\ntooling = []\ntest_layout = \"colocated\"\nselect = [\"FWL101\", \"FWS001\", \"FWT002\"]\n[targets.web.thresholds]\nmax_entry_statements = 41\nmax_entry_distinct_calls = 21\nmax_entry_locals = 22\nmax_function_statements = 71\n[[targets.web.threshold_overrides]]\npaths = [\"src/orders.ts\"]\nthresholds = { max_entry_statements = 51 }\nreason = \"Wide entry.\"\n[targets.web.skills]\nname = \"Web\"\n",
+        b"[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\"]\nroots = [\"src\"]\ntests = []\ntooling = []\ntest_layout = \"colocated\"\nselect = [\"FPTSL101\", \"FPTSS001\", \"FPTST002\"]\n[targets.web.thresholds]\nmax_entry_statements = 41\nmax_entry_distinct_calls = 21\nmax_entry_locals = 22\nmax_function_statements = 71\n[[targets.web.threshold_overrides]]\npaths = [\"src/orders.ts\"]\nthresholds = { max_entry_statements = 51 }\nreason = \"Wide entry.\"\n[targets.web.skills]\nname = \"Web\"\n",
     );
     write(repository.path().join("src/orders.ts"), b"export const orders = [];\n");
 

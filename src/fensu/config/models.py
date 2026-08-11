@@ -149,7 +149,6 @@ class Config:
     target_root: str = "."
     ui_kit: str | None = None
     generated: tuple[str, ...] = ()
-    framework: str | None = None
     shadcn: str | None = None
     openapi: str | None = None
     test_layout: TestLayout = DEFAULT_TEST_LAYOUT

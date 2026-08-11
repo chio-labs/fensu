@@ -39,7 +39,6 @@ const CONFIG_KEYS: &[&str] = &[
     "roles",
     "contracts",
     "ui_kit",
-    "framework",
     "shadcn",
     "openapi",
     "rule_exceptions",
@@ -110,16 +109,6 @@ pub(crate) fn validate_for_analyzer(
     validate_threshold_table(table.get("thresholds"), "thresholds", false)?;
     validate_roles(table.get("roles"))?;
     validate_contracts(table.get("contracts"))?;
-    if let Some(value) = table.get("framework") {
-        if value.as_str() != Some("sveltekit") {
-            return Err("Config key framework must be 'sveltekit'.".to_owned());
-        }
-        if analyzer != AnalyzerId::Svelte {
-            return Err(
-                "Config key framework is supported only by the Svelte analyzer.".to_owned(),
-            );
-        }
-    }
     for name in ["shadcn", "openapi"] {
         if let Some(value) = table.get(name) {
             let path = value

@@ -28,6 +28,10 @@ from tests.unit.src.fensu.rules.authoring._test_types import (
         RuleGrammarTestCase("exact Dagster native code", "FPDG001", True, True),
         RuleGrammarTestCase("Dagster alias family prefix", "FPDGA", False, True),
         RuleGrammarTestCase("exact Dagster alias code", "FPDGA001", True, True),
+        RuleGrammarTestCase("TypeScript pack prefix", "FPTS", False, True),
+        RuleGrammarTestCase("exact TypeScript pack code", "FPTSS010", True, True),
+        RuleGrammarTestCase("SvelteKit pack prefix", "FPSK", False, True),
+        RuleGrammarTestCase("exact SvelteKit pack code", "FPSKV101", True, True),
         RuleGrammarTestCase(
             "pack code requires a registered namespace shape", "FP001", False, True
         ),
@@ -39,6 +43,8 @@ from tests.unit.src.fensu.rules.authoring._test_types import (
         RuleGrammarTestCase("empty value", "", False, False),
         RuleGrammarTestCase("non-string value", 1, False, False),
         RuleGrammarTestCase("partial core marker", "S", False, False),
+        RuleGrammarTestCase("removed web prefix", "FW", False, False),
+        RuleGrammarTestCase("removed web code", "FWS010", False, False),
         RuleGrammarTestCase("core selector with no family before digits", "FF1", False, False),
         RuleGrammarTestCase("core selector with too many digits", "FFR0001", False, False),
         RuleGrammarTestCase("core selector with letters after digit", "FFR3A", False, False),

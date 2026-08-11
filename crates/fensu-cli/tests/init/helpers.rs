@@ -42,7 +42,7 @@ pub(crate) fn sveltekit_only_repository_writes_explicit_web_target() {
     );
     assert_eq!(
         config,
-        "[targets.web]\nanalyzer = \"svelte\"\nroot = \".\"\nroots = [\"src\"]\ntests = []\ntooling = []\ntest_layout = \"mirrored\"\nframework = \"sveltekit\"\nrule_packs = []\nselect = [\"FW\"]\n[targets.web.thresholds]\nmax_entry_statements = 40\nmax_entry_distinct_calls = 20\nmax_entry_locals = 20\nmax_function_statements = 70\n"
+        "[targets.web]\nanalyzer = \"svelte\"\nroot = \".\"\nroots = [\"src\"]\ntests = []\ntooling = []\ntest_layout = \"mirrored\"\nrule_packs = [\"sveltekit\"]\nselect = [\"FPSK\"]\n[targets.web.thresholds]\nmax_entry_statements = 40\nmax_entry_distinct_calls = 20\nmax_entry_locals = 20\nmax_function_statements = 70\n"
     );
     assert!(!repository.path().join("src/web/__init__.py").exists());
     assert_eq!(

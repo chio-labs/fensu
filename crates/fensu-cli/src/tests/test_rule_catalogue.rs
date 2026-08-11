@@ -15,7 +15,7 @@ use crate::tests::test_types::{
 fn given_every_core_rule_when_rendering_then_complete_authored_metadata_is_visible() {
     let test_cases = [CoreRuleRenderingTestCase {
         description: "every native core registration renders the complete stable metadata frame",
-        expected_core_count: 199,
+        expected_core_count: 111,
         expected_labels: &[
             "Authored metadata:",
             "Family:",
@@ -24,7 +24,6 @@ fn given_every_core_rule_when_rendering_then_complete_authored_metadata_is_visib
             "Pack: None",
             "Alias: None",
             "Analyzers:",
-            "Frameworks:",
             "Enabled by default:",
             "Execution owner:",
             "Cacheability:",
@@ -100,14 +99,15 @@ fn given_python_catalogue_and_other_analyzer_when_selecting_then_applicability_p
         analyzer: AnalyzerId::TypeScript,
         select: &[],
         expected_codes: &[
-            "FWA001", "FWA002", "FWA003", "FWC101", "FWC102", "FWC103", "FWH009", "FWL101",
-            "FWL102", "FWL103", "FWL105", "FWL108", "FWL109", "FWL201", "FWN001", "FWN002",
-            "FWN003", "FWN004", "FWP001", "FWR001", "FWR002", "FWR003", "FWR201", "FWR204",
-            "FWR301", "FWR304", "FWR306", "FWR309", "FWR310", "FWR311", "FWR401", "FWR403",
-            "FWR501", "FWS001", "FWS002", "FWS003", "FWS010", "FWS011", "FWS105", "FWS106",
-            "FWS110", "FWS111", "FWS201", "FWS601", "FWT001", "FWT002", "FWT003", "FWT004",
-            "FWT201", "FWT202", "FWT302", "FWT401", "FWT402", "FWT403", "FWT404", "FWT405",
-            "FWT406", "FWT410", "FWT411", "FWT412",
+            "FPTSA001", "FPTSA002", "FPTSA003", "FPTSC101", "FPTSC102", "FPTSC103", "FPTSH009",
+            "FPTSL101", "FPTSL102", "FPTSL103", "FPTSL105", "FPTSL108", "FPTSL109", "FPTSL201",
+            "FPTSN001", "FPTSN002", "FPTSN003", "FPTSN004", "FPTSP001", "FPTSR001", "FPTSR002",
+            "FPTSR003", "FPTSR201", "FPTSR204", "FPTSR301", "FPTSR304", "FPTSR306", "FPTSR309",
+            "FPTSR310", "FPTSR311", "FPTSR401", "FPTSR403", "FPTSR501", "FPTSS001", "FPTSS002",
+            "FPTSS003", "FPTSS010", "FPTSS011", "FPTSS105", "FPTSS106", "FPTSS110", "FPTSS111",
+            "FPTSS201", "FPTSS601", "FPTST001", "FPTST002", "FPTST003", "FPTST004", "FPTST201",
+            "FPTST202", "FPTST302", "FPTST401", "FPTST402", "FPTST403", "FPTST404", "FPTST405",
+            "FPTST406", "FPTST410", "FPTST411", "FPTST412",
         ],
         expected_error: None,
     }];
@@ -115,6 +115,7 @@ fn given_python_catalogue_and_other_analyzer_when_selecting_then_applicability_p
     for test_case in &test_cases {
         let config = Config {
             analyzer: test_case.analyzer,
+            rule_packs: vec!["typescript".to_owned()],
             select: test_case
                 .select
                 .iter()
@@ -188,35 +189,37 @@ fn given_incompatible_python_selector_when_selecting_then_error_names_analyzer()
 }
 
 #[test]
-fn given_web_rule_applicability_when_selecting_then_analyzer_and_framework_fail_closed() {
+fn given_web_rule_applicability_when_selecting_then_analyzer_and_pack_activation_fail_closed() {
     let test_cases = [WebRuleApplicabilityTestCase {
         description: "Svelte-only and SvelteKit rules reject incompatible targets while generic remains shared",
         expected_analyzer_error: "not applicable to analyzer typescript",
-        expected_framework_error: "require framework sveltekit for analyzer svelte",
-        expected_generic_code: "FWS010",
+        expected_missing_pack_error: "matches no rules in the configured catalogue",
+        expected_generic_code: "FPTSS010",
     }];
     let root = tempfile::tempdir().expect("catalogue selection root");
     for test_case in &test_cases {
         let typescript = Config {
             analyzer: AnalyzerId::TypeScript,
-            select: vec!["FWV101".to_owned()],
+            rule_packs: vec!["sveltekit".to_owned()],
+            select: vec!["FPSKV101".to_owned()],
             ..Config::default()
         };
         let svelte_without_kit = Config {
             analyzer: AnalyzerId::Svelte,
-            select: vec!["FWL106".to_owned()],
+            select: vec!["FPSKL106".to_owned()],
             ..Config::default()
         };
         let generic_svelte = Config {
             analyzer: AnalyzerId::Svelte,
-            select: vec!["FWS010".to_owned()],
+            rule_packs: vec!["typescript".to_owned()],
+            select: vec!["FPTSS010".to_owned()],
             ..Config::default()
         };
 
         let analyzer_error = selection::selection(&typescript, root.path())
             .expect_err("Svelte rule is incompatible with TypeScript");
-        let framework_error = selection::selection(&svelte_without_kit, root.path())
-            .expect_err("SvelteKit rule requires framework");
+        let missing_pack_error = selection::selection(&svelte_without_kit, root.path())
+            .expect_err("SvelteKit rule requires its activated pack");
         let generic = selection::selection(&generic_svelte, root.path())
             .expect("generic web rule remains available to Svelte");
 
@@ -226,7 +229,7 @@ fn given_web_rule_applicability_when_selecting_then_analyzer_and_framework_fail_
             test_case.description
         );
         assert!(
-            framework_error.contains(test_case.expected_framework_error),
+            missing_pack_error.contains(test_case.expected_missing_pack_error),
             "{}",
             test_case.description
         );

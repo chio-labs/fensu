@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.11.0](https://github.com/chio-labs/fensu/compare/v0.10.0...v0.11.0) (2026-08-11)
+
+
+### Features
+
+* add native TypeScript and SvelteKit rule packs ([0f8e972](https://github.com/chio-labs/fensu/commit/0f8e972589ec8bc385db7f55775064e194e524cd))
+* add native TypeScript and SvelteKit rule packs ([d8b2188](https://github.com/chio-labs/fensu/commit/d8b2188bbeaf8386e6e3685a327b22a2ab39e37f))
+
 ## [0.10.0](https://github.com/chio-labs/fensu/compare/v0.9.4...v0.10.0) (2026-08-10)
 
 

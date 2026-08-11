@@ -9,6 +9,54 @@ use crate::test_types::{
 };
 
 #[test]
+fn given_sveltekit_alias_when_checking_then_typescript_policy_reports_sveltekit_identity() {
+    let test_cases = [WebSourcePurposeTestCase {
+        description: "SvelteKit alias executes TypeScript policy under only the FPSK identity",
+        config: "[targets.web]\nanalyzer = \"svelte\"\nrule_packs = [\"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FPSKS010\"]\n[targets.web.thresholds]\nmax_arguments = 0\n[targets.web.cache]\nenabled = false\n",
+        files: &[(
+            "src/lib/orders/main/read.ts",
+            "export function read(id: string): string { return id; }\n",
+        )],
+        expected_exit_code: 1,
+        expected_present: Some("FPSKS010 (alias FPTSS010)"),
+        expected_absent: Some("FPTSS010  "),
+    }];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(repository.path().join("fensu.toml"), test_case.config);
+        for (path, source) in test_case.files {
+            write(repository.path().join(path), source);
+        }
+        let process_directory = poison_processes(repository.path());
+
+        let output =
+            run_internal_web_check_with(repository.path(), &["--no-cache"], &process_directory);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {stdout}",
+            test_case.description
+        );
+        assert!(
+            stdout.contains(test_case.expected_present.expect("expected alias identity")),
+            "{}: {stdout}",
+            test_case.description
+        );
+        assert!(
+            !stdout.contains(
+                test_case
+                    .expected_absent
+                    .expect("unexpected canonical identity")
+            ),
+            "{}: {stdout}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
 fn given_fresh_racewatch_sveltekit_shape_when_checking_then_ui_alias_resolves_without_node() {
     let test_cases = [FreshSvelteKitCheckTestCase {
         description:
@@ -22,7 +70,7 @@ fn given_fresh_racewatch_sveltekit_shape_when_checking_then_ui_alias_resolves_wi
         let repository = tempfile::tempdir().expect("fresh SvelteKit repository");
         write(
             repository.path().join("fensu.toml"),
-            "[targets.web]\nanalyzer = \"svelte\"\nframework = \"sveltekit\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = []\n[targets.web.cache]\nenabled = true\n",
+            "[targets.web]\nanalyzer = \"svelte\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = []\n[targets.web.cache]\nenabled = true\n",
         );
         write(
             repository.path().join("tsconfig.json"),
@@ -108,51 +156,51 @@ fn given_route_roles_and_server_exports_when_checking_then_boundaries_apply_with
     let test_cases = [
         WebDiagnosticCountTestCase {
             description: "route-local _api is an API role but not a lib capability",
-            config: "[targets.web]\nanalyzer = \"svelte\"\nframework = \"sveltekit\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FWS110\", \"FWR309\"]\n[targets.web.thresholds]\nmax_api_lines = 0\n[targets.web.cache]\nenabled = false\n",
+            config: "[targets.web]\nanalyzer = \"svelte\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FPTSS110\", \"FPTSR309\"]\n[targets.web.thresholds]\nmax_api_lines = 0\n[targets.web.cache]\nenabled = false\n",
             files: &[(
                 "src/routes/orders/_api/read.ts",
                 "export function read(): string { return 'order'; }\n",
             )],
             expected_exit_code: 1,
-            expected_counts: &[("FWS110", 1)],
-            expected_absent: Some("FWR309"),
+            expected_counts: &[("FPTSS110", 1)],
+            expected_absent: Some("FPTSR309"),
         },
         WebDiagnosticCountTestCase {
             description: "generic TypeScript _api modules receive API line and export budgets",
-            config: "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FWS110\", \"FWS111\"]\n[targets.web.thresholds]\nmax_api_lines = 0\nmax_api_exports = 0\n[targets.web.cache]\nenabled = false\n",
+            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FPTSS110\", \"FPTSS111\"]\n[targets.web.thresholds]\nmax_api_lines = 0\nmax_api_exports = 0\n[targets.web.cache]\nenabled = false\n",
             files: &[(
                 "src/lib/orders/_api/read.ts",
                 "export function read(): string { return 'order'; }\n",
             )],
             expected_exit_code: 1,
-            expected_counts: &[("FWS110", 1), ("FWS111", 1)],
+            expected_counts: &[("FPTSS110", 1), ("FPTSS111", 1)],
             expected_absent: None,
         },
         WebDiagnosticCountTestCase {
             description: "arbitrary server capability segments remain browser-classified",
-            config: "[targets.web]\nanalyzer = \"svelte\"\nframework = \"sveltekit\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FWL106\"]\n[targets.web.cache]\nenabled = false\n",
+            config: "[targets.web]\nanalyzer = \"svelte\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FPSKL106\"]\n[targets.web.cache]\nenabled = false\n",
             files: &[(
                 "src/lib/orders/server/read.ts",
                 "import fs from 'node:fs'; export const read = (): object => fs;\n",
             )],
             expected_exit_code: 1,
-            expected_counts: &[("FWL106", 1)],
+            expected_counts: &[("FPSKL106", 1)],
             expected_absent: None,
         },
         WebDiagnosticCountTestCase {
             description: "SvelteKit lib/server modules remain server-only",
-            config: "[targets.web]\nanalyzer = \"svelte\"\nframework = \"sveltekit\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FWL106\"]\n[targets.web.cache]\nenabled = false\n",
+            config: "[targets.web]\nanalyzer = \"svelte\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FPSKL106\"]\n[targets.web.cache]\nenabled = false\n",
             files: &[(
                 "src/lib/server/read.ts",
                 "import fs from 'node:fs'; export const read = (): object => fs;\n",
             )],
             expected_exit_code: 0,
-            expected_counts: &[("FWL106", 0)],
-            expected_absent: Some("FWL106"),
+            expected_counts: &[("FPSKL106", 0)],
+            expected_absent: Some("FPSKL106"),
         },
         WebDiagnosticCountTestCase {
         description: "server load, action, and HTTP handler exports receive entry budgets",
-        config: "[targets.web]\nanalyzer = \"svelte\"\nframework = \"sveltekit\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FWS001\", \"FWS002\", \"FWS003\"]\n[targets.web.thresholds]\nmax_entry_statements = 0\nmax_entry_distinct_calls = 0\nmax_entry_locals = 0\nmax_function_statements = 70\n[targets.web.cache]\nenabled = false\n",
+        config: "[targets.web]\nanalyzer = \"svelte\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FPTSS001\", \"FPTSS002\", \"FPTSS003\"]\n[targets.web.thresholds]\nmax_entry_statements = 0\nmax_entry_distinct_calls = 0\nmax_entry_locals = 0\nmax_function_statements = 70\n[targets.web.cache]\nenabled = false\n",
         files: &[
             (
                 "src/routes/orders/+page.server.ts",
@@ -164,12 +212,12 @@ fn given_route_roles_and_server_exports_when_checking_then_boundaries_apply_with
             ),
         ],
         expected_exit_code: 1,
-        expected_counts: &[("FWS001", 3), ("FWS002", 3), ("FWS003", 3)],
+        expected_counts: &[("FPTSS001", 3), ("FPTSS002", 3), ("FPTSS003", 3)],
         expected_absent: None,
         },
         WebDiagnosticCountTestCase {
             description: "web threshold alias retains path override behavior",
-            config: "[targets.web]\nanalyzer = \"svelte\"\nframework = \"sveltekit\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FWS001\"]\n[targets.web.thresholds]\nmax_entry_statements = 0\n[[targets.web.threshold_overrides]]\npaths = [\"src/routes/relaxed/+page.server.ts\"]\nthresholds = { max_entry_statements = 10 }\nreason = \"Relaxed generated entry.\"\n[targets.web.cache]\nenabled = false\n",
+            config: "[targets.web]\nanalyzer = \"svelte\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FPTSS001\"]\n[targets.web.thresholds]\nmax_entry_statements = 0\n[[targets.web.threshold_overrides]]\npaths = [\"src/routes/relaxed/+page.server.ts\"]\nthresholds = { max_entry_statements = 10 }\nreason = \"Relaxed generated entry.\"\n[targets.web.cache]\nenabled = false\n",
             files: &[
                 (
                     "src/routes/strict/+page.server.ts",
@@ -181,7 +229,7 @@ fn given_route_roles_and_server_exports_when_checking_then_boundaries_apply_with
                 ),
             ],
             expected_exit_code: 1,
-            expected_counts: &[("FWS001", 1)],
+            expected_counts: &[("FPTSS001", 1)],
             expected_absent: None,
         },
     ];
@@ -235,7 +283,7 @@ fn given_alias_and_canonical_web_thresholds_when_caching_then_identity_is_shared
     }];
     for test_case in &test_cases {
         let repository = tempfile::tempdir().expect("web threshold cache repository");
-        let template = "[targets.web]\nanalyzer = \"svelte\"\nframework = \"sveltekit\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FWS001\"]\n[targets.web.thresholds]\n{} = 40\n";
+        let template = "[targets.web]\nanalyzer = \"svelte\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FPTSS001\"]\n[targets.web.thresholds]\n{} = 40\n";
         write(
             repository.path().join("fensu.toml"),
             &template.replace("{}", test_case.alias),
@@ -296,7 +344,7 @@ fn given_racewatch_web_empty_exclude_when_caching_then_identity_matches_omission
     }];
     for test_case in &test_cases {
         let repository = tempfile::tempdir().expect("RaceWatch web cache repository");
-        let template = "[targets.web]\nanalyzer = \"svelte\"\nroot = \"frontend\"\nframework = \"sveltekit\"\nroots = [\"src\"]\ntests = [\"tests\"]\ntooling = [\"tooling\"]\nui_kit = \"src/ui-kit\"\ntest_layout = \"mirrored\"\nselect = [\"FW\"]\n\n[targets.web.thresholds]\nmax_route_script_lines = 200\nmax_component_script_lines = 250\nmax_state_lines = 300\nmax_imported_bindings = 20\nmax_public_exports = 20\nmax_state_public_members = 20\nmax_state_cells = 15\nmax_total_runes = 20\nmax_state_functions = 15\nmax_resource_families = 1\nmax_main_container_modules = 20\nmax_helpers_container_modules = 10\nmax_role_depth = 1\nmax_function_statements = 70\nmax_entry_statements = 40\nmax_entry_distinct_calls = 20\nmax_entry_locals = 20\nmax_arguments = 10\nmax_file_lines = 2000\nmax_api_lines = 200\nmax_api_exports = 3\n\n[targets.web.evaluation]\ninclude = [\"src/**/*.{ts,js,svelte}\", \"tests/**/*.ts\", \"tooling/**/*.ts\"]\n{}";
+        let template = "[targets.web]\nanalyzer = \"svelte\"\nrule_packs = [\"sveltekit\"]\nroot = \"frontend\"\nroots = [\"src\"]\ntests = [\"tests\"]\ntooling = [\"tooling\"]\nui_kit = \"src/ui-kit\"\ntest_layout = \"mirrored\"\nselect = [\"FPSK\"]\n\n[targets.web.thresholds]\nmax_route_script_lines = 200\nmax_component_script_lines = 250\nmax_state_lines = 300\nmax_imported_bindings = 20\nmax_public_exports = 20\nmax_state_public_members = 20\nmax_state_cells = 15\nmax_total_runes = 20\nmax_state_functions = 15\nmax_resource_families = 1\nmax_main_container_modules = 20\nmax_helpers_container_modules = 10\nmax_role_depth = 1\nmax_function_statements = 70\nmax_entry_statements = 40\nmax_entry_distinct_calls = 20\nmax_entry_locals = 20\nmax_arguments = 10\nmax_file_lines = 2000\nmax_api_lines = 200\nmax_api_exports = 3\n\n[targets.web.evaluation]\ninclude = [\"src/**/*.{ts,js,svelte}\", \"tests/**/*.ts\", \"tooling/**/*.ts\"]\n{}";
         write(
             repository.path().join("fensu.toml"),
             &template.replace("{}", ""),
@@ -354,38 +402,38 @@ fn given_parser_and_framework_boundaries_when_checking_then_fail_closed_and_rema
 ) {
     let test_cases = [
         WebSourcePurposeTestCase {
-            description: "malformed direct TypeScript fails even without FWP001 selection",
-            config: "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = []\n[targets.web.cache]\nenabled = false\n",
+            description: "malformed direct TypeScript fails even without FPTSP001 selection",
+            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = []\n[targets.web.cache]\nenabled = false\n",
             files: &[("src/broken.ts", "export const value: = 1;\n")],
             expected_exit_code: 1,
-            expected_present: Some("FWP001"),
+            expected_present: Some("FPTSP001"),
             expected_absent: None,
         },
         WebSourcePurposeTestCase {
             description: "generic TypeScript rejects Svelte resource policy",
-            config: "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FWV201\"]\n[targets.web.cache]\nenabled = false\n",
+            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FPSKV201\"]\n[targets.web.cache]\nenabled = false\n",
             files: &[(
                 "src/lib/orders/main/read.ts",
                 "export function read(): WebSocket { return new WebSocket('ws://localhost'); }\n",
             )],
             expected_exit_code: 2,
             expected_present: None,
-            expected_absent: Some("FWV201"),
+            expected_absent: Some("FPSKV201"),
         },
         WebSourcePurposeTestCase {
             description: "nested UI-kit paths remain valid beneath a source root",
-            config: "[targets.web]\nanalyzer = \"svelte\"\nframework = \"sveltekit\"\nroots = [\"src\"]\ntests = []\ntooling = []\nui_kit = \"src/lib/design/ui-kit\"\nselect = [\"FWU003\"]\n[targets.web.cache]\nenabled = false\n",
+            config: "[targets.web]\nanalyzer = \"svelte\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nui_kit = \"src/lib/design/ui-kit\"\nselect = [\"FPSKU003\"]\n[targets.web.cache]\nenabled = false\n",
             files: &[(
                 "src/lib/design/ui-kit/button/button.svelte",
                 "<button><slot /></button>\n",
             )],
             expected_exit_code: 0,
             expected_present: None,
-            expected_absent: Some("FWU003"),
+            expected_absent: Some("FPSKU003"),
         },
         WebSourcePurposeTestCase {
             description: "static trailing-slash endpoints require an exact OpenAPI path",
-            config: "[targets.web]\nanalyzer = \"svelte\"\nframework = \"sveltekit\"\nroots = [\"src\"]\ntests = []\ntooling = []\nopenapi = \"openapi.json\"\nselect = [\"FWC201\"]\n[targets.web.cache]\nenabled = false\n",
+            config: "[targets.web]\nanalyzer = \"svelte\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nopenapi = \"openapi.json\"\nselect = [\"FPSKC201\"]\n[targets.web.cache]\nenabled = false\n",
             files: &[
                 ("openapi.json", "{\"paths\":{\"/api/orders\":{}}}\n"),
                 (
@@ -394,7 +442,7 @@ fn given_parser_and_framework_boundaries_when_checking_then_fail_closed_and_rema
                 ),
             ],
             expected_exit_code: 1,
-            expected_present: Some("FWC201"),
+            expected_present: Some("FPSKC201"),
             expected_absent: None,
         },
     ];
@@ -442,7 +490,7 @@ fn given_python_custom_and_native_web_targets_when_checking_then_one_host_and_na
         description: "mixed aggregate partitions Python hosting from native web evaluation",
         expected_exit_code: 1,
         expected_python_fault: "FFA001",
-        expected_web_fault: "FWA102",
+        expected_web_fault: "FPSKA102",
         expected_host_count_per_run: 1,
         expected_host_error: "fensu is not installed beside fensu-cli",
     }];
@@ -452,7 +500,7 @@ fn given_python_custom_and_native_web_targets_when_checking_then_one_host_and_na
         let repository = tempfile::tempdir().expect("mixed analyzer repository");
         write(
             repository.path().join("fensu.toml"),
-            "[targets.backend]\nanalyzer = \"python\"\nroots = [\"src/z-backend\"]\ntests = []\ntooling = []\nselect = [\"FFA001\", \"XMIX001\"]\nrule_paths = [\"rules/mixed.py\"]\n[targets.backend.evaluation]\nexclude = [\"src/z-backend/excluded.py\"]\n[targets.backend.cache]\nenabled = true\n[targets.frontend]\nanalyzer = \"svelte\"\nframework = \"sveltekit\"\nroots = [\"src/a-frontend\"]\ntests = []\ntooling = []\nselect = [\"FWA102\"]\n[targets.frontend.cache]\nenabled = true\n",
+            "[targets.backend]\nanalyzer = \"python\"\nroots = [\"src/z-backend\"]\ntests = []\ntooling = []\nselect = [\"FFA001\", \"XMIX001\"]\nrule_paths = [\"rules/mixed.py\"]\n[targets.backend.evaluation]\nexclude = [\"src/z-backend/excluded.py\"]\n[targets.backend.cache]\nenabled = true\n[targets.frontend]\nanalyzer = \"svelte\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src/a-frontend\"]\ntests = []\ntooling = []\nselect = [\"FPSKA102\"]\n[targets.frontend.cache]\nenabled = true\n",
         );
         write(
             repository.path().join("src/z-backend/module.py"),
@@ -566,7 +614,7 @@ fn given_target_local_dependency_symlink_when_checking_then_target_escape_fails_
         let repository = tempfile::tempdir().expect("target confinement repository");
         write(
             repository.path().join("fensu.toml"),
-            "[targets.web]\nanalyzer = \"svelte\"\nroot = \"frontend\"\nframework = \"sveltekit\"\nroots = [\"src\"]\ntests = []\ntooling = []\nopenapi = \"contracts/openapi.json\"\nselect = [\"FWC201\"]\n",
+            "[targets.web]\nanalyzer = \"svelte\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroot = \"frontend\"\nroots = [\"src\"]\ntests = []\ntooling = []\nopenapi = \"contracts/openapi.json\"\nselect = [\"FPSKC201\"]\n",
         );
         for (path, content) in test_case.files {
             write(repository.path().join(path), content);

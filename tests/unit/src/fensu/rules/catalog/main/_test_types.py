@@ -205,6 +205,17 @@ class NativeRulePackCatalogueTestCase:
 
 
 @dataclass(frozen=True)
+class NativeWebPackCatalogueTestCase:
+    """Expected standalone TypeScript and SvelteKit pack composition."""
+
+    description: str
+    expected_typescript_count: int
+    expected_sveltekit_count: int
+    expected_alias_count: int
+    expected_native_count: int
+
+
+@dataclass(frozen=True)
 class WebMigrationTestCase:
     """Expected complete web migration inventory facts."""
 

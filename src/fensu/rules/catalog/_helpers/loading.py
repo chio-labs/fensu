@@ -24,10 +24,10 @@ from fensu.rules.authoring.main.matches_rule_selector import matches_rule_select
 from fensu.rules.authoring.models import CustomRuleRegistration, RuleSpec
 from fensu.rules.authoring.types import Family, RuleKind, Threshold
 from fensu.rules.catalog._helpers.hermeticity import validate_cacheable_rules
-from fensu.rules.catalog.constants import CORE_RULES
+from fensu.rules.catalog.constants import CORE_RULES, FPSK_RULES, FPTS_RULES
 from fensu.rules.catalog.main._check_module_use import check_uses_module
 from fensu.rules.catalog.models import RuleSelection
-from fensu.rules.dagster.constants import DAGSTER_PACK_NAME, FPDG_RULES
+from fensu.rules.dagster.constants import FPDG_RULES
 
 _CONTRACT_BEHAVIORS: frozenset[str] = frozenset(ContractBehavior)
 
@@ -114,7 +114,9 @@ def build_catalogue_from_config(
     )
     if config.cache.require_cacheable:
         custom_rules = tuple(replace(rule, cacheable=True) for rule in custom_rules)
-    pack_rules: tuple[RuleSpec, ...] = FPDG_RULES if DAGSTER_PACK_NAME in config.rule_packs else ()
+    pack_rules: tuple[RuleSpec, ...] = tuple(
+        rule for rule in (*FPDG_RULES, *FPTS_RULES, *FPSK_RULES) if rule.pack in config.rule_packs
+    )
     all_rules: tuple[RuleSpec, ...] = (*CORE_RULES, *pack_rules, *custom_rules)
     _validate_rule_identities(rules=all_rules)
     _validate_unique_codes(rules=all_rules)

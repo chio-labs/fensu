@@ -47,7 +47,9 @@ DEFAULT_TEST_LAYOUT: TestLayout = TestLayout.MIRRORED
 TEST_SCOPE_PATTERN: re.Pattern[str] = re.compile(r"^[a-z][a-z0-9]*(?:[_-][a-z0-9]+)*$")
 DEFAULT_TOOLING_PATHS: tuple[str, ...] = ()
 DEFAULT_SELECT: tuple[str, ...] = (RuleSelector.ALL,)
-DEFAULT_WEB_SELECT: tuple[str, ...] = ("FW",)
+DEFAULT_WEB_SELECT: tuple[str, ...] = ("FP",)
+TYPESCRIPT_RULE_PACK: str = "typescript"
+SVELTEKIT_RULE_PACK: str = "sveltekit"
 DEFAULT_WARN: tuple[str, ...] = ()
 DEFAULT_IGNORE: tuple[str, ...] = ()
 DEFAULT_CACHE_ENABLED: bool = True
@@ -80,7 +82,6 @@ CONFIG_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
         "roles",
         "contracts",
         "ui_kit",
-        "framework",
         "shadcn",
         "openapi",
         "rule_exceptions",
@@ -96,9 +97,9 @@ CONTRACT_BEHAVIORS: frozenset[str] = frozenset(ContractBehavior)
 RULE_CONFIGURATION_INPUTS: frozenset[str] = frozenset(
     {
         "contracts",
-        "framework",
         "generated",
         "openapi",
+        "rule_packs",
         "roots",
         "shadcn",
         "tests",
@@ -130,7 +131,6 @@ MAX_ENTRY_PRIVATE_FUNCTIONS: int = 2
 PATH_SEPARATOR: str = "/"
 DOUBLE_PATH_SEPARATOR: str = "//"
 INVALID_UI_KIT_PATH_PARTS: frozenset[str] = frozenset({"", ".", ".."})
-DEFAULT_WEB_FRAMEWORK: str = "sveltekit"
 SINGLE_COMPONENT_GLOB: str = "*"
 RECURSIVE_GLOB: str = "**"
 THRESHOLD_OVERRIDE_KEYS: frozenset[str] = frozenset({"paths", "thresholds", "reason"})

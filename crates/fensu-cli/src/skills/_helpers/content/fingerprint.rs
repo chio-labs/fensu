@@ -286,7 +286,6 @@ fn config_value(config: &Config) -> Value {
         "evaluation": {"include": config.evaluation_include, "exclude": config.evaluation_exclude},
         "skills": {"name": config.skills_name},
         "thresholds": thresholds,
-        "framework": config.framework,
         "ui_kit": config.ui_kit,
         "shadcn": config.shadcn,
         "openapi": config.openapi,

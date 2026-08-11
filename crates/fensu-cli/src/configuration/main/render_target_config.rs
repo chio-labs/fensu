@@ -1,5 +1,5 @@
 use crate::configuration::_helpers::validation::WEB_THRESHOLD_ALIASES;
-use crate::configuration::constants::DEFAULT_THRESHOLDS;
+use crate::configuration::constants::{DEFAULT_THRESHOLDS, SVELTEKIT_RULE_PACK};
 use crate::models::DetectedTarget;
 
 pub(crate) fn render_target_config(targets: &[DetectedTarget]) -> Result<String, String> {
@@ -29,9 +29,6 @@ pub(crate) fn render_target_config(targets: &[DetectedTarget]) -> Result<String,
                 target.test_layout.to_string()
             ));
         }
-        if let Some(framework) = &target.framework {
-            text.push_str(&format!("framework = {framework:?}\n"));
-        }
         text.push_str(&format!(
             "rule_packs = {}\n",
             serde_json::to_string(&target.rule_packs).map_err(|error| error.to_string())?
@@ -41,7 +38,10 @@ pub(crate) fn render_target_config(targets: &[DetectedTarget]) -> Result<String,
             serde_json::to_string(&target.select).map_err(|error| error.to_string())?
         ));
         if target.analyzer == crate::analyzer::AnalyzerId::Svelte
-            && target.framework.as_deref() == Some("sveltekit")
+            && target
+                .rule_packs
+                .iter()
+                .any(|pack| pack == SVELTEKIT_RULE_PACK)
         {
             text.push_str(&format!("[targets.{}.thresholds]\n", target.name));
             for (alias, canonical) in WEB_THRESHOLD_ALIASES {

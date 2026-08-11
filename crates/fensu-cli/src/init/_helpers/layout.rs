@@ -49,7 +49,6 @@ pub(crate) fn plan_layout(
                 tests: vec![TESTS_ROOT.to_owned()],
                 tooling: Vec::new(),
                 test_layout: TestLayout::Mirrored,
-                framework: None,
                 rule_packs: Vec::new(),
                 select: vec!["FF".to_owned()],
             });
@@ -121,8 +120,7 @@ fn sveltekit_target(name: &str, root: &str) -> DetectedTarget {
         tests: Vec::new(),
         tooling: Vec::new(),
         test_layout: TestLayout::Mirrored,
-        framework: Some("sveltekit".to_owned()),
-        rule_packs: Vec::new(),
-        select: vec!["FW".to_owned()],
+        rule_packs: vec!["sveltekit".to_owned()],
+        select: vec!["FPSK".to_owned()],
     }
 }

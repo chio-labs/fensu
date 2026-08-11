@@ -57,12 +57,12 @@ class TargetConfigTestCase:
 
 @dataclass(frozen=True)
 class WebTargetDefaultsTestCase:
-    """Web analyzer configuration and expected framework-local defaults."""
+    """Web analyzer configuration and expected pack-local defaults."""
 
     description: str
     analyzer: str
     extra_config: str
-    expected_framework: str | None
+    expected_rule_packs: tuple[str, ...]
     expected_shadcn: str | None
     expected_ui_kit: str | None
     expected_test_layout: str

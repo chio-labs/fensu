@@ -19,7 +19,6 @@ use crate::skills::models::{HostResponse, RuleSelection};
 
 const CORE_KIND: &str = "core";
 const CORE_PREFIX: &str = "FF";
-const WEB_CORE_PREFIX: &str = "FW";
 const CUSTOM_KIND: &str = "custom";
 const CUSTOM_PREFIX: char = 'X';
 const PACK_KIND: &str = "pack";
@@ -59,14 +58,7 @@ pub(crate) fn selection(config: &Config, project_root: &Path) -> Result<RuleSele
     let applicable_catalogue = configured_catalogue
         .iter()
         .copied()
-        .filter(|rule| {
-            rule.analyzers.contains(&config.analyzer)
-                && (rule.frameworks.is_empty()
-                    || config
-                        .framework
-                        .as_ref()
-                        .is_some_and(|framework| rule.frameworks.contains(framework)))
-        })
+        .filter(|rule| rule.analyzers.contains(&config.analyzer))
         .collect::<Vec<_>>();
     validate_config_selectors(config, &applicable_catalogue, &configured_catalogue)?;
     let catalogue = applicable_catalogue
@@ -150,10 +142,10 @@ fn validate_host_shape(raw: &[u8]) -> Result<(), String> {
         "severity",
         "enabled_by_default",
         "execution_owner",
-        "frameworks",
         "kind",
         "pack",
         "alias_of",
+        "implementation_code",
         "analyzers",
         "source",
         "cacheable",
@@ -187,7 +179,7 @@ fn validate_host_catalogue(catalogue: &[RuleMetadata]) -> Result<(), String> {
                 item.code
             ));
         }
-        let core = item.code.starts_with(CORE_PREFIX) || item.code.starts_with(WEB_CORE_PREFIX);
+        let core = item.code.starts_with(CORE_PREFIX);
         let pack = item.code.starts_with(PACK_PREFIX);
         if (core && item.kind != CORE_KIND)
             || (pack && item.kind != PACK_KIND)
@@ -230,7 +222,6 @@ fn validate_host_catalogue(catalogue: &[RuleMetadata]) -> Result<(), String> {
             || item.analyzers.iter().collect::<HashSet<_>>().len() != item.analyzers.len()
             || (item.kind == CUSTOM_KIND
                 && item.analyzers.as_slice() != [crate::analyzer::AnalyzerId::Python])
-            || (item.kind == CUSTOM_KIND && !item.frameworks.is_empty())
         {
             return Err(format!(
                 "Catalogue rule {} contains incompatible metadata.",

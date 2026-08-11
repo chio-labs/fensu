@@ -528,9 +528,8 @@ from tests.e2e.src.fensu.cli.main.helpers import (
                         "tests = []\n"
                         "tooling = []\n"
                         'test_layout = "mirrored"\n'
-                        'framework = "sveltekit"\n'
-                        "rule_packs = []\n"
-                        'select = ["FW"]\n'
+                        'rule_packs = ["sveltekit"]\n'
+                        'select = ["FPSK"]\n'
                         "[targets.web.thresholds]\n"
                         "max_entry_statements = 40\n"
                         "max_entry_distinct_calls = 20\n"

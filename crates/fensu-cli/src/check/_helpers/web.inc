@@ -141,7 +141,10 @@ pub(crate) fn discover_project_inputs(
     let mut inputs: Vec<ProjectInput> = Vec::new();
     let mut loaded: HashSet<PathBuf> = HashSet::new();
     let mut visiting: Vec<PathBuf> = Vec::new();
-    let optional_generated = (config.framework.as_deref() == Some("sveltekit"))
+    let optional_generated = config
+        .rule_packs
+        .iter()
+        .any(|pack| pack == "sveltekit")
         .then(|| project_root.join(SVELTEKIT_DIRECTORY).join(TSCONFIG_FILE));
     let root_config = [TSCONFIG_FILE, "jsconfig.json"]
         .iter()

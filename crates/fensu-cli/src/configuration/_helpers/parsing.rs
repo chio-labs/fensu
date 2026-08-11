@@ -47,7 +47,7 @@ pub(crate) fn build(
             if selection.analyzer == crate::analyzer::AnalyzerId::Python {
                 DEFAULT_SELECT
             } else {
-                &["FW"]
+                &["FP"]
             },
         ),
         warn: strings_or(table.get("warn"), DEFAULT_WARN),
@@ -82,14 +82,6 @@ pub(crate) fn build(
             .get("ui_kit")
             .and_then(toml::Value::as_str)
             .map(|value| value.trim_end_matches('/').to_owned()),
-        framework: table
-            .get("framework")
-            .and_then(toml::Value::as_str)
-            .map(str::to_owned)
-            .or_else(|| {
-                (selection.analyzer == crate::analyzer::AnalyzerId::Svelte)
-                    .then(|| "sveltekit".to_owned())
-            }),
         shadcn: table
             .get("shadcn")
             .and_then(toml::Value::as_str)

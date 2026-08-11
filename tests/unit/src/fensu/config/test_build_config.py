@@ -24,7 +24,16 @@ from tests.unit.src.fensu.config._test_types import (
             description="registered Dagster pack is normalized",
             raw_config={"roots": ["src/pkg"], "rule_packs": ["dagster"], "select": ["FPDG"]},
             expected_rule_packs=("dagster",),
-        )
+        ),
+        RulePackConfigTestCase(
+            description="registered TypeScript and SvelteKit packs are normalized",
+            raw_config={
+                "roots": ["src"],
+                "rule_packs": ["typescript", "sveltekit"],
+                "select": ["FPTS", "FPSK"],
+            },
+            expected_rule_packs=("typescript", "sveltekit"),
+        ),
     ],
     ids=lambda case: case.description,
 )

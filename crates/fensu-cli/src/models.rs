@@ -70,7 +70,6 @@ pub(crate) struct DetectedTarget {
     pub(crate) tests: Vec<String>,
     pub(crate) tooling: Vec<String>,
     pub(crate) test_layout: TestLayout,
-    pub(crate) framework: Option<String>,
     pub(crate) rule_packs: Vec<String>,
     pub(crate) select: Vec<String>,
 }
@@ -102,7 +101,6 @@ pub(crate) struct Config {
     pub(crate) threshold_overrides: Vec<ThresholdOverride>,
     pub(crate) contracts: Vec<(String, String)>,
     pub(crate) ui_kit: Option<String>,
-    pub(crate) framework: Option<String>,
     pub(crate) shadcn: Option<String>,
     pub(crate) openapi: Option<String>,
     pub(crate) exceptions: Vec<RuleException>,

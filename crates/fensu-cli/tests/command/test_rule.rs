@@ -14,56 +14,56 @@ fn given_web_analyzer_when_inspecting_rule_then_native_catalogue_is_available() 
     let test_cases = [
         ConfigCommandTargetTestCase {
             description: "TypeScript rule lookup renders retained native metadata",
-            arguments: &["rule", "FWA001", "--target", "web", "--color", "never"],
+            arguments: &["rule", "FPTSA001", "--target", "web", "--color", "never"],
             expected_exit_code: 0,
             expected_stdout: "Analyzers: svelte, typescript",
             expected_stderr: "",
         },
         ConfigCommandTargetTestCase {
-            description: "SvelteKit rule lookup renders framework provenance",
-            arguments: &["rule", "FWU001", "--target", "web", "--color", "never"],
+            description: "SvelteKit rule lookup renders activated pack provenance",
+            arguments: &["rule", "FPSKU001", "--target", "web", "--color", "never"],
             expected_exit_code: 0,
-            expected_stdout: "framework: sveltekit",
+            expected_stdout: "rule_packs: typescript, sveltekit",
             expected_stderr: "",
         },
         ConfigCommandTargetTestCase {
             description: "OpenAPI rule lookup renders target-local dependency provenance",
-            arguments: &["rule", "FWC201", "--target", "web", "--color", "never"],
+            arguments: &["rule", "FPSKC201", "--target", "web", "--color", "never"],
             expected_exit_code: 0,
             expected_stdout: "openapi: contracts/openapi.json",
             expected_stderr: "",
         },
         ConfigCommandTargetTestCase {
             description: "test layout rule lookup renders analyzer-local layout provenance",
-            arguments: &["rule", "FWT002", "--target", "web", "--color", "never"],
+            arguments: &["rule", "FPTST002", "--target", "web", "--color", "never"],
             expected_exit_code: 0,
             expected_stdout: "test_layout: colocated",
             expected_stderr: "",
         },
         ConfigCommandTargetTestCase {
             description: "entry statement alias renders canonical rule provenance",
-            arguments: &["rule", "FWS001", "--target", "web", "--color", "never"],
+            arguments: &["rule", "FPTSS001", "--target", "web", "--color", "never"],
             expected_exit_code: 0,
             expected_stdout: "max_statements: 41",
             expected_stderr: "",
         },
         ConfigCommandTargetTestCase {
             description: "entry call alias renders canonical rule provenance",
-            arguments: &["rule", "FWS002", "--target", "web", "--color", "never"],
+            arguments: &["rule", "FPTSS002", "--target", "web", "--color", "never"],
             expected_exit_code: 0,
             expected_stdout: "max_distinct_calls: 21",
             expected_stderr: "",
         },
         ConfigCommandTargetTestCase {
             description: "entry local alias renders canonical rule provenance",
-            arguments: &["rule", "FWS003", "--target", "web", "--color", "never"],
+            arguments: &["rule", "FPTSS003", "--target", "web", "--color", "never"],
             expected_exit_code: 0,
             expected_stdout: "max_locals: 22",
             expected_stderr: "",
         },
         ConfigCommandTargetTestCase {
             description: "function statement alias renders canonical rule provenance",
-            arguments: &["rule", "FWS011", "--target", "web", "--color", "never"],
+            arguments: &["rule", "FPTSS011", "--target", "web", "--color", "never"],
             expected_exit_code: 0,
             expected_stdout: "max_statements_global: 71",
             expected_stderr: "",
@@ -72,7 +72,7 @@ fn given_web_analyzer_when_inspecting_rule_then_native_catalogue_is_available() 
     let repository = tempfile::tempdir().expect("temporary repository");
     write(
         repository.path().join("fensu.toml"),
-        "[targets.web]\nanalyzer = \"svelte\"\nframework = \"sveltekit\"\nroots = [\"src\"]\ntest_layout = \"colocated\"\nui_kit = \"src/ui-kit\"\nshadcn = \"config/components.json\"\nopenapi = \"contracts/openapi.json\"\n[targets.web.thresholds]\nmax_entry_statements = 41\nmax_entry_distinct_calls = 21\nmax_entry_locals = 22\nmax_function_statements = 71\n",
+        "[targets.web]\nanalyzer = \"svelte\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntest_layout = \"colocated\"\nui_kit = \"src/ui-kit\"\nshadcn = \"config/components.json\"\nopenapi = \"contracts/openapi.json\"\n[targets.web.thresholds]\nmax_entry_statements = 41\nmax_entry_distinct_calls = 21\nmax_entry_locals = 22\nmax_function_statements = 71\n",
     );
 
     for test_case in &test_cases {

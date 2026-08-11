@@ -8,6 +8,7 @@ use fensu_native::rules::main::plan_execution_owners::plan_execution_owners;
 use fensu_native::rules::models::{NativeExecutionRule, NativeExecutionTarget, NativeRuleContext};
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 
+use crate::catalogue::main::rule_catalogue::configured_rule_catalogue;
 use crate::catalogue::main::rule_metadata::rule_metadata;
 use crate::catalogue::models::RuleMetadata;
 use crate::check::_helpers::exceptions::{apply_exceptions, ApplyExceptionsRequest};
@@ -17,8 +18,8 @@ use crate::check::_helpers::policy::{
 };
 use crate::check::_helpers::project::{observe, project_plane};
 use crate::check::_helpers::rule_policy::{
-    display_codes_by_implementation, resolved_thresholds, selected_rules, validate_config_tiers,
-    validate_unique_implementations,
+    applicable, display_codes_by_implementation, resolved_thresholds, selected_rules,
+    validate_config_tiers, validate_unique_implementations,
 };
 use crate::check::models::{CheckResult, EvaluationRequest};
 use crate::check::web_policy::{self, WebPolicyRequest};
@@ -204,9 +205,14 @@ fn evaluate_parser_target(request: EvaluationRequest<'_>) -> Result<CheckResult,
     let mut all_rules = blocking.clone();
     all_rules.extend(warning_rules.iter().copied());
     validate_unique_implementations(&all_rules)?;
+    let display_codes = web_display_codes(config, &all_rules)?;
     let selected_codes = all_rules
         .iter()
-        .map(|rule| rule.code.as_str())
+        .map(|rule| {
+            rule.implementation_code
+                .as_deref()
+                .unwrap_or(rule.code.as_str())
+        })
         .collect::<HashSet<_>>();
     let warning_codes = warning_rules
         .iter()
@@ -234,12 +240,16 @@ fn evaluate_parser_target(request: EvaluationRequest<'_>) -> Result<CheckResult,
     });
     let mut faults: Vec<Fault> = Vec::with_capacity(rows.len());
     for row in rows {
-        let metadata = rule_metadata(row.code)?
-            .ok_or_else(|| format!("Unknown native web rule code: {}", row.code))?;
+        let metadata = display_codes.get(row.code).ok_or_else(|| {
+            format!(
+                "No configured identity for native web rule code: {}",
+                row.code
+            )
+        })?;
         faults.push(Fault {
-            warning: warning_codes.contains(row.code),
-            code: row.code.to_owned(),
-            alias_of: None,
+            warning: warning_codes.contains(metadata.code.as_str()),
+            code: metadata.code.clone(),
+            alias_of: metadata.alias_of.clone(),
             path: project_root.join(row.path).to_string_lossy().into_owned(),
             line: row.line,
             column: row.column,
@@ -288,6 +298,30 @@ fn evaluate_parser_target(request: EvaluationRequest<'_>) -> Result<CheckResult,
         applied_exceptions: applied,
         threshold_uses: uses,
     })
+}
+
+fn web_display_codes(
+    config: &Config,
+    selected: &[&'static RuleMetadata],
+) -> Result<HashMap<&'static str, &'static RuleMetadata>, String> {
+    let mut display: HashMap<&'static str, &'static RuleMetadata> = HashMap::new();
+    for rule in configured_rule_catalogue(&config.rule_packs)?
+        .into_iter()
+        .filter(|rule| applicable(rule, config))
+        .filter(|rule| rule.implementation_code.is_some())
+    {
+        let implementation = rule.implementation_code.as_deref().unwrap_or_default();
+        let preferred = rule.pack.as_deref() == Some("sveltekit");
+        if preferred || !display.contains_key(implementation) {
+            display.insert(implementation, rule);
+        }
+    }
+    for rule in selected {
+        if let Some(implementation) = rule.implementation_code.as_deref() {
+            display.insert(implementation, *rule);
+        }
+    }
+    Ok(display)
 }
 
 pub(crate) fn render_results(

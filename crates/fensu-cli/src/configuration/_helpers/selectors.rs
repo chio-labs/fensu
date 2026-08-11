@@ -1,5 +1,4 @@
 const CORE_PREFIX: &str = "FF";
-const WEB_PREFIX: &str = "FW";
 const CORE_RULE_CODE_LENGTH: usize = 6;
 const CUSTOM_PREFIX: &str = "X";
 const MAX_CORE_SELECTOR_SUFFIX: usize = 4;
@@ -8,7 +7,7 @@ const PACK_PREFIX: &str = "FP";
 pub(crate) fn valid_code(value: &str) -> bool {
     let bytes = value.as_bytes();
     (bytes.len() == CORE_RULE_CODE_LENGTH
-        && (value.starts_with(CORE_PREFIX) || value.starts_with(WEB_PREFIX))
+        && value.starts_with(CORE_PREFIX)
         && bytes[2].is_ascii_uppercase()
         && bytes[3..].iter().all(u8::is_ascii_digit))
         || valid_named_code(value, PACK_PREFIX, true)
@@ -16,16 +15,10 @@ pub(crate) fn valid_code(value: &str) -> bool {
 }
 
 pub(crate) fn valid_selector(value: &str) -> bool {
-    if matches!(
-        value,
-        CORE_PREFIX | WEB_PREFIX | PACK_PREFIX | CUSTOM_PREFIX
-    ) {
+    if matches!(value, CORE_PREFIX | PACK_PREFIX | CUSTOM_PREFIX) {
         return true;
     }
-    if let Some(rest) = value
-        .strip_prefix(CORE_PREFIX)
-        .or_else(|| value.strip_prefix(WEB_PREFIX))
-    {
+    if let Some(rest) = value.strip_prefix(CORE_PREFIX) {
         return rest.len() <= MAX_CORE_SELECTOR_SUFFIX
             && rest
                 .chars()

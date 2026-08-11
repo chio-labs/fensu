@@ -52,7 +52,7 @@ fn given_fresh_sveltekit_config_when_resolving_then_generated_extends_and_litera
             .expect("plain alias module");
         let config = crate::models::Config {
             analyzer: AnalyzerId::Svelte,
-            framework: Some("sveltekit".to_owned()),
+            rule_packs: vec!["sveltekit".to_owned()],
             ..crate::models::Config::default()
         };
 
@@ -268,7 +268,7 @@ fn given_nested_sveltekit_target_when_resolving_then_filesystem_and_reported_pat
             .expect("library module");
         let config = crate::models::Config {
             analyzer: AnalyzerId::Svelte,
-            framework: Some("sveltekit".to_owned()),
+            rule_packs: vec!["sveltekit".to_owned()],
             ..crate::models::Config::default()
         };
 
@@ -378,7 +378,7 @@ fn given_optional_generated_config_when_it_appears_then_project_input_presence_c
         .expect("fresh SvelteKit tsconfig");
         let config = crate::models::Config {
             analyzer: AnalyzerId::Svelte,
-            framework: Some("sveltekit".to_owned()),
+            rule_packs: vec!["sveltekit".to_owned()],
             ..crate::models::Config::default()
         };
         let missing =

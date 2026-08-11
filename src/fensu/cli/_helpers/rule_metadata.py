@@ -26,11 +26,11 @@ def rule_metadata_value(
         "severity": rule.severity.value,
         "enabled_by_default": rule.enabled_by_default,
         "analyzers": [analyzer.value for analyzer in rule.analyzers],
-        "frameworks": rule.frameworks,
         "execution_owner": rule.execution_owner.value,
         "kind": rule.kind.value,
         "pack": rule.pack,
         "alias_of": rule.alias_of,
+        "implementation_code": rule.implementation_code,
         "source": rule.source,
         "cacheable": rule.cacheable,
         "options": [

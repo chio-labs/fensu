@@ -5,7 +5,7 @@ use crate::test_types::{
     WebPolicyCheckTestCase, WebSourcePurposeTestCase, WebTestCaseTypeResolutionTestCase,
 };
 
-const CONFIG: &str = "[targets.a_typescript]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = []\n\n[targets.a_typescript.cache]\nenabled = true\n\n[targets.a_typescript.evaluation]\nexclude = [\"src/lib/value.ts\"]\n\n[targets.b_svelte]\nanalyzer = \"svelte\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = []\n\n[targets.b_svelte.cache]\nenabled = true\n";
+const CONFIG: &str = "[targets.a_typescript]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = []\n\n[targets.a_typescript.cache]\nenabled = true\n\n[targets.a_typescript.evaluation]\nexclude = [\"src/lib/value.ts\"]\n\n[targets.b_svelte]\nanalyzer = \"svelte\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = []\n\n[targets.b_svelte.cache]\nenabled = true\n";
 const VALID_COMPONENT: &str = "<script lang=\"ts\">\nimport { value } from '$lib/value';\nconst doubled: number = value * 2;\n</script>\n<p>{doubled}</p>\n";
 const VALID_TYPESCRIPT: &str = "export const value: number = 2;\n";
 
@@ -32,7 +32,7 @@ fn given_web_method_exception_when_checking_then_qualified_owner_disambiguates_r
         write(
             repository.path().join("fensu.toml"),
             &format!(
-                "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FWS010\"]\n[targets.web.thresholds]\nmax_arguments = 0\n[targets.web.cache]\nenabled = false\n[[targets.web.rule_exceptions]]\nrule = \"FWS010\"\npath = \"src/classes.ts\"\nsymbols = [\"{}\"]\nreason = \"External class callback.\"\n",
+                "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FPTSS010\"]\n[targets.web.thresholds]\nmax_arguments = 0\n[targets.web.cache]\nenabled = false\n[[targets.web.rule_exceptions]]\nrule = \"FPTSS010\"\npath = \"src/classes.ts\"\nsymbols = [\"{}\"]\nreason = \"External class callback.\"\n",
                 test_case.symbol
             ),
         );
@@ -245,7 +245,7 @@ fn given_target_local_web_configuration_dependencies_when_changed_then_cache_ide
             repository.path().join("fensu.toml"),
             concat!(
                 "[targets.web]\n",
-                "analyzer = \"svelte\"\n",
+                "analyzer = \"svelte\"\nrule_packs = [\"typescript\", \"sveltekit\"]\n",
                 "root = \"frontend\"\n",
                 "roots = [\"src\"]\n",
                 "tests = []\n",
@@ -335,7 +335,7 @@ fn given_malformed_web_sources_when_checking_then_diagnostics_name_repository_pa
         write(
             repository.path().join("fensu.toml"),
             &CONFIG
-                .replace("select = []", "select = [\"FWP001\"]")
+                .replace("select = []", "select = [\"FPTSP001\"]")
                 .replace(
                     "\n[targets.a_typescript.evaluation]\nexclude = [\"src/lib/value.ts\"]\n",
                     "\n",
@@ -396,53 +396,53 @@ fn given_web_source_purposes_when_checking_then_only_trusted_parse_surfaces_emit
     let test_cases = [
         WebSourcePurposeTestCase {
             description: "malformed declaration support reports a trusted parse failure",
-            config: "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FWP001\"]\n[targets.web.cache]\nenabled = false\n",
+            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FPTSP001\"]\n[targets.web.cache]\nenabled = false\n",
             files: &[("src/contracts.d.ts", "export interface Contract { value: ; }\n")],
             expected_exit_code: 1,
-            expected_present: Some("FWP001"),
+            expected_present: Some("FPTSP001"),
             expected_absent: None,
         },
         WebSourcePurposeTestCase {
             description: "evaluation-excluded malformed source remains graph context without diagnostics",
-            config: "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FWP001\"]\n[targets.web.evaluation]\nexclude = [\"src/excluded.ts\"]\n[targets.web.cache]\nenabled = false\n",
+            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FPTSP001\"]\n[targets.web.evaluation]\nexclude = [\"src/excluded.ts\"]\n[targets.web.cache]\nenabled = false\n",
             files: &[("src/excluded.ts", "export const value: = 1;\n")],
             expected_exit_code: 0,
             expected_present: None,
-            expected_absent: Some("FWP001"),
+            expected_absent: Some("FPTSP001"),
         },
         WebSourcePurposeTestCase {
             description: "generated malformed source remains graph context without diagnostics",
-            config: "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = []\ntooling = []\ngenerated = [\"src/generated/**\"]\nselect = [\"FWP001\"]\n[targets.web.cache]\nenabled = false\n",
+            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\ngenerated = [\"src/generated/**\"]\nselect = [\"FPTSP001\"]\n[targets.web.cache]\nenabled = false\n",
             files: &[("src/generated/value.ts", "export const value: = 1;\n")],
             expected_exit_code: 0,
             expected_present: None,
-            expected_absent: Some("FWP001"),
+            expected_absent: Some("FPTSP001"),
         },
         WebSourcePurposeTestCase {
             description: "generated import targets do not trigger target-sensitive layer rules",
-            config: "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = []\ntooling = []\ngenerated = [\"src/generated/**\"]\nselect = [\"FWL101\", \"FWL102\", \"FWL103\", \"FWL105\", \"FWL108\"]\n[targets.web.cache]\nenabled = false\n",
+            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\ngenerated = [\"src/generated/**\"]\nselect = [\"FPTSL101\", \"FPTSL102\", \"FPTSL103\", \"FPTSL105\", \"FPTSL108\"]\n[targets.web.cache]\nenabled = false\n",
             files: &[
                 ("src/generated/index.ts", "export const value: number = 1;\n"),
                 ("src/use.ts", "import * as generated from './generated'; export const value = generated.value;\n"),
             ],
             expected_exit_code: 0,
             expected_present: None,
-            expected_absent: Some("FWL"),
+            expected_absent: Some("FPTSL"),
         },
         WebSourcePurposeTestCase {
             description: "TypeScript analyzer does not classify Svelte components as TypeScript sources",
-            config: "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FWP001\"]\n[targets.web.cache]\nenabled = false\n",
+            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FPTSP001\"]\n[targets.web.cache]\nenabled = false\n",
             files: &[
                 ("src/value.ts", VALID_TYPESCRIPT),
                 ("src/App.svelte", "<script>const value: = 1;</script>\n"),
             ],
             expected_exit_code: 0,
             expected_present: None,
-            expected_absent: Some("FWP001"),
+            expected_absent: Some("FPTSP001"),
         },
         WebSourcePurposeTestCase {
             description: "Svelte analyzer parses malformed TypeScript support as TypeScript",
-            config: "[targets.web]\nanalyzer = \"svelte\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FWP001\"]\n[targets.web.cache]\nenabled = false\n",
+            config: "[targets.web]\nanalyzer = \"svelte\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FPTSP001\"]\n[targets.web.cache]\nenabled = false\n",
             files: &[
                 ("src/App.svelte", "<p>value</p>\n"),
                 ("src/support.ts", "export const value: = 1;\n"),
@@ -453,7 +453,7 @@ fn given_web_source_purposes_when_checking_then_only_trusted_parse_surfaces_emit
         },
         WebSourcePurposeTestCase {
             description: "evaluation-excluded Svelte runtime support remains graph-only",
-            config: "[targets.web]\nanalyzer = \"svelte\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FWR309\"]\n[targets.web.evaluation]\nexclude = [\"src/lib/payments/**\"]\n[targets.web.cache]\nenabled = false\n",
+            config: "[targets.web]\nanalyzer = \"svelte\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FPTSR309\"]\n[targets.web.evaluation]\nexclude = [\"src/lib/payments/**\"]\n[targets.web.cache]\nenabled = false\n",
             files: &[
                 ("src/lib/views/main/View.svelte", "<p>view</p>\n"),
                 (
@@ -463,7 +463,7 @@ fn given_web_source_purposes_when_checking_then_only_trusted_parse_surfaces_emit
             ],
             expected_exit_code: 0,
             expected_present: None,
-            expected_absent: Some("FWR309"),
+            expected_absent: Some("FPTSR309"),
         },
     ];
     for test_case in &test_cases {
@@ -581,17 +581,17 @@ fn given_hosted_policy_on_web_target_when_checking_then_rejects_after_native_par
     let test_cases = [
         HostedWebPolicyTestCase {
             description: "custom rule paths cannot route a TypeScript target to Python",
-            config: "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = []\nrule_paths = [\"rules/custom.py\"]\n",
+            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = []\nrule_paths = [\"rules/custom.py\"]\n",
             expected_error: "Native typescript check integration does not support Python-hosted rule paths, modules, or options.",
         },
         HostedWebPolicyTestCase {
             description: "custom rule modules cannot route a Svelte target to Python",
-            config: "[targets.web]\nanalyzer = \"svelte\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = []\nrule_modules = [\"policy.web\"]\n",
+            config: "[targets.web]\nanalyzer = \"svelte\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = []\nrule_modules = [\"policy.web\"]\n",
             expected_error: "Native svelte check integration does not support Python-hosted rule paths, modules, or options.",
         },
         HostedWebPolicyTestCase {
             description: "custom rule options cannot route a TypeScript target to Python",
-            config: "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = []\n[targets.web.rule_options.XOP001]\nenabled = true\n",
+            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = []\n[targets.web.rule_options.XOP001]\nenabled = true\n",
             expected_error: "Native typescript check integration does not support Python-hosted rule paths, modules, or options.",
         },
     ];
@@ -627,7 +627,7 @@ fn given_hosted_policy_and_malformed_web_source_when_checking_then_configuration
 ) {
     let test_cases = [HostedWebPolicyTestCase {
         description: "hosted policy cannot bypass native TypeScript parsing",
-        config: "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = []\nrule_paths = [\"rules/custom.py\"]\n",
+        config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = []\nrule_paths = [\"rules/custom.py\"]\n",
         expected_error: "Native typescript check integration does not support Python-hosted rule paths, modules, or options.",
     }];
     for test_case in &test_cases {
@@ -667,7 +667,7 @@ fn given_retained_web_rules_when_checking_then_native_evaluator_reports_owned_fa
         let repository = tempfile::tempdir().expect("temporary repository");
         write(
         repository.path().join("fensu.toml"),
-        "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FWA003\", \"FWS201\", \"FWR501\"]\n[targets.web.cache]\nenabled = false\n",
+        "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FPTSA003\", \"FPTSS201\", \"FPTSR501\"]\n[targets.web.cache]\nenabled = false\n",
     );
         write(
             repository.path().join("src/lib/orders/models.ts"),
@@ -714,7 +714,7 @@ fn given_explicit_local_contracts_when_checking_then_model_class_and_fwa003_near
         let repository = tempfile::tempdir().expect("temporary repository");
         write(
         repository.path().join("fensu.toml"),
-        "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FWA003\", \"FWS201\", \"FWR501\"]\n[targets.web.cache]\nenabled = false\n",
+        "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FPTSA003\", \"FPTSS201\", \"FPTSR501\"]\n[targets.web.cache]\nenabled = false\n",
     );
         write(
             repository.path().join("src/lib/orders/models.ts"),
@@ -751,7 +751,7 @@ fn given_main_only_leaf_with_empty_placeholder_when_checking_then_fwr311_still_r
         let repository = tempfile::tempdir().expect("temporary repository");
         write(
         repository.path().join("fensu.toml"),
-        "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FWR311\"]\n[targets.web.cache]\nenabled = false\n",
+        "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FPTSR311\"]\n[targets.web.cache]\nenabled = false\n",
     );
         write(
             repository.path().join("src/lib/orders/main/read-order.ts"),
@@ -782,7 +782,7 @@ fn given_main_only_leaf_with_empty_placeholder_when_checking_then_fwr311_still_r
             "{}",
             test_case.description
         );
-        assert_eq!(stdout.matches("FWR311").count(), 1);
+        assert_eq!(stdout.matches("FPTSR311").count(), 1);
         assert!(stdout.contains("leaf 'orders' contains only main entries"));
         assert!(!stdout.contains("leaf 'payments'"));
         assert!(stdout.contains(" --> src/lib/orders:-:-"));
@@ -800,7 +800,7 @@ fn given_same_capability_in_multiple_roots_when_checking_then_project_ownership_
         let repository = tempfile::tempdir().expect("temporary repository");
         write(
         repository.path().join("fensu.toml"),
-        "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"apps/one/src\", \"apps/two/src\"]\ntests = []\ntooling = []\nselect = [\"FWR311\"]\n[targets.web.cache]\nenabled = false\n",
+        "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"apps/one/src\", \"apps/two/src\"]\ntests = []\ntooling = []\nselect = [\"FPTSR311\"]\n[targets.web.cache]\nenabled = false\n",
     );
         write(
             repository
@@ -833,7 +833,7 @@ fn given_same_capability_in_multiple_roots_when_checking_then_project_ownership_
             test_case.description
         );
         assert_eq!(
-            stdout.matches("FWR311").count(),
+            stdout.matches("FPTSR311").count(),
             1,
             "{}",
             test_case.description
@@ -861,7 +861,7 @@ fn given_configured_naming_contract_when_checking_then_web_naming_uses_the_contr
         let repository = tempfile::tempdir().expect("temporary repository");
         write(
         repository.path().join("fensu.toml"),
-        "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FWN001\"]\n[targets.web.contracts]\n\"fetch_*\" = \"returns-bool\"\n[targets.web.cache]\nenabled = false\n",
+        "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FPTSN001\"]\n[targets.web.contracts]\n\"fetch_*\" = \"returns-bool\"\n[targets.web.cache]\nenabled = false\n",
     );
         write(
             repository.path().join("src/fetch-order.ts"),
@@ -879,7 +879,7 @@ fn given_configured_naming_contract_when_checking_then_web_naming_uses_the_contr
             test_case.description
         );
         assert!(
-            String::from_utf8_lossy(&output.stdout).contains("FWN001"),
+            String::from_utf8_lossy(&output.stdout).contains("FPTSN001"),
             "{}",
             test_case.description
         );
@@ -896,7 +896,7 @@ fn given_overridden_default_contract_when_checking_then_configured_behavior_repl
         let repository = tempfile::tempdir().expect("temporary repository");
         write(
             repository.path().join("fensu.toml"),
-            "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FWN001\", \"FWN003\"]\n[targets.web.contracts]\n\"should_*\" = \"returns-value\"\n[targets.web.cache]\nenabled = false\n",
+            "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FPTSN001\", \"FPTSN003\"]\n[targets.web.contracts]\n\"should_*\" = \"returns-value\"\n[targets.web.cache]\nenabled = false\n",
         );
         write(
             repository.path().join("src/should-run.ts"),
@@ -915,12 +915,12 @@ fn given_overridden_default_contract_when_checking_then_configured_behavior_repl
             test_case.description
         );
         assert!(
-            stdout.contains("FWN003"),
+            stdout.contains("FPTSN003"),
             "{}: {stdout}",
             test_case.description
         );
         assert!(
-            !stdout.contains("FWN001"),
+            !stdout.contains("FPTSN001"),
             "{}: {stdout}",
             test_case.description
         );
@@ -937,7 +937,7 @@ fn given_configured_ui_kit_when_checking_then_deliberate_surface_exemptions_appl
         let repository = tempfile::tempdir().expect("temporary repository");
         write(
         repository.path().join("fensu.toml"),
-        "[targets.web]\nanalyzer = \"svelte\"\nroots = [\"src\"]\ntests = []\ntooling = []\nui_kit = \"src/ui-kit\"\nselect = [\"FWA003\", \"FWL102\", \"FWL103\", \"FWR001\", \"FWR002\", \"FWR003\", \"FWR201\", \"FWR304\", \"FWR310\", \"FWR401\", \"FWR403\", \"FWR404\", \"FWR405\", \"FWR501\", \"FWS106\"]\n[targets.web.thresholds]\nmax_public_exports = 1\n[targets.web.cache]\nenabled = false\n",
+        "[targets.web]\nanalyzer = \"svelte\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nui_kit = \"src/ui-kit\"\nselect = [\"FPTSA003\", \"FPTSL102\", \"FPTSL103\", \"FPTSR001\", \"FPTSR002\", \"FPTSR003\", \"FPTSR201\", \"FPTSR304\", \"FPTSR310\", \"FPTSR401\", \"FPTSR403\", \"FPSKR404\", \"FPSKR405\", \"FPTSR501\", \"FPTSS106\"]\n[targets.web.thresholds]\nmax_public_exports = 1\n[targets.web.cache]\nenabled = false\n",
     );
         write(
             repository.path().join("src/ui-kit/family/button.ts"),
@@ -995,7 +995,7 @@ fn given_svelte_target_when_checking_generic_policy_then_component_and_support_f
         let repository = tempfile::tempdir().expect("temporary repository");
         write(
         repository.path().join("fensu.toml"),
-        "[targets.web]\nanalyzer = \"svelte\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FWA003\"]\n[targets.web.cache]\nenabled = false\n",
+        "[targets.web]\nanalyzer = \"svelte\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FPTSA003\"]\n[targets.web.cache]\nenabled = false\n",
     );
         write(
         repository.path().join("src/App.svelte"),
@@ -1035,7 +1035,7 @@ fn given_svelte_target_when_checking_project_policy_then_runtime_support_modules
         let repository = tempfile::tempdir().expect("temporary repository");
         write(
             repository.path().join("fensu.toml"),
-            "[targets.web]\nanalyzer = \"svelte\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FWR309\"]\n[targets.web.cache]\nenabled = false\n",
+            "[targets.web]\nanalyzer = \"svelte\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FPTSR309\"]\n[targets.web.cache]\nenabled = false\n",
         );
         write(
             repository.path().join("src/lib/orders/_helpers/load.ts"),
@@ -1061,7 +1061,7 @@ fn given_svelte_target_when_checking_project_policy_then_runtime_support_modules
 
         assert_eq!(output.status.code(), Some(test_case.expected_exit_code));
         assert_eq!(
-            stdout.matches("FWR309").count(),
+            stdout.matches("FPTSR309").count(),
             1,
             "{}: {stdout}",
             test_case.description
@@ -1084,7 +1084,7 @@ fn given_tooling_tests_when_checking_mirror_then_one_configured_tooling_prefix_i
     let test_cases = [
         WebSourcePurposeTestCase {
             description: "one tooling prefix mirrors the configured tooling area",
-            config: "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = [\"tests\"]\ntooling = [\"scripts\"]\nselect = [\"FWT002\"]\n[targets.web.cache]\nenabled = false\n",
+            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = [\"tests\"]\ntooling = [\"scripts\"]\nselect = [\"FPTST002\"]\n[targets.web.cache]\nenabled = false\n",
             files: &[
                 ("src/value.ts", VALID_TYPESCRIPT),
                 ("scripts/catalogue/run.ts", VALID_TYPESCRIPT),
@@ -1095,11 +1095,11 @@ fn given_tooling_tests_when_checking_mirror_then_one_configured_tooling_prefix_i
             ],
             expected_exit_code: 0,
             expected_present: None,
-            expected_absent: Some("FWT002"),
+            expected_absent: Some("FPTST002"),
         },
         WebSourcePurposeTestCase {
             description: "a doubled tooling prefix is not removed twice",
-            config: "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = [\"tests\"]\ntooling = [\"scripts\"]\nselect = [\"FWT002\"]\n[targets.web.cache]\nenabled = false\n",
+            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = [\"tests\"]\ntooling = [\"scripts\"]\nselect = [\"FPTST002\"]\n[targets.web.cache]\nenabled = false\n",
             files: &[
                 ("src/value.ts", VALID_TYPESCRIPT),
                 ("scripts/catalogue/run.ts", VALID_TYPESCRIPT),
@@ -1109,12 +1109,12 @@ fn given_tooling_tests_when_checking_mirror_then_one_configured_tooling_prefix_i
                 ),
             ],
             expected_exit_code: 1,
-            expected_present: Some("FWT002"),
+            expected_present: Some("FPTST002"),
             expected_absent: None,
         },
         WebSourcePurposeTestCase {
             description: "the tooling root itself mirrors files directly beneath that root",
-            config: "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = [\"tests\"]\ntooling = [\"scripts\"]\nselect = [\"FWT002\"]\n[targets.web.cache]\nenabled = false\n",
+            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = [\"tests\"]\ntooling = [\"scripts\"]\nselect = [\"FPTST002\"]\n[targets.web.cache]\nenabled = false\n",
             files: &[
                 ("src/value.ts", VALID_TYPESCRIPT),
                 ("scripts/run.ts", VALID_TYPESCRIPT),
@@ -1125,7 +1125,7 @@ fn given_tooling_tests_when_checking_mirror_then_one_configured_tooling_prefix_i
             ],
             expected_exit_code: 0,
             expected_present: None,
-            expected_absent: Some("FWT002"),
+            expected_absent: Some("FPTST002"),
         },
     ];
     for test_case in &test_cases {
@@ -1165,7 +1165,7 @@ fn given_colocated_test_owner_when_checking_boundaries_and_coverage_then_uses_ad
     let test_cases = [
         WebSourcePurposeTestCase {
             description: "colocated test importing its adjacent internal API stays capability-local",
-            config: "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = []\ntooling = []\ntest_layout = \"colocated\"\nselect = [\"FWL101\"]\n[targets.web.cache]\nenabled = false\n",
+            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\ntest_layout = \"colocated\"\nselect = [\"FPTSL101\"]\n[targets.web.cache]\nenabled = false\n",
             files: &[
                 (
                     "src/lib/orders/_api/client.ts",
@@ -1178,11 +1178,11 @@ fn given_colocated_test_owner_when_checking_boundaries_and_coverage_then_uses_ad
             ],
             expected_exit_code: 0,
             expected_present: None,
-            expected_absent: Some("FWL101"),
+            expected_absent: Some("FPTSL101"),
         },
         WebSourcePurposeTestCase {
             description: "colocated focused state test satisfies critical-role coverage",
-            config: "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = []\ntooling = []\ntest_layout = \"colocated\"\nselect = [\"FWT003\"]\n[targets.web.cache]\nenabled = false\n",
+            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\ntest_layout = \"colocated\"\nselect = [\"FPTST003\"]\n[targets.web.cache]\nenabled = false\n",
             files: &[
                 (
                     "src/lib/orders/_state/orders.state.ts",
@@ -1195,11 +1195,11 @@ fn given_colocated_test_owner_when_checking_boundaries_and_coverage_then_uses_ad
             ],
             expected_exit_code: 0,
             expected_present: None,
-            expected_absent: Some("FWT003"),
+            expected_absent: Some("FPTST003"),
         },
         WebSourcePurposeTestCase {
             description: "colocated integration adapter test satisfies both coverage rules",
-            config: "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = []\ntooling = []\ntest_layout = \"colocated\"\nselect = [\"FWT003\", \"FWT004\"]\n[targets.web.cache]\nenabled = false\n",
+            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\ntest_layout = \"colocated\"\nselect = [\"FPTST003\", \"FPTST004\"]\n[targets.web.cache]\nenabled = false\n",
             files: &[
                 (
                     "src/lib/orders/_adapters/payment.ts",
@@ -1212,7 +1212,7 @@ fn given_colocated_test_owner_when_checking_boundaries_and_coverage_then_uses_ad
             ],
             expected_exit_code: 0,
             expected_present: None,
-            expected_absent: Some("FWT00"),
+            expected_absent: Some("FPTST00"),
         },
     ];
     for test_case in &test_cases {
@@ -1262,7 +1262,7 @@ fn given_multiple_json_results_when_checking_contracts_then_each_flow_is_evaluat
         let repository = tempfile::tempdir().expect("temporary repository");
         write(
             repository.path().join("fensu.toml"),
-            "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FWC101\", \"FWC102\"]\n[targets.web.cache]\nenabled = false\n",
+            "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FPTSC101\", \"FPTSC102\"]\n[targets.web.cache]\nenabled = false\n",
         );
         write(
             repository.path().join("src/run.ts"),
@@ -1282,13 +1282,13 @@ fn given_multiple_json_results_when_checking_contracts_then_each_flow_is_evaluat
 
         assert_eq!(output.status.code(), Some(test_case.expected_exit_code));
         assert_eq!(
-            stdout.matches("FWC101  ").count(),
+            stdout.matches("FPTSC101  ").count(),
             2,
             "{}: {stdout}",
             test_case.description
         );
         assert_eq!(
-            stdout.matches("FWC102  ").count(),
+            stdout.matches("FPTSC102  ").count(),
             1,
             "{}: {stdout}",
             test_case.description
@@ -1322,7 +1322,7 @@ fn given_svelte_component_rune_when_checking_import_side_effects_then_component_
         let repository = tempfile::tempdir().expect("temporary repository");
         write(
         repository.path().join("fensu.toml"),
-        "[targets.web]\nanalyzer = \"svelte\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FWH009\"]\n[targets.web.cache]\nenabled = false\n",
+        "[targets.web]\nanalyzer = \"svelte\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FPTSH009\"]\n[targets.web.cache]\nenabled = false\n",
     );
         write(
             repository.path().join("src/App.svelte"),
@@ -1355,15 +1355,15 @@ fn given_combined_sveltekit_project_when_checking_retained_pack_then_all_boundar
         repository.path().join("fensu.toml"),
         concat!(
             "[targets.web]\n",
-            "analyzer = \"svelte\"\n",
-            "framework = \"sveltekit\"\n",
+            "analyzer = \"svelte\"\nrule_packs = [\"typescript\", \"sveltekit\"]\n",
+            "",
             "roots = [\"src\"]\n",
             "tests = []\n",
             "tooling = []\n",
             "ui_kit = \"src/ui-kit\"\n",
             "shadcn = \"config/components.json\"\n",
             "openapi = \"contracts/openapi.json\"\n",
-            "select = [\"FWS101\", \"FWS102\", \"FWS103\", \"FWS104\", \"FWS107\", \"FWS108\", \"FWS109\", \"FWS110\", \"FWS111\", \"FWA101\", \"FWA102\", \"FWA103\", \"FWL104\", \"FWL106\", \"FWL107\", \"FWV101\", \"FWV102\", \"FWV103\", \"FWV104\", \"FWV105\", \"FWV106\", \"FWV107\", \"FWV201\", \"FWV202\", \"FWU001\", \"FWU002\", \"FWU003\", \"FWC201\"]\n",
+            "select = [\"FPSKS101\", \"FPSKS102\", \"FPSKS103\", \"FPSKS104\", \"FPSKS107\", \"FPSKS108\", \"FPSKS109\", \"FPTSS110\", \"FPTSS111\", \"FPSKA101\", \"FPSKA102\", \"FPSKA103\", \"FPSKL104\", \"FPSKL106\", \"FPSKL107\", \"FPSKV101\", \"FPSKV102\", \"FPSKV103\", \"FPSKV104\", \"FPSKV105\", \"FPSKV106\", \"FPSKV107\", \"FPSKV201\", \"FPSKV202\", \"FPSKU001\", \"FPSKU002\", \"FPSKU003\", \"FPSKC201\"]\n",
             "[targets.web.cache]\n",
             "enabled = false\n",
         ),
@@ -1468,7 +1468,7 @@ fn given_invalid_generic_typescript_tests_when_checking_then_complete_retained_t
         let repository = tempfile::tempdir().expect("temporary repository");
         write(
         repository.path().join("fensu.toml"),
-        "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = [\"tests\"]\ntooling = []\nselect = [\"FWT\"]\n[targets.web.cache]\nenabled = false\n",
+        "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = [\"tests\"]\ntooling = []\nselect = [\"FPTST\"]\n[targets.web.cache]\nenabled = false\n",
     );
         write(
             repository
@@ -1511,8 +1511,9 @@ fn given_invalid_generic_typescript_tests_when_checking_then_complete_retained_t
             test_case.description
         );
         for code in [
-            "FWT001", "FWT002", "FWT003", "FWT004", "FWT201", "FWT202", "FWT302", "FWT401",
-            "FWT402", "FWT403", "FWT404", "FWT405", "FWT406", "FWT410", "FWT411", "FWT412",
+            "FPTST001", "FPTST002", "FPTST003", "FPTST004", "FPTST201", "FPTST202", "FPTST302",
+            "FPTST401", "FPTST402", "FPTST403", "FPTST404", "FPTST405", "FPTST406", "FPTST410",
+            "FPTST411", "FPTST412",
         ] {
             assert!(stdout.contains(code), "missing {code}: {stdout}");
         }
@@ -1529,7 +1530,7 @@ fn given_exact_generic_typescript_test_conventions_when_checking_then_near_misse
         let repository = tempfile::tempdir().expect("temporary repository");
         write(
         repository.path().join("fensu.toml"),
-        "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = [\"tests\"]\ntooling = []\nselect = [\"FWT\"]\n[targets.web.cache]\nenabled = false\n",
+        "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = [\"tests\"]\ntooling = []\nselect = [\"FPTST\"]\n[targets.web.cache]\nenabled = false\n",
     );
         write(
             repository
@@ -1648,7 +1649,7 @@ fn given_parameterized_case_type_when_checking_then_fwt403_requires_a_resolved_n
         let repository = tempfile::tempdir().expect("temporary repository");
         write(
             repository.path().join("fensu.toml"),
-            "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = [\"tests\"]\ntooling = []\nselect = [\"FWT201\", \"FWT202\", \"FWT403\"]\n[targets.web.cache]\nenabled = false\n",
+            "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = [\"tests\"]\ntooling = []\nselect = [\"FPTST201\", \"FPTST202\", \"FPTST403\"]\n[targets.web.cache]\nenabled = false\n",
         );
         write(repository.path().join("src/value.ts"), VALID_TYPESCRIPT);
         write(
@@ -1672,7 +1673,7 @@ fn given_parameterized_case_type_when_checking_then_fwt403_requires_a_resolved_n
             test_case.description
         );
         assert_eq!(
-            stdout.contains("FWT403"),
+            stdout.contains("FPTST403"),
             test_case.expected_fwt403,
             "{}: {stdout}",
             test_case.description
@@ -1685,8 +1686,8 @@ fn given_imported_owner_local_case_models_when_checking_then_description_and_exp
 {
     let test_cases = [
         WebSourcePurposeTestCase {
-            description: "imported case model without description emits only FWT201",
-            config: "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = [\"tests\"]\ntooling = []\nselect = [\"FWT201\", \"FWT202\"]\n[targets.web.cache]\nenabled = false\n",
+            description: "imported case model without description emits only FPTST201",
+            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = [\"tests\"]\ntooling = []\nselect = [\"FPTST201\", \"FPTST202\"]\n[targets.web.cache]\nenabled = false\n",
             files: &[
                 ("src/value.ts", VALID_TYPESCRIPT),
                 (
@@ -1699,12 +1700,12 @@ fn given_imported_owner_local_case_models_when_checking_then_description_and_exp
                 ),
             ],
             expected_exit_code: 1,
-            expected_present: Some("FWT201"),
-            expected_absent: Some("FWT202"),
+            expected_present: Some("FPTST201"),
+            expected_absent: Some("FPTST202"),
         },
         WebSourcePurposeTestCase {
-            description: "imported case model without expected emits only FWT202",
-            config: "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = [\"tests\"]\ntooling = []\nselect = [\"FWT201\", \"FWT202\"]\n[targets.web.cache]\nenabled = false\n",
+            description: "imported case model without expected emits only FPTST202",
+            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = [\"tests\"]\ntooling = []\nselect = [\"FPTST201\", \"FPTST202\"]\n[targets.web.cache]\nenabled = false\n",
             files: &[
                 ("src/value.ts", VALID_TYPESCRIPT),
                 (
@@ -1717,8 +1718,8 @@ fn given_imported_owner_local_case_models_when_checking_then_description_and_exp
                 ),
             ],
             expected_exit_code: 1,
-            expected_present: Some("FWT202"),
-            expected_absent: Some("FWT201"),
+            expected_present: Some("FPTST202"),
+            expected_absent: Some("FPTST201"),
         },
     ];
     for test_case in &test_cases {
@@ -1735,7 +1736,7 @@ fn given_imported_owner_local_case_models_when_checking_then_description_and_exp
 
         assert_eq!(output.status.code(), Some(test_case.expected_exit_code));
         assert_eq!(
-            stdout.matches("FWT20").count(),
+            stdout.matches("FPTST20").count(),
             1,
             "{}: {stdout}",
             test_case.description
@@ -1763,7 +1764,7 @@ fn given_project_import_cycle_when_checking_then_one_deterministic_fwl201_fault_
         let repository = tempfile::tempdir().expect("temporary repository");
         write(
         repository.path().join("fensu.toml"),
-        "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FWL201\"]\n[targets.web.cache]\nenabled = false\n",
+        "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FPTSL201\"]\n[targets.web.cache]\nenabled = false\n",
     );
         write(
             repository.path().join("src/first.ts"),
@@ -1785,7 +1786,7 @@ fn given_project_import_cycle_when_checking_then_one_deterministic_fwl201_fault_
             "{}",
             test_case.description
         );
-        assert_eq!(stdout.matches("FWL201").count(), 1);
+        assert_eq!(stdout.matches("FPTSL201").count(), 1);
         assert!(stdout.contains("src/first.ts -> src/second.ts -> src/first.ts"));
     }
 }
@@ -1800,7 +1801,7 @@ fn given_web_warning_exception_and_ignore_when_checking_then_shared_policy_order
         let repository = tempfile::tempdir().expect("temporary repository");
         write(
         repository.path().join("fensu.toml"),
-        "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FWA001\"]\nwarn = [\"FWA002\"]\nignore = []\n[targets.web.cache]\nenabled = false\n[[targets.web.rule_exceptions]]\nrule = \"FWA001\"\npath = \"src/exempt.ts\"\nreason = \"External callback contract.\"\n[[targets.web.rule_ignores]]\nrules = [\"FWA002\"]\npaths = [\"src/exempt.ts\", \"src/ignored.ts\"]\nreason = \"Generated declaration.\"\n",
+        "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FPTSA001\"]\nwarn = [\"FPTSA002\"]\nignore = []\n[targets.web.cache]\nenabled = false\n[[targets.web.rule_exceptions]]\nrule = \"FPTSA001\"\npath = \"src/exempt.ts\"\nreason = \"External callback contract.\"\n[[targets.web.rule_ignores]]\nrules = [\"FPTSA002\"]\npaths = [\"src/exempt.ts\", \"src/ignored.ts\"]\nreason = \"Generated declaration.\"\n",
     );
         write(
             repository.path().join("src/exempt.ts"),
@@ -1824,7 +1825,7 @@ fn given_web_warning_exception_and_ignore_when_checking_then_shared_policy_order
             "{}",
             test_case.description
         );
-        assert!(!String::from_utf8_lossy(&output.stdout).contains("FWA"));
+        assert!(!String::from_utf8_lossy(&output.stdout).contains("FPTSA"));
     }
 }
 
@@ -1838,7 +1839,7 @@ fn given_web_threshold_and_path_override_when_checking_then_exact_boundary_and_o
         let repository = tempfile::tempdir().expect("temporary repository");
         write(
         repository.path().join("fensu.toml"),
-        "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FWS010\"]\n[targets.web.thresholds]\nmax_arguments = 1\n[targets.web.cache]\nenabled = false\n[[targets.web.threshold_overrides]]\npaths = [\"src/relaxed.ts\"]\nthresholds = { max_arguments = 2 }\nreason = \"External two-argument callback.\"\n",
+        "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FPTSS010\"]\n[targets.web.thresholds]\nmax_arguments = 1\n[targets.web.cache]\nenabled = false\n[[targets.web.threshold_overrides]]\npaths = [\"src/relaxed.ts\"]\nthresholds = { max_arguments = 2 }\nreason = \"External two-argument callback.\"\n",
     );
         write(
         repository.path().join("src/failing.ts"),
@@ -1864,7 +1865,7 @@ fn given_web_threshold_and_path_override_when_checking_then_exact_boundary_and_o
             "{}",
             test_case.description
         );
-        assert_eq!(stdout.matches("FWS010").count(), 1);
+        assert_eq!(stdout.matches("FPTSS010").count(), 1);
         assert!(stdout.contains("src/failing.ts"));
         assert!(!stdout.contains("src/boundary.ts"));
         assert!(!stdout.contains("src/relaxed.ts:1:"));

@@ -201,10 +201,10 @@ class RuleSpec:
     kind: RuleKind = RuleKind.CORE
     pack: str | None = None
     alias_of: str | None = None
+    implementation_code: str | None = None
     source: str | None = None
     enabled_by_default: bool = True
     analyzers: tuple[AnalyzerId, ...] = (AnalyzerId.PYTHON,)
-    frameworks: tuple[str, ...] = ()
     cacheable: bool | None = None
     uses_module: bool = False
     execution_owner: ExecutionOwner = ExecutionOwner.FILE

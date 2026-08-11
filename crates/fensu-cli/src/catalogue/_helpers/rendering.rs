@@ -92,7 +92,7 @@ fn configuration_values(name: &str, config: &Config) -> Vec<String> {
         "test_layout" => vec![config.test_layout.to_string()],
         "generated" => config.generated.clone(),
         "ui_kit" => config.ui_kit.iter().cloned().collect(),
-        "framework" => config.framework.iter().cloned().collect(),
+        "rule_packs" => config.rule_packs.clone(),
         "shadcn" => config.shadcn.iter().cloned().collect(),
         "openapi" => config.openapi.iter().cloned().collect(),
         _ => Vec::new(),
@@ -189,13 +189,6 @@ pub(crate) fn render_metadata(mut output: String, metadata: &RuleMetadata, color
         .collect::<Vec<_>>();
     analyzers.sort();
     let analyzer_text = analyzers.join(", ");
-    let framework_text = if metadata.frameworks.is_empty() {
-        "None".to_owned()
-    } else {
-        let mut frameworks = metadata.frameworks.clone();
-        frameworks.sort();
-        frameworks.join(", ")
-    };
     for (label, value) in [
         ("Family", metadata.family.as_str()),
         ("Severity", metadata.severity.as_str()),
@@ -203,7 +196,6 @@ pub(crate) fn render_metadata(mut output: String, metadata: &RuleMetadata, color
         ("Pack", metadata.pack.as_deref().unwrap_or("None")),
         ("Alias", metadata.alias_of.as_deref().unwrap_or("None")),
         ("Analyzers", analyzer_text.as_str()),
-        ("Frameworks", framework_text.as_str()),
         ("Enabled by default", yes_no(metadata.enabled_by_default)),
         ("Execution owner", metadata.execution_owner.as_str()),
         ("Cacheability", cacheable),

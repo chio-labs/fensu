@@ -76,6 +76,8 @@ pub(crate) const DEFAULT_IGNORE: &[&str] = &[
 
 pub(crate) const DEFAULT_CACHE_ENABLED: bool = true;
 
+pub(crate) const SVELTEKIT_RULE_PACK: &str = "sveltekit";
+
 pub(crate) const DEFAULT_CACHE_REQUIRE_CACHEABLE: bool = false;
 
 pub(crate) const SKILLS_METADATA_PROTOCOL_VERSION: u32 = 4;
@@ -103,10 +105,10 @@ pub(crate) const CONTRACT_BEHAVIORS: &[&str] = &[
 #[rustfmt::skip]
 pub(crate) const RULE_CONFIGURATION_INPUTS: &[&str] = &[
     "contracts",
-    "framework",
     "generated",
     "openapi",
     "roots",
+    "rule_packs",
     "shadcn",
     "test_layout",
     "test_scopes",

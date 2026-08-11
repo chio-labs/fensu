@@ -29,18 +29,6 @@ pub(crate) fn tier_lines(heading: &str, rules: &[RuleMetadata], config: &Config)
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
-            format!(
-                "Frameworks: {}",
-                if rule.frameworks.is_empty() {
-                    "none".to_owned()
-                } else {
-                    rule.frameworks
-                        .iter()
-                        .map(|framework| format!("`{framework}`"))
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                }
-            ),
             String::new(),
             rule.message.clone(),
             String::new(),
@@ -104,9 +92,8 @@ fn rule_configuration_lines(rule: &RuleMetadata, config: &Config) -> Vec<String>
             ));
             continue;
         }
-        if matches!(name.as_str(), "framework" | "shadcn" | "openapi") {
+        if matches!(name.as_str(), "shadcn" | "openapi") {
             let value = match name.as_str() {
-                "framework" => config.framework.as_deref(),
                 "shadcn" => config.shadcn.as_deref(),
                 "openapi" => config.openapi.as_deref(),
                 _ => None,
@@ -123,6 +110,7 @@ fn rule_configuration_lines(rule: &RuleMetadata, config: &Config) -> Vec<String>
             "tests" => &config.tests,
             "tooling" => &config.tooling,
             "generated" => &config.generated,
+            "rule_packs" => &config.rule_packs,
             "test_scopes" => &config.test_scopes,
             _ => continue,
         };

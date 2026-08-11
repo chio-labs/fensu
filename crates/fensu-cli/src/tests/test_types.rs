@@ -170,6 +170,6 @@ pub(crate) struct OptionalGeneratedConfigTestCase {
 pub(crate) struct WebRuleApplicabilityTestCase {
     pub(crate) description: &'static str,
     pub(crate) expected_analyzer_error: &'static str,
-    pub(crate) expected_framework_error: &'static str,
+    pub(crate) expected_missing_pack_error: &'static str,
     pub(crate) expected_generic_code: &'static str,
 }

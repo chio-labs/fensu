@@ -9,17 +9,11 @@ from fensu.analysis.main.require_analyzer_backend import require_analyzer_backen
 from fensu.config._helpers.discovery import locate_config
 from fensu.config._helpers.parse import parse_config_source
 from fensu.config._helpers.validate import select_config_target, validate_config
-from fensu.config.constants import (
-    DEFAULT_WEB_FRAMEWORK,
-    DEFAULT_WEB_SELECT,
-    PYTHON_ANALYZER,
-    SELECT_CONFIG_KEY,
-)
+from fensu.config.constants import DEFAULT_WEB_SELECT, PYTHON_ANALYZER, SELECT_CONFIG_KEY
 from fensu.config.main.build_config import build_config
 from fensu.config.main.load_project_config import load_project_config
 from fensu.config.main.resolve_target_root import resolve_target_root
 from fensu.config.models import Config, ConfigSource, ResolvedTargetRoot
-from fensu.config.types import AnalyzerId
 
 
 def load_config(start: Path | None = None) -> Config:
@@ -37,8 +31,6 @@ def load_config(start: Path | None = None) -> Config:
         analyzer=analyzer,
         target=target_name,
         target_root=target_root,
-        framework=base_config.framework
-        or (DEFAULT_WEB_FRAMEWORK if analyzer is AnalyzerId.SVELTE else None),
         shadcn=base_config.shadcn,
         select=DEFAULT_WEB_SELECT
         if analyzer != PYTHON_ANALYZER and SELECT_CONFIG_KEY not in raw

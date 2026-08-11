@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import replace
 from operator import itemgetter
 
+from fensu.config.constants import SVELTEKIT_RULE_PACK, TYPESCRIPT_RULE_PACK
 from fensu.config.types import AnalyzerId
 from fensu.rules.authoring.models import RuleConstraint, RuleSpec
-from fensu.rules.authoring.types import ExecutionOwner, Family, Threshold
+from fensu.rules.authoring.types import ExecutionOwner, Family, RuleKind, Threshold
 
 type _WebRuleMigration = tuple[str, str, bool, str]
 
@@ -953,9 +955,9 @@ _UI_KIT_CONFIGURATION_RULES: frozenset[str] = frozenset(
 )
 _NAMING_RULES: frozenset[str] = frozenset({"FWN001", "FWN002", "FWN003", "FWN004"})
 _BASE_CONFIGURATION_INPUTS: tuple[str, ...] = (
-    "framework",
     "generated",
     "roots",
+    "rule_packs",
     "test_layout",
     "tests",
     "tooling",
@@ -987,16 +989,14 @@ _CONTRACT_BEHAVIORS: dict[str, tuple[str, ...]] = {
 }
 
 
-def _applicability(code: str) -> tuple[tuple[AnalyzerId, ...], tuple[str, ...]]:
+def _analyzers(code: str) -> tuple[AnalyzerId, ...]:
     category: str = next(entry[1] for entry in _WEB_RULE_MIGRATION if entry[0] == code)
     if category == _GENERIC_TYPESCRIPT_CATEGORY:
-        return _GENERIC_WEB_ANALYZERS, ()
-    if category == _SVELTE_CATEGORY:
-        return _SVELTE_ANALYZERS, ()
-    return _SVELTE_ANALYZERS, ("sveltekit",)
+        return _GENERIC_WEB_ANALYZERS
+    return _SVELTE_ANALYZERS
 
 
-def _web_rules() -> tuple[RuleSpec, ...]:
+def _legacy_web_rules() -> tuple[RuleSpec, ...]:
     return tuple(
         RuleSpec(
             code=code,
@@ -1004,8 +1004,7 @@ def _web_rules() -> tuple[RuleSpec, ...]:
             slug=slug,
             message=message,
             remediation=remediation,
-            analyzers=_applicability(code)[0],
-            frameworks=_applicability(code)[1],
+            analyzers=_analyzers(code),
             execution_owner=(
                 ExecutionOwner.PROJECT if code in _PROJECT_RULES else ExecutionOwner.FILE
             ),
@@ -1024,7 +1023,44 @@ def web_rule_migration() -> tuple[_WebRuleMigration, ...]:
     return _WEB_RULE_MIGRATION
 
 
-def web_rules() -> tuple[RuleSpec, ...]:
-    """Return retained native web catalogue entries."""
+def typescript_rules() -> tuple[RuleSpec, ...]:
+    """Return framework-independent TypeScript/JavaScript pack rules."""
 
-    return _web_rules()
+    rules: list[RuleSpec] = []
+    for rule in _legacy_web_rules():
+        category: str = next(entry[1] for entry in _WEB_RULE_MIGRATION if entry[0] == rule.code)
+        if category != _GENERIC_TYPESCRIPT_CATEGORY:
+            continue
+        rules.append(
+            replace(
+                rule,
+                code=f"FPTS{rule.code[2:]}",
+                kind=RuleKind.PACK,
+                pack=TYPESCRIPT_RULE_PACK,
+                implementation_code=rule.code,
+            )
+        )
+    return tuple(rules)
+
+
+def sveltekit_rules() -> tuple[RuleSpec, ...]:
+    """Return native SvelteKit rules and direct aliases of TypeScript policy."""
+
+    rules: list[RuleSpec] = []
+    for rule in _legacy_web_rules():
+        category: str = next(entry[1] for entry in _WEB_RULE_MIGRATION if entry[0] == rule.code)
+        alias_of: str | None = (
+            f"FPTS{rule.code[2:]}" if category == _GENERIC_TYPESCRIPT_CATEGORY else None
+        )
+        rules.append(
+            replace(
+                rule,
+                code=f"FPSK{rule.code[2:]}",
+                kind=RuleKind.PACK,
+                pack=SVELTEKIT_RULE_PACK,
+                alias_of=alias_of,
+                implementation_code=rule.code,
+                analyzers=_SVELTE_ANALYZERS,
+            )
+        )
+    return tuple(rules)

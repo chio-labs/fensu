@@ -158,7 +158,6 @@ pub(crate) fn effective_config_lines(context: &SkillContext) -> Result<Vec<Strin
         format!("- Tooling roots: {}", path_list(context, &config.tooling)?), String::new(),
         format!("- Generated source patterns: {}", sorted_json(&config.generated)?), String::new(),
         format!("- UI-kit root: {}", py_json(&json!(config.ui_kit))?), String::new(),
-        format!("- Framework pack: {}", py_json(&json!(config.framework))?),
         format!("- shadcn config: {}", py_json(&json!(config.shadcn))?),
         format!("- OpenAPI document: {}", py_json(&json!(config.openapi))?), String::new(),
         "### Configured Rule Selectors".to_owned(), String::new(),

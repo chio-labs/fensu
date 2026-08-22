@@ -212,6 +212,7 @@ jobs:
             version="$(cargo metadata --no-deps --format-version 1 \
               | jq -r --arg package "${package}" '.packages[] | select(.name == $package) | .version')"
             status="$(curl --retry 3 --silent --show-error --output /dev/null \
+              --user-agent "fensu-release/${GITHUB_RUN_ID} (${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY})" \
               --write-out '%{http_code}' "https://crates.io/api/v1/crates/${package}/${version}")"
             case "${status}" in
               200)

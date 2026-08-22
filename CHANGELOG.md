@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.12.0](https://github.com/chio-labs/fensu/compare/v0.11.0...v0.12.0) (2026-08-22)
+
+
+### Features
+
+* extract reusable policy runtime ([#51](https://github.com/chio-labs/fensu/issues/51)) ([196d2f1](https://github.com/chio-labs/fensu/commit/196d2f1926b6d7123333d9f981a02c6cc52ebb74))
+
+
+### Bug Fixes
+
+* preserve release verification after branch deletion ([#53](https://github.com/chio-labs/fensu/issues/53)) ([fd73ae6](https://github.com/chio-labs/fensu/commit/fd73ae6bbf737a38a35691701b3962e1fbcd294c))
+* target repository for release checks ([#54](https://github.com/chio-labs/fensu/issues/54)) ([00c8ad4](https://github.com/chio-labs/fensu/commit/00c8ad46b134e43a2c6de6ebfb55ea5a3e4f2a9b))
+
 ## [0.11.0](https://github.com/chio-labs/fensu/compare/v0.10.0...v0.11.0) (2026-08-11)
 
 

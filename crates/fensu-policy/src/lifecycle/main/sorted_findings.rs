@@ -8,8 +8,8 @@ pub fn sorted_findings(findings: &[Finding]) -> Vec<Finding> {
     sorted.sort_by(|left, right| {
         (
             &left.path,
-            left.line.unwrap_or(0),
-            left.column.unwrap_or(0),
+            left.line,
+            left.column,
             &left.code,
             &left.symbol,
             &left.message,
@@ -18,8 +18,8 @@ pub fn sorted_findings(findings: &[Finding]) -> Vec<Finding> {
         )
             .cmp(&(
                 &right.path,
-                right.line.unwrap_or(0),
-                right.column.unwrap_or(0),
+                right.line,
+                right.column,
                 &right.code,
                 &right.symbol,
                 &right.message,

@@ -135,19 +135,18 @@ fn configured_directory_violation(
     let inside_source = source_roots.iter().any(|root| path.starts_with(root));
     let role_name = path.file_name().and_then(|name| name.to_str());
     let recognized_role = role_name.is_some_and(|name| {
-        constants::CONTAINER_DIRECTORY_NAMES.contains(&name)
-            || constants::ROLE_FILE_NAMES
-                .iter()
-                .any(|file| file.trim_end_matches(".rs") == name)
+        path.is_dir() && constants::CONTAINER_DIRECTORY_NAMES.contains(&name)
+            || path.is_file() && constants::ROLE_FILE_NAMES.contains(&name)
     });
-    if path.is_dir() && inside_source && (!require_role_name || recognized_role) {
+    let valid_target = path.is_dir() && !require_role_name || recognized_role;
+    if inside_source && valid_target {
         return Vec::new();
     }
     vec![models::Violation::new(models::ViolationRequest {
         code: "RSL305",
         path: Path::new(configured),
         line: None,
-        message: format!("configured repository {kind} path is not a valid source directory"),
-        remediation: "declare an existing repository-relative directory beneath one workspace crate's src/ tree",
+        message: format!("configured repository {kind} path is not a valid source path"),
+        remediation: "declare an existing repository-relative role file or directory beneath one workspace crate's src/ tree",
     })]
 }

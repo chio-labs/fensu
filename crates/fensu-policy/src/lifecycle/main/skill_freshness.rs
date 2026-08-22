@@ -1,7 +1,7 @@
 //! Check generated skill ownership and content freshness.
 
 use crate::lifecycle::_helpers::canonical;
-use crate::lifecycle::_helpers::skills::{marker, parse_marker, replace_once};
+use crate::lifecycle::_helpers::skills::{marker, parse_marker, replace_last};
 use crate::lifecycle::constants::SKILL_OWNERSHIP_SCHEMA_VERSION;
 use crate::lifecycle::models::SkillFreshness;
 
@@ -29,7 +29,7 @@ pub fn skill_freshness(
         Ok(value) => value,
         Err(_) => return SkillFreshness::Malformed,
     };
-    let provisional_content = match replace_once(
+    let provisional_content = match replace_last(
         content,
         final_marker.as_bytes(),
         provisional_marker.as_bytes(),

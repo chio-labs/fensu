@@ -42,6 +42,9 @@ pub enum LifecycleError {
     HostFailure {
         message: String,
     },
+    HostTimeout {
+        timeout_millis: u64,
+    },
     HostProtocol {
         actual: u32,
         expected: u32,
@@ -103,6 +106,10 @@ impl fmt::Display for LifecycleError {
                 write!(formatter, "could not launch custom host: {message}")
             }
             Self::HostFailure { message } => write!(formatter, "custom host failed: {message}"),
+            Self::HostTimeout { timeout_millis } => write!(
+                formatter,
+                "custom host exceeded its {timeout_millis}ms execution timeout"
+            ),
             Self::HostProtocol { actual, expected } => write!(
                 formatter,
                 "incompatible custom-host protocol {actual}; expected {expected}"

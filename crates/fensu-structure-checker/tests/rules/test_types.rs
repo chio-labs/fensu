@@ -43,6 +43,6 @@ pub(crate) struct ConfigValidationTestCase {
 
 pub(crate) struct RepositoryPolicyTestCase {
     pub(crate) description: &'static str,
-    pub(crate) expected_threshold_code: &'static str,
+    pub(crate) expected_present_code: &'static str,
     pub(crate) expected_absent_codes: Vec<&'static str>,
 }

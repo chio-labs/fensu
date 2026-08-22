@@ -1,7 +1,5 @@
 //! Invoke one custom-rule host through a versioned stdin/stdout exchange.
 
-use std::path::Path;
-
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -9,18 +7,22 @@ use crate::lifecycle::_helpers::canonical;
 use crate::lifecycle::_helpers::hosting::exchange;
 use crate::lifecycle::constants::CUSTOM_HOST_PROTOCOL_VERSION;
 use crate::lifecycle::errors::LifecycleError;
-use crate::lifecycle::models::{CustomHostRequest, CustomHostResponse};
+use crate::lifecycle::models::{CustomHostInvocation, CustomHostResponse};
 
 /// Run an isolated process and validate its protocol and runtime identity.
 pub fn run_custom_host<RequestPayload, ResponsePayload>(
-    program: &Path,
-    arguments: &[String],
-    request: &CustomHostRequest<RequestPayload>,
+    invocation: CustomHostInvocation<'_, RequestPayload>,
 ) -> Result<CustomHostResponse<ResponsePayload>, LifecycleError>
 where
     RequestPayload: Serialize,
     ResponsePayload: DeserializeOwned,
 {
+    let CustomHostInvocation {
+        program,
+        arguments,
+        timeout,
+        request,
+    } = invocation;
     if request.protocol != CUSTOM_HOST_PROTOCOL_VERSION {
         return Err(LifecycleError::HostProtocol {
             actual: request.protocol,
@@ -28,7 +30,7 @@ where
         });
     }
     let input = canonical::canonical_json(request)?;
-    let output = exchange(program, arguments, &input)?;
+    let output = exchange(program, arguments, &input, timeout)?;
     let stderr = String::from_utf8_lossy(&output.stderr).trim().to_owned();
     if !output.status.success() {
         return Err(LifecycleError::HostFailure {

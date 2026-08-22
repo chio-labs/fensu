@@ -76,3 +76,14 @@ pub(crate) struct SerializationLifecycleTestCase {
     pub(crate) description: &'static str,
     pub(crate) expected_equal: bool,
 }
+
+#[cfg(unix)]
+pub(crate) struct HostLifecycleTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_payload: bool,
+}
+
+pub(crate) struct ProcessTreeLifecycleTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_stopped: bool,
+}

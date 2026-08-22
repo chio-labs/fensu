@@ -55,10 +55,17 @@ pub(crate) fn parse_marker(content: &[u8]) -> Option<(SkillOwnership, String)> {
     Some((ownership, text))
 }
 
-pub(crate) fn replace_once(content: &[u8], from: &[u8], to: &[u8]) -> Option<Vec<u8>> {
+pub(crate) fn owner_marker_present(content: &[u8]) -> bool {
+    content
+        .split(|byte| *byte == b'\n')
+        .map(|line| line.strip_suffix(b"\r").unwrap_or(line))
+        .any(|line| line.starts_with(SKILL_OWNER_PREFIX.as_bytes()))
+}
+
+pub(crate) fn replace_last(content: &[u8], from: &[u8], to: &[u8]) -> Option<Vec<u8>> {
     let start = content
         .windows(from.len())
-        .position(|window| window == from)?;
+        .rposition(|window| window == from)?;
     let mut output = Vec::with_capacity(content.len() - from.len() + to.len());
     output.extend_from_slice(&content[..start]);
     output.extend_from_slice(to);

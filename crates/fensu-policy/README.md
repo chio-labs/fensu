@@ -18,3 +18,8 @@ exact stale-checked suppressions, path-scoped ignores, deterministic finding
 serialization and report counts, generated-skill freshness, and an isolated
 custom-host request/response protocol. Facts and evaluators remain consumer
 owned, so product adapters do not import Fensu CLI internals.
+
+Custom-host invocations require an explicit timeout. The transport drains both
+output streams while writing the request, terminates an unresponsive process
+tree, and validates protocol and runtime identities before returning a payload.
+Suppression and ignore paths use canonical repository-relative POSIX text.

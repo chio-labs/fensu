@@ -22,7 +22,10 @@ remediation = "consume shared fact rows instead of raw parser types"
 [repository]
 crate-names = ["example"]
 domain-paths = ["crates/example/src/analysis"]
-role-paths = ["crates/example/src/analysis/main"]
+role-paths = [
+  "crates/example/src/analysis/main",
+  "crates/example/src/analysis/models.rs",
+]
 intentional-layout-paths = ["crates/example/src/generated"]
 
 [repository.thresholds]
@@ -38,6 +41,8 @@ max-main-container-modules = 20
 
 Intentional layout paths exclude only aggregate role-layout checks. Per-file
 hygiene, dependency, raw-parser, shape, and test policies remain active.
+Configured paths are canonical repository-relative POSIX text. Role paths may
+name a `main`/`_helpers` container or an exact reserved role file.
 
 Run the checker from a Cargo workspace root:
 

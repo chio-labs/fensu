@@ -145,7 +145,7 @@ fn given_consumer_tooling_dependencies_when_checking_then_blocks_every_shared_ch
 fn given_fixture_repository_policy_when_checking_then_paths_and_thresholds_are_applied() {
     let test_cases = [test_types::RepositoryPolicyTestCase {
         description: "complete fixture repository policy",
-        expected_threshold_code: "RSS010",
+        expected_present_code: "RSS010",
         expected_absent_codes: vec!["RSL304", "RSL305", "RSR306"],
     }];
 
@@ -157,6 +157,10 @@ fn given_fixture_repository_policy_when_checking_then_paths_and_thresholds_are_a
                     path: "crates/example/src/domain/main/check.rs".to_owned(),
                     contents: "pub(crate) fn check(left: usize, right: usize) -> usize {\n    left + right\n}\n"
                         .to_owned(),
+                },
+                test_types::RepoFile {
+                    path: "crates/example/src/domain/models.rs".to_owned(),
+                    contents: "pub(crate) struct DomainModel;\n".to_owned(),
                 },
                 test_types::RepoFile {
                     path: "crates/example/src/generated/models.rs".to_owned(),
@@ -173,7 +177,10 @@ fn given_fixture_repository_policy_when_checking_then_paths_and_thresholds_are_a
         let mut config = models::CheckerConfig::default();
         config.repository.crate_names = vec!["example".to_owned()];
         config.repository.domain_paths = vec!["crates/example/src/domain".to_owned()];
-        config.repository.role_paths = vec!["crates/example/src/domain/main".to_owned()];
+        config.repository.role_paths = vec![
+            "crates/example/src/domain/main".to_owned(),
+            "crates/example/src/domain/models.rs".to_owned(),
+        ];
         config.repository.intentional_layout_paths =
             vec!["crates/example/src/generated".to_owned()];
         config.repository.thresholds.max_arguments = 1;
@@ -185,7 +192,7 @@ fn given_fixture_repository_policy_when_checking_then_paths_and_thresholds_are_a
         assert!(
             violations
                 .iter()
-                .any(|violation| violation.code == test_case.expected_threshold_code),
+                .any(|violation| violation.code == test_case.expected_present_code),
             "{}",
             test_case.description
         );
@@ -193,6 +200,41 @@ fn given_fixture_repository_policy_when_checking_then_paths_and_thresholds_are_a
             !violations
                 .iter()
                 .any(|violation| test_case.expected_absent_codes.contains(&violation.code)),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_directory_named_like_role_file_when_checking_then_role_path_is_rejected() {
+    let test_cases = [test_types::RepositoryPolicyTestCase {
+        description: "models directory is not the models.rs role",
+        expected_present_code: "RSL305",
+        expected_absent_codes: Vec::new(),
+    }];
+
+    for test_case in test_cases {
+        let fixture = test_types::CheckRepoTestCase {
+            description: test_case.description,
+            repo_files: vec![test_types::RepoFile {
+                path: "crates/example/src/domain/models/generated.rs".to_owned(),
+                contents: "pub(crate) struct Generated;\n".to_owned(),
+            }],
+            expected_violation_codes: Vec::new(),
+        };
+        let repo_root = helpers::write_temp_repo_verbatim(&fixture);
+        let mut config = models::CheckerConfig::default();
+        config.repository.role_paths = vec!["crates/example/src/domain/models".to_owned()];
+        let violations =
+            check_repository_with_config::check_repository_with_config(&repo_root, &config)
+                .expect("repository policy is structurally valid");
+        helpers::remove_temp_repo(&repo_root);
+
+        assert!(
+            violations
+                .iter()
+                .any(|violation| violation.code == test_case.expected_present_code),
             "{}",
             test_case.description
         );
@@ -216,6 +258,28 @@ fn given_invalid_config_when_validating_then_fails_closed() {
                 tooling: models::ToolingConfig {
                     package: String::new(),
                     runtime_forbidden_packages: Vec::new(),
+                },
+                ..models::CheckerConfig::default()
+            },
+            expected_is_error: true,
+        },
+        test_types::ConfigValidationTestCase {
+            description: "non-canonical trailing slash path",
+            config: models::CheckerConfig {
+                repository: models::RepositoryPolicyConfig {
+                    domain_paths: vec!["crates/example/src/domain/".to_owned()],
+                    ..models::RepositoryPolicyConfig::default()
+                },
+                ..models::CheckerConfig::default()
+            },
+            expected_is_error: true,
+        },
+        test_types::ConfigValidationTestCase {
+            description: "platform-independent drive path",
+            config: models::CheckerConfig {
+                repository: models::RepositoryPolicyConfig {
+                    domain_paths: vec!["C:/repository/domain".to_owned()],
+                    ..models::RepositoryPolicyConfig::default()
                 },
                 ..models::CheckerConfig::default()
             },

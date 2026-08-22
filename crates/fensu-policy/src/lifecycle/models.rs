@@ -1,5 +1,8 @@
 //! Public lifecycle request, result, suppression, cache, and host models.
 
+use std::path::Path;
+use std::time::Duration;
+
 use serde::{Deserialize, Serialize};
 
 /// Versions whose changes invalidate reusable analysis results.
@@ -127,6 +130,15 @@ pub struct CustomHostRequest<Payload> {
     pub protocol: u32,
     pub runtime_version: String,
     pub payload: Payload,
+}
+
+/// Process launch details kept separate from the serialized host request.
+#[derive(Debug)]
+pub struct CustomHostInvocation<'a, Payload> {
+    pub program: &'a Path,
+    pub arguments: &'a [String],
+    pub timeout: Duration,
+    pub request: &'a CustomHostRequest<Payload>,
 }
 
 /// Versioned response read from an isolated custom-rule process.

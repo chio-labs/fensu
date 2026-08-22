@@ -2,8 +2,8 @@
 
 use fensu_policy::lifecycle::constants::CUSTOM_HOST_PROTOCOL_VERSION;
 use fensu_policy::lifecycle::models::{
-    ApplySuppressionsRequest, CacheRead, CustomHostRequest, ExactSuppression, FindingSeverity,
-    ScopedIgnore, SkillFreshness,
+    ApplySuppressionsRequest, CacheRead, CustomHostInvocation, CustomHostRequest, ExactSuppression,
+    FindingSeverity, ScopedIgnore, SkillFreshness,
 };
 use fensu_policy::policy::main::resolve_policy::resolve_policy;
 use fensu_policy::policy::models::{PolicySelectors, ProductRuleCodeGrammar};
@@ -104,8 +104,13 @@ fn given_non_fensu_rule_pack_when_running_lifecycle_then_all_shared_contracts_co
             payload: request,
         };
         let (program, arguments) = host_command();
-        let hosted = run_custom_host::<_, HostPayload>(&program, &arguments, &host_request)
-            .expect("isolated custom host runs");
+        let hosted = run_custom_host::<_, HostPayload>(CustomHostInvocation {
+            program: &program,
+            arguments: &arguments,
+            timeout: std::time::Duration::from_secs(5),
+            request: &host_request,
+        })
+        .expect("isolated custom host runs");
         let skill = render_owned_skill(
             "sqlbuild-kata",
             &response.cache_identity,

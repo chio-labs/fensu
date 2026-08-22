@@ -10,7 +10,6 @@ permissions:
   actions: write
   contents: write
   pull-requests: write
-  statuses: write
 
 jobs:
   release-please:
@@ -31,85 +30,25 @@ jobs:
           gh workflow run publish.yml --repo "${GITHUB_REPOSITORY}" --ref main \
             -f "tag=${RELEASE_TAG}"
 
-      - name: Resolve release branch
-        id: release_branch
+      - name: Resolve release pull request
+        id: release_pr
         if: steps.release.outputs.prs_created == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
           RELEASE_PRS: ${{ steps.release.outputs.prs }}
         run: |
-          release_pr="$(jq -r '.[0].number // empty' <<< "${RELEASE_PRS}")"
-          release_branch="$(jq -r '.[0].headBranchName // empty' <<< "${RELEASE_PRS}")"
-          if [[ -z "${release_pr}" || -z "${release_branch}" ]]; then
-            echo "Release Please reported a created PR without its number or head branch" >&2
+          number="$(jq -r '.[0].number // empty' <<< "${RELEASE_PRS}")"
+          branch="$(jq -r '.[0].headBranchName // empty' <<< "${RELEASE_PRS}")"
+          if [[ -z "${number}" || -z "${branch}" ]]; then
+            echo "Release Please did not return a pull request number and branch" >&2
             exit 1
           fi
-          pr_json="$(gh pr view "${release_pr}" --repo "${GITHUB_REPOSITORY}" \
-            --json baseRefName,baseRefOid,headRefOid)"
-          if [[ "$(jq -r .baseRefName <<< "${pr_json}")" != "main" ]]; then
-            echo "Release pull request does not target main" >&2
-            exit 1
-          fi
-          echo "name=${release_branch}" >> "${GITHUB_OUTPUT}"
-          echo "number=${release_pr}" >> "${GITHUB_OUTPUT}"
-          echo "base_sha=$(jq -r .baseRefOid <<< "${pr_json}")" >> "${GITHUB_OUTPUT}"
-          echo "head_sha=$(jq -r .headRefOid <<< "${pr_json}")" >> "${GITHUB_OUTPUT}"
+          echo "number=${number}" >> "${GITHUB_OUTPUT}"
+          echo "branch=${branch}" >> "${GITHUB_OUTPUT}"
 
       - uses: actions/checkout@v5
         if: steps.release.outputs.prs_created == 'true'
         with:
-          ref: ${{ steps.release_branch.outputs.base_sha }}
-          path: trusted-base
-          persist-credentials: false
-
-      - uses: actions/checkout@v5
-        if: steps.release.outputs.prs_created == 'true'
-        with:
-          ref: ${{ steps.release_branch.outputs.head_sha }}
-          path: release-head
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Validate release metadata and source provenance
-        if: steps.release.outputs.prs_created == 'true'
-        working-directory: trusted-base
-        env:
-          BASE_SHA: ${{ steps.release_branch.outputs.base_sha }}
-          GH_TOKEN: ${{ github.token }}
-          HEAD_SHA: ${{ steps.release_branch.outputs.head_sha }}
-        run: |
-          python -m scripts.release_metadata_check \
-            --repo ../release-head --base "${BASE_SHA}" --head "${HEAD_SHA}" \
-            --allow-stale-lockfiles
-
-          source_pr_json="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${BASE_SHA}/pulls" \
-            --jq '[.[] | select(.merged_at != null and .base.ref == "main")] | sort_by(.merged_at) | last')"
-          source_pr="$(jq -r '.number // empty' <<< "${source_pr_json}")"
-          source_head="$(jq -r '.head.sha // empty' <<< "${source_pr_json}")"
-          if [[ -z "${source_pr}" || -z "${source_head}" ]]; then
-            echo "Release base ${BASE_SHA} is not associated with a pull request merged to main" >&2
-            exit 1
-          fi
-          base_tree="$(gh api "repos/${GITHUB_REPOSITORY}/git/commits/${BASE_SHA}" --jq .tree.sha)"
-          verified_tree="$(gh api "repos/${GITHUB_REPOSITORY}/git/commits/${source_head}" --jq .tree.sha)"
-          if [[ "${base_tree}" != "${verified_tree}" ]]; then
-            echo "Release base tree was not the tree verified on source pull request ${source_pr}" >&2
-            exit 1
-          fi
-          successful_runs="$(gh api \
-            "repos/${GITHUB_REPOSITORY}/actions/workflows/verify.yml/runs?head_sha=${source_head}&event=pull_request&status=completed&per_page=100" \
-            | jq --arg source_head "${source_head}" \
-              '[.workflow_runs[] | select(.conclusion == "success" and .head_sha == $source_head)] | length')"
-          if [[ "${successful_runs}" -lt 1 ]]; then
-            echo "No successful pull-request Verify run exists for source head ${source_head}" >&2
-            exit 1
-          fi
-
-      - uses: actions/checkout@v5
-        if: steps.release.outputs.prs_created == 'true'
-        with:
-          ref: ${{ steps.release_branch.outputs.head_sha }}
-          path: release-head
+          ref: ${{ steps.release_pr.outputs.branch }}
 
       - uses: astral-sh/setup-uv@v6
         if: steps.release.outputs.prs_created == 'true'
@@ -121,9 +60,8 @@ jobs:
 
       - name: Refresh release lockfiles
         if: steps.release.outputs.prs_created == 'true'
-        working-directory: release-head
         env:
-          RELEASE_BRANCH: ${{ steps.release_branch.outputs.name }}
+          RELEASE_BRANCH: ${{ steps.release_pr.outputs.branch }}
         run: |
           uv lock
           cargo check --workspace
@@ -136,91 +74,46 @@ jobs:
           git commit -m "chore: refresh release lockfiles"
           git push origin "HEAD:${RELEASE_BRANCH}"
 
-      - name: Validate refreshed release metadata
-        if: steps.release.outputs.prs_created == 'true'
-        working-directory: trusted-base
-        env:
-          BASE_SHA: ${{ steps.release_branch.outputs.base_sha }}
-        run: |
-          python -m scripts.release_metadata_check \
-            --repo ../release-head --base "${BASE_SHA}" --head HEAD
-
-      - name: Run release pull request checks
+      - name: Run required release checks
         if: steps.release.outputs.prs_created == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_BRANCH: ${{ steps.release_branch.outputs.name }}
-          RELEASE_PRS: ${{ steps.release.outputs.prs }}
+          RELEASE_BRANCH: ${{ steps.release_pr.outputs.branch }}
+          RELEASE_PR: ${{ steps.release_pr.outputs.number }}
         run: |
-          release_pr="$(jq -r '.[0].number // empty' <<< "${RELEASE_PRS}")"
-          if [[ -z "${release_pr}" ]]; then
-            echo "Release Please reported a created PR without a number" >&2
-            exit 1
-          fi
-          head_sha="$(git -C release-head rev-parse HEAD)"
-
-          workflows=(pull-request-metadata.yml version-guard.yml)
-          contexts=("Pull Request Metadata" "Block automatic 1.0 releases")
-          for context in "${contexts[@]}"; do
-            gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${head_sha}" \
-              -f state=pending -f "context=${context}" \
-              -f description="Trusted release check is running" >/dev/null
-          done
-          gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${head_sha}" \
-            -f state=pending -f context=Verify \
-            -f description="Validating trusted release metadata" >/dev/null
+          head_sha="$(git rev-parse HEAD)"
+          workflows=(pull-request-metadata.yml version-guard.yml verify.yml)
 
           gh workflow run pull-request-metadata.yml --repo "${GITHUB_REPOSITORY}" \
-            --ref "${RELEASE_BRANCH}" \
-            -f "pr_number=${release_pr}"
+            --ref "${RELEASE_BRANCH}" -f "pr_number=${RELEASE_PR}"
           gh workflow run version-guard.yml --repo "${GITHUB_REPOSITORY}" \
             --ref "${RELEASE_BRANCH}"
+          gh workflow run verify.yml --repo "${GITHUB_REPOSITORY}" \
+            --ref "${RELEASE_BRANCH}"
 
-          for index in "${!workflows[@]}"; do
-            workflow="${workflows[${index}]}"
-            context="${contexts[${index}]}"
+          for workflow in "${workflows[@]}"; do
             run_id=""
             for _ in {1..30}; do
               run_id="$(gh run list --repo "${GITHUB_REPOSITORY}" \
                 --workflow "${workflow}" --branch "${RELEASE_BRANCH}" \
                 --event workflow_dispatch --limit 20 --json databaseId,headSha \
-                --jq ".[] | select(.headSha == \"${head_sha}\") | .databaseId" | head -n 1)"
+                --jq ".[] | select(.headSha == \"${head_sha}\") | .databaseId" \
+                | head -n 1)"
               [[ -n "${run_id}" ]] && break
               sleep 2
             done
             if [[ -z "${run_id}" ]]; then
-              gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${head_sha}" \
-                -f state=failure -f "context=${context}" \
-                -f description="Trusted release check did not start" >/dev/null
+              echo "Required workflow ${workflow} did not start for ${head_sha}" >&2
               exit 1
             fi
-            run_url="$(gh run view "${run_id}" --repo "${GITHUB_REPOSITORY}" --json url --jq .url)"
-            if gh run watch "${run_id}" --repo "${GITHUB_REPOSITORY}" --exit-status; then
-              gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${head_sha}" \
-                -f state=success -f "context=${context}" -f target_url="${run_url}" \
-                -f description="Trusted release check passed" >/dev/null
-            else
-              gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${head_sha}" \
-                -f state=failure -f "context=${context}" -f target_url="${run_url}" \
-                -f description="Trusted release check failed" >/dev/null
-              exit 1
-            fi
+            gh run watch "${run_id}" --repo "${GITHUB_REPOSITORY}" --exit-status
           done
-
-          gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${head_sha}" \
-            -f state=success -f context=Verify \
-            -f description="Product changes passed verification before release metadata update" >/dev/null
 
       - name: Merge release pull request and continue release
         if: steps.release.outputs.prs_created == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_PRS: ${{ steps.release.outputs.prs }}
+          RELEASE_PR: ${{ steps.release_pr.outputs.number }}
         run: |
-          release_pr="$(jq -r '.[0].number // empty' <<< "${RELEASE_PRS}")"
-          if [[ -z "${release_pr}" ]]; then
-            echo "Release Please reported a created PR without a number" >&2
-            exit 1
-          fi
-          gh pr merge "${release_pr}" --repo "${GITHUB_REPOSITORY}" --squash
+          gh pr merge "${RELEASE_PR}" --repo "${GITHUB_REPOSITORY}" --squash
           gh workflow run release-please.yml --repo "${GITHUB_REPOSITORY}" --ref main

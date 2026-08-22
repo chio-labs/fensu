@@ -20,6 +20,9 @@ use crate::lifecycle::models::CustomHostOutputLimits;
 type StdinReceiver = mpsc::Receiver<std::io::Result<()>>;
 type OutputReceiver = mpsc::Receiver<Result<Vec<u8>, LifecycleError>>;
 
+#[cfg(unix)]
+const POSIX_NO_SUCH_PROCESS: i32 = 3;
+
 struct HostChannels {
     stdin: StdinReceiver,
     stdout: OutputReceiver,
@@ -340,8 +343,7 @@ fn group_is_already_gone(error: &std::io::Error) -> bool {
     }
     #[cfg(unix)]
     {
-        // POSIX ESRCH: no process or process group has this identifier.
-        error.raw_os_error() == Some(3)
+        error.raw_os_error() == Some(POSIX_NO_SUCH_PROCESS)
     }
     #[cfg(not(unix))]
     {

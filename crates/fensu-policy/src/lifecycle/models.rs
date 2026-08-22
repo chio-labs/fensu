@@ -4,6 +4,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 /// Versions whose changes invalidate reusable analysis results.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -167,6 +168,16 @@ pub struct CustomHostResponse<Payload> {
     pub error: Option<String>,
     pub payload: Option<Payload>,
     pub messages: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct RawCustomHostResponse {
+    pub(crate) protocol: u32,
+    pub(crate) runtime_version: String,
+    pub(crate) error: Option<String>,
+    pub(crate) payload: Option<Value>,
+    pub(crate) messages: Vec<String>,
 }
 
 /// Schema-v2 ownership marker used to detect foreign, stale, or edited generated skills.

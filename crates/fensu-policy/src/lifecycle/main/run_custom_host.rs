@@ -1,24 +1,13 @@
 //! Invoke one custom-rule host through a versioned stdin/stdout exchange.
 
 use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde::Serialize;
 
 use crate::lifecycle::_helpers::canonical;
 use crate::lifecycle::_helpers::hosting::{exchange, HostExchange};
 use crate::lifecycle::constants::CUSTOM_HOST_PROTOCOL_VERSION;
 use crate::lifecycle::errors::LifecycleError;
-use crate::lifecycle::models::{CustomHostInvocation, CustomHostResponse};
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct RawCustomHostResponse {
-    protocol: u32,
-    runtime_version: String,
-    error: Option<String>,
-    payload: Option<Value>,
-    messages: Vec<String>,
-}
+use crate::lifecycle::models::{CustomHostInvocation, CustomHostResponse, RawCustomHostResponse};
 
 /// Run an isolated process and validate its protocol and runtime identity.
 pub fn run_custom_host<RequestPayload, ResponsePayload>(

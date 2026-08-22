@@ -41,10 +41,33 @@ pub(crate) struct RuleMetadata {
     pub(crate) limits: Vec<RuleLimitMetadata>,
 }
 
+impl fensu_policy::policy::types::PolicyRule for RuleMetadata {
+    type Applicability = AnalyzerId;
+
+    fn code(&self) -> &str {
+        &self.code
+    }
+
+    fn enabled_by_default(&self) -> bool {
+        self.enabled_by_default
+    }
+
+    fn is_applicable(&self, applicability: &Self::Applicability) -> bool {
+        self.analyzers.contains(applicability)
+    }
+
+    fn implementation_code(&self) -> &str {
+        self.alias_of.as_deref().unwrap_or(&self.code)
+    }
+}
+
 #[derive(Debug)]
-pub(crate) struct SelectorCatalogues<'a> {
+pub(crate) struct SelectorValidationRequest<'a> {
+    pub(crate) name: &'a str,
+    pub(crate) selectors: &'a [String],
     pub(crate) applicable: &'a [&'a RuleMetadata],
     pub(crate) configured: &'a [&'a RuleMetadata],
+    pub(crate) analyzer: &'a AnalyzerId,
 }
 
 #[derive(Clone, Debug, Deserialize)]

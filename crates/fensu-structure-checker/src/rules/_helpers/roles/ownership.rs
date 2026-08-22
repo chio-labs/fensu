@@ -15,11 +15,11 @@ struct ModuleNode<'a> {
 
 pub(crate) fn check(
     crate_dir: &std::path::Path,
+    package_name: Option<&str>,
     files: &[models::SourceFile],
 ) -> Vec<models::Violation> {
-    let package = crate_dir
-        .file_name()
-        .and_then(|name| name.to_str())
+    let package = package_name
+        .or_else(|| crate_dir.file_name().and_then(|name| name.to_str()))
         .unwrap_or_default()
         .replace('-', "_");
     let nodes = module_nodes(files, &package);

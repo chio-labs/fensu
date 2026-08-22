@@ -3,11 +3,45 @@
 use std::io::{self, Write};
 use std::process::ExitCode;
 
+use crate::command::_helpers::arguments;
+use crate::configuration::main::load_checker_config;
+use crate::models;
+
 pub fn run_checker() -> ExitCode {
-    let Ok(repo_root) = std::env::current_dir() else {
-        return ExitCode::from(2);
+    let arguments = match arguments::parse_arguments(std::env::args_os()) {
+        Ok(value) => value,
+        Err(error) => return command_error(&error),
     };
-    let violations = crate::rules::main::check_repository::check_repository(&repo_root);
+    if let Some(display) = arguments.display {
+        let _ = writeln!(io::stdout().lock(), "{display}");
+        return ExitCode::SUCCESS;
+    }
+    let repo_root = match arguments.root.map_or_else(std::env::current_dir, Ok) {
+        Ok(value) => value,
+        Err(error) => return command_error(&format!("could not resolve repository root: {error}")),
+    };
+    let configured = arguments.config.is_some();
+    let config = match arguments.config {
+        Some(path) => match load_checker_config::load_checker_config(&path) {
+            Ok(value) => value,
+            Err(error) => return command_error(&error),
+        },
+        None => models::CheckerConfig::default(),
+    };
+    let violations = if configured {
+        crate::rules::main::check_repository_with_config::check_repository_with_config(
+            &repo_root, &config,
+        )
+        .map_err(|error| format!("invalid structure-checker config: {error}"))
+    } else {
+        Ok(crate::rules::main::check_repository::check_repository(
+            &repo_root,
+        ))
+    };
+    let violations = match violations {
+        Ok(value) => value,
+        Err(error) => return command_error(&error),
+    };
     let mut stdout = io::stdout().lock();
     for violation in &violations {
         let location = match violation.line {
@@ -26,4 +60,9 @@ pub fn run_checker() -> ExitCode {
     } else {
         ExitCode::from(1)
     }
+}
+
+fn command_error(message: &str) -> ExitCode {
+    let _ = writeln!(io::stderr().lock(), "error: {message}");
+    ExitCode::from(2)
 }

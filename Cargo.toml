@@ -3,6 +3,7 @@ members = [
     "crates/fensu-cli",
     "crates/fensu-facts",
     "crates/fensu-native",
+    "crates/fensu-policy",
     "crates/fensu-svelte",
     "crates/fensu-structure-checker",
     "crates/fensu-typescript",
@@ -18,6 +19,7 @@ rust-version = "1.95"
 [workspace.dependencies]
 cap-fs-ext = "4"
 cap-std = "4"
+command-group = "=5.0.1"
 dunce = "1.0"
 encoding_rs = "0.8"
 flate2 = { version = "1", default-features = false, features = ["zlib"] }
@@ -41,6 +43,7 @@ serde = { version = "1", features = ["derive"] }
 sha2 = "0.10"
 fensu-facts = { path = "crates/fensu-facts", default-features = false }
 fensu-native = { path = "crates/fensu-native", default-features = false }
+fensu-policy = { path = "crates/fensu-policy" }
 ruff_python_ast = "=0.0.4"
 ruff_python_parser = "=0.0.4"
 ruff_text_size = "=0.0.4"

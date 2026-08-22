@@ -1,3 +1,5 @@
+#[path = "rules/test_configuration.rs"]
+mod configuration;
 #[path = "rules/test_containers.rs"]
 mod containers;
 #[path = "rules/test_domains.rs"]

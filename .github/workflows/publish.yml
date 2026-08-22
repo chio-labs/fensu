@@ -17,26 +17,67 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.release-tag.outputs.tag }}
+      version: ${{ steps.release-tag.outputs.version }}
     steps:
       - name: Resolve release tag
         id: release-tag
         run: |
           tag="${{ inputs.tag }}"
 
-          case "$tag" in
-            v0*) ;;
-            *)
-              echo "Refusing to publish tag '$tag'." \
-                "PyPI publishing is limited to v0* tags."
-              exit 1
-              ;;
-          esac
+          if [[ ! "$tag" =~ ^v0\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Refusing to publish tag '$tag'. Expected exact v0.MINOR.PATCH semver."
+            exit 1
+          fi
 
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+  release-metadata:
+    name: Validate release metadata
+    needs: release-tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.release-tag.outputs.tag }}
+      - name: Match package versions to release tag
+        env:
+          RELEASE_VERSION: ${{ needs.release-tag.outputs.version }}
+        run: |
+          python - <<'PY'
+          import os
+          import tomllib
+          from pathlib import Path
+
+          expected = os.environ["RELEASE_VERSION"]
+          with Path("pyproject.toml").open("rb") as file:
+              root = tomllib.load(file)["project"]
+          cli_dependency = next(
+              item for item in root["dependencies"] if item.startswith("fensu-cli==")
+          ).partition("==")[2]
+          manifests = [
+              ("root project", root["version"]),
+              ("root CLI dependency", cli_dependency),
+          ]
+          for label, path in [
+              ("CLI package", "packages/fensu-cli/pyproject.toml"),
+              ("CLI crate", "crates/fensu-cli/Cargo.toml"),
+              ("policy crate", "crates/fensu-policy/Cargo.toml"),
+              ("checker crate", "crates/fensu-structure-checker/Cargo.toml"),
+          ]:
+              with Path(path).open("rb") as file:
+                  document = tomllib.load(file)
+              manifests.append((label, document.get("project", document.get("package"))["version"]))
+          mismatches = [f"{label}={version}" for label, version in manifests if version != expected]
+          if mismatches:
+              raise SystemExit(
+                  f"Release tag version {expected} does not match: {', '.join(mismatches)}"
+              )
+          PY
 
   wheels:
     name: Build wheel (${{ matrix.platform.name }})
-    needs: release-tag
+    needs: [release-tag, release-metadata]
     runs-on: ${{ matrix.platform.runner }}
     strategy:
       fail-fast: false
@@ -117,7 +158,7 @@ jobs:
 
   sdist:
     name: Build sdist
-    needs: release-tag
+    needs: [release-tag, release-metadata]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -140,6 +181,55 @@ jobs:
         with:
           name: sdist
           path: dist
+
+  crates-io:
+    name: Publish Rust crates
+    needs: [release-tag, release-metadata, wheels, sdist]
+    runs-on: ubuntu-latest
+    environment: crates-io
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.release-tag.outputs.tag }}
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.85.0
+      - name: Verify shared crate packages
+        run: |
+          cargo package --locked -p fensu-policy
+          cargo package --locked -p fensu-structure-checker
+      - name: Authenticate with crates.io
+        id: crates_io_auth
+        uses: rust-lang/crates-io-auth-action@v1
+      - name: Publish shared crates
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.crates_io_auth.outputs.token }}
+        run: |
+          publish_if_missing() {
+            package="$1"
+            version="$(cargo metadata --no-deps --format-version 1 \
+              | jq -r --arg package "${package}" '.packages[] | select(.name == $package) | .version')"
+            status="$(curl --retry 3 --silent --show-error --output /dev/null \
+              --write-out '%{http_code}' "https://crates.io/api/v1/crates/${package}/${version}")"
+            case "${status}" in
+              200)
+                echo "${package} ${version} is already published"
+                ;;
+              404)
+                cargo publish --locked -p "${package}"
+                ;;
+              *)
+                echo "Could not determine ${package} ${version} publication status: HTTP ${status}" >&2
+                exit 1
+                ;;
+            esac
+          }
+
+          publish_if_missing fensu-policy
+          publish_if_missing fensu-structure-checker
 
   pypi:
     name: Publish to PyPI

@@ -2,11 +2,13 @@
 
 use std::time::Duration;
 
-use fensu_policy::lifecycle::constants::CUSTOM_HOST_PROTOCOL_VERSION;
-use fensu_policy::lifecycle::errors::LifecycleError;
+use fensu_policy::lifecycle::constants::{
+    CACHE_IDENTITY_SCHEMA_VERSION, CUSTOM_HOST_PROTOCOL_VERSION,
+};
+use fensu_policy::lifecycle::errors::{HostOutputStream, LifecycleError};
 use fensu_policy::lifecycle::models::{
-    ApplySuppressionsRequest, CacheRead, CustomHostInvocation, CustomHostRequest, ExactSuppression,
-    ScopedIgnore, SkillFreshness,
+    AnalysisInput, ApplySuppressionsRequest, CacheRead, CustomHostInvocation,
+    CustomHostOutputLimits, CustomHostRequest, ExactSuppression, ScopedIgnore, SkillFreshness,
 };
 use fensu_policy::policy::models::ProductRuleCodeGrammar;
 use fensu_policy::{
@@ -15,12 +17,16 @@ use fensu_policy::{
 };
 
 use crate::helpers::{
-    early_failure_host_command, empty_request, finding, hanging_host_command, process_stops,
-    process_tree_host_command, versioned_requests,
+    early_failure_host_command, empty_request, finding, hanging_host_command, host_output_limits,
+    oversized_stderr_host_command, oversized_stdout_host_command, process_stops,
+    process_tree_host_command, response_host_command, successful_leader_with_descendant_command,
+    versioned_requests,
 };
 use crate::test_types::{
-    CacheLifecycleTestCase, ErrorLifecycleTestCase, IdentityLifecycleTestCase,
+    CacheLifecycleTestCase, ErrorLifecycleTestCase, HostOverflowLifecycleTestCase,
+    HostResponseLifecycleTestCase, IdentityLifecycleTestCase, OrderedIdentityLifecycleTestCase,
     ProcessTreeLifecycleTestCase, SerializationLifecycleTestCase, SkillLifecycleTestCase,
+    SuccessfulProcessTreeLifecycleTestCase, SuppressionMatchLifecycleTestCase,
 };
 
 #[cfg(unix)]
@@ -96,6 +102,53 @@ fn given_each_runtime_version_changes_when_identifying_batch_then_cache_identity
         assert_eq!(
             identities.len(),
             test_case.expected_unique_identities,
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_input_order_changes_when_identifying_batch_then_cache_identity_changes_under_schema_v2() {
+    let test_cases = [OrderedIdentityLifecycleTestCase {
+        description: "analysis input sequence participates in schema-v2 identity",
+        expected_schema: 2,
+        expected_distinct: true,
+    }];
+
+    for test_case in test_cases {
+        let mut forward = empty_request();
+        forward.inputs = vec![
+            AnalysisInput {
+                path: "src/first.rs".to_owned(),
+                fingerprint: "first-1".to_owned(),
+                facts: (),
+            },
+            AnalysisInput {
+                path: "src/second.rs".to_owned(),
+                fingerprint: "second-1".to_owned(),
+                facts: (),
+            },
+        ];
+        let mut reverse = forward.clone();
+        reverse.inputs.reverse();
+        let forward_identity =
+            evaluate_batch(&forward, &["relations".to_owned()], |_| Ok(Vec::new()))
+                .expect("forward batch identifies")
+                .cache_identity;
+        let reverse_identity =
+            evaluate_batch(&reverse, &["relations".to_owned()], |_| Ok(Vec::new()))
+                .expect("reverse batch identifies")
+                .cache_identity;
+
+        assert_eq!(
+            CACHE_IDENTITY_SCHEMA_VERSION, test_case.expected_schema,
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            forward_identity != reverse_identity,
+            test_case.expected_distinct,
             "{}",
             test_case.description
         );
@@ -196,6 +249,141 @@ fn given_parent_relative_scoped_pattern_when_applying_then_configuration_is_reje
 }
 
 #[test]
+fn given_invalid_finding_code_when_suppressing_then_input_is_rejected() {
+    let test_cases = [ErrorLifecycleTestCase {
+        description: "finding selectors are not exact codes",
+        expected_error: LifecycleError::InvalidRuleCode {
+            code: "STBK".to_owned(),
+        },
+    }];
+
+    for test_case in test_cases {
+        let grammar = ProductRuleCodeGrammar::new("STBK", "XSTBK").expect("valid namespaces");
+        let error = apply_suppressions(ApplySuppressionsRequest {
+            findings: vec![finding("STBK", "flows/orders.yaml", None)],
+            evaluated_codes: &[],
+            suppressions: &[],
+            scoped_ignores: &[],
+            grammar: &grammar,
+        })
+        .expect_err("finding selectors are not exact codes");
+
+        assert_eq!(error, test_case.expected_error, "{}", test_case.description);
+    }
+}
+
+#[test]
+fn given_invalid_finding_path_when_suppressing_then_input_is_rejected() {
+    let test_cases = [ErrorLifecycleTestCase {
+        description: "finding paths must be canonical",
+        expected_error: LifecycleError::InvalidRepositoryPath {
+            path: "../flows/orders.yaml".to_owned(),
+        },
+    }];
+
+    for test_case in test_cases {
+        let grammar = ProductRuleCodeGrammar::new("STBK", "XSTBK").expect("valid namespaces");
+        let error = apply_suppressions(ApplySuppressionsRequest {
+            findings: vec![finding("STBKS001", "../flows/orders.yaml", None)],
+            evaluated_codes: &[],
+            suppressions: &[],
+            scoped_ignores: &[],
+            grammar: &grammar,
+        })
+        .expect_err("finding paths must be canonical");
+
+        assert_eq!(error, test_case.expected_error, "{}", test_case.description);
+    }
+}
+
+#[test]
+fn given_invalid_evaluated_code_when_suppressing_then_input_is_rejected() {
+    let test_cases = [ErrorLifecycleTestCase {
+        description: "evaluated selectors are not exact codes",
+        expected_error: LifecycleError::InvalidRuleCode {
+            code: "STBK".to_owned(),
+        },
+    }];
+
+    for test_case in test_cases {
+        let grammar = ProductRuleCodeGrammar::new("STBK", "XSTBK").expect("valid namespaces");
+        let evaluated_codes = ["STBK".to_owned()];
+        let error = apply_suppressions(ApplySuppressionsRequest {
+            findings: Vec::new(),
+            evaluated_codes: &evaluated_codes,
+            suppressions: &[],
+            scoped_ignores: &[],
+            grammar: &grammar,
+        })
+        .expect_err("evaluated selectors are not exact codes");
+
+        assert_eq!(error, test_case.expected_error, "{}", test_case.description);
+    }
+}
+
+#[test]
+fn given_indexed_exact_and_scoped_matches_when_suppressing_then_each_match_applies_once() {
+    let test_cases = [SuppressionMatchLifecycleTestCase {
+        description: "exact and scoped indexes retain unmatched symbols",
+        expected_suppressions: 1,
+        expected_scoped_ignores: 1,
+        expected_findings: 1,
+        expected_symbol: "payments",
+    }];
+
+    for test_case in test_cases {
+        let grammar = ProductRuleCodeGrammar::new("STBK", "XSTBK").expect("valid namespaces");
+        let suppressions = [ExactSuppression {
+            code: "STBKS001".to_owned(),
+            path: "flows/orders.yaml".to_owned(),
+            symbol: Some("orders".to_owned()),
+            reason: "accepted fixture debt".to_owned(),
+        }];
+        let scoped_ignores = [ScopedIgnore {
+            selectors: vec!["XSTBK".to_owned()],
+            paths: vec!["generated/**".to_owned(), "vendor/**".to_owned()],
+            reason: "generated inputs".to_owned(),
+        }];
+        let evaluated_codes = ["STBKS001".to_owned(), "XSTBKS001".to_owned()];
+        let result = apply_suppressions(ApplySuppressionsRequest {
+            findings: vec![
+                finding("STBKS001", "flows/orders.yaml", Some("orders")),
+                finding("STBKS001", "flows/orders.yaml", Some("payments")),
+                finding("XSTBKS001", "generated/orders.yaml", None),
+            ],
+            evaluated_codes: &evaluated_codes,
+            suppressions: &suppressions,
+            scoped_ignores: &scoped_ignores,
+            grammar: &grammar,
+        })
+        .expect("prepared suppression indexes match");
+
+        assert_eq!(
+            result.applied_suppressions, test_case.expected_suppressions,
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            result.applied_scoped_ignores, test_case.expected_scoped_ignores,
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            result.findings.len(),
+            test_case.expected_findings,
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            result.findings[0].symbol.as_deref(),
+            Some(test_case.expected_symbol),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
 fn given_findings_in_different_orders_when_serializing_then_bytes_are_identical() {
     let test_cases = [SerializationLifecycleTestCase {
         description: "parallel evaluator order does not affect serialization",
@@ -240,6 +428,7 @@ fn given_unsupported_host_request_when_invoking_then_process_is_not_launched() {
             program: std::path::Path::new("not-a-real-host"),
             arguments: &[],
             timeout: Duration::from_secs(1),
+            output_limits: host_output_limits(),
             request: &request,
         })
         .expect_err("unsupported protocol fails before launch");
@@ -269,6 +458,7 @@ fn given_unresponsive_host_when_timeout_expires_then_process_is_terminated() {
             program: &program,
             arguments: &arguments,
             timeout,
+            output_limits: host_output_limits(),
             request: &request,
         })
         .expect_err("unresponsive host must time out");
@@ -297,6 +487,7 @@ fn given_host_process_tree_when_timeout_expires_then_descendants_are_terminated(
             program: &program,
             arguments: &arguments,
             timeout: Duration::from_secs(2),
+            output_limits: host_output_limits(),
             request: &request,
         })
         .expect_err("host process tree must time out");
@@ -343,6 +534,7 @@ fn given_host_early_exit_when_invoking_with_large_request_then_stderr_is_preserv
             program: &program,
             arguments: &arguments,
             timeout: Duration::from_secs(5),
+            output_limits: host_output_limits(),
             request: &request,
         })
         .expect_err("early host failure must preserve stderr");
@@ -370,6 +562,7 @@ fn given_host_output_exceeds_pipe_capacity_when_invoking_then_exchange_does_not_
             program: &program,
             arguments: &arguments,
             timeout: Duration::from_secs(5),
+            output_limits: host_output_limits(),
             request: &request,
         })
         .expect("concurrent pipe exchange must complete");
@@ -384,6 +577,227 @@ fn given_host_output_exceeds_pipe_capacity_when_invoking_then_exchange_does_not_
 }
 
 #[test]
+fn given_host_output_exceeds_explicit_limit_when_invoking_then_returns_stream_overflow() {
+    let test_cases = [
+        HostOverflowLifecycleTestCase {
+            description: "stdout capture limit",
+            command: oversized_stdout_host_command,
+            output_limits: CustomHostOutputLimits {
+                stdout_bytes: 8,
+                stderr_bytes: 1_024,
+            },
+            expected_error: LifecycleError::HostOutputOverflow {
+                stream: HostOutputStream::Stdout,
+                limit_bytes: 8,
+            },
+        },
+        HostOverflowLifecycleTestCase {
+            description: "stderr capture limit",
+            command: oversized_stderr_host_command,
+            output_limits: CustomHostOutputLimits {
+                stdout_bytes: 1_024,
+                stderr_bytes: 8,
+            },
+            expected_error: LifecycleError::HostOutputOverflow {
+                stream: HostOutputStream::Stderr,
+                limit_bytes: 8,
+            },
+        },
+    ];
+
+    for test_case in test_cases {
+        let request = CustomHostRequest {
+            protocol: CUSTOM_HOST_PROTOCOL_VERSION,
+            runtime_version: "runtime-1".to_owned(),
+            payload: (),
+        };
+        let (program, arguments) = (test_case.command)();
+        let error = run_custom_host::<_, serde_json::Value>(CustomHostInvocation {
+            program: &program,
+            arguments: &arguments,
+            timeout: Duration::from_secs(5),
+            output_limits: test_case.output_limits,
+            request: &request,
+        })
+        .expect_err("bounded output must reject overflow");
+
+        assert_eq!(error, test_case.expected_error, "{}", test_case.description);
+    }
+}
+
+#[test]
+fn given_successful_host_leader_with_live_descendant_when_invoking_then_job_is_cleaned_up() {
+    let test_cases = [SuccessfulProcessTreeLifecycleTestCase {
+        description: "successful leader leaves a live group descendant",
+        expected_payload: true,
+        expected_stopped: true,
+    }];
+
+    for test_case in test_cases {
+        let directory = tempfile::tempdir().expect("process tree directory");
+        let pid_file = directory.path().join("descendant.pid");
+        let (program, arguments) = successful_leader_with_descendant_command(&pid_file);
+        let request = CustomHostRequest {
+            protocol: CUSTOM_HOST_PROTOCOL_VERSION,
+            runtime_version: "runtime-1".to_owned(),
+            payload: (),
+        };
+        let response = run_custom_host::<_, serde_json::Value>(CustomHostInvocation {
+            program: &program,
+            arguments: &arguments,
+            timeout: Duration::from_secs(5),
+            output_limits: host_output_limits(),
+            request: &request,
+        })
+        .expect("successful leader response is retained");
+        let pid = std::fs::read_to_string(&pid_file)
+            .expect("host wrote descendant pid")
+            .trim()
+            .parse::<u32>()
+            .expect("host pid is numeric");
+
+        assert_eq!(
+            response.payload.is_some(),
+            test_case.expected_payload,
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            process_stops(pid),
+            test_case.expected_stopped,
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_empty_host_runtime_when_invoking_then_process_is_not_launched() {
+    let test_cases = [ErrorLifecycleTestCase {
+        description: "empty request runtime fails before launch",
+        expected_error: LifecycleError::InvalidConfiguration {
+            message: "custom host runtime version must be non-empty".to_owned(),
+        },
+    }];
+
+    for test_case in test_cases {
+        let request = CustomHostRequest {
+            protocol: CUSTOM_HOST_PROTOCOL_VERSION,
+            runtime_version: " ".to_owned(),
+            payload: (),
+        };
+        let error = run_custom_host::<_, serde_json::Value>(CustomHostInvocation {
+            program: std::path::Path::new("not-a-real-host"),
+            arguments: &[],
+            timeout: Duration::from_secs(1),
+            output_limits: host_output_limits(),
+            request: &request,
+        })
+        .expect_err("empty request runtime fails before launch");
+
+        assert_eq!(error, test_case.expected_error, "{}", test_case.description);
+    }
+}
+
+#[test]
+fn given_invalid_host_response_envelope_when_invoking_then_contract_is_rejected() {
+    let envelope_error = LifecycleError::HostResponse {
+        message: "response must contain exactly one non-empty error or payload".to_owned(),
+    };
+    let test_cases = [
+        HostResponseLifecycleTestCase {
+            description: "response contains neither payload nor error",
+            response: "{\"protocol\":1,\"runtime_version\":\"runtime-1\",\"error\":null,\"payload\":null,\"messages\":[]}",
+            expected_error: envelope_error.clone(),
+        },
+        HostResponseLifecycleTestCase {
+            description: "response contains both payload and error",
+            response: "{\"protocol\":1,\"runtime_version\":\"runtime-1\",\"error\":\"failure\",\"payload\":{},\"messages\":[]}",
+            expected_error: envelope_error.clone(),
+        },
+        HostResponseLifecycleTestCase {
+            description: "response error is empty",
+            response: "{\"protocol\":1,\"runtime_version\":\"runtime-1\",\"error\":\" \",\"payload\":null,\"messages\":[]}",
+            expected_error: envelope_error,
+        },
+        HostResponseLifecycleTestCase {
+            description: "response runtime is empty",
+            response: "{\"protocol\":1,\"runtime_version\":\"\",\"error\":null,\"payload\":{},\"messages\":[]}",
+            expected_error: LifecycleError::HostResponse {
+                message: "runtime_version must be non-empty".to_owned(),
+            },
+        },
+    ];
+
+    for test_case in test_cases {
+        let request = CustomHostRequest {
+            protocol: CUSTOM_HOST_PROTOCOL_VERSION,
+            runtime_version: "runtime-1".to_owned(),
+            payload: (),
+        };
+        let (program, arguments) = response_host_command(test_case.response);
+        let error = run_custom_host::<_, serde_json::Value>(CustomHostInvocation {
+            program: &program,
+            arguments: &arguments,
+            timeout: Duration::from_secs(5),
+            output_limits: host_output_limits(),
+            request: &request,
+        })
+        .expect_err("invalid host response fails");
+
+        assert_eq!(error, test_case.expected_error, "{}", test_case.description);
+    }
+}
+
+#[test]
+fn given_host_identity_or_error_with_incompatible_payload_when_invoking_then_envelope_wins() {
+    let test_cases = [
+        HostResponseLifecycleTestCase {
+            description: "dual envelope validation precedes payload decoding",
+            response: "{\"protocol\":1,\"runtime_version\":\"runtime-1\",\"error\":\"boom\",\"payload\":{},\"messages\":[]}",
+            expected_error: LifecycleError::HostResponse {
+                message: "response must contain exactly one non-empty error or payload".to_owned(),
+            },
+        },
+        HostResponseLifecycleTestCase {
+            description: "protocol validation precedes payload decoding",
+            response: "{\"protocol\":2,\"runtime_version\":\"runtime-1\",\"error\":null,\"payload\":{},\"messages\":[]}",
+            expected_error: LifecycleError::HostProtocol {
+                actual: 2,
+                expected: CUSTOM_HOST_PROTOCOL_VERSION,
+            },
+        },
+        HostResponseLifecycleTestCase {
+            description: "runtime validation precedes payload decoding",
+            response: "{\"protocol\":1,\"runtime_version\":\"runtime-2\",\"error\":null,\"payload\":{},\"messages\":[]}",
+            expected_error: LifecycleError::HostRuntimeVersion {
+                actual: "runtime-2".to_owned(),
+                expected: "runtime-1".to_owned(),
+            },
+        },
+    ];
+
+    for test_case in test_cases {
+        let request = CustomHostRequest {
+            protocol: CUSTOM_HOST_PROTOCOL_VERSION,
+            runtime_version: "runtime-1".to_owned(),
+            payload: (),
+        };
+        let (program, arguments) = response_host_command(test_case.response);
+        let error = run_custom_host::<_, bool>(CustomHostInvocation {
+            program: &program,
+            arguments: &arguments,
+            timeout: Duration::from_secs(5),
+            output_limits: host_output_limits(),
+            request: &request,
+        })
+        .expect_err("envelope validation must precede typed payload decoding");
+
+        assert_eq!(error, test_case.expected_error, "{}", test_case.description);
+    }
+}
+
+#[test]
 fn given_skill_input_or_content_changes_when_checking_then_reports_exact_freshness_state() {
     let test_cases = [SkillLifecycleTestCase {
         description: "owned generated skill",
@@ -393,46 +807,91 @@ fn given_skill_input_or_content_changes_when_checking_then_reports_exact_freshne
     }];
 
     for test_case in test_cases {
-        let content = render_owned_skill("streambuild-kata", "input-1", b"# StreamBuild Kata\n")
-            .expect("skill renders");
+        let content = render_owned_skill(
+            "fensu-policy",
+            "streambuild-kata",
+            "input-1",
+            b"# StreamBuild Kata\n",
+        )
+        .expect("skill renders");
         let mut divergent = content.clone();
         divergent[0] = b'!';
 
         assert_eq!(
-            skill_freshness(Some(&content), "streambuild-kata", "input-2"),
+            skill_freshness(
+                Some(&content),
+                "fensu-policy",
+                "streambuild-kata",
+                "input-2",
+            ),
             test_case.expected_stale,
             "{}",
             test_case.description
         );
         assert_eq!(
-            skill_freshness(Some(&divergent), "streambuild-kata", "input-1"),
+            skill_freshness(
+                Some(&divergent),
+                "fensu-policy",
+                "streambuild-kata",
+                "input-1",
+            ),
             test_case.expected_divergent,
             "{}",
             test_case.description
         );
         assert_eq!(
-            skill_freshness(None, "streambuild-kata", "input-1"),
+            skill_freshness(
+                Some(&divergent),
+                "fensu-policy",
+                "streambuild-kata",
+                "input-2",
+            ),
+            SkillFreshness::Divergent,
+            "content divergence takes precedence over stale inputs: {}",
+            test_case.description
+        );
+        assert_eq!(
+            skill_freshness(
+                Some(&content),
+                "another-owner",
+                "streambuild-kata",
+                "input-1",
+            ),
+            SkillFreshness::Unowned,
+            "foreign ownership must not be claimed: {}",
+            test_case.description
+        );
+        assert_eq!(
+            skill_freshness(None, "fensu-policy", "streambuild-kata", "input-1"),
             test_case.expected_missing,
             "{}",
             test_case.description
         );
         assert!(
-            render_owned_skill("streambuild-kata", "input-1", &content).is_err(),
+            render_owned_skill("fensu-policy", "streambuild-kata", "input-1", &content).is_err(),
             "owned content must not acquire a second marker: {}",
             test_case.description
         );
         assert!(
-            render_owned_skill("streambuild-kata", "input-1", &content).is_err(),
+            render_owned_skill("fensu-policy", "streambuild-kata", "input-1", &content).is_err(),
             "owned content must not acquire a second marker: {}",
             test_case.description
         );
         let inline_marker = b"> <!-- fensu-policy-skill-owner: {\"content_fingerprint\":\"\",\"identity\":\"streambuild-kata\",\"input_fingerprint\":\"input-1\",\"schema\":1} -->\n";
-        let quoted = render_owned_skill("streambuild-kata", "input-1", inline_marker)
-            .expect("quoted marker text is not ownership");
+        let quoted =
+            render_owned_skill("fensu-policy", "streambuild-kata", "input-1", inline_marker)
+                .expect("quoted marker text is not ownership");
         assert_eq!(
-            skill_freshness(Some(&quoted), "streambuild-kata", "input-1"),
+            skill_freshness(Some(&quoted), "fensu-policy", "streambuild-kata", "input-1",),
             SkillFreshness::Fresh,
             "appended marker must be replaced instead of quoted text: {}",
+            test_case.description
+        );
+        let legacy = b"# Legacy\n<!-- fensu-policy-skill-owner: {\"content_fingerprint\":\"legacy-fingerprint\",\"identity\":\"streambuild-kata\",\"input_fingerprint\":\"input-1\",\"schema\":1} -->\n";
+        assert_eq!(
+            skill_freshness(Some(legacy), "fensu-policy", "streambuild-kata", "input-1",),
+            SkillFreshness::Unowned,
+            "schema v1 is recognized without claiming ownership: {}",
             test_case.description
         );
     }

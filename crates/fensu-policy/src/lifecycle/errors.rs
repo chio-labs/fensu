@@ -2,6 +2,22 @@
 
 use std::fmt;
 
+/// Output stream whose configured custom-host capture bound was exceeded.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum HostOutputStream {
+    Stdout,
+    Stderr,
+}
+
+impl fmt::Display for HostOutputStream {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Stdout => formatter.write_str("stdout"),
+            Self::Stderr => formatter.write_str("stderr"),
+        }
+    }
+}
+
 /// Product-neutral analysis lifecycle failure.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum LifecycleError {
@@ -45,6 +61,10 @@ pub enum LifecycleError {
     HostTimeout {
         timeout_millis: u64,
     },
+    HostOutputOverflow {
+        stream: HostOutputStream,
+        limit_bytes: usize,
+    },
     HostProtocol {
         actual: u32,
         expected: u32,
@@ -80,10 +100,7 @@ impl fmt::Display for LifecycleError {
                 write!(formatter, "invalid repository path pattern: {pattern}")
             }
             Self::InvalidRuleCode { code } => {
-                write!(
-                    formatter,
-                    "suppression requires one exact rule code: {code}"
-                )
+                write!(formatter, "expected one exact rule code: {code}")
             }
             Self::InvalidConfiguration { message } => formatter.write_str(message),
             Self::StaleSuppression {
@@ -109,6 +126,13 @@ impl fmt::Display for LifecycleError {
             Self::HostTimeout { timeout_millis } => write!(
                 formatter,
                 "custom host exceeded its {timeout_millis}ms execution timeout"
+            ),
+            Self::HostOutputOverflow {
+                stream,
+                limit_bytes,
+            } => write!(
+                formatter,
+                "custom host {stream} exceeded its {limit_bytes}-byte capture limit"
             ),
             Self::HostProtocol { actual, expected } => write!(
                 formatter,

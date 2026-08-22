@@ -20,8 +20,7 @@ pub(crate) fn check(files: &[models::SourceFile]) -> Vec<models::Violation> {
 }
 
 fn source_parts(file: &models::SourceFile) -> Option<Vec<&str>> {
-    let (_, inside) = file.relative.split_once("/src/")?;
-    Some(inside.split('/').collect())
+    Some(file.source_relative.split('/').collect())
 }
 
 fn rules_role_violations(file: &models::SourceFile, parts: &[&str]) -> Vec<models::Violation> {

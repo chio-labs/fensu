@@ -16,7 +16,7 @@ pub(crate) fn check_containers(
     let mut direct_modules: BTreeMap<String, usize> = BTreeMap::new();
     let mut bucket_modules: BTreeMap<String, usize> = BTreeMap::new();
     for file in files {
-        let Some((container, remainder)) = container_split(&file.relative) else {
+        let Some((container, remainder)) = container_split(file) else {
             continue;
         };
         let depth = remainder.split('/').count();
@@ -61,7 +61,7 @@ fn check_prefix_families(files: &[models::SourceFile]) -> Vec<models::Violation>
         {
             continue;
         }
-        let Some((container, remainder)) = container_split(&file.relative) else {
+        let Some((container, remainder)) = container_split(file) else {
             continue;
         };
         if !container.ends_with(constants::HELPERS_DIRECTORY) || remainder.contains('/') {
@@ -121,7 +121,7 @@ pub(crate) fn check_file(
     if constants::ROLE_FILE_NAMES.contains(&file.file_name()) {
         return Vec::new();
     }
-    if !inside_nested_package(&file.relative) {
+    if !inside_nested_package(&file.source_relative) {
         return Vec::new();
     }
     vec![models::Violation::new(models::ViolationRequest {
@@ -135,10 +135,7 @@ pub(crate) fn check_file(
 
 /// Return whether the module sits inside a nested package rather than at domain position.
 fn inside_nested_package(relative: &str) -> bool {
-    let Some((_, inside)) = relative.split_once("/src/") else {
-        return false;
-    };
-    inside.split('/').count() > constants::MAX_CONTAINER_COMPONENT_DEPTH
+    relative.split('/').count() > constants::MAX_CONTAINER_COMPONENT_DEPTH
 }
 
 fn check_entry_shape(
@@ -186,9 +183,8 @@ fn check_entry_shape(
     violations
 }
 
-fn container_split(relative: &str) -> Option<(String, String)> {
-    let (_, inside) = relative.split_once("/src/")?;
-    let components: Vec<&str> = inside.split('/').collect();
+fn container_split(file: &models::SourceFile) -> Option<(String, String)> {
+    let components: Vec<&str> = file.source_relative.split('/').collect();
     let position = components
         .iter()
         .position(|part| constants::CONTAINER_DIRECTORY_NAMES.contains(part))?;
@@ -196,7 +192,9 @@ fn container_split(relative: &str) -> Option<(String, String)> {
     if remainder_parts.is_empty() {
         return None;
     }
-    let prefix = relative.trim_end_matches(&format!("/{}", remainder_parts.join("/")));
+    let prefix = file
+        .relative
+        .trim_end_matches(&format!("/{}", remainder_parts.join("/")));
     Some((prefix.to_owned(), remainder_parts.join("/")))
 }
 

@@ -1,5 +1,6 @@
 //! Layer rules: import discipline and crate dependency direction.
 
+use std::collections::BTreeSet;
 use std::fs;
 use std::path;
 
@@ -11,16 +12,35 @@ use crate::rules::_helpers::imports::reference_paths;
 use crate::rules::_helpers::sources::scanning;
 
 /// Check every use declaration in one file for layer violations.
-pub(crate) fn check_uses(
-    file: &models::SourceFile,
-    syntax: &syn::File,
-    library_source: bool,
-    raw_parser_boundary: &models::RawParserBoundaryConfig,
-) -> Vec<models::Violation> {
+pub(crate) struct UseCheckRequest<'a> {
+    pub(crate) file: &'a models::SourceFile,
+    pub(crate) syntax: &'a syn::File,
+    pub(crate) library_source: bool,
+    pub(crate) raw_parser_boundary: &'a models::RawParserBoundaryConfig,
+    pub(crate) dependencies: &'a [models::WorkspaceDependency],
+}
+
+pub(crate) fn check_uses(request: UseCheckRequest<'_>) -> Vec<models::Violation> {
+    let UseCheckRequest {
+        file,
+        syntax,
+        library_source,
+        raw_parser_boundary,
+        dependencies,
+    } = request;
     let mut visitor = UseVisitor {
         file,
         library_source,
         raw_parser_boundary,
+        dependencies,
+        raw_parser_restricted: raw_parser_boundary
+            .restricted_paths
+            .iter()
+            .any(|restricted| {
+                restricted_path_matches(file, restricted)
+                    && (library_source || restricted.contains('/'))
+            }),
+        raw_parser_references: BTreeSet::new(),
         violations: Vec::new(),
     };
     visitor.visit_file(syntax);
@@ -30,9 +50,10 @@ pub(crate) fn check_uses(
 /// Check one crate manifest for workspace and dependency policy.
 pub(crate) fn check_manifest(
     repo_root: &path::Path,
-    crate_dir: &path::Path,
+    workspace_crate: &models::WorkspaceCrate,
     config: &models::CheckerConfig,
 ) -> Vec<models::Violation> {
+    let crate_dir = &workspace_crate.directory;
     let manifest_path = crate_dir.join(constants::CARGO_MANIFEST_FILE);
     let source = match fs::read_to_string(&manifest_path) {
         Ok(value) => value,
@@ -57,22 +78,11 @@ pub(crate) fn check_manifest(
     let relative = manifest_path
         .strip_prefix(repo_root)
         .unwrap_or(&manifest_path);
-    let Some(crate_name) = manifest
-        .get(constants::PACKAGE_KEY)
-        .and_then(|value| value.get(constants::NAME_KEY))
-        .and_then(toml::Value::as_str)
-    else {
-        return vec![scanning::manifest_setup_violation(
-            repo_root,
-            &manifest_path,
-            "crate manifest declares no package name",
-        )];
-    };
     let mut violations = crate_manifest_violations(relative, &manifest);
-    if crate_name != config.tooling.package {
+    if workspace_crate.package_name.as_deref() != Some(&config.tooling.package) {
         violations.extend(tooling_dependency_violations(
             relative,
-            &manifest,
+            &workspace_crate.dependencies,
             &config.tooling.runtime_forbidden_packages,
         ));
     }
@@ -225,42 +235,22 @@ fn dependency_tables(manifest: &toml::Value) -> Vec<&toml::map::Map<String, toml
 
 fn tooling_dependency_violations(
     relative: &path::Path,
-    manifest: &toml::Value,
+    dependencies: &[models::WorkspaceDependency],
     forbidden_packages: &[String],
 ) -> Vec<models::Violation> {
-    for table in dependency_tables(manifest) {
-        for (name, specification) in table {
-            if let Some(tooling_package) =
-                forbidden_tooling_package(name, specification, forbidden_packages)
-            {
-                return vec![models::Violation::new(models::ViolationRequest {
-                    code: "RSL301",
-                    path: relative,
-                    line: None,
-                    message: format!("crate depends on {tooling_package}"),
-                    remediation:
-                        "the structure checker is tooling; runtime crates must not depend on it",
-                })];
-            }
+    for dependency in dependencies {
+        if forbidden_packages.contains(&dependency.package_name) {
+            return vec![models::Violation::new(models::ViolationRequest {
+                code: "RSL301",
+                path: relative,
+                line: None,
+                message: format!("crate depends on {}", dependency.package_name),
+                remediation:
+                    "the structure checker is tooling; runtime crates must not depend on it",
+            })];
         }
     }
     Vec::new()
-}
-
-fn forbidden_tooling_package<'a>(
-    dependency_name: &str,
-    specification: &toml::Value,
-    forbidden_packages: &'a [String],
-) -> Option<&'a str> {
-    let package = specification
-        .get(constants::PACKAGE_KEY)
-        .and_then(toml::Value::as_str);
-    forbidden_packages
-        .iter()
-        .find(|forbidden| {
-            dependency_name == forbidden.as_str() || package == Some(forbidden.as_str())
-        })
-        .map(String::as_str)
 }
 
 fn specification_version(specification: &toml::Value) -> Option<&str> {
@@ -275,19 +265,19 @@ struct UseVisitor<'files> {
     file: &'files models::SourceFile,
     library_source: bool,
     raw_parser_boundary: &'files models::RawParserBoundaryConfig,
+    dependencies: &'files [models::WorkspaceDependency],
+    raw_parser_restricted: bool,
+    raw_parser_references: BTreeSet<(String, usize)>,
     violations: Vec<models::Violation>,
 }
 
-impl<'ast, 'files> Visit<'ast> for UseVisitor<'files> {
+impl<'ast> Visit<'ast> for UseVisitor<'_> {
     fn visit_item_use(&mut self, node: &'ast syn::ItemUse) {
         let line = node.use_token.span.start().line;
-        if self.library_source && self.file.has_directory(constants::RULES_DIRECTORY) {
-            self.violations.extend(raw_parser_access_violations(
-                self.file,
-                &node.tree,
-                line,
-                self.raw_parser_boundary,
-            ));
+        if self.raw_parser_restricted {
+            for path in reference_paths::use_paths(&node.tree) {
+                self.record_raw_parser_path(&path, line);
+            }
         }
         if let syn::UseTree::Path(use_path) = &node.tree {
             let root = use_path.ident.to_string();
@@ -318,28 +308,115 @@ impl<'ast, 'files> Visit<'ast> for UseVisitor<'files> {
         }
         syn::visit::visit_item_use(self, node);
     }
+
+    fn visit_item_extern_crate(&mut self, node: &'ast syn::ItemExternCrate) {
+        self.record_raw_parser_path(
+            &[node.ident.to_string()],
+            node.extern_token.span.start().line,
+        );
+        syn::visit::visit_item_extern_crate(self, node);
+    }
+
+    fn visit_path(&mut self, node: &'ast syn::Path) {
+        let path = node
+            .segments
+            .iter()
+            .map(|segment| segment.ident.to_string())
+            .collect::<Vec<_>>();
+        let line = node
+            .segments
+            .first()
+            .map(|segment| segment.ident.span().start().line)
+            .unwrap_or(1);
+        self.record_raw_parser_path(&path, line);
+        syn::visit::visit_path(self, node);
+    }
+
+    fn visit_macro(&mut self, node: &'ast syn::Macro) {
+        self.record_raw_parser_tokens(node.tokens.clone());
+        syn::visit::visit_macro(self, node);
+    }
+
+    fn visit_attribute(&mut self, node: &'ast syn::Attribute) {
+        if let syn::Meta::List(list) = &node.meta {
+            self.record_raw_parser_tokens(list.tokens.clone());
+        }
+        syn::visit::visit_attribute(self, node);
+    }
 }
 
-fn raw_parser_access_violations(
-    file: &models::SourceFile,
-    tree: &syn::UseTree,
-    line: usize,
-    config: &models::RawParserBoundaryConfig,
-) -> Vec<models::Violation> {
-    reference_paths::use_paths(tree)
-        .into_iter()
-        .filter_map(|path| path.first().cloned())
-        .filter(|root| config.packages.contains(root))
-        .map(|root| {
-            models::Violation::new(models::ViolationRequest {
+impl UseVisitor<'_> {
+    fn record_raw_parser_path(&mut self, path: &[String], line: usize) {
+        if !self.raw_parser_restricted {
+            return;
+        }
+        let Some(root) = path.first() else {
+            return;
+        };
+        let package_name = self
+            .raw_parser_boundary
+            .packages
+            .iter()
+            .find(|package| *package == root)
+            .cloned()
+            .or_else(|| {
+                self.dependencies
+                    .iter()
+                    .find(|dependency| {
+                        dependency.source_name == *root
+                            && self
+                                .raw_parser_boundary
+                                .packages
+                                .contains(&dependency.package_name)
+                    })
+                    .map(|dependency| dependency.package_name.clone())
+            });
+        let Some(package_name) = package_name else {
+            return;
+        };
+        if !self
+            .raw_parser_references
+            .insert((package_name.clone(), line))
+        {
+            return;
+        }
+        self.violations
+            .push(models::Violation::new(models::ViolationRequest {
                 code: "RSL102",
-                path: file.relative_path(),
+                path: self.file.relative_path(),
                 line: Some(line),
-                message: format!("native rule module imports raw parser crate {root}"),
-                remediation: &config.remediation,
-            })
-        })
-        .collect()
+                message: format!("restricted module accesses raw parser crate {package_name}"),
+                remediation: &self.raw_parser_boundary.remediation,
+            }));
+    }
+
+    fn record_raw_parser_tokens(&mut self, stream: proc_macro2::TokenStream) {
+        let tokens = stream.into_iter().collect::<Vec<_>>();
+        for (index, token) in tokens.iter().enumerate() {
+            if let proc_macro2::TokenTree::Group(group) = token {
+                self.record_raw_parser_tokens(group.stream());
+            }
+            let proc_macro2::TokenTree::Ident(ident) = token else {
+                continue;
+            };
+            let path_separator = tokens.get(index + 1).is_some_and(|token| {
+                matches!(token, proc_macro2::TokenTree::Punct(punct) if punct.as_char() == ':')
+            }) && tokens.get(index + 2).is_some_and(|token| {
+                matches!(token, proc_macro2::TokenTree::Punct(punct) if punct.as_char() == ':')
+            });
+            if path_separator {
+                self.record_raw_parser_path(&[ident.to_string()], ident.span().start().line);
+            }
+        }
+    }
+}
+
+fn restricted_path_matches(file: &models::SourceFile, restricted: &str) -> bool {
+    if restricted.contains('/') {
+        file.relative == restricted || file.relative.starts_with(&format!("{restricted}/"))
+    } else {
+        file.has_directory(restricted)
+    }
 }
 
 fn helper_boundary_violations(
@@ -363,11 +440,7 @@ fn helper_boundary_violations(
             continue;
         }
         let owner = segments[1..position].join("/");
-        let inside = file
-            .relative
-            .split_once("/src/")
-            .map(|(_, rest)| rest)
-            .unwrap_or_default();
+        let inside = &file.source_relative;
         if inside.starts_with(&format!("{owner}/")) {
             continue;
         }

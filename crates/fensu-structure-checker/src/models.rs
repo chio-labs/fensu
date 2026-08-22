@@ -1,5 +1,6 @@
 //! Data models for the structure checker.
 
+use std::collections::BTreeMap;
 use std::path;
 
 use serde::Deserialize;
@@ -32,6 +33,10 @@ pub struct ToolingConfig {
 pub struct RawParserBoundaryConfig {
     pub packages: Vec<String>,
     pub remediation: String,
+    #[serde(
+        default = "crate::configuration::_helpers::repository_policy::default_raw_parser_restricted_paths"
+    )]
+    pub restricted_paths: Vec<String>,
 }
 
 /// Reviewed repository identities, structural paths, and adjustable budgets.
@@ -93,6 +98,7 @@ impl Default for CheckerConfig {
                     .map(|value| (*value).to_owned())
                     .collect(),
                 remediation: constants::DEFAULT_RAW_PARSER_REMEDIATION.to_owned(),
+                restricted_paths: crate::configuration::_helpers::repository_policy::default_raw_parser_restricted_paths(),
             },
             repository: RepositoryPolicyConfig::default(),
         }
@@ -132,6 +138,22 @@ impl CheckerConfig {
             && self.raw_parser_boundary.remediation.trim().is_empty()
         {
             return Err("raw parser remediation must not be empty".to_owned());
+        }
+        crate::configuration::_helpers::repository_policy::validate_non_empty_unique(
+            &self.raw_parser_boundary.restricted_paths,
+            "raw parser restricted paths",
+        )?;
+        if let Some(path) = self
+            .raw_parser_boundary
+            .restricted_paths
+            .iter()
+            .find(|path| {
+                !crate::configuration::_helpers::repository_policy::valid_repository_path(path)
+            })
+        {
+            return Err(format!(
+                "structure-checker raw parser restricted paths must be repository-relative POSIX paths: {path}"
+            ));
         }
         validate_repository_policy(&self.repository)
     }
@@ -196,6 +218,8 @@ impl Violation {
 pub struct SourceFile {
     pub path: path::PathBuf,
     pub relative: String,
+    pub source_root_relative: String,
+    pub source_relative: String,
     pub source: String,
 }
 
@@ -213,11 +237,31 @@ pub struct WorkspaceScan {
     pub violations: Vec<Violation>,
 }
 
-/// One explicit workspace member and its best-effort manifest identity.
+/// One Cargo workspace package and its resolved targets and dependencies.
 #[derive(Debug, Clone)]
 pub struct WorkspaceCrate {
     pub directory: path::PathBuf,
     pub package_name: Option<String>,
+    pub package_identity: String,
+    pub library_name: Option<String>,
+    pub targets: Vec<WorkspaceTarget>,
+    pub dependencies: Vec<WorkspaceDependency>,
+}
+
+/// One Cargo target source root and whether it follows test conventions.
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct WorkspaceTarget {
+    pub source_root: path::PathBuf,
+    pub test: bool,
+}
+
+/// One Cargo-resolved dependency identity and optional local source path.
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct WorkspaceDependency {
+    pub package_name: String,
+    pub source_name: String,
+    pub path: Option<path::PathBuf>,
+    pub resolved: bool,
 }
 
 /// Inputs needed to check one library source file under consumer policy.
@@ -227,7 +271,18 @@ pub(crate) struct SourceCheckRequest<'a> {
     pub src_root: &'a path::Path,
     pub file: &'a SourceFile,
     pub config: &'a CheckerConfig,
+    pub dependencies: &'a [WorkspaceDependency],
     pub is_tooling_crate: bool,
+}
+
+/// Inputs needed to check one integration-test source file.
+#[derive(Debug)]
+pub(crate) struct TestCheckRequest<'a> {
+    pub repo_root: &'a path::Path,
+    pub tests_root: &'a path::Path,
+    pub file: &'a SourceFile,
+    pub config: &'a CheckerConfig,
+    pub dependencies: &'a [WorkspaceDependency],
 }
 
 /// Inputs needed to check function shape for one parsed source file.
@@ -268,5 +323,45 @@ impl SourceFile {
     /// Return the repository-relative path used in diagnostics.
     pub fn relative_path(&self) -> &path::Path {
         path::Path::new(&self.relative)
+    }
+}
+
+impl WorkspaceCrate {
+    pub(crate) fn source_name(&self) -> Option<String> {
+        self.library_name.clone().or_else(|| {
+            self.package_name
+                .as_ref()
+                .map(|name| name.replace('-', "_"))
+        })
+    }
+
+    pub(crate) fn graph_identity(&self) -> String {
+        self.package_identity.clone()
+    }
+
+    pub(crate) fn reference_roots(
+        &self,
+        workspace_crates: &[WorkspaceCrate],
+    ) -> BTreeMap<String, String> {
+        let mut roots: BTreeMap<String, String> = BTreeMap::new();
+        if let Some(source_name) = self.source_name() {
+            roots.insert(source_name, self.graph_identity());
+        }
+        for dependency in &self.dependencies {
+            if !dependency.resolved {
+                continue;
+            }
+            for workspace_crate in workspace_crates {
+                if dependency.path.as_ref() != Some(&workspace_crate.directory) {
+                    continue;
+                }
+                roots.insert(
+                    dependency.source_name.clone(),
+                    workspace_crate.graph_identity(),
+                );
+                break;
+            }
+        }
+        roots
     }
 }

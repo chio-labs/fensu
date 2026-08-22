@@ -16,13 +16,19 @@ pub fn run_checker() -> ExitCode {
         let _ = writeln!(io::stdout().lock(), "{display}");
         return ExitCode::SUCCESS;
     }
-    let repo_root = match arguments.root.map_or_else(std::env::current_dir, Ok) {
+    let repo_root = match arguments
+        .root
+        .map_or_else(std::env::current_dir, Ok)
+        .and_then(|path| path.canonicalize())
+    {
         Ok(value) => value,
         Err(error) => return command_error(&format!("could not resolve repository root: {error}")),
     };
     let configured = arguments.config.is_some();
     let config = match arguments.config {
-        Some(path) => match load_checker_config::load_checker_config(&path) {
+        Some(path) => match contained_config_path(&repo_root, &path)
+            .and_then(|path| load_checker_config::load_checker_config(&path))
+        {
             Ok(value) => value,
             Err(error) => return command_error(&error),
         },
@@ -60,6 +66,26 @@ pub fn run_checker() -> ExitCode {
     } else {
         ExitCode::from(1)
     }
+}
+
+fn contained_config_path(
+    repo_root: &std::path::Path,
+    config_path: &std::path::Path,
+) -> Result<std::path::PathBuf, String> {
+    let canonical = config_path.canonicalize().map_err(|error| {
+        format!(
+            "could not resolve structure-checker config {}: {error}",
+            config_path.display()
+        )
+    })?;
+    if !canonical.starts_with(repo_root) {
+        return Err(format!(
+            "structure-checker config {} escapes repository root {}",
+            canonical.display(),
+            repo_root.display()
+        ));
+    }
+    Ok(canonical)
 }
 
 fn command_error(message: &str) -> ExitCode {

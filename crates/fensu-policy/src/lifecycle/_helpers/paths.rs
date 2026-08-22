@@ -1,6 +1,6 @@
 //! Repository-relative path validation and matching.
 
-use globset::GlobBuilder;
+use globset::{Glob, GlobBuilder};
 
 use crate::lifecycle::constants::{
     CURRENT_PATH_SEGMENT, MATCH_ALL_PATH_PATTERN, PARENT_PATH_SEGMENT,
@@ -16,24 +16,15 @@ pub(crate) fn validate_repository_path(path: &str) -> Result<(), LifecycleError>
     Ok(())
 }
 
-pub(crate) fn matches(path: &str, pattern: &str) -> bool {
-    match compiled_pattern(pattern) {
-        Ok(glob) => glob.compile_matcher().is_match(path),
-        Err(_) => false,
-    }
-}
-
-pub(crate) fn validate_pattern(pattern: &str) -> Result<(), LifecycleError> {
+pub(crate) fn compile_pattern(pattern: &str) -> Result<Glob, LifecycleError> {
     if !canonical_posix_parts(pattern) {
         return Err(LifecycleError::InvalidPathPattern {
             pattern: pattern.to_owned(),
         });
     }
-    compiled_pattern(pattern)
-        .map(|_| ())
-        .map_err(|_| LifecycleError::InvalidPathPattern {
-            pattern: pattern.to_owned(),
-        })
+    compiled_pattern(pattern).map_err(|_| LifecycleError::InvalidPathPattern {
+        pattern: pattern.to_owned(),
+    })
 }
 
 fn canonical_posix_parts(value: &str) -> bool {

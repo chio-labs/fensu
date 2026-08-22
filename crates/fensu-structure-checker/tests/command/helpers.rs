@@ -29,6 +29,32 @@ pub(crate) fn run_configured_checker() -> process::Output {
     output
 }
 
+#[cfg(unix)]
+pub(crate) fn run_escaped_config_checker() -> process::Output {
+    use std::os::unix::fs::symlink;
+
+    let root = write_configured_fixture();
+    let outside = root.with_file_name(format!(
+        "{}-outside.toml",
+        root.file_name()
+            .expect("fixture has a name")
+            .to_string_lossy()
+    ));
+    fs::write(&outside, "schema-version = 1\n").expect("external config is writable");
+    let linked = root.join("linked-config.toml");
+    symlink(&outside, &linked).expect("config symlink is writable");
+    let output = process::Command::new(env!("CARGO_BIN_EXE_fensu-structure-checker"))
+        .arg("--root")
+        .arg(&root)
+        .arg("--config")
+        .arg(linked)
+        .output()
+        .expect("structure checker starts");
+    fs::remove_dir_all(root).expect("temporary command fixture is removable");
+    fs::remove_file(outside).expect("external config is removable");
+    output
+}
+
 fn write_configured_fixture() -> path::PathBuf {
     let index = REPO_COUNTER.fetch_add(1, atomic::Ordering::SeqCst);
     let root = std::env::temp_dir().join(format!(
@@ -52,6 +78,11 @@ fn write_configured_fixture() -> path::PathBuf {
         "use sqlparser::ast::Statement;\n",
     )
     .expect("temporary source is writable");
+    fs::write(
+        root.join("crates/example/src/lib.rs"),
+        "#![forbid(unsafe_code)]\n",
+    )
+    .expect("temporary library root is writable");
     fs::write(
         root.join("rust-structure-checker.toml"),
         "schema-version = 1\n\n[tooling]\npackage = \"example-structure-checker\"\nruntime-forbidden-packages = [\"example-structure-checker\", \"fensu-structure-checker\"]\n\n[raw-parser-boundary]\npackages = [\"sqlparser\"]\nremediation = \"consume shared SQL fact rows\"\n",

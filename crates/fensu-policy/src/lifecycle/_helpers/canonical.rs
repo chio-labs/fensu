@@ -4,6 +4,7 @@ use serde::Serialize;
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 
+use crate::lifecycle::constants::CACHE_IDENTITY_SCHEMA_VERSION;
 use crate::lifecycle::errors::LifecycleError;
 
 pub(crate) fn canonical_json<T: Serialize>(value: &T) -> Result<Vec<u8>, LifecycleError> {
@@ -29,12 +30,13 @@ pub(crate) fn batch_fingerprint<T: Serialize>(
             capabilities.sort_by(|left, right| left.as_str().cmp(&right.as_str()));
             capabilities.dedup();
         }
-        if let Some(inputs) = object.get_mut("inputs").and_then(Value::as_array_mut) {
-            inputs.sort_by_key(input_sort_key);
-        }
         let mut supported = supported_capabilities.to_vec();
         supported.sort();
         supported.dedup();
+        object.insert(
+            "cache_identity_schema".to_owned(),
+            Value::from(CACHE_IDENTITY_SCHEMA_VERSION),
+        );
         object.insert(
             "supported_capabilities".to_owned(),
             Value::Array(supported.into_iter().map(Value::String).collect()),
@@ -59,22 +61,6 @@ fn sorted_value(value: Value) -> Value {
         }
         scalar => scalar,
     }
-}
-
-fn input_sort_key(value: &Value) -> (String, String, String) {
-    let object = value.as_object();
-    let path = object
-        .and_then(|item| item.get("path"))
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_owned();
-    let fingerprint = object
-        .and_then(|item| item.get("fingerprint"))
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_owned();
-    let encoded = serde_json::to_string(&sorted_value(value.clone())).unwrap_or_default();
-    (path, fingerprint, encoded)
 }
 
 fn serialization_error(error: serde_json::Error) -> LifecycleError {

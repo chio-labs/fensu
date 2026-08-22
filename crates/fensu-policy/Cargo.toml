@@ -1,0 +1,30 @@
+[package]
+name = "fensu-policy"
+version = "0.11.0" # x-release-please-version
+edition.workspace = true
+license.workspace = true
+publish = true
+rust-version = "1.85"
+description = "Product-neutral policy selection contracts from Fensu"
+repository = "https://github.com/chio-labs/fensu"
+readme = "README.md"
+keywords = ["policy", "lint", "architecture"]
+categories = ["development-tools"]
+
+[lints]
+workspace = true
+
+[lib]
+name = "fensu_policy"
+path = "src/lib.rs"
+crate-type = ["rlib"]
+
+[dependencies]
+command-group.workspace = true
+globset.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

@@ -9,7 +9,10 @@ use crate::rules::_helpers::imports::reference_paths;
 use crate::types::FileKind;
 
 /// Check naming and size rules that apply to every checked file.
-pub(crate) fn check_common(file: &models::SourceFile) -> Vec<models::Violation> {
+pub(crate) fn check_common(
+    file: &models::SourceFile,
+    thresholds: &models::ThresholdConfig,
+) -> Vec<models::Violation> {
     let mut violations: Vec<models::Violation> = Vec::new();
     if constants::BANNED_FILE_STEMS.contains(&file.file_stem()) {
         violations.push(models::Violation::new(models::ViolationRequest {
@@ -40,7 +43,7 @@ pub(crate) fn check_common(file: &models::SourceFile) -> Vec<models::Violation> 
             }));
         }
     }
-    if file.line_count() > constants::MAX_FILE_LINES {
+    if file.line_count() > thresholds.max_file_lines {
         violations.push(models::Violation::new(models::ViolationRequest {
             code: "RSR601",
             path: file.relative_path(),
@@ -48,7 +51,7 @@ pub(crate) fn check_common(file: &models::SourceFile) -> Vec<models::Violation> 
             message: format!(
                 "file has {} lines; the limit is {}",
                 file.line_count(),
-                constants::MAX_FILE_LINES
+                thresholds.max_file_lines
             ),
             remediation: "split the file by a cohesive concern",
         }));
@@ -61,6 +64,7 @@ pub(crate) fn check_source(
     file: &models::SourceFile,
     syntax: &syn::File,
     kind: FileKind,
+    thresholds: &models::ThresholdConfig,
 ) -> Vec<models::Violation> {
     let mut violations: Vec<models::Violation> = Vec::new();
     if file.has_directory(constants::HELPERS_DIRECTORY) && file.file_name() == constants::MAIN_FILE
@@ -77,7 +81,7 @@ pub(crate) fn check_source(
         violations.extend(check_item(file, item, kind));
     }
     if kind == FileKind::LibraryRoot || kind == FileKind::BinAdapter {
-        violations.extend(check_declaration_budget(file, kind));
+        violations.extend(check_declaration_budget(file, kind, thresholds));
     }
     if kind == FileKind::BinAdapter {
         violations.extend(check_bin_adapter(file, syntax));
@@ -212,7 +216,11 @@ fn check_helper_visibility(file: &models::SourceFile, item: &syn::Item) -> Vec<m
     })]
 }
 
-fn check_declaration_budget(file: &models::SourceFile, kind: FileKind) -> Vec<models::Violation> {
+fn check_declaration_budget(
+    file: &models::SourceFile,
+    kind: FileKind,
+    _thresholds: &models::ThresholdConfig,
+) -> Vec<models::Violation> {
     let limit = if kind == FileKind::BinAdapter {
         constants::MAX_BINARY_ENTRY_LINES
     } else {

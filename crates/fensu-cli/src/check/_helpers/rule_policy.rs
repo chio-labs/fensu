@@ -1,6 +1,12 @@
 use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet};
 
+use fensu_policy::policy::errors::PolicyError;
+use fensu_policy::policy::main::resolve_policy;
+use fensu_policy::policy::main::validate_unique_implementations as generic_implementations;
+use fensu_policy::policy::models::{FensuRuleCodeGrammar, PolicySelectors};
+use fensu_policy::policy::types::PolicyTier;
+
 use crate::catalogue::main::rule_catalogue::configured_rule_catalogue;
 use crate::catalogue::main::rule_metadata::rule_metadata;
 use crate::catalogue::main::validate_config_selectors::validate_config_selectors;
@@ -36,18 +42,19 @@ pub(crate) fn selected_rules(
     select: &[String],
     ignore: &[String],
 ) -> Result<Vec<&'static RuleMetadata>, String> {
-    let mut rules: Vec<&'static RuleMetadata> = Vec::new();
-    for rule in configured_rule_catalogue(&config.rule_packs)? {
-        if !applicable(rule, config) {
-            continue;
-        }
-        let selected = matches_selector(&rule.code, select);
-        let explicit = select.iter().any(|selector| selector == &rule.code);
-        let ignored = matches_selector(&rule.code, ignore);
-        if (rule.enabled_by_default && selected || explicit) && !ignored {
-            rules.push(rule);
-        }
-    }
+    let catalogue = configured_rule_catalogue(&config.rule_packs)?;
+    let selection = resolve_policy::resolve_policy(
+        &catalogue,
+        &config.analyzer,
+        &PolicySelectors {
+            select: select.to_vec(),
+            warn: Vec::new(),
+            ignore: ignore.to_vec(),
+        },
+        &FensuRuleCodeGrammar,
+    )
+    .map_err(format_policy_error)?;
+    let rules = selection.blocking;
     validate_unique_implementations(&rules)?;
     Ok(rules)
 }
@@ -60,36 +67,17 @@ pub(crate) fn validate_config_tiers(config: &Config) -> Result<(), String> {
         .filter(|rule| applicable(rule, config))
         .collect::<Vec<_>>();
     validate_config_selectors(config, &catalogue, &configured_catalogue)?;
-    let blocking = selected_rules(config, &config.select, &[])?;
-    let warnings = selected_rules(config, &config.warn, &[])?;
-    let warning_codes = warnings
-        .iter()
-        .map(|rule| rule.code.as_str())
-        .collect::<HashSet<_>>();
-    if let Some(rule) = blocking
-        .iter()
-        .find(|rule| warning_codes.contains(rule.code.as_str()))
-    {
-        return Err(format!(
-            "Rule {} cannot be configured as both blocking and warning.",
-            rule.code
-        ));
-    }
-    let ignored_codes = configured_rule_catalogue(&config.rule_packs)?
-        .into_iter()
-        .filter(|rule| applicable(rule, config))
-        .filter(|rule| matches_selector(&rule.code, &config.ignore))
-        .map(|rule| rule.code.as_str())
-        .collect::<HashSet<_>>();
-    if let Some(rule) = warnings
-        .iter()
-        .find(|rule| ignored_codes.contains(rule.code.as_str()))
-    {
-        return Err(format!(
-            "Rule {} cannot be configured as both warning and ignored.",
-            rule.code
-        ));
-    }
+    let _ = resolve_policy::resolve_policy(
+        &configured_catalogue,
+        &config.analyzer,
+        &PolicySelectors {
+            select: config.select.clone(),
+            warn: config.warn.clone(),
+            ignore: config.ignore.clone(),
+        },
+        &FensuRuleCodeGrammar,
+    )
+    .map_err(format_policy_error)?;
     Ok(())
 }
 
@@ -149,10 +137,6 @@ pub(crate) fn resolved_thresholds(
     Ok((values, uses))
 }
 
-fn matches_selector(code: &str, selectors: &[String]) -> bool {
-    selectors.iter().any(|selector| code.starts_with(selector))
-}
-
 pub(crate) fn applicable(rule: &RuleMetadata, config: &Config) -> bool {
     rule.analyzers.contains(&config.analyzer)
 }
@@ -187,12 +171,30 @@ fn matching_path_specificity(path: &str, pattern: &str) -> Result<Option<PathSpe
 }
 
 pub(crate) fn validate_unique_implementations(rules: &[&RuleMetadata]) -> Result<(), String> {
-    let codes = rules
-        .iter()
-        .map(|rule| rule.code.clone())
-        .collect::<Vec<_>>();
-    let _ = display_codes_by_implementation(&codes)?;
-    Ok(())
+    generic_implementations::validate_unique_implementations(rules).map_err(format_policy_error)
+}
+
+fn format_policy_error(error: PolicyError) -> String {
+    match error {
+        PolicyError::TierConflict {
+            code,
+            first: PolicyTier::Blocking,
+            second: PolicyTier::Warning,
+        } => format!("Rule {code} cannot be configured as both blocking and warning."),
+        PolicyError::TierConflict {
+            code,
+            first: PolicyTier::Warning,
+            second: PolicyTier::Ignored,
+        } => format!("Rule {code} cannot be configured as both warning and ignored."),
+        PolicyError::DuplicateImplementation {
+            first_code,
+            second_code,
+            implementation_code,
+        } => format!(
+            "Rules {first_code} and {second_code} select the same native implementation {implementation_code}; select only one identity."
+        ),
+        other => format!("Invalid rule policy: {other}"),
+    }
 }
 
 fn wildcard_count(segments: &[&str]) -> usize {

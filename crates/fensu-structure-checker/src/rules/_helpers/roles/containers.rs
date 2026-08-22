@@ -8,7 +8,10 @@ use crate::constants;
 use crate::models;
 use crate::types::FileKind;
 
-pub(crate) fn check_containers(files: &[models::SourceFile]) -> Vec<models::Violation> {
+pub(crate) fn check_containers(
+    files: &[models::SourceFile],
+    thresholds: &models::ThresholdConfig,
+) -> Vec<models::Violation> {
     let mut violations: Vec<models::Violation> = Vec::new();
     let mut direct_modules: BTreeMap<String, usize> = BTreeMap::new();
     let mut bucket_modules: BTreeMap<String, usize> = BTreeMap::new();
@@ -42,6 +45,7 @@ pub(crate) fn check_containers(files: &[models::SourceFile]) -> Vec<models::Viol
             &container,
             direct_modules.get(&container).copied().unwrap_or(0),
             bucket_modules.get(&container).copied().unwrap_or(0),
+            thresholds,
         ));
     }
     violations.extend(check_prefix_families(files));
@@ -103,12 +107,13 @@ pub(crate) fn check_file(
     file: &models::SourceFile,
     syntax: &syn::File,
     kind: FileKind,
+    thresholds: &models::ThresholdConfig,
 ) -> Vec<models::Violation> {
     if kind != FileKind::ModuleFile {
         return Vec::new();
     }
     if file.has_directory(constants::MAIN_DIRECTORY) {
-        return check_entry_shape(file, syntax);
+        return check_entry_shape(file, syntax, thresholds);
     }
     if file.has_directory(constants::HELPERS_DIRECTORY) {
         return Vec::new();
@@ -136,7 +141,11 @@ fn inside_nested_package(relative: &str) -> bool {
     inside.split('/').count() > constants::MAX_CONTAINER_COMPONENT_DEPTH
 }
 
-fn check_entry_shape(file: &models::SourceFile, syntax: &syn::File) -> Vec<models::Violation> {
+fn check_entry_shape(
+    file: &models::SourceFile,
+    syntax: &syn::File,
+    _thresholds: &models::ThresholdConfig,
+) -> Vec<models::Violation> {
     let mut violations: Vec<models::Violation> = Vec::new();
     let mut visible_functions: usize = 0;
     let mut private_functions: usize = 0;
@@ -195,12 +204,13 @@ fn container_budget_violations(
     container: &str,
     direct: usize,
     buckets: usize,
+    thresholds: &models::ThresholdConfig,
 ) -> Vec<models::Violation> {
     let mut violations: Vec<models::Violation> = Vec::new();
     let is_main = container.ends_with(constants::MAIN_DIRECTORY);
     let limit = match is_main {
-        true => constants::MAX_MAIN_CONTAINER_MODULES,
-        false => constants::MAX_HELPER_CONTAINER_MODULES,
+        true => thresholds.max_main_container_modules,
+        false => thresholds.max_helper_container_modules,
     };
     if direct > limit {
         violations.push(container_violation(

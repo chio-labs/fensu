@@ -16,7 +16,11 @@ pub const MAX_STATEMENTS_GLOBAL: usize = 70;
 pub const MAX_STATEMENTS_ENTRY: usize = 40;
 pub const MAX_DISTINCT_CALLS_ENTRY: usize = 20;
 pub const MAX_LOCALS_ENTRY: usize = 20;
-pub const TOOLING_CRATE_NAME: &str = "fensu-structure-checker";
+pub const CHECKER_CONFIG_SCHEMA_VERSION: u32 = 1;
+pub const DEFAULT_TOOLING_CRATE_NAME: &str = "fensu-structure-checker";
+pub const DEFAULT_RAW_PARSER_CRATES: &[&str] = &["ruff_python_ast", "ruff_python_parser"];
+pub const DEFAULT_RAW_PARSER_REMEDIATION: &str =
+    "consume shared fensu-facts row models instead of parser or AST types";
 pub const BANNED_FILE_STEMS: &[&str] = &[
     "base",
     "common",
@@ -63,13 +67,14 @@ pub const TEST_TYPES_FILE: &str = "test_types.rs";
 pub const TEST_TYPES_MODULE: &str = "test_types";
 pub const INLINE_TEST_HARNESS_FILE: &str = "tests.rs";
 pub const SOURCE_DIRECTORY: &str = "src";
+pub(crate) const CURRENT_PATH_SEGMENT: &str = ".";
+pub(crate) const PARENT_PATH_SEGMENT: &str = "..";
 pub const TESTS_DIRECTORY: &str = "tests";
 pub const BIN_DIRECTORY: &str = "bin";
 pub const CARGO_MANIFEST_FILE: &str = "Cargo.toml";
 pub const RUST_SUFFIX: &str = "rs";
 pub const SELF_MODULE: &str = "self";
 pub const SUPER_MODULE: &str = "super";
-pub const RAW_PARSER_CRATES: &[&str] = &["ruff_python_ast", "ruff_python_parser"];
 pub const PANIC_EXTRACTION_METHODS: &[&str] = &["unwrap", "unwrap_err", "expect", "expect_err"];
 pub const TEST_PANIC_EXTRACTION_METHODS: &[&str] = &["unwrap", "unwrap_err"];
 pub const PANIC_MACROS: &[&str] = &["panic", "todo", "unimplemented", "unreachable"];

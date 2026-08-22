@@ -15,10 +15,12 @@ pub(crate) fn check_uses(
     file: &models::SourceFile,
     syntax: &syn::File,
     library_source: bool,
+    raw_parser_boundary: &models::RawParserBoundaryConfig,
 ) -> Vec<models::Violation> {
     let mut visitor = UseVisitor {
         file,
         library_source,
+        raw_parser_boundary,
         violations: Vec::new(),
     };
     visitor.visit_file(syntax);
@@ -29,6 +31,7 @@ pub(crate) fn check_uses(
 pub(crate) fn check_manifest(
     repo_root: &path::Path,
     crate_dir: &path::Path,
+    config: &models::CheckerConfig,
 ) -> Vec<models::Violation> {
     let manifest_path = crate_dir.join(constants::CARGO_MANIFEST_FILE);
     let source = match fs::read_to_string(&manifest_path) {
@@ -66,8 +69,12 @@ pub(crate) fn check_manifest(
         )];
     };
     let mut violations = crate_manifest_violations(relative, &manifest);
-    if crate_name != constants::TOOLING_CRATE_NAME {
-        violations.extend(tooling_dependency_violations(relative, &manifest));
+    if crate_name != config.tooling.package {
+        violations.extend(tooling_dependency_violations(
+            relative,
+            &manifest,
+            &config.tooling.runtime_forbidden_packages,
+        ));
     }
     violations
 }
@@ -219,26 +226,41 @@ fn dependency_tables(manifest: &toml::Value) -> Vec<&toml::map::Map<String, toml
 fn tooling_dependency_violations(
     relative: &path::Path,
     manifest: &toml::Value,
+    forbidden_packages: &[String],
 ) -> Vec<models::Violation> {
     for table in dependency_tables(manifest) {
-        let contains_tooling = table.iter().any(|(name, specification)| {
-            let package = specification
-                .get(constants::PACKAGE_KEY)
-                .and_then(toml::Value::as_str);
-            name == constants::TOOLING_CRATE_NAME || package == Some(constants::TOOLING_CRATE_NAME)
-        });
-        if contains_tooling {
-            return vec![models::Violation::new(models::ViolationRequest {
-                code: "RSL301",
-                path: relative,
-                line: None,
-                message: format!("crate depends on {}", constants::TOOLING_CRATE_NAME),
-                remediation:
-                    "the structure checker is tooling; runtime crates must not depend on it",
-            })];
+        for (name, specification) in table {
+            if let Some(tooling_package) =
+                forbidden_tooling_package(name, specification, forbidden_packages)
+            {
+                return vec![models::Violation::new(models::ViolationRequest {
+                    code: "RSL301",
+                    path: relative,
+                    line: None,
+                    message: format!("crate depends on {tooling_package}"),
+                    remediation:
+                        "the structure checker is tooling; runtime crates must not depend on it",
+                })];
+            }
         }
     }
     Vec::new()
+}
+
+fn forbidden_tooling_package<'a>(
+    dependency_name: &str,
+    specification: &toml::Value,
+    forbidden_packages: &'a [String],
+) -> Option<&'a str> {
+    let package = specification
+        .get(constants::PACKAGE_KEY)
+        .and_then(toml::Value::as_str);
+    forbidden_packages
+        .iter()
+        .find(|forbidden| {
+            dependency_name == forbidden.as_str() || package == Some(forbidden.as_str())
+        })
+        .map(String::as_str)
 }
 
 fn specification_version(specification: &toml::Value) -> Option<&str> {
@@ -252,6 +274,7 @@ fn specification_version(specification: &toml::Value) -> Option<&str> {
 struct UseVisitor<'files> {
     file: &'files models::SourceFile,
     library_source: bool,
+    raw_parser_boundary: &'files models::RawParserBoundaryConfig,
     violations: Vec<models::Violation>,
 }
 
@@ -259,8 +282,12 @@ impl<'ast, 'files> Visit<'ast> for UseVisitor<'files> {
     fn visit_item_use(&mut self, node: &'ast syn::ItemUse) {
         let line = node.use_token.span.start().line;
         if self.library_source && self.file.has_directory(constants::RULES_DIRECTORY) {
-            self.violations
-                .extend(raw_parser_access_violations(self.file, &node.tree, line));
+            self.violations.extend(raw_parser_access_violations(
+                self.file,
+                &node.tree,
+                line,
+                self.raw_parser_boundary,
+            ));
         }
         if let syn::UseTree::Path(use_path) = &node.tree {
             let root = use_path.ident.to_string();
@@ -297,18 +324,19 @@ fn raw_parser_access_violations(
     file: &models::SourceFile,
     tree: &syn::UseTree,
     line: usize,
+    config: &models::RawParserBoundaryConfig,
 ) -> Vec<models::Violation> {
     reference_paths::use_paths(tree)
         .into_iter()
         .filter_map(|path| path.first().cloned())
-        .filter(|root| constants::RAW_PARSER_CRATES.contains(&root.as_str()))
+        .filter(|root| config.packages.contains(root))
         .map(|root| {
             models::Violation::new(models::ViolationRequest {
                 code: "RSL102",
                 path: file.relative_path(),
                 line: Some(line),
                 message: format!("native rule module imports raw parser crate {root}"),
-                remediation: "consume shared fensu-facts row models instead of parser or AST types",
+                remediation: &config.remediation,
             })
         })
         .collect()

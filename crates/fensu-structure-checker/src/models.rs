@@ -260,8 +260,8 @@ pub struct WorkspaceTarget {
 pub struct WorkspaceDependency {
     pub package_name: String,
     pub source_name: String,
-    pub renamed: bool,
     pub path: Option<path::PathBuf>,
+    pub resolved: bool,
 }
 
 /// Inputs needed to check one library source file under consumer policy.
@@ -348,8 +348,11 @@ impl WorkspaceCrate {
             roots.insert(source_name, self.graph_identity());
         }
         for dependency in &self.dependencies {
+            if !dependency.resolved {
+                continue;
+            }
             for workspace_crate in workspace_crates {
-                if workspace_crate.package_name.as_ref() != Some(&dependency.package_name) {
+                if dependency.path.as_ref() != Some(&workspace_crate.directory) {
                     continue;
                 }
                 roots.insert(

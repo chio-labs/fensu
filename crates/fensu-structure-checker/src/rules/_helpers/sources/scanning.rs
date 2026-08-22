@@ -85,19 +85,30 @@ pub(crate) fn scan_workspace(repo_root: &path::Path) -> models::WorkspaceScan {
             violations,
         };
     }
+    let resolved_metadata = match resolved_metadata(repo_root, &manifest_path) {
+        Ok(value) => Some(value),
+        Err(error) => {
+            violations.push(manifest_setup_violation(
+                repo_root,
+                &manifest_path,
+                format!("Cargo could not resolve exact dependency identities: {error}"),
+            ));
+            None
+        }
+    };
     let mut crates: Vec<models::WorkspaceCrate> = Vec::new();
     for package in metadata
         .packages
         .iter()
         .filter(|package| metadata.workspace_members.contains(&package.id))
     {
-        let (workspace_crate, package_violations) = discover_workspace_crate(repo_root, package);
+        let (workspace_crate, package_violations) =
+            discover_workspace_crate(repo_root, package, resolved_metadata.as_ref());
         violations.extend(package_violations);
         if let Some(workspace_crate) = workspace_crate {
             crates.push(workspace_crate);
         }
     }
-    crates = resolve_workspace_dependency_names(crates);
     crates.sort_by(|left, right| left.directory.cmp(&right.directory));
     crates.dedup_by(|left, right| left.directory == right.directory);
     if crates.is_empty() {
@@ -110,9 +121,32 @@ pub(crate) fn scan_workspace(repo_root: &path::Path) -> models::WorkspaceScan {
     models::WorkspaceScan { crates, violations }
 }
 
+fn resolved_metadata(
+    repo_root: &path::Path,
+    manifest_path: &path::Path,
+) -> Result<cargo_metadata::Metadata, String> {
+    let mut command = cargo_metadata::MetadataCommand::new();
+    command
+        .manifest_path(manifest_path)
+        .features(cargo_metadata::CargoOpt::AllFeatures);
+    let metadata = command
+        .exec()
+        .map_err(|error| format!("Cargo metadata failed: {error}"))?;
+    let root = metadata
+        .workspace_root
+        .as_std_path()
+        .canonicalize()
+        .map_err(|error| format!("workspace root cannot be canonicalized: {error}"))?;
+    if root != repo_root {
+        return Err("Cargo metadata resolved a different canonical workspace root".to_owned());
+    }
+    Ok(metadata)
+}
+
 fn discover_workspace_crate(
     repo_root: &path::Path,
     package: &cargo_metadata::Package,
+    metadata: Option<&cargo_metadata::Metadata>,
 ) -> (Option<models::WorkspaceCrate>, Vec<models::Violation>) {
     let mut violations: Vec<models::Violation> = Vec::new();
     let package_manifest = package.manifest_path.as_std_path();
@@ -143,7 +177,7 @@ fn discover_workspace_crate(
             ),
         ));
     }
-    let (dependencies, dependency_violations) = discover_dependencies(repo_root, package);
+    let (dependencies, dependency_violations) = discover_dependencies(repo_root, package, metadata);
     violations.extend(dependency_violations);
     let package_identity = format!(
         "workspace:{}:{}",
@@ -299,40 +333,61 @@ fn add_conventional_tests(
 fn discover_dependencies(
     repo_root: &path::Path,
     package: &cargo_metadata::Package,
+    metadata: Option<&cargo_metadata::Metadata>,
 ) -> (Vec<models::WorkspaceDependency>, Vec<models::Violation>) {
     let package_manifest = package.manifest_path.as_std_path();
-    let mut violations: Vec<models::Violation> = Vec::new();
-    let mut dependencies = package
-        .dependencies
-        .iter()
-        .map(|dependency| {
-            let path = dependency.path.as_ref().and_then(|value| {
-                match contained_canonical_path(repo_root, value.as_std_path()) {
-                    Ok(path) => Some(path),
-                    Err(error) => {
-                        violations.push(models::Violation::new(models::ViolationRequest {
-                            code: "RSL306",
-                            path: package_manifest.strip_prefix(repo_root).unwrap_or(package_manifest),
-                            line: None,
-                            message: format!("path dependency {} {error}", dependency.name),
-                            remediation: "keep local dependencies canonically contained by the repository root",
-                        }));
-                        None
-                    }
-                }
-            });
-            let source_name = match &dependency.rename {
-                Some(name) => name.replace('-', "_"),
-                None => dependency.name.replace('-', "_"),
-            };
-            models::WorkspaceDependency {
-                package_name: dependency.name.clone(),
-                source_name,
-                renamed: dependency.rename.is_some(),
-                path,
-            }
-        })
-        .collect::<Vec<_>>();
+    let (mut dependencies, mut violations) = discover_declared_dependencies(repo_root, package);
+    let Some(metadata) = metadata else {
+        return (dependencies, violations);
+    };
+    let Some(resolve) = &metadata.resolve else {
+        violations.push(manifest_setup_violation(
+            repo_root,
+            package_manifest,
+            format!(
+                "Cargo metadata omitted the resolved dependency graph for package {}",
+                package.name
+            ),
+        ));
+        return (dependencies, violations);
+    };
+    let Some(node) = resolve.nodes.iter().find(|node| node.id == package.id) else {
+        violations.push(manifest_setup_violation(
+            repo_root,
+            package_manifest,
+            format!(
+                "Cargo metadata omitted the resolved dependency node for package {}",
+                package.name
+            ),
+        ));
+        return (dependencies, violations);
+    };
+    for dependency in &node.deps {
+        let Some(resolved) = metadata
+            .packages
+            .iter()
+            .find(|candidate| candidate.id == dependency.pkg)
+        else {
+            violations.push(manifest_setup_violation(
+                repo_root,
+                package_manifest,
+                format!(
+                    "Cargo metadata omitted resolved package {} for dependency {}",
+                    dependency.pkg, dependency.name
+                ),
+            ));
+            continue;
+        };
+        let (path, path_violations) =
+            resolved_dependency_path(repo_root, package_manifest, resolved, &resolved.name);
+        violations.extend(path_violations);
+        dependencies.push(models::WorkspaceDependency {
+            package_name: resolved.name.clone(),
+            source_name: dependency.name.replace('-', "_"),
+            path,
+            resolved: true,
+        });
+    }
     dependencies.sort_by(|left, right| {
         left.package_name
             .cmp(&right.package_name)
@@ -342,30 +397,88 @@ fn discover_dependencies(
     (dependencies, violations)
 }
 
-fn resolve_workspace_dependency_names(
-    mut workspace_crates: Vec<models::WorkspaceCrate>,
-) -> Vec<models::WorkspaceCrate> {
-    let mut identities: std::collections::BTreeMap<String, String> =
-        std::collections::BTreeMap::new();
-    for workspace_crate in &workspace_crates {
-        if let (Some(package), Some(identity)) = (
-            workspace_crate.package_name.clone(),
-            workspace_crate.source_name(),
-        ) {
-            identities.insert(package, identity);
-        }
+fn discover_declared_dependencies(
+    repo_root: &path::Path,
+    package: &cargo_metadata::Package,
+) -> (Vec<models::WorkspaceDependency>, Vec<models::Violation>) {
+    let package_manifest = package.manifest_path.as_std_path();
+    let mut dependencies: Vec<models::WorkspaceDependency> = Vec::new();
+    let mut violations: Vec<models::Violation> = Vec::new();
+    for dependency in &package.dependencies {
+        let (path, path_violations) = match &dependency.path {
+            Some(value) => dependency_path(
+                repo_root,
+                package_manifest,
+                value.as_std_path(),
+                &dependency.name,
+            ),
+            None => (None, Vec::new()),
+        };
+        violations.extend(path_violations);
+        let source_name = dependency
+            .rename
+            .as_ref()
+            .unwrap_or(&dependency.name)
+            .replace('-', "_");
+        dependencies.push(models::WorkspaceDependency {
+            package_name: dependency.name.clone(),
+            source_name,
+            path,
+            resolved: false,
+        });
     }
-    for workspace_crate in &mut workspace_crates {
-        for dependency in &mut workspace_crate.dependencies {
-            if dependency.renamed {
-                continue;
-            }
-            if let Some(identity) = identities.get(&dependency.package_name) {
-                dependency.source_name.clone_from(identity);
-            }
-        }
+    dependencies.sort_by(|left, right| {
+        left.package_name
+            .cmp(&right.package_name)
+            .then(left.source_name.cmp(&right.source_name))
+    });
+    dependencies.dedup();
+    (dependencies, violations)
+}
+
+fn resolved_dependency_path(
+    repo_root: &path::Path,
+    package_manifest: &path::Path,
+    resolved: &cargo_metadata::Package,
+    source_name: &str,
+) -> (Option<path::PathBuf>, Vec<models::Violation>) {
+    if resolved.source.is_some() {
+        return (None, Vec::new());
     }
-    workspace_crates
+    let Some(directory) = resolved.manifest_path.as_std_path().parent() else {
+        return (
+            None,
+            vec![manifest_setup_violation(
+                repo_root,
+                package_manifest,
+                format!("resolved dependency {source_name} has no manifest directory"),
+            )],
+        );
+    };
+    dependency_path(repo_root, package_manifest, directory, source_name)
+}
+
+fn dependency_path(
+    repo_root: &path::Path,
+    package_manifest: &path::Path,
+    directory: &path::Path,
+    source_name: &str,
+) -> (Option<path::PathBuf>, Vec<models::Violation>) {
+    match contained_canonical_path(repo_root, directory) {
+        Ok(path) => (Some(path), Vec::new()),
+        Err(error) => (
+            None,
+            vec![models::Violation::new(models::ViolationRequest {
+                code: "RSL306",
+                path: package_manifest
+                    .strip_prefix(repo_root)
+                    .unwrap_or(package_manifest),
+                line: None,
+                message: format!("path dependency {source_name} {error}"),
+                remediation: "keep local dependencies canonically contained by the repository root",
+            })],
+        ),
+    }
 }
 
 fn supported_target_entry(

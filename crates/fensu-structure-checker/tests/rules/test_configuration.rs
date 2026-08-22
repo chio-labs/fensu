@@ -367,6 +367,83 @@ fn given_renamed_workspace_library_when_checking_then_project_graph_uses_source_
 }
 
 #[test]
+fn given_same_named_external_dependency_when_checking_then_workspace_graph_stays_distinct() {
+    let test_cases = [test_types::CheckRepoTestCase {
+        description: "canonical dependency paths distinguish same-named Cargo packages",
+        repo_files: vec![
+            test_types::RepoFile {
+                path: "Cargo.toml".to_owned(),
+                contents: "[workspace]\nmembers = [\"crates/shared\", \"crates/consumer\"]\nexclude = [\"vendor/shared\"]\nresolver = \"2\"\n\n[workspace.package]\nedition = \"2021\"\nlicense = \"Apache-2.0\"\npublish = false\n\n[patch.crates-io]\nshared = { path = \"crates/shared\" }\n\n[workspace.lints.rust]\nunsafe_code = \"forbid\"\nunreachable_pub = \"deny\"\nunused_must_use = \"deny\"\n\n[workspace.lints.clippy]\nawait_holding_lock = \"deny\"\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/shared/Cargo.toml".to_owned(),
+                contents: "[package]\nname = \"shared\"\nversion = \"1.0.0\"\nedition.workspace = true\nlicense.workspace = true\npublish.workspace = true\n\n[lib]\nname = \"local_api\"\n\n[lints]\nworkspace = true\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/shared/src/lib.rs".to_owned(),
+                contents: "#![forbid(unsafe_code)]\npub mod reading;\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/shared/src/reading/mod.rs".to_owned(),
+                contents: "pub mod main;\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/shared/src/reading/main/mod.rs".to_owned(),
+                contents: "pub mod value;\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/shared/src/reading/main/value.rs".to_owned(),
+                contents: "#[must_use]\npub fn value() -> usize { 1 }\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "vendor/shared/Cargo.toml".to_owned(),
+                contents: "[package]\nname = \"shared\"\nversion = \"2.0.0\"\nedition = \"2021\"\nlicense = \"Apache-2.0\"\npublish = false\n\n[lib]\nname = \"external_api\"\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "vendor/shared/src/lib.rs".to_owned(),
+                contents: "pub mod reading { pub mod main { pub mod value { pub fn value() -> usize { 2 } } } }\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/consumer/Cargo.toml".to_owned(),
+                contents: "[package]\nname = \"consumer\"\nversion = \"0.1.0\"\nedition.workspace = true\nlicense.workspace = true\npublish.workspace = true\n\n[dependencies]\nexternal = { package = \"shared\", path = \"../../vendor/shared\" }\npatched = { package = \"shared\", version = \"=1.0.0\", optional = true }\n\n[lints]\nworkspace = true\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/consumer/src/lib.rs".to_owned(),
+                contents: "#![forbid(unsafe_code)]\npub mod writing;\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/consumer/src/writing/mod.rs".to_owned(),
+                contents: "pub mod main;\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/consumer/src/writing/main/mod.rs".to_owned(),
+                contents: "pub(super) mod run;\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/consumer/src/writing/main/run.rs".to_owned(),
+                contents: "use external::reading::main::value::value as external_value;\n#[cfg(feature = \"patched\")]\nuse patched::reading::main::value::value as patched_value;\n\npub fn run() {\n    external_value();\n    #[cfg(feature = \"patched\")]\n    patched_value();\n}\n".to_owned(),
+            },
+        ],
+        expected_violation_codes: vec!["RSS101"],
+    }];
+    for test_case in &test_cases {
+        let repo_root = helpers::write_temp_repo_verbatim(test_case);
+        let violations = check_repository::check_repository(&repo_root);
+        helpers::remove_temp_repo(&repo_root);
+        let project_codes = violations
+            .iter()
+            .filter(|violation| matches!(violation.code, "RSL104" | "RSL105" | "RSS101"))
+            .map(|violation| violation.code)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            project_codes, test_case.expected_violation_codes,
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
 fn given_excluded_target_under_source_tree_when_checking_then_fails_closed_and_scans_file() {
     let test_cases = [test_types::CheckRepoTestCase {
         description: "an example declaration cannot hide a production module",

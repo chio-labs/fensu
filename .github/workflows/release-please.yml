@@ -87,8 +87,9 @@ jobs:
           RELEASE_PR: ${{ steps.release_pr.outputs.number }}
         run: |
           head_sha="$(git rev-parse HEAD)"
-          remote_head="$(gh pr view "${RELEASE_PR}" --repo "${GITHUB_REPOSITORY}" \
-            --json headRefOid --jq .headRefOid)"
+          remote_head="$(gh api \
+            "repos/${GITHUB_REPOSITORY}/git/ref/heads/${RELEASE_BRANCH}" \
+            --jq .object.sha)"
           if [[ "${remote_head}" != "${head_sha}" ]]; then
             echo "Release pull request moved from ${head_sha} to ${remote_head}" >&2
             exit 1
@@ -126,13 +127,16 @@ jobs:
         env:
           CHECKED_SHA: ${{ steps.release_checks.outputs.head_sha }}
           GH_TOKEN: ${{ github.token }}
+          RELEASE_BRANCH: ${{ steps.release_pr.outputs.branch }}
           RELEASE_PR: ${{ steps.release_pr.outputs.number }}
         run: |
-          current_head="$(gh pr view "${RELEASE_PR}" --repo "${GITHUB_REPOSITORY}" \
-            --json headRefOid --jq .headRefOid)"
+          current_head="$(gh api \
+            "repos/${GITHUB_REPOSITORY}/git/ref/heads/${RELEASE_BRANCH}" \
+            --jq .object.sha)"
           if [[ "${current_head}" != "${CHECKED_SHA}" ]]; then
             echo "Release pull request changed after verification" >&2
             exit 1
           fi
-          gh pr merge "${RELEASE_PR}" --repo "${GITHUB_REPOSITORY}" --squash
+          gh pr merge "${RELEASE_PR}" --repo "${GITHUB_REPOSITORY}" --squash \
+            --match-head-commit "${CHECKED_SHA}"
           gh workflow run release-please.yml --repo "${GITHUB_REPOSITORY}" --ref main

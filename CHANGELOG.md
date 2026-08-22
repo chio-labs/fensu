@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.13.0](https://github.com/chio-labs/fensu/compare/v0.12.0...v0.13.0) (2026-08-22)
+
+
+### Features
+
+* harden shared lifecycle and structure contracts ([#55](https://github.com/chio-labs/fensu/issues/55)) ([f027fe3](https://github.com/chio-labs/fensu/commit/f027fe3fcad98ea398c0c9a88a3522e6635b1cb1))
+
+
+### Bug Fixes
+
+* bridge trusted release statuses ([#58](https://github.com/chio-labs/fensu/issues/58)) ([0e45b9c](https://github.com/chio-labs/fensu/commit/0e45b9cf3788cb1c59bea52abc1db6d4718d38a5))
+* stabilize release head validation ([#57](https://github.com/chio-labs/fensu/issues/57)) ([59b484d](https://github.com/chio-labs/fensu/commit/59b484d9ff57c41807d7e7559b3b7b3ec3fd6b69))
+
 ## [0.12.0](https://github.com/chio-labs/fensu/compare/v0.11.0...v0.12.0) (2026-08-22)
 
 

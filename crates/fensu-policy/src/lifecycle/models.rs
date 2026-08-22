@@ -132,16 +132,33 @@ pub struct CustomHostRequest<Payload> {
     pub payload: Payload,
 }
 
-/// Process launch details kept separate from the serialized host request.
+/// Process launch details and mandatory output bounds kept outside the wire request.
 #[derive(Debug)]
 pub struct CustomHostInvocation<'a, Payload> {
     pub program: &'a Path,
     pub arguments: &'a [String],
     pub timeout: Duration,
+    pub output_limits: CustomHostOutputLimits,
     pub request: &'a CustomHostRequest<Payload>,
 }
 
-/// Versioned response read from an isolated custom-rule process.
+/// Explicit memory bounds for output captured from one custom host.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CustomHostOutputLimits {
+    pub stdout_bytes: usize,
+    pub stderr_bytes: usize,
+}
+
+impl Default for CustomHostOutputLimits {
+    fn default() -> Self {
+        Self {
+            stdout_bytes: 16 * 1_024 * 1_024,
+            stderr_bytes: 1_024 * 1_024,
+        }
+    }
+}
+
+/// Versioned response containing exactly one successful payload or non-empty error.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct CustomHostResponse<Payload> {
@@ -152,21 +169,23 @@ pub struct CustomHostResponse<Payload> {
     pub messages: Vec<String>,
 }
 
-/// Ownership marker used to detect stale or edited generated skills.
+/// Schema-v2 ownership marker used to detect foreign, stale, or edited generated skills.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct SkillOwnership {
     pub schema: u32,
+    pub owner: String,
     pub identity: String,
     pub input_fingerprint: String,
     pub content_fingerprint: String,
 }
 
-/// Result of checking generated skill content against current inputs.
+/// Result of checking generated skill content against its current owner and inputs.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SkillFreshness {
     Fresh,
     Missing,
+    Unowned,
     Stale,
     Divergent,
     Malformed,

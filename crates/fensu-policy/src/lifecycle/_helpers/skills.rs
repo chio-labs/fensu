@@ -1,11 +1,29 @@
 //! Skill ownership marker encoding and parsing.
 
-use serde_json::json;
+use serde::Deserialize;
+use serde_json::{json, Value};
 
 use crate::lifecycle::_helpers::canonical;
-use crate::lifecycle::constants::{SKILL_OWNER_PREFIX, SKILL_OWNER_SUFFIX};
+use crate::lifecycle::constants::{
+    LEGACY_SKILL_OWNERSHIP_SCHEMA_VERSION, SKILL_OWNERSHIP_SCHEMA_VERSION, SKILL_OWNER_PREFIX,
+    SKILL_OWNER_SUFFIX,
+};
 use crate::lifecycle::errors::LifecycleError;
 use crate::lifecycle::models::SkillOwnership;
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LegacySkillOwnership {
+    schema: u32,
+    identity: String,
+    input_fingerprint: String,
+    content_fingerprint: String,
+}
+
+pub(crate) enum ParsedSkillOwnership {
+    Current(SkillOwnership),
+    Legacy,
+}
 
 pub(crate) fn append_marker(content: &[u8], marker: &str) -> Vec<u8> {
     let mut output = content.to_vec();
@@ -22,6 +40,7 @@ pub(crate) fn marker(ownership: &SkillOwnership) -> Result<String, LifecycleErro
         "content_fingerprint": ownership.content_fingerprint,
         "identity": ownership.identity,
         "input_fingerprint": ownership.input_fingerprint,
+        "owner": ownership.owner,
         "schema": ownership.schema,
     });
     let encoded = canonical::canonical_json(&value)?;
@@ -31,7 +50,7 @@ pub(crate) fn marker(ownership: &SkillOwnership) -> Result<String, LifecycleErro
     Ok(format!("{SKILL_OWNER_PREFIX}{text}{SKILL_OWNER_SUFFIX}"))
 }
 
-pub(crate) fn parse_marker(content: &[u8]) -> Option<(SkillOwnership, String)> {
+pub(crate) fn parse_marker(content: &[u8]) -> Option<(ParsedSkillOwnership, String)> {
     let matches = content
         .split(|byte| *byte == b'\n')
         .map(|line| line.strip_suffix(b"\r").unwrap_or(line))
@@ -44,15 +63,62 @@ pub(crate) fn parse_marker(content: &[u8]) -> Option<(SkillOwnership, String)> {
         return None;
     }
     let raw = &line[SKILL_OWNER_PREFIX.len()..line.len() - SKILL_OWNER_SUFFIX.len()];
-    let ownership = match serde_json::from_slice::<SkillOwnership>(raw) {
+    let value = match serde_json::from_slice::<Value>(raw) {
         Ok(value) => value,
         Err(_) => return None,
+    };
+    let schema = match marker_schema(&value) {
+        Ok(schema) => schema,
+        Err(()) => return None,
+    };
+    let schema = match u32::try_from(schema) {
+        Ok(schema) => schema,
+        Err(_) => return None,
+    };
+    let ownership = match schema {
+        SKILL_OWNERSHIP_SCHEMA_VERSION => {
+            let ownership = match serde_json::from_value::<SkillOwnership>(value) {
+                Ok(ownership) => ownership,
+                Err(_) => return None,
+            };
+            if ownership.schema != SKILL_OWNERSHIP_SCHEMA_VERSION
+                || ownership.owner.trim().is_empty()
+                || ownership.identity.trim().is_empty()
+                || ownership.input_fingerprint.trim().is_empty()
+                || ownership.content_fingerprint.trim().is_empty()
+            {
+                return None;
+            }
+            ParsedSkillOwnership::Current(ownership)
+        }
+        LEGACY_SKILL_OWNERSHIP_SCHEMA_VERSION => {
+            let legacy = match serde_json::from_value::<LegacySkillOwnership>(value) {
+                Ok(legacy) => legacy,
+                Err(_) => return None,
+            };
+            if legacy.schema != LEGACY_SKILL_OWNERSHIP_SCHEMA_VERSION
+                || legacy.identity.is_empty()
+                || legacy.input_fingerprint.is_empty()
+                || legacy.content_fingerprint.is_empty()
+            {
+                return None;
+            }
+            ParsedSkillOwnership::Legacy
+        }
+        _ => return None,
     };
     let text = match std::str::from_utf8(line) {
         Ok(value) => value.to_owned(),
         Err(_) => return None,
     };
     Some((ownership, text))
+}
+
+fn marker_schema(value: &Value) -> Result<u64, ()> {
+    match value.get("schema").and_then(Value::as_u64) {
+        Some(schema) => Ok(schema),
+        None => Err(()),
+    }
 }
 
 pub(crate) fn owner_marker_present(content: &[u8]) -> bool {

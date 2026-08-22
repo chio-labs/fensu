@@ -5,3 +5,4 @@ pub(crate) mod canonical;
 pub(crate) mod hosting;
 pub(crate) mod paths;
 pub(crate) mod skills;
+pub(crate) mod suppressions;

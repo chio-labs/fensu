@@ -8,12 +8,19 @@ use crate::lifecycle::constants::SKILL_OWNERSHIP_SCHEMA_VERSION;
 use crate::lifecycle::errors::LifecycleError;
 use crate::lifecycle::models::SkillOwnership;
 
-/// Attach one deterministic ownership marker to generated skill content.
+/// Attach one deterministic schema-v2 marker for the named owner and skill identity.
 pub fn render_owned_skill(
+    owner: &str,
     identity: &str,
     input_fingerprint: &str,
     content: &[u8],
 ) -> Result<Vec<u8>, LifecycleError> {
+    if owner.trim().is_empty() || identity.trim().is_empty() || input_fingerprint.trim().is_empty()
+    {
+        return Err(LifecycleError::InvalidConfiguration {
+            message: "skill owner, identity, and input fingerprint must be non-empty".to_owned(),
+        });
+    }
     if owner_marker_present(content) {
         return Err(LifecycleError::InvalidConfiguration {
             message: "generated skill content already contains an ownership marker".to_owned(),
@@ -21,6 +28,7 @@ pub fn render_owned_skill(
     }
     let mut ownership = SkillOwnership {
         schema: SKILL_OWNERSHIP_SCHEMA_VERSION,
+        owner: owner.to_owned(),
         identity: identity.to_owned(),
         input_fingerprint: input_fingerprint.to_owned(),
         content_fingerprint: String::new(),

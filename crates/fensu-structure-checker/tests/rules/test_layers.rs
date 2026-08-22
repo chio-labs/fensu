@@ -74,7 +74,7 @@ fn given_layer_fixtures_when_checking_then_reports_expected_codes() {
             description: "workspace dependency policy is reported",
             repo_files: vec![test_types::RepoFile {
                 path: "Cargo.toml".to_owned(),
-                contents: "[workspace]\nmembers = [\"crates/example\"]\nresolver = \"2\"\n\n[workspace.dependencies]\nserde = \"*\"\n\n[workspace.lints.rust]\nunsafe_code = \"forbid\"\nunreachable_pub = \"deny\"\nunused_must_use = \"deny\"\n\n[workspace.lints.clippy]\nawait_holding_lock = \"deny\"\n"
+                contents: "[workspace]\nmembers = [\"crates/example\"]\nresolver = \"2\"\n\n[workspace.package]\nedition = \"2021\"\nlicense = \"Apache-2.0\"\npublish = false\n\n[workspace.dependencies]\nserde = \"*\"\n\n[workspace.lints.rust]\nunsafe_code = \"forbid\"\nunreachable_pub = \"deny\"\nunused_must_use = \"deny\"\n\n[workspace.lints.clippy]\nawait_holding_lock = \"deny\"\n"
                     .to_owned(),
             }],
             expected_violation_codes: vec!["RSL304"],
@@ -90,11 +90,17 @@ fn given_layer_fixtures_when_checking_then_reports_expected_codes() {
         },
         test_types::CheckRepoTestCase {
             description: "renamed tooling dependency is reported",
-            repo_files: vec![test_types::RepoFile {
-                path: "crates/example/Cargo.toml".to_owned(),
-                contents: "[package]\nname = \"example\"\nversion = \"0.1.0\"\nedition.workspace = true\nlicense.workspace = true\npublish.workspace = true\n\n[lints]\nworkspace = true\n\n[dependencies]\nchecker = { package = \"fensu-structure-checker\", workspace = true }\n"
-                    .to_owned(),
-            }],
+            repo_files: vec![
+                test_types::RepoFile {
+                    path: "Cargo.toml".to_owned(),
+                    contents: "[workspace]\nmembers = [\"crates/example\"]\nresolver = \"2\"\n\n[workspace.package]\nedition = \"2021\"\nlicense = \"Apache-2.0\"\npublish = false\n\n[workspace.dependencies]\nchecker = { package = \"fensu-structure-checker\", version = \"0.12.0\" }\n\n[workspace.lints.rust]\nunsafe_code = \"forbid\"\nunreachable_pub = \"deny\"\nunused_must_use = \"deny\"\n\n[workspace.lints.clippy]\nawait_holding_lock = \"deny\"\n".to_owned(),
+                },
+                test_types::RepoFile {
+                    path: "crates/example/Cargo.toml".to_owned(),
+                    contents: "[package]\nname = \"example\"\nversion = \"0.1.0\"\nedition.workspace = true\nlicense.workspace = true\npublish.workspace = true\n\n[lints]\nworkspace = true\n\n[dependencies]\nchecker.workspace = true\n"
+                        .to_owned(),
+                },
+            ],
             expected_violation_codes: vec!["RSL301"],
         },
         test_types::CheckRepoTestCase {
@@ -109,7 +115,7 @@ fn given_layer_fixtures_when_checking_then_reports_expected_codes() {
             description: "missing required workspace lint is reported",
             repo_files: vec![test_types::RepoFile {
                 path: "Cargo.toml".to_owned(),
-                contents: "[workspace]\nmembers = [\"crates/example\"]\nresolver = \"2\"\n\n[workspace.lints.rust]\nunsafe_code = \"forbid\"\nunreachable_pub = \"deny\"\nunused_must_use = \"deny\"\n\n[workspace.lints.clippy]\n"
+                contents: "[workspace]\nmembers = [\"crates/example\"]\nresolver = \"2\"\n\n[workspace.package]\nedition = \"2021\"\nlicense = \"Apache-2.0\"\npublish = false\n\n[workspace.lints.rust]\nunsafe_code = \"forbid\"\nunreachable_pub = \"deny\"\nunused_must_use = \"deny\"\n\n[workspace.lints.clippy]\n"
                     .to_owned(),
             }],
             expected_violation_codes: vec!["RSL303"],

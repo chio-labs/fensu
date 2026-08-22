@@ -13,7 +13,7 @@ use fensu_policy::{
     run_custom_host, serialize_findings, skill_freshness, write_cache,
 };
 
-use crate::helpers::{consumer_request, finding, host_command};
+use crate::helpers::{consumer_request, finding, host_command, host_output_limits};
 use crate::test_types::{ConsumerLifecycleTestCase, ConsumerRule, HostPayload};
 
 #[test]
@@ -108,10 +108,12 @@ fn given_non_fensu_rule_pack_when_running_lifecycle_then_all_shared_contracts_co
             program: &program,
             arguments: &arguments,
             timeout: std::time::Duration::from_secs(5),
+            output_limits: host_output_limits(),
             request: &host_request,
         })
         .expect("isolated custom host runs");
         let skill = render_owned_skill(
+            "fensu-policy",
             "sqlbuild-kata",
             &response.cache_identity,
             b"# SQLBuild Kata\n",
@@ -156,7 +158,12 @@ fn given_non_fensu_rule_pack_when_running_lifecycle_then_all_shared_contracts_co
             test_case.description
         );
         assert_eq!(
-            skill_freshness(Some(&skill), "sqlbuild-kata", &response.cache_identity),
+            skill_freshness(
+                Some(&skill),
+                "fensu-policy",
+                "sqlbuild-kata",
+                &response.cache_identity,
+            ),
             test_case.expected_freshness,
             "{}",
             test_case.description

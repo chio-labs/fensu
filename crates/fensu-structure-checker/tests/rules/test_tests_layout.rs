@@ -254,6 +254,13 @@ fn given_missing_runtime_anchors_when_checking_then_reports_layout_codes() {
 
     for test_case in &test_cases {
         let repo_root = helpers::write_temp_repo_verbatim(test_case);
+        let _ = test_case
+            .expected_violation_codes
+            .contains(&"RST005")
+            .then(|| {
+                std::fs::remove_file(repo_root.join("crates/example/src/lib.rs"))
+                    .expect("fixture library anchor is removable");
+            });
         let actual_codes = helpers::collect_violation_codes(&repo_root);
         helpers::remove_temp_repo(&repo_root);
         assert_eq!(

@@ -33,17 +33,13 @@ pub(crate) fn check_domains(files: &[models::SourceFile]) -> Vec<models::Violati
 
 fn source_root(files: &[models::SourceFile]) -> Option<String> {
     let first = files.first()?;
-    let (crate_root, _) = first.relative.split_once("/src/")?;
-    Some(format!("{crate_root}/src"))
+    Some(first.source_root_relative.clone())
 }
 
 fn directory_tree(files: &[models::SourceFile]) -> BTreeMap<String, DirectoryContents> {
     let mut tree: BTreeMap<String, DirectoryContents> = BTreeMap::new();
     for file in files {
-        let Some((_, inside)) = file.relative.split_once("/src/") else {
-            continue;
-        };
-        let components: Vec<&str> = inside.split('/').collect();
+        let components: Vec<&str> = file.source_relative.split('/').collect();
         let Some((name, directories)) = components.split_last() else {
             continue;
         };

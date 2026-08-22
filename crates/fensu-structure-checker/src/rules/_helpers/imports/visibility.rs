@@ -1,7 +1,6 @@
 //! Workspace visibility rules over module declarations and cross-file references.
 
 use std::collections::BTreeMap;
-use std::fs;
 use std::path;
 
 use crate::constants;
@@ -40,6 +39,7 @@ struct HelperType {
 #[derive(Debug)]
 struct CrateSources {
     package: String,
+    dependency_roots: BTreeMap<String, String>,
     files: Vec<models::SourceFile>,
 }
 
@@ -53,11 +53,11 @@ struct VisibilityIndex {
 
 pub(crate) fn check_workspace(
     repo_root: &path::Path,
-    crate_directories: &[path::PathBuf],
+    workspace_crates: &[models::WorkspaceCrate],
 ) -> Vec<models::Violation> {
-    let crates = crate_directories
+    let crates = workspace_crates
         .iter()
-        .filter_map(|crate_dir| crate_sources(repo_root, crate_dir))
+        .filter_map(|workspace_crate| crate_sources(repo_root, workspace_crate, workspace_crates))
         .collect::<Vec<_>>();
     let mut index = VisibilityIndex::default();
     for crate_sources in &crates {
@@ -84,23 +84,16 @@ pub(crate) fn check_workspace(
     index.violations
 }
 
-fn crate_sources(repo_root: &path::Path, crate_dir: &path::Path) -> Option<CrateSources> {
-    let manifest = match fs::read_to_string(crate_dir.join(constants::CARGO_MANIFEST_FILE)) {
-        Ok(manifest) => manifest,
-        Err(_) => return None,
-    };
-    let document = match toml::from_str::<toml::Value>(&manifest) {
-        Ok(document) => document,
-        Err(_) => return None,
-    };
-    let package = document
-        .get(constants::PACKAGE_KEY)?
-        .get(constants::NAME_KEY)?
-        .as_str()?
-        .replace('-', "_");
-    let scan = scanning::rust_files(repo_root, &crate_dir.join(constants::SOURCE_DIRECTORY));
+fn crate_sources(
+    repo_root: &path::Path,
+    workspace_crate: &models::WorkspaceCrate,
+    workspace_crates: &[models::WorkspaceCrate],
+) -> Option<CrateSources> {
+    let package = workspace_crate.graph_identity();
+    let scan = scanning::rust_target_files(repo_root, workspace_crate, false);
     Some(CrateSources {
         package,
+        dependency_roots: workspace_crate.reference_roots(workspace_crates),
         files: scan.files,
     })
 }
@@ -115,12 +108,12 @@ impl VisibilityIndex {
             let Ok(syntax) = syn::parse_file(&file.source) else {
                 continue;
             };
-            let current_module =
-                reference_paths::module_path(&crate_sources.package, &file.relative);
+            let current_module = reference_paths::module_path(&crate_sources.package, file);
             let source_domain = current_module.get(1).cloned();
             for (target, line) in
                 reference_paths::collect(&syntax, &file.source, &crate_sources.package)
             {
+                let target = normalize_dependency_root(target, &crate_sources.dependency_roots);
                 if targets_bare_crate_surface(&target, &crate_sources.package, &module_visibility)
                     && !is_crate_root(file)
                 {
@@ -151,13 +144,25 @@ impl VisibilityIndex {
     }
 }
 
+fn normalize_dependency_root(
+    mut target: Vec<String>,
+    dependency_roots: &BTreeMap<String, String>,
+) -> Vec<String> {
+    if let Some(root) = target.first_mut() {
+        if let Some(canonical) = dependency_roots.get(root) {
+            *root = canonical.clone();
+        }
+    }
+    target
+}
+
 fn module_visibility(crate_sources: &CrateSources) -> BTreeMap<Vec<String>, bool> {
     let mut result: BTreeMap<Vec<String>, bool> = BTreeMap::new();
     for file in &crate_sources.files {
         let Ok(syntax) = syn::parse_file(&file.source) else {
             continue;
         };
-        let parent = reference_paths::module_path(&crate_sources.package, &file.relative);
+        let parent = reference_paths::module_path(&crate_sources.package, file);
         for item in syntax.items {
             let syn::Item::Mod(item_mod) = item else {
                 continue;

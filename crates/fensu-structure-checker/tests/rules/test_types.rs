@@ -13,12 +13,6 @@ pub(crate) struct CheckRepoTestCase {
     pub(crate) expected_violation_codes: Vec<&'static str>,
 }
 
-pub(crate) struct ConfigCompatibilityTestCase {
-    pub(crate) description: &'static str,
-    pub(crate) repo_files: Vec<RepoFile>,
-    pub(crate) expected_equal: bool,
-}
-
 pub(crate) struct ParserConfigTestCase {
     pub(crate) description: &'static str,
     pub(crate) repo_files: Vec<RepoFile>,

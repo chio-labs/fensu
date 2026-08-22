@@ -17,13 +17,14 @@ publish = false
 rust-version = "1.95"
 
 [workspace.dependencies]
+cargo_metadata = "=0.19.2"
 cap-fs-ext = "4"
 cap-std = "4"
 command-group = "=5.0.1"
 dunce = "1.0"
 encoding_rs = "0.8"
 flate2 = { version = "1", default-features = false, features = ["zlib"] }
-globset = "0.4"
+globset = "=0.4.19"
 hex = "0.4"
 oxc_allocator = "=0.143.0"
 oxc_ast = "=0.143.0"

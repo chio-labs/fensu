@@ -1,6 +1,7 @@
 //! Shared temporary-repository helpers for structure checker tests.
 
 use std::collections::BTreeSet;
+use std::fmt::Write as _;
 use std::fs;
 use std::path;
 use std::sync::atomic;
@@ -15,6 +16,7 @@ pub(crate) fn write_temp_repo(test_case: &test_types::CheckRepoTestCase) -> path
     let root = write_repo(test_case);
     write_default_library_root(&root, test_case);
     write_missing_test_types(&root, test_case);
+    write_missing_integration_harnesses(&root);
     write_missing_entries(&root, test_case);
     root
 }
@@ -68,7 +70,7 @@ pub(crate) fn write_tooling_temp_repo(test_case: &test_types::CheckRepoTestCase)
     let root = write_repo(test_case);
     fs::write(
         root.join("Cargo.toml"),
-        "[workspace]\nmembers = [\"crates/fensu-structure-checker\"]\nresolver = \"2\"\n\n[workspace.package]\nedition = \"2021\"\nlicense = \"Apache-2.0\"\npublish = false\n\n[workspace.dependencies]\nfensu-structure-checker = { path = \"crates/fensu-structure-checker\" }\n\n[workspace.lints.rust]\nunsafe_code = \"forbid\"\nunreachable_pub = \"deny\"\nunused_must_use = \"deny\"\n\n[workspace.lints.clippy]\nawait_holding_lock = \"deny\"\n",
+        "[workspace]\nmembers = [\"crates/fensu-structure-checker\"]\nresolver = \"2\"\n\n[workspace.package]\nedition = \"2021\"\nlicense = \"Apache-2.0\"\npublish = false\n\n[workspace.dependencies]\nfensu-structure-checker = \"0.12.0\"\n\n[workspace.lints.rust]\nunsafe_code = \"forbid\"\nunreachable_pub = \"deny\"\nunused_must_use = \"deny\"\n\n[workspace.lints.clippy]\nawait_holding_lock = \"deny\"\n",
     )
     .expect("temporary tooling workspace manifest is writable");
     let crate_root = root.join("crates/fensu-structure-checker");
@@ -78,12 +80,17 @@ pub(crate) fn write_tooling_temp_repo(test_case: &test_types::CheckRepoTestCase)
         "[package]\nname = \"fensu-structure-checker\"\nversion = \"0.1.0\"\nedition.workspace = true\nlicense.workspace = true\npublish.workspace = true\n\n[lints]\nworkspace = true\n",
     )
     .expect("temporary tooling crate manifest is writable");
+    fs::create_dir_all(crate_root.join("src")).expect("temporary tooling source is writable");
+    fs::write(crate_root.join("src/lib.rs"), "#![forbid(unsafe_code)]\n")
+        .expect("temporary tooling library root is writable");
     root
 }
 
 /// Write a fixture repository exactly as declared, for domain-shape rules.
 pub(crate) fn write_temp_repo_verbatim(test_case: &test_types::CheckRepoTestCase) -> path::PathBuf {
-    write_repo(test_case)
+    let root = write_repo(test_case);
+    write_missing_integration_harnesses(&root);
+    root
 }
 
 fn write_repo(test_case: &test_types::CheckRepoTestCase) -> path::PathBuf {
@@ -95,7 +102,7 @@ fn write_repo(test_case: &test_types::CheckRepoTestCase) -> path::PathBuf {
     fs::create_dir_all(&root).expect("temporary repository root is writable");
     fs::write(
         root.join("Cargo.toml"),
-        "[workspace]\nmembers = [\"crates/example\"]\nresolver = \"2\"\n\n[workspace.package]\nedition = \"2021\"\nlicense = \"Apache-2.0\"\npublish = false\n\n[workspace.dependencies]\nfensu-structure-checker = { path = \"crates/fensu-structure-checker\" }\n\n[workspace.lints.rust]\nunsafe_code = \"forbid\"\nunreachable_pub = \"deny\"\nunused_must_use = \"deny\"\n\n[workspace.lints.clippy]\nawait_holding_lock = \"deny\"\n",
+        "[workspace]\nmembers = [\"crates/example\"]\nresolver = \"2\"\n\n[workspace.package]\nedition = \"2021\"\nlicense = \"Apache-2.0\"\npublish = false\n\n[workspace.dependencies]\nfensu-structure-checker = \"0.12.0\"\n\n[workspace.lints.rust]\nunsafe_code = \"forbid\"\nunreachable_pub = \"deny\"\nunused_must_use = \"deny\"\n\n[workspace.lints.clippy]\nawait_holding_lock = \"deny\"\n",
     )
     .expect("temporary workspace manifest is writable");
     fs::create_dir_all(root.join("crates/example")).expect("temporary fixture crate is writable");
@@ -104,6 +111,13 @@ fn write_repo(test_case: &test_types::CheckRepoTestCase) -> path::PathBuf {
         "[package]\nname = \"example\"\nversion = \"0.1.0\"\nedition.workspace = true\nlicense.workspace = true\npublish.workspace = true\n\n[lints]\nworkspace = true\n",
     )
     .expect("temporary crate manifest is writable");
+    fs::create_dir_all(root.join("crates/example/src"))
+        .expect("temporary fixture source directory is writable");
+    fs::write(
+        root.join("crates/example/src/lib.rs"),
+        "#![forbid(unsafe_code)]\n",
+    )
+    .expect("temporary fixture library root is writable");
     for file in &test_case.repo_files {
         let file_path = root.join(&file.path);
         let parent = file_path.parent().expect("fixture paths name a parent");
@@ -142,6 +156,44 @@ fn write_missing_entries(root: &path::Path, test_case: &test_types::CheckRepoTes
         fs::create_dir_all(parent).expect("fixture entry directories are writable");
         fs::write(&entry, "pub fn read_entry() -> usize {\n    1\n}\n")
             .expect("fixture entry files are writable");
+    }
+}
+
+fn write_missing_integration_harnesses(root: &path::Path) {
+    let tests_root = root.join("crates/example/tests");
+    let Ok(entries) = fs::read_dir(&tests_root) else {
+        return;
+    };
+    for entry in entries.filter_map(Result::ok).filter(|entry| {
+        entry.path().is_dir()
+            && !tests_root
+                .join(format!("{}.rs", entry.file_name().to_string_lossy()))
+                .exists()
+    }) {
+        let area = entry.file_name().to_string_lossy().into_owned();
+        let harness = tests_root.join(format!("{area}.rs"));
+        let mut modules = walkdir::WalkDir::new(entry.path())
+            .min_depth(1)
+            .max_depth(1)
+            .into_iter()
+            .filter_map(Result::ok)
+            .filter(|candidate| {
+                candidate.file_type().is_file()
+                    && candidate
+                        .path()
+                        .extension()
+                        .and_then(|value| value.to_str())
+                        == Some("rs")
+            })
+            .map(|candidate| candidate.file_name().to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        modules.sort();
+        let mut source = String::new();
+        for (index, file) in modules.iter().enumerate() {
+            writeln!(source, "#[path = \"{area}/{file}\"]\nmod fixture_{index};")
+                .expect("writing to a string succeeds");
+        }
+        fs::write(harness, source).expect("temporary integration harness is writable");
     }
 }
 

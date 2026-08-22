@@ -1,7 +1,6 @@
 //! Project-aware discarded-result policy for Rust `#[must_use]` functions.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::fs;
 use std::path;
 
 use syn::spanned::Spanned;
@@ -18,6 +17,7 @@ const MUST_USE_ATTRIBUTE: &str = "must_use";
 #[derive(Debug)]
 struct CrateSources {
     package: String,
+    dependency_roots: BTreeMap<String, String>,
     files: Vec<models::SourceFile>,
 }
 
@@ -30,11 +30,11 @@ struct DiscardedCall {
 
 pub(crate) fn check_workspace(
     repo_root: &path::Path,
-    crate_directories: &[path::PathBuf],
+    workspace_crates: &[models::WorkspaceCrate],
 ) -> Vec<models::Violation> {
-    let crates = crate_directories
+    let crates = workspace_crates
         .iter()
-        .filter_map(|crate_dir| crate_sources(repo_root, crate_dir))
+        .filter_map(|workspace_crate| crate_sources(repo_root, workspace_crate, workspace_crates))
         .collect::<Vec<_>>();
     let meaningful = crates
         .iter()
@@ -61,23 +61,16 @@ pub(crate) fn check_workspace(
     violations
 }
 
-fn crate_sources(repo_root: &path::Path, crate_dir: &path::Path) -> Option<CrateSources> {
-    let manifest = match fs::read_to_string(crate_dir.join(constants::CARGO_MANIFEST_FILE)) {
-        Ok(manifest) => manifest,
-        Err(_) => return None,
-    };
-    let document = match toml::from_str::<toml::Value>(&manifest) {
-        Ok(document) => document,
-        Err(_) => return None,
-    };
-    let package = document
-        .get(constants::PACKAGE_KEY)?
-        .get(constants::NAME_KEY)?
-        .as_str()?
-        .replace('-', "_");
-    let scan = scanning::rust_files(repo_root, &crate_dir.join(constants::SOURCE_DIRECTORY));
+fn crate_sources(
+    repo_root: &path::Path,
+    workspace_crate: &models::WorkspaceCrate,
+    workspace_crates: &[models::WorkspaceCrate],
+) -> Option<CrateSources> {
+    let package = workspace_crate.graph_identity();
+    let scan = scanning::rust_target_files(repo_root, workspace_crate, false);
     Some(CrateSources {
         package,
+        dependency_roots: workspace_crate.reference_roots(workspace_crates),
         files: scan.files,
     })
 }
@@ -88,7 +81,7 @@ fn must_use_functions(crate_sources: &CrateSources) -> Vec<Vec<String>> {
         let Ok(syntax) = syn::parse_file(&file.source) else {
             continue;
         };
-        let module = reference_paths::module_path(&crate_sources.package, &file.relative);
+        let module = reference_paths::module_path(&crate_sources.package, file);
         for item in syntax.items {
             let syn::Item::Fn(function) = item else {
                 continue;
@@ -118,9 +111,10 @@ fn discarded_calls(crate_sources: &CrateSources) -> Vec<DiscardedCall> {
         let Ok(syntax) = syn::parse_file(&file.source) else {
             continue;
         };
-        let module = reference_paths::module_path(&crate_sources.package, &file.relative);
+        let module = reference_paths::module_path(&crate_sources.package, file);
         let mut visitor = DiscardVisitor {
             package: &crate_sources.package,
+            dependency_roots: &crate_sources.dependency_roots,
             module: &module,
             file: &file.relative,
             imports: BTreeMap::new(),
@@ -133,6 +127,7 @@ fn discarded_calls(crate_sources: &CrateSources) -> Vec<DiscardedCall> {
 
 struct DiscardVisitor<'a> {
     package: &'a str,
+    dependency_roots: &'a BTreeMap<String, String>,
     module: &'a [String],
     file: &'a str,
     imports: BTreeMap<String, Vec<String>>,
@@ -142,7 +137,7 @@ struct DiscardVisitor<'a> {
 impl Visit<'_> for DiscardVisitor<'_> {
     fn visit_item_use(&mut self, node: &syn::ItemUse) {
         for (bound, target) in collect_bindings(&node.tree) {
-            let target = normalize_root(target, self.package);
+            let target = normalize_root(target, self.package, self.dependency_roots);
             self.imports.insert(bound, target);
         }
     }
@@ -169,7 +164,7 @@ impl Visit<'_> for DiscardVisitor<'_> {
                 local
             });
         } else {
-            target = normalize_root(target, self.package);
+            target = normalize_root(target, self.package, self.dependency_roots);
         }
         self.calls.push(DiscardedCall {
             file: self.file.to_owned(),
@@ -180,9 +175,17 @@ impl Visit<'_> for DiscardVisitor<'_> {
     }
 }
 
-fn normalize_root(mut target: Vec<String>, package: &str) -> Vec<String> {
+fn normalize_root(
+    mut target: Vec<String>,
+    package: &str,
+    dependency_roots: &BTreeMap<String, String>,
+) -> Vec<String> {
     if target.first().is_some_and(|root| root == CRATE_ROOT) {
         target[0] = package.to_owned();
+    } else if let Some(root) = target.first_mut() {
+        if let Some(canonical) = dependency_roots.get(root) {
+            *root = canonical.clone();
+        }
     }
     target
 }

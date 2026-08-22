@@ -8,7 +8,8 @@ use std::time::Duration;
 
 use fensu_policy::lifecycle::constants::ANALYSIS_BATCH_SCHEMA_VERSION;
 use fensu_policy::lifecycle::models::{
-    AnalysisBatchRequest, AnalysisInput, Finding, FindingSeverity, RuntimeIdentity,
+    AnalysisBatchRequest, AnalysisInput, CustomHostOutputLimits, Finding, FindingSeverity,
+    RuntimeIdentity,
 };
 
 use crate::test_types::ConsumerFacts;
@@ -77,6 +78,13 @@ pub(crate) fn finding(code: &str, path: &str, symbol: Option<&str>) -> Finding {
     }
 }
 
+pub(crate) fn host_output_limits() -> CustomHostOutputLimits {
+    CustomHostOutputLimits {
+        stdout_bytes: 512 * 1_024,
+        stderr_bytes: 512 * 1_024,
+    }
+}
+
 #[cfg(unix)]
 pub(crate) fn host_command() -> (PathBuf, Vec<String>) {
     (
@@ -124,6 +132,55 @@ pub(crate) fn backpressure_host_command() -> (PathBuf, Vec<String>) {
         vec![
             "-c".to_owned(),
             "dd if=/dev/zero bs=1024 count=256 >&2 2>/dev/null; cat >/dev/null; printf '%s\\n' '{\"protocol\":1,\"runtime_version\":\"runtime-1\",\"error\":null,\"payload\":{},\"messages\":[]}'".to_owned(),
+        ],
+    )
+}
+
+#[cfg(unix)]
+pub(crate) fn response_host_command(response: &str) -> (PathBuf, Vec<String>) {
+    (
+        PathBuf::from("/bin/sh"),
+        vec![
+            "-c".to_owned(),
+            format!("cat >/dev/null; printf '%s\\n' '{response}'"),
+        ],
+    )
+}
+
+#[cfg(unix)]
+pub(crate) fn oversized_stdout_host_command() -> (PathBuf, Vec<String>) {
+    (
+        PathBuf::from("/bin/sh"),
+        vec![
+            "-c".to_owned(),
+            "cat >/dev/null; printf '123456789'; sleep 30".to_owned(),
+        ],
+    )
+}
+
+#[cfg(unix)]
+pub(crate) fn oversized_stderr_host_command() -> (PathBuf, Vec<String>) {
+    (
+        PathBuf::from("/bin/sh"),
+        vec![
+            "-c".to_owned(),
+            "cat >/dev/null; printf '123456789' >&2; sleep 30".to_owned(),
+        ],
+    )
+}
+
+#[cfg(unix)]
+pub(crate) fn successful_leader_with_descendant_command(
+    pid_file: &std::path::Path,
+) -> (PathBuf, Vec<String>) {
+    (
+        PathBuf::from("/bin/sh"),
+        vec![
+            "-c".to_owned(),
+            format!(
+                "cat >/dev/null; sleep 30 >/dev/null 2>&1 & echo $! > '{}'; printf '%s\\n' '{{\"protocol\":1,\"runtime_version\":\"runtime-1\",\"error\":null,\"payload\":{{}},\"messages\":[]}}'; exit 0",
+                pid_file.display()
+            ),
         ],
     )
 }
@@ -178,6 +235,53 @@ pub(crate) fn hanging_host_command() -> (PathBuf, Vec<String>) {
             "-NoProfile".to_owned(),
             "-Command".to_owned(),
             "Start-Sleep -Seconds 5".to_owned(),
+        ],
+    )
+}
+
+#[cfg(windows)]
+pub(crate) fn response_host_command(response: &str) -> (PathBuf, Vec<String>) {
+    (
+        PathBuf::from("cmd.exe"),
+        vec!["/C".to_owned(), format!("more >NUL & echo {response}")],
+    )
+}
+
+#[cfg(windows)]
+pub(crate) fn oversized_stdout_host_command() -> (PathBuf, Vec<String>) {
+    (
+        PathBuf::from("cmd.exe"),
+        vec![
+            "/C".to_owned(),
+            "more >NUL & <NUL set /P =123456789 & ping -n 31 127.0.0.1 >NUL".to_owned(),
+        ],
+    )
+}
+
+#[cfg(windows)]
+pub(crate) fn oversized_stderr_host_command() -> (PathBuf, Vec<String>) {
+    (
+        PathBuf::from("cmd.exe"),
+        vec![
+            "/C".to_owned(),
+            "more >NUL & <NUL set /P =123456789 1>&2 & ping -n 31 127.0.0.1 >NUL".to_owned(),
+        ],
+    )
+}
+
+#[cfg(windows)]
+pub(crate) fn successful_leader_with_descendant_command(
+    pid_file: &std::path::Path,
+) -> (PathBuf, Vec<String>) {
+    let pid_file = pid_file.display().to_string().replace('\'', "''");
+    (
+        PathBuf::from("powershell.exe"),
+        vec![
+            "-NoProfile".to_owned(),
+            "-Command".to_owned(),
+            format!(
+                "$input | Out-Null; $child = Start-Process powershell.exe -ArgumentList '-NoProfile','-Command','Start-Sleep -Seconds 30' -PassThru; Set-Content -Path '{pid_file}' -Value $child.Id; Write-Output '{{\"protocol\":1,\"runtime_version\":\"runtime-1\",\"error\":null,\"payload\":{{}},\"messages\":[]}}'"
+            ),
         ],
     )
 }

@@ -77,3 +77,35 @@ fn given_explicit_consumer_config_when_running_then_applies_configured_boundary(
         );
     }
 }
+
+#[cfg(unix)]
+#[test]
+fn given_config_symlink_escape_when_running_then_rejects_it_before_loading() {
+    let test_cases = [test_types::CommandTestCase {
+        description: "config symlink escape",
+        arguments: Vec::new(),
+        expected_status: 2,
+        expected_stdout: "",
+        expected_stderr: "escapes repository root",
+    }];
+    for test_case in &test_cases {
+        let output = helpers::run_escaped_config_checker();
+        let stderr = String::from_utf8(output.stderr).expect("stderr is UTF-8");
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_status),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            output.stdout.is_empty() && test_case.expected_stdout.is_empty(),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            stderr.contains(test_case.expected_stderr),
+            "{}: {stderr}",
+            test_case.description
+        );
+    }
+}

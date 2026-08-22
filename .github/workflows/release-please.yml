@@ -11,6 +11,10 @@ permissions:
   contents: write
   pull-requests: write
 
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
 jobs:
   release-please:
     runs-on: ubuntu-latest
@@ -75,6 +79,7 @@ jobs:
           git push origin "HEAD:${RELEASE_BRANCH}"
 
       - name: Run required release checks
+        id: release_checks
         if: steps.release.outputs.prs_created == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -82,6 +87,13 @@ jobs:
           RELEASE_PR: ${{ steps.release_pr.outputs.number }}
         run: |
           head_sha="$(git rev-parse HEAD)"
+          remote_head="$(gh pr view "${RELEASE_PR}" --repo "${GITHUB_REPOSITORY}" \
+            --json headRefOid --jq .headRefOid)"
+          if [[ "${remote_head}" != "${head_sha}" ]]; then
+            echo "Release pull request moved from ${head_sha} to ${remote_head}" >&2
+            exit 1
+          fi
+          echo "head_sha=${head_sha}" >> "${GITHUB_OUTPUT}"
           workflows=(pull-request-metadata.yml version-guard.yml verify.yml)
 
           gh workflow run pull-request-metadata.yml --repo "${GITHUB_REPOSITORY}" \
@@ -112,8 +124,15 @@ jobs:
       - name: Merge release pull request and continue release
         if: steps.release.outputs.prs_created == 'true'
         env:
+          CHECKED_SHA: ${{ steps.release_checks.outputs.head_sha }}
           GH_TOKEN: ${{ github.token }}
           RELEASE_PR: ${{ steps.release_pr.outputs.number }}
         run: |
+          current_head="$(gh pr view "${RELEASE_PR}" --repo "${GITHUB_REPOSITORY}" \
+            --json headRefOid --jq .headRefOid)"
+          if [[ "${current_head}" != "${CHECKED_SHA}" ]]; then
+            echo "Release pull request changed after verification" >&2
+            exit 1
+          fi
           gh pr merge "${RELEASE_PR}" --repo "${GITHUB_REPOSITORY}" --squash
           gh workflow run release-please.yml --repo "${GITHUB_REPOSITORY}" --ref main

@@ -242,6 +242,7 @@ pub struct WorkspaceScan {
 pub struct WorkspaceCrate {
     pub directory: path::PathBuf,
     pub package_name: Option<String>,
+    pub package_identity: String,
     pub library_name: Option<String>,
     pub targets: Vec<WorkspaceTarget>,
     pub dependencies: Vec<WorkspaceDependency>,
@@ -326,7 +327,7 @@ impl SourceFile {
 }
 
 impl WorkspaceCrate {
-    pub(crate) fn crate_name(&self) -> Option<String> {
+    pub(crate) fn source_name(&self) -> Option<String> {
         self.library_name.clone().or_else(|| {
             self.package_name
                 .as_ref()
@@ -334,19 +335,27 @@ impl WorkspaceCrate {
         })
     }
 
-    pub(crate) fn dependency_roots(
+    pub(crate) fn graph_identity(&self) -> String {
+        self.package_identity.clone()
+    }
+
+    pub(crate) fn reference_roots(
         &self,
         workspace_crates: &[WorkspaceCrate],
     ) -> BTreeMap<String, String> {
         let mut roots: BTreeMap<String, String> = BTreeMap::new();
+        if let Some(source_name) = self.source_name() {
+            roots.insert(source_name, self.graph_identity());
+        }
         for dependency in &self.dependencies {
             for workspace_crate in workspace_crates {
                 if workspace_crate.package_name.as_ref() != Some(&dependency.package_name) {
                     continue;
                 }
-                if let Some(target) = workspace_crate.crate_name() {
-                    roots.insert(dependency.source_name.clone(), target);
-                }
+                roots.insert(
+                    dependency.source_name.clone(),
+                    workspace_crate.graph_identity(),
+                );
                 break;
             }
         }

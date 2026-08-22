@@ -66,11 +66,11 @@ fn crate_sources(
     workspace_crate: &models::WorkspaceCrate,
     workspace_crates: &[models::WorkspaceCrate],
 ) -> Option<CrateSources> {
-    let package = workspace_crate.crate_name()?;
+    let package = workspace_crate.graph_identity();
     let scan = scanning::rust_target_files(repo_root, workspace_crate, false);
     Some(CrateSources {
         package,
-        dependency_roots: workspace_crate.dependency_roots(workspace_crates),
+        dependency_roots: workspace_crate.reference_roots(workspace_crates),
         files: scan.files,
     })
 }

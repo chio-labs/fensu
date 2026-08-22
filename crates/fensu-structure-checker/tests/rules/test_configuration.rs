@@ -237,15 +237,15 @@ fn given_renamed_parser_dependency_when_checking_then_source_alias_is_blocked() 
 #[test]
 fn given_renamed_workspace_library_when_checking_then_project_graph_uses_source_identity() {
     let test_cases = [test_types::CheckRepoTestCase {
-        description: "dependency alias and custom library name resolve to one project identity",
+        description: "aliases resolve to unique package identities despite shared library names",
         repo_files: vec![
             test_types::RepoFile {
                 path: "Cargo.toml".to_owned(),
-                contents: "[workspace]\nmembers = [\"crates/alpha-core\", \"crates/consumer\", \"crates/direct-consumer\"]\nresolver = \"2\"\n\n[workspace.package]\nedition = \"2021\"\nlicense = \"Apache-2.0\"\npublish = false\n\n[workspace.dependencies]\nprovider = { package = \"alpha-core\", path = \"crates/alpha-core\" }\n\n[workspace.lints.rust]\nunsafe_code = \"forbid\"\nunreachable_pub = \"deny\"\nunused_must_use = \"deny\"\n\n[workspace.lints.clippy]\nawait_holding_lock = \"deny\"\n".to_owned(),
+                contents: "[workspace]\nmembers = [\"crates/alpha-core\", \"crates/beta-core\", \"crates/consumer\", \"crates/direct-consumer\", \"crates/beta-consumer\"]\nresolver = \"2\"\n\n[workspace.package]\nedition = \"2021\"\nlicense = \"Apache-2.0\"\npublish = false\n\n[workspace.dependencies]\nprovider-alias = { package = \"alpha-core\", path = \"crates/alpha-core\" }\nbeta-provider = { package = \"beta-core\", path = \"crates/beta-core\" }\n\n[workspace.lints.rust]\nunsafe_code = \"forbid\"\nunreachable_pub = \"deny\"\nunused_must_use = \"deny\"\n\n[workspace.lints.clippy]\nawait_holding_lock = \"deny\"\n".to_owned(),
             },
             test_types::RepoFile {
                 path: "crates/alpha-core/Cargo.toml".to_owned(),
-                contents: "[package]\nname = \"alpha-core\"\nversion = \"0.1.0\"\nedition.workspace = true\nlicense.workspace = true\npublish.workspace = true\n\n[lib]\nname = \"alpha_api\"\n\n[lints]\nworkspace = true\n".to_owned(),
+                contents: "[package]\nname = \"alpha-core\"\nversion = \"0.1.0\"\nedition.workspace = true\nlicense.workspace = true\npublish.workspace = true\n\n[lib]\nname = \"common_api\"\n\n[lints]\nworkspace = true\n".to_owned(),
             },
             test_types::RepoFile {
                 path: "crates/alpha-core/src/lib.rs".to_owned(),
@@ -265,7 +265,7 @@ fn given_renamed_workspace_library_when_checking_then_project_graph_uses_source_
             },
             test_types::RepoFile {
                 path: "crates/consumer/Cargo.toml".to_owned(),
-                contents: "[package]\nname = \"consumer\"\nversion = \"0.1.0\"\nedition.workspace = true\nlicense.workspace = true\npublish.workspace = true\n\n[dependencies]\nprovider.workspace = true\n\n[lints]\nworkspace = true\n".to_owned(),
+                contents: "[package]\nname = \"consumer\"\nversion = \"0.1.0\"\nedition.workspace = true\nlicense.workspace = true\npublish.workspace = true\n\n[dependencies]\nprovider-alias.workspace = true\n\n[lints]\nworkspace = true\n".to_owned(),
             },
             test_types::RepoFile {
                 path: "crates/consumer/src/lib.rs".to_owned(),
@@ -281,7 +281,7 @@ fn given_renamed_workspace_library_when_checking_then_project_graph_uses_source_
             },
             test_types::RepoFile {
                 path: "crates/consumer/src/writing/main/run.rs".to_owned(),
-                contents: "use provider::reading::main::value::value;\n\npub fn run() { value(); }\n"
+                contents: "use provider_alias::reading::main::value::value;\n\npub fn run() { value(); }\n"
                     .to_owned(),
             },
             test_types::RepoFile {
@@ -302,7 +302,48 @@ fn given_renamed_workspace_library_when_checking_then_project_graph_uses_source_
             },
             test_types::RepoFile {
                 path: "crates/direct-consumer/src/writing/main/run.rs".to_owned(),
-                contents: "use alpha_api::reading::main::value::value;\n\npub fn run() { value(); }\n"
+                contents: "use common_api::reading::main::value::value;\n\npub fn run() { value(); }\n"
+                    .to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/beta-core/Cargo.toml".to_owned(),
+                contents: "[package]\nname = \"beta-core\"\nversion = \"0.1.0\"\nedition.workspace = true\nlicense.workspace = true\npublish.workspace = true\n\n[lib]\nname = \"common_api\"\n\n[lints]\nworkspace = true\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/beta-core/src/lib.rs".to_owned(),
+                contents: "#![forbid(unsafe_code)]\npub mod reading;\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/beta-core/src/reading/mod.rs".to_owned(),
+                contents: "pub mod main;\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/beta-core/src/reading/main/mod.rs".to_owned(),
+                contents: "pub mod value;\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/beta-core/src/reading/main/value.rs".to_owned(),
+                contents: "pub fn value() -> usize { 1 }\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/beta-consumer/Cargo.toml".to_owned(),
+                contents: "[package]\nname = \"beta-consumer\"\nversion = \"0.1.0\"\nedition.workspace = true\nlicense.workspace = true\npublish.workspace = true\n\n[dependencies]\nbeta-provider.workspace = true\n\n[lints]\nworkspace = true\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/beta-consumer/src/lib.rs".to_owned(),
+                contents: "#![forbid(unsafe_code)]\npub mod writing;\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/beta-consumer/src/writing/mod.rs".to_owned(),
+                contents: "pub mod main;\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/beta-consumer/src/writing/main/mod.rs".to_owned(),
+                contents: "pub(super) mod run;\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/beta-consumer/src/writing/main/run.rs".to_owned(),
+                contents: "use beta_provider::reading::main::value::value;\n\npub fn run() { value(); }\n"
                     .to_owned(),
             },
         ],

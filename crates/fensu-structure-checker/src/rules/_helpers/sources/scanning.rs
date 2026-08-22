@@ -145,9 +145,15 @@ fn discover_workspace_crate(
     }
     let (dependencies, dependency_violations) = discover_dependencies(repo_root, package);
     violations.extend(dependency_violations);
+    let package_identity = format!(
+        "workspace:{}:{}",
+        relative_display(repo_root, &package_dir),
+        package.name
+    );
     let workspace_crate = models::WorkspaceCrate {
         directory: package_dir,
         package_name: Some(package.name.clone()),
+        package_identity,
         library_name: library_target_name(package),
         targets,
         dependencies,
@@ -315,12 +321,13 @@ fn discover_dependencies(
                     }
                 }
             });
+            let source_name = match &dependency.rename {
+                Some(name) => name.replace('-', "_"),
+                None => dependency.name.replace('-', "_"),
+            };
             models::WorkspaceDependency {
                 package_name: dependency.name.clone(),
-                source_name: dependency
-                    .rename
-                    .clone()
-                    .unwrap_or_else(|| dependency.name.replace('-', "_")),
+                source_name,
                 renamed: dependency.rename.is_some(),
                 path,
             }
@@ -343,7 +350,7 @@ fn resolve_workspace_dependency_names(
     for workspace_crate in &workspace_crates {
         if let (Some(package), Some(identity)) = (
             workspace_crate.package_name.clone(),
-            workspace_crate.crate_name(),
+            workspace_crate.source_name(),
         ) {
             identities.insert(package, identity);
         }

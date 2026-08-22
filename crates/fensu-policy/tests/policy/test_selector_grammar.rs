@@ -3,6 +3,8 @@
 use crate::test_types::ValidationTestCase;
 use fensu_policy::policy::main::rule_code_is_exact::rule_code_is_exact;
 use fensu_policy::policy::main::rule_selector_is_valid::rule_selector_is_valid;
+use fensu_policy::policy::models::ProductRuleCodeGrammar;
+use fensu_policy::policy::types::RuleCodeGrammar;
 
 #[test]
 fn given_code_examples_when_validating_then_enforces_exact_ascii_grammar() {
@@ -162,4 +164,43 @@ fn given_selector_examples_when_validating_then_allows_valid_prefixes() {
             test_case.description
         );
     }
+}
+
+#[test]
+fn given_product_grammar_examples_when_validating_then_enforces_namespaces_without_panicking() {
+    let grammar =
+        ProductRuleCodeGrammar::new("SQBK", "XSQBK").expect("SQLBuild namespaces are valid");
+    let test_cases = [
+        ValidationTestCase {
+            description: "built-in code",
+            value: "SQBKJ001",
+            expected_valid: true,
+        },
+        ValidationTestCase {
+            description: "custom code",
+            value: "XSQBKD001",
+            expected_valid: true,
+        },
+        ValidationTestCase {
+            description: "non-ASCII built-in code",
+            value: "SQBKÄ00",
+            expected_valid: false,
+        },
+        ValidationTestCase {
+            description: "non-ASCII custom code",
+            value: "XSQBKÄ00",
+            expected_valid: false,
+        },
+    ];
+
+    for test_case in test_cases {
+        assert_eq!(
+            grammar.rule_code_is_exact(test_case.value),
+            test_case.expected_valid,
+            "case failed: {}",
+            test_case.description
+        );
+    }
+    assert!(!grammar.rule_selector_is_valid("SQBKÄ"));
+    assert!(!grammar.rule_selector_is_valid("XSQBKÄ"));
 }

@@ -12,3 +12,4 @@ class ReleaseDeltaTestCase:
     description: str
     delta: ReleaseDelta
     expected_errors: list[str]
+    allow_stale_lockfiles: bool = False

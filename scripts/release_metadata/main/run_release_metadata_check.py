@@ -7,7 +7,13 @@ from scripts.release_metadata.main.validate_release_delta import get_release_del
 from scripts.release_metadata.models import ReleaseDelta
 
 
-def run_release_metadata_check(*, repo_root: Path, base_ref: str, head_ref: str) -> int:
+def run_release_metadata_check(
+    *,
+    repo_root: Path,
+    base_ref: str,
+    head_ref: str,
+    allow_stale_lockfiles: bool,
+) -> int:
     """Load one release delta, render every error, and return its status."""
 
     delta: ReleaseDelta = load_release_delta(
@@ -15,7 +21,10 @@ def run_release_metadata_check(*, repo_root: Path, base_ref: str, head_ref: str)
         base_ref=base_ref,
         head_ref=head_ref,
     )
-    errors: list[str] = get_release_delta_errors(delta)
+    errors: list[str] = get_release_delta_errors(
+        delta=delta,
+        allow_stale_lockfiles=allow_stale_lockfiles,
+    )
     for error in errors:
         print(f"release metadata error: {error}")
     return int(bool(errors))

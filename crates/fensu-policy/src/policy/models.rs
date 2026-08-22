@@ -51,13 +51,10 @@ impl ProductRuleCodeGrammar {
         let Some(suffix) = value.strip_prefix(namespace) else {
             return false;
         };
+        let suffix = suffix.as_bytes();
         suffix.len() == constants::PRODUCT_CODE_SUFFIX_LENGTH
-            && suffix[0..1]
-                .bytes()
-                .all(|character| character.is_ascii_uppercase())
-            && suffix[1..]
-                .bytes()
-                .all(|character| character.is_ascii_digit())
+            && suffix[0].is_ascii_uppercase()
+            && suffix[1..].iter().all(u8::is_ascii_digit)
     }
 
     fn selector_has_namespace(value: &str, namespace: &str) -> bool {
@@ -67,14 +64,11 @@ impl ProductRuleCodeGrammar {
         let Some(suffix) = value.strip_prefix(namespace) else {
             return false;
         };
-        suffix.len() <= constants::PRODUCT_CODE_SUFFIX_LENGTH
-            && suffix
-                .bytes()
-                .next()
-                .is_some_and(|character| character.is_ascii_uppercase())
-            && suffix[1..]
-                .bytes()
-                .all(|character| character.is_ascii_digit())
+        let suffix = suffix.as_bytes();
+        !suffix.is_empty()
+            && suffix.len() <= constants::PRODUCT_CODE_SUFFIX_LENGTH
+            && suffix[0].is_ascii_uppercase()
+            && suffix[1..].iter().all(u8::is_ascii_digit)
     }
 }
 

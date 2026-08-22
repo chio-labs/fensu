@@ -7,6 +7,18 @@
       "include-component-in-tag": false,
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": false,
+      "changelog-sections": [
+        { "type": "feat", "section": "Features" },
+        { "type": "fix", "section": "Bug Fixes" },
+        { "type": "revert", "section": "Bug Fixes" },
+        { "type": "perf", "section": "Performance Improvements" },
+        { "type": "refactor", "section": "Refactoring" },
+        { "type": "build", "section": "Build System" },
+        { "type": "docs", "section": "Documentation" },
+        { "type": "chore", "section": "Maintenance" },
+        { "type": "ci", "section": "Continuous Integration", "hidden": true },
+        { "type": "test", "section": "Tests", "hidden": true }
+      ],
       "extra-files": [
         {
           "type": "generic",

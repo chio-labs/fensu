@@ -30,6 +30,14 @@
         },
         {
           "type": "generic",
+          "path": "crates/fensu-policy/Cargo.toml"
+        },
+        {
+          "type": "generic",
+          "path": "crates/fensu-structure-checker/Cargo.toml"
+        },
+        {
+          "type": "generic",
           "path": "packages/fensu-cli/pyproject.toml"
         }
       ]

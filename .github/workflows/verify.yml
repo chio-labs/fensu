@@ -2,11 +2,14 @@ name: Verify
 
 on:
   pull_request:
-  push:
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   verify:
@@ -39,6 +42,19 @@ jobs:
       - run: make check-rust
       - run: make skills-content-check
       - run: make test-rust
+
+  shared-crates:
+    name: Shared crate packages (Rust 1.85)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.85.0
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test -p fensu-policy -p fensu-structure-checker
+      - run: cargo package -p fensu-policy
+      - run: cargo package -p fensu-structure-checker
 
   performance:
     runs-on: ubuntu-latest

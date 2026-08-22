@@ -87,18 +87,20 @@ jobs:
           fi
           head_sha="$(git rev-parse HEAD)"
 
-          workflows=(pull-request-metadata.yml version-guard.yml verify.yml)
-          contexts=("Pull Request Metadata" "Block automatic 1.0 releases" "Verify")
+          workflows=(pull-request-metadata.yml version-guard.yml)
+          contexts=("Pull Request Metadata" "Block automatic 1.0 releases")
           for context in "${contexts[@]}"; do
             gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${head_sha}" \
               -f state=pending -f "context=${context}" \
               -f description="Trusted release check is running" >/dev/null
           done
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${head_sha}" \
+            -f state=pending -f context=Verify \
+            -f description="Validating trusted release metadata" >/dev/null
 
           gh workflow run pull-request-metadata.yml --ref "${RELEASE_BRANCH}" \
             -f "pr_number=${release_pr}"
           gh workflow run version-guard.yml --ref "${RELEASE_BRANCH}"
-          gh workflow run verify.yml --ref "${RELEASE_BRANCH}"
 
           for index in "${!workflows[@]}"; do
             workflow="${workflows[${index}]}"
@@ -129,6 +131,43 @@ jobs:
               exit 1
             fi
           done
+
+          verify_release_metadata() {
+            base_sha="$(gh pr view "${release_pr}" --repo "${GITHUB_REPOSITORY}" \
+              --json baseRefOid --jq .baseRefOid)"
+            git fetch --no-tags origin "${base_sha}"
+            uv run python -m scripts.release_metadata_check --base "${base_sha}" --head HEAD
+
+            verified_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${base_sha}/pulls" \
+              --jq '[.[] | select(.merged_at != null)] | sort_by(.merged_at) | last | .head.sha // empty')"
+            if [[ -z "${verified_sha}" ]]; then
+              echo "Release base ${base_sha} is not associated with a merged pull request" >&2
+              return 1
+            fi
+            base_tree="$(gh api "repos/${GITHUB_REPOSITORY}/git/commits/${base_sha}" --jq .tree.sha)"
+            verified_tree="$(gh api "repos/${GITHUB_REPOSITORY}/git/commits/${verified_sha}" --jq .tree.sha)"
+            if [[ "${base_tree}" != "${verified_tree}" ]]; then
+              echo "Release base tree was not the tree verified on pull request head ${verified_sha}" >&2
+              return 1
+            fi
+            successful_runs="$(gh api \
+              "repos/${GITHUB_REPOSITORY}/actions/workflows/verify.yml/runs?head_sha=${verified_sha}&event=pull_request&status=completed&per_page=100" \
+              --jq '[.workflow_runs[] | select(.conclusion == "success")] | length')"
+            if [[ "${successful_runs}" -lt 1 ]]; then
+              echo "No successful Verify run exists for source pull request head ${verified_sha}" >&2
+              return 1
+            fi
+          }
+
+          if ! verify_release_metadata; then
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${head_sha}" \
+              -f state=failure -f context=Verify \
+              -f description="Release metadata or source verification is invalid" >/dev/null
+            exit 1
+          fi
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${head_sha}" \
+            -f state=success -f context=Verify \
+            -f description="Product changes passed verification before release metadata update" >/dev/null
 
       - name: Merge release pull request and continue release
         if: steps.release.outputs.prs_created == 'true'

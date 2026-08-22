@@ -68,9 +68,11 @@ const ITERATOR_CLOSURE_METHODS: &[&str] = &[
     "try_fold",
     "try_for_each",
 ];
-const TOOLING_CRATE_SOURCE_PREFIX: &str = "crates/fensu-structure-checker/src/";
-
-pub(crate) fn check(file: &models::SourceFile, syntax: &syn::File) -> Vec<models::Violation> {
+pub(crate) fn check(
+    file: &models::SourceFile,
+    syntax: &syn::File,
+    is_tooling_crate: bool,
+) -> Vec<models::Violation> {
     let statics = syntax
         .items
         .iter()
@@ -82,6 +84,7 @@ pub(crate) fn check(file: &models::SourceFile, syntax: &syn::File) -> Vec<models
     let mut visitor = PolicyVisitor {
         file,
         statics: &statics,
+        is_tooling_crate,
         violations: Vec::new(),
     };
     visitor.visit_file(syntax);
@@ -97,6 +100,7 @@ pub(crate) fn check(file: &models::SourceFile, syntax: &syn::File) -> Vec<models
 struct PolicyVisitor<'a> {
     file: &'a models::SourceFile,
     statics: &'a BTreeSet<String>,
+    is_tooling_crate: bool,
     violations: Vec<models::Violation>,
 }
 
@@ -156,6 +160,7 @@ impl PolicyVisitor<'_> {
         let mut body = BodyPolicyVisitor {
             file: self.file,
             statics: self.statics,
+            is_tooling_crate: self.is_tooling_crate,
             iterator_closure_depth: 0,
             violations: &mut self.violations,
         };
@@ -176,6 +181,7 @@ impl<'ast> Visit<'ast> for PolicyVisitor<'_> {
 struct BodyPolicyVisitor<'a, 'b> {
     file: &'a models::SourceFile,
     statics: &'a BTreeSet<String>,
+    is_tooling_crate: bool,
     iterator_closure_depth: usize,
     violations: &'b mut Vec<models::Violation>,
 }
@@ -233,7 +239,7 @@ impl<'ast> Visit<'ast> for BodyPolicyVisitor<'_, '_> {
 impl BodyPolicyVisitor<'_, '_> {
     fn visit_iterator_closure(&mut self, closure: &syn::ExprClosure) {
         if self.iterator_closure_depth > 0 {
-            let code = if self.file.relative.starts_with(TOOLING_CRATE_SOURCE_PREFIX) {
+            let code = if self.is_tooling_crate {
                 "RSH006"
             } else {
                 "RSS131"

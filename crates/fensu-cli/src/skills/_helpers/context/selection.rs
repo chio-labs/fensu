@@ -1,6 +1,10 @@
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
+use fensu_policy::policy::errors::PolicyError;
+use fensu_policy::policy::main::resolve_catalogue_policy;
+use fensu_policy::policy::models::{FensuRuleCodeGrammar, PolicySelectors};
+use fensu_policy::policy::types::PolicyTier;
 use serde_json::json;
 
 use crate::catalogue::main::rule_catalogue::configured_rule_catalogue;
@@ -61,21 +65,21 @@ pub(crate) fn selection(config: &Config, project_root: &Path) -> Result<RuleSele
         .filter(|rule| rule.analyzers.contains(&config.analyzer))
         .collect::<Vec<_>>();
     validate_config_selectors(config, &applicable_catalogue, &configured_catalogue)?;
-    let catalogue = applicable_catalogue
-        .into_iter()
-        .cloned()
-        .collect::<Vec<_>>();
-    let ignored = matching(&catalogue, &config.ignore);
-    let ignored_codes = ignored
-        .iter()
-        .map(|item| item.code.as_str())
-        .collect::<HashSet<_>>();
-    let blocking = selected(&catalogue, &config.select)
-        .into_iter()
-        .filter(|item| !ignored_codes.contains(item.code.as_str()))
-        .collect::<Vec<_>>();
-    let warnings = selected(&catalogue, &config.warn);
-    validate_tiers(&blocking, &warnings, &ignored)?;
+    let selection = resolve_catalogue_policy::resolve_catalogue_policy(
+        &configured_catalogue,
+        &config.analyzer,
+        &PolicySelectors {
+            select: config.select.clone(),
+            warn: config.warn.clone(),
+            ignore: config.ignore.clone(),
+        },
+        &FensuRuleCodeGrammar,
+    )
+    .map_err(format_policy_error)?;
+    let catalogue: Vec<RuleMetadata> = selection.catalogue.into_iter().cloned().collect();
+    let blocking: Vec<RuleMetadata> = selection.blocking.into_iter().cloned().collect();
+    let warnings: Vec<RuleMetadata> = selection.warnings.into_iter().cloned().collect();
+    let ignored: Vec<RuleMetadata> = selection.ignored.into_iter().cloned().collect();
     Ok(RuleSelection {
         catalogue,
         blocking,
@@ -321,31 +325,6 @@ fn tier_from_codes(
     Ok(result)
 }
 
-fn selected(catalogue: &[RuleMetadata], selectors: &[String]) -> Vec<RuleMetadata> {
-    let mut selected: Vec<RuleMetadata> = Vec::new();
-    for item in catalogue {
-        let enabled =
-            item.enabled_by_default && selectors.iter().any(|value| item.code.starts_with(value));
-        let explicit = selectors
-            .iter()
-            .any(|value| is_rule_code(value) && value == &item.code);
-        if enabled || explicit {
-            selected.push(item.clone());
-        }
-    }
-    selected
-}
-
-fn matching(catalogue: &[RuleMetadata], selectors: &[String]) -> Vec<RuleMetadata> {
-    let mut matching: Vec<RuleMetadata> = Vec::new();
-    for item in catalogue {
-        if selectors.iter().any(|value| item.code.starts_with(value)) {
-            matching.push(item.clone());
-        }
-    }
-    matching
-}
-
 fn validate_tiers(
     blocking: &[RuleMetadata],
     warnings: &[RuleMetadata],
@@ -374,4 +353,20 @@ fn validate_tiers(
         ));
     }
     Ok(())
+}
+
+fn format_policy_error(error: PolicyError) -> String {
+    match error {
+        PolicyError::TierConflict {
+            code,
+            first: PolicyTier::Blocking,
+            second: PolicyTier::Warning,
+        } => format!("Rule {code} cannot be configured as both blocking and warning."),
+        PolicyError::TierConflict {
+            code,
+            first: PolicyTier::Warning,
+            second: PolicyTier::Ignored,
+        } => format!("Rule {code} cannot be configured as both warning and ignored."),
+        other => format!("Invalid rule policy: {other}"),
+    }
 }

@@ -23,7 +23,7 @@ pub(crate) fn scan_workspace(repo_root: &path::Path) -> models::WorkspaceScan {
         Ok(value) => value,
         Err(error) => {
             return models::WorkspaceScan {
-                crate_directories: Vec::new(),
+                crates: Vec::new(),
                 violations: vec![manifest_setup_violation(
                     repo_root,
                     &manifest_path,
@@ -36,7 +36,7 @@ pub(crate) fn scan_workspace(repo_root: &path::Path) -> models::WorkspaceScan {
         Ok(value) => value,
         Err(error) => {
             return models::WorkspaceScan {
-                crate_directories: Vec::new(),
+                crates: Vec::new(),
                 violations: vec![manifest_setup_violation(
                     repo_root,
                     &manifest_path,
@@ -64,11 +64,11 @@ pub(crate) fn scan_workspace(repo_root: &path::Path) -> models::WorkspaceScan {
             "workspace manifest declares no member list",
         ));
         return models::WorkspaceScan {
-            crate_directories: Vec::new(),
+            crates: Vec::new(),
             violations,
         };
     };
-    let mut crate_directories: Vec<path::PathBuf> = Vec::new();
+    let mut crates: Vec<models::WorkspaceCrate> = Vec::new();
     for member in members {
         let Some(relative) = member.as_str() else {
             violations.push(manifest_setup_violation(
@@ -98,14 +98,31 @@ pub(crate) fn scan_workspace(repo_root: &path::Path) -> models::WorkspaceScan {
             ));
             continue;
         }
-        crate_directories.push(crate_dir);
+        let package_name = crate_package_name(&crate_dir);
+        crates.push(models::WorkspaceCrate {
+            directory: crate_dir,
+            package_name,
+        });
     }
-    crate_directories.sort();
-    crate_directories.dedup();
-    models::WorkspaceScan {
-        crate_directories,
-        violations,
-    }
+    crates.sort_by(|left, right| left.directory.cmp(&right.directory));
+    crates.dedup_by(|left, right| left.directory == right.directory);
+    models::WorkspaceScan { crates, violations }
+}
+
+fn crate_package_name(crate_dir: &path::Path) -> Option<String> {
+    let source = match fs::read_to_string(crate_dir.join(constants::CARGO_MANIFEST_FILE)) {
+        Ok(value) => value,
+        Err(_) => return None,
+    };
+    let manifest = match toml::from_str::<toml::Value>(&source) {
+        Ok(value) => value,
+        Err(_) => return None,
+    };
+    manifest
+        .get(constants::PACKAGE_KEY)?
+        .get(constants::NAME_KEY)?
+        .as_str()
+        .map(str::to_owned)
 }
 
 pub(crate) fn rust_files(repo_root: &path::Path, root: &path::Path) -> models::SourceScan {
@@ -155,11 +172,14 @@ pub(crate) fn rust_files(repo_root: &path::Path, root: &path::Path) -> models::S
     models::SourceScan { files, violations }
 }
 
-pub(crate) fn check_source_file(
-    repo_root: &path::Path,
-    src_root: &path::Path,
-    file: &models::SourceFile,
-) -> Vec<models::Violation> {
+pub(crate) fn check_source_file(request: models::SourceCheckRequest<'_>) -> Vec<models::Violation> {
+    let models::SourceCheckRequest {
+        repo_root,
+        src_root,
+        file,
+        config,
+        is_tooling_crate,
+    } = request;
     if let Some(kind) = inline_test_file_kind(file) {
         return check_test_syntax(file, kind);
     }
@@ -173,12 +193,17 @@ pub(crate) fn check_source_file(
     match syntax.as_ref() {
         Ok(syntax) => {
             violations.extend(tests_layout::check_source_scope(file, syntax));
-            violations.extend(layers::check_uses(file, syntax, true));
+            violations.extend(layers::check_uses(
+                file,
+                syntax,
+                true,
+                &config.raw_parser_boundary,
+            ));
             violations.extend(placement::check_source(file, syntax, kind));
             violations.extend(containers::check_file(file, syntax, kind));
             violations.extend(role_files::check(file, syntax, kind));
             violations.extend(naming::check(file, syntax));
-            violations.extend(shape::check(file, syntax, kind));
+            violations.extend(shape::check(file, syntax, kind, is_tooling_crate));
         }
         Err(error) => violations.push(parse_violation(file, error)),
     }
@@ -203,7 +228,12 @@ fn check_test_syntax(file: &models::SourceFile, kind: FileKind) -> Vec<models::V
     violations.extend(placement::check_common(file));
     match syntax.as_ref() {
         Ok(syntax) => {
-            violations.extend(layers::check_uses(file, syntax, false));
+            violations.extend(layers::check_uses(
+                file,
+                syntax,
+                false,
+                &models::CheckerConfig::default().raw_parser_boundary,
+            ));
             violations.extend(tests_layout::check(file, syntax, kind));
             violations.extend(tests_shape::check(file, syntax, kind));
         }

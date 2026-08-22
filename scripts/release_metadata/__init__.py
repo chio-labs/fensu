@@ -1,0 +1,1 @@
+"""Trusted release metadata validation."""

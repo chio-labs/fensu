@@ -2,6 +2,7 @@
 #![forbid(unsafe_code)]
 
 pub mod command;
+pub mod configuration;
 pub mod constants;
 pub mod models;
 pub mod rules;

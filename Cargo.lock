@@ -354,6 +354,7 @@ dependencies = [
  "encoding_rs",
  "fensu-facts",
  "fensu-native",
+ "fensu-policy",
  "fensu-svelte",
  "fensu-typescript",
  "globset",
@@ -404,11 +405,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "fensu-policy"
+version = "0.11.0"
+
+[[package]]
 name = "fensu-structure-checker"
-version = "0.1.0"
+version = "0.11.0"
 dependencies = [
  "proc-macro2",
  "quote",
+ "serde",
  "syn 2.0.118",
  "toml",
  "walkdir",

@@ -14,6 +14,7 @@ pub(crate) fn check(
     file: &models::SourceFile,
     syntax: &syn::File,
     kind: FileKind,
+    is_tooling_crate: bool,
 ) -> Vec<models::Violation> {
     let mut visitor = ShapeVisitor {
         functions: Vec::new(),
@@ -24,7 +25,7 @@ pub(crate) fn check(
     for function in &visitor.functions {
         violations.extend(budget_violations(file, function, entry));
     }
-    violations.extend(shape_policy::check(file, syntax));
+    violations.extend(shape_policy::check(file, syntax, is_tooling_crate));
     violations
 }
 

@@ -11,3 +11,10 @@ Use `FensuRuleCodeGrammar` for `FF`, `FP`, and `X` rules. Product adapters use
 `resolve_policy` rejects duplicate active implementation identities for
 execution. Metadata-only catalogue views that intentionally retain aliases use
 `resolve_catalogue_policy`.
+
+The `lifecycle` module supplies the remaining reusable execution contracts:
+versioned capability-negotiated analysis batches, cache identities and storage,
+exact stale-checked suppressions, path-scoped ignores, deterministic finding
+serialization and report counts, generated-skill freshness, and an isolated
+custom-host request/response protocol. Facts and evaluators remain consumer
+owned, so product adapters do not import Fensu CLI internals.

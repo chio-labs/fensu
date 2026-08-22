@@ -40,3 +40,9 @@ pub(crate) struct ConfigValidationTestCase {
     pub(crate) config: CheckerConfig,
     pub(crate) expected_is_error: bool,
 }
+
+pub(crate) struct RepositoryPolicyTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_threshold_code: &'static str,
+    pub(crate) expected_absent_codes: Vec<&'static str>,
+}

@@ -181,7 +181,7 @@ pub(crate) fn check_source_file(request: models::SourceCheckRequest<'_>) -> Vec<
         is_tooling_crate,
     } = request;
     if let Some(kind) = inline_test_file_kind(file) {
-        return check_test_syntax(file, kind);
+        return check_test_syntax(file, kind, config);
     }
     let kind = source_file_kind(file, repo_root, src_root);
     let syntax = syn::parse_file(&file.source);
@@ -189,7 +189,7 @@ pub(crate) fn check_source_file(request: models::SourceCheckRequest<'_>) -> Vec<
         Ok(syntax) => hygiene::check_source(file, Some(syntax), kind),
         Err(_) => hygiene::check_source(file, None, kind),
     };
-    violations.extend(placement::check_common(file));
+    violations.extend(placement::check_common(file, &config.repository.thresholds));
     match syntax.as_ref() {
         Ok(syntax) => {
             violations.extend(tests_layout::check_source_scope(file, syntax));
@@ -199,11 +199,27 @@ pub(crate) fn check_source_file(request: models::SourceCheckRequest<'_>) -> Vec<
                 true,
                 &config.raw_parser_boundary,
             ));
-            violations.extend(placement::check_source(file, syntax, kind));
-            violations.extend(containers::check_file(file, syntax, kind));
+            violations.extend(placement::check_source(
+                file,
+                syntax,
+                kind,
+                &config.repository.thresholds,
+            ));
+            violations.extend(containers::check_file(
+                file,
+                syntax,
+                kind,
+                &config.repository.thresholds,
+            ));
             violations.extend(role_files::check(file, syntax, kind));
             violations.extend(naming::check(file, syntax));
-            violations.extend(shape::check(file, syntax, kind, is_tooling_crate));
+            violations.extend(shape::check(models::SourceShapeCheckRequest {
+                file,
+                syntax,
+                kind,
+                is_tooling_crate,
+                thresholds: &config.repository.thresholds,
+            }));
         }
         Err(error) => violations.push(parse_violation(file, error)),
     }
@@ -214,25 +230,30 @@ pub(crate) fn check_test_file(
     repo_root: &path::Path,
     tests_root: &path::Path,
     file: &models::SourceFile,
+    config: &models::CheckerConfig,
 ) -> Vec<models::Violation> {
     let kind = test_file_kind(file, repo_root, tests_root);
-    check_test_syntax(file, kind)
+    check_test_syntax(file, kind, config)
 }
 
-fn check_test_syntax(file: &models::SourceFile, kind: FileKind) -> Vec<models::Violation> {
+fn check_test_syntax(
+    file: &models::SourceFile,
+    kind: FileKind,
+    config: &models::CheckerConfig,
+) -> Vec<models::Violation> {
     let syntax = syn::parse_file(&file.source);
     let mut violations: Vec<models::Violation> = match syntax.as_ref() {
         Ok(syntax) => hygiene::check_test_file(file, Some(syntax)),
         Err(_) => hygiene::check_test_file(file, None),
     };
-    violations.extend(placement::check_common(file));
+    violations.extend(placement::check_common(file, &config.repository.thresholds));
     match syntax.as_ref() {
         Ok(syntax) => {
             violations.extend(layers::check_uses(
                 file,
                 syntax,
                 false,
-                &models::CheckerConfig::default().raw_parser_boundary,
+                &config.raw_parser_boundary,
             ));
             violations.extend(tests_layout::check(file, syntax, kind));
             violations.extend(tests_shape::check(file, syntax, kind));

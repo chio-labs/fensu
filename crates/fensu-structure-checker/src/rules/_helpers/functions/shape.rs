@@ -10,12 +10,14 @@ use crate::models;
 use crate::rules::_helpers::functions::shape_policy;
 use crate::types::FileKind;
 
-pub(crate) fn check(
-    file: &models::SourceFile,
-    syntax: &syn::File,
-    kind: FileKind,
-    is_tooling_crate: bool,
-) -> Vec<models::Violation> {
+pub(crate) fn check(request: models::SourceShapeCheckRequest<'_>) -> Vec<models::Violation> {
+    let models::SourceShapeCheckRequest {
+        file,
+        syntax,
+        kind,
+        is_tooling_crate,
+        thresholds,
+    } = request;
     let mut visitor = ShapeVisitor {
         functions: Vec::new(),
     };
@@ -23,7 +25,7 @@ pub(crate) fn check(
     let mut violations: Vec<models::Violation> = Vec::new();
     let entry = kind == FileKind::ModuleFile && file.has_directory(constants::MAIN_DIRECTORY);
     for function in &visitor.functions {
-        violations.extend(budget_violations(file, function, entry));
+        violations.extend(budget_violations(file, function, entry, thresholds));
     }
     violations.extend(shape_policy::check(file, syntax, is_tooling_crate));
     violations
@@ -118,9 +120,10 @@ fn budget_violations(
     file: &models::SourceFile,
     function: &FunctionShape,
     entry: bool,
+    thresholds: &models::ThresholdConfig,
 ) -> Vec<models::Violation> {
     let mut violations: Vec<models::Violation> = Vec::new();
-    if function.arguments > constants::MAX_ARGUMENTS {
+    if function.arguments > thresholds.max_arguments {
         violations.push(budget_violation(BudgetViolationRequest {
             file,
             function,
@@ -129,7 +132,7 @@ fn budget_violations(
             remediation: "group cohesive inputs into a typed model",
         }));
     }
-    if function.statements > constants::MAX_STATEMENTS_GLOBAL {
+    if function.statements > thresholds.max_statements_global {
         violations.push(budget_violation(BudgetViolationRequest {
             file,
             function,
@@ -141,7 +144,7 @@ fn budget_violations(
     if !entry {
         return violations;
     }
-    if function.statements > constants::MAX_STATEMENTS_ENTRY {
+    if function.statements > thresholds.max_statements_entry {
         violations.push(budget_violation(BudgetViolationRequest {
             file,
             function,
@@ -150,7 +153,7 @@ fn budget_violations(
             remediation: "extract cohesive phases into helpers returning explicit results",
         }));
     }
-    if function.distinct_calls > constants::MAX_DISTINCT_CALLS_ENTRY {
+    if function.distinct_calls > thresholds.max_distinct_calls_entry {
         violations.push(budget_violation(BudgetViolationRequest {
             file,
             function,
@@ -159,7 +162,7 @@ fn budget_violations(
             remediation: "group related work into named phase helpers",
         }));
     }
-    if function.locals > constants::MAX_LOCALS_ENTRY {
+    if function.locals > thresholds.max_locals_entry {
         violations.push(budget_violation(BudgetViolationRequest {
             file,
             function,

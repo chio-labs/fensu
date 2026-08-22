@@ -61,6 +61,7 @@ fn given_custom_parser_boundary_when_checking_then_uses_configured_policy() {
                 packages: vec!["sqlparser".to_owned()],
                 remediation: "consume shared SQL fact rows".to_owned(),
             },
+            repository: models::RepositoryPolicyConfig::default(),
         },
         expected_violation_count: 1,
         expected_remediation: "consume shared SQL fact rows",
@@ -135,6 +136,64 @@ fn given_consumer_tooling_dependencies_when_checking_then_blocks_every_shared_ch
                     && violation.message == test_case.expected_message
             }),
             "case failed: {}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_fixture_repository_policy_when_checking_then_paths_and_thresholds_are_applied() {
+    let test_cases = [test_types::RepositoryPolicyTestCase {
+        description: "complete fixture repository policy",
+        expected_threshold_code: "RSS010",
+        expected_absent_codes: vec!["RSL304", "RSL305", "RSR306"],
+    }];
+
+    for test_case in test_cases {
+        let fixture = test_types::CheckRepoTestCase {
+            description: test_case.description,
+            repo_files: vec![
+                test_types::RepoFile {
+                    path: "crates/example/src/domain/main/check.rs".to_owned(),
+                    contents: "pub(crate) fn check(left: usize, right: usize) -> usize {\n    left + right\n}\n"
+                        .to_owned(),
+                },
+                test_types::RepoFile {
+                    path: "crates/example/src/generated/models.rs".to_owned(),
+                    contents: "pub(crate) struct Generated;\n".to_owned(),
+                },
+                test_types::RepoFile {
+                    path: "crates/example/src/generated/nested/models.rs".to_owned(),
+                    contents: "pub(crate) struct Nested;\n".to_owned(),
+                },
+            ],
+            expected_violation_codes: Vec::new(),
+        };
+        let repo_root = helpers::write_temp_repo_verbatim(&fixture);
+        let mut config = models::CheckerConfig::default();
+        config.repository.crate_names = vec!["example".to_owned()];
+        config.repository.domain_paths = vec!["crates/example/src/domain".to_owned()];
+        config.repository.role_paths = vec!["crates/example/src/domain/main".to_owned()];
+        config.repository.intentional_layout_paths =
+            vec!["crates/example/src/generated".to_owned()];
+        config.repository.thresholds.max_arguments = 1;
+        let violations =
+            check_repository_with_config::check_repository_with_config(&repo_root, &config)
+                .expect("fixture repository policy is valid");
+        helpers::remove_temp_repo(&repo_root);
+
+        assert!(
+            violations
+                .iter()
+                .any(|violation| violation.code == test_case.expected_threshold_code),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            !violations
+                .iter()
+                .any(|violation| test_case.expected_absent_codes.contains(&violation.code)),
+            "{}",
             test_case.description
         );
     }

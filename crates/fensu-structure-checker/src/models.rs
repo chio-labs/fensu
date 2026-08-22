@@ -4,6 +4,7 @@ use std::path;
 
 use serde::Deserialize;
 
+use crate::configuration::main::validate_repository_policy::validate_repository_policy;
 use crate::constants;
 
 /// Versioned repository-specific identities layered over shared structure policy.
@@ -13,6 +14,8 @@ pub struct CheckerConfig {
     pub schema_version: u32,
     pub tooling: ToolingConfig,
     pub raw_parser_boundary: RawParserBoundaryConfig,
+    #[serde(default)]
+    pub repository: RepositoryPolicyConfig,
 }
 
 /// Identity and dependency boundaries for the repository's checker adapter.
@@ -31,6 +34,51 @@ pub struct RawParserBoundaryConfig {
     pub remediation: String,
 }
 
+/// Reviewed repository identities, structural paths, and adjustable budgets.
+#[derive(Debug, Clone, Default, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "kebab-case", deny_unknown_fields)]
+pub struct RepositoryPolicyConfig {
+    #[serde(default)]
+    pub crate_names: Vec<String>,
+    #[serde(default)]
+    pub domain_paths: Vec<String>,
+    #[serde(default)]
+    pub role_paths: Vec<String>,
+    #[serde(default)]
+    pub intentional_layout_paths: Vec<String>,
+    #[serde(default)]
+    pub thresholds: ThresholdConfig,
+}
+
+/// Small consumer-adjustable subset of the shared structure budgets.
+#[derive(Debug, Clone, Deserialize, Eq, PartialEq)]
+#[serde(default, rename_all = "kebab-case", deny_unknown_fields)]
+pub struct ThresholdConfig {
+    pub max_file_lines: usize,
+    pub max_arguments: usize,
+    pub max_statements_global: usize,
+    pub max_statements_entry: usize,
+    pub max_distinct_calls_entry: usize,
+    pub max_locals_entry: usize,
+    pub max_helper_container_modules: usize,
+    pub max_main_container_modules: usize,
+}
+
+impl Default for ThresholdConfig {
+    fn default() -> Self {
+        Self {
+            max_file_lines: constants::MAX_FILE_LINES,
+            max_arguments: constants::MAX_ARGUMENTS,
+            max_statements_global: constants::MAX_STATEMENTS_GLOBAL,
+            max_statements_entry: constants::MAX_STATEMENTS_ENTRY,
+            max_distinct_calls_entry: constants::MAX_DISTINCT_CALLS_ENTRY,
+            max_locals_entry: constants::MAX_LOCALS_ENTRY,
+            max_helper_container_modules: constants::MAX_HELPER_CONTAINER_MODULES,
+            max_main_container_modules: constants::MAX_MAIN_CONTAINER_MODULES,
+        }
+    }
+}
+
 impl Default for CheckerConfig {
     fn default() -> Self {
         Self {
@@ -46,6 +94,7 @@ impl Default for CheckerConfig {
                     .collect(),
                 remediation: constants::DEFAULT_RAW_PARSER_REMEDIATION.to_owned(),
             },
+            repository: RepositoryPolicyConfig::default(),
         }
     }
 }
@@ -84,7 +133,15 @@ impl CheckerConfig {
         {
             return Err("raw parser remediation must not be empty".to_owned());
         }
-        Ok(())
+        validate_repository_policy(&self.repository)
+    }
+
+    /// Return whether aggregate layout rules intentionally exclude this exact subtree.
+    pub(crate) fn is_intentional_layout(&self, relative: &str) -> bool {
+        self.repository
+            .intentional_layout_paths
+            .iter()
+            .any(|root| relative == root || relative.starts_with(&format!("{root}/")))
     }
 }
 
@@ -171,6 +228,16 @@ pub(crate) struct SourceCheckRequest<'a> {
     pub file: &'a SourceFile,
     pub config: &'a CheckerConfig,
     pub is_tooling_crate: bool,
+}
+
+/// Inputs needed to check function shape for one parsed source file.
+#[derive(Debug)]
+pub(crate) struct SourceShapeCheckRequest<'a> {
+    pub(crate) file: &'a SourceFile,
+    pub(crate) syntax: &'a syn::File,
+    pub(crate) kind: crate::types::FileKind,
+    pub(crate) is_tooling_crate: bool,
+    pub(crate) thresholds: &'a ThresholdConfig,
 }
 
 impl SourceFile {

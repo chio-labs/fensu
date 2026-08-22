@@ -6,6 +6,7 @@ use crate::constants;
 use crate::models;
 use crate::rules::_helpers::functions::shape_project;
 use crate::rules::_helpers::imports::{layers, visibility};
+use crate::rules::_helpers::repository::configured_paths;
 use crate::rules::_helpers::roles::{containers, domains, ownership, surfaces, tooling};
 use crate::rules::_helpers::sources::scanning;
 use crate::rules::_helpers::test_conventions::test_mirroring;
@@ -18,6 +19,11 @@ pub fn check_repository_with_config(
     config.validate()?;
     let workspace = scanning::scan_workspace(repo_root);
     let mut violations = workspace.violations;
+    violations.extend(configured_paths::check(
+        repo_root,
+        &workspace.crates,
+        &config.repository,
+    ));
     let crate_directories = workspace
         .crates
         .iter()
@@ -47,6 +53,12 @@ fn check_crate(
     let tests_root = crate_dir.join(constants::TESTS_DIRECTORY);
     let src_scan = scanning::rust_files(repo_root, &src_root);
     let test_scan = scanning::rust_files(repo_root, &tests_root);
+    let structural_files = src_scan
+        .files
+        .iter()
+        .filter(|file| !config.is_intentional_layout(&file.relative))
+        .cloned()
+        .collect::<Vec<_>>();
     violations.extend(src_scan.violations);
     violations.extend(test_scan.violations);
     for file in &src_scan.files {
@@ -59,18 +71,26 @@ fn check_crate(
         }));
     }
     for file in &test_scan.files {
-        violations.extend(scanning::check_test_file(repo_root, &tests_root, file));
+        violations.extend(scanning::check_test_file(
+            repo_root,
+            &tests_root,
+            file,
+            config,
+        ));
     }
-    violations.extend(containers::check_containers(&src_scan.files));
-    violations.extend(domains::check_domains(&src_scan.files));
+    violations.extend(containers::check_containers(
+        &structural_files,
+        &config.repository.thresholds,
+    ));
+    violations.extend(domains::check_domains(&structural_files));
     violations.extend(ownership::check(
         crate_dir,
         workspace_crate.package_name.as_deref(),
-        &src_scan.files,
+        &structural_files,
     ));
-    violations.extend(surfaces::check(&src_scan.files));
+    violations.extend(surfaces::check(&structural_files));
     if is_tooling_crate {
-        violations.extend(tooling::check(&src_scan.files));
+        violations.extend(tooling::check(&structural_files));
     }
     violations.extend(test_mirroring::check_test_mirroring(repo_root, crate_dir));
     violations.extend(test_mirroring::check_harness_coverage(repo_root, crate_dir));

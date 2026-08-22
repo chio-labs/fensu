@@ -97,6 +97,7 @@ pub(crate) fn scan_workspace(repo_root: &path::Path) -> models::WorkspaceScan {
             crates.push(workspace_crate);
         }
     }
+    crates = resolve_workspace_dependency_names(crates);
     crates.sort_by(|left, right| left.directory.cmp(&right.directory));
     crates.dedup_by(|left, right| left.directory == right.directory);
     if crates.is_empty() {
@@ -130,8 +131,7 @@ fn discover_workspace_crate(
             return (None, violations);
         }
     };
-    let (targets, excluded_target_entries, target_violations) =
-        discover_targets(repo_root, package, &package_dir);
+    let (targets, target_violations) = discover_targets(repo_root, package, &package_dir);
     violations.extend(target_violations);
     if targets.is_empty() {
         violations.push(manifest_setup_violation(
@@ -148,8 +148,8 @@ fn discover_workspace_crate(
     let workspace_crate = models::WorkspaceCrate {
         directory: package_dir,
         package_name: Some(package.name.clone()),
+        library_name: library_target_name(package),
         targets,
-        excluded_target_entries,
         dependencies,
     };
     (Some(workspace_crate), violations)
@@ -159,14 +159,10 @@ fn discover_targets(
     repo_root: &path::Path,
     package: &cargo_metadata::Package,
     package_dir: &path::Path,
-) -> (
-    Vec<models::WorkspaceTarget>,
-    Vec<path::PathBuf>,
-    Vec<models::Violation>,
-) {
+) -> (Vec<models::WorkspaceTarget>, Vec<models::Violation>) {
     let package_manifest = package.manifest_path.as_std_path();
     let mut targets: Vec<models::WorkspaceTarget> = Vec::new();
-    let mut excluded: Vec<path::PathBuf> = Vec::new();
+    let mut excluded: Vec<(path::PathBuf, String)> = Vec::new();
     let mut included: Vec<path::PathBuf> = Vec::new();
     let mut violations: Vec<models::Violation> = Vec::new();
     for target in &package.targets {
@@ -186,7 +182,7 @@ fn discover_targets(
             }
         };
         if excluded_target(target) {
-            excluded.push(source_path);
+            excluded.push((source_path, target.name.clone()));
             continue;
         }
         let is_test = target
@@ -224,10 +220,45 @@ fn discover_targets(
             .then(left.test.cmp(&right.test))
     });
     targets.dedup();
-    excluded.sort();
-    excluded.dedup();
-    excluded.retain(|entry| !included.contains(entry));
-    (targets, excluded, violations)
+    let source_root = package_dir.join(constants::SOURCE_DIRECTORY);
+    let tests_root = package_dir.join(constants::TESTS_DIRECTORY);
+    for (entry, name) in excluded {
+        if included.contains(&entry)
+            || !entry.starts_with(&source_root) && !entry.starts_with(&tests_root)
+        {
+            continue;
+        }
+        violations.push(manifest_setup_violation(
+            repo_root,
+            package_manifest,
+            format!(
+                "excluded Cargo target {name} for package {} uses source-tree entry {}; examples, benchmarks, and build scripts must remain outside src/ and tests/",
+                package.name,
+                entry.display()
+            ),
+        ));
+    }
+    (targets, violations)
+}
+
+fn library_target_name(package: &cargo_metadata::Package) -> Option<String> {
+    package
+        .targets
+        .iter()
+        .find(|target| target.kind.iter().any(library_target))
+        .map(|target| target.name.replace('-', "_"))
+}
+
+fn library_target(kind: &cargo_metadata::TargetKind) -> bool {
+    matches!(
+        kind,
+        cargo_metadata::TargetKind::Lib
+            | cargo_metadata::TargetKind::RLib
+            | cargo_metadata::TargetKind::DyLib
+            | cargo_metadata::TargetKind::CDyLib
+            | cargo_metadata::TargetKind::StaticLib
+            | cargo_metadata::TargetKind::ProcMacro
+    )
 }
 
 fn excluded_target(target: &cargo_metadata::Target) -> bool {
@@ -290,6 +321,7 @@ fn discover_dependencies(
                     .rename
                     .clone()
                     .unwrap_or_else(|| dependency.name.replace('-', "_")),
+                renamed: dependency.rename.is_some(),
                 path,
             }
         })
@@ -301,6 +333,32 @@ fn discover_dependencies(
     });
     dependencies.dedup();
     (dependencies, violations)
+}
+
+fn resolve_workspace_dependency_names(
+    mut workspace_crates: Vec<models::WorkspaceCrate>,
+) -> Vec<models::WorkspaceCrate> {
+    let mut identities: std::collections::BTreeMap<String, String> =
+        std::collections::BTreeMap::new();
+    for workspace_crate in &workspace_crates {
+        if let (Some(package), Some(identity)) = (
+            workspace_crate.package_name.clone(),
+            workspace_crate.crate_name(),
+        ) {
+            identities.insert(package, identity);
+        }
+    }
+    for workspace_crate in &mut workspace_crates {
+        for dependency in &mut workspace_crate.dependencies {
+            if dependency.renamed {
+                continue;
+            }
+            if let Some(identity) = identities.get(&dependency.package_name) {
+                dependency.source_name.clone_from(identity);
+            }
+        }
+    }
+    workspace_crates
 }
 
 fn supported_target_entry(
@@ -444,7 +502,6 @@ pub(crate) fn rust_target_files(
     }
     files.sort_by(|left, right| left.path.cmp(&right.path));
     files.dedup_by(|left, right| left.path == right.path);
-    files.retain(|file| !workspace_crate.excluded_target_entries.contains(&file.path));
     violations.sort_by(|left, right| left.sort_key().cmp(&right.sort_key()));
     violations.dedup_by(|left, right| left.sort_key() == right.sort_key());
     models::SourceScan { files, violations }

@@ -1,5 +1,6 @@
 //! Data models for the structure checker.
 
+use std::collections::BTreeMap;
 use std::path;
 
 use serde::Deserialize;
@@ -241,8 +242,8 @@ pub struct WorkspaceScan {
 pub struct WorkspaceCrate {
     pub directory: path::PathBuf,
     pub package_name: Option<String>,
+    pub library_name: Option<String>,
     pub targets: Vec<WorkspaceTarget>,
-    pub excluded_target_entries: Vec<path::PathBuf>,
     pub dependencies: Vec<WorkspaceDependency>,
 }
 
@@ -258,6 +259,7 @@ pub struct WorkspaceTarget {
 pub struct WorkspaceDependency {
     pub package_name: String,
     pub source_name: String,
+    pub renamed: bool,
     pub path: Option<path::PathBuf>,
 }
 
@@ -320,5 +322,34 @@ impl SourceFile {
     /// Return the repository-relative path used in diagnostics.
     pub fn relative_path(&self) -> &path::Path {
         path::Path::new(&self.relative)
+    }
+}
+
+impl WorkspaceCrate {
+    pub(crate) fn crate_name(&self) -> Option<String> {
+        self.library_name.clone().or_else(|| {
+            self.package_name
+                .as_ref()
+                .map(|name| name.replace('-', "_"))
+        })
+    }
+
+    pub(crate) fn dependency_roots(
+        &self,
+        workspace_crates: &[WorkspaceCrate],
+    ) -> BTreeMap<String, String> {
+        let mut roots: BTreeMap<String, String> = BTreeMap::new();
+        for dependency in &self.dependencies {
+            for workspace_crate in workspace_crates {
+                if workspace_crate.package_name.as_ref() != Some(&dependency.package_name) {
+                    continue;
+                }
+                if let Some(target) = workspace_crate.crate_name() {
+                    roots.insert(dependency.source_name.clone(), target);
+                }
+                break;
+            }
+        }
+        roots
     }
 }

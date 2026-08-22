@@ -39,6 +39,7 @@ struct HelperType {
 #[derive(Debug)]
 struct CrateSources {
     package: String,
+    dependency_roots: BTreeMap<String, String>,
     files: Vec<models::SourceFile>,
 }
 
@@ -56,7 +57,7 @@ pub(crate) fn check_workspace(
 ) -> Vec<models::Violation> {
     let crates = workspace_crates
         .iter()
-        .filter_map(|workspace_crate| crate_sources(repo_root, workspace_crate))
+        .filter_map(|workspace_crate| crate_sources(repo_root, workspace_crate, workspace_crates))
         .collect::<Vec<_>>();
     let mut index = VisibilityIndex::default();
     for crate_sources in &crates {
@@ -86,11 +87,13 @@ pub(crate) fn check_workspace(
 fn crate_sources(
     repo_root: &path::Path,
     workspace_crate: &models::WorkspaceCrate,
+    workspace_crates: &[models::WorkspaceCrate],
 ) -> Option<CrateSources> {
-    let package = workspace_crate.package_name.as_ref()?.replace('-', "_");
+    let package = workspace_crate.crate_name()?;
     let scan = scanning::rust_target_files(repo_root, workspace_crate, false);
     Some(CrateSources {
         package,
+        dependency_roots: workspace_crate.dependency_roots(workspace_crates),
         files: scan.files,
     })
 }
@@ -110,6 +113,7 @@ impl VisibilityIndex {
             for (target, line) in
                 reference_paths::collect(&syntax, &file.source, &crate_sources.package)
             {
+                let target = normalize_dependency_root(target, &crate_sources.dependency_roots);
                 if targets_bare_crate_surface(&target, &crate_sources.package, &module_visibility)
                     && !is_crate_root(file)
                 {
@@ -138,6 +142,18 @@ impl VisibilityIndex {
                 .extend(collect_helper_types(file, &current_module, &syntax));
         }
     }
+}
+
+fn normalize_dependency_root(
+    mut target: Vec<String>,
+    dependency_roots: &BTreeMap<String, String>,
+) -> Vec<String> {
+    if let Some(root) = target.first_mut() {
+        if let Some(canonical) = dependency_roots.get(root) {
+            *root = canonical.clone();
+        }
+    }
+    target
 }
 
 fn module_visibility(crate_sources: &CrateSources) -> BTreeMap<Vec<String>, bool> {

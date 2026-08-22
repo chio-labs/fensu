@@ -45,11 +45,14 @@ and dependency identities, so root packages, implicit path-dependency members,
 inherited dependencies, and renamed dependencies cannot bypass policy. Library,
 binary, and integration-test targets must use conventional `src/` and `tests/`
 trees; unsupported custom paths fail closed instead of being recursively
-guessed. Examples, benchmarks, and build scripts are outside aggregate
-architecture rules. Local packages, targets, dependencies, the config file, and
-every configured path must remain canonically contained by the repository.
-Symlink entries inside Rust source trees are rejected rather than silently
-skipped.
+guessed. Conventional examples, benchmarks, and build scripts are outside
+aggregate architecture rules. An excluded target entry beneath `src/` or
+`tests/` fails closed and remains scanned because it may also be a compiled
+module. Workspace-wide reference checks resolve dependency aliases and custom
+library names to the same Cargo identity. Local packages, targets, dependencies,
+the config file, and every configured path must remain canonically contained by
+the repository. Symlink entries inside Rust source trees are rejected rather
+than silently skipped.
 
 `restricted-paths` selects the subtrees where raw-parser references are banned.
 An exact repository-relative path selects that subtree. The single-component

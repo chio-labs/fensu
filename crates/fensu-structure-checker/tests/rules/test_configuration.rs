@@ -235,59 +235,134 @@ fn given_renamed_parser_dependency_when_checking_then_source_alias_is_blocked() 
 }
 
 #[test]
-fn given_examples_alongside_invalid_domain_when_checking_then_domain_rules_still_run() {
+fn given_renamed_workspace_library_when_checking_then_project_graph_uses_source_identity() {
     let test_cases = [test_types::CheckRepoTestCase {
-        description: "example targets do not replace the production source root",
+        description: "dependency alias and custom library name resolve to one project identity",
         repo_files: vec![
             test_types::RepoFile {
-                path: "crates/example/src/reading/models.rs".to_owned(),
-                contents: "pub struct Model;\n".to_owned(),
+                path: "Cargo.toml".to_owned(),
+                contents: "[workspace]\nmembers = [\"crates/alpha-core\", \"crates/consumer\", \"crates/direct-consumer\"]\nresolver = \"2\"\n\n[workspace.package]\nedition = \"2021\"\nlicense = \"Apache-2.0\"\npublish = false\n\n[workspace.dependencies]\nprovider = { package = \"alpha-core\", path = \"crates/alpha-core\" }\n\n[workspace.lints.rust]\nunsafe_code = \"forbid\"\nunreachable_pub = \"deny\"\nunused_must_use = \"deny\"\n\n[workspace.lints.clippy]\nawait_holding_lock = \"deny\"\n".to_owned(),
             },
             test_types::RepoFile {
-                path: "crates/example/examples/demo.rs".to_owned(),
-                contents: "fn main() {}\n".to_owned(),
+                path: "crates/alpha-core/Cargo.toml".to_owned(),
+                contents: "[package]\nname = \"alpha-core\"\nversion = \"0.1.0\"\nedition.workspace = true\nlicense.workspace = true\npublish.workspace = true\n\n[lib]\nname = \"alpha_api\"\n\n[lints]\nworkspace = true\n".to_owned(),
             },
             test_types::RepoFile {
-                path: "crates/example/Cargo.toml".to_owned(),
-                contents: "[package]\nname = \"example\"\nversion = \"0.1.0\"\nedition.workspace = true\nlicense.workspace = true\npublish.workspace = true\n\n[[example]]\nname = \"embedded\"\npath = \"src/demo/models.rs\"\n\n[lints]\nworkspace = true\n".to_owned(),
+                path: "crates/alpha-core/src/lib.rs".to_owned(),
+                contents: "#![forbid(unsafe_code)]\npub mod reading;\n".to_owned(),
             },
             test_types::RepoFile {
-                path: "crates/example/src/demo/models.rs".to_owned(),
-                contents: "pub struct IgnoredExample;\n".to_owned(),
+                path: "crates/alpha-core/src/reading/mod.rs".to_owned(),
+                contents: "pub mod main;\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/alpha-core/src/reading/main/mod.rs".to_owned(),
+                contents: "pub mod value;\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/alpha-core/src/reading/main/value.rs".to_owned(),
+                contents: "#[must_use]\npub fn value() -> usize { 1 }\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/consumer/Cargo.toml".to_owned(),
+                contents: "[package]\nname = \"consumer\"\nversion = \"0.1.0\"\nedition.workspace = true\nlicense.workspace = true\npublish.workspace = true\n\n[dependencies]\nprovider.workspace = true\n\n[lints]\nworkspace = true\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/consumer/src/lib.rs".to_owned(),
+                contents: "#![forbid(unsafe_code)]\npub mod writing;\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/consumer/src/writing/mod.rs".to_owned(),
+                contents: "pub mod main;\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/consumer/src/writing/main/mod.rs".to_owned(),
+                contents: "pub(super) mod run;\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/consumer/src/writing/main/run.rs".to_owned(),
+                contents: "use provider::reading::main::value::value;\n\npub fn run() { value(); }\n"
+                    .to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/direct-consumer/Cargo.toml".to_owned(),
+                contents: "[package]\nname = \"direct-consumer\"\nversion = \"0.1.0\"\nedition.workspace = true\nlicense.workspace = true\npublish.workspace = true\n\n[dependencies]\nalpha-core = { path = \"../alpha-core\" }\n\n[lints]\nworkspace = true\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/direct-consumer/src/lib.rs".to_owned(),
+                contents: "#![forbid(unsafe_code)]\npub mod writing;\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/direct-consumer/src/writing/mod.rs".to_owned(),
+                contents: "pub mod main;\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/direct-consumer/src/writing/main/mod.rs".to_owned(),
+                contents: "pub(super) mod run;\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/direct-consumer/src/writing/main/run.rs".to_owned(),
+                contents: "use alpha_api::reading::main::value::value;\n\npub fn run() { value(); }\n"
+                    .to_owned(),
             },
         ],
-        expected_violation_codes: vec!["RSR309"],
+        expected_violation_codes: vec!["RSS101", "RSS101"],
     }];
     for test_case in &test_cases {
         let repo_root = helpers::write_temp_repo_verbatim(test_case);
-        let mut config = models::CheckerConfig::default();
-        config.repository.domain_paths = vec!["crates/example/src/reading".to_owned()];
-        config.repository.role_paths = vec!["crates/example/src/reading/models.rs".to_owned()];
-        let violations =
-            check_repository_with_config::check_repository_with_config(&repo_root, &config)
-                .expect("excluded target inventory configuration is valid");
+        let violations = check_repository::check_repository(&repo_root);
         helpers::remove_temp_repo(&repo_root);
-        assert!(
-            violations
-                .iter()
-                .any(|violation| violation.code == test_case.expected_violation_codes[0]),
+        let project_codes = violations
+            .iter()
+            .filter(|violation| matches!(violation.code, "RSL105" | "RSS101"))
+            .map(|violation| violation.code)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            project_codes, test_case.expected_violation_codes,
             "{}",
             test_case.description
         );
-        assert!(
-            !violations.iter().any(|violation| {
-                violation.path == std::path::Path::new("crates/example/src/demo/models.rs")
-            }),
+    }
+}
+
+#[test]
+fn given_excluded_target_under_source_tree_when_checking_then_fails_closed_and_scans_file() {
+    let test_cases = [test_types::CheckRepoTestCase {
+        description: "an example declaration cannot hide a production module",
+        repo_files: vec![
+            test_types::RepoFile {
+                path: "crates/example/src/lib.rs".to_owned(),
+                contents: "#![forbid(unsafe_code)]\npub mod utils;\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/example/Cargo.toml".to_owned(),
+                contents: "[package]\nname = \"example\"\nversion = \"0.1.0\"\nedition.workspace = true\nlicense.workspace = true\npublish.workspace = true\n\n[[example]]\nname = \"embedded\"\npath = \"src/utils.rs\"\n\n[lints]\nworkspace = true\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/example/src/utils.rs".to_owned(),
+                contents: "fn broken(".to_owned(),
+            },
+        ],
+        expected_violation_codes: vec!["RSL901", "RSH902"],
+    }];
+    for test_case in &test_cases {
+        let repo_root = helpers::write_temp_repo_verbatim(test_case);
+        let violations = check_repository::check_repository(&repo_root);
+        helpers::remove_temp_repo(&repo_root);
+        let actual = violations
+            .iter()
+            .filter(|violation| test_case.expected_violation_codes.contains(&violation.code))
+            .map(|violation| violation.code)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            actual, test_case.expected_violation_codes,
             "{}",
             test_case.description
         );
-        assert!(
-            !violations
-                .iter()
-                .any(|violation| violation.code == "RSL305"),
-            "{}",
-            test_case.description
-        );
+        assert!(violations.iter().any(|violation| {
+            violation.code == "RSH902"
+                && violation.path == std::path::Path::new("crates/example/src/utils.rs")
+        }));
     }
 }
 

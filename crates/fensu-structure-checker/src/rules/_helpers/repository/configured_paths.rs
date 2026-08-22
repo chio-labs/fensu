@@ -93,10 +93,6 @@ fn path_violations(
         .filter(|target| !target.test)
         .map(|target| target.source_root.clone())
         .collect::<Vec<_>>();
-    let excluded_target_entries = crates
-        .iter()
-        .flat_map(|workspace_crate| workspace_crate.excluded_target_entries.iter().cloned())
-        .collect::<BTreeSet<_>>();
     let mut violations: Vec<models::Violation> = Vec::new();
     for path in &config.domain_paths {
         violations.extend(configured_directory_violation(ConfiguredDirectoryRequest {
@@ -128,7 +124,6 @@ fn path_violations(
     violations.extend(closed_inventory_violations(
         repo_root,
         &source_roots,
-        &excluded_target_entries,
         config,
     ));
     violations
@@ -173,7 +168,6 @@ fn configured_directory_violation(
 fn closed_inventory_violations(
     repo_root: &Path,
     source_roots: &[PathBuf],
-    excluded_target_entries: &BTreeSet<PathBuf>,
     config: &models::RepositoryPolicyConfig,
 ) -> Vec<models::Violation> {
     if config.domain_paths.is_empty() && config.role_paths.is_empty() {
@@ -196,7 +190,6 @@ fn closed_inventory_violations(
             if !entry.file_type().is_file()
                 || path.extension().and_then(|suffix| suffix.to_str())
                     != Some(constants::RUST_SUFFIX)
-                || excluded_target_entries.contains(path)
                 || intentional.iter().any(|root| path.starts_with(root))
             {
                 continue;

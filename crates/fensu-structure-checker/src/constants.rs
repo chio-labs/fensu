@@ -19,8 +19,11 @@ pub const MAX_LOCALS_ENTRY: usize = 20;
 pub const CHECKER_CONFIG_SCHEMA_VERSION: u32 = 1;
 pub const DEFAULT_TOOLING_CRATE_NAME: &str = "fensu-structure-checker";
 pub const DEFAULT_RAW_PARSER_CRATES: &[&str] = &["ruff_python_ast", "ruff_python_parser"];
+pub const DEFAULT_RAW_PARSER_RESTRICTED_PATHS: &[&str] = &["rules"];
 pub const DEFAULT_RAW_PARSER_REMEDIATION: &str =
     "consume shared fensu-facts row models instead of parser or AST types";
+pub(crate) const DIRECT_BIN_TARGET_COMPONENTS: usize = 1;
+pub(crate) const NESTED_BIN_TARGET_COMPONENTS: usize = 2;
 pub const BANNED_FILE_STEMS: &[&str] = &[
     "base",
     "common",

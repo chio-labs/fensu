@@ -17,6 +17,7 @@ publish = false
 rust-version = "1.95"
 
 [workspace.dependencies]
+cargo_metadata = "=0.19.2"
 cap-fs-ext = "4"
 cap-std = "4"
 command-group = "=5.0.1"

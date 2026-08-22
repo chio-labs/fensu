@@ -74,7 +74,7 @@ fn module_nodes<'a>(files: &'a [models::SourceFile], package: &str) -> Vec<Modul
             };
             ModuleNode {
                 file,
-                path: reference_paths::module_path(package, &file.relative),
+                path: reference_paths::module_path(package, file),
                 domain,
                 helper_owner,
             }
@@ -90,10 +90,7 @@ fn source_domain(part: Option<&String>) -> Option<String> {
 }
 
 fn source_parts(file: &models::SourceFile) -> Vec<String> {
-    file.relative
-        .split_once("/src/")
-        .map(|(_, inside)| inside)
-        .unwrap_or_default()
+    file.source_relative
         .split('/')
         .take_while(|part| !part.ends_with(".rs"))
         .map(str::to_owned)

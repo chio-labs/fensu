@@ -6,36 +6,713 @@ use fensu_structure_checker::models;
 use fensu_structure_checker::rules::main::{check_repository, check_repository_with_config};
 
 #[test]
-fn given_explicit_fensu_defaults_when_checking_then_diagnostics_are_unchanged() {
-    let test_cases = [test_types::ConfigCompatibilityTestCase {
-        description: "default compatibility",
-        repo_files: vec![test_types::RepoFile {
-            path: "crates/example/src/rules/_helpers/annotations.rs".to_owned(),
-            contents: "use ruff_python_ast::ModModule;\n".to_owned(),
-        }],
-        expected_equal: true,
+fn given_fensu_defaults_when_checking_then_reports_the_legacy_parser_scope() {
+    let test_cases = [test_types::CheckRepoTestCase {
+        description: "default raw parser boundary",
+        repo_files: vec![
+            test_types::RepoFile {
+                path: "crates/example/src/rules/_helpers/annotations.rs".to_owned(),
+                contents: "use ruff_python_ast::ModModule;\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/example/src/facts/_helpers/annotations.rs".to_owned(),
+                contents: "use ruff_python_ast::ModModule;\ntype Parsed = ruff_python_ast::Expr;\n"
+                    .to_owned(),
+            },
+        ],
+        expected_violation_codes: vec!["RSL102"],
     }];
-
-    for test_case in test_cases {
-        let fixture = test_types::CheckRepoTestCase {
-            description: test_case.description,
-            repo_files: test_case.repo_files,
-            expected_violation_codes: Vec::new(),
-        };
-        let repo_root = helpers::write_temp_repo(&fixture);
-        let implicit = check_repository::check_repository(&repo_root);
-        let explicit = check_repository_with_config::check_repository_with_config(
-            &repo_root,
-            &models::CheckerConfig::default(),
-        )
-        .expect("explicit defaults are valid");
+    for test_case in &test_cases {
+        let repo_root = helpers::write_temp_repo(test_case);
+        let violations = check_repository::check_repository(&repo_root);
         helpers::remove_temp_repo(&repo_root);
+        let parser_violations = violations
+            .iter()
+            .filter(|violation| violation.code == test_case.expected_violation_codes[0])
+            .collect::<Vec<_>>();
         assert_eq!(
-            implicit == explicit,
-            test_case.expected_equal,
-            "case failed: {}",
+            parser_violations
+                .iter()
+                .map(|violation| violation.code)
+                .collect::<Vec<_>>(),
+            test_case.expected_violation_codes,
+            "{}",
             test_case.description
         );
+        let parser = parser_violations[0];
+        assert_eq!(
+            parser.path,
+            std::path::Path::new("crates/example/src/rules/_helpers/annotations.rs"),
+            "{}",
+            test_case.description
+        );
+        assert_eq!(parser.line, Some(1), "{}", test_case.description);
+        assert_eq!(
+            parser.message, "restricted module accesses raw parser crate ruff_python_ast",
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            parser.remediation,
+            "consume shared fensu-facts row models instead of parser or AST types",
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_nonempty_structural_inventories_when_checking_then_undeclared_paths_fail_closed() {
+    let test_cases = [test_types::CheckRepoTestCase {
+        description: "closed domain and role inventories",
+        repo_files: vec![
+            helpers::entry("reading", "read_value", "read_value"),
+            helpers::entry("writing", "write_value", "write_value"),
+        ],
+        expected_violation_codes: vec!["RSL305", "RSL305"],
+    }];
+    for test_case in &test_cases {
+        let repo_root = helpers::write_temp_repo(test_case);
+        let mut config = models::CheckerConfig::default();
+        config.repository.domain_paths = vec!["crates/example/src/reading".to_owned()];
+        config.repository.role_paths = vec!["crates/example/src/reading/main".to_owned()];
+        let violations =
+            check_repository_with_config::check_repository_with_config(&repo_root, &config)
+                .expect("closed inventories are valid configuration");
+        helpers::remove_temp_repo(&repo_root);
+        let undeclared = violations
+            .iter()
+            .filter(|violation| violation.code == test_case.expected_violation_codes[0])
+            .map(|violation| violation.path.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            vec!["RSL305"; undeclared.len()],
+            test_case.expected_violation_codes,
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            undeclared,
+            vec![
+                "crates/example/src/writing".to_owned(),
+                "crates/example/src/writing/main".to_owned(),
+            ],
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_custom_parser_scope_when_checking_then_all_rust_reference_forms_are_blocked() {
+    let test_cases = [test_types::CheckRepoTestCase {
+        description: "raw parser syntax coverage",
+        repo_files: vec![
+            test_types::RepoFile {
+                path: "crates/example/src/policy/main/check.rs".to_owned(),
+                contents: "use parser_use::Thing;\nextern crate parser_extern;\ntype Parsed = parser_path::Thing;\nfn check() { parser_macro::parse!(); }\nmacro_rules! wrap { () => { type Hidden = parser_token::Thing; } }\nmacro_rules! harmless { ($parser_token:ident) => { let parser_token = 1; } }\n#[some_macro(parser = parser_attr::Expr)] fn attributed() {}\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/example/src/outside/main/check.rs".to_owned(),
+                contents: "use parser_use::Thing;\n".to_owned(),
+            },
+        ],
+        expected_violation_codes: vec!["RSL102", "RSL102", "RSL102", "RSL102", "RSL102", "RSL102"],
+    }];
+    for test_case in &test_cases {
+        let repo_root = helpers::write_temp_repo(test_case);
+        let mut config = models::CheckerConfig::default();
+        config.raw_parser_boundary.packages = vec![
+            "parser_use".to_owned(),
+            "parser_extern".to_owned(),
+            "parser_path".to_owned(),
+            "parser_macro".to_owned(),
+            "parser_token".to_owned(),
+            "parser_attr".to_owned(),
+        ];
+        config.raw_parser_boundary.restricted_paths = vec!["crates/example/src/policy".to_owned()];
+        let violations =
+            check_repository_with_config::check_repository_with_config(&repo_root, &config)
+                .expect("custom parser scope is valid");
+        helpers::remove_temp_repo(&repo_root);
+        let parser = violations
+            .iter()
+            .filter(|violation| violation.code == test_case.expected_violation_codes[0])
+            .map(|violation| (violation.line, violation.message.clone()))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            vec!["RSL102"; parser.len()],
+            test_case.expected_violation_codes,
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            parser,
+            vec![
+                (
+                    Some(1),
+                    "restricted module accesses raw parser crate parser_use".to_owned()
+                ),
+                (
+                    Some(2),
+                    "restricted module accesses raw parser crate parser_extern".to_owned()
+                ),
+                (
+                    Some(3),
+                    "restricted module accesses raw parser crate parser_path".to_owned()
+                ),
+                (
+                    Some(4),
+                    "restricted module accesses raw parser crate parser_macro".to_owned()
+                ),
+                (
+                    Some(5),
+                    "restricted module accesses raw parser crate parser_token".to_owned()
+                ),
+                (
+                    Some(7),
+                    "restricted module accesses raw parser crate parser_attr".to_owned()
+                ),
+            ],
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_renamed_parser_dependency_when_checking_then_source_alias_is_blocked() {
+    let test_cases = [test_types::CheckRepoTestCase {
+        description: "Cargo dependency alias resolves to parser package identity",
+        repo_files: vec![
+            test_types::RepoFile {
+                path: "Cargo.toml".to_owned(),
+                contents: "[workspace]\nmembers = [\"crates/example\", \"crates/raw-parser\"]\nresolver = \"2\"\n\n[workspace.package]\nedition = \"2021\"\nlicense = \"Apache-2.0\"\npublish = false\n\n[workspace.dependencies]\nast = { package = \"raw-parser\", path = \"crates/raw-parser\" }\n\n[workspace.lints.rust]\nunsafe_code = \"forbid\"\nunreachable_pub = \"deny\"\nunused_must_use = \"deny\"\n\n[workspace.lints.clippy]\nawait_holding_lock = \"deny\"\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/example/Cargo.toml".to_owned(),
+                contents: "[package]\nname = \"example\"\nversion = \"0.1.0\"\nedition.workspace = true\nlicense.workspace = true\npublish.workspace = true\n\n[lints]\nworkspace = true\n\n[dependencies]\nast.workspace = true\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/example/src/rules/main/check.rs".to_owned(),
+                contents: "use ast::Expr;\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/raw-parser/Cargo.toml".to_owned(),
+                contents: "[package]\nname = \"raw-parser\"\nversion = \"0.1.0\"\nedition.workspace = true\nlicense.workspace = true\npublish.workspace = true\n\n[lints]\nworkspace = true\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/raw-parser/src/lib.rs".to_owned(),
+                contents: "#![forbid(unsafe_code)]\npub struct Expr;\n".to_owned(),
+            },
+        ],
+        expected_violation_codes: vec!["RSL102"],
+    }];
+    for test_case in &test_cases {
+        let repo_root = helpers::write_temp_repo(test_case);
+        let mut config = models::CheckerConfig::default();
+        config.raw_parser_boundary.packages = vec!["raw-parser".to_owned()];
+        let violations =
+            check_repository_with_config::check_repository_with_config(&repo_root, &config)
+                .expect("renamed parser dependency is valid Cargo metadata");
+        helpers::remove_temp_repo(&repo_root);
+        let parser = violations
+            .iter()
+            .filter(|violation| violation.code == "RSL102")
+            .collect::<Vec<_>>();
+        assert_eq!(
+            parser.len(),
+            test_case.expected_violation_codes.len(),
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            parser[0].message, "restricted module accesses raw parser crate raw-parser",
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_examples_alongside_invalid_domain_when_checking_then_domain_rules_still_run() {
+    let test_cases = [test_types::CheckRepoTestCase {
+        description: "example targets do not replace the production source root",
+        repo_files: vec![
+            test_types::RepoFile {
+                path: "crates/example/src/reading/models.rs".to_owned(),
+                contents: "pub struct Model;\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/example/examples/demo.rs".to_owned(),
+                contents: "fn main() {}\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/example/Cargo.toml".to_owned(),
+                contents: "[package]\nname = \"example\"\nversion = \"0.1.0\"\nedition.workspace = true\nlicense.workspace = true\npublish.workspace = true\n\n[[example]]\nname = \"embedded\"\npath = \"src/demo/models.rs\"\n\n[lints]\nworkspace = true\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/example/src/demo/models.rs".to_owned(),
+                contents: "pub struct IgnoredExample;\n".to_owned(),
+            },
+        ],
+        expected_violation_codes: vec!["RSR309"],
+    }];
+    for test_case in &test_cases {
+        let repo_root = helpers::write_temp_repo_verbatim(test_case);
+        let mut config = models::CheckerConfig::default();
+        config.repository.domain_paths = vec!["crates/example/src/reading".to_owned()];
+        config.repository.role_paths = vec!["crates/example/src/reading/models.rs".to_owned()];
+        let violations =
+            check_repository_with_config::check_repository_with_config(&repo_root, &config)
+                .expect("excluded target inventory configuration is valid");
+        helpers::remove_temp_repo(&repo_root);
+        assert!(
+            violations
+                .iter()
+                .any(|violation| violation.code == test_case.expected_violation_codes[0]),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            !violations.iter().any(|violation| {
+                violation.path == std::path::Path::new("crates/example/src/demo/models.rs")
+            }),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            !violations
+                .iter()
+                .any(|violation| violation.code == "RSL305"),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_included_and_excluded_targets_share_entry_when_checking_then_included_target_wins() {
+    let test_cases = [test_types::CheckRepoTestCase {
+        description: "excluded target cannot suppress a shared binary entry",
+        repo_files: vec![
+            test_types::RepoFile {
+                path: "crates/example/Cargo.toml".to_owned(),
+                contents: "[package]\nname = \"example\"\nversion = \"0.1.0\"\nedition.workspace = true\nlicense.workspace = true\npublish.workspace = true\n\n[[bin]]\nname = \"example\"\npath = \"src/main.rs\"\n\n[[example]]\nname = \"shared\"\npath = \"src/main.rs\"\n\n[lints]\nworkspace = true\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/example/src/main.rs".to_owned(),
+                contents: "fn broken(".to_owned(),
+            },
+        ],
+        expected_violation_codes: vec!["RSH902"],
+    }];
+    for test_case in &test_cases {
+        let repo_root = helpers::write_temp_repo(test_case);
+        let violations = check_repository::check_repository(&repo_root);
+        helpers::remove_temp_repo(&repo_root);
+        assert!(
+            violations.iter().any(|violation| {
+                violation.code == test_case.expected_violation_codes[0]
+                    && violation.path == std::path::Path::new("crates/example/src/main.rs")
+            }),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_workspace_member_path_contains_src_when_checking_then_actual_source_root_is_preserved() {
+    let test_cases = [test_types::CheckRepoTestCase {
+        description: "package path components cannot corrupt source-relative architecture",
+        repo_files: vec![
+            test_types::RepoFile {
+                path: "Cargo.toml".to_owned(),
+                contents: "[workspace]\nmembers = [\"packages/src/example\"]\nresolver = \"2\"\n\n[workspace.package]\nedition = \"2021\"\nlicense = \"Apache-2.0\"\npublish = false\n\n[workspace.lints.rust]\nunsafe_code = \"forbid\"\nunreachable_pub = \"deny\"\nunused_must_use = \"deny\"\n\n[workspace.lints.clippy]\nawait_holding_lock = \"deny\"\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "packages/src/example/Cargo.toml".to_owned(),
+                contents: "[package]\nname = \"example\"\nversion = \"0.1.0\"\nedition.workspace = true\nlicense.workspace = true\npublish.workspace = true\n\n[lints]\nworkspace = true\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "packages/src/example/src/lib.rs".to_owned(),
+                contents: "#![forbid(unsafe_code)]\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "packages/src/example/src/reading/models.rs".to_owned(),
+                contents: "pub struct Model;\n".to_owned(),
+            },
+        ],
+        expected_violation_codes: vec!["RSR309"],
+    }];
+    for test_case in &test_cases {
+        let repo_root = helpers::write_temp_repo_verbatim(test_case);
+        let violations = check_repository::check_repository(&repo_root);
+        helpers::remove_temp_repo(&repo_root);
+        assert!(
+            violations.iter().any(|violation| {
+                violation.code == test_case.expected_violation_codes[0]
+                    && violation.path == std::path::Path::new("packages/src/example/src/reading")
+            }),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_custom_library_or_binary_path_when_checking_then_target_fails_closed() {
+    let test_cases = [
+        test_types::CheckRepoTestCase {
+            description: "custom Cargo target path is not recursively guessed",
+            repo_files: vec![
+                test_types::RepoFile {
+                    path: "crates/example/Cargo.toml".to_owned(),
+                    contents: "[package]\nname = \"example\"\nversion = \"0.1.0\"\nedition.workspace = true\nlicense.workspace = true\npublish.workspace = true\n\n[lib]\npath = \"code/lib.rs\"\n\n[lints]\nworkspace = true\n".to_owned(),
+                },
+                test_types::RepoFile {
+                    path: "crates/example/code/lib.rs".to_owned(),
+                    contents: "#![forbid(unsafe_code)]\n".to_owned(),
+                },
+            ],
+            expected_violation_codes: vec!["RSL901"],
+        },
+        test_types::CheckRepoTestCase {
+            description: "extensionless integration target cannot disappear from scanning",
+            repo_files: vec![
+                test_types::RepoFile {
+                    path: "crates/example/Cargo.toml".to_owned(),
+                    contents: "[package]\nname = \"example\"\nversion = \"0.1.0\"\nedition.workspace = true\nlicense.workspace = true\npublish.workspace = true\n\n[[test]]\nname = \"extensionless\"\npath = \"tests/extensionless\"\n\n[lints]\nworkspace = true\n".to_owned(),
+                },
+                test_types::RepoFile {
+                    path: "crates/example/tests/extensionless".to_owned(),
+                    contents: "fn main() {}\n".to_owned(),
+                },
+            ],
+            expected_violation_codes: vec!["RSL901"],
+        },
+    ];
+    for test_case in &test_cases {
+        let repo_root = helpers::write_temp_repo(test_case);
+        let violations = check_repository::check_repository(&repo_root);
+        helpers::remove_temp_repo(&repo_root);
+        assert!(
+            violations.iter().any(|violation| {
+                violation.code == test_case.expected_violation_codes[0]
+                    && violation.message.contains("unsupported source path")
+            }),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_test_topic_without_cargo_harness_when_checking_then_file_is_not_invisible() {
+    let test_cases = [test_types::CheckRepoTestCase {
+        description: "conventional tests tree is checked even without a Cargo target",
+        repo_files: vec![test_types::RepoFile {
+            path: "crates/example/tests/orphan/test_broken.rs".to_owned(),
+            contents: "fn broken(".to_owned(),
+        }],
+        expected_violation_codes: vec!["RSH902"],
+    }];
+    for test_case in &test_cases {
+        let repo_root = helpers::write_temp_repo_verbatim(test_case);
+        let violations = check_repository::check_repository(&repo_root);
+        helpers::remove_temp_repo(&repo_root);
+        assert!(
+            violations.iter().any(|violation| {
+                violation.code == test_case.expected_violation_codes[0]
+                    && violation.path
+                        == std::path::Path::new("crates/example/tests/orphan/test_broken.rs")
+            }),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_nested_role_files_and_role_free_domain_when_inventory_is_closed_then_types_are_exact() {
+    let test_cases = [test_types::CheckRepoTestCase {
+        description: "role containers are not domains and role-free domains remain visible",
+        repo_files: vec![
+            test_types::RepoFile {
+                path: "crates/example/src/alpha/main/models.rs".to_owned(),
+                contents: "pub struct Alpha;\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/example/src/beta/feature.rs".to_owned(),
+                contents: "pub struct Beta;\n".to_owned(),
+            },
+        ],
+        expected_violation_codes: vec!["RSL305"],
+    }];
+    for test_case in &test_cases {
+        let repo_root = helpers::write_temp_repo_verbatim(test_case);
+        let mut config = models::CheckerConfig::default();
+        config.repository.domain_paths = vec!["crates/example/src/alpha".to_owned()];
+        config.repository.role_paths = vec![
+            "crates/example/src/alpha/main".to_owned(),
+            "crates/example/src/alpha/main/models.rs".to_owned(),
+        ];
+        let violations =
+            check_repository_with_config::check_repository_with_config(&repo_root, &config)
+                .expect("closed inventory configuration is valid");
+        helpers::remove_temp_repo(&repo_root);
+        let inventory = violations
+            .iter()
+            .filter(|violation| violation.code == test_case.expected_violation_codes[0])
+            .map(|violation| {
+                (
+                    violation.code,
+                    violation.path.to_string_lossy().into_owned(),
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            inventory,
+            vec![(
+                test_case.expected_violation_codes[0],
+                "crates/example/src/beta".to_owned(),
+            )],
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_root_implicit_and_custom_target_packages_when_checking_then_cargo_inventory_is_used() {
+    let test_cases = [test_types::CheckRepoTestCase {
+        description: "Cargo workspace and target discovery",
+        repo_files: vec![
+            test_types::RepoFile {
+                path: "Cargo.toml".to_owned(),
+                contents: "[package]\nname = \"root-package\"\nversion = \"0.1.0\"\nedition.workspace = true\nlicense.workspace = true\npublish.workspace = true\n\n[dependencies]\nimplicit.workspace = true\n\n[lints]\nworkspace = true\n\n[workspace]\nmembers = [\"crates/example\"]\nresolver = \"2\"\n\n[workspace.package]\nedition = \"2021\"\nlicense = \"Apache-2.0\"\npublish = false\n\n[workspace.dependencies]\nimplicit = { path = \"crates/implicit\" }\n\n[workspace.lints.rust]\nunsafe_code = \"forbid\"\nunreachable_pub = \"deny\"\nunused_must_use = \"deny\"\n\n[workspace.lints.clippy]\nawait_holding_lock = \"deny\"\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "src/lib.rs".to_owned(),
+                contents: "#![forbid(unsafe_code)]\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "src/utils.rs".to_owned(),
+                contents: "fn value() -> usize { 1 }\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "src/reading/models.rs".to_owned(),
+                contents: "pub struct RootModel;\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/implicit/Cargo.toml".to_owned(),
+                contents: "[package]\nname = \"implicit\"\nversion = \"0.1.0\"\nedition.workspace = true\nlicense.workspace = true\npublish.workspace = true\n\n[lints]\nworkspace = true\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/implicit/src/lib.rs".to_owned(),
+                contents: "#![forbid(unsafe_code)]\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/implicit/src/manager.rs".to_owned(),
+                contents: "fn value() -> usize { 1 }\n".to_owned(),
+            },
+        ],
+        expected_violation_codes: vec!["RSR201", "RSR201", "RSR309"],
+    }];
+    for test_case in &test_cases {
+        let repo_root = helpers::write_temp_repo(test_case);
+        let mut config = models::CheckerConfig::default();
+        config.repository.crate_names = vec![
+            "example".to_owned(),
+            "implicit".to_owned(),
+            "root-package".to_owned(),
+        ];
+        let violations =
+            check_repository_with_config::check_repository_with_config(&repo_root, &config)
+                .expect("Cargo workspace inventory is valid");
+        helpers::remove_temp_repo(&repo_root);
+        assert!(
+            !violations
+                .iter()
+                .any(|violation| violation.code == "RSL304"),
+            "{}",
+            test_case.description
+        );
+        let banned = violations
+            .iter()
+            .filter(|violation| violation.code == test_case.expected_violation_codes[0])
+            .map(|violation| violation.path.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            vec!["RSR201"; banned.len()],
+            test_case.expected_violation_codes[..2],
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            banned,
+            vec![
+                "crates/implicit/src/manager.rs".to_owned(),
+                "src/utils.rs".to_owned(),
+            ],
+            "{}",
+            test_case.description
+        );
+        assert!(
+            violations.iter().any(|violation| {
+                violation.code == test_case.expected_violation_codes[2]
+                    && violation.path == std::path::Path::new("src/reading")
+            }),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn given_symlink_escapes_when_checking_then_configured_source_and_dependency_paths_fail_closed() {
+    use std::os::unix::fs::symlink;
+
+    let test_cases = [test_types::CheckRepoTestCase {
+        description: "canonical path containment",
+        repo_files: Vec::new(),
+        expected_violation_codes: vec!["RSL305", "RSL901", "RSH901", "RSL901", "RSL306"],
+    }];
+    for test_case in &test_cases {
+        let repo_root = helpers::write_temp_repo(test_case);
+        let outside = repo_root.with_file_name(format!(
+            "{}-outside",
+            repo_root
+                .file_name()
+                .expect("fixture has a name")
+                .to_string_lossy()
+        ));
+        std::fs::create_dir_all(outside.join("source"))
+            .expect("external source fixture is writable");
+        std::fs::write(outside.join("source/lib.rs"), "#![forbid(unsafe_code)]\n")
+            .expect("external source is writable");
+        std::fs::create_dir_all(repo_root.join("crates/example/src/escaped"))
+            .expect("fixture source is writable");
+        symlink(
+            outside.join("source"),
+            repo_root.join("crates/example/src/escaped/external"),
+        )
+        .expect("source symlink is writable");
+        let mut config = models::CheckerConfig::default();
+        config.repository.domain_paths = vec!["crates/example/src/escaped/external".to_owned()];
+        let configured =
+            check_repository_with_config::check_repository_with_config(&repo_root, &config)
+                .expect("configured symlink is checked");
+        assert!(
+            configured
+                .iter()
+                .any(|violation| violation.code == test_case.expected_violation_codes[0]),
+            "{}",
+            test_case.description
+        );
+
+        std::fs::remove_file(repo_root.join("crates/example/src/lib.rs"))
+            .expect("fixture library target is removable");
+        symlink(
+            outside.join("source/lib.rs"),
+            repo_root.join("crates/example/src/lib.rs"),
+        )
+        .expect("source target symlink is writable");
+        let source = check_repository::check_repository(&repo_root);
+        assert!(
+            source.iter().any(|violation| {
+                violation.code == test_case.expected_violation_codes[1]
+                    && violation.message.contains("Cargo target")
+            }),
+            "{}",
+            test_case.description
+        );
+        std::fs::remove_file(repo_root.join("crates/example/src/lib.rs"))
+            .expect("source target symlink is removable");
+        std::fs::write(
+            repo_root.join("crates/example/src/lib.rs"),
+            "#![forbid(unsafe_code)]\n",
+        )
+        .expect("fixture library target is restorable");
+
+        std::fs::create_dir_all(repo_root.join("crates/example/src/rules"))
+            .expect("nested source directory is writable");
+        symlink(
+            outside.join("source/lib.rs"),
+            repo_root.join("crates/example/src/rules/parser.rs"),
+        )
+        .expect("nested source symlink is writable");
+        let nested_source = check_repository::check_repository(&repo_root);
+        assert!(
+            nested_source.iter().any(|violation| {
+                violation.code == test_case.expected_violation_codes[2]
+                    && violation.path == std::path::Path::new("crates/example/src/rules/parser.rs")
+            }),
+            "{}",
+            test_case.description
+        );
+
+        std::fs::create_dir_all(outside.join("package/src"))
+            .expect("external package fixture is writable");
+        std::fs::write(
+        outside.join("package/Cargo.toml"),
+        "[package]\nname = \"escaped-package\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[lints]\nworkspace = true\n",
+    )
+    .expect("external package manifest is writable");
+        std::fs::write(outside.join("package/src/lib.rs"), "")
+            .expect("external package source is writable");
+        symlink(
+            outside.join("package"),
+            repo_root.join("crates/escaped-package"),
+        )
+        .expect("package symlink is writable");
+        std::fs::write(
+        repo_root.join("Cargo.toml"),
+        "[workspace]\nmembers = [\"crates/example\", \"crates/escaped-package\"]\nresolver = \"2\"\n\n[workspace.package]\nedition = \"2021\"\nlicense = \"Apache-2.0\"\npublish = false\n\n[workspace.dependencies]\nfensu-structure-checker = \"0.12.0\"\n\n[workspace.lints.rust]\nunsafe_code = \"forbid\"\nunreachable_pub = \"deny\"\nunused_must_use = \"deny\"\n\n[workspace.lints.clippy]\nawait_holding_lock = \"deny\"\n",
+    )
+    .expect("fixture workspace manifest is writable");
+        let package = check_repository::check_repository(&repo_root);
+        assert!(
+            package.iter().any(|violation| {
+                violation.code == test_case.expected_violation_codes[3]
+                    && violation.message.contains("workspace package")
+            }),
+            "{}",
+            test_case.description
+        );
+
+        std::fs::create_dir_all(outside.join("dependency/src"))
+            .expect("external dependency fixture is writable");
+        std::fs::write(
+            outside.join("dependency/Cargo.toml"),
+            "[package]\nname = \"escaped-dependency\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        )
+        .expect("external dependency manifest is writable");
+        std::fs::write(outside.join("dependency/src/lib.rs"), "")
+            .expect("external dependency source is writable");
+        std::fs::create_dir_all(repo_root.join("vendor")).expect("fixture vendor path is writable");
+        symlink(
+            outside.join("dependency"),
+            repo_root.join("vendor/dependency"),
+        )
+        .expect("dependency symlink is writable");
+        std::fs::write(
+        repo_root.join("crates/example/Cargo.toml"),
+        "[package]\nname = \"example\"\nversion = \"0.1.0\"\nedition.workspace = true\nlicense.workspace = true\npublish.workspace = true\n\n[lints]\nworkspace = true\n\n[dependencies]\nescaped = { path = \"../../vendor/dependency\" }\n",
+    )
+    .expect("fixture manifest is writable");
+        let dependency = check_repository::check_repository(&repo_root);
+        assert!(
+            dependency
+                .iter()
+                .any(|violation| violation.code == test_case.expected_violation_codes[4]),
+            "{}",
+            test_case.description
+        );
+        helpers::remove_temp_repo(&repo_root);
+        std::fs::remove_dir_all(outside).expect("external fixture is removable");
     }
 }
 
@@ -60,6 +737,7 @@ fn given_custom_parser_boundary_when_checking_then_uses_configured_policy() {
             raw_parser_boundary: models::RawParserBoundaryConfig {
                 packages: vec!["sqlparser".to_owned()],
                 remediation: "consume shared SQL fact rows".to_owned(),
+                restricted_paths: vec!["rules".to_owned()],
             },
             repository: models::RepositoryPolicyConfig::default(),
         },
@@ -111,6 +789,9 @@ fn given_consumer_tooling_dependencies_when_checking_then_blocks_every_shared_ch
         repo_files: vec![test_types::RepoFile {
             path: "crates/example/Cargo.toml".to_owned(),
             contents: "[package]\nname = \"example\"\nversion = \"0.1.0\"\nedition.workspace = true\nlicense.workspace = true\npublish.workspace = true\n\n[lints]\nworkspace = true\n\n[dependencies]\nchecker = { package = \"sqlbuild-structure-checker\", workspace = true }\n".to_owned(),
+        }, test_types::RepoFile {
+            path: "Cargo.toml".to_owned(),
+            contents: "[workspace]\nmembers = [\"crates/example\"]\nresolver = \"2\"\n\n[workspace.package]\nedition = \"2021\"\nlicense = \"Apache-2.0\"\npublish = false\n\n[workspace.dependencies]\nchecker = { package = \"sqlbuild-structure-checker\", version = \"0.1\" }\n\n[workspace.lints.rust]\nunsafe_code = \"forbid\"\nunreachable_pub = \"deny\"\nunused_must_use = \"deny\"\n\n[workspace.lints.clippy]\nawait_holding_lock = \"deny\"\n".to_owned(),
         }],
         config,
         expected_code: "RSL301",
@@ -242,6 +923,32 @@ fn given_directory_named_like_role_file_when_checking_then_role_path_is_rejected
 }
 
 #[test]
+fn given_source_root_as_intentional_layout_when_checking_then_broad_exclusion_is_rejected() {
+    let test_cases = [test_types::CheckRepoTestCase {
+        description: "source root cannot be excluded",
+        repo_files: Vec::new(),
+        expected_violation_codes: vec!["RSL305"],
+    }];
+    for test_case in &test_cases {
+        let repo_root = helpers::write_temp_repo(test_case);
+        let mut config = models::CheckerConfig::default();
+        config.repository.intentional_layout_paths = vec!["crates/example/src".to_owned()];
+        let violations =
+            check_repository_with_config::check_repository_with_config(&repo_root, &config)
+                .expect("broad path is a repository diagnostic");
+        helpers::remove_temp_repo(&repo_root);
+        assert!(
+            violations.iter().any(|violation| {
+                violation.code == test_case.expected_violation_codes[0]
+                    && violation.path == std::path::Path::new("crates/example/src")
+            }),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
 fn given_invalid_config_when_validating_then_fails_closed() {
     let test_cases = [
         test_types::ConfigValidationTestCase {
@@ -279,6 +986,32 @@ fn given_invalid_config_when_validating_then_fails_closed() {
             config: models::CheckerConfig {
                 repository: models::RepositoryPolicyConfig {
                     domain_paths: vec!["C:/repository/domain".to_owned()],
+                    ..models::RepositoryPolicyConfig::default()
+                },
+                ..models::CheckerConfig::default()
+            },
+            expected_is_error: true,
+        },
+        test_types::ConfigValidationTestCase {
+            description: "overlapping intentional layout paths",
+            config: models::CheckerConfig {
+                repository: models::RepositoryPolicyConfig {
+                    intentional_layout_paths: vec![
+                        "crates/example/src/generated".to_owned(),
+                        "crates/example/src/generated/models".to_owned(),
+                    ],
+                    ..models::RepositoryPolicyConfig::default()
+                },
+                ..models::CheckerConfig::default()
+            },
+            expected_is_error: true,
+        },
+        test_types::ConfigValidationTestCase {
+            description: "intentional layout overlaps declared domain",
+            config: models::CheckerConfig {
+                repository: models::RepositoryPolicyConfig {
+                    domain_paths: vec!["crates/example/src/domain".to_owned()],
+                    intentional_layout_paths: vec!["crates/example/src/domain/generated".to_owned()],
                     ..models::RepositoryPolicyConfig::default()
                 },
                 ..models::CheckerConfig::default()

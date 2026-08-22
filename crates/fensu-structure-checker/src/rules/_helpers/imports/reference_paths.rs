@@ -25,11 +25,12 @@ pub(crate) fn collect(
         .collect()
 }
 
-pub(crate) fn module_path(package: &str, relative: &str) -> Vec<String> {
-    let Some((_, inside)) = relative.split_once("/src/") else {
-        return vec![package.to_owned()];
-    };
-    let mut parts = inside.split('/').map(str::to_owned).collect::<Vec<_>>();
+pub(crate) fn module_path(package: &str, file: &crate::models::SourceFile) -> Vec<String> {
+    let mut parts = file
+        .source_relative
+        .split('/')
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
     let Some(file) = parts.pop() else {
         return vec![package.to_owned()];
     };

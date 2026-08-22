@@ -3,6 +3,14 @@
 use std::collections::HashSet;
 
 use crate::constants::{CURRENT_PATH_SEGMENT, PARENT_PATH_SEGMENT};
+
+pub(crate) fn default_raw_parser_restricted_paths() -> Vec<String> {
+    crate::constants::DEFAULT_RAW_PARSER_RESTRICTED_PATHS
+        .iter()
+        .map(|value| (*value).to_owned())
+        .collect()
+}
+
 pub(crate) fn validate_non_empty_unique(values: &[String], name: &str) -> Result<(), String> {
     let mut unique: HashSet<&String> = HashSet::new();
     for value in values {

@@ -1,7 +1,6 @@
 //! Project-aware discarded-result policy for Rust `#[must_use]` functions.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::fs;
 use std::path;
 
 use syn::spanned::Spanned;
@@ -30,11 +29,11 @@ struct DiscardedCall {
 
 pub(crate) fn check_workspace(
     repo_root: &path::Path,
-    crate_directories: &[path::PathBuf],
+    workspace_crates: &[models::WorkspaceCrate],
 ) -> Vec<models::Violation> {
-    let crates = crate_directories
+    let crates = workspace_crates
         .iter()
-        .filter_map(|crate_dir| crate_sources(repo_root, crate_dir))
+        .filter_map(|workspace_crate| crate_sources(repo_root, workspace_crate))
         .collect::<Vec<_>>();
     let meaningful = crates
         .iter()
@@ -61,21 +60,12 @@ pub(crate) fn check_workspace(
     violations
 }
 
-fn crate_sources(repo_root: &path::Path, crate_dir: &path::Path) -> Option<CrateSources> {
-    let manifest = match fs::read_to_string(crate_dir.join(constants::CARGO_MANIFEST_FILE)) {
-        Ok(manifest) => manifest,
-        Err(_) => return None,
-    };
-    let document = match toml::from_str::<toml::Value>(&manifest) {
-        Ok(document) => document,
-        Err(_) => return None,
-    };
-    let package = document
-        .get(constants::PACKAGE_KEY)?
-        .get(constants::NAME_KEY)?
-        .as_str()?
-        .replace('-', "_");
-    let scan = scanning::rust_files(repo_root, &crate_dir.join(constants::SOURCE_DIRECTORY));
+fn crate_sources(
+    repo_root: &path::Path,
+    workspace_crate: &models::WorkspaceCrate,
+) -> Option<CrateSources> {
+    let package = workspace_crate.package_name.as_ref()?.replace('-', "_");
+    let scan = scanning::rust_target_files(repo_root, workspace_crate, false);
     Some(CrateSources {
         package,
         files: scan.files,
@@ -88,7 +78,7 @@ fn must_use_functions(crate_sources: &CrateSources) -> Vec<Vec<String>> {
         let Ok(syntax) = syn::parse_file(&file.source) else {
             continue;
         };
-        let module = reference_paths::module_path(&crate_sources.package, &file.relative);
+        let module = reference_paths::module_path(&crate_sources.package, file);
         for item in syntax.items {
             let syn::Item::Fn(function) = item else {
                 continue;
@@ -118,7 +108,7 @@ fn discarded_calls(crate_sources: &CrateSources) -> Vec<DiscardedCall> {
         let Ok(syntax) = syn::parse_file(&file.source) else {
             continue;
         };
-        let module = reference_paths::module_path(&crate_sources.package, &file.relative);
+        let module = reference_paths::module_path(&crate_sources.package, file);
         let mut visitor = DiscardVisitor {
             package: &crate_sources.package,
             module: &module,

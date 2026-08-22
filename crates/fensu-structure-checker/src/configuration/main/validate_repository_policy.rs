@@ -24,6 +24,26 @@ pub(crate) fn validate_repository_policy(
             ));
         }
     }
+    for (index, path) in repository.intentional_layout_paths.iter().enumerate() {
+        if repository.intentional_layout_paths[index + 1..]
+            .iter()
+            .any(|other| paths_overlap(path, other))
+        {
+            return Err(format!(
+                "structure-checker intentional layout paths must not overlap: {path}"
+            ));
+        }
+        if repository
+            .domain_paths
+            .iter()
+            .chain(&repository.role_paths)
+            .any(|structural| paths_overlap(path, structural))
+        {
+            return Err(format!(
+                "structure-checker intentional layout path overlaps a declared structural path: {path}"
+            ));
+        }
+    }
     let thresholds = &repository.thresholds;
     if [
         thresholds.max_file_lines,
@@ -40,4 +60,10 @@ pub(crate) fn validate_repository_policy(
         return Err("structure-checker thresholds must be greater than zero".to_owned());
     }
     Ok(())
+}
+
+fn paths_overlap(left: &str, right: &str) -> bool {
+    left == right
+        || left.starts_with(&format!("{right}/"))
+        || right.starts_with(&format!("{left}/"))
 }

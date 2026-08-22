@@ -18,6 +18,7 @@ runtime-forbidden-packages = [
 [raw-parser-boundary]
 packages = []
 remediation = "consume shared fact rows instead of raw parser types"
+restricted-paths = ["crates/example/src/rules"]
 
 [repository]
 crate-names = ["example"]
@@ -39,10 +40,35 @@ max-helper-container-modules = 10
 max-main-container-modules = 20
 ```
 
+The checker asks Cargo for its actual workspace packages, target source paths,
+and dependency identities, so root packages, implicit path-dependency members,
+inherited dependencies, and renamed dependencies cannot bypass policy. Library,
+binary, and integration-test targets must use conventional `src/` and `tests/`
+trees; unsupported custom paths fail closed instead of being recursively
+guessed. Examples, benchmarks, and build scripts are outside aggregate
+architecture rules. Local packages, targets, dependencies, the config file, and
+every configured path must remain canonically contained by the repository.
+Symlink entries inside Rust source trees are rejected rather than silently
+skipped.
+
+`restricted-paths` selects the subtrees where raw-parser references are banned.
+An exact repository-relative path selects that subtree. The single-component
+default `rules` preserves the original behavior by selecting every directory
+named `rules`. The parser check covers `use`, `extern crate`, type/expression
+paths, macro paths, and parser identifiers inside macro token bodies. Omitting
+`restricted-paths` retains that legacy default.
+
 Intentional layout paths exclude only aggregate role-layout checks. Per-file
-hygiene, dependency, raw-parser, shape, and test policies remain active.
-Configured paths are canonical repository-relative POSIX text. Role paths may
-name a `main`/`_helpers` container or an exact reserved role file.
+hygiene, dependency, raw-parser, shape, and test policies remain active. An
+intentional root must be narrower than a Cargo source root and cannot overlap
+another intentional root or a declared domain/role path. Configured paths are
+canonical repository-relative POSIX text. Role paths may name a
+`main`/`_helpers` container or an exact reserved role file. Once `domain-paths`
+or `role-paths` is nonempty, that collection is a closed inventory: every
+discovered path of that kind must be declared. Empty collections preserve the
+default open-inventory behavior. Stale or empty declarations are rejected, and
+declared roles must belong to a declared domain when the domain inventory is
+closed.
 
 Run the checker from a Cargo workspace root:
 

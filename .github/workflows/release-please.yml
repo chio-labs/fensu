@@ -10,6 +10,7 @@ permissions:
   actions: write
   contents: write
   pull-requests: write
+  statuses: write
 
 concurrency:
   group: release-please
@@ -96,6 +97,32 @@ jobs:
           fi
           echo "head_sha=${head_sha}" >> "${GITHUB_OUTPUT}"
           workflows=(pull-request-metadata.yml version-guard.yml verify.yml)
+          metadata_contexts=("Pull Request Metadata")
+          version_contexts=("Block automatic 1.0 releases")
+          verify_contexts=(
+            "verify"
+            "rust"
+            "Shared crate packages (Rust 1.85)"
+            "performance"
+            "windows"
+            "native-package-smoke (ubuntu-latest)"
+            "native-package-smoke (macos-latest)"
+            "native-package-smoke (windows-latest)"
+            "web-parser-analyzer-smoke (ubuntu-latest)"
+            "web-parser-analyzer-smoke (macos-latest)"
+            "web-parser-analyzer-smoke (windows-latest)"
+            "source-build"
+          )
+          required_contexts=(
+            "${metadata_contexts[@]}"
+            "${version_contexts[@]}"
+            "${verify_contexts[@]}"
+          )
+          for context in "${required_contexts[@]}"; do
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${head_sha}" \
+              -f state=pending -f "context=${context}" \
+              -f description="Trusted release check is running" >/dev/null
+          done
 
           gh workflow run pull-request-metadata.yml --repo "${GITHUB_REPOSITORY}" \
             --ref "${RELEASE_BRANCH}" -f "pr_number=${RELEASE_PR}"
@@ -116,10 +143,39 @@ jobs:
               sleep 2
             done
             if [[ -z "${run_id}" ]]; then
+              case "${workflow}" in
+                pull-request-metadata.yml) contexts=("${metadata_contexts[@]}") ;;
+                version-guard.yml) contexts=("${version_contexts[@]}") ;;
+                verify.yml) contexts=("${verify_contexts[@]}") ;;
+              esac
+              for context in "${contexts[@]}"; do
+                gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${head_sha}" \
+                  -f state=failure -f "context=${context}" \
+                  -f description="Trusted release check did not start" >/dev/null
+              done
               echo "Required workflow ${workflow} did not start for ${head_sha}" >&2
               exit 1
             fi
-            gh run watch "${run_id}" --repo "${GITHUB_REPOSITORY}" --exit-status
+            run_url="$(gh run view "${run_id}" --repo "${GITHUB_REPOSITORY}" \
+              --json url --jq .url)"
+            if gh run watch "${run_id}" --repo "${GITHUB_REPOSITORY}" --exit-status; then
+              state=success
+              description="Trusted release check passed"
+            else
+              state=failure
+              description="Trusted release check failed"
+            fi
+            case "${workflow}" in
+              pull-request-metadata.yml) contexts=("${metadata_contexts[@]}") ;;
+              version-guard.yml) contexts=("${version_contexts[@]}") ;;
+              verify.yml) contexts=("${verify_contexts[@]}") ;;
+            esac
+            for context in "${contexts[@]}"; do
+              gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${head_sha}" \
+                -f "state=${state}" -f "context=${context}" -f "target_url=${run_url}" \
+                -f "description=${description}" >/dev/null
+            done
+            [[ "${state}" == "success" ]] || exit 1
           done
 
       - name: Merge release pull request and continue release

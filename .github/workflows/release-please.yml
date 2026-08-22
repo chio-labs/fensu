@@ -98,10 +98,10 @@ jobs:
           fi
           successful_runs="$(gh api \
             "repos/${GITHUB_REPOSITORY}/actions/workflows/verify.yml/runs?head_sha=${source_head}&event=pull_request&status=completed&per_page=100" \
-            | jq --argjson source_pr "${source_pr}" \
-              '[.workflow_runs[] | select(.conclusion == "success" and any(.pull_requests[]?; .number == $source_pr))] | length')"
+            | jq --arg source_head "${source_head}" \
+              '[.workflow_runs[] | select(.conclusion == "success" and .head_sha == $source_head)] | length')"
           if [[ "${successful_runs}" -lt 1 ]]; then
-            echo "No successful Verify run belongs to source pull request ${source_pr}" >&2
+            echo "No successful pull-request Verify run exists for source head ${source_head}" >&2
             exit 1
           fi
 

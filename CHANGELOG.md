@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.1](https://github.com/chio-labs/fensu/compare/v0.13.0...v0.13.1) (2026-08-24)
+
+
+### Bug Fixes
+
+* **release:** use delivery app for release PRs ([#61](https://github.com/chio-labs/fensu/issues/61)) ([79be68b](https://github.com/chio-labs/fensu/commit/79be68b03cd70d3ef8da23a53f3a82dc26f5236a))
+
 ## [0.13.0](https://github.com/chio-labs/fensu/compare/v0.12.0...v0.13.0) (2026-08-22)
 
 

@@ -15,7 +15,7 @@ use crate::tests::test_types::{
 fn given_every_core_rule_when_rendering_then_complete_authored_metadata_is_visible() {
     let test_cases = [CoreRuleRenderingTestCase {
         description: "every native core registration renders the complete stable metadata frame",
-        expected_core_count: 111,
+        expected_core_count: 112,
         expected_labels: &[
             "Authored metadata:",
             "Family:",

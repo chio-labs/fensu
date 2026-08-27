@@ -106,6 +106,11 @@ def role_rule_details(code: RoleCode) -> tuple[str, str]:
             "Move private module declarations above the first function so readers see module "
             "state before behavior.",
         ),
+        RoleCode.CLASSES_RUNTIME_REEXPORT: (
+            "classes/ modules must not publicly re-export imported runtime symbols",
+            "Import runtime symbols from their defining modules and keep each classes/ module's "
+            "public surface owned by its class.",
+        ),
         RoleCode.SOURCE_FILE_LINE_COUNT: (
             "source files must stay below the configured line limit",
             "Split the file by a cohesive role or concern instead of extracting arbitrary "

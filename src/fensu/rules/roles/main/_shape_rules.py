@@ -26,6 +26,10 @@ def shape_rules() -> tuple[RuleSpec, ...]:
             slug="private-definition-ordering",
         ),
         _rule(
+            code=RoleCode.CLASSES_RUNTIME_REEXPORT,
+            slug="classes-runtime-reexport",
+        ),
+        _rule(
             code=RoleCode.SOURCE_FILE_LINE_COUNT,
             slug="source-file-line-count",
         ),

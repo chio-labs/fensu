@@ -19,8 +19,8 @@ fn given_core_rule_contract_corpus_when_evaluating_then_diagnostics_are_exact() 
     let test_cases = [test_types::CoreRuleCorpusTestCase {
         description: "legacy captured requests preserve every proven core diagnostic",
         expected_fixture_count: 531,
-        expected_core_code_count: 111,
-        expected_non_faulting_codes: &["FFR707", "FFT001"],
+        expected_core_code_count: 112,
+        expected_non_faulting_codes: &["FFR504", "FFR707", "FFT001"],
     }];
     for test_case in &test_cases {
         assert_eq!(
@@ -37,8 +37,8 @@ fn given_core_rule_contract_corpus_when_evaluating_then_diagnostics_are_exact() 
 fn given_generated_core_rule_corpus_when_evaluating_then_every_registration_is_covered() {
     let test_cases = [test_types::CoreRuleCorpusTestCase {
         description: "current rule suites reproducibly cover every core registration",
-        expected_fixture_count: 132,
-        expected_core_code_count: 111,
+        expected_fixture_count: 140,
+        expected_core_code_count: 112,
         expected_non_faulting_codes: &["FFR301", "FFR302", "FFR306", "FFR308", "FFR309"],
     }];
     for test_case in &test_cases {

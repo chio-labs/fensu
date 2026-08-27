@@ -12,6 +12,7 @@ use crate::facts::_helpers::naming::names::{
 use crate::facts::models::{
     ModuleDeclarationRows, ModuleStatementRow, NamedCallRow, TypeDeclarationRow,
 };
+use crate::mapping::main::extract_runtime_imports::extract_runtime_imports;
 use crate::positions::models::LineIndex;
 use crate::syntax::main::breadth_first_from::breadth_first_from;
 use crate::syntax::main::children::children;
@@ -95,6 +96,71 @@ pub(crate) fn collect_statement_rows(
         }
     }
     rows
+}
+
+pub(crate) fn static_all_names(module: &ModModule) -> Vec<String> {
+    module
+        .body
+        .iter()
+        .filter_map(all_assignment_value)
+        .flat_map(static_string_items)
+        .collect()
+}
+
+pub(crate) fn runtime_imported_bindings(module: &ModModule) -> Vec<String> {
+    let mut bindings: Vec<String> = Vec::new();
+    for row in extract_runtime_imports(module) {
+        for alias in row.aliases {
+            if alias.name == constants::WILDCARD_IMPORT_NAME {
+                continue;
+            }
+            let bound_name = alias.asname.unwrap_or_else(|| {
+                if row.from_import {
+                    alias.name
+                } else {
+                    alias
+                        .name
+                        .split(constants::MODULE_SEPARATOR)
+                        .next()
+                        .unwrap_or_default()
+                        .to_owned()
+                }
+            });
+            bindings.push(bound_name);
+        }
+    }
+    bindings
+}
+
+fn all_assignment_value(statement: &Stmt) -> Option<&Expr> {
+    match statement {
+        Stmt::Assign(inner)
+            if inner.targets.iter().any(|target| {
+                matches!(target, Expr::Name(name) if name.id.as_str() == constants::ALL_EXPORT_NAME)
+            }) => Some(&inner.value),
+        Stmt::AnnAssign(inner)
+            if matches!(&*inner.target, Expr::Name(name) if name.id.as_str() == constants::ALL_EXPORT_NAME) =>
+        {
+            inner.value.as_deref()
+        }
+        _ => None,
+    }
+}
+
+fn static_string_items(expression: &Expr) -> Vec<String> {
+    let items = match expression {
+        Expr::List(inner) => &inner.elts,
+        Expr::Tuple(inner) => &inner.elts,
+        Expr::Set(inner) => &inner.elts,
+        _ => return Vec::new(),
+    };
+    items
+        .iter()
+        .filter_map(|item| match item {
+            Expr::StringLiteral(literal) => Some(literal.value.to_str().to_owned()),
+            _ => None,
+        })
+        .collect()
 }
 
 pub(crate) fn collect_alias_rows(

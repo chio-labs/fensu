@@ -1,5 +1,7 @@
 //! File-local role surface, source-size, and direct-tooling policy.
 
+use std::collections::BTreeSet;
+
 use fensu_facts::extension::models::ProgramHandle;
 use fensu_facts::facts::models::{ModuleDeclarationRows, ModuleStatementRow};
 
@@ -10,10 +12,10 @@ use crate::rules::_helpers::generated_policy::{
     FFR702_ALLOWED_LOCAL_MAIN_CALL_TARGETS,
 };
 use crate::rules::constants::{
-    CLASSES_ONE_CLASS_PER_MODULE_CODE, ENTRY_MODULE_SHAPE_CODE, INIT_MODULE_EMPTY_CODE,
-    NO_REEXPORT_SHIM_CODE, PUBLIC_SURFACE_SHAPE_CODE, SOURCE_FILE_LINE_COUNT_CODE,
-    TOOLING_ENTRYPOINT_DELEGATION_CODE, TOOLING_ENTRYPOINT_LINE_COUNT_CODE,
-    TOOLING_ENTRYPOINT_SHAPE_CODE,
+    CLASSES_ONE_CLASS_PER_MODULE_CODE, CLASSES_RUNTIME_REEXPORT_CODE, ENTRY_MODULE_SHAPE_CODE,
+    INIT_MODULE_EMPTY_CODE, NO_REEXPORT_SHIM_CODE, PUBLIC_SURFACE_SHAPE_CODE,
+    SOURCE_FILE_LINE_COUNT_CODE, TOOLING_ENTRYPOINT_DELEGATION_CODE,
+    TOOLING_ENTRYPOINT_LINE_COUNT_CODE, TOOLING_ENTRYPOINT_SHAPE_CODE,
 };
 use crate::rules::models::{NativeFaultRow, NativeRuleContext};
 
@@ -51,6 +53,9 @@ pub(crate) fn surface_faults(
         NO_REEXPORT_SHIM_CODE => reexport_faults(code, context, declarations),
         PUBLIC_SURFACE_SHAPE_CODE => public_surface_faults(code, context, declarations),
         CLASSES_ONE_CLASS_PER_MODULE_CODE => classes_shape_faults(code, context, declarations),
+        CLASSES_RUNTIME_REEXPORT_CODE => {
+            classes_runtime_reexport_faults(code, context, declarations)
+        }
         SOURCE_FILE_LINE_COUNT_CODE => line_count_faults(LineCountPolicy {
             program,
             code,
@@ -216,6 +221,31 @@ fn classes_shape_faults(
         code,
         Some("classes modules must define one class"),
     )]
+}
+
+fn classes_runtime_reexport_faults(
+    code: &str,
+    context: &NativeRuleContext,
+    declarations: &ModuleDeclarationRows,
+) -> Vec<NativeFaultRow> {
+    if context.role.as_deref() != Some(CLASSES_ROLE) || path_name(context) == Some(INIT_FILE_NAME) {
+        return Vec::new();
+    }
+    declarations
+        .static_all_names
+        .iter()
+        .filter(|name| declarations.runtime_imported_bindings.contains(name))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .map(|name| {
+            path_fault(
+                code,
+                Some(&format!(
+                    "classes modules must not publicly re-export imported runtime symbol '{name}'"
+                )),
+            )
+        })
+        .collect()
 }
 
 fn line_count_faults(policy: LineCountPolicy<'_>) -> Vec<NativeFaultRow> {

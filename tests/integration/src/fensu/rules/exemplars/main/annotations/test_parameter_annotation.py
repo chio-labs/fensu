@@ -118,6 +118,7 @@ _PARITY_NATIVE_CODES: frozenset[str] = frozenset(
         "FFR501",
         "FFR502",
         "FFR503",
+        "FFR504",
         "FFR601",
         "FFR701",
         "FFR702",
@@ -824,6 +825,84 @@ _PYTHON_OWNED_SFR_CODES: frozenset[str] = frozenset()
             path="tests/unit/src/example/test_example.py",
             scope="test",
             scope_root="tests",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="FFR504 rejects imported helper runtime symbols in classes all",
+            native_code="FFR504",
+            source=(
+                "from example._helpers.kafka_snapshots import build_kafka_lag_snapshot\n\n"
+                "class KafkaLagReader:\n    pass\n\n"
+                "__all__ = ['KafkaLagReader', 'build_kafka_lag_snapshot']\n"
+            ),
+            expected_fault_count=1,
+            path="src/example/classes/kafka_lag_reader.py",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="FFR504 rejects aliased runtime imports by local bound name",
+            native_code="FFR504",
+            source=(
+                "from example._helpers.build import helper as public_name\n\n"
+                "class Service:\n    pass\n\n__all__ = ['Service', 'public_name']\n"
+            ),
+            expected_fault_count=1,
+            path="src/example/classes/service.py",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="FFR504 allows imported runtime symbols used only internally",
+            native_code="FFR504",
+            source=(
+                "from example._helpers.build import helper\n\n"
+                "class Service:\n    value = helper()\n\n__all__ = ['Service']\n"
+            ),
+            expected_fault_count=0,
+            path="src/example/classes/service.py",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="FFR504 allows type checking imports in classes all",
+            native_code="FFR504",
+            source=(
+                "from typing import TYPE_CHECKING\n\nif TYPE_CHECKING:\n"
+                "    from example.types import Contract\n\n"
+                "class Service:\n    pass\n\n__all__ = ['Service', 'Contract']\n"
+            ),
+            expected_fault_count=0,
+            path="src/example/classes/service.py",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="FFR504 treats type checking else imports as runtime bindings",
+            native_code="FFR504",
+            source=(
+                "from typing import TYPE_CHECKING\n\nif TYPE_CHECKING:\n"
+                "    from example.types import Contract\nelse:\n"
+                "    from example._helpers.build import helper\n\n"
+                "class Service:\n    pass\n\n__all__ = ['Service', 'helper']\n"
+            ),
+            expected_fault_count=1,
+            path="src/example/classes/service.py",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="FFR504 uses the first segment bound by plain dotted imports",
+            native_code="FFR504",
+            source=(
+                "import example.helpers\n\nclass Service:\n    pass\n\n"
+                "__all__ = ['Service', 'example']\n"
+            ),
+            expected_fault_count=1,
+            path="src/example/classes/service.py",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="FFR504 does not govern classes package initializers",
+            native_code="FFR504",
+            source="from example.service import Service\n\n__all__ = ['Service']\n",
+            expected_fault_count=0,
+            path="src/example/classes/__init__.py",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="FFR504 does not govern imported exports in non-class roles",
+            native_code="FFR504",
+            source="from example._helpers.build import helper\n\n__all__ = ['helper']\n",
+            expected_fault_count=0,
+            path="src/example/models.py",
         ),
         NativeCustomRuleParityTestCase(
             description="FFT101 matches a public custom rule for nonempty test package modules",

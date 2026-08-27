@@ -79,6 +79,8 @@ pub struct ModuleDeclarationRows {
     pub pure_reexport: bool,
     pub top_level_class_count: u32,
     pub all_assignment_locations: Vec<(u32, u32)>,
+    pub static_all_names: Vec<String>,
+    pub runtime_imported_bindings: Vec<String>,
     pub import_time_call_locations: Vec<(u32, u32)>,
     pub imported_main_entry_names: Vec<String>,
     pub main_calls: Vec<NamedCallRow>,

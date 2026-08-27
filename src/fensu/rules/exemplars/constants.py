@@ -115,6 +115,9 @@ from fensu.rules.exemplars.main.naming._value_name_must_return_value import (
 from fensu.rules.exemplars.main.roles._banned_generic_package_name import (
     banned_generic_package_name_equivalent,
 )
+from fensu.rules.exemplars.main.roles._classes_runtime_reexport import (
+    classes_runtime_reexport_equivalent,
+)
 from fensu.rules.exemplars.main.roles._custom_rule_test_coverage import (
     custom_rule_test_coverage_equivalent,
 )
@@ -298,6 +301,7 @@ NATIVE_CUSTOM_RULE_EQUIVALENTS: dict[str, RuleCheck] = canonical_equivalent_rule
         "FFR501": classes_one_class_per_module_equivalent,
         "FFR502": helpers_package_shape_equivalent,
         "FFR503": private_definition_ordering_equivalent,
+        "FFR504": classes_runtime_reexport_equivalent,
         "FFR601": source_file_line_count_equivalent,
         "FFR701": tooling_entrypoint_shape_equivalent,
         "FFR702": tooling_entrypoint_delegation_equivalent,

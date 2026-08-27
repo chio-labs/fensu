@@ -4,7 +4,7 @@ use ruff_python_ast::{ModModule, Stmt};
 
 use crate::facts::_helpers::declarations::rows::{
     collect_alias_rows, collect_class_rows, collect_import_time_calls, collect_statement_rows,
-    imported_main_entry_names, main_call_rows,
+    imported_main_entry_names, main_call_rows, runtime_imported_bindings, static_all_names,
 };
 use crate::facts::_helpers::naming::names::is_docstring_statement;
 use crate::facts::models::ModuleDeclarationRows;
@@ -37,6 +37,8 @@ pub fn extract_module_declarations(
             .count(),
     )
     .unwrap_or(u32::MAX);
+    rows.static_all_names = static_all_names(module);
+    rows.runtime_imported_bindings = runtime_imported_bindings(module);
     let import_time_rows = collect_import_time_calls(module, index, source);
     rows.import_time_call_locations = import_time_rows.import_time_call_locations;
     rows.imported_main_entry_names = imported_main_entry_names(module);

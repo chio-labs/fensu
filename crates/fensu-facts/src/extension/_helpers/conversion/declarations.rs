@@ -25,6 +25,8 @@ pub(crate) fn module_declaration_facts_object(
             to_object(py, rows.pure_reexport)?,
             to_object(py, rows.top_level_class_count)?,
             location_tuple(py, path, &rows.all_assignment_locations)?,
+            frozen_names(py, &rows.static_all_names)?,
+            frozen_names(py, &rows.runtime_imported_bindings)?,
             location_tuple(py, path, &rows.import_time_call_locations)?,
             frozen_names(py, &rows.imported_main_entry_names)?,
             named_call_facts(py, path, &rows.main_calls)?,

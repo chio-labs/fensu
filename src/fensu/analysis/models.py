@@ -431,6 +431,8 @@ class ModuleDeclarationFacts:
     pure_reexport: bool
     top_level_class_count: int
     all_assignment_locations: tuple[SourceLocation, ...]
+    static_all_names: frozenset[str]
+    runtime_imported_bindings: frozenset[str]
     import_time_call_locations: tuple[SourceLocation, ...]
     imported_main_entry_names: frozenset[str]
     main_calls: tuple[NamedCallFact, ...]

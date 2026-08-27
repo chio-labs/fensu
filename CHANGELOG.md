@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.0](https://github.com/chio-labs/fensu/compare/v0.13.1...v0.14.0) (2026-08-27)
+
+
+### Features
+
+* detect role laundering through re-exports ([#64](https://github.com/chio-labs/fensu/issues/64)) ([c06b254](https://github.com/chio-labs/fensu/commit/c06b2541dc9a4ed67d76062f14579e9741b37f9a))
+
 ## [0.13.1](https://github.com/chio-labs/fensu/compare/v0.13.0...v0.13.1) (2026-08-24)
 
 

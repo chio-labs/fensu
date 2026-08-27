@@ -45,3 +45,10 @@ pub(crate) struct MappingRowsTestCase {
     pub(crate) expected_binding_name: Option<&'static str>,
     pub(crate) expected_calls: &'static [&'static str],
 }
+
+pub(crate) struct ModuleDeclarationRowsTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) source: &'static str,
+    pub(crate) expected_static_all_names: &'static [&'static str],
+    pub(crate) expected_runtime_imported_bindings: &'static [&'static str],
+}

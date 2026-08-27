@@ -1,5 +1,6 @@
 //! Native mapping-substrate extraction tests.
 
+use fensu_facts::facts::main::extract_module_declarations::extract_module_declarations;
 use fensu_facts::mapping::main::extract_mapping_declarations::extract_mapping_declarations;
 use fensu_facts::mapping::main::extract_mapping_facts::extract_mapping_facts;
 use fensu_facts::parsing::main::parse_strict::parse_strict;
@@ -70,5 +71,40 @@ fn given_project_functions_and_local_calls_when_extracting_then_preserves_map_st
             test_case.description
         );
         assert_eq!(calls, test_case.expected_calls, "{}", test_case.description);
+    }
+}
+
+#[test]
+fn given_static_exports_and_guarded_imports_when_extracting_then_runtime_bindings_are_exact() {
+    let test_cases = [test_types::ModuleDeclarationRowsTestCase {
+        description: "static exports preserve exact runtime import bindings",
+        source: "from typing import TYPE_CHECKING\nimport pkg.helpers\nfrom pkg.worker import Worker as RuntimeWorker\n\nif TYPE_CHECKING:\n    from pkg.contracts import Contract\nelse:\n    from pkg.fallback import Fallback as RuntimeFallback\n\n__all__ = ['pkg', 'RuntimeWorker', 'Contract', 'RuntimeFallback']\n",
+        expected_static_all_names: &["pkg", "RuntimeWorker", "Contract", "RuntimeFallback"],
+        expected_runtime_imported_bindings: &[
+            "TYPE_CHECKING",
+            "pkg",
+            "RuntimeWorker",
+            "RuntimeFallback",
+        ],
+    }];
+    for test_case in test_cases {
+        let version = PythonVersion {
+            major: 3,
+            minor: 12,
+        };
+        let parsed = parse_strict(test_case.source, version).expect(test_case.description);
+        let index = index_lines(test_case.source);
+        let declarations = extract_module_declarations(parsed.syntax(), &index, test_case.source);
+
+        assert_eq!(
+            declarations.static_all_names, test_case.expected_static_all_names,
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            declarations.runtime_imported_bindings, test_case.expected_runtime_imported_bindings,
+            "{}",
+            test_case.description
+        );
     }
 }

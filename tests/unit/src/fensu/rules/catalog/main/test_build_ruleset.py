@@ -64,9 +64,9 @@ from tests.unit.src.fensu.rules.catalog.main.helpers import (
     [
         NativeRulePackCatalogueTestCase(
             description="Dagster pack is complete and standalone",
-            expected_catalogue_count=124,
-            expected_active_count=123,
-            expected_alias_count=101,
+            expected_catalogue_count=125,
+            expected_active_count=124,
+            expected_alias_count=102,
             expected_native_count=23,
         )
     ],

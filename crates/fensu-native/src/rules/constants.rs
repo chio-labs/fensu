@@ -70,6 +70,7 @@ pub const PUBLIC_SURFACE_SHAPE_CODE: &str = "FFR406";
 pub const CLASSES_ONE_CLASS_PER_MODULE_CODE: &str = "FFR501";
 pub const HELPERS_PACKAGE_SHAPE_CODE: &str = "FFR502";
 pub const PRIVATE_DEFINITION_ORDERING_CODE: &str = "FFR503";
+pub const CLASSES_RUNTIME_REEXPORT_CODE: &str = "FFR504";
 pub const SOURCE_FILE_LINE_COUNT_CODE: &str = "FFR601";
 pub const TOOLING_ENTRYPOINT_SHAPE_CODE: &str = "FFR701";
 pub const TOOLING_ENTRYPOINT_DELEGATION_CODE: &str = "FFR702";
@@ -230,6 +231,7 @@ pub const NATIVE_RULE_FACT_FAMILIES: &[(&str, &[&str])] = &[
     (CLASSES_ONE_CLASS_PER_MODULE_CODE, &["module_declarations"]),
     (HELPERS_PACKAGE_SHAPE_CODE, &[]),
     (PRIVATE_DEFINITION_ORDERING_CODE, &["module_declarations"]),
+    (CLASSES_RUNTIME_REEXPORT_CODE, &["module_declarations"]),
     (SOURCE_FILE_LINE_COUNT_CODE, &[]),
     (TOOLING_ENTRYPOINT_SHAPE_CODE, &["module_declarations"]),
     (TOOLING_ENTRYPOINT_DELEGATION_CODE, &["module_declarations"]),

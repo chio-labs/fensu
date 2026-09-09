@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.2](https://github.com/chio-labs/fensu/compare/v0.14.1...v0.14.2) (2026-09-09)
+
+
+### Bug Fixes
+
+* refresh release lockfile ([#67](https://github.com/chio-labs/fensu/issues/67)) ([5adf414](https://github.com/chio-labs/fensu/commit/5adf414b671dd2b8393fc0eeb5de5196b05a1ed3))
+
 ## [0.14.1](https://github.com/chio-labs/fensu/compare/v0.14.0...v0.14.1) (2026-09-09)
 
 

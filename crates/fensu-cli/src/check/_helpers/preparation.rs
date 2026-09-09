@@ -13,6 +13,7 @@ use crate::check::_helpers::policy::{
 };
 use crate::check::_helpers::project as web;
 use crate::check::_helpers::rule_policy::validate_config_tiers;
+use crate::check::constants::{CARGO_TARGET_DIRECTORY, GIT_DIRECTORY};
 use crate::check::models::{CheckIdentityRequest, CheckPlan, CheckPlans};
 use crate::configuration::main::load_targets;
 use crate::configuration::main::resolve_target_root::resolve_target_root;
@@ -50,6 +51,12 @@ pub(crate) fn prepare_checks(
         )
         .map_err(|error| error.to_string())?;
         let project_root = resolve_target_root(&root, &config.target_root)?;
+        if config.analyzer == crate::analyzer::AnalyzerId::Rust && !options.paths.is_empty() {
+            return Err(
+                "Positional paths are not supported by repository-level Rust checks; use evaluation include/exclude policy."
+                    .to_owned(),
+            );
+        }
         if !options.paths.is_empty() {
             config.roots = configured_paths(options, &invocation, &project_root)?;
         }
@@ -59,10 +66,12 @@ pub(crate) fn prepare_checks(
         validate_exception_targets(&config, &project_root)?;
         let discovered = discover(&root, &project_root, &config)?;
         let (sources, excluded) = select_sources(discovered, &config);
-        let project_inputs = if config.analyzer == crate::analyzer::AnalyzerId::Python {
-            Vec::new()
-        } else {
-            web::discover_project_inputs(&root, &project_root, &config)?
+        let project_inputs = match config.analyzer {
+            crate::analyzer::AnalyzerId::Python => Vec::new(),
+            crate::analyzer::AnalyzerId::Rust => {
+                rust_project_inputs(&root, &project_root, &config)?
+            }
+            _ => web::discover_project_inputs(&root, &project_root, &config)?,
         };
         let cache_enabled = options.cache_enabled.unwrap_or(config.cache_enabled);
         let color = use_color(&options.color);
@@ -210,12 +219,13 @@ fn discover(
         for result in WalkDir::new(&source_root)
             .follow_links(false)
             .into_iter()
-            .filter_entry(|entry| {
-                if config.analyzer == crate::analyzer::AnalyzerId::Python {
-                    entry.file_name() != PYTHON_CACHE_DIRECTORY
-                } else {
-                    web::is_artifact_entry(entry)
+            .filter_entry(|entry| match config.analyzer {
+                crate::analyzer::AnalyzerId::Python => entry.file_name() != PYTHON_CACHE_DIRECTORY,
+                crate::analyzer::AnalyzerId::Rust => {
+                    entry.file_name() != CARGO_TARGET_DIRECTORY
+                        && entry.file_name() != GIT_DIRECTORY
                 }
+                _ => web::is_artifact_entry(entry),
             })
         {
             let entry = result.map_err(|error| {
@@ -224,6 +234,9 @@ fn discover(
             let supported = match config.analyzer {
                 crate::analyzer::AnalyzerId::Python => {
                     entry.path().extension().and_then(|value| value.to_str()) == Some("py")
+                }
+                crate::analyzer::AnalyzerId::Rust => {
+                    entry.path().extension().and_then(|value| value.to_str()) == Some("rs")
                 }
                 analyzer => web::is_web_source(entry.path(), analyzer),
             };
@@ -254,7 +267,9 @@ fn discover(
                 .any(|pattern| path_matches(&target_path, pattern))
             {
                 SourcePurpose::Generated
-            } else if web::is_direct_source(entry.path(), config.analyzer) {
+            } else if config.analyzer == crate::analyzer::AnalyzerId::Rust
+                || web::is_direct_source(entry.path(), config.analyzer)
+            {
                 SourcePurpose::Direct
             } else {
                 SourcePurpose::Support
@@ -304,6 +319,77 @@ fn discover(
         assign_colocated_test_owners(&mut sources, config);
     }
     Ok(sources)
+}
+
+fn rust_project_inputs(
+    repository_root: &Path,
+    project_root: &Path,
+    config: &Config,
+) -> Result<Vec<crate::models::ProjectInput>, String> {
+    let mut inputs: Vec<crate::models::ProjectInput> = Vec::new();
+    for result in WalkDir::new(project_root)
+        .follow_links(false)
+        .into_iter()
+        .filter_entry(|entry| {
+            entry.file_name() != CARGO_TARGET_DIRECTORY && entry.file_name() != GIT_DIRECTORY
+        })
+    {
+        let entry = result.map_err(|error| format!("Could not discover Cargo inputs: {error}"))?;
+        let cargo_input = matches!(
+            entry.file_name().to_str(),
+            Some("Cargo.toml" | "Cargo.lock")
+        );
+        let rust_source = entry.path().extension().and_then(|value| value.to_str()) == Some("rs");
+        if !entry.file_type().is_file() || !(cargo_input || rust_source) {
+            continue;
+        }
+        inputs.push(project_input(entry.path(), repository_root, project_root)?);
+    }
+    if let Some(relative) = config.structure_config.as_deref() {
+        let path = project_root.join(relative);
+        if !path.is_file() {
+            return Err(format!(
+                "Configured Rust structure policy does not exist: {relative}."
+            ));
+        }
+        inputs.push(project_input(&path, repository_root, project_root)?);
+    }
+    inputs.sort_by(|left, right| left.repository_path.cmp(&right.repository_path));
+    inputs.dedup_by(|left, right| left.path == right.path);
+    Ok(inputs)
+}
+
+fn project_input(
+    path: &Path,
+    repository_root: &Path,
+    project_root: &Path,
+) -> Result<crate::models::ProjectInput, String> {
+    let path = dunce::canonicalize(path).map_err(|error| error.to_string())?;
+    let content = fs::read(&path).map_err(|error| error.to_string())?;
+    let repository_path = path
+        .strip_prefix(repository_root)
+        .map_err(|_| {
+            format!(
+                "Rust project input escapes the repository: {}.",
+                path.display()
+            )
+        })?
+        .to_string_lossy()
+        .replace('\\', "/");
+    let target_path = path
+        .strip_prefix(project_root)
+        .map_err(|_| format!("Rust project input escapes the target: {}.", path.display()))?
+        .to_string_lossy()
+        .replace('\\', "/");
+    Ok(crate::models::ProjectInput {
+        path,
+        extended_configs: Vec::new(),
+        repository_path,
+        target_path,
+        fingerprint: hex_digest(&content),
+        content,
+        present: true,
+    })
 }
 
 fn assign_colocated_test_owners(sources: &mut [ScopedSource], config: &Config) {

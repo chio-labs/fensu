@@ -19,6 +19,7 @@ from fensu.config.constants import (
     DEFAULT_THRESHOLDS,
     DEFAULT_TOOLING_PATHS,
     DEFAULT_WARN,
+    RUST_RULE_PACK,
     SKILLS_NAME_CONFIG_KEY,
 )
 from fensu.config.models import (
@@ -30,7 +31,7 @@ from fensu.config.models import (
     SkillsConfig,
     ThresholdOverride,
 )
-from fensu.config.types import TestLayout
+from fensu.config.types import AnalyzerId, TestLayout
 from fensu.rules.authoring.types import RuleOptionValue, Threshold
 
 
@@ -38,6 +39,7 @@ def build_config(
     *,
     raw: Mapping[str, object],
     rule_options: Mapping[str, Mapping[str, RuleOptionValue]] | None = None,
+    analyzer: AnalyzerId = AnalyzerId.PYTHON,
 ) -> Config:
     """Build a Config by overlaying validated user values on shipped defaults."""
 
@@ -66,12 +68,18 @@ def build_config(
         test_scopes=_string_tuple(value=raw.get("test_scopes"), default=DEFAULT_TEST_SCOPES),
         test_layout=TestLayout(str(raw.get("test_layout", DEFAULT_TEST_LAYOUT))),
         tooling=_string_tuple(value=raw.get("tooling"), default=DEFAULT_TOOLING_PATHS),
-        select=_string_tuple(value=raw.get("select"), default=DEFAULT_SELECT),
+        select=_string_tuple(
+            value=raw.get("select"),
+            default=("FPRS",) if analyzer is AnalyzerId.RUST else DEFAULT_SELECT,
+        ),
         warn=_string_tuple(value=raw.get("warn"), default=DEFAULT_WARN),
         ignore=_string_tuple(value=raw.get("ignore"), default=DEFAULT_IGNORE),
         rule_paths=_string_tuple(value=raw.get("rule_paths")),
         rule_modules=_string_tuple(value=raw.get("rule_modules")),
-        rule_packs=_string_tuple(value=raw.get("rule_packs")),
+        rule_packs=_string_tuple(
+            value=raw.get("rule_packs"),
+            default=(RUST_RULE_PACK,) if analyzer is AnalyzerId.RUST else (),
+        ),
         rule_options=MappingProxyType({}) if rule_options is None else rule_options,
         rule_exceptions=_rule_exceptions(raw.get("rule_exceptions")),
         rule_ignores=_rule_ignores(raw.get("rule_ignores")),
@@ -85,7 +93,11 @@ def build_config(
         ui_kit=raw_ui_kit if isinstance(raw_ui_kit, str) else None,
         shadcn=str(raw["shadcn"]) if isinstance(raw.get("shadcn"), str) else None,
         openapi=str(raw["openapi"]) if isinstance(raw.get("openapi"), str) else None,
+        structure_config=(
+            str(raw["structure_config"]) if isinstance(raw.get("structure_config"), str) else None
+        ),
         generated=_string_tuple(value=raw.get("generated")),
+        analyzer=analyzer,
     )
 
 

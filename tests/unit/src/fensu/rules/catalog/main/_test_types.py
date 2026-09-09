@@ -216,6 +216,14 @@ class NativeWebPackCatalogueTestCase:
 
 
 @dataclass(frozen=True)
+class NativeRustPackCatalogueTestCase:
+    """Expected standalone Rust structure pack composition."""
+
+    description: str
+    expected_rule_count: int
+
+
+@dataclass(frozen=True)
 class WebMigrationTestCase:
     """Expected complete web migration inventory facts."""
 

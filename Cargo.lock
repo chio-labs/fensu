@@ -388,7 +388,7 @@ checksum = "9f1f227452a390804cdb637b74a86990f2a7d7ba4b7d5693aac9b4dd6defd8d6"
 
 [[package]]
 name = "fensu-cli"
-version = "0.14.2"
+version = "0.14.3"
 dependencies = [
  "cap-fs-ext",
  "cap-std",
@@ -397,6 +397,7 @@ dependencies = [
  "fensu-facts",
  "fensu-native",
  "fensu-policy",
+ "fensu-rust",
  "fensu-svelte",
  "fensu-typescript",
  "globset",
@@ -448,7 +449,7 @@ dependencies = [
 
 [[package]]
 name = "fensu-policy"
-version = "0.14.2"
+version = "0.14.3"
 dependencies = [
  "command-group",
  "globset",
@@ -459,8 +460,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "fensu-rust"
+version = "0.1.0"
+dependencies = [
+ "fensu-structure-checker",
+ "tempfile",
+]
+
+[[package]]
 name = "fensu-structure-checker"
-version = "0.14.2"
+version = "0.14.3"
 dependencies = [
  "cargo_metadata",
  "proc-macro2",

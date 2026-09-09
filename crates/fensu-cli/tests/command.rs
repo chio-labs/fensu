@@ -6,6 +6,8 @@ mod test_check_cleanup;
 mod test_check_exceptions;
 #[path = "command/test_check_policy.rs"]
 mod test_check_policy;
+#[path = "command/test_check_rust.rs"]
+mod test_check_rust;
 #[path = "command/test_check_validation.rs"]
 mod test_check_validation;
 #[path = "command/test_check_web.rs"]

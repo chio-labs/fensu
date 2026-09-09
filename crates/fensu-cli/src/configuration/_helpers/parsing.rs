@@ -54,7 +54,16 @@ pub(crate) fn build(
         ignore: strings_or(table.get("ignore"), DEFAULT_IGNORE),
         rule_paths: strings(table.get("rule_paths")),
         rule_modules: strings(table.get("rule_modules")),
-        rule_packs: strings(table.get("rule_packs")),
+        rule_packs: table.get("rule_packs").map_or_else(
+            || {
+                if selection.analyzer == crate::analyzer::AnalyzerId::Rust {
+                    vec!["rust".to_owned()]
+                } else {
+                    Vec::new()
+                }
+            },
+            |value| strings(Some(value)),
+        ),
         rule_options: table
             .get("rule_options")
             .and_then(toml::Value::as_table)
@@ -88,6 +97,10 @@ pub(crate) fn build(
             .map(str::to_owned),
         openapi: table
             .get("openapi")
+            .and_then(toml::Value::as_str)
+            .map(str::to_owned),
+        structure_config: table
+            .get("structure_config")
             .and_then(toml::Value::as_str)
             .map(str::to_owned),
         exceptions: exceptions(table.get("rule_exceptions")),

@@ -1,4 +1,15 @@
+[targets.python]
+analyzer = "python"
 roots = ["src/fensu"]
 tests = ["tests"]
 tooling = ["scripts"]
 select = ["FF"]
+
+[targets.rust]
+analyzer = "rust"
+roots = ["crates"]
+tests = []
+tooling = []
+rule_packs = ["rust"]
+select = ["FPRS"]
+structure_config = "rust-structure-checker.toml"

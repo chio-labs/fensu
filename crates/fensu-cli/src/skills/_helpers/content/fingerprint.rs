@@ -289,6 +289,7 @@ fn config_value(config: &Config) -> Value {
         "ui_kit": config.ui_kit,
         "shadcn": config.shadcn,
         "openapi": config.openapi,
+        "structure_config": config.structure_config,
         "role_thresholds": role_thresholds,
         "threshold_overrides": config.threshold_overrides.iter().map(|item| {
             let values = item.thresholds.iter().map(|(key, value)| (key.clone(), json!(value))).collect::<BTreeMap<_, _>>();
@@ -301,7 +302,10 @@ fn config_value(config: &Config) -> Value {
         value["target"] = json!(config.target);
         value["target_root"] = json!(config.target_root);
     }
-    if config.analyzer != crate::analyzer::AnalyzerId::Python {
+    if matches!(
+        config.analyzer,
+        crate::analyzer::AnalyzerId::TypeScript | crate::analyzer::AnalyzerId::Svelte
+    ) {
         value["test_layout"] = json!(config.test_layout);
     }
     value
@@ -309,13 +313,17 @@ fn config_value(config: &Config) -> Value {
 
 fn web_inputs_value(context: &SkillContext) -> Result<Value, String> {
     let mut inputs: BTreeMap<String, String> = BTreeMap::new();
-    for path in [&context.config.shadcn, &context.config.openapi]
-        .into_iter()
-        .flatten()
+    for path in [
+        &context.config.shadcn,
+        &context.config.openapi,
+        &context.config.structure_config,
+    ]
+    .into_iter()
+    .flatten()
     {
         let absolute = context.project_root.join(path);
         let content = std::fs::read(&absolute).map_err(|error| {
-            format!("Could not fingerprint target-local web dependency {path}: {error}")
+            format!("Could not fingerprint configured target dependency {path}: {error}")
         })?;
         inputs.insert(path.clone(), digest(&content));
     }

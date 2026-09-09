@@ -57,3 +57,9 @@ must contain these non-empty sections in order:
 
 Generated Release Please branches are exempt from the manual body format, but their
 titles must still follow Conventional Commits.
+
+`Verify` is the authoritative broad gate. It begins with a locked dependency sync and uses
+non-mutating format, lint, type, catalogue, self-check, and Rust structure checks before the test
+jobs and platform/package smoke matrices can pass. Local development should run focused tests and
+fast checks for changed boundaries; do not duplicate the full cross-platform, source-build,
+performance, or publication gates locally unless diagnosing a specific CI failure.

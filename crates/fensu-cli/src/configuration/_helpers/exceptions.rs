@@ -96,6 +96,7 @@ fn valid_qualified_symbol(value: &str) -> bool {
 fn validate_path(path: &str, analyzer: AnalyzerId) -> Result<(), String> {
     let supported = match analyzer {
         AnalyzerId::Python => path.ends_with(".py"),
+        AnalyzerId::Rust => path.ends_with(".rs") || path.ends_with("Cargo.toml"),
         AnalyzerId::TypeScript => web_source_path(path),
         AnalyzerId::Svelte => path.ends_with(".svelte") || web_source_path(path),
     };
@@ -107,6 +108,7 @@ fn validate_path(path: &str, analyzer: AnalyzerId) -> Result<(), String> {
     {
         let source = match analyzer {
             AnalyzerId::Python => "Python",
+            AnalyzerId::Rust => "Rust",
             AnalyzerId::TypeScript => "TypeScript",
             AnalyzerId::Svelte => "Svelte",
         };

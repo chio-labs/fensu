@@ -22,6 +22,9 @@ pub(crate) fn validate_targets(config: &Config, project_root: &Path) -> Result<(
         if exception.symbols.is_empty() {
             continue;
         }
+        if config.analyzer == AnalyzerId::Rust {
+            return Err("Rust rule exceptions support file-level exceptions only.".to_owned());
+        }
         let symbols = if config.analyzer == AnalyzerId::Python {
             defined_symbols(&path)?
         } else {

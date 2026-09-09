@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: benchmark benchmark-budget benchmark-profile catalogue-check catalogue-generate check check-rust develop-native native-corpus-generate self-check skills skills-content-check test test-e2e test-integration test-rust test-unit verify
+.PHONY: benchmark benchmark-budget benchmark-profile catalogue-check catalogue-generate check check-ci check-rust develop-native native-corpus-generate self-check skills skills-content-check test test-e2e test-integration test-rust test-unit verify
 
 BENCHMARK_PROJECT ?= ../sqlbuild
 BENCHMARK_RUNS ?= 5
@@ -24,13 +24,20 @@ check: catalogue-check
 	uv run ruff format .
 	uv run ruff check --fix .
 	uv run ty check src tests scripts
-	uv run fensu check
+	@if command -v cargo >/dev/null; then uv run fensu check; else uv run fensu check --target python; fi
 	@command -v cargo >/dev/null && $(MAKE) --no-print-directory check-rust || true
+
+check-ci: catalogue-check
+	uv run ruff format --check .
+	uv run ruff check .
+	uv run ty check src tests scripts
+	uv run fensu check
+	$(MAKE) --no-print-directory check-rust
 
 check-rust:
 	cargo fmt --check
 	cargo clippy --all-targets --quiet -- -D warnings
-	cargo run -p fensu-structure-checker --quiet
+	cargo run -p fensu-structure-checker --quiet -- --config rust-structure-checker.toml
 
 test-rust:
 	cargo test --all --quiet
@@ -62,4 +69,4 @@ test-integration:
 test-e2e:
 	uv run pytest tests/e2e -q -n auto
 
-verify: check test
+verify: check-ci test

@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  Keeping Python repos from turning into spaghetti.
+  Keeping Python, TypeScript, JavaScript, Svelte, and Rust repos from turning into spaghetti.
 </p>
 
 <p align="center"><em>Fensu means "fence" in Japanese.</em></p>
@@ -97,6 +97,30 @@ fensu check
 
 Product roots and tooling receive structural rules; tests receive test-convention
 and annotation rules.
+
+### Rust workspaces
+
+Rust is a first-class native analyzer backed by Fensu's owned Rust engine. Configure a Cargo
+workspace target and a versioned structure-policy file:
+
+```toml
+[targets.rust]
+analyzer = "rust"
+roots = ["crates"]
+tests = []
+tooling = []
+rule_packs = ["rust"]
+select = ["FPRS"]
+structure_config = "rust-structure-checker.toml"
+```
+
+The Rust pack exposes the existing structure policy under stable `FPRS*` identities while the
+engine retains parser-independent diagnostics and versioned parser/cache contracts. Cargo
+manifests, the lockfile, Rust sources, and the structure-policy file all participate in cache
+identity. Omitting `structure_config` uses the engine's built-in policy; explicit policy is
+recommended for repositories that need closed crate inventories, parser boundaries, or adjusted
+structure budgets. See [`crates/fensu-structure-checker/README.md`](crates/fensu-structure-checker/README.md)
+for that file's schema.
 
 ## Default Structure
 
@@ -218,10 +242,10 @@ symbols = ["ProgressCollector.update"]
 reason = "The external API invokes this callback positionally."
 ```
 
-Exceptions accept one exact rule code, repository-relative Python file, and one
-or more qualified symbols. Globs, directories, line numbers, path-only entries,
-and inline suppression comments are not supported. `fensu check` rejects stale
-exceptions that no longer suppress a fault.
+Python and web exceptions accept one exact rule code, repository-relative source file, and one
+or more qualified symbols. Rust exceptions are file-level and may target an exact `.rs` or
+`Cargo.toml` path. Globs, directories, line numbers, and inline suppression comments are not
+supported. `fensu check` rejects stale exceptions that no longer suppress a fault.
 
 For a justified rule/path intersection that is broader than one exact finding,
 keep the rules and project context active with `[[rule_ignores]]`:

@@ -54,6 +54,8 @@ pub(crate) struct CheckResult {
     pub(crate) excluded: usize,
     pub(crate) applied_exceptions: usize,
     pub(crate) threshold_uses: Vec<ThresholdUse>,
+    #[serde(default)]
+    pub(crate) cacheable: Option<bool>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]

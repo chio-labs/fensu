@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fensu.rules.annotations.constants import FFA_RULES
 from fensu.rules.authoring.models import RuleSpec
+from fensu.rules.catalog._helpers.rust_rules import rust_rules
 from fensu.rules.catalog._helpers.web_rules import (
     sveltekit_rules,
     typescript_rules,
@@ -20,6 +21,7 @@ from fensu.rules.tests.constants import FFT_RULES
 WEB_RULE_MIGRATION: tuple[tuple[str, str, bool, str], ...] = web_rule_migration()
 FPTS_RULES: tuple[RuleSpec, ...] = typescript_rules()
 FPSK_RULES: tuple[RuleSpec, ...] = sveltekit_rules()
+FPRS_RULES: tuple[RuleSpec, ...] = rust_rules()
 
 CORE_RULES: tuple[RuleSpec, ...] = (
     *FFA_RULES,
@@ -30,7 +32,13 @@ CORE_RULES: tuple[RuleSpec, ...] = (
     *FFR_RULES,
     *FFN_RULES,
 )
-SHIPPED_RULES: tuple[RuleSpec, ...] = (*CORE_RULES, *FPDG_RULES, *FPTS_RULES, *FPSK_RULES)
+SHIPPED_RULES: tuple[RuleSpec, ...] = (
+    *CORE_RULES,
+    *FPDG_RULES,
+    *FPRS_RULES,
+    *FPTS_RULES,
+    *FPSK_RULES,
+)
 FENSU_PACKAGE_NAME: str = "fensu"
 TRACKED_FACADE_ATTRIBUTE: str = "project"
 MODULE_PARAMETER_NAME: str = "module"

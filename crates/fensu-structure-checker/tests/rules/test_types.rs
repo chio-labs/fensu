@@ -27,6 +27,7 @@ pub(crate) struct ToolingConfigTestCase {
     pub(crate) config: CheckerConfig,
     pub(crate) expected_code: &'static str,
     pub(crate) expected_message: &'static str,
+    pub(crate) expected_present: bool,
 }
 
 pub(crate) struct ConfigValidationTestCase {

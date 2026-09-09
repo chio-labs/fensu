@@ -6,6 +6,7 @@ const APPROVED_LOADER_BOUNDARIES: &str = "approved_loader_boundaries";
 const APPROVED_LOADER_BOUNDARIES_KEY: &str = "rule_options.FPDG022.approved_loader_boundaries";
 const DAGSTER_AUTOLOAD_CODE: &str = "FPDG022";
 const DAGSTER_PACK: &str = "dagster";
+const RUST_PACK: &str = "rust";
 const SVELTEKIT_PACK: &str = "sveltekit";
 const TYPESCRIPT_PACK: &str = "typescript";
 
@@ -18,7 +19,7 @@ pub(crate) fn validate_rule_packs(value: Option<&toml::Value>) -> Result<(), Str
     for pack in &packs {
         if !matches!(
             pack.as_str(),
-            DAGSTER_PACK | SVELTEKIT_PACK | TYPESCRIPT_PACK
+            DAGSTER_PACK | RUST_PACK | SVELTEKIT_PACK | TYPESCRIPT_PACK
         ) {
             return Err(format!("Unknown native rule pack: {pack}."));
         }

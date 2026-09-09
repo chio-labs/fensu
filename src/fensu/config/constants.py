@@ -50,6 +50,7 @@ DEFAULT_SELECT: tuple[str, ...] = (RuleSelector.ALL,)
 DEFAULT_WEB_SELECT: tuple[str, ...] = ("FP",)
 TYPESCRIPT_RULE_PACK: str = "typescript"
 SVELTEKIT_RULE_PACK: str = "sveltekit"
+RUST_RULE_PACK: str = "rust"
 DEFAULT_WARN: tuple[str, ...] = ()
 DEFAULT_IGNORE: tuple[str, ...] = ()
 DEFAULT_CACHE_ENABLED: bool = True
@@ -84,6 +85,7 @@ CONFIG_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
         "ui_kit",
         "shadcn",
         "openapi",
+        "structure_config",
         "rule_exceptions",
         "rule_ignores",
         "threshold_overrides",

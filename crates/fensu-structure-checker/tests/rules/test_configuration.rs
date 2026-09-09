@@ -351,6 +351,7 @@ fn given_renamed_workspace_library_when_checking_then_project_graph_uses_source_
     }];
     for test_case in &test_cases {
         let repo_root = helpers::write_temp_repo_verbatim(test_case);
+        helpers::generate_lockfile(&repo_root);
         let violations = check_repository::check_repository(&repo_root);
         helpers::remove_temp_repo(&repo_root);
         let project_codes = violations
@@ -428,6 +429,7 @@ fn given_same_named_external_dependency_when_checking_then_workspace_graph_stays
     }];
     for test_case in &test_cases {
         let repo_root = helpers::write_temp_repo_verbatim(test_case);
+        helpers::generate_lockfile(&repo_root);
         let violations = check_repository::check_repository(&repo_root);
         helpers::remove_temp_repo(&repo_root);
         let project_codes = violations
@@ -926,6 +928,7 @@ fn given_custom_parser_boundary_when_checking_then_uses_configured_policy() {
                     "sqlbuild-structure-checker".to_owned(),
                     "fensu-structure-checker".to_owned(),
                 ],
+                runtime_allowed_packages: Vec::new(),
             },
             raw_parser_boundary: models::RawParserBoundaryConfig {
                 packages: vec!["sqlparser".to_owned()],
@@ -970,13 +973,18 @@ fn given_custom_parser_boundary_when_checking_then_uses_configured_policy() {
 }
 
 #[test]
-fn given_consumer_tooling_dependencies_when_checking_then_blocks_every_shared_checker() {
+fn given_consumer_tooling_dependencies_when_checking_then_honors_runtime_allowlist() {
     let mut config = models::CheckerConfig::default();
     config.tooling.package = "sqlbuild-structure-checker".to_owned();
     config.tooling.runtime_forbidden_packages = vec![
         "sqlbuild-structure-checker".to_owned(),
         "fensu-structure-checker".to_owned(),
     ];
+    let mut allowed_config: models::CheckerConfig = models::CheckerConfig::default();
+    allowed_config.tooling.package = "sqlbuild-structure-checker".to_owned();
+    allowed_config.tooling.runtime_forbidden_packages =
+        vec!["sqlbuild-structure-checker".to_owned()];
+    allowed_config.tooling.runtime_allowed_packages = vec!["example".to_owned()];
     let test_cases = [test_types::ToolingConfigTestCase {
         description: "consumer tooling dependency",
         repo_files: vec![test_types::RepoFile {
@@ -989,6 +997,20 @@ fn given_consumer_tooling_dependencies_when_checking_then_blocks_every_shared_ch
         config,
         expected_code: "RSL301",
         expected_message: "crate depends on sqlbuild-structure-checker",
+        expected_present: true,
+    }, test_types::ToolingConfigTestCase {
+            description: "declared engine facade may depend on the shared checker",
+            repo_files: vec![test_types::RepoFile {
+                path: "crates/example/Cargo.toml".to_owned(),
+                contents: "[package]\nname = \"example\"\nversion = \"0.1.0\"\nedition.workspace = true\nlicense.workspace = true\npublish.workspace = true\n\n[lints]\nworkspace = true\n\n[dependencies]\nchecker = { package = \"sqlbuild-structure-checker\", workspace = true }\n".to_owned(),
+            }, test_types::RepoFile {
+                path: "Cargo.toml".to_owned(),
+                contents: "[workspace]\nmembers = [\"crates/example\"]\nresolver = \"2\"\n\n[workspace.package]\nedition = \"2021\"\nlicense = \"Apache-2.0\"\npublish = false\n\n[workspace.dependencies]\nchecker = { package = \"sqlbuild-structure-checker\", version = \"0.1\" }\n\n[workspace.lints.rust]\nunsafe_code = \"forbid\"\nunreachable_pub = \"deny\"\nunused_must_use = \"deny\"\n\n[workspace.lints.clippy]\nawait_holding_lock = \"deny\"\n".to_owned(),
+            }],
+            config: allowed_config,
+            expected_code: "RSL301",
+            expected_message: "crate depends on sqlbuild-structure-checker",
+            expected_present: false,
     }];
 
     for test_case in test_cases {
@@ -1004,11 +1026,12 @@ fn given_consumer_tooling_dependencies_when_checking_then_blocks_every_shared_ch
         )
         .expect("tooling config is valid");
         helpers::remove_temp_repo(&repo_root);
-        assert!(
-            violations.iter().any(|violation| {
-                violation.code == test_case.expected_code
-                    && violation.message == test_case.expected_message
-            }),
+        let present = violations.iter().any(|violation| {
+            violation.code == test_case.expected_code
+                && violation.message == test_case.expected_message
+        });
+        assert_eq!(
+            present, test_case.expected_present,
             "case failed: {}",
             test_case.description
         );
@@ -1158,6 +1181,7 @@ fn given_invalid_config_when_validating_then_fails_closed() {
                 tooling: models::ToolingConfig {
                     package: String::new(),
                     runtime_forbidden_packages: Vec::new(),
+                    runtime_allowed_packages: Vec::new(),
                 },
                 ..models::CheckerConfig::default()
             },

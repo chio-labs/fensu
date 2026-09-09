@@ -9,6 +9,7 @@ class AnalyzerId(StrEnum):
     """Stable analyzer identities accepted by target configuration."""
 
     PYTHON = "python"
+    RUST = "rust"
     TYPESCRIPT = "typescript"
     SVELTE = "svelte"
 

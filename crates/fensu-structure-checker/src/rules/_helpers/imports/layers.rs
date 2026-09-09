@@ -79,7 +79,12 @@ pub(crate) fn check_manifest(
         .strip_prefix(repo_root)
         .unwrap_or(&manifest_path);
     let mut violations = crate_manifest_violations(relative, &manifest);
-    if workspace_crate.package_name.as_deref() != Some(&config.tooling.package) {
+    let runtime_allowed = workspace_crate
+        .package_name
+        .as_ref()
+        .is_some_and(|package| config.tooling.runtime_allowed_packages.contains(package));
+    if workspace_crate.package_name.as_deref() != Some(&config.tooling.package) && !runtime_allowed
+    {
         violations.extend(tooling_dependency_violations(
             relative,
             &workspace_crate.dependencies,

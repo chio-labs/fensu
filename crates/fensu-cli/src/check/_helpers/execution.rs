@@ -40,16 +40,27 @@ pub(crate) fn render_check(
     options: &CheckOptions,
 ) -> Result<CliOutput, String> {
     let results = evaluate_checks(&mut plan, options)?;
+    let cacheable = results
+        .iter()
+        .all(|result| result.cacheable.unwrap_or(true));
     let (output, exit_code) = render_results(results, &plan.root, plan.color, options.warn);
     let mut stderr = String::new();
     stderr.push_str(&freshness(&plan));
-    if plan.cache_enabled {
+    if plan.cache_enabled && cacheable {
         stderr.push_str(&stored_output(
             &plan,
             &output,
             exit_code,
             options.cache_stats,
         ));
+    } else if plan.cache_enabled {
+        stderr.push_str("Cache disabled for this run: Rust workspace metadata was unavailable\n");
+        if options.cache_stats {
+            stderr.push_str(&format!(
+                "Cache: hits=0 misses=0 invalidations=0 writes=0 non_cacheable={}\n",
+                plan.sources.len()
+            ));
+        }
     }
     Ok(CliOutput {
         stdout: output,
@@ -116,6 +127,9 @@ fn parse_sources(
     mut sources: Vec<ScopedSource>,
     project_inputs: &[crate::models::ProjectInput],
 ) -> Result<Vec<ScopedSource>, String> {
+    if config.analyzer == crate::analyzer::AnalyzerId::Rust {
+        return Ok(sources);
+    }
     if config.analyzer != crate::analyzer::AnalyzerId::Python {
         return web::parse_sources(
             config.analyzer,
@@ -173,13 +187,25 @@ fn fresh_structured_execution(
     mut plan: CheckPlans,
 ) -> Result<StructuredCheckExecution, String> {
     let results = evaluate_checks(&mut plan, options)?;
+    let cacheable = results
+        .iter()
+        .all(|result| result.cacheable.unwrap_or(true));
     let mut messages: Vec<String> = Vec::new();
-    let cache_stats = plan.cache_enabled.then(|| CheckCacheStats {
-        misses: plan.sources.len(),
-        writes: plan.sources.len(),
-        ..CheckCacheStats::default()
+    let cache_stats = plan.cache_enabled.then(|| {
+        if cacheable {
+            CheckCacheStats {
+                misses: plan.sources.len(),
+                writes: plan.sources.len(),
+                ..CheckCacheStats::default()
+            }
+        } else {
+            CheckCacheStats {
+                non_cacheable: plan.sources.len(),
+                ..CheckCacheStats::default()
+            }
+        }
     });
-    if plan.cache_enabled {
+    if plan.cache_enabled && cacheable {
         let payload = StructuredCachePayload {
             results: results.clone(),
         };
@@ -193,6 +219,10 @@ fn fresh_structured_execution(
         if !cache::write(&plan.root, &cached, &plan.sources, false) {
             messages.push("Cache disabled for this run: cache publication failed".to_owned());
         }
+    } else if plan.cache_enabled {
+        messages.push(
+            "Cache disabled for this run: Rust workspace metadata was unavailable".to_owned(),
+        );
     }
     Ok(StructuredCheckExecution {
         results,

@@ -56,6 +56,30 @@ pub(crate) struct InvalidCheckConfigTestCase {
     pub(crate) expected_error: &'static str,
 }
 
+pub(crate) struct RustCheckTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) exception: &'static str,
+    pub(crate) expected_absent: &'static str,
+    pub(crate) expected_exit_code: i32,
+    pub(crate) expected_present: &'static str,
+    pub(crate) select: &'static str,
+    pub(crate) source: &'static str,
+    pub(crate) source_path: &'static str,
+}
+
+pub(crate) struct RustCacheTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_cold: &'static str,
+    pub(crate) expected_invalidated: &'static str,
+    pub(crate) expected_warm: &'static str,
+}
+
+pub(crate) struct RustMetadataCacheTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_cache: &'static str,
+    pub(crate) expected_error: &'static str,
+}
+
 pub(crate) struct TargetCheckTestCase {
     pub(crate) description: &'static str,
     pub(crate) arguments: &'static [&'static str],

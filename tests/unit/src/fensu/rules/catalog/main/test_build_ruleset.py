@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import re
 import sys
 from dataclasses import replace
 from operator import attrgetter, itemgetter, methodcaller
@@ -12,6 +13,7 @@ from types import ModuleType
 import pytest
 
 from fensu.config.exceptions import ConfigError, ConfigValidationError
+from fensu.config.main.build_config import build_config
 from fensu.config.main.load_project_config import load_project_config
 from fensu.config.models import Config, RuleExceptionEntry, RuleIgnoreEntry
 from fensu.config.types import AnalyzerId
@@ -21,6 +23,7 @@ from fensu.rules.authoring.types import Family, RuleKind
 from fensu.rules.catalog._helpers import loading as loading_module
 from fensu.rules.catalog.constants import (
     CORE_RULES,
+    FPRS_RULES,
     FPSK_RULES,
     FPTS_RULES,
     SHIPPED_RULES,
@@ -39,6 +42,7 @@ from tests.unit.src.fensu.rules.catalog.main._test_types import (
     DirectRuleSpecErrorTestCase,
     ModuleIsolationTestCase,
     NativeRulePackCatalogueTestCase,
+    NativeRustPackCatalogueTestCase,
     NativeWebPackCatalogueTestCase,
     RegistryErrorTestCase,
     RuleExceptionCodeTestCase,
@@ -138,6 +142,35 @@ def test_given_native_web_packs_when_building_catalogue_then_each_pack_is_standa
         fpsk_by_implementation[implementation].alias_of for implementation in fpts_by_implementation
     } == expected_alias_codes
     assert not any(rule.code.startswith("FW") for rule in SHIPPED_RULES)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        NativeRustPackCatalogueTestCase(
+            description="Rust pack exposes every structure-engine identity",
+            expected_rule_count=102,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_rust_pack_when_building_catalogue_then_registers_owned_project_policy(
+    test_case: NativeRustPackCatalogueTestCase,
+) -> None:
+    config: Config = build_config(raw={"roots": ["src"]}, analyzer=AnalyzerId.RUST)
+    implementation_codes: set[str] = {rule.implementation_code or "" for rule in FPRS_RULES}
+    structure_codes: set[str] = set()
+    for source_path in Path("crates/fensu-structure-checker/src").rglob("*.rs"):
+        structure_codes.update(re.findall(r'code: "(RS[A-Z][0-9]{3})"', source_path.read_text()))
+
+    assert len(FPRS_RULES) == test_case.expected_rule_count
+    assert config.rule_packs == ("rust",)
+    assert config.select == ("FPRS",)
+    assert len(implementation_codes) == test_case.expected_rule_count
+    assert implementation_codes == structure_codes
+    assert all(rule.code.startswith("FPRS") and rule.pack == "rust" for rule in FPRS_RULES)
+    assert all(rule.analyzers == (AnalyzerId.RUST,) for rule in FPRS_RULES)
+    assert all(rule.kind is RuleKind.PACK and rule.check is None for rule in FPRS_RULES)
 
 
 @pytest.mark.parametrize(

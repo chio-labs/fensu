@@ -641,6 +641,24 @@ def test_given_analyzer_compatible_web_exception_when_loading_then_path_is_accep
             expected_error_fragment="Unknown targets.web config key(s): framework",
         ),
         InvalidTargetConfigTestCase(
+            description="non-Rust targets reject structure policy configuration",
+            config_text=(
+                '[targets.web]\nanalyzer = "typescript"\nroots = ["src"]\n'
+                'structure_config = "rust-structure-checker.toml"\n'
+            ),
+            target="web",
+            expected_error_fragment="supported only by the Rust analyzer",
+        ),
+        InvalidTargetConfigTestCase(
+            description="Rust structure policy paths cannot escape the target",
+            config_text=(
+                '[targets.rust]\nanalyzer = "rust"\nroots = ["src"]\n'
+                'structure_config = "../rust-structure-checker.toml"\n'
+            ),
+            target="rust",
+            expected_error_fragment="repository-relative path",
+        ),
+        InvalidTargetConfigTestCase(
             description="TypeScript exceptions reject Python paths",
             config_text=(
                 '[targets.web]\nanalyzer = "typescript"\nroots = ["src"]\n'
@@ -719,6 +737,12 @@ def test_given_web_dependency_symlink_when_loading_then_target_escape_fails_clos
     "test_case",
     [
         AnalyzerIdentityTestCase(
+            description="Rust analyzer identity round trips",
+            value="rust",
+            expected_analyzer=AnalyzerId.RUST,
+            expected_error_fragment=None,
+        ),
+        AnalyzerIdentityTestCase(
             description="Python analyzer identity round trips",
             value="python",
             expected_analyzer=AnalyzerId.PYTHON,
@@ -760,7 +784,7 @@ def test_given_exact_analyzer_spelling_when_parsing_then_typed_identity_round_tr
             expected_analyzer=None,
             expected_error_fragment=f"Unknown analyzer for target app: {value}",
         )
-        for value in ("Python", "TypeScript", "SVELTE", "ruby")
+        for value in ("Python", "Rust", "TypeScript", "SVELTE", "ruby")
     ],
     ids=lambda case: case.description,
 )
@@ -790,6 +814,28 @@ def test_given_noncanonical_analyzer_spelling_when_parsing_then_identity_is_unkn
     ids=lambda case: case.description,
 )
 def test_given_known_web_analyzer_when_resolving_backend_then_is_publicly_available(
+    test_case: AnalyzerCapabilityTestCase,
+) -> None:
+    capability: AnalyzerCapability = analyzer_capability(test_case.analyzer)
+
+    assert capability.available is test_case.expected_available
+    assert capability.cache_contract == test_case.expected_cache_contract
+    assert require_analyzer_backend(test_case.analyzer) == capability
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        AnalyzerCapabilityTestCase(
+            description="known Rust backend is publicly available",
+            analyzer=AnalyzerId.RUST,
+            expected_available=True,
+            expected_cache_contract="rust-structure-policy-v1",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_known_rust_analyzer_when_resolving_backend_then_is_publicly_available(
     test_case: AnalyzerCapabilityTestCase,
 ) -> None:
     capability: AnalyzerCapability = analyzer_capability(test_case.analyzer)

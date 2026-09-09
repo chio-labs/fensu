@@ -84,6 +84,7 @@ fn given_every_core_rule_when_rendering_then_complete_authored_metadata_is_visib
             );
             assert!(
                 metadata.analyzers == [AnalyzerId::Python]
+                    || metadata.analyzers == [AnalyzerId::Rust]
                     || metadata.analyzers == [AnalyzerId::Svelte]
                     || metadata.analyzers == [AnalyzerId::TypeScript, AnalyzerId::Svelte]
             );

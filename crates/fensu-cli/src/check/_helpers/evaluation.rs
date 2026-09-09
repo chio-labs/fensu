@@ -38,6 +38,16 @@ pub(crate) fn evaluate(request: EvaluationRequest<'_>) -> Result<CheckResult, St
         show_warnings,
     } = request;
     validate_config_tiers(config)?;
+    if config.analyzer == crate::analyzer::AnalyzerId::Rust {
+        return evaluate_rust_target(EvaluationRequest {
+            project_root,
+            config,
+            sources,
+            project_inputs,
+            excluded,
+            show_warnings,
+        });
+    }
     if config.analyzer != crate::analyzer::AnalyzerId::Python {
         return evaluate_parser_target(EvaluationRequest {
             project_root,
@@ -175,6 +185,124 @@ pub(crate) fn evaluate(request: EvaluationRequest<'_>) -> Result<CheckResult, St
         excluded,
         applied_exceptions: applied,
         threshold_uses: uses,
+        cacheable: Some(true),
+    })
+}
+
+fn evaluate_rust_target(request: EvaluationRequest<'_>) -> Result<CheckResult, String> {
+    let EvaluationRequest {
+        project_root,
+        config,
+        sources,
+        project_inputs: _,
+        excluded,
+        show_warnings,
+    } = request;
+    if !config.rule_paths.is_empty()
+        || !config.rule_modules.is_empty()
+        || !config.rule_options.is_empty()
+    {
+        return Err(
+            "Native Rust check integration does not support Python-hosted rule paths, modules, or options."
+                .to_owned(),
+        );
+    }
+    let blocking = selected_rules(config, &config.select, &config.ignore)?;
+    let warning_rules = if show_warnings {
+        selected_rules(config, &config.warn, &config.ignore)?
+    } else {
+        Vec::new()
+    };
+    let mut all_rules = blocking.clone();
+    all_rules.extend(warning_rules.iter().copied());
+    validate_unique_implementations(&all_rules)?;
+    let warning_codes = warning_rules
+        .iter()
+        .map(|rule| rule.code.as_str())
+        .collect::<HashSet<_>>();
+    let display_by_implementation = all_rules
+        .iter()
+        .map(|rule| {
+            (
+                rule.implementation_code.as_deref().unwrap_or(&rule.code),
+                *rule,
+            )
+        })
+        .collect::<HashMap<_, _>>();
+    let structure_config = config
+        .structure_config
+        .as_deref()
+        .map(|path| project_root.join(path));
+    let analysis = fensu_rust::analyze_repository(project_root, structure_config.as_deref())?;
+    let cacheable = !analysis
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.code == fensu_rust::METADATA_SETUP_CODE);
+    let excluded_paths = sources
+        .iter()
+        .filter(|source| !source.purpose.is_direct())
+        .map(|source| source.target_path.as_str())
+        .collect::<HashSet<_>>();
+    let source_paths = sources
+        .iter()
+        .map(|source| source.target_path.as_str())
+        .collect::<HashSet<_>>();
+    let mut faults: Vec<Fault> = Vec::new();
+    for diagnostic in analysis.diagnostics {
+        let diagnostic_path = diagnostic.path.to_string_lossy().replace('\\', "/");
+        if excluded_paths.contains(diagnostic_path.as_str()) {
+            continue;
+        }
+        if diagnostic_path.ends_with(".rs") && !source_paths.contains(diagnostic_path.as_str()) {
+            continue;
+        }
+        let Some(metadata) = display_by_implementation.get(diagnostic.code) else {
+            continue;
+        };
+        let line = diagnostic
+            .line
+            .map(u32::try_from)
+            .transpose()
+            .map_err(|_| "Rust diagnostic line exceeds the supported range.".to_owned())?;
+        faults.push(Fault {
+            warning: warning_codes.contains(metadata.code.as_str()),
+            code: metadata.code.clone(),
+            alias_of: None,
+            path: project_root
+                .join(diagnostic_path)
+                .to_string_lossy()
+                .into_owned(),
+            line,
+            column: None,
+            message: diagnostic.message,
+            remediation: Some(diagnostic.remediation),
+        });
+    }
+    let evaluated_codes = all_rules
+        .iter()
+        .map(|rule| rule.code.as_str())
+        .collect::<HashSet<_>>();
+    let (faults, applied) = apply_exceptions(ApplyExceptionsRequest {
+        faults,
+        sources,
+        project_root,
+        evaluated_codes: &evaluated_codes,
+        config,
+    })?;
+    let faults = apply_rule_ignores(faults, project_root, config);
+    let (blocking_faults, warnings) = faults.into_iter().partition(|fault| !fault.warning);
+    Ok(CheckResult {
+        analyzer: config.analyzer,
+        faults: blocking_faults,
+        warnings,
+        selected: sources
+            .iter()
+            .filter(|source| source.purpose.is_direct())
+            .count(),
+        excluded,
+        applied_exceptions: applied,
+        threshold_uses: Vec::new(),
+        cacheable: Some(cacheable),
     })
 }
 
@@ -297,6 +425,7 @@ fn evaluate_parser_target(request: EvaluationRequest<'_>) -> Result<CheckResult,
         excluded,
         applied_exceptions: applied,
         threshold_uses: uses,
+        cacheable: Some(true),
     })
 }
 

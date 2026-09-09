@@ -7,6 +7,13 @@ use crate::tests::test_types::{AnalyzerContractTestCase, ParserContractTestCase}
 fn given_analyzer_spelling_when_resolving_identity_then_contract_is_typed_and_case_sensitive() {
     let test_cases = [
         AnalyzerContractTestCase {
+            description: "Rust is publicly available",
+            value: "rust",
+            expected_analyzer: Some(AnalyzerId::Rust),
+            expected_display: Some("rust"),
+            expected_cache_contract: Some(fensu_rust::CACHE_CONTRACT_VERSION),
+        },
+        AnalyzerContractTestCase {
             description: "Python is available",
             value: "python",
             expected_analyzer: Some(AnalyzerId::Python),
@@ -58,8 +65,13 @@ fn given_analyzer_spelling_when_resolving_identity_then_contract_is_typed_and_ca
 }
 
 #[test]
-fn given_web_analyzer_when_reading_parser_contract_then_it_matches_owned_parser_crate() {
+fn given_native_analyzer_when_reading_parser_contract_then_it_matches_owned_engine_crate() {
     let test_cases = [
+        ParserContractTestCase {
+            description: "Rust contract comes from the owned engine",
+            analyzer: AnalyzerId::Rust,
+            expected_contract: fensu_rust::PARSER_CONTRACT_VERSION,
+        },
         ParserContractTestCase {
             description: "TypeScript contract comes from the owned parser",
             analyzer: AnalyzerId::TypeScript,

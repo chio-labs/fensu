@@ -160,6 +160,7 @@ pub(crate) fn effective_config_lines(context: &SkillContext) -> Result<Vec<Strin
         format!("- UI-kit root: {}", py_json(&json!(config.ui_kit))?), String::new(),
         format!("- shadcn config: {}", py_json(&json!(config.shadcn))?),
         format!("- OpenAPI document: {}", py_json(&json!(config.openapi))?), String::new(),
+        format!("- Rust structure policy: {}", py_json(&json!(config.structure_config))?), String::new(),
         "### Configured Rule Selectors".to_owned(), String::new(),
         format!("- Blocking selectors (`select`): {}", sorted_json(&config.select)?),
         format!("- Warning selectors (`warn`): {}", sorted_json(&config.warn)?),
@@ -180,7 +181,10 @@ pub(crate) fn effective_config_lines(context: &SkillContext) -> Result<Vec<Strin
         format!("- Evaluation exclude boundaries: {}", path_list(context, &config.evaluation_exclude)?), String::new(),
         "### Effective Global Thresholds".to_owned(), String::new(),
     ];
-    if config.analyzer != crate::analyzer::AnalyzerId::Python {
+    if matches!(
+        config.analyzer,
+        crate::analyzer::AnalyzerId::TypeScript | crate::analyzer::AnalyzerId::Svelte
+    ) {
         let tooling_index = lines
             .iter()
             .position(|line| line.starts_with("- Tooling roots:"))

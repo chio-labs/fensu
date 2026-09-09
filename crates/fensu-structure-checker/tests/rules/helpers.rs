@@ -4,12 +4,22 @@ use std::collections::BTreeSet;
 use std::fmt::Write as _;
 use std::fs;
 use std::path;
+use std::process::Command;
 use std::sync::atomic;
 
 use crate::test_types;
 use fensu_structure_checker::constants;
 
 static REPO_COUNTER: atomic::AtomicUsize = atomic::AtomicUsize::new(0);
+
+pub(crate) fn generate_lockfile(root: &path::Path) {
+    let status = Command::new("cargo")
+        .arg("generate-lockfile")
+        .current_dir(root)
+        .status()
+        .expect("fixture Cargo lock generation runs");
+    assert!(status.success(), "fixture Cargo lock generation succeeds");
+}
 
 /// Write a fixture repository, completing each leaf domain with a `main/` entry.
 pub(crate) fn write_temp_repo(test_case: &test_types::CheckRepoTestCase) -> path::PathBuf {

@@ -25,6 +25,7 @@ jobs:
         with:
           enable-cache: true
       - run: uv python install 3.12
+      - run: uv sync --locked --all-groups
       - run: make verify
 
   rust:
@@ -38,7 +39,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: astral-sh/setup-uv@v6
       - run: uv python install 3.12
-      - run: uv sync
+      - run: uv sync --locked --all-groups
       - run: make check-rust
       - run: make skills-content-check
       - run: make test-rust
@@ -82,7 +83,7 @@ jobs:
         with:
           enable-cache: true
       - run: uv python install 3.12
-      - run: uv sync
+      - run: uv sync --locked --all-groups
       - run: cargo test -p fensu-cli --test command
       - run: uv run pytest tests -q -n auto
 
@@ -99,7 +100,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: astral-sh/setup-uv@v6
       - run: uv python install 3.12
-      - run: uv sync
+      - run: uv sync --locked --all-groups
       - run: uv run fensu --version
       - run: uv run pytest tests/e2e/src/fensu/cli/main/test_entry.py tests/e2e/src/fensu/cli/main/test_native_distribution.py -q
 
@@ -114,8 +115,9 @@ jobs:
         with:
           toolchain: 1.95.0
       - uses: Swatinem/rust-cache@v2
-      - run: cargo test -p fensu-typescript -p fensu-svelte
+      - run: cargo test -p fensu-rust -p fensu-typescript -p fensu-svelte
       - run: cargo test -p fensu-cli --lib
+      - run: "cargo test -p fensu-cli --test command test_check_rust::"
 
   source-build:
     runs-on: ubuntu-latest

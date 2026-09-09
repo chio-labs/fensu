@@ -26,4 +26,7 @@ def build_config_for_rules(
     resolved: Mapping[str, Mapping[str, RuleOptionValue]] = resolve_rule_options(
         raw=raw.get("rule_options"), rules=rules
     )
-    return replace(build_validated_config(raw=raw, rule_options=resolved), analyzer=analyzer)
+    return replace(
+        build_validated_config(raw=raw, rule_options=resolved, analyzer=analyzer),
+        analyzer=analyzer,
+    )

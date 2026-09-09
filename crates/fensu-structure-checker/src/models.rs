@@ -25,6 +25,8 @@ pub struct CheckerConfig {
 pub struct ToolingConfig {
     pub package: String,
     pub runtime_forbidden_packages: Vec<String>,
+    #[serde(default)]
+    pub runtime_allowed_packages: Vec<String>,
 }
 
 /// Parser packages hidden behind the repository's shared fact model.
@@ -91,6 +93,7 @@ impl Default for CheckerConfig {
             tooling: ToolingConfig {
                 package: constants::DEFAULT_TOOLING_CRATE_NAME.to_owned(),
                 runtime_forbidden_packages: vec![constants::DEFAULT_TOOLING_CRATE_NAME.to_owned()],
+                runtime_allowed_packages: vec![constants::DEFAULT_ENGINE_CRATE_NAME.to_owned()],
             },
             raw_parser_boundary: RawParserBoundaryConfig {
                 packages: constants::DEFAULT_RAW_PARSER_CRATES
@@ -126,6 +129,10 @@ impl CheckerConfig {
         {
             return Err("forbidden tooling package names must not be empty".to_owned());
         }
+        crate::configuration::_helpers::repository_policy::validate_non_empty_unique(
+            &self.tooling.runtime_allowed_packages,
+            "runtime allowed packages",
+        )?;
         if self
             .raw_parser_boundary
             .packages

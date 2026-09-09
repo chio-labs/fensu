@@ -41,6 +41,7 @@ const CONFIG_KEYS: &[&str] = &[
     "ui_kit",
     "shadcn",
     "openapi",
+    "structure_config",
     "rule_exceptions",
     "rule_ignores",
     "threshold_overrides",
@@ -66,7 +67,7 @@ pub(crate) fn validate_for_analyzer(
     validate_rule_options(table.get("rule_options"))?;
     validate_test_scopes(table.get("test_scopes"))?;
     if let Some(value) = table.get("test_layout") {
-        if analyzer == AnalyzerId::Python {
+        if !matches!(analyzer, AnalyzerId::TypeScript | AnalyzerId::Svelte) {
             return Err(
                 "Config key test_layout is supported only by TypeScript and Svelte analyzers."
                     .to_owned(),
@@ -120,6 +121,22 @@ pub(crate) fn validate_for_analyzer(
                     "Config key {name} must be a repository-relative path."
                 ));
             }
+        }
+    }
+    if let Some(value) = table.get("structure_config") {
+        if analyzer != AnalyzerId::Rust {
+            return Err(
+                "Config key structure_config is supported only by the Rust analyzer.".to_owned(),
+            );
+        }
+        let path = value
+            .as_str()
+            .filter(|path| !path.trim().is_empty())
+            .ok_or_else(|| "Config key structure_config must be a non-empty string.".to_owned())?;
+        if !portable_target_path(path) {
+            return Err(
+                "Config key structure_config must be a repository-relative path.".to_owned(),
+            );
         }
     }
     if let Some(value) = table.get("ui_kit") {
@@ -303,7 +320,7 @@ fn normalize_web_aliases(
     mut table: toml::map::Map<String, toml::Value>,
     analyzer: AnalyzerId,
 ) -> Result<toml::map::Map<String, toml::Value>, String> {
-    if analyzer == AnalyzerId::Python {
+    if !matches!(analyzer, AnalyzerId::TypeScript | AnalyzerId::Svelte) {
         return Ok(table);
     }
     if let Some(value) = table.remove("thresholds") {

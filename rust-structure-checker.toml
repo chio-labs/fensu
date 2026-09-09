@@ -1,0 +1,36 @@
+schema-version = 1
+
+[tooling]
+package = "fensu-structure-checker"
+runtime-forbidden-packages = ["fensu-structure-checker"]
+runtime-allowed-packages = ["fensu-rust"]
+
+[raw-parser-boundary]
+packages = ["ruff_python_ast", "ruff_python_parser"]
+remediation = "consume shared fensu-facts row models instead of parser or AST types"
+restricted-paths = ["rules"]
+
+[repository]
+crate-names = [
+  "fensu-cli",
+  "fensu-facts",
+  "fensu-native",
+  "fensu-policy",
+  "fensu-rust",
+  "fensu-svelte",
+  "fensu-structure-checker",
+  "fensu-typescript",
+]
+domain-paths = []
+role-paths = []
+intentional-layout-paths = []
+
+[repository.thresholds]
+max-file-lines = 2000
+max-arguments = 10
+max-statements-global = 70
+max-statements-entry = 40
+max-distinct-calls-entry = 20
+max-locals-entry = 20
+max-helper-container-modules = 10
+max-main-container-modules = 20

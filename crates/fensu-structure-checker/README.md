@@ -5,6 +5,10 @@ shape conventions. Its default configuration checks Fensu, while `--config`
 accepts versioned consumer identities, structural paths and budgets, intentional
 layout roots, and parser-boundary policy for other repositories.
 
+The standalone command remains a compatibility surface. The primary Fensu integration is the
+owned `fensu-rust` engine and `analyzer = "rust"`, which expose these checks through normal Fensu
+rule selection, caching, exceptions, and reporting under `FPRS*` rule identities.
+
 ```toml
 schema-version = 1
 
@@ -14,6 +18,7 @@ runtime-forbidden-packages = [
   "example-structure-checker",
   "fensu-structure-checker",
 ]
+runtime-allowed-packages = []
 
 [raw-parser-boundary]
 packages = []
@@ -53,6 +58,14 @@ library names to the same Cargo identity. Local packages, targets, dependencies,
 the config file, and every configured path must remain canonically contained by
 the repository. Symlink entries inside Rust source trees are rejected rather
 than silently skipped.
+
+When a workspace has `Cargo.lock`, exact dependency resolution runs with `--locked`; a stale lock
+is reported rather than rewritten. Lock-free library workspaces use Cargo's declared dependency
+metadata, and checking never creates a lockfile.
+
+`runtime-forbidden-packages` keeps checker/tooling implementations out of normal runtime crates.
+`runtime-allowed-packages` is a narrow package-identity allowlist for an intentional engine facade;
+all other runtime crates continue to receive the dependency violation.
 
 `restricted-paths` selects the subtrees where raw-parser references are banned.
 An exact repository-relative path selects that subtree. The single-component

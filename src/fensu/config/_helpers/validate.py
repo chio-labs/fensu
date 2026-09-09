@@ -11,6 +11,7 @@ from fensu.config._helpers.path_patterns import expand_path_pattern
 from fensu.config.constants import (
     CACHE_ENABLED_CONFIG_KEY,
     CACHE_REQUIRE_CACHEABLE_CONFIG_KEY,
+    CARGO_MANIFEST_FILE_NAME,
     CONFIG_ROLE_NAMES,
     CONFIG_TOP_LEVEL_KEYS,
     CONTRACT_BEHAVIORS,
@@ -25,6 +26,7 @@ from fensu.config.constants import (
     RECURSIVE_GLOB,
     RULE_EXCEPTION_SYMBOLS_CONFIG_KEY,
     RULE_IGNORE_KEYS,
+    RUST_SOURCE_SUFFIX,
     SKILLS_CONFIG_KEYS,
     SKILLS_NAME_CONFIG_KEY,
     TARGET_CONFIG_KEYS,
@@ -45,7 +47,7 @@ _current_path_part: str = "."
 _parent_path_part: str = ".."
 _python_file_suffix: str = ".py"
 _glob_characters: frozenset[str] = frozenset({"*", "?", "[", "]"})
-_registered_rule_packs: frozenset[str] = frozenset({"dagster", "sveltekit", "typescript"})
+_registered_rule_packs: frozenset[str] = frozenset({"dagster", "rust", "sveltekit", "typescript"})
 
 
 def validate_config(*, raw: Mapping[str, object], analyzer: AnalyzerId | None = None) -> None:
@@ -106,6 +108,16 @@ def validate_config(*, raw: Mapping[str, object], analyzer: AnalyzerId | None = 
         )
     if isinstance(ui_kit, str) and not any(ui_kit.startswith(f"{root}/") for root in roots):
         raise ConfigValidationError("Config key ui_kit must be beneath a configured root.")
+    structure_config: object = raw.get("structure_config")
+    if structure_config is not None:
+        if analyzer is not AnalyzerId.RUST:
+            raise ConfigValidationError(
+                "Config key structure_config is supported only by the Rust analyzer."
+            )
+        if not _is_portable_target_path(value=structure_config):
+            raise ConfigValidationError(
+                "Config key structure_config must be a non-empty repository-relative path."
+            )
     _validate_rule_exceptions(value=raw.get("rule_exceptions"), analyzer=analyzer)
     _validate_rule_ignores(value=raw.get("rule_ignores"))
     _validate_cache(value=raw.get("cache"))
@@ -638,6 +650,8 @@ def _validate_exception_path(*, path: str, analyzer: AnalyzerId | None) -> None:
         if analyzer is AnalyzerId.TYPESCRIPT
         else path.endswith((*web_suffixes, ".svelte"))
         if analyzer is AnalyzerId.SVELTE
+        else parsed.suffix == RUST_SOURCE_SUFFIX or path.endswith(CARGO_MANIFEST_FILE_NAME)
+        if analyzer is AnalyzerId.RUST
         else parsed.suffix == _python_file_suffix or path.endswith((*web_suffixes, ".svelte"))
     )
     if (

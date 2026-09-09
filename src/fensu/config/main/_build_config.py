@@ -21,4 +21,4 @@ def build_config(*, raw: Mapping[str, object], analyzer: AnalyzerId = AnalyzerId
         raise ConfigValidationError(
             "Config key rule_options requires the discovered rule catalogue."
         )
-    return replace(build_validated_config(raw=raw), analyzer=analyzer)
+    return replace(build_validated_config(raw=raw, analyzer=analyzer), analyzer=analyzer)

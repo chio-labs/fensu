@@ -13,6 +13,11 @@ def analyzer_capability(analyzer: AnalyzerId) -> AnalyzerCapability:
             available=True,
             cache_contract="python-ruff-py312-v1",
         ),
+        AnalyzerId.RUST: AnalyzerCapability(
+            analyzer=AnalyzerId.RUST,
+            available=True,
+            cache_contract="rust-structure-policy-v1",
+        ),
         AnalyzerId.TYPESCRIPT: AnalyzerCapability(
             analyzer=AnalyzerId.TYPESCRIPT,
             available=True,

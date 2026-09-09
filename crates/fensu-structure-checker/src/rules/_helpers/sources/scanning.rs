@@ -85,16 +85,20 @@ pub(crate) fn scan_workspace(repo_root: &path::Path) -> models::WorkspaceScan {
             violations,
         };
     }
-    let resolved_metadata = match resolved_metadata(repo_root, &manifest_path) {
-        Ok(value) => Some(value),
-        Err(error) => {
-            violations.push(manifest_setup_violation(
-                repo_root,
-                &manifest_path,
-                format!("Cargo could not resolve exact dependency identities: {error}"),
-            ));
-            None
+    let resolved_metadata = if repo_root.join(constants::CARGO_LOCK_FILE).is_file() {
+        match resolved_metadata(repo_root, &manifest_path) {
+            Ok(value) => Some(value),
+            Err(error) => {
+                violations.push(manifest_setup_violation(
+                    repo_root,
+                    &manifest_path,
+                    format!("Cargo could not resolve exact dependency identities: {error}"),
+                ));
+                None
+            }
         }
+    } else {
+        None
     };
     let mut crates: Vec<models::WorkspaceCrate> = Vec::new();
     for package in metadata
@@ -128,7 +132,8 @@ fn resolved_metadata(
     let mut command = cargo_metadata::MetadataCommand::new();
     command
         .manifest_path(manifest_path)
-        .features(cargo_metadata::CargoOpt::AllFeatures);
+        .features(cargo_metadata::CargoOpt::AllFeatures)
+        .other_options(vec!["--locked".to_owned()]);
     let metadata = command
         .exec()
         .map_err(|error| format!("Cargo metadata failed: {error}"))?;
@@ -415,6 +420,7 @@ fn discover_declared_dependencies(
             None => (None, Vec::new()),
         };
         violations.extend(path_violations);
+        let resolved = path.is_some();
         let source_name = dependency
             .rename
             .as_ref()
@@ -424,7 +430,7 @@ fn discover_declared_dependencies(
             package_name: dependency.name.clone(),
             source_name,
             path,
-            resolved: false,
+            resolved,
         });
     }
     dependencies.sort_by(|left, right| {

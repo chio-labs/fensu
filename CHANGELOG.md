@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.1](https://github.com/chio-labs/fensu/compare/v0.14.0...v0.14.1) (2026-09-09)
+
+
+### Bug Fixes
+
+* refresh public fixtures ([1725f64](https://github.com/chio-labs/fensu/commit/1725f64f47d62ce609eaa090458fe8b040a90b1e))
+
 ## [0.14.0](https://github.com/chio-labs/fensu/compare/v0.13.1...v0.14.0) (2026-08-27)
 
 

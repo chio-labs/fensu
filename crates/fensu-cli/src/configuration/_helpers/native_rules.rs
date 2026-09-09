@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use crate::analyzer::AnalyzerId;
 use crate::configuration::_helpers::validation::required_strings;
 
 const APPROVED_LOADER_BOUNDARIES: &str = "approved_loader_boundaries";
@@ -30,7 +31,10 @@ pub(crate) fn validate_rule_packs(value: Option<&toml::Value>) -> Result<(), Str
     Ok(())
 }
 
-pub(crate) fn validate_rule_options(value: Option<&toml::Value>) -> Result<(), String> {
+pub(crate) fn validate_rule_options(
+    value: Option<&toml::Value>,
+    analyzer: AnalyzerId,
+) -> Result<(), String> {
     let Some(value) = value else {
         return Ok(());
     };
@@ -40,8 +44,27 @@ pub(crate) fn validate_rule_options(value: Option<&toml::Value>) -> Result<(), S
     if rules.values().any(|options| !options.is_table()) {
         return Err("Config key rule_options must contain rule-code tables.".to_owned());
     }
+    let _ = fensu_rust::configuration::main::rule_options::resolve_rule_options(Some(rules))?;
+    let rust_catalogue =
+        crate::catalogue::main::rule_catalogue::configured_rule_catalogue(&[RUST_PACK.to_owned()])?;
     for (code, options) in rules {
         if code.starts_with('X') {
+            continue;
+        }
+        if analyzer == AnalyzerId::Rust && !code.starts_with("FPRS") {
+            return Err(format!(
+                "Rule options for {code} are not supported by the Rust analyzer."
+            ));
+        }
+        if code.starts_with("FPRS") {
+            if analyzer != AnalyzerId::Rust {
+                return Err(format!(
+                    "Rule options for {code} are supported only by the Rust analyzer."
+                ));
+            }
+            if !rust_catalogue.iter().any(|rule| rule.code == *code) {
+                return Err(format!("Unknown native rule options code: {code}."));
+            }
             continue;
         }
         if code != DAGSTER_AUTOLOAD_CODE {

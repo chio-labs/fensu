@@ -99,10 +99,6 @@ pub(crate) fn build(
             .get("openapi")
             .and_then(toml::Value::as_str)
             .map(str::to_owned),
-        structure_config: table
-            .get("structure_config")
-            .and_then(toml::Value::as_str)
-            .map(str::to_owned),
         exceptions: exceptions(table.get("rule_exceptions")),
         rule_ignores: rule_ignores(table.get("rule_ignores")),
         skills_name: skills_name(table)?,

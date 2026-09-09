@@ -54,7 +54,7 @@ jobs:
         with:
           toolchain: 1.85.0
       - uses: Swatinem/rust-cache@v2
-      - run: cargo test -p fensu-policy -p fensu-structure-checker
+      - run: cargo test -p fensu-policy
       - run: .github/scripts/verify_shared_crate_packages.sh
 
   performance:

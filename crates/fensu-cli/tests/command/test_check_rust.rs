@@ -1,11 +1,86 @@
 use crate::helpers::{run_check, run_check_with, write};
-use crate::test_types::{RustCacheTestCase, RustCheckTestCase, RustMetadataCacheTestCase};
+use crate::test_types::{
+    InvalidCheckConfigTestCase, RustCacheTestCase, RustCheckTestCase, RustMetadataCacheTestCase,
+};
 
-const STRUCTURE_CONFIG: &str = "schema-version = 1\n[tooling]\npackage = \"fensu-structure-checker\"\nruntime-forbidden-packages = []\n[raw-parser-boundary]\npackages = []\nremediation = \"\"\nrestricted-paths = []\n[repository]\ncrate-names = [\"example\"]\ndomain-paths = []\nrole-paths = []\nintentional-layout-paths = []\n";
+const RUST_CONFIG: &str = "[targets.rust]\nanalyzer = \"rust\"\nroots = [\"src\"]\ntests = []\ntooling = []\nrule_packs = [\"rust\"]\nselect = [\"FPRSL302\"]\n";
+
+#[test]
+fn given_custom_python_and_rust_options_when_checking_then_native_and_hosted_targets_merge() {
+    let test_cases = [crate::test_types::RustMixedTargetTestCase {
+        description: "custom Python target and native Rust options coexist",
+        expected_exit_code: 1,
+        expected_codes: &["FFA001", "FPRSS010"],
+    }];
+    for test_case in test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(
+            repository.path().join("Cargo.toml"),
+            "[package]\nname = \"example\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        );
+        write(
+            repository.path().join("src/lib.rs"),
+            "pub fn sum(left: usize, right: usize) -> usize { left + right }\n",
+        );
+        write(
+            repository.path().join("python/value.py"),
+            "def value(item):\n    return item\n",
+        );
+        write(repository.path().join("rules/custom.py"), "import ast\nfrom fensu import Family, Fault, RuleContext, rule\n@rule(code='XMIX001', family=Family.CUSTOM, slug='mixed', message='mixed')\ndef mixed(module: ast.Module, ctx: RuleContext) -> list[Fault]:\n    return []\n");
+        write(repository.path().join("fensu.toml"), "[targets.python]\nanalyzer = \"python\"\nroots = [\"python\"]\ntests = []\ntooling = []\nselect = [\"FFA001\", \"XMIX001\"]\nrule_paths = [\"rules/custom.py\"]\n[targets.rust]\nanalyzer = \"rust\"\nroots = [\"src\"]\ntests = []\ntooling = []\nrule_packs = [\"rust\"]\nselect = [\"FPRSS010\"]\n[targets.rust.rule_options.FPRSS010]\nmax_arguments = 1\n");
+        let output = std::process::Command::new(env!("CARGO_BIN_EXE_fensu"))
+            .args(["check", "--no-color", "--no-cache"])
+            .current_dir(repository.path())
+            .env("FENSU_PYTHON", crate::helpers::workspace_python())
+            .output()
+            .expect("mixed check runs");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {stdout} {stderr}",
+            test_case.description
+        );
+        for code in test_case.expected_codes {
+            assert!(stdout.contains(code), "{}: {stdout}", test_case.description);
+        }
+    }
+}
 
 #[test]
 fn given_rust_target_when_checking_then_structure_engine_uses_pack_policy_and_exceptions() {
     let test_cases = [
+        RustCheckTestCase {
+            description: "normal rule options lower the argument budget",
+            exception: "[targets.rust.rule_options.FPRSS010]\nmax_arguments = 1\n",
+            expected_absent: "Found 0 faults",
+            expected_exit_code: 1,
+            expected_present: "FPRSS010",
+            select: "FPRSS010",
+            source: "pub fn sum(left: usize, right: usize) -> usize { left + right }\n",
+            source_path: "src/lib.rs",
+        },
+        RustCheckTestCase {
+            description: "normal rule options raise the argument budget",
+            exception: "[targets.rust.rule_options.FPRSS010]\nmax_arguments = 2\n",
+            expected_absent: "FPRSS010",
+            expected_exit_code: 0,
+            expected_present: "Found 0 faults",
+            select: "FPRSS010",
+            source: "pub fn sum(left: usize, right: usize) -> usize { left + right }\n",
+            source_path: "src/lib.rs",
+        },
+        RustCheckTestCase {
+            description: "indirectly emitted naming rules reach the public CLI",
+            exception: "",
+            expected_absent: "Found 0 faults",
+            expected_exit_code: 1,
+            expected_present: "FPRSN001",
+            select: "FPRS",
+            source: "pub fn validate_value() -> usize { 1 }\n",
+            source_path: "src/lib.rs",
+        },
         RustCheckTestCase {
             description: "manifest structure violation uses the public Rust pack identity",
             exception: "",
@@ -73,13 +148,9 @@ fn given_rust_target_when_checking_then_structure_engine_uses_pack_policy_and_ex
             test_case.source,
         );
         write(
-            repository.path().join("rust-structure-checker.toml"),
-            STRUCTURE_CONFIG,
-        );
-        write(
             repository.path().join("fensu.toml"),
             &format!(
-                "[targets.rust]\nanalyzer = \"rust\"\nroots = [\"src\"]\ntests = []\ntooling = []\nrule_packs = [\"rust\"]\nselect = [\"{}\"]\nstructure_config = \"rust-structure-checker.toml\"\n{}",
+                "[targets.rust]\nanalyzer = \"rust\"\nroots = [\"src\"]\ntests = []\ntooling = []\nrule_packs = [\"rust\"]\nselect = [\"{}\"]\n{}",
                 test_case.select, test_case.exception
             ),
         );
@@ -108,6 +179,76 @@ fn given_rust_target_when_checking_then_structure_engine_uses_pack_policy_and_ex
 }
 
 #[test]
+fn given_invalid_rust_rule_options_when_checking_then_configuration_fails_closed() {
+    let test_cases = [
+        InvalidCheckConfigTestCase {
+            description: "unrelated native pack options",
+            config: "[targets.rust.rule_options.FPDG022]\napproved_loader_boundaries = []\n",
+            expected_exit_code: 2,
+            expected_error: "not supported by the Rust analyzer",
+        },
+        InvalidCheckConfigTestCase {
+            description: "Rust options on another analyzer",
+            config: "[targets.python]\nanalyzer = \"python\"\nroots = [\"src\"]\n[targets.python.rule_options.FPRSS010]\nmax_arguments = 5\n",
+            expected_exit_code: 2,
+            expected_error: "supported only by the Rust analyzer",
+        },
+        InvalidCheckConfigTestCase {
+            description: "zero argument budget",
+            config: "[targets.rust.rule_options.FPRSS010]\nmax_arguments = 0\n",
+            expected_exit_code: 2,
+            expected_error: "must be a positive integer",
+        },
+        InvalidCheckConfigTestCase {
+            description: "unknown option name",
+            config: "[targets.rust.rule_options.FPRSS010]\nmax_args = 5\n",
+            expected_exit_code: 2,
+            expected_error: "does not declare option max_args",
+        },
+        InvalidCheckConfigTestCase {
+            description: "unknown empty rule table",
+            config: "[targets.rust.rule_options.FPRSUNKNOWN]\n",
+            expected_exit_code: 2,
+            expected_error: "Unknown native rule options code",
+        },
+        InvalidCheckConfigTestCase {
+            description: "invalid parser boundary path",
+            config: "[targets.rust.rule_options.FPRSL102]\nrestricted_paths = [\"../outside\"]\n",
+            expected_exit_code: 2,
+            expected_error: "repository-relative POSIX paths",
+        },
+    ];
+    for test_case in test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(
+            repository.path().join("src/lib.rs"),
+            "pub fn value() -> usize { 1 }\n",
+        );
+        write(
+            repository.path().join("Cargo.toml"),
+            "[package]\nname = \"example\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        );
+        write(
+            repository.path().join("fensu.toml"),
+            &format!("{RUST_CONFIG}{}", test_case.config),
+        );
+        let output = run_check(repository.path());
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {stderr}",
+            test_case.description
+        );
+        assert!(
+            stderr.contains(test_case.expected_error),
+            "{}: {stderr}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
 fn given_rust_policy_input_when_checking_again_then_cache_invalidates_on_policy_change() {
     let test_cases = [RustCacheTestCase {
         description: "Rust source and project policy share one cache identity",
@@ -129,20 +270,13 @@ fn given_rust_policy_input_when_checking_again_then_cache_invalidates_on_policy_
             repository.path().join("src/lib.rs"),
             "pub fn value() -> usize { 1 }\n",
         );
-        write(
-            repository.path().join("rust-structure-checker.toml"),
-            STRUCTURE_CONFIG,
-        );
-        write(
-            repository.path().join("fensu.toml"),
-            "[targets.rust]\nanalyzer = \"rust\"\nroots = [\"src\"]\ntests = []\ntooling = []\nrule_packs = [\"rust\"]\nselect = [\"FPRSL302\"]\nstructure_config = \"rust-structure-checker.toml\"\n",
-        );
+        write(repository.path().join("fensu.toml"), RUST_CONFIG);
 
         let cold = run_check_with(repository.path(), &["--cache", "--cache-stats"]);
         let warm = run_check_with(repository.path(), &["--cache", "--cache-stats"]);
         write(
-            repository.path().join("rust-structure-checker.toml"),
-            &format!("{STRUCTURE_CONFIG}\n"),
+            repository.path().join("fensu.toml"),
+            &format!("{RUST_CONFIG}\n[targets.rust.rule_options.FPRSS010]\nmax_arguments = 5\n"),
         );
         let invalidated = run_check_with(repository.path(), &["--cache", "--cache-stats"]);
         let cold_stderr = String::from_utf8_lossy(&cold.stderr);
@@ -186,14 +320,7 @@ fn given_unavailable_cargo_metadata_when_checking_then_failure_is_read_only_and_
             repository.path().join("src/lib.rs"),
             "pub fn value() -> usize { 1 }\n",
         );
-        write(
-            repository.path().join("rust-structure-checker.toml"),
-            STRUCTURE_CONFIG,
-        );
-        write(
-            repository.path().join("fensu.toml"),
-            "[targets.rust]\nanalyzer = \"rust\"\nroots = [\"src\"]\ntests = []\ntooling = []\nrule_packs = [\"rust\"]\nselect = [\"FPRSL302\"]\nstructure_config = \"rust-structure-checker.toml\"\n",
-        );
+        write(repository.path().join("fensu.toml"), RUST_CONFIG);
 
         for _ in 0..2 {
             let output = run_check_with(repository.path(), &["--cache", "--cache-stats"]);

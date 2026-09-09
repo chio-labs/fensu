@@ -10,6 +10,54 @@ const CONFIG: &str =
     "roots = [\"src\"]\ntests = [\"tests\"]\ntooling = [\"scripts\"]\nselect = [\"FFA\"]\n";
 
 #[test]
+fn given_rust_rule_options_when_inspecting_then_native_values_are_rendered() {
+    let test_cases = [
+        ConfigCommandTargetTestCase {
+            description: "integer Rust option",
+            arguments: &["rule", "FPRSS010", "--target", "rust", "--color", "never"],
+            expected_exit_code: 0,
+            expected_stdout: "max_arguments",
+            expected_stderr: "",
+        },
+        ConfigCommandTargetTestCase {
+            description: "string and list Rust options",
+            arguments: &["rule", "FPRSL102", "--target", "rust", "--color", "never"],
+            expected_exit_code: 0,
+            expected_stdout: "consume project facts",
+            expected_stderr: "",
+        },
+    ];
+    let repository = tempfile::tempdir().expect("temporary repository");
+    write(repository.path().join("fensu.toml"), "[targets.rust]\nanalyzer = \"rust\"\nroots = [\"src\"]\nrule_packs = [\"rust\"]\n[targets.rust.rule_options.FPRSS010]\nmax_arguments = 7\n[targets.rust.rule_options.FPRSL102]\npackages = [\"syntax-parser\"]\nremediation = \"consume project facts\"\n");
+    for test_case in test_cases {
+        let output = Command::new(env!("CARGO_BIN_EXE_fensu"))
+            .args(test_case.arguments)
+            .current_dir(repository.path())
+            .env("FENSU_PYTHON", repository.path().join("missing-python"))
+            .output()
+            .expect("native rule process runs");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {stderr}",
+            test_case.description
+        );
+        assert!(
+            stdout.contains(test_case.expected_stdout),
+            "{}: {stdout}",
+            test_case.description
+        );
+        assert_eq!(
+            stderr, test_case.expected_stderr,
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
 fn given_web_analyzer_when_inspecting_rule_then_native_catalogue_is_available() {
     let test_cases = [
         ConfigCommandTargetTestCase {

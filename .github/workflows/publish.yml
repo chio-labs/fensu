@@ -63,7 +63,6 @@ jobs:
               ("CLI package", "packages/fensu-cli/pyproject.toml"),
               ("CLI crate", "crates/fensu-cli/Cargo.toml"),
               ("policy crate", "crates/fensu-policy/Cargo.toml"),
-              ("checker crate", "crates/fensu-structure-checker/Cargo.toml"),
           ]:
               with Path(path).open("rb") as file:
                   document = tomllib.load(file)
@@ -231,7 +230,6 @@ jobs:
           }
 
           publish_if_missing fensu-policy
-          publish_if_missing fensu-structure-checker
 
   pypi:
     name: Publish to PyPI

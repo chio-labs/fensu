@@ -103,7 +103,6 @@ pub(crate) struct Config {
     pub(crate) ui_kit: Option<String>,
     pub(crate) shadcn: Option<String>,
     pub(crate) openapi: Option<String>,
-    pub(crate) structure_config: Option<String>,
     pub(crate) exceptions: Vec<RuleException>,
     pub(crate) rule_ignores: Vec<RuleIgnore>,
     pub(crate) skills_name: Option<String>,

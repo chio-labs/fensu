@@ -24,9 +24,6 @@ BASE_FILES: dict[str, str] = {
     "crates/fensu-policy/Cargo.toml": (
         f'[package]\nname = "fensu-policy"\nversion = "{OLD_VERSION}"\n'
     ),
-    "crates/fensu-structure-checker/Cargo.toml": (
-        f'[package]\nname = "fensu-structure-checker"\nversion = "{OLD_VERSION}"\n'
-    ),
     "uv.lock": (
         "version = 1\n"
         f'[[package]]\nname = "fensu"\nversion = "{OLD_VERSION}"\n'
@@ -37,7 +34,6 @@ BASE_FILES: dict[str, str] = {
         "version = 4\n"
         f'[[package]]\nname = "fensu-cli"\nversion = "{OLD_VERSION}"\n'
         f'[[package]]\nname = "fensu-policy"\nversion = "{OLD_VERSION}"\n'
-        f'[[package]]\nname = "fensu-structure-checker"\nversion = "{OLD_VERSION}"\n'
         f'[[package]]\nname = "third-party"\nversion = "{OLD_VERSION}"\n'
     ),
     CHANGELOG_PATH: "# Changelog\n\n## [0.11.0]\n",
@@ -56,9 +52,6 @@ VALID_HEAD_FILES: dict[str, str] = {
     "crates/fensu-policy/Cargo.toml": BASE_FILES["crates/fensu-policy/Cargo.toml"].replace(
         OLD_VERSION, NEW_VERSION
     ),
-    "crates/fensu-structure-checker/Cargo.toml": BASE_FILES[
-        "crates/fensu-structure-checker/Cargo.toml"
-    ].replace(OLD_VERSION, NEW_VERSION),
     "uv.lock": BASE_FILES["uv.lock"]
     .replace(
         f'name = "fensu"\nversion = "{OLD_VERSION}"', f'name = "fensu"\nversion = "{NEW_VERSION}"'
@@ -75,10 +68,6 @@ VALID_HEAD_FILES: dict[str, str] = {
     .replace(
         f'name = "fensu-policy"\nversion = "{OLD_VERSION}"',
         f'name = "fensu-policy"\nversion = "{NEW_VERSION}"',
-    )
-    .replace(
-        f'name = "fensu-structure-checker"\nversion = "{OLD_VERSION}"',
-        f'name = "fensu-structure-checker"\nversion = "{NEW_VERSION}"',
     ),
     CHANGELOG_PATH: "# Changelog\n\n## [0.12.0]\n\n## [0.11.0]\n",
 }

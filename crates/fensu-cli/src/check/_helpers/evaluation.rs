@@ -200,7 +200,7 @@ fn evaluate_rust_target(request: EvaluationRequest<'_>) -> Result<CheckResult, S
     } = request;
     if !config.rule_paths.is_empty()
         || !config.rule_modules.is_empty()
-        || !config.rule_options.is_empty()
+        || config.rule_options.keys().any(|code| code.starts_with('X'))
     {
         return Err(
             "Native Rust check integration does not support Python-hosted rule paths, modules, or options."
@@ -229,11 +229,11 @@ fn evaluate_rust_target(request: EvaluationRequest<'_>) -> Result<CheckResult, S
             )
         })
         .collect::<HashMap<_, _>>();
-    let structure_config = config
-        .structure_config
-        .as_deref()
-        .map(|path| project_root.join(path));
-    let analysis = fensu_rust::analyze_repository(project_root, structure_config.as_deref())?;
+    let analysis = fensu_rust::engine::main::analyze_repository::analyze_repository(
+        project_root,
+        Some(&config.rule_options),
+        &config.tooling,
+    )?;
     let cacheable = !analysis
         .diagnostics
         .iter()

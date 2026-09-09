@@ -641,22 +641,22 @@ def test_given_analyzer_compatible_web_exception_when_loading_then_path_is_accep
             expected_error_fragment="Unknown targets.web config key(s): framework",
         ),
         InvalidTargetConfigTestCase(
-            description="non-Rust targets reject structure policy configuration",
+            description="non-Rust targets reject removed sidecar configuration",
             config_text=(
                 '[targets.web]\nanalyzer = "typescript"\nroots = ["src"]\n'
-                'structure_config = "rust-structure-checker.toml"\n'
+                'structure_config = "policy.toml"\n'
             ),
             target="web",
-            expected_error_fragment="supported only by the Rust analyzer",
+            expected_error_fragment="Unknown targets.web config key(s): structure_config",
         ),
         InvalidTargetConfigTestCase(
-            description="Rust structure policy paths cannot escape the target",
+            description="Rust targets reject removed sidecar configuration",
             config_text=(
                 '[targets.rust]\nanalyzer = "rust"\nroots = ["src"]\n'
-                'structure_config = "../rust-structure-checker.toml"\n'
+                'structure_config = "policy.toml"\n'
             ),
             target="rust",
-            expected_error_fragment="repository-relative path",
+            expected_error_fragment="Unknown targets.rust config key(s): structure_config",
         ),
         InvalidTargetConfigTestCase(
             description="TypeScript exceptions reject Python paths",
@@ -830,7 +830,7 @@ def test_given_known_web_analyzer_when_resolving_backend_then_is_publicly_availa
             description="known Rust backend is publicly available",
             analyzer=AnalyzerId.RUST,
             expected_available=True,
-            expected_cache_contract="rust-structure-policy-v1",
+            expected_cache_contract="rust-rules-v2",
         )
     ],
     ids=lambda case: case.description,

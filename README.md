@@ -100,8 +100,8 @@ and annotation rules.
 
 ### Rust workspaces
 
-Rust is a first-class native analyzer backed by Fensu's owned Rust engine. Configure a Cargo
-workspace target and a versioned structure-policy file:
+Rust rules run directly in the `fensu-rust` analyzer through the normal Fensu CLI.
+Configure a Cargo workspace in `fensu.toml`:
 
 ```toml
 [targets.rust]
@@ -111,16 +111,24 @@ tests = []
 tooling = []
 rule_packs = ["rust"]
 select = ["FPRS"]
-structure_config = "rust-structure-checker.toml"
 ```
 
-The Rust pack exposes the existing structure policy under stable `FPRS*` identities while the
-engine retains parser-independent diagnostics and versioned parser/cache contracts. Cargo
-manifests, the lockfile, Rust sources, and the structure-policy file all participate in cache
-identity. Omitting `structure_config` uses the engine's built-in policy; explicit policy is
-recommended for repositories that need closed crate inventories, parser boundaries, or adjusted
-structure budgets. See [`crates/fensu-structure-checker/README.md`](crates/fensu-structure-checker/README.md)
-for that file's schema.
+Run `fensu check --target rust`. Cargo discovers workspace members, package names, and targets;
+use `roots = ["src"]` for a single-package repository. The Rust pack enables all 117 `FPRS*`
+rules, covering layout, imports, dependency boundaries, naming, function shape, hygiene, and
+test conventions. Existing structural thresholds are the defaults.
+
+Adjust individual rules in the same file:
+
+```toml
+[targets.rust.rule_options.FPRSS010]
+max_arguments = 8
+```
+
+Selection, warnings, ignores, file exceptions, and caching use the usual Fensu settings.
+Cargo manifests, the lockfile when present, Rust sources, and target configuration participate
+in cache identity. Analysis does not create or update a lockfile.
+See [Rust analyzer configuration](docs/rust.md) for rule options and tooling boundaries.
 
 ## Default Structure
 

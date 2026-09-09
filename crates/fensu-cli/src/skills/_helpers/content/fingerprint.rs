@@ -289,7 +289,6 @@ fn config_value(config: &Config) -> Value {
         "ui_kit": config.ui_kit,
         "shadcn": config.shadcn,
         "openapi": config.openapi,
-        "structure_config": config.structure_config,
         "role_thresholds": role_thresholds,
         "threshold_overrides": config.threshold_overrides.iter().map(|item| {
             let values = item.thresholds.iter().map(|(key, value)| (key.clone(), json!(value))).collect::<BTreeMap<_, _>>();
@@ -313,13 +312,9 @@ fn config_value(config: &Config) -> Value {
 
 fn web_inputs_value(context: &SkillContext) -> Result<Value, String> {
     let mut inputs: BTreeMap<String, String> = BTreeMap::new();
-    for path in [
-        &context.config.shadcn,
-        &context.config.openapi,
-        &context.config.structure_config,
-    ]
-    .into_iter()
-    .flatten()
+    for path in [&context.config.shadcn, &context.config.openapi]
+        .into_iter()
+        .flatten()
     {
         let absolute = context.project_root.join(path);
         let content = std::fs::read(&absolute).map_err(|error| {

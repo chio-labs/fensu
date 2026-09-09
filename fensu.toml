@@ -9,7 +9,22 @@ select = ["FF"]
 analyzer = "rust"
 roots = ["crates"]
 tests = []
-tooling = []
+tooling = ["crates/fensu-rust"]
 rule_packs = ["rust"]
 select = ["FPRS"]
-structure_config = "rust-structure-checker.toml"
+
+[targets.rust.rule_options.FPRSL102]
+packages = ["ruff_python_ast", "ruff_python_parser"]
+restricted_paths = ["rules"]
+remediation = "consume shared fensu-facts row models instead of parser or AST types"
+
+[targets.rust.rule_options.FPRSL304]
+crate_names = [
+  "fensu-cli",
+  "fensu-facts",
+  "fensu-native",
+  "fensu-policy",
+  "fensu-rust",
+  "fensu-svelte",
+  "fensu-typescript",
+]

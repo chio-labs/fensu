@@ -37,7 +37,7 @@ check-ci: catalogue-check
 check-rust:
 	cargo fmt --check
 	cargo clippy --all-targets --quiet -- -D warnings
-	cargo run -p fensu-structure-checker --quiet -- --config rust-structure-checker.toml
+	cargo run -p fensu-cli --quiet -- check --target rust
 
 test-rust:
 	cargo test --all --quiet

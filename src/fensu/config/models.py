@@ -151,7 +151,6 @@ class Config:
     generated: tuple[str, ...] = ()
     shadcn: str | None = None
     openapi: str | None = None
-    structure_config: str | None = None
     test_layout: TestLayout = DEFAULT_TEST_LAYOUT
 
     def __post_init__(self) -> None:

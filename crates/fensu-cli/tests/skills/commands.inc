@@ -13,6 +13,36 @@ use crate::test_types::{
 };
 
 #[test]
+fn given_rust_rule_options_when_generating_skills_then_values_and_freshness_follow_configuration() {
+    let test_cases = [crate::test_types::RustOptionsSkillsTestCase {
+        description: "Rust skills use effective option values and detect changes",
+        expected_current_value: "- Current value: 7",
+        expected_updated_value: "- Current value: 8",
+        expected_stale_exit_code: 1,
+    }];
+    for test_case in test_cases {
+        let repository = tempfile::tempdir().expect("Rust skills repository");
+        let config = "[targets.rust]\nanalyzer = \"rust\"\nroots = [\"src\"]\ntests = []\ntooling = []\nrule_packs = [\"rust\"]\nselect = [\"FPRSS010\"]\n[targets.rust.skills]\nname = \"rust\"\n[targets.rust.rule_options.FPRSS010]\nmax_arguments = 7\n";
+        write(repository.path().join(".git/keep"), b"");
+        write(repository.path().join("fensu.toml"), config);
+        write(repository.path().join("src/lib.rs"), "pub fn value() -> usize { 1 }\n");
+        let arguments = &["--target", "agents", "--config-target", "rust"];
+        let generated = native(repository.path(), arguments);
+        assert!(generated.status.success(), "{}: {}", test_case.description, text(&generated.stderr));
+        let path = target(repository.path(), ".agents", "fensu-rust");
+        let original = fs::read_to_string(&path).expect("Rust guidance");
+        assert!(original.contains(test_case.expected_current_value), "{}: {original}", test_case.description);
+        write(repository.path().join("fensu.toml"), config.replace("max_arguments = 7", "max_arguments = 8"));
+        let stale = native(repository.path(), &["--target", "agents", "--config-target", "rust", "--check"]);
+        assert_eq!(stale.status.code(), Some(test_case.expected_stale_exit_code), "{}: {}", test_case.description, text(&stale.stdout));
+        let updated = native(repository.path(), arguments);
+        assert!(updated.status.success(), "{}: {}", test_case.description, text(&updated.stderr));
+        let guidance = fs::read_to_string(path).expect("updated Rust guidance");
+        assert!(guidance.contains(test_case.expected_updated_value), "{}: {guidance}", test_case.description);
+    }
+}
+
+#[test]
 fn given_web_analyzer_when_generating_skills_then_native_catalogue_is_rendered() {
     let test_cases = [ConfigTargetSkillsTestCase {
         description: "SvelteKit skills render retained native rules and provenance",

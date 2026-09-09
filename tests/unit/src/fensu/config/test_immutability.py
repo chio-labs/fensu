@@ -125,7 +125,6 @@ def test_given_loaded_config_when_mutating_role_thresholds_then_raises_type_erro
                 "generated",
                 "shadcn",
                 "openapi",
-                "structure_config",
                 "test_layout",
             ),
         )

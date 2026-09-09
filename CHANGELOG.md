@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.1](https://github.com/chio-labs/fensu/compare/v0.15.0...v0.15.1) (2026-09-09)
+
+
+### Bug Fixes
+
+* consolidate Rust rules into the native analyzer ([#73](https://github.com/chio-labs/fensu/issues/73)) ([4cdee82](https://github.com/chio-labs/fensu/commit/4cdee82c4b14d840bee8d0f9daa816a0b86e9f7f))
+
 ## [0.15.0](https://github.com/chio-labs/fensu/compare/v0.14.3...v0.15.0) (2026-09-09)
 
 

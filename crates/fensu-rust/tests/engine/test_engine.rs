@@ -1,6 +1,7 @@
 use std::fs;
 
-use fensu_rust::{analyze_repository, CACHE_CONTRACT_VERSION, PARSER_CONTRACT_VERSION};
+use fensu_rust::engine::main::analyze_repository::analyze_repository;
+use fensu_rust::{CACHE_CONTRACT_VERSION, PARSER_CONTRACT_VERSION};
 
 use crate::test_types::EngineTestCase;
 
@@ -8,7 +9,7 @@ use crate::test_types::EngineTestCase;
 fn given_minimal_workspace_when_analyzing_then_engine_returns_owned_diagnostics() {
     let test_cases = [EngineTestCase {
         description: "minimal workspace returns owned diagnostics and stable contracts",
-        expected_cache_contract: "rust-structure-policy-v1",
+        expected_cache_contract: "rust-rules-v2",
         expected_diagnostics: true,
         expected_lock_created: false,
         expected_parser_contract: "rust-syn-workspace-v1",
@@ -27,7 +28,7 @@ fn given_minimal_workspace_when_analyzing_then_engine_returns_owned_diagnostics(
         )
         .expect("source");
 
-        let analysis = analyze_repository(temporary.path(), None).expect("analysis succeeds");
+        let analysis = analyze_repository(temporary.path(), None, &[]).expect("analysis succeeds");
         let diagnostics_are_owned = analysis
             .diagnostics
             .iter()

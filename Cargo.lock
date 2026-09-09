@@ -463,19 +463,12 @@ dependencies = [
 name = "fensu-rust"
 version = "0.1.0"
 dependencies = [
- "fensu-structure-checker",
- "tempfile",
-]
-
-[[package]]
-name = "fensu-structure-checker"
-version = "0.15.0"
-dependencies = [
  "cargo_metadata",
+ "dunce",
  "proc-macro2",
  "quote",
- "serde",
  "syn 2.0.118",
+ "tempfile",
  "toml",
  "walkdir",
 ]

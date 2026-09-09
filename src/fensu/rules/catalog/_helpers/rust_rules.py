@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fensu.config.constants import RUST_RULE_PACK
 from fensu.config.types import AnalyzerId
-from fensu.rules.authoring.models import RuleSpec
+from fensu.rules.authoring.models import RuleOption, RuleSpec
 from fensu.rules.authoring.types import ExecutionOwner, Family, RuleKind
 
 _IMPLEMENTATION_CODES: tuple[str, ...] = (
@@ -14,6 +14,7 @@ _IMPLEMENTATION_CODES: tuple[str, ...] = (
     "RSH003",
     "RSH004",
     "RSH005",
+    "RSH006",
     "RSH007",
     "RSH008",
     "RSH010",
@@ -38,6 +39,14 @@ _IMPLEMENTATION_CODES: tuple[str, ...] = (
     "RSL306",
     "RSL307",
     "RSL901",
+    "RSN001",
+    "RSN002",
+    "RSN003",
+    "RSN004",
+    "RSR001",
+    "RSR002",
+    "RSR003",
+    "RSR004",
     "RSR101",
     "RSR102",
     "RSR103",
@@ -46,6 +55,8 @@ _IMPLEMENTATION_CODES: tuple[str, ...] = (
     "RSR202",
     "RSR204",
     "RSR205",
+    "RSR301",
+    "RSR302",
     "RSR303",
     "RSR304",
     "RSR305",
@@ -55,14 +66,17 @@ _IMPLEMENTATION_CODES: tuple[str, ...] = (
     "RSR309",
     "RSR310",
     "RSR401",
+    "RSR402",
     "RSR403",
     "RSR404",
     "RSR405",
+    "RSR406",
     "RSR502",
     "RSR503",
     "RSR601",
     "RSR701",
     "RSR702",
+    "RSR703",
     "RSR704",
     "RSR705",
     "RSR706",
@@ -76,6 +90,7 @@ _IMPLEMENTATION_CODES: tuple[str, ...] = (
     "RSS110",
     "RSS120",
     "RSS130",
+    "RSS131",
     "RSS201",
     "RST001",
     "RST002",
@@ -116,9 +131,35 @@ _FAMILIES: dict[str, Family] = {
     "A": Family.ANNOTATIONS,
     "H": Family.HYGIENE,
     "L": Family.LAYERS,
+    "N": Family.NAMING,
     "R": Family.ROLES,
     "S": Family.SHAPE,
     "T": Family.TESTS,
+}
+
+_OPTIONS: dict[str, tuple[RuleOption[object], ...]] = {
+    "RSR601": (RuleOption.integer(name="max_file_lines", default=2000, minimum=1),),
+    "RSS010": (RuleOption.integer(name="max_arguments", default=10, minimum=1),),
+    "RSS011": (RuleOption.integer(name="max_statements", default=70, minimum=1),),
+    "RSS001": (RuleOption.integer(name="max_statements", default=40, minimum=1),),
+    "RSS002": (RuleOption.integer(name="max_distinct_calls", default=20, minimum=1),),
+    "RSS003": (RuleOption.integer(name="max_locals", default=20, minimum=1),),
+    "RSR301": (RuleOption.integer(name="max_modules", default=10, minimum=1),),
+    "RSR302": (RuleOption.integer(name="max_modules", default=20, minimum=1),),
+    "RSL301": (RuleOption.string_list(name="forbidden_packages", default=()),),
+    "RSL102": (
+        RuleOption.string_list(name="packages", default=()),
+        RuleOption.string_list(name="restricted_paths", default=("rules",)),
+        RuleOption.string(
+            name="remediation", default="consume shared fact models instead of parser or AST types"
+        ),
+    ),
+    "RSL304": (RuleOption.string_list(name="crate_names", default=()),),
+    "RSL305": (
+        RuleOption.string_list(name="domain_paths", default=()),
+        RuleOption.string_list(name="role_paths", default=()),
+        RuleOption.string_list(name="intentional_layout_paths", default=()),
+    ),
 }
 
 
@@ -137,6 +178,7 @@ def rust_rules() -> tuple[RuleSpec, ...]:
             kind=RuleKind.PACK,
             pack=RUST_RULE_PACK,
             implementation_code=implementation,
+            options=_OPTIONS.get(implementation, ()),
         )
         for implementation in _IMPLEMENTATION_CODES
     )

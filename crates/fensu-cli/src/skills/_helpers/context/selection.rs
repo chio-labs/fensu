@@ -7,6 +7,7 @@ use fensu_policy::policy::models::{FensuRuleCodeGrammar, PolicySelectors};
 use fensu_policy::policy::types::PolicyTier;
 use serde_json::json;
 
+use crate::catalogue::main::resolve_native_options::resolve_native_options;
 use crate::catalogue::main::rule_catalogue::configured_rule_catalogue;
 use crate::catalogue::main::validate_config_selectors::validate_config_selectors;
 use crate::catalogue::models::RuleMetadata;
@@ -76,10 +77,13 @@ pub(crate) fn selection(config: &Config, project_root: &Path) -> Result<RuleSele
         &FensuRuleCodeGrammar,
     )
     .map_err(format_policy_error)?;
-    let catalogue: Vec<RuleMetadata> = selection.catalogue.into_iter().cloned().collect();
-    let blocking: Vec<RuleMetadata> = selection.blocking.into_iter().cloned().collect();
-    let warnings: Vec<RuleMetadata> = selection.warnings.into_iter().cloned().collect();
-    let ignored: Vec<RuleMetadata> = selection.ignored.into_iter().cloned().collect();
+    let catalogue =
+        resolve_native_options(selection.catalogue.into_iter().cloned().collect(), config)?;
+    let blocking =
+        resolve_native_options(selection.blocking.into_iter().cloned().collect(), config)?;
+    let warnings =
+        resolve_native_options(selection.warnings.into_iter().cloned().collect(), config)?;
+    let ignored = resolve_native_options(selection.ignored.into_iter().cloned().collect(), config)?;
     Ok(RuleSelection {
         catalogue,
         blocking,

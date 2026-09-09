@@ -16,7 +16,7 @@ def analyzer_capability(analyzer: AnalyzerId) -> AnalyzerCapability:
         AnalyzerId.RUST: AnalyzerCapability(
             analyzer=AnalyzerId.RUST,
             available=True,
-            cache_contract="rust-structure-policy-v1",
+            cache_contract="rust-rules-v2",
         ),
         AnalyzerId.TYPESCRIPT: AnalyzerCapability(
             analyzer=AnalyzerId.TYPESCRIPT,

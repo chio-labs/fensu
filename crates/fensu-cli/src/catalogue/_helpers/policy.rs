@@ -1,6 +1,6 @@
 //! Resolve loaded policy and native option values for rule inspection.
 
-use crate::catalogue::models::{RuleMetadata, RuleOptionListValue, RuleOptionValue};
+use crate::catalogue::models::RuleMetadata;
 use crate::models::Config;
 use crate::skills::models::RuleSelection;
 
@@ -43,18 +43,12 @@ pub(crate) fn apply_native_option_values(
             let Some(value) = values.get(&option.name) else {
                 continue;
             };
-            let list = value.as_array().ok_or_else(|| {
+            option.current_value = value.clone().try_into().map_err(|error| {
                 format!(
-                    "Rule {} option {} must be a list.",
+                    "Rule {} option {} has an invalid value: {error}.",
                     metadata.code, option.name
                 )
             })?;
-            option.current_value = RuleOptionValue::List(
-                list.iter()
-                    .filter_map(toml::Value::as_str)
-                    .map(|item| RuleOptionListValue::String(item.to_owned()))
-                    .collect(),
-            );
         }
     }
     Ok(())

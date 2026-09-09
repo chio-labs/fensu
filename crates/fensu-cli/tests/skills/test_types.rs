@@ -5,6 +5,13 @@ pub(crate) struct SkillsCommandTestCase {
     pub(crate) expected_exit_code: i32,
 }
 
+pub(crate) struct RustOptionsSkillsTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_current_value: &'static str,
+    pub(crate) expected_updated_value: &'static str,
+    pub(crate) expected_stale_exit_code: i32,
+}
+
 pub(crate) struct ConfigTargetSkillsTestCase {
     pub(crate) description: &'static str,
     pub(crate) arguments: &'static [&'static str],

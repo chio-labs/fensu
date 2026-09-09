@@ -93,9 +93,6 @@ def build_config(
         ui_kit=raw_ui_kit if isinstance(raw_ui_kit, str) else None,
         shadcn=str(raw["shadcn"]) if isinstance(raw.get("shadcn"), str) else None,
         openapi=str(raw["openapi"]) if isinstance(raw.get("openapi"), str) else None,
-        structure_config=(
-            str(raw["structure_config"]) if isinstance(raw.get("structure_config"), str) else None
-        ),
         generated=_string_tuple(value=raw.get("generated")),
         analyzer=analyzer,
     )

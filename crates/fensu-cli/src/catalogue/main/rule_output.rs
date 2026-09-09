@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use crate::catalogue::_helpers::arguments::{parse_arguments, use_color};
-use crate::catalogue::_helpers::policy::{apply_native_option_values, effective_policy};
+use crate::catalogue::_helpers::policy::effective_policy;
 use crate::catalogue::_helpers::rendering::render;
 use crate::configuration::main::load_target;
 use crate::skills::main::catalogue::load_rule_selection;
@@ -14,8 +14,7 @@ pub(crate) fn rule_output(arguments: &[String]) -> Result<String, String> {
     let project_root = config_path
         .parent()
         .ok_or_else(|| "Configuration has no parent directory.".to_owned())?;
-    let mut selection = load_rule_selection(&loaded, project_root)?;
-    apply_native_option_values(&mut selection.catalogue, &loaded)?;
+    let selection = load_rule_selection(&loaded, project_root)?;
     let metadata = selection
         .catalogue
         .iter()

@@ -87,7 +87,6 @@ CONFIG_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
         "ui_kit",
         "shadcn",
         "openapi",
-        "structure_config",
         "rule_exceptions",
         "rule_ignores",
         "threshold_overrides",

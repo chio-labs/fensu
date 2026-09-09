@@ -6,7 +6,6 @@ members = [
     "crates/fensu-policy",
     "crates/fensu-rust",
     "crates/fensu-svelte",
-    "crates/fensu-structure-checker",
     "crates/fensu-typescript",
 ]
 resolver = "2"
@@ -47,7 +46,6 @@ fensu-facts = { path = "crates/fensu-facts", default-features = false }
 fensu-native = { path = "crates/fensu-native", default-features = false }
 fensu-policy = { path = "crates/fensu-policy" }
 fensu-rust = { path = "crates/fensu-rust" }
-fensu-structure-checker = { path = "crates/fensu-structure-checker" }
 ruff_python_ast = "=0.0.4"
 ruff_python_parser = "=0.0.4"
 ruff_text_size = "=0.0.4"

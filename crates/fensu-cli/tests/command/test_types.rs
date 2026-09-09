@@ -74,6 +74,12 @@ pub(crate) struct RustCacheTestCase {
     pub(crate) expected_warm: &'static str,
 }
 
+pub(crate) struct RustMixedTargetTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_exit_code: i32,
+    pub(crate) expected_codes: &'static [&'static str],
+}
+
 pub(crate) struct RustMetadataCacheTestCase {
     pub(crate) description: &'static str,
     pub(crate) expected_cache: &'static str,

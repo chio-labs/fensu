@@ -19,7 +19,8 @@ starts the trusted release workflow.
    for that exact tag.
 6. Publish builds every supported native wheel plus both source distributions, validates
    the standalone CLI wheel tags, publishes through PyPI trusted publishing, and publishes
-   the shared Rust crates through crates.io trusted publishing.
+   `fensu-policy` through crates.io trusted publishing. The Rust analyzer is included in the
+   native CLI artifacts and source distribution.
 
 The publish workflow is dispatch-only so creating a GitHub release cannot race a second
 publication run.
@@ -31,8 +32,8 @@ The GitHub repository must provide:
 - A `pypi` environment approved for trusted publishing.
 - PyPI trusted publishers for the `fensu` and `fensu-cli` distributions using
   `.github/workflows/publish.yml` and the `pypi` environment.
-- A `crates-io` environment and crates.io trusted publishers for `fensu-policy` and
-  `fensu-structure-checker` using `.github/workflows/publish.yml`. An owner must publish
+- A `crates-io` environment and a crates.io trusted publisher for `fensu-policy`
+  using `.github/workflows/publish.yml`. An owner must publish
   each new crate once before crates.io allows its trusted publisher to be configured.
 - Workflow permissions that allow Release Please to write contents, pull requests,
   actions, and commit statuses as declared in the workflow.

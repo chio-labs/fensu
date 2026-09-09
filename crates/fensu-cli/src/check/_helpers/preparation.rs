@@ -68,9 +68,7 @@ pub(crate) fn prepare_checks(
         let (sources, excluded) = select_sources(discovered, &config);
         let project_inputs = match config.analyzer {
             crate::analyzer::AnalyzerId::Python => Vec::new(),
-            crate::analyzer::AnalyzerId::Rust => {
-                rust_project_inputs(&root, &project_root, &config)?
-            }
+            crate::analyzer::AnalyzerId::Rust => rust_project_inputs(&root, &project_root)?,
             _ => web::discover_project_inputs(&root, &project_root, &config)?,
         };
         let cache_enabled = options.cache_enabled.unwrap_or(config.cache_enabled);
@@ -324,7 +322,6 @@ fn discover(
 fn rust_project_inputs(
     repository_root: &Path,
     project_root: &Path,
-    config: &Config,
 ) -> Result<Vec<crate::models::ProjectInput>, String> {
     let mut inputs: Vec<crate::models::ProjectInput> = Vec::new();
     for result in WalkDir::new(project_root)
@@ -344,15 +341,6 @@ fn rust_project_inputs(
             continue;
         }
         inputs.push(project_input(entry.path(), repository_root, project_root)?);
-    }
-    if let Some(relative) = config.structure_config.as_deref() {
-        let path = project_root.join(relative);
-        if !path.is_file() {
-            return Err(format!(
-                "Configured Rust structure policy does not exist: {relative}."
-            ));
-        }
-        inputs.push(project_input(&path, repository_root, project_root)?);
     }
     inputs.sort_by(|left, right| left.repository_path.cmp(&right.repository_path));
     inputs.dedup_by(|left, right| left.path == right.path);

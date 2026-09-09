@@ -4,6 +4,8 @@ mod helpers;
 mod test_check_cleanup;
 #[path = "command/test_check_exceptions.rs"]
 mod test_check_exceptions;
+#[path = "command/test_check_mixed_targets.rs"]
+mod test_check_mixed_targets;
 #[path = "command/test_check_policy.rs"]
 mod test_check_policy;
 #[path = "command/test_check_rust.rs"]

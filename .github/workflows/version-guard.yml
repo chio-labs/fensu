@@ -39,8 +39,6 @@ jobs:
               cli_crate_version = tomllib.load(cargo)["package"]["version"]
           with Path("crates/fensu-policy/Cargo.toml").open("rb") as cargo:
               policy_crate_version = tomllib.load(cargo)["package"]["version"]
-          with Path("crates/fensu-structure-checker/Cargo.toml").open("rb") as cargo:
-              checker_crate_version = tomllib.load(cargo)["package"]["version"]
 
           versions = {
               version,
@@ -48,7 +46,6 @@ jobs:
               cli_package_version,
               cli_crate_version,
               policy_crate_version,
-              checker_crate_version,
           }
           if len(versions) != 1:
               print(f"Fensu package versions are not locked: {sorted(versions)}", file=sys.stderr)

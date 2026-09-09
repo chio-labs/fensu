@@ -24,7 +24,10 @@ pub(crate) fn partitioned_check(
     for (_, config) in loaded {
         let hosted_policy = !config.rule_paths.is_empty()
             || !config.rule_modules.is_empty()
-            || !config.rule_options.is_empty();
+            || config
+                .rule_options
+                .keys()
+                .any(|code| config.analyzer != AnalyzerId::Rust || code.starts_with('X'));
         if config.analyzer == AnalyzerId::Python {
             python_has_custom |= !config.rule_paths.is_empty()
                 || !config.rule_modules.is_empty()

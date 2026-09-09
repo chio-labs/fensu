@@ -464,6 +464,7 @@ name = "fensu-rust"
 version = "0.1.0"
 dependencies = [
  "cargo_metadata",
+ "dunce",
  "proc-macro2",
  "quote",
  "syn 2.0.118",

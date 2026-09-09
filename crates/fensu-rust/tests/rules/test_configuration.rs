@@ -709,7 +709,7 @@ fn given_root_implicit_and_custom_target_packages_when_checking_then_cargo_inven
             !violations
                 .iter()
                 .any(|violation| violation.code == "RSL304"),
-            "{}",
+            "{}: {violations:?}",
             test_case.description
         );
         let banned = violations

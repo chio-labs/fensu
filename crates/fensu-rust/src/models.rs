@@ -191,7 +191,11 @@ impl Violation {
     /// Deterministic ordering key: path, then line, then code.
     pub fn sort_key(&self) -> (String, usize, &'static str) {
         (
-            self.path.to_string_lossy().into_owned(),
+            self.path
+                .components()
+                .map(|part| part.as_os_str().to_string_lossy())
+                .collect::<Vec<_>>()
+                .join("/"),
             self.line.unwrap_or(0),
             self.code,
         )

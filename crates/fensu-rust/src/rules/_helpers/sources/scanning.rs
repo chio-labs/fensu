@@ -54,7 +54,9 @@ pub(crate) fn scan_workspace(repo_root: &path::Path) -> models::WorkspaceScan {
         &manifest,
     ));
     let mut command = cargo_metadata::MetadataCommand::new();
-    command.manifest_path(&manifest_path).no_deps();
+    command
+        .manifest_path(dunce::simplified(&manifest_path))
+        .no_deps();
     let metadata = match command.exec() {
         Ok(value) => value,
         Err(error) => {
@@ -131,7 +133,7 @@ fn resolved_metadata(
 ) -> Result<cargo_metadata::Metadata, String> {
     let mut command = cargo_metadata::MetadataCommand::new();
     command
-        .manifest_path(manifest_path)
+        .manifest_path(dunce::simplified(manifest_path))
         .features(cargo_metadata::CargoOpt::AllFeatures)
         .other_options(vec!["--locked".to_owned()]);
     let metadata = command

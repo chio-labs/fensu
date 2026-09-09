@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.0](https://github.com/chio-labs/fensu/compare/v0.14.3...v0.15.0) (2026-09-09)
+
+
+### Features
+
+* add first-class Rust analyzer ([#71](https://github.com/chio-labs/fensu/issues/71)) ([4556d80](https://github.com/chio-labs/fensu/commit/4556d80ce84ff25997e3da85b04bdbe870b78382))
+
 ## [0.14.3](https://github.com/chio-labs/fensu/compare/v0.14.2...v0.14.3) (2026-09-09)
 
 

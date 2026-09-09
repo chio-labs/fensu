@@ -7,7 +7,7 @@ build-backend = "maturin"
 
 [project]
 name = "fensu"
-version = "0.14.3"
+version = "0.15.0"
 description = "Architecture linting for Python, web, and Rust repositories"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -24,7 +24,7 @@ classifiers = [
   "Topic :: Software Development :: Quality Assurance",
 ]
 dependencies = [
-  "fensu-cli==0.14.3", # x-release-please-version
+  "fensu-cli==0.15.0", # x-release-please-version
 ]
 
 [project.urls]

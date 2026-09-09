@@ -420,6 +420,7 @@ fn discover_declared_dependencies(
             None => (None, Vec::new()),
         };
         violations.extend(path_violations);
+        let resolved = path.is_some();
         let source_name = dependency
             .rename
             .as_ref()
@@ -429,7 +430,7 @@ fn discover_declared_dependencies(
             package_name: dependency.name.clone(),
             source_name,
             path,
-            resolved: false,
+            resolved,
         });
     }
     dependencies.sort_by(|left, right| {

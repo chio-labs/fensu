@@ -11,6 +11,7 @@ from fensu.config._helpers.path_patterns import expand_path_pattern
 from fensu.config.constants import (
     CACHE_ENABLED_CONFIG_KEY,
     CACHE_REQUIRE_CACHEABLE_CONFIG_KEY,
+    CARGO_MANIFEST_FILE_NAME,
     CONFIG_ROLE_NAMES,
     CONFIG_TOP_LEVEL_KEYS,
     CONTRACT_BEHAVIORS,
@@ -25,6 +26,7 @@ from fensu.config.constants import (
     RECURSIVE_GLOB,
     RULE_EXCEPTION_SYMBOLS_CONFIG_KEY,
     RULE_IGNORE_KEYS,
+    RUST_SOURCE_SUFFIX,
     SKILLS_CONFIG_KEYS,
     SKILLS_NAME_CONFIG_KEY,
     TARGET_CONFIG_KEYS,
@@ -648,7 +650,7 @@ def _validate_exception_path(*, path: str, analyzer: AnalyzerId | None) -> None:
         if analyzer is AnalyzerId.TYPESCRIPT
         else path.endswith((*web_suffixes, ".svelte"))
         if analyzer is AnalyzerId.SVELTE
-        else parsed.suffix == ".rs" or path.endswith("Cargo.toml")
+        else parsed.suffix == RUST_SOURCE_SUFFIX or path.endswith(CARGO_MANIFEST_FILE_NAME)
         if analyzer is AnalyzerId.RUST
         else parsed.suffix == _python_file_suffix or path.endswith((*web_suffixes, ".svelte"))
     )

@@ -351,6 +351,7 @@ fn given_renamed_workspace_library_when_checking_then_project_graph_uses_source_
     }];
     for test_case in &test_cases {
         let repo_root = helpers::write_temp_repo_verbatim(test_case);
+        helpers::generate_lockfile(&repo_root);
         let violations = check_repository::check_repository(&repo_root);
         helpers::remove_temp_repo(&repo_root);
         let project_codes = violations
@@ -428,6 +429,7 @@ fn given_same_named_external_dependency_when_checking_then_workspace_graph_stays
     }];
     for test_case in &test_cases {
         let repo_root = helpers::write_temp_repo_verbatim(test_case);
+        helpers::generate_lockfile(&repo_root);
         let violations = check_repository::check_repository(&repo_root);
         helpers::remove_temp_repo(&repo_root);
         let project_codes = violations

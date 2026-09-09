@@ -117,7 +117,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo test -p fensu-rust -p fensu-typescript -p fensu-svelte
       - run: cargo test -p fensu-cli --lib
-      - run: cargo test -p fensu-cli --test command test_check_rust::
+      - run: "cargo test -p fensu-cli --test command test_check_rust::"
 
   source-build:
     runs-on: ubuntu-latest

@@ -198,6 +198,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.85.0
+      - name: Refresh released workspace versions in lockfile
+        run: cargo +1.85.0 metadata --format-version 1 > /dev/null
       - name: Verify shared crate packages
         run: .github/scripts/verify_shared_crate_packages.sh
       - name: Authenticate with crates.io

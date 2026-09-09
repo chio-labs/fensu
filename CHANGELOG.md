@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.3](https://github.com/chio-labs/fensu/compare/v0.14.2...v0.14.3) (2026-09-09)
+
+
+### Bug Fixes
+
+* refresh lock metadata before crate publish ([#69](https://github.com/chio-labs/fensu/issues/69)) ([9466159](https://github.com/chio-labs/fensu/commit/946615913cb9595be653b63c37e6abd84b7d12a7))
+
 ## [0.14.2](https://github.com/chio-labs/fensu/compare/v0.14.1...v0.14.2) (2026-09-09)
 
 

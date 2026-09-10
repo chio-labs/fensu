@@ -136,7 +136,7 @@ fn given_rust_target_when_checking_then_structure_engine_uses_pack_policy_and_ex
 }
 
 #[test]
-fn given_invalid_rust_rule_options_when_checking_then_configuration_fails_closed() {
+fn given_invalid_rust_configuration_when_checking_then_configuration_fails_closed() {
     let test_cases = [
         InvalidCheckConfigTestCase {
             description: "unrelated native pack options",
@@ -173,6 +173,12 @@ fn given_invalid_rust_rule_options_when_checking_then_configuration_fails_closed
             config: "[targets.rust.rule_options.FPRSL102]\nrestricted_paths = [\"../outside\"]\n",
             expected_exit_code: 2,
             expected_error: "repository-relative POSIX paths",
+        },
+        InvalidCheckConfigTestCase {
+            description: "Rust exceptions reject symbol scope during configuration validation",
+            config: "[[targets.rust.rule_exceptions]]\nrule = \"FPRSS010\"\npath = \"src/lib.rs\"\nsymbols = [\"value\"]\nreason = \"Unsupported symbol scope.\"\n",
+            expected_exit_code: 2,
+            expected_error: "Rust rule exceptions support file-level exceptions only",
         },
     ];
     for test_case in test_cases {

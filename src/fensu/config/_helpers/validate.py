@@ -596,6 +596,8 @@ def _validate_rule_exception_entry(
             )
         seen.add(key)
         return seen
+    if analyzer is AnalyzerId.RUST:
+        raise ConfigValidationError("Rust rule exceptions support file-level exceptions only.")
     symbols: tuple[str, ...] = _validate_string_sequence(
         name="rule_exceptions.symbols", value=typed_entry[RULE_EXCEPTION_SYMBOLS_CONFIG_KEY]
     )

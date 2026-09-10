@@ -659,6 +659,16 @@ def test_given_analyzer_compatible_web_exception_when_loading_then_path_is_accep
             expected_error_fragment="Unknown targets.rust config key(s): structure_config",
         ),
         InvalidTargetConfigTestCase(
+            description="Rust exceptions reject unsupported symbol scope",
+            config_text=(
+                '[targets.rust]\nanalyzer = "rust"\nroots = ["src"]\n'
+                '[[targets.rust.rule_exceptions]]\nrule = "FPRSS010"\n'
+                'path = "src/lib.rs"\nsymbols = ["value"]\nreason = "unsupported scope"\n'
+            ),
+            target="rust",
+            expected_error_fragment="Rust rule exceptions support file-level exceptions only",
+        ),
+        InvalidTargetConfigTestCase(
             description="TypeScript exceptions reject Python paths",
             config_text=(
                 '[targets.web]\nanalyzer = "typescript"\nroots = ["src"]\n'

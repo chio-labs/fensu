@@ -37,6 +37,9 @@ pub(crate) fn validate(value: Option<&toml::Value>, analyzer: AnalyzerId) -> Res
             ));
         }
         validate_path(&path, analyzer)?;
+        if analyzer == AnalyzerId::Rust && table.contains_key(RULE_EXCEPTION_SYMBOLS) {
+            return Err("Rust rule exceptions support file-level exceptions only.".to_owned());
+        }
         let symbols = match table.get(RULE_EXCEPTION_SYMBOLS) {
             Some(value) => {
                 super::validation::required_strings(Some(value), "rule_exceptions.symbols")?

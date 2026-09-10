@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.2](https://github.com/chio-labs/fensu/compare/v0.15.1...v0.15.2) (2026-09-10)
+
+
+### Bug Fixes
+
+* reject symbol-scoped Rust exceptions during config validation ([#75](https://github.com/chio-labs/fensu/issues/75)) ([8862438](https://github.com/chio-labs/fensu/commit/88624387978af18d2685c1b224e5b1d94ff0deb0))
+
 ## [0.15.1](https://github.com/chio-labs/fensu/compare/v0.15.0...v0.15.1) (2026-09-09)
 
 

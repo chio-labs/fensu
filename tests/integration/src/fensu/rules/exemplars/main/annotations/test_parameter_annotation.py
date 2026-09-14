@@ -686,6 +686,20 @@ _PYTHON_OWNED_SFR_CODES: frozenset[str] = frozenset()
             path="src/example/orders/value.py",
         ),
         NativeCustomRuleParityTestCase(
+            description="FFR307 matches modules directly beneath the runtime root",
+            native_code="FFR307",
+            source="value: int = 1\n",
+            expected_fault_count=1,
+            path="src/example/config.py",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="FFR307 allows the runtime root module entrypoint",
+            native_code="FFR307",
+            source="raise SystemExit(0)\n",
+            expected_fault_count=0,
+            path="src/example/__main__.py",
+        ),
+        NativeCustomRuleParityTestCase(
             description="FFR401 matches entry modules without one public function",
             native_code="FFR401",
             source="def _prepare() -> None:\n    return None\n",

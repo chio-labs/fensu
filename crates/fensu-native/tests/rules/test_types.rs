@@ -48,6 +48,13 @@ pub(crate) struct AutoloadEmptyCallTestCase {
     pub(crate) expected_fault_count: usize,
 }
 
+pub(crate) struct TopLevelDirectModuleTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) repository_path: &'static str,
+    pub(crate) relative_parts: &'static [&'static str],
+    pub(crate) expected_fault_count: usize,
+}
+
 #[derive(Debug, Deserialize)]
 pub(crate) struct FilesystemEntry {
     pub(crate) path: String,

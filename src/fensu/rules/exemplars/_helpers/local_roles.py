@@ -29,6 +29,7 @@ _INIT: str = "__init__.py"
 _IMPORT_STATEMENT_KIND: str = "import statement"
 _MAIN: str = "main"
 _MAIN_FILE: str = "main.py"
+_MAIN_INIT: str = "__main__.py"
 _MINIMUM_NESTED_MODULE_PARTS: int = 3
 _MINIMUM_NESTED_SUBPACKAGE_PARTS: int = 4
 _MODELS: str = "models"
@@ -38,6 +39,7 @@ _COMMAND_FUNCTION_KIND: str = "command function"
 _TOP_LEVEL_ROLE_PARTS: int = 2
 _TYPES: str = "types"
 _RULE_CODE: re.Pattern[str] = re.compile(r"(?:FF[A-Z][0-9]{3}|X[A-Z]*[0-9]+)")
+_ROOT_MODULE_PARTS: int = 1
 
 
 def _excluded_scope(ctx: RuleContext) -> bool:
@@ -359,13 +361,17 @@ def top_level_direct_modules_equivalent(*, module: ast.Module, ctx: RuleContext)
     role_filenames: tuple[str, ...] = get_rule_constraint(
         code="FFR307", name="recognized_role_filenames"
     )
-    if (
-        _excluded_scope(ctx)
-        or ctx.scope() is ScopeName.TOOLING
-        or len(parts) != _TOP_LEVEL_ROLE_PARTS
-        or parts[-1] == _INIT
-        or parts[-1] in role_filenames
-    ):
+    if _excluded_scope(ctx) or ctx.scope() is ScopeName.TOOLING or parts[-1] in {_INIT, _MAIN_INIT}:
+        return []
+    if len(parts) == _ROOT_MODULE_PARTS:
+        return [
+            ctx.path_fault(
+                message=(
+                    "runtime roots may contain only package protocol modules and domain packages"
+                )
+            )
+        ]
+    if len(parts) != _TOP_LEVEL_ROLE_PARTS or parts[-1] in role_filenames:
         return []
     return [ctx.path_fault(message="top-level domains must not contain ad hoc direct modules")]
 

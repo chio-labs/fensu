@@ -46,8 +46,9 @@ def role_rule_details(code: RoleCode) -> tuple[str, str]:
             "the domain contains subdomains.",
         ),
         RoleCode.TOP_LEVEL_DIRECT_MODULES: (
-            "top-level domains must not contain ad hoc direct modules",
-            "Move the module under a direct role boundary or into an owning named subdomain.",
+            "runtime roots and top-level domains must not contain ad hoc direct modules",
+            "Keep only __init__.py and __main__.py at the runtime root; move other modules into "
+            "an owning domain and its direct role boundary.",
         ),
         RoleCode.SHARED_DOMAIN_PREFIX: (
             "sibling domains must not encode one parent domain through a shared name prefix",

@@ -38,9 +38,12 @@ from tests.unit.src.fensu.rules.roles._test_types import FfrCatalogueTestCase
                 "when the domain contains subdomains."
             ),
             expected_sfr306_owner=ExecutionOwner.DOMAIN,
-            expected_sfr307_message="top-level domains must not contain ad hoc direct modules",
+            expected_sfr307_message=(
+                "runtime roots and top-level domains must not contain ad hoc direct modules"
+            ),
             expected_sfr307_remediation=(
-                "Move the module under a direct role boundary or into an owning named subdomain."
+                "Keep only __init__.py and __main__.py at the runtime root; move other modules "
+                "into an owning domain and its direct role boundary."
             ),
             expected_sfr308_slug="shared-domain-prefix",
             expected_sfr308_message=(

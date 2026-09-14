@@ -68,7 +68,7 @@ from tests.e2e.src.fensu.cli.main.helpers import (
                 "Existing codebase - 2 Python files",
                 "Enabling the full Fensu ruleset",
                 "Measuring current drift",
-                "Found 1 fault across 1 file",
+                "Found 2 faults across 1 file",
                 "Wrote fensu.toml",
             ),
             expected_stderr_fragments=(),

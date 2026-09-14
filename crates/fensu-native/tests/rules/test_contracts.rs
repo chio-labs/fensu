@@ -3,7 +3,9 @@
 use std::collections::HashMap;
 
 use fensu_facts::extension::models::ProgramHandle;
-use fensu_native::rules::constants::DAGSTER_AUTOLOAD_EXTERNAL_DISCOVERY_CODE;
+use fensu_native::rules::constants::{
+    DAGSTER_AUTOLOAD_EXTERNAL_DISCOVERY_CODE, TOP_LEVEL_DIRECT_MODULES_CODE,
+};
 use fensu_native::rules::main::evaluate_core_rules::evaluate_core_rules;
 use fensu_native::rules::main::plan_execution_owners::plan_execution_owners;
 use fensu_native::rules::models::{
@@ -37,7 +39,7 @@ fn given_core_rule_contract_corpus_when_evaluating_then_diagnostics_are_exact() 
 fn given_generated_core_rule_corpus_when_evaluating_then_every_registration_is_covered() {
     let test_cases = [test_types::CoreRuleCorpusTestCase {
         description: "current rule suites reproducibly cover every core registration",
-        expected_fixture_count: 140,
+        expected_fixture_count: 142,
         expected_core_code_count: 112,
         expected_non_faulting_codes: &["FFR301", "FFR302", "FFR306", "FFR308", "FFR309"],
     }];
@@ -84,6 +86,98 @@ fn given_applicable_rule_without_execution_owner_when_planning_then_fails_closed
             .expect_err("applicable rule without an owner must fail");
 
         assert_eq!(error, test_case.expected_error, "{}", test_case.description);
+    }
+}
+
+#[test]
+fn given_runtime_root_and_domain_modules_when_checking_roles_then_enforces_domain_ownership() {
+    let test_cases = [
+        test_types::TopLevelDirectModuleTestCase {
+            description: "runtime root config module is rejected",
+            repository_path: "src/example/config.py",
+            relative_parts: &["config.py"],
+            expected_fault_count: 1,
+        },
+        test_types::TopLevelDirectModuleTestCase {
+            description: "runtime root model role module is rejected",
+            repository_path: "src/example/models.py",
+            relative_parts: &["models.py"],
+            expected_fault_count: 1,
+        },
+        test_types::TopLevelDirectModuleTestCase {
+            description: "runtime root constants role module is rejected",
+            repository_path: "src/example/constants.py",
+            relative_parts: &["constants.py"],
+            expected_fault_count: 1,
+        },
+        test_types::TopLevelDirectModuleTestCase {
+            description: "runtime root initializer is allowed",
+            repository_path: "src/example/__init__.py",
+            relative_parts: &["__init__.py"],
+            expected_fault_count: 0,
+        },
+        test_types::TopLevelDirectModuleTestCase {
+            description: "runtime root module entrypoint is allowed",
+            repository_path: "src/example/__main__.py",
+            relative_parts: &["__main__.py"],
+            expected_fault_count: 0,
+        },
+        test_types::TopLevelDirectModuleTestCase {
+            description: "domain model role module is allowed",
+            repository_path: "src/example/orders/models.py",
+            relative_parts: &["orders", "models.py"],
+            expected_fault_count: 0,
+        },
+        test_types::TopLevelDirectModuleTestCase {
+            description: "ad hoc direct domain module is rejected",
+            repository_path: "src/example/orders/config.py",
+            relative_parts: &["orders", "config.py"],
+            expected_fault_count: 1,
+        },
+        test_types::TopLevelDirectModuleTestCase {
+            description: "subdomain model role module is left to nested role policy",
+            repository_path: "src/example/orders/fulfillment/models.py",
+            relative_parts: &["orders", "fulfillment", "models.py"],
+            expected_fault_count: 0,
+        },
+    ];
+    let program = ProgramHandle::parse_many(
+        vec!["value: int = 1\n".to_owned()],
+        PythonVersion {
+            major: 3,
+            minor: 12,
+        },
+    )
+    .pop()
+    .flatten()
+    .expect("valid Python");
+
+    for test_case in test_cases {
+        let context = NativeRuleContext {
+            scope: "root".to_owned(),
+            repository_path: test_case.repository_path.to_owned(),
+            relative_parts: test_case
+                .relative_parts
+                .iter()
+                .map(|part| (*part).to_owned())
+                .collect(),
+            package_name: "example".to_owned(),
+            ..NativeRuleContext::default()
+        };
+        let faults = evaluate_core_rules(
+            &program,
+            &[TOP_LEVEL_DIRECT_MODULES_CODE.to_owned()],
+            &context,
+            &NativeProjectPlane::default(),
+        )
+        .expect("top-level module policy evaluates");
+
+        assert_eq!(
+            faults.len(),
+            test_case.expected_fault_count,
+            "{}",
+            test_case.description
+        );
     }
 }
 

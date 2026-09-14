@@ -24,6 +24,7 @@ const HELPERS_FILE_NAME: &str = "helpers.py";
 const INIT_FILE_NAME: &str = "__init__.py";
 const MAIN_DIRECTORY_NAME: &str = "main";
 const MAIN_FILE_NAME: &str = "main.py";
+const MAIN_INIT_FILE_NAME: &str = "__main__.py";
 const MINIMUM_NESTED_MODULE_PARTS: usize = 3;
 const MINIMUM_NESTED_SUBPACKAGE_PARTS: usize = 4;
 const PYTHON_SUFFIX: &str = ".py";
@@ -31,6 +32,7 @@ const RULES_ROLE: &str = "rules";
 const ROOT_SCOPE: &str = "root";
 const TEST_SCOPE: &str = "test";
 const TOOLING_SCOPE: &str = "tooling";
+const ROOT_MODULE_PARTS: usize = 1;
 const TOP_LEVEL_MODULE_PARTS: usize = 2;
 const MIN_CUSTOM_RULE_TEST_CASES: &str = "min_custom_rule_test_cases";
 
@@ -327,9 +329,16 @@ fn top_level_direct_module_faults(code: &str, context: &NativeRuleContext) -> Ve
     let Some(name) = path_name(context) else {
         return Vec::new();
     };
-    if context.scope == TOOLING_SCOPE
-        || context.relative_parts.len() != TOP_LEVEL_MODULE_PARTS
-        || name == INIT_FILE_NAME
+    if context.scope == TOOLING_SCOPE || matches!(name, INIT_FILE_NAME | MAIN_INIT_FILE_NAME) {
+        return Vec::new();
+    }
+    if context.relative_parts.len() == ROOT_MODULE_PARTS {
+        return vec![path_fault(
+            code,
+            Some("runtime roots may contain only package protocol modules and domain packages"),
+        )];
+    }
+    if context.relative_parts.len() != TOP_LEVEL_MODULE_PARTS
         || FFR307_RECOGNIZED_ROLE_FILENAMES.contains(&name)
     {
         return Vec::new();

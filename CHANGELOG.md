@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.3](https://github.com/chio-labs/fensu/compare/v0.15.2...v0.15.3) (2026-09-14)
+
+
+### Bug Fixes
+
+* reject modules at runtime roots ([#77](https://github.com/chio-labs/fensu/issues/77)) ([dfcaf30](https://github.com/chio-labs/fensu/commit/dfcaf30a54c037c972616c54f1ddbdaf66c37648))
+
 ## [0.15.2](https://github.com/chio-labs/fensu/compare/v0.15.1...v0.15.2) (2026-09-10)
 
 

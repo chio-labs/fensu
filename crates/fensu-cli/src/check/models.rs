@@ -4,6 +4,8 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use cap_std::fs::Dir;
+use fensu_policy::lifecycle::models::Finding;
+use fensu_rust::RustWorkspaceFacts;
 use serde::{Deserialize, Serialize};
 
 use crate::analyzer::AnalyzerId;
@@ -130,4 +132,42 @@ pub(crate) struct EvaluationRequest<'a> {
     pub(crate) project_inputs: &'a [ProjectInput],
     pub(crate) excluded: usize,
     pub(crate) show_warnings: bool,
+    pub(crate) cache_enabled: bool,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(crate) struct RustCustomSubject {
+    pub(crate) path: String,
+    pub(crate) scope: String,
+    pub(crate) scope_root: String,
+    pub(crate) relative_parts: Vec<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(crate) struct RustCustomRulePayload {
+    pub(crate) target: Option<String>,
+    pub(crate) show_warnings: bool,
+    pub(crate) cache_enabled: bool,
+    pub(crate) facts: RustWorkspaceFacts,
+    pub(crate) subjects: Vec<RustCustomSubject>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct RustCustomDependency {
+    pub(crate) requester: String,
+    pub(crate) kind: String,
+    pub(crate) query: String,
+    #[serde(rename = "answer")]
+    pub(crate) _answer: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct RustCustomRuleResponse {
+    pub(crate) findings: Vec<Finding>,
+    pub(crate) blocking_codes: Vec<String>,
+    pub(crate) warning_codes: Vec<String>,
+    pub(crate) dependencies: Vec<RustCustomDependency>,
+    pub(crate) cacheable: bool,
 }

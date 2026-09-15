@@ -6,6 +6,7 @@ use fensu_native::rules::main::evaluate_core_rules::evaluate_core_rules;
 use fensu_native::rules::main::plan_core_rule_queries::plan_core_rule_queries;
 use fensu_native::rules::main::plan_execution_owners::plan_execution_owners;
 use fensu_native::rules::models::{NativeExecutionRule, NativeExecutionTarget, NativeRuleContext};
+use fensu_policy::lifecycle::models::FindingSeverity;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 
 use crate::catalogue::main::rule_catalogue::configured_rule_catalogue;
@@ -22,8 +23,10 @@ use crate::check::_helpers::rule_policy::{
     validate_config_tiers, validate_unique_implementations,
 };
 use crate::check::models::{CheckResult, EvaluationRequest};
+use crate::check::models::{RustCustomRulePayload, RustCustomSubject};
 use crate::check::web_policy::{self, WebPolicyRequest};
-use crate::constants::SCOPE_TEST;
+use crate::constants::{RUST_CUSTOM_DEPENDENCY_KINDS, RUST_PROJECT_REQUESTER, SCOPE_TEST};
+use crate::hosting::main::run_rust_custom_rule_host::run_rust_custom_rule_host;
 use crate::models::{Config, Fault, ScopedSource, ThresholdUse};
 use crate::reporting::main::report::report;
 use crate::reporting::models::ReportRequest;
@@ -36,6 +39,7 @@ pub(crate) fn evaluate(request: EvaluationRequest<'_>) -> Result<CheckResult, St
         project_inputs,
         excluded,
         show_warnings,
+        cache_enabled,
     } = request;
     validate_config_tiers(config)?;
     if config.analyzer == crate::analyzer::AnalyzerId::Rust {
@@ -46,6 +50,7 @@ pub(crate) fn evaluate(request: EvaluationRequest<'_>) -> Result<CheckResult, St
             project_inputs,
             excluded,
             show_warnings,
+            cache_enabled,
         });
     }
     if config.analyzer != crate::analyzer::AnalyzerId::Python {
@@ -56,6 +61,7 @@ pub(crate) fn evaluate(request: EvaluationRequest<'_>) -> Result<CheckResult, St
             project_inputs,
             excluded,
             show_warnings,
+            cache_enabled,
         });
     }
     let blocking = selected_rules(config, &config.select, &config.ignore)?;
@@ -197,19 +203,44 @@ fn evaluate_rust_target(request: EvaluationRequest<'_>) -> Result<CheckResult, S
         project_inputs: _,
         excluded,
         show_warnings,
+        cache_enabled,
     } = request;
-    if !config.rule_paths.is_empty()
-        || !config.rule_modules.is_empty()
-        || config.rule_options.keys().any(|code| code.starts_with('X'))
-    {
-        return Err(
-            "Native Rust check integration does not support Python-hosted rule paths, modules, or options."
-                .to_owned(),
-        );
+    let custom_option_codes = config
+        .rule_options
+        .keys()
+        .filter(|code| code.starts_with('X'))
+        .collect::<Vec<_>>();
+    if !custom_option_codes.is_empty() && !rust_custom_rules_selected(config, show_warnings) {
+        return Err(format!(
+            "Rust custom rule options require a selected custom rule: {}.",
+            custom_option_codes
+                .iter()
+                .map(|code| code.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
     }
-    let blocking = selected_rules(config, &config.select, &config.ignore)?;
+    let native_select = config
+        .select
+        .iter()
+        .filter(|selector| !selector.starts_with('X'))
+        .cloned()
+        .collect::<Vec<_>>();
+    let native_warn = config
+        .warn
+        .iter()
+        .filter(|selector| !selector.starts_with('X'))
+        .cloned()
+        .collect::<Vec<_>>();
+    let native_ignore = config
+        .ignore
+        .iter()
+        .filter(|selector| !selector.starts_with('X'))
+        .cloned()
+        .collect::<Vec<_>>();
+    let blocking = selected_rules(config, &native_select, &native_ignore)?;
     let warning_rules = if show_warnings {
-        selected_rules(config, &config.warn, &config.ignore)?
+        selected_rules(config, &native_warn, &native_ignore)?
     } else {
         Vec::new()
     };
@@ -229,12 +260,18 @@ fn evaluate_rust_target(request: EvaluationRequest<'_>) -> Result<CheckResult, S
             )
         })
         .collect::<HashMap<_, _>>();
+    let native_options = config
+        .rule_options
+        .iter()
+        .filter(|(code, _)| !code.starts_with('X'))
+        .map(|(code, options)| (code.clone(), options.clone()))
+        .collect::<toml::map::Map<_, _>>();
     let analysis = fensu_rust::engine::main::analyze_repository::analyze_repository(
         project_root,
-        Some(&config.rule_options),
+        Some(&native_options),
         &config.tooling,
     )?;
-    let cacheable = !analysis
+    let mut cacheable = !analysis
         .diagnostics
         .iter()
         .any(|diagnostic| diagnostic.code == fensu_rust::METADATA_SETUP_CODE);
@@ -278,9 +315,58 @@ fn evaluate_rust_target(request: EvaluationRequest<'_>) -> Result<CheckResult, S
             remediation: Some(diagnostic.remediation),
         });
     }
-    let evaluated_codes = all_rules
+    let mut custom_codes: Vec<String> = Vec::new();
+    if rust_custom_rules_selected(config, show_warnings) {
+        let subjects: Vec<RustCustomSubject> = sources
+            .iter()
+            .filter(|source| source.purpose.is_direct())
+            .map(|source| RustCustomSubject {
+                path: source.target_path.clone(),
+                scope: source.scope.clone(),
+                scope_root: source.root_text.clone(),
+                relative_parts: source.relative_parts.clone(),
+            })
+            .collect();
+        let custom = run_rust_custom_rule_host(RustCustomRulePayload {
+            target: config.target.clone(),
+            show_warnings,
+            cache_enabled,
+            facts: analysis.facts,
+            subjects,
+        })?;
+        validate_rust_custom_response(&custom, &source_paths)?;
+        cacheable &= custom.cacheable;
+        custom_codes.extend(custom.blocking_codes);
+        custom_codes.extend(custom.warning_codes);
+        for finding in custom.findings {
+            if excluded_paths.contains(finding.path.as_str())
+                || finding.path.ends_with(".rs") && !source_paths.contains(finding.path.as_str())
+            {
+                continue;
+            }
+            faults.push(Fault {
+                warning: finding.severity == FindingSeverity::Warning,
+                code: finding.code,
+                alias_of: None,
+                path: project_root
+                    .join(finding.path)
+                    .to_string_lossy()
+                    .into_owned(),
+                line: finding.line,
+                column: finding.column,
+                message: finding.message,
+                remediation: finding.remediation,
+            });
+        }
+    }
+    let mut evaluated_code_values = all_rules
         .iter()
-        .map(|rule| rule.code.as_str())
+        .map(|rule| rule.code.clone())
+        .collect::<Vec<_>>();
+    evaluated_code_values.extend(custom_codes);
+    let evaluated_codes = evaluated_code_values
+        .iter()
+        .map(String::as_str)
         .collect::<HashSet<_>>();
     let (faults, applied) = apply_exceptions(ApplyExceptionsRequest {
         faults,
@@ -306,6 +392,90 @@ fn evaluate_rust_target(request: EvaluationRequest<'_>) -> Result<CheckResult, S
     })
 }
 
+fn rust_custom_rules_selected(config: &Config, show_warnings: bool) -> bool {
+    let configured = !config.rule_paths.is_empty() || !config.rule_modules.is_empty();
+    configured
+        && (config
+            .select
+            .iter()
+            .any(|selector| custom_selector_not_ignored(selector, &config.ignore))
+            || show_warnings
+                && config
+                    .warn
+                    .iter()
+                    .any(|selector| custom_selector_not_ignored(selector, &config.ignore)))
+}
+
+fn custom_selector_not_ignored(selector: &str, ignores: &[String]) -> bool {
+    selector.starts_with('X')
+        && !ignores
+            .iter()
+            .any(|ignored| ignored.starts_with('X') && selector.starts_with(ignored))
+}
+
+fn validate_rust_custom_response(
+    response: &crate::check::models::RustCustomRuleResponse,
+    source_paths: &HashSet<&str>,
+) -> Result<(), String> {
+    let blocking = response
+        .blocking_codes
+        .iter()
+        .map(String::as_str)
+        .collect::<HashSet<_>>();
+    let warnings = response
+        .warning_codes
+        .iter()
+        .map(String::as_str)
+        .collect::<HashSet<_>>();
+    if blocking.len() != response.blocking_codes.len()
+        || warnings.len() != response.warning_codes.len()
+        || !blocking.is_disjoint(&warnings)
+    {
+        return Err(
+            "Rust custom-rule host returned duplicate or overlapping rule tiers.".to_owned(),
+        );
+    }
+    for dependency in &response.dependencies {
+        if dependency.requester != RUST_PROJECT_REQUESTER
+            && !source_paths.contains(dependency.requester.as_str())
+            || !RUST_CUSTOM_DEPENDENCY_KINDS.contains(&dependency.kind.as_str())
+            || dependency.query.is_empty()
+        {
+            return Err("Rust custom-rule host returned invalid dependency evidence.".to_owned());
+        }
+    }
+    for finding in &response.findings {
+        let selected = match finding.severity {
+            FindingSeverity::Blocking => blocking.contains(finding.code.as_str()),
+            FindingSeverity::Warning => warnings.contains(finding.code.as_str()),
+        };
+        if !selected || !finding.code.starts_with('X') {
+            return Err(format!(
+                "Rust custom-rule host returned a finding for unselected code {}.",
+                finding.code
+            ));
+        }
+        if !confined_rust_custom_path(&finding.path) {
+            return Err(format!(
+                "Rust custom-rule host returned an invalid project path: {}.",
+                finding.path
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn confined_rust_custom_path(value: &str) -> bool {
+    let path = Path::new(value);
+    !value.is_empty()
+        && !value.contains('\\')
+        && !path.is_absolute()
+        && path.components().all(|component| {
+            matches!(component, std::path::Component::Normal(_))
+                && !component.as_os_str().to_string_lossy().ends_with(':')
+        })
+}
+
 fn evaluate_parser_target(request: EvaluationRequest<'_>) -> Result<CheckResult, String> {
     let EvaluationRequest {
         project_root,
@@ -314,6 +484,7 @@ fn evaluate_parser_target(request: EvaluationRequest<'_>) -> Result<CheckResult,
         project_inputs,
         excluded,
         show_warnings,
+        cache_enabled: _,
     } = request;
     if !config.rule_paths.is_empty()
         || !config.rule_modules.is_empty()

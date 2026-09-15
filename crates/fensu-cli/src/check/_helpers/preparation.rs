@@ -2,7 +2,7 @@
 
 use std::env;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use walkdir::WalkDir;
 
@@ -68,10 +68,14 @@ pub(crate) fn prepare_checks(
         let (sources, excluded) = select_sources(discovered, &config);
         let project_inputs = match config.analyzer {
             crate::analyzer::AnalyzerId::Python => Vec::new(),
-            crate::analyzer::AnalyzerId::Rust => rust_project_inputs(&root, &project_root)?,
+            crate::analyzer::AnalyzerId::Rust => {
+                rust_project_inputs(&root, &project_root, &config)?
+            }
             _ => web::discover_project_inputs(&root, &project_root, &config)?,
         };
-        let cache_enabled = options.cache_enabled.unwrap_or(config.cache_enabled);
+        let cache_enabled = options.cache_enabled.unwrap_or(config.cache_enabled)
+            && (config.analyzer != crate::analyzer::AnalyzerId::Rust
+                || rust_custom_cache_inputs_complete(&project_root, &config));
         let color = use_color(&options.color);
         let identity = check_identity(CheckIdentityRequest {
             root: &root,
@@ -322,6 +326,7 @@ fn discover(
 fn rust_project_inputs(
     repository_root: &Path,
     project_root: &Path,
+    config: &Config,
 ) -> Result<Vec<crate::models::ProjectInput>, String> {
     let mut inputs: Vec<crate::models::ProjectInput> = Vec::new();
     for result in WalkDir::new(project_root)
@@ -342,9 +347,71 @@ fn rust_project_inputs(
         }
         inputs.push(project_input(entry.path(), repository_root, project_root)?);
     }
+    for configured in &config.rule_paths {
+        let Some(path) = local_custom_rule_path(project_root, configured) else {
+            continue;
+        };
+        if path.is_file() {
+            inputs.push(project_input(&path, repository_root, project_root)?);
+        } else if path.is_dir() {
+            for entry in WalkDir::new(&path).follow_links(false) {
+                let entry = entry
+                    .map_err(|error| format!("Could not discover custom rule inputs: {error}"))?;
+                if entry.file_type().is_file()
+                    && entry.path().extension().and_then(|value| value.to_str()) == Some("py")
+                {
+                    inputs.push(project_input(entry.path(), repository_root, project_root)?);
+                }
+            }
+        }
+    }
+    for module in &config.rule_modules {
+        let package_root = project_root.join(module.split('.').next().unwrap_or_default());
+        if !package_root.is_dir() {
+            continue;
+        }
+        for entry in WalkDir::new(package_root).follow_links(false) {
+            let entry = entry
+                .map_err(|error| format!("Could not discover custom module inputs: {error}"))?;
+            if entry.file_type().is_file()
+                && entry.path().extension().and_then(|value| value.to_str()) == Some("py")
+            {
+                inputs.push(project_input(entry.path(), repository_root, project_root)?);
+            }
+        }
+    }
     inputs.sort_by(|left, right| left.repository_path.cmp(&right.repository_path));
     inputs.dedup_by(|left, right| left.path == right.path);
     Ok(inputs)
+}
+
+fn rust_custom_cache_inputs_complete(project_root: &Path, config: &Config) -> bool {
+    config
+        .rule_paths
+        .iter()
+        .all(|path| local_custom_rule_path(project_root, path).is_some())
+        && config.rule_modules.iter().all(|module| {
+            project_root
+                .join(module.split('.').next().unwrap_or_default())
+                .is_dir()
+        })
+}
+
+fn local_custom_rule_path(project_root: &Path, configured: &str) -> Option<PathBuf> {
+    let configured_path = Path::new(configured);
+    let candidate = if configured_path.is_absolute() {
+        configured_path.to_path_buf()
+    } else {
+        project_root.join(configured_path)
+    };
+    let canonical = match dunce::canonicalize(candidate) {
+        Ok(path) => path,
+        Err(_) => return None,
+    };
+    if !canonical.starts_with(project_root) {
+        return None;
+    }
+    Some(canonical)
 }
 
 fn project_input(

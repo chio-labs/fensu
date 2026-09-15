@@ -29,6 +29,10 @@ class RuleCallbackUnavailableError(RuntimeError):
     """Raised when a non-core rule has no executable callback."""
 
 
+class RustCustomRuleError(RuntimeError):
+    """Raised when a hosted Rust rule violates its callback or confinement contract."""
+
+
 class ParseError(Exception):
     """Raised when a Python file cannot be parsed by the running interpreter."""
 

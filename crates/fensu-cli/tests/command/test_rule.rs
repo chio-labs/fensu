@@ -155,22 +155,40 @@ fn given_web_analyzer_when_inspecting_rule_then_native_catalogue_is_available() 
 fn given_target_local_custom_rule_when_inspecting_then_rule_uses_selected_root() {
     let python = workspace_python();
     assert!(python.is_file(), "workspace Python is required");
-    let test_cases = [ConfigCommandTargetTestCase {
-        description: "rule resolves a custom rule path from the selected frontend root",
-        arguments: &["rule", "XRT001", "--target", "frontend", "--color", "never"],
-        expected_exit_code: 0,
-        expected_stdout: "target-root custom rule",
-        expected_stderr: "",
-    }];
+    let test_cases = [
+        ConfigCommandTargetTestCase {
+            description: "rule resolves a custom rule path from the selected frontend root",
+            arguments: &["rule", "XRT001", "--target", "frontend", "--color", "never"],
+            expected_exit_code: 0,
+            expected_stdout: "target-root custom rule",
+            expected_stderr: "",
+        },
+        ConfigCommandTargetTestCase {
+            description: "rule exposes custom Rust metadata from the selected target",
+            arguments: &["rule", "XRT002", "--target", "rust", "--color", "never"],
+            expected_exit_code: 0,
+            expected_stdout: "target-root Rust rule",
+            expected_stderr: "",
+        },
+    ];
     let repository = tempfile::tempdir().expect("temporary repository");
     write(
         repository.path().join("fensu.toml"),
-        "[targets.frontend]\nanalyzer = \"python\"\nroot = \"frontend\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"XRT001\"]\nrule_paths = [\"rules/custom.py\"]\n",
+        "[targets.frontend]\nanalyzer = \"python\"\nroot = \"frontend\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"XRT001\"]\nrule_paths = [\"rules/custom.py\"]\n[targets.rust]\nanalyzer = \"rust\"\nroot = \"rust\"\nroots = [\"src\"]\ntests = []\ntooling = []\nrule_packs = [\"rust\"]\nselect = [\"XRT002\"]\nrule_paths = [\"rules/custom.py\"]\n",
     );
     write(repository.path().join("frontend/src/pkg/__init__.py"), "");
     write(
         repository.path().join("frontend/rules/custom.py"),
         "import ast\nfrom fensu import Family, Fault, RuleContext, rule\n@rule(code='XRT001', family=Family.CUSTOM, slug='target-root', message='target-root custom rule')\ndef target_root(module: ast.Module, ctx: RuleContext) -> list[Fault]:\n    return []\n",
+    );
+    write(
+        repository.path().join("rust/Cargo.toml"),
+        "[package]\nname = \"example\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    );
+    write(repository.path().join("rust/src/lib.rs"), "");
+    write(
+        repository.path().join("rust/rules/custom.py"),
+        "from fensu import AnalyzerId, Family, Fault, File, RuleContext, rule\n@rule(code='XRT002', family=Family.CUSTOM, slug='target-root-rust', message='target-root Rust rule', analyzers=(AnalyzerId.RUST,), cacheable=True)\ndef target_root_rust(*, file: File, ctx: RuleContext) -> list[Fault]:\n    return []\n",
     );
 
     for test_case in &test_cases {

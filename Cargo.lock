@@ -467,6 +467,7 @@ dependencies = [
  "dunce",
  "proc-macro2",
  "quote",
+ "serde",
  "syn 2.0.118",
  "tempfile",
  "toml",

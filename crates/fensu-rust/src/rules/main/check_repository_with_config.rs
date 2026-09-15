@@ -16,24 +16,7 @@ pub fn check_repository_with_config(
         .canonicalize()
         .map_err(|error| format!("could not canonicalize repository root: {error}"))?;
     let workspace = scanning::scan_workspace(&repo_root);
-    let mut violations = check_workspace(&repo_root, workspace, config);
+    let mut violations = project_checks::check_scan(&repo_root, workspace, config);
     violations.sort_by(|left, right| left.sort_key().cmp(&right.sort_key()));
     Ok(violations)
-}
-
-fn check_workspace(
-    repo_root: &path::Path,
-    workspace: models::WorkspaceScan,
-    config: &models::RustPolicy,
-) -> Vec<models::Violation> {
-    let mut violations = workspace.violations;
-    violations.extend(project_checks::check(repo_root, &workspace.crates, config));
-    for workspace_crate in workspace.crates {
-        violations.extend(project_checks::check_crate(
-            repo_root,
-            &workspace_crate,
-            config,
-        ));
-    }
-    violations
 }

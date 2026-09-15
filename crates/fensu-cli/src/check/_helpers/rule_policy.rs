@@ -66,14 +66,27 @@ pub(crate) fn validate_config_tiers(config: &Config) -> Result<(), String> {
         .copied()
         .filter(|rule| applicable(rule, config))
         .collect::<Vec<_>>();
-    validate_config_selectors(config, &catalogue, &configured_catalogue)?;
+    if config.analyzer != crate::analyzer::AnalyzerId::Rust
+        || config.rule_paths.is_empty() && config.rule_modules.is_empty()
+    {
+        validate_config_selectors(config, &catalogue, &configured_catalogue)?;
+    }
+    let custom_rust = config.analyzer == crate::analyzer::AnalyzerId::Rust
+        && (!config.rule_paths.is_empty() || !config.rule_modules.is_empty());
+    let selectors = |values: &[String]| {
+        values
+            .iter()
+            .filter(|value| !custom_rust || !value.starts_with('X'))
+            .cloned()
+            .collect::<Vec<_>>()
+    };
     let _ = resolve_policy::resolve_policy(
         &configured_catalogue,
         &config.analyzer,
         &PolicySelectors {
-            select: config.select.clone(),
-            warn: config.warn.clone(),
-            ignore: config.ignore.clone(),
+            select: selectors(&config.select),
+            warn: selectors(&config.warn),
+            ignore: selectors(&config.ignore),
         },
         &FensuRuleCodeGrammar,
     )

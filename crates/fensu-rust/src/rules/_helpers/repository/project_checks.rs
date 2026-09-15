@@ -10,6 +10,19 @@ use crate::rules::_helpers::roles::{containers, domains, ownership, surfaces, to
 use crate::rules::_helpers::sources::scanning;
 use crate::rules::_helpers::test_conventions::test_mirroring;
 
+pub(crate) fn check_scan(
+    repo_root: &path::Path,
+    workspace: models::WorkspaceScan,
+    config: &models::RustPolicy,
+) -> Vec<models::Violation> {
+    let mut violations = workspace.violations;
+    violations.extend(check(repo_root, &workspace.crates, config));
+    for workspace_crate in workspace.crates {
+        violations.extend(check_crate(repo_root, &workspace_crate, config));
+    }
+    violations
+}
+
 pub(crate) fn check(
     repo_root: &path::Path,
     workspace_crates: &[models::WorkspaceCrate],
@@ -39,7 +52,7 @@ pub(crate) fn check_crate(
         config,
         is_tooling_crate,
     ));
-    violations.extend(check_test_conventions(repo_root, crate_dir));
+    violations.extend(check_test_conventions(repo_root, workspace_crate));
     violations.extend(layers::check_manifest(repo_root, workspace_crate, config));
     violations
 }
@@ -122,10 +135,14 @@ fn check_aggregate_structure(
 
 fn check_test_conventions(
     repo_root: &path::Path,
-    crate_dir: &path::Path,
+    workspace_crate: &models::WorkspaceCrate,
 ) -> Vec<models::Violation> {
+    let crate_dir = &workspace_crate.directory;
     let mut violations = test_mirroring::check_test_mirroring(repo_root, crate_dir);
-    violations.extend(test_mirroring::check_harness_coverage(repo_root, crate_dir));
+    violations.extend(test_mirroring::check_harness_coverage(
+        repo_root,
+        &workspace_crate.files,
+    ));
     violations
 }
 

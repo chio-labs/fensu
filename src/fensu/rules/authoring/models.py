@@ -13,6 +13,7 @@ from fensu.rules.authoring.constants import MISSING, PROJECT_ROOT
 from fensu.rules.authoring.exceptions import (
     ArchitectureGraphQueryError,
     ArchitectureGraphQueryTypeError,
+    RustFactQueryTypeError,
 )
 from fensu.rules.authoring.types import (
     ExecutionOwner,
@@ -24,6 +25,9 @@ from fensu.rules.authoring.types import (
     RuleKind,
     RuleOptionKind,
     RuleSubjectKind,
+    RustItemKind,
+    RustUseResolution,
+    RustVisibility,
     Severity,
     SourceKind,
     Threshold,
@@ -421,6 +425,176 @@ class ArchitectureGraph:
     def _record(self, *, kind: str, path: ProjectPath, answer: str) -> None:
         if self._observe is not None:
             self._observe(kind, path, answer)
+
+
+@dataclass(frozen=True, slots=True, order=True)
+class RustTargetFact:
+    """One stable Cargo target identity owned by a workspace crate."""
+
+    identity: str
+    name: str
+    kinds: tuple[str, ...]
+    source_root: ProjectPath
+    entry_path: ProjectPath
+    test: bool
+
+
+@dataclass(frozen=True, slots=True, order=True)
+class RustDependencyFact:
+    """One Cargo dependency identity and its strongest resolution evidence."""
+
+    package_name: str
+    source_name: str
+    kinds: tuple[str, ...]
+    local_crate_identity: str | None
+    resolved: bool
+
+
+@dataclass(frozen=True, slots=True, order=True)
+class RustCrateFact:
+    """One Cargo workspace package with immutable targets and dependencies."""
+
+    identity: str
+    name: str
+    directory: ProjectPath
+    manifest_path: ProjectPath
+    library_name: str | None
+    targets: tuple[RustTargetFact, ...]
+    dependencies: tuple[RustDependencyFact, ...]
+
+
+@dataclass(frozen=True, slots=True, order=True)
+class RustItemFact:
+    """One parser-independent Rust declaration and stable source location."""
+
+    kind: RustItemKind
+    name: str | None
+    module_parts: tuple[str, ...]
+    visibility: RustVisibility
+    visibility_path: str | None
+    derives: tuple[str, ...]
+    implemented_trait: str | None
+    implementation_target: str | None
+    location: SourceLocation
+
+
+@dataclass(frozen=True, slots=True, order=True)
+class RustUseFact:
+    """One authored Rust use path and its explicit resolution result."""
+
+    source: File
+    source_module_parts: tuple[str, ...]
+    authored_parts: tuple[str, ...]
+    target_module_parts: tuple[str, ...] | None
+    target: File | None
+    target_crate_identity: str | None
+    resolution: RustUseResolution
+    location: SourceLocation
+
+
+@dataclass(frozen=True, slots=True, order=True)
+class RustFileFacts:
+    """Owned immutable source, module, item, and use facts for one Rust file."""
+
+    file: File
+    crate_identity: str
+    crate_name: str
+    module_parts: tuple[str, ...]
+    source_root: ProjectPath
+    test: bool
+    source: str
+    parse_error: str | None
+    items: tuple[RustItemFact, ...]
+    uses: tuple[RustUseFact, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class RustWorkspaceFacts:
+    """Versioned requester-observed Rust facts for one Cargo workspace."""
+
+    schema_version: str
+    parser_contract: str
+    _crate_values: tuple[RustCrateFact, ...] = field(repr=False)
+    _file_values: tuple[RustFileFacts, ...] = field(repr=False)
+    _crates_by_identity: Mapping[str, RustCrateFact] = field(repr=False, compare=False)
+    _files_by_path: Mapping[ProjectPath, RustFileFacts] = field(repr=False, compare=False)
+    _observe: Callable[[str, str, str], None] | None = field(
+        default=None, repr=False, compare=False
+    )
+
+    @property
+    def crates(self) -> tuple[RustCrateFact, ...]:
+        """Return all workspace crates and observe the broad Cargo inventory."""
+
+        from fensu.rules.authoring._helpers.rust_fact_identity import rust_crate_identity
+
+        self._record(
+            kind="rust_crates",
+            query=".",
+            answer="\n".join(rust_crate_identity(value=item) for item in self._crate_values),
+        )
+        return self._crate_values
+
+    @property
+    def files(self) -> tuple[RustFileFacts, ...]:
+        """Return all Rust files and observe the broad source inventory."""
+
+        from fensu.rules.authoring._helpers.rust_fact_identity import rust_file_identity
+
+        self._record(
+            kind="rust_files",
+            query=".",
+            answer="\n".join(rust_file_identity(value=item) for item in self._file_values),
+        )
+        return self._file_values
+
+    def crate(self, identity: str) -> RustCrateFact | None:
+        """Return one crate by stable workspace identity."""
+
+        if not isinstance(identity, str):
+            raise RustFactQueryTypeError("Rust crate queries require a string identity")
+        value: RustCrateFact | None = self._crates_by_identity.get(identity)
+        from fensu.rules.authoring._helpers.rust_fact_identity import rust_crate_identity
+
+        self._record(
+            kind="rust_crate",
+            query=identity,
+            answer="" if value is None else rust_crate_identity(value=value),
+        )
+        return value
+
+    def file(self, value: File | ProjectPath) -> RustFileFacts | None:
+        """Return facts for one discovered Rust file without observing all files."""
+
+        path: ProjectPath = value.path if isinstance(value, File) else value
+        if not isinstance(path, ProjectPath):
+            raise RustFactQueryTypeError("Rust file queries require a File or ProjectPath")
+        answer: RustFileFacts | None = self._files_by_path.get(path)
+        from fensu.rules.authoring._helpers.rust_fact_identity import rust_file_identity
+
+        self._record(
+            kind="rust_file",
+            query=path.value,
+            answer="" if answer is None else rust_file_identity(value=answer),
+        )
+        return answer
+
+    def observed(self, observer: Callable[[str, str, str], None]) -> RustWorkspaceFacts:
+        """Return a fact view whose query answers are recorded for one invocation."""
+
+        return RustWorkspaceFacts(
+            schema_version=self.schema_version,
+            parser_contract=self.parser_contract,
+            _crate_values=self._crate_values,
+            _file_values=self._file_values,
+            _crates_by_identity=self._crates_by_identity,
+            _files_by_path=self._files_by_path,
+            _observe=observer,
+        )
+
+    def _record(self, *, kind: str, query: str, answer: str) -> None:
+        if self._observe is not None:
+            self._observe(kind, query, answer)
 
 
 @dataclass(frozen=True, slots=True, eq=False)

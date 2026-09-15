@@ -11,6 +11,20 @@ pub(crate) const ROLE_HELPERS: &str = "_helpers";
 pub(crate) const ROLE_MAIN: &str = "main";
 pub(crate) const ROLE_RULES: &str = "rules";
 pub(crate) const SCOPE_TEST: &str = "test";
+pub(crate) const RUST_PROJECT_REQUESTER: &str = ".fensu-project-rule";
+pub(crate) const RUST_CUSTOM_DEPENDENCY_KINDS: &[&str] = &[
+    "tree_paths",
+    "tree_files",
+    "tree_children",
+    "tree_descendants",
+    "tree_glob",
+    "tree_files_under",
+    "tree_position",
+    "rust_crates",
+    "rust_files",
+    "rust_crate",
+    "rust_file",
+];
 pub(crate) const SCOPE_TOOLING: &str = "tooling";
 pub(crate) const STEM_INIT: &str = "__init__";
 pub(crate) const SUFFIX_INIT: &str = "__init__.py";

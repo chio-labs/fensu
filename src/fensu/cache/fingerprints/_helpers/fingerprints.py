@@ -224,13 +224,16 @@ def _rule_source_files(location: Path) -> tuple[Path, ...] | None:
 
 def _rule_module_location(*, module_name: str, repo_root: Path) -> Path | None:
     module_parts: tuple[str, ...] = tuple(module_name.split("."))
+    repository_package: Path = repo_root / module_parts[0]
     candidate: Path = repo_root.joinpath(*module_parts)
+    module_file: Path = candidate.with_suffix(PYTHON_SOURCE_SUFFIX)
+    if repository_package.is_dir() and (candidate.is_dir() or module_file.is_file()):
+        return repository_package
     if candidate.is_dir() and (candidate / "__init__.py").is_file():
         return candidate
-    module_file: Path = candidate.with_suffix(PYTHON_SOURCE_SUFFIX)
     if module_file.is_file():
         return module_file
-    return _installed_module_location(module_name)
+    return _installed_module_location(module_parts[0])
 
 
 def _installed_module_location(module_name: str) -> Path | None:

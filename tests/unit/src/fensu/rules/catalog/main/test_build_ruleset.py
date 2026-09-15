@@ -375,7 +375,7 @@ def test_given_exact_incompatible_rule_when_selecting_then_error_names_analyzer(
         CustomRuleAnalyzerTestCase(
             description="TypeScript custom rule fails closed",
             analyzer=AnalyzerId.TYPESCRIPT,
-            expected_error_fragment="XTS001.*must use analyzer python",
+            expected_error_fragment="XTS001.*uses an unsupported analyzer",
         )
     ],
     ids=lambda case: case.description,

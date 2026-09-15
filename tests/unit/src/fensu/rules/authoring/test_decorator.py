@@ -4,16 +4,18 @@ from __future__ import annotations
 
 import pytest
 
+from fensu.config.types import AnalyzerId
 from fensu.rules.authoring.constants import _RULE_SPEC_ATTRIBUTE
 from fensu.rules.authoring.exceptions import RuleDefinitionError
 from fensu.rules.authoring.main.define import rule
-from fensu.rules.authoring.models import RuleSpec
-from fensu.rules.authoring.types import ExecutionOwner, Family, RuleCheck, RuleKind
+from fensu.rules.authoring.models import Fault, File, RuleSpec
+from fensu.rules.authoring.types import ExecutionOwner, Family, RuleCheck, RuleContext, RuleKind
 from tests.unit.src.fensu.rules.authoring._test_types import (
     InvalidEnvelopeTestCase,
     RuleCacheableFlagTestCase,
     RuleEnvelopeTestCase,
     RuleExecutionOwnerTestCase,
+    RustAnalyzerDeclarationTestCase,
 )
 from tests.unit.src.fensu.rules.authoring.helpers import empty_check
 
@@ -292,3 +294,61 @@ def test_given_cacheable_declaration_when_decorating_then_records_flag(
     spec: RuleSpec = getattr(decorated, _RULE_SPEC_ATTRIBUTE)
 
     assert spec.cacheable is test_case.expected_cacheable
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        RustAnalyzerDeclarationTestCase(
+            description="typed file subject records Rust applicability",
+            analyzers=(AnalyzerId.RUST,),
+            legacy=False,
+            expected_analyzers=(AnalyzerId.RUST,),
+            expected_error_fragment=None,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_typed_rust_subject_when_decorating_then_records_rust_applicability(
+    test_case: RustAnalyzerDeclarationTestCase,
+) -> None:
+    def check(*, file: File, ctx: RuleContext) -> list[Fault]:
+        del file, ctx
+        return []
+
+    decorated: RuleCheck = rule(
+        code="XRS001",
+        family=Family.CUSTOM,
+        slug="rust-subject",
+        message="Rust subject",
+        analyzers=test_case.analyzers,
+    )(check)
+    spec: RuleSpec = getattr(decorated, _RULE_SPEC_ATTRIBUTE)
+
+    assert spec.analyzers == test_case.expected_analyzers
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        RustAnalyzerDeclarationTestCase(
+            description="legacy module subject rejects Rust applicability",
+            analyzers=(AnalyzerId.RUST,),
+            legacy=True,
+            expected_analyzers=(),
+            expected_error_fragment="typed File or Project",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_legacy_subject_when_declaring_rust_rule_then_rejects_parser_contract(
+    test_case: RustAnalyzerDeclarationTestCase,
+) -> None:
+    with pytest.raises(RuleDefinitionError, match=test_case.expected_error_fragment):
+        rule(
+            code="XRS002",
+            family=Family.CUSTOM,
+            slug="legacy-rust",
+            message="Legacy Rust",
+            analyzers=test_case.analyzers,
+        )(empty_check)

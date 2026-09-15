@@ -88,6 +88,7 @@ pub(crate) fn evaluate_checks(
             project_inputs: &target.project_inputs,
             excluded: target.excluded,
             show_warnings: options.warn,
+            cache_enabled: target.cache_enabled,
         })?);
     }
     Ok(results)

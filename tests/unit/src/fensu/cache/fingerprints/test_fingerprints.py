@@ -1150,6 +1150,39 @@ def test_given_rule_path_sources_when_fingerprinting_then_tracks_every_file(
 @pytest.mark.parametrize(
     "test_case",
     [
+        CustomRulesFingerprintTestCase(
+            description="repository namespace helper edit changes the custom implementation identity",
+            first_helper_source="LIMIT: int = 1\n",
+            second_helper_source="LIMIT: int = 2\n",
+            expected_equal=False,
+            expected_missing_none=True,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_rule_module_helper_when_fingerprinting_then_tracks_owning_package(
+    tmp_path: Path,
+    test_case: CustomRulesFingerprintTestCase,
+) -> None:
+    rules_dir: Path = tmp_path / "rules"
+    rules_dir.mkdir()
+    (rules_dir / "custom.py").write_text("from rules.helper import LIMIT\n", encoding="utf-8")
+    helper: Path = rules_dir / "helper.py"
+    helper.write_text(test_case.first_helper_source, encoding="utf-8")
+    config: Config = Config(roots=(), rule_modules=("rules.custom",))
+
+    first: CacheFingerprint | None = custom_rules_fingerprint(config=config, repo_root=tmp_path)
+    helper.write_text(test_case.second_helper_source, encoding="utf-8")
+    second: CacheFingerprint | None = custom_rules_fingerprint(config=config, repo_root=tmp_path)
+
+    assert first is not None
+    assert second is not None
+    assert (first == second) is test_case.expected_equal
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
         CacheBlockedRulesetTestCase(
             description="custom-only non-cacheable ruleset disables caching entirely",
             cacheable=False,

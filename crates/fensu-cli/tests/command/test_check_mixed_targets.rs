@@ -3,9 +3,9 @@ use crate::helpers::write;
 #[test]
 fn given_custom_python_and_rust_options_when_checking_then_native_and_hosted_targets_merge() {
     let test_cases = [crate::test_types::RustMixedTargetTestCase {
-        description: "custom Python target and native Rust options coexist",
+        description: "custom Python and Rust targets merge with native Rust findings",
         expected_exit_code: 1,
-        expected_codes: &["FFA001", "FPRSS010"],
+        expected_codes: &["FFA001", "FPRSS010", "XMIX002"],
     }];
     for test_case in test_cases {
         let repository = tempfile::tempdir().expect("temporary repository");
@@ -21,8 +21,8 @@ fn given_custom_python_and_rust_options_when_checking_then_native_and_hosted_tar
             repository.path().join("python/value.py"),
             "def value(item):\n    return item\n",
         );
-        write(repository.path().join("rules/custom.py"), "import ast\nfrom fensu import Family, Fault, RuleContext, rule\n@rule(code='XMIX001', family=Family.CUSTOM, slug='mixed', message='mixed')\ndef mixed(module: ast.Module, ctx: RuleContext) -> list[Fault]:\n    return []\n");
-        write(repository.path().join("fensu.toml"), "[targets.python]\nanalyzer = \"python\"\nroots = [\"python\"]\ntests = []\ntooling = []\nselect = [\"FFA001\", \"XMIX001\"]\nrule_paths = [\"rules/custom.py\"]\n[targets.rust]\nanalyzer = \"rust\"\nroots = [\"src\"]\ntests = []\ntooling = []\nrule_packs = [\"rust\"]\nselect = [\"FPRSS010\"]\n[targets.rust.rule_options.FPRSS010]\nmax_arguments = 1\n");
+        write(repository.path().join("rules/custom.py"), "import ast\nfrom fensu import AnalyzerId, Family, Fault, File, RuleContext, rule\n@rule(code='XMIX001', family=Family.CUSTOM, slug='mixed-python', message='mixed Python')\ndef mixed_python(module: ast.Module, ctx: RuleContext) -> list[Fault]:\n    return []\n@rule(code='XMIX002', family=Family.CUSTOM, slug='mixed-rust', message='mixed Rust', analyzers=(AnalyzerId.RUST,), cacheable=True)\ndef mixed_rust(*, file: File, ctx: RuleContext) -> list[Fault]:\n    return [ctx.path_fault()]\n");
+        write(repository.path().join("fensu.toml"), "[targets.python]\nanalyzer = \"python\"\nroots = [\"python\"]\ntests = []\ntooling = []\nselect = [\"FFA001\", \"XMIX001\"]\nrule_paths = [\"rules/custom.py\"]\n[targets.rust]\nanalyzer = \"rust\"\nroots = [\"src\"]\ntests = []\ntooling = []\nrule_packs = [\"rust\"]\nrule_paths = [\"rules/custom.py\"]\nselect = [\"FPRSS010\", \"XMIX002\"]\n[targets.rust.rule_options.FPRSS010]\nmax_arguments = 1\n");
         let output = std::process::Command::new(env!("CARGO_BIN_EXE_fensu"))
             .args(["check", "--no-color", "--no-cache"])
             .current_dir(repository.path())

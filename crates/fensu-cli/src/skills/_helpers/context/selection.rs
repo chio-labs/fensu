@@ -51,7 +51,10 @@ pub(crate) fn selection(config: &Config, project_root: &Path) -> Result<RuleSele
         || !config.rule_modules.is_empty()
         || config.rule_options.keys().any(|code| code.starts_with('X'))
     {
-        if config.analyzer != crate::analyzer::AnalyzerId::Python {
+        if !matches!(
+            config.analyzer,
+            crate::analyzer::AnalyzerId::Python | crate::analyzer::AnalyzerId::Rust
+        ) {
             return Err(format!(
                 "Native {} skills do not support Python-hosted rule paths, modules, or options.",
                 config.analyzer
@@ -229,7 +232,12 @@ fn validate_host_catalogue(catalogue: &[RuleMetadata]) -> Result<(), String> {
             || item.analyzers.is_empty()
             || item.analyzers.iter().collect::<HashSet<_>>().len() != item.analyzers.len()
             || (item.kind == CUSTOM_KIND
-                && item.analyzers.as_slice() != [crate::analyzer::AnalyzerId::Python])
+                && item.analyzers.iter().any(|analyzer| {
+                    !matches!(
+                        analyzer,
+                        crate::analyzer::AnalyzerId::Python | crate::analyzer::AnalyzerId::Rust
+                    )
+                }))
         {
             return Err(format!(
                 "Catalogue rule {} contains incompatible metadata.",

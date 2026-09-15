@@ -86,6 +86,53 @@ pub(crate) struct RustMetadataCacheTestCase {
     pub(crate) expected_error: &'static str,
 }
 
+pub(crate) struct RustCustomFileRuleTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_exit_code: i32,
+    pub(crate) expected_location: &'static str,
+    pub(crate) expected_code: &'static str,
+}
+
+pub(crate) struct RustCustomHostRoutingTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) selection: &'static str,
+    pub(crate) expected_non_error_exit_code: i32,
+    pub(crate) expected_absent: &'static str,
+}
+
+pub(crate) struct RustCustomCacheInvalidationTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_code: &'static str,
+    pub(crate) expected_warm_cache: &'static str,
+    pub(crate) expected_changed_cache: &'static str,
+    pub(crate) expected_implementation_cache: &'static str,
+    pub(crate) expected_corruption_exit_code: i32,
+}
+
+pub(crate) struct RustCustomNarrowCacheTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) unchanged_path: &'static str,
+    pub(crate) changed_path: &'static str,
+    pub(crate) expected_reused_message: &'static str,
+}
+
+pub(crate) struct RustCustomMalformedSourceTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_exit_code: i32,
+    pub(crate) expected_custom_code: &'static str,
+    pub(crate) expected_native_absent: &'static str,
+}
+
+pub(crate) struct RustCustomPolicyTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) selection: &'static str,
+    pub(crate) policy: &'static str,
+    pub(crate) arguments: &'static [&'static str],
+    pub(crate) expected_exit_code: i32,
+    pub(crate) expected_present: &'static str,
+    pub(crate) expected_absent: &'static str,
+}
+
 pub(crate) struct TargetCheckTestCase {
     pub(crate) description: &'static str,
     pub(crate) arguments: &'static [&'static str],

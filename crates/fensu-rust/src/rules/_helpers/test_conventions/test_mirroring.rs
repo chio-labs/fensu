@@ -172,12 +172,11 @@ fn binary_mirror_violations(
 /// Check that every test module inside a harness area is declared somewhere.
 pub(crate) fn check_harness_coverage(
     repo_root: &std::path::Path,
-    crate_dir: &std::path::Path,
+    files: &[models::SourceFile],
 ) -> Vec<models::Violation> {
-    let files = test_tree_files(crate_dir);
-    let declared = declared_targets(&files);
+    let declared = declared_targets(files);
     let mut violations: Vec<models::Violation> = Vec::new();
-    for candidate in area_candidates(&files) {
+    for candidate in area_candidates(files) {
         if declared.contains(&candidate) {
             continue;
         }
@@ -198,41 +197,15 @@ pub(crate) fn check_harness_coverage(
     violations
 }
 
-fn test_tree_files(crate_dir: &std::path::Path) -> Vec<std::path::PathBuf> {
-    let mut files: Vec<std::path::PathBuf> = Vec::new();
-    for root in [
-        crate_dir.join(constants::SOURCE_DIRECTORY),
-        crate_dir.join(constants::TESTS_DIRECTORY),
-    ] {
-        for entry in walkdir::WalkDir::new(&root)
-            .follow_links(false)
-            .into_iter()
-            .filter_map(Result::ok)
-        {
-            let path = entry.path();
-            if entry.file_type().is_file()
-                && path.extension().and_then(|value| value.to_str()) == Some("rs")
-            {
-                files.push(path.to_path_buf());
-            }
-        }
-    }
-    files.sort();
-    files
-}
-
-fn declared_targets(files: &[std::path::PathBuf]) -> std::collections::HashSet<std::path::PathBuf> {
+fn declared_targets(files: &[models::SourceFile]) -> std::collections::HashSet<std::path::PathBuf> {
     let mut declared: std::collections::HashSet<std::path::PathBuf> =
         std::collections::HashSet::new();
     for file in files {
-        let Some(directory) = file.parent() else {
+        let Some(directory) = file.path.parent() else {
             continue;
         };
-        let area = file.with_extension("");
-        let Ok(source) = std::fs::read_to_string(file) else {
-            continue;
-        };
-        let Ok(syntax) = syn::parse_file(&source) else {
+        let area = file.path.with_extension("");
+        let Some(syntax) = file.syntax.file.as_ref() else {
             continue;
         };
         for item in &syntax.items {
@@ -275,10 +248,10 @@ fn module_path_attribute(item_mod: &syn::ItemMod) -> Option<String> {
     None
 }
 
-fn area_candidates(files: &[std::path::PathBuf]) -> Vec<std::path::PathBuf> {
+fn area_candidates(files: &[models::SourceFile]) -> Vec<std::path::PathBuf> {
     let mut candidates: Vec<std::path::PathBuf> = Vec::new();
     for file in files {
-        let Some(directory) = file.parent() else {
+        let Some(directory) = file.path.parent() else {
             continue;
         };
         if !directory.with_extension("rs").is_file() {
@@ -291,7 +264,7 @@ fn area_candidates(files: &[std::path::PathBuf]) -> Vec<std::path::PathBuf> {
                     == Some(constants::TESTS_DIRECTORY)
             });
         if inside_tests {
-            candidates.push(file.clone());
+            candidates.push(file.path.clone());
         }
     }
     candidates

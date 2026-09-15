@@ -16,6 +16,7 @@ from fensu.config.main._build_config import build_config
 from fensu.config.main.build_config_for_rules import build_config_for_rules
 from fensu.config.main.resolve_target_root import resolve_target_root
 from fensu.config.models import Config, ConfigSource, LoadedConfig, ResolvedTargetRoot
+from fensu.config.types import AnalyzerId
 from fensu.rules.authoring.models import RuleSpec
 from fensu.rules.catalog.main.build_catalogue import build_catalogue
 
@@ -47,7 +48,7 @@ def _load_project_config(*, start: Path | None, target: str | None) -> LoadedCon
         else base_bootstrap.select,
     )
     _ = require_analyzer_backend(bootstrap.analyzer)
-    if bootstrap.analyzer != PYTHON_ANALYZER and (
+    if bootstrap.analyzer in {AnalyzerId.TYPESCRIPT, AnalyzerId.SVELTE} and (
         bootstrap.rule_paths or bootstrap.rule_modules or bool(raw_config.get("rule_options"))
     ):
         raise ConfigError(

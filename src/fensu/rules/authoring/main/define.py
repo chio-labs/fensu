@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from fensu.config.types import AnalyzerId
 from fensu.rules.authoring._helpers.envelope import (
     infer_kind,
     resolve_envelope,
@@ -23,7 +24,7 @@ from fensu.rules.authoring.types import (
 )
 
 
-def rule(
+def rule(  # noqa: PLR0913
     *,
     code: str,
     family: Family | str,
@@ -33,6 +34,7 @@ def rule(
     severity: Severity = Severity.ERROR,
     enabled_by_default: bool = True,
     cacheable: bool | None = None,
+    analyzers: tuple[AnalyzerId, ...] = (AnalyzerId.PYTHON,),
     execution_owner: ExecutionOwner | None = None,
     options: tuple[RuleOption[object], ...] = (),
 ) -> Callable[[RuleCheck], RuleCheck]:
@@ -44,6 +46,12 @@ def rule(
         option_names: tuple[str, ...] = tuple(option.name for option in options)
         if len(set(option_names)) != len(option_names):
             raise RuleDefinitionError(f"rule {code} declares duplicate option names")
+        if (
+            not analyzers
+            or len(analyzers) != len(set(analyzers))
+            or any(not isinstance(analyzer, AnalyzerId) for analyzer in analyzers)
+        ):
+            raise RuleDefinitionError(f"rule {code} declares invalid analyzer applicability")
         resolved_family: Family = resolve_envelope(
             code=code,
             slug=slug,
@@ -68,6 +76,10 @@ def rule(
                 f"{execution_owner.value!r}"
             )
         resolved_execution_owner: ExecutionOwner = execution_owner or inferred_owner
+        if AnalyzerId.RUST in analyzers and subject_kind is RuleSubjectKind.LEGACY:
+            raise RuleDefinitionError(
+                f"Rust custom rule {code} must use a typed File or Project subject"
+            )
         spec: RuleSpec = RuleSpec(
             code=code,
             family=resolved_family,
@@ -78,6 +90,7 @@ def rule(
             severity=severity,
             kind=kind,
             enabled_by_default=enabled_by_default,
+            analyzers=analyzers,
             cacheable=cacheable,
             execution_owner=resolved_execution_owner,
             subject_kind=subject_kind,

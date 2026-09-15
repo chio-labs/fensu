@@ -211,11 +211,10 @@ fn build_mutation(
         .as_ref()
         .map(index_entries_by_path)
         .unwrap_or_default();
-    if request
-        .retained_entries
-        .iter()
-        .any(|entry| existing_entries.get(entry.path.as_str()) != Some(&entry))
-    {
+    if request.retained_entries.iter().any(|entry| {
+        existing_entries.get(&(entry.subject_kind.as_str(), entry.subject_identity.as_str()))
+            != Some(&entry)
+    }) {
         return None;
     }
     let old_observations = existing
@@ -264,10 +263,15 @@ fn build_generation_mutation(
             request.maximum_decoded_bytes,
         )?;
         let record_fingerprint = content_fingerprint(&encoded);
-        let result_fingerprint =
-            file_result_identity(&request.global_fingerprint, &record_fingerprint);
+        let result_fingerprint = file_result_identity(
+            &request.global_fingerprint,
+            &candidate.subject_kind,
+            &candidate.subject_identity,
+            &record_fingerprint,
+        );
         entries.push(NativeIndexEntry {
-            path: candidate.path.clone(),
+            subject_kind: candidate.subject_kind.clone(),
+            subject_identity: candidate.subject_identity.clone(),
             source_fingerprint: candidate.source_fingerprint.clone(),
             result_fingerprint: result_fingerprint.clone(),
             record_fingerprint,
@@ -279,8 +283,14 @@ fn build_generation_mutation(
             insert_only: !existing_result_fingerprints.contains(result_fingerprint.as_str()),
         });
     }
-    entries.sort_by(|left, right| left.path.cmp(&right.path));
-    if entries.windows(2).any(|pair| pair[0].path == pair[1].path) {
+    entries.sort_by(|left, right| {
+        (&left.subject_kind, &left.subject_identity)
+            .cmp(&(&right.subject_kind, &right.subject_identity))
+    });
+    if entries.windows(2).any(|pair| {
+        pair[0].subject_kind == pair[1].subject_kind
+            && pair[0].subject_identity == pair[1].subject_identity
+    }) {
         return None;
     }
     let dependencies_payload = CanonicalValue::Object(vec![(
@@ -377,11 +387,16 @@ fn result_path(fingerprint: &str) -> String {
 
 fn index_entries_by_path(
     state: &(Vec<NativeIndexEntry>, Option<String>, Option<String>),
-) -> HashMap<&str, &NativeIndexEntry> {
+) -> HashMap<(&str, &str), &NativeIndexEntry> {
     state
         .0
         .iter()
-        .map(|entry| (entry.path.as_str(), entry))
+        .map(|entry| {
+            (
+                (entry.subject_kind.as_str(), entry.subject_identity.as_str()),
+                entry,
+            )
+        })
         .collect()
 }
 

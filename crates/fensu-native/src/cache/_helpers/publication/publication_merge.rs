@@ -77,7 +77,7 @@ pub(crate) fn merged_contributions(
     let expected = existing.and_then(|(_, _, fingerprint)| fingerprint.as_deref());
     let retained_paths = retained_entries
         .iter()
-        .map(|entry| entry.path.as_str())
+        .map(|entry| entry.subject_identity.as_str())
         .collect::<HashSet<_>>();
     let mut merged = record
         .filter(|record| Some(record.fingerprint.as_str()) == expected)
@@ -93,7 +93,7 @@ pub(crate) fn merged_contributions(
         .collect::<HashMap<_, _>>();
     for candidate in &preparation.candidates {
         if let Some(contribution) = &candidate.contribution {
-            merged.insert(candidate.path.clone(), contribution.clone());
+            merged.insert(candidate.subject_identity.clone(), contribution.clone());
         }
     }
     let mut values = merged.into_iter().collect::<Vec<_>>();
@@ -149,8 +149,12 @@ fn merge_observation(
 fn index_entry_value(entry: &NativeIndexEntry) -> CanonicalValue {
     CanonicalValue::Object(vec![
         (
-            "path".to_owned(),
-            CanonicalValue::String(entry.path.clone()),
+            "subject_identity".to_owned(),
+            CanonicalValue::String(entry.subject_identity.clone()),
+        ),
+        (
+            "subject_kind".to_owned(),
+            CanonicalValue::String(entry.subject_kind.clone()),
         ),
         (
             "record_fingerprint".to_owned(),

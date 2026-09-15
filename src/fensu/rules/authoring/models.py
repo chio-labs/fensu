@@ -14,6 +14,7 @@ from fensu.rules.authoring.types import (
     RuleCheck,
     RuleKind,
     RuleOptionKind,
+    RuleSubjectKind,
     Severity,
     Threshold,
 )
@@ -208,6 +209,9 @@ class RuleSpec:
     cacheable: bool | None = None
     uses_module: bool = False
     execution_owner: ExecutionOwner = ExecutionOwner.FILE
+    subject_kind: RuleSubjectKind = RuleSubjectKind.LEGACY
+    subject_parameter: str | None = None
+    context_parameter: str | None = None
     options: tuple[RuleOption[object], ...] = ()
     constraints: tuple[RuleConstraint, ...] = ()
     thresholds: tuple[Threshold, ...] = ()

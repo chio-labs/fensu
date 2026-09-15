@@ -12,7 +12,8 @@ pub(crate) enum CanonicalValue {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct NativeIndexEntry {
-    pub path: String,
+    pub subject_kind: String,
+    pub subject_identity: String,
     pub source_fingerprint: String,
     pub result_fingerprint: String,
     pub record_fingerprint: String,
@@ -49,7 +50,8 @@ pub(crate) struct NativeGenerationPlan {
 
 #[derive(Debug)]
 pub(crate) struct NativePublicationCandidate {
-    pub path: String,
+    pub subject_kind: String,
+    pub subject_identity: String,
     pub source_fingerprint: String,
     pub payload: CanonicalValue,
     pub contribution: Option<CanonicalValue>,

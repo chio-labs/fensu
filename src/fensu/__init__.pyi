@@ -165,9 +165,22 @@ from fensu.analysis.types import (
 )
 from fensu.config.types import ContractBehavior as ContractBehavior
 from fensu.discovery.types import ScopeName as ScopeName
+from fensu.rules.authoring.graph import ArchitectureGraph as ArchitectureGraph
+from fensu.rules.authoring.graph import AuthoredImport as AuthoredImport
+from fensu.rules.authoring.graph import ImportCycle as ImportCycle
+from fensu.rules.authoring.graph import ImportEdge as ImportEdge
+from fensu.rules.authoring.graph import ImportResolution as ImportResolution
+from fensu.rules.authoring.graph import ModuleNode as ModuleNode
+from fensu.rules.authoring.graph import ModuleVisibility as ModuleVisibility
 from fensu.rules.authoring.main.define import rule as rule
 from fensu.rules.authoring.models import Fault as Fault
 from fensu.rules.authoring.models import RuleOption as RuleOption
+from fensu.rules.authoring.subjects import File as File
+from fensu.rules.authoring.subjects import FilePosition as FilePosition
+from fensu.rules.authoring.subjects import Project as Project
+from fensu.rules.authoring.subjects import ProjectPath as ProjectPath
+from fensu.rules.authoring.subjects import ProjectTree as ProjectTree
+from fensu.rules.authoring.subjects import SourceKind as SourceKind
 from fensu.rules.authoring.types import (
     ExecutionOwner as ExecutionOwner,
 )

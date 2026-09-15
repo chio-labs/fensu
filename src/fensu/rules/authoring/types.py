@@ -11,15 +11,24 @@ from typing import TYPE_CHECKING, Protocol
 from fensu.discovery.types import ScopeName
 
 if TYPE_CHECKING:
-    from fensu.analysis.models import SourceLocation, SourceRange, SyntaxHandle
+    from fensu.analysis.models import (
+        DataclassFact,
+        ProjectDependency,
+        ProjectFunctionFact,
+        SourceLocation,
+        SourceRange,
+        SyntaxHandle,
+    )
     from fensu.analysis.types import (
+        Analysis,
         FactAnalysis,
-        ProjectAnalysis,
         RelationAnalysis,
         SyntaxAnalysis,
         TextAnalysis,
     )
+    from fensu.rules.authoring.graph import ArchitectureGraph
     from fensu.rules.authoring.models import CustomRuleRegistration, Fault, RuleOption
+    from fensu.rules.authoring.subjects import ProjectPath, ProjectTree
 
 type RuleOptionValue = bool | int | str | tuple[str, ...] | tuple[int, ...]
 
@@ -63,6 +72,14 @@ class ExecutionOwner(StrEnum):
     SUBDOMAIN = "subdomain"
     LEAF = "leaf"
     SCOPE = "scope"
+    PROJECT = "project"
+
+
+class RuleSubjectKind(StrEnum):
+    """The callback shape used to invoke a Python-authored rule."""
+
+    LEGACY = "legacy"
+    FILE = "file"
     PROJECT = "project"
 
 
@@ -112,6 +129,84 @@ class Threshold(StrEnum):
     MAX_API_EXPORTS = "max_api_exports"
 
 
+class RuleProjectFacts(Protocol):
+    """Discovered-tree facts and requester-bound cross-file queries."""
+
+    @property
+    def tree(self) -> ProjectTree:
+        """Return immutable facts from the authoritative discovered tree."""
+        ...
+
+    def analysis(
+        self, *, path: ProjectPath | str | Path, requester: Path | None = None
+    ) -> Analysis | None:
+        """Return analysis while defaulting to the active invocation requester."""
+        ...
+
+    def dataclasses(
+        self, *, path: ProjectPath | str | Path, requester: Path | None = None
+    ) -> tuple[DataclassFact, ...]:
+        """Return dataclass facts while recording the source dependency."""
+        ...
+
+    def directory_entries(
+        self, *, path: ProjectPath | str | Path, requester: Path | None = None
+    ) -> tuple[Path, ...]:
+        """Return direct directory entries with requester tracking."""
+        ...
+
+    def module_function(
+        self,
+        *,
+        module_name: str,
+        function_name: str,
+        requester: Path | None = None,
+    ) -> ProjectFunctionFact | None:
+        """Return a project function contract with requester tracking."""
+        ...
+
+    def entrypoint_modules(self, *, requester: Path | None = None) -> tuple[str, ...]:
+        """Return configured entrypoint modules with requester tracking."""
+        ...
+
+    def python_anchor(
+        self, *, path: ProjectPath | str | Path, requester: Path | None = None
+    ) -> Path | None:
+        """Return the Python ownership anchor with requester tracking."""
+        ...
+
+    def exists(self, *, path: ProjectPath | str | Path, requester: Path | None = None) -> bool:
+        """Return whether a path exists with requester tracking."""
+        ...
+
+    def is_dir(self, *, path: ProjectPath | str | Path, requester: Path | None = None) -> bool:
+        """Return whether a path is a directory with requester tracking."""
+        ...
+
+    def is_file(self, *, path: ProjectPath | str | Path, requester: Path | None = None) -> bool:
+        """Return whether a path is a file with requester tracking."""
+        ...
+
+    def glob(
+        self,
+        *,
+        path: ProjectPath | str | Path,
+        pattern: str,
+        recursive: bool = False,
+        requester: Path | None = None,
+    ) -> tuple[Path, ...]:
+        """Return filesystem glob matches with requester tracking."""
+        ...
+
+    def dependencies(self) -> tuple[ProjectDependency, ...]:
+        """Return dependencies observed by the shared project analysis."""
+        ...
+
+    def dependencies_for(self, *, requester: Path | None = None) -> tuple[ProjectDependency, ...]:
+        """Return dependencies for the active or supplied requester."""
+        ...
+
+
 class RuleContext(Protocol):
     """Convenience AST/position toolbox passed to a rule check; may be ignored."""
 
@@ -121,8 +216,13 @@ class RuleContext(Protocol):
         ...
 
     @property
-    def project(self) -> ProjectAnalysis:
-        """Return dependency-recording cross-file and filesystem queries."""
+    def project(self) -> RuleProjectFacts:
+        """Return tree facts and requester-bound cross-file queries."""
+        ...
+
+    @property
+    def graph(self) -> ArchitectureGraph:
+        """Return the evaluation-scoped analyzer-neutral architecture graph."""
         ...
 
     @property
@@ -195,7 +295,7 @@ class RuleContext(Protocol):
     def path_fault(
         self,
         *,
-        path: Path | None = None,
+        path: ProjectPath | str | Path | None = None,
         message: str | None = None,
         remediation: str | None = None,
     ) -> Fault:
@@ -242,7 +342,7 @@ class RuleContext(Protocol):
         ...
 
     def role_of(self, path: Path | None = None) -> str | None:
-        """The role name of the given path (or the current file)."""
+        """The current file's role; the path parameter remains for legacy compatibility."""
         ...
 
     def in_role(self, role: str) -> bool:
@@ -305,7 +405,7 @@ class RuleContext(Protocol):
         """Whether a node is lexically inside a loop."""
         ...
 
-    def threshold(self, *, name: Threshold, path: Path | None = None) -> int:
+    def threshold(self, *, name: Threshold, path: ProjectPath | str | Path | None = None) -> int:
         """The applicable value for a named threshold on the reported path."""
         ...
 
@@ -318,9 +418,4 @@ class RuleContext(Protocol):
         ...
 
 
-class RuleCheck(Protocol):
-    """A rule implementation invoked with explicit module and context names."""
-
-    def __call__(self, *, module: ast.Module, ctx: RuleContext) -> list[Fault]:
-        """Return faults found in one parsed module."""
-        ...
+type RuleCheck = Callable[..., list[Fault]]

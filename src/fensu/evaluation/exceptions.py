@@ -9,6 +9,10 @@ class ModuleUnavailableError(Exception):
     """Raised when a rule declared module-free reads the raw module parameter."""
 
 
+class ProjectContextUnavailableError(RuntimeError):
+    """Raised when a project rule requests facts that require a current file."""
+
+
 class NativeCoreCallbackError(RuntimeError):
     """Raised when native evaluation omits a selected core rule result."""
 

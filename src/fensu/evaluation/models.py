@@ -117,12 +117,25 @@ class FileEvaluation:
 
 
 @dataclass(frozen=True, slots=True)
+class ProjectEvaluation:
+    """Source-independent project rule output and observed inputs."""
+
+    faults: tuple[Fault, ...]
+    warnings: tuple[Fault, ...]
+    applied_exception_keys: tuple[RuleExceptionKey, ...]
+    dependencies: tuple[ProjectDependency, ...]
+    threshold_override_uses: tuple[ThresholdOverrideUse, ...] = ()
+    subject_identity: str = "."
+
+
+@dataclass(frozen=True, slots=True)
 class PartitionEvaluation:
     """Raw per-file evaluations for one target partition before collection."""
 
     file_evaluations: tuple[FileEvaluation, ...]
     dependencies: tuple[ProjectDependency, ...]
     selection: EvaluationSelection
+    project_evaluation: ProjectEvaluation | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -136,3 +149,4 @@ class EvaluationResult:
     file_evaluations: tuple[FileEvaluation, ...] = ()
     threshold_override_uses: tuple[ThresholdOverrideUse, ...] = ()
     selection: EvaluationSelection | None = None
+    project_evaluation: ProjectEvaluation | None = None

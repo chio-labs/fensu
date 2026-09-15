@@ -33,6 +33,8 @@ from fensu.instrumentation.constants import (
     PROJECT_QUERY_OBSERVATION_OPERATION,
     PROJECT_QUERY_SOURCE_OPERATION,
 )
+from fensu.rules.authoring.graph import ArchitectureGraph
+from fensu.rules.authoring.subjects import ProjectPath, ProjectTree, build_project_tree
 
 _test_types_file_name: str = "_test_types.py"
 _pyproject_file_name: str = "pyproject.toml"
@@ -47,6 +49,7 @@ class _EvaluationProjectAnalysis:
         self._repo_root: Path = (
             tree.repo_root.path if tree.project_root is None else tree.project_root.path
         )
+        self.project_tree: ProjectTree = build_project_tree(tree=tree)
         self._observer: QueryObserver = QueryObserver()
         self._sources: tuple[ProjectSource, ...] = (
             *tree.layout.runtime_sources,
@@ -86,6 +89,42 @@ class _EvaluationProjectAnalysis:
         self._python_anchors: dict[str, Path | None] = {}
         self._entrypoint_modules: tuple[str, ...] | None = None
         self._entrypoint_fingerprint: str | None = None
+        self._tree = tree
+        self._architecture_graph: ArchitectureGraph | None = None
+
+    def observed_project_tree(self, *, requester: Path) -> ProjectTree:
+        """Return tree facts whose runtime accesses are recorded for this requester."""
+
+        def observe(
+            kind: str,
+            query: ProjectPath,
+            answer: str | tuple[ProjectPath, ...],
+            pattern: str | None,
+        ) -> None:
+            converted: str | tuple[Path, ...] = (
+                answer
+                if isinstance(answer, str)
+                else tuple(self._repo_root.joinpath(*item.parts) for item in answer)
+            )
+            dependency = ProjectDependency(
+                requester=requester,
+                query_path=(
+                    self._repo_root
+                    if query.value == "."
+                    else self._repo_root.joinpath(*query.parts)
+                ),
+                dependency=self._repo_root,
+                kind=kind,
+                answer=converted,
+                pattern=pattern,
+            )
+            if dependency not in self._dependency_set:
+                self._dependency_set.add(dependency)
+                self._dependencies.append(dependency)
+                self._dependencies_by_requester.setdefault(str(requester), []).append(dependency)
+                OPERATION_COUNTERS.record(operation=DEPENDENCY_RECORD_OPERATION)
+
+        return self.project_tree.observed(observe)
 
     def parsed_module(self, scoped_file: ScopedFile) -> ParsedModule:
         """Return one strict discovered-file parse, reusing project queries."""
@@ -179,6 +218,45 @@ class _EvaluationProjectAnalysis:
 
         resolved_requester: Path = self._resolve(requester)
         return tuple(self._dependencies_by_requester.get(str(resolved_requester), ()))
+
+    def architecture_graph(self, *, requester: Path) -> ArchitectureGraph:
+        """Return the one lazily built graph with observations bound to the requester."""
+
+        if self._architecture_graph is None:
+            from fensu.evaluation._helpers.architecture_graph import build_architecture_graph
+
+            self._architecture_graph = build_architecture_graph(tree=self._tree, analysis=self)
+
+        def observe(kind: str, query: ProjectPath, answer: str) -> None:
+            query_path = (
+                self._repo_root if query.value == "." else self._repo_root.joinpath(*query.parts)
+            )
+            dependency = ProjectDependency(
+                requester=self._resolve(requester),
+                query_path=query_path,
+                dependency=self._repo_root,
+                kind=kind,
+                answer=answer,
+            )
+            if dependency not in self._dependency_set:
+                self._dependency_set.add(dependency)
+                self._dependencies.append(dependency)
+                self._dependencies_by_requester.setdefault(str(dependency.requester), []).append(
+                    dependency
+                )
+                OPERATION_COUNTERS.record(operation=DEPENDENCY_RECORD_OPERATION)
+
+        return self._architecture_graph.observed(observe)
+
+    def graph_snapshot(self) -> dict[str, object]:
+        """Return a deterministic repository-relative snapshot from the authoritative graph."""
+
+        if self._architecture_graph is None:
+            from fensu.evaluation._helpers.architecture_graph import build_architecture_graph
+
+            self._architecture_graph = build_architecture_graph(tree=self._tree, analysis=self)
+        prefix = self._repo_root.relative_to(self._tree.repo_root.path).as_posix()
+        return self._architecture_graph.snapshot(repository_prefix=prefix)
 
     def dataclasses(self, *, requester: Path, path: Path) -> tuple[DataclassFact, ...]:
         """Return top-level dataclass facts for a project path."""

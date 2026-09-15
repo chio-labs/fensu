@@ -17,6 +17,7 @@ from fensu.evaluation.models import (
     EvaluationResult,
     EvaluationSelection,
     FileEvaluation,
+    ProjectEvaluation,
     RuleExceptionKey,
     ThresholdOverrideUse,
 )
@@ -47,7 +48,9 @@ def collect_evaluation_result(
     repo_root: Path,
     project_root: Path | None = None,
     evaluated_rule_codes: frozenset[str] | None = None,
+    project_rule_codes: frozenset[str] = frozenset(),
     selection: EvaluationSelection | None = None,
+    project_evaluation: ProjectEvaluation | None = None,
 ) -> EvaluationResult:
     """Combine cached or fresh file outputs through the existing global contracts."""
 
@@ -60,6 +63,11 @@ def collect_evaluation_result(
         warnings.extend(file_evaluation.warnings)
         applied_exceptions.update(file_evaluation.applied_exception_keys)
         threshold_override_uses.update(file_evaluation.threshold_override_uses)
+    if project_evaluation is not None:
+        faults.extend(project_evaluation.faults)
+        warnings.extend(project_evaluation.warnings)
+        applied_exceptions.update(project_evaluation.applied_exception_keys)
+        threshold_override_uses.update(project_evaluation.threshold_override_uses)
     policy_root: Path = repo_root if project_root is None else project_root
     configured_exceptions: frozenset[RuleExceptionKey] = configured_exception_keys(config)
     if evaluated_rule_codes is not None:
@@ -72,7 +80,9 @@ def collect_evaluation_result(
             for scoped_file in selection.files
         )
         configured_exceptions = frozenset(
-            key for key in configured_exceptions if key.path in target_paths
+            key
+            for key in configured_exceptions
+            if key.rule in project_rule_codes or key.path in target_paths
         )
     stale_error: ConfigError | None = stale_exception_error(
         configured=configured_exceptions,
@@ -90,6 +100,7 @@ def collect_evaluation_result(
         file_evaluations=file_evaluations,
         threshold_override_uses=tuple(sorted(threshold_override_uses, key=_override_use_key)),
         selection=selection,
+        project_evaluation=project_evaluation,
     )
 
 

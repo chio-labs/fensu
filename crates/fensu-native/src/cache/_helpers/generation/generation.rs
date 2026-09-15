@@ -26,7 +26,7 @@ const RESULT_MODE: &str = "results";
 const COLD_MODE: &str = "cold";
 
 struct ResultPlanInputs<'a> {
-    targets: &'a [(String, Option<String>)],
+    targets: &'a [(String, String, Option<String>)],
     index_entries: &'a [NativeIndexEntry],
     source_equal: Vec<NativeIndexEntry>,
     records: Vec<Option<crate::cache::models::DecodedRecord>>,
@@ -39,13 +39,14 @@ struct ResultPlanInputs<'a> {
 pub(crate) struct GenerationRequest<'a> {
     pub repo_root: &'a Path,
     pub global_fingerprint: &'a str,
-    pub targets: &'a [(String, Option<String>)],
+    pub targets: &'a [(String, String, Option<String>)],
+    pub tree_snapshot: Option<&'a CanonicalValue>,
     pub allow_edit: bool,
     pub maximum_decoded_bytes: usize,
 }
 
 struct EditPlanInputs<'a> {
-    targets: &'a [(String, Option<String>)],
+    targets: &'a [(String, String, Option<String>)],
     index_entries: &'a [NativeIndexEntry],
     source_equal: &'a [NativeIndexEntry],
     collection: Vec<CanonicalValue>,
@@ -59,6 +60,7 @@ pub(crate) fn plan_generation(
         repo_root,
         global_fingerprint,
         targets,
+        tree_snapshot,
         allow_edit,
         maximum_decoded_bytes,
     } = request;
@@ -89,28 +91,33 @@ pub(crate) fn plan_generation(
         .as_deref()
         .and_then(observation_map)
         .unwrap_or_default();
-    let current = observe_dependencies(repo_root, &observations_by_key);
+    let current = observe_dependencies(repo_root, &observations_by_key, tree_snapshot);
     let collection = matching_collection(collection_record.as_ref(), collection_fingerprint);
     let entries_by_path = index_entries
         .iter()
-        .map(|entry| (entry.path.as_str(), entry))
+        .map(|entry| {
+            (
+                subject_key(&entry.subject_kind, &entry.subject_identity),
+                entry,
+            )
+        })
         .collect::<HashMap<_, _>>();
     let target_paths = targets
         .iter()
-        .map(|(path, _)| path.as_str())
+        .map(|(kind, identity, _)| subject_key(kind, identity))
         .collect::<HashSet<_>>();
     let source_equal = targets
         .iter()
-        .filter_map(|(path, fingerprint)| {
-            let entry = entries_by_path.get(path.as_str())?;
+        .filter_map(|(kind, identity, fingerprint)| {
+            let entry = entries_by_path.get(&subject_key(kind, identity))?;
             (fingerprint.as_deref() == Some(entry.source_fingerprint.as_str()))
                 .then_some((*entry).clone())
         })
         .collect::<Vec<_>>();
     let changed = targets.len() != source_equal.len()
-        || index_entries
-            .iter()
-            .any(|entry| !target_paths.contains(entry.path.as_str()));
+        || index_entries.iter().any(|entry| {
+            !target_paths.contains(&subject_key(&entry.subject_kind, &entry.subject_identity))
+        });
     if allow_edit
         && changed
         && observations.is_some()
@@ -162,12 +169,17 @@ fn result_plan(inputs: ResultPlanInputs<'_>) -> NativeGenerationPlan {
     let target_fingerprints = inputs
         .targets
         .iter()
-        .map(|(path, fingerprint)| (path.as_str(), fingerprint.as_deref()))
+        .map(|(kind, identity, fingerprint)| (subject_key(kind, identity), fingerprint.as_deref()))
         .collect::<HashMap<_, _>>();
     let existing = inputs
         .index_entries
         .iter()
-        .map(|entry| (entry.path.as_str(), entry))
+        .map(|entry| {
+            (
+                subject_key(&entry.subject_kind, &entry.subject_identity),
+                entry,
+            )
+        })
         .collect::<HashMap<_, _>>();
     let mut valid_entries: Vec<NativeIndexEntry> = Vec::new();
     let mut cached_results: Vec<CanonicalValue> = Vec::new();
@@ -175,7 +187,7 @@ fn result_plan(inputs: ResultPlanInputs<'_>) -> NativeGenerationPlan {
     let mut corrupt_paths: HashSet<String> = HashSet::new();
     for (entry, record) in inputs.source_equal.into_iter().zip(inputs.records) {
         let Some(record) = record else {
-            corrupt_paths.insert(entry.path.clone());
+            corrupt_paths.insert(subject_key(&entry.subject_kind, &entry.subject_identity));
             continue;
         };
         let Some(keys) = decode_file_result_dependencies(
@@ -184,20 +196,26 @@ fn result_plan(inputs: ResultPlanInputs<'_>) -> NativeGenerationPlan {
             inputs.global_fingerprint,
             inputs.observations,
         ) else {
-            corrupt_paths.insert(entry.path.clone());
+            corrupt_paths.insert(subject_key(&entry.subject_kind, &entry.subject_identity));
             continue;
         };
         if keys
             .iter()
             .any(|key| inputs.current.get(key).copied() != Some(true))
         {
-            invalid_dependency_paths.insert(entry.path.clone());
+            invalid_dependency_paths
+                .insert(subject_key(&entry.subject_kind, &entry.subject_identity));
             continue;
         }
+        let requester = if entry.subject_kind == "project" {
+            ".fensu-project-rule"
+        } else {
+            entry.subject_identity.as_str()
+        };
         let Some(payload) =
-            resolved_file_payload(&record.payload, &entry.path, &keys, inputs.observations)
+            resolved_file_payload(&record.payload, requester, &keys, inputs.observations)
         else {
-            corrupt_paths.insert(entry.path.clone());
+            corrupt_paths.insert(subject_key(&entry.subject_kind, &entry.subject_identity));
             continue;
         };
         valid_entries.push(entry);
@@ -205,31 +223,45 @@ fn result_plan(inputs: ResultPlanInputs<'_>) -> NativeGenerationPlan {
     }
     let valid_paths = valid_entries
         .iter()
-        .map(|entry| entry.path.as_str())
+        .map(|entry| subject_key(&entry.subject_kind, &entry.subject_identity))
         .collect::<HashSet<_>>();
     let hits = valid_paths.len();
     let miss_paths = inputs
         .targets
         .iter()
-        .filter_map(|(path, _)| (!valid_paths.contains(path.as_str())).then_some(path.clone()))
+        .filter_map(|(kind, identity, _)| {
+            (!valid_paths.contains(&subject_key(kind, identity))).then_some(identity.clone())
+        })
         .collect::<Vec<_>>();
     let misses = miss_paths
         .iter()
-        .filter(|path| !existing.contains_key(path.as_str()) || corrupt_paths.contains(*path))
+        .filter(|path| {
+            !existing
+                .values()
+                .any(|entry| entry.subject_identity == **path)
+                || corrupt_paths
+                    .iter()
+                    .any(|key| key.ends_with(&format!("\0{path}")))
+        })
         .count();
     let source_invalidations = inputs
         .targets
         .iter()
-        .filter(|(path, fingerprint)| {
-            existing.get(path.as_str()).is_some_and(|entry| {
-                fingerprint.as_deref() != Some(entry.source_fingerprint.as_str())
-            })
+        .filter(|(kind, identity, fingerprint)| {
+            existing
+                .get(&subject_key(kind, identity))
+                .is_some_and(|entry| {
+                    fingerprint.as_deref() != Some(entry.source_fingerprint.as_str())
+                })
         })
         .count();
     let deleted = inputs
         .index_entries
         .iter()
-        .filter(|entry| !target_fingerprints.contains_key(entry.path.as_str()))
+        .filter(|entry| {
+            !target_fingerprints
+                .contains_key(&subject_key(&entry.subject_kind, &entry.subject_identity))
+        })
         .count();
     NativeGenerationPlan {
         mode: RESULT_MODE.to_owned(),
@@ -254,15 +286,15 @@ fn edit_plan(inputs: EditPlanInputs<'_>) -> NativeGenerationPlan {
     } = inputs;
     let retained_paths = source_equal
         .iter()
-        .map(|entry| entry.path.as_str())
+        .map(|entry| subject_key(&entry.subject_kind, &entry.subject_identity))
         .collect::<HashSet<_>>();
     let existing_paths = index_entries
         .iter()
-        .map(|entry| entry.path.as_str())
+        .map(|entry| subject_key(&entry.subject_kind, &entry.subject_identity))
         .collect::<HashSet<_>>();
     let target_paths = targets
         .iter()
-        .map(|(path, _)| path.as_str())
+        .map(|(kind, identity, _)| subject_key(kind, identity))
         .collect::<HashSet<_>>();
     let contributions: Vec<CanonicalValue> = collection
         .into_iter()
@@ -270,16 +302,26 @@ fn edit_plan(inputs: EditPlanInputs<'_>) -> NativeGenerationPlan {
             value
                 .field("path")
                 .and_then(CanonicalValue::as_str)
-                .is_some_and(|path| retained_paths.contains(path))
+                .is_some_and(|identity| {
+                    retained_paths
+                        .iter()
+                        .any(|key| key.ends_with(&format!("\0{identity}")))
+                })
         })
         .collect();
     let miss_paths = targets
         .iter()
-        .filter_map(|(path, _)| (!retained_paths.contains(path.as_str())).then_some(path.clone()))
+        .filter_map(|(kind, identity, _)| {
+            (!retained_paths.contains(&subject_key(kind, identity))).then_some(identity.clone())
+        })
         .collect::<Vec<_>>();
     let misses = miss_paths
         .iter()
-        .filter(|path| !existing_paths.contains(path.as_str()))
+        .filter(|path| {
+            !existing_paths
+                .iter()
+                .any(|key| key.ends_with(&format!("\0{path}")))
+        })
         .count();
     let changed_invalidations = miss_paths.len() - misses;
     NativeGenerationPlan {
@@ -294,23 +336,33 @@ fn edit_plan(inputs: EditPlanInputs<'_>) -> NativeGenerationPlan {
         invalidations: changed_invalidations
             + index_entries
                 .iter()
-                .filter(|entry| !target_paths.contains(entry.path.as_str()))
+                .filter(|entry| {
+                    !target_paths
+                        .contains(&subject_key(&entry.subject_kind, &entry.subject_identity))
+                })
                 .count(),
     }
 }
 
-fn cold_plan(targets: &[(String, Option<String>)]) -> NativeGenerationPlan {
+fn cold_plan(targets: &[(String, String, Option<String>)]) -> NativeGenerationPlan {
     NativeGenerationPlan {
         mode: COLD_MODE.to_owned(),
         index_fingerprint: None,
         entries: Vec::new(),
         cached_results: Vec::new(),
         contributions: Vec::new(),
-        miss_paths: targets.iter().map(|(path, _)| path.clone()).collect(),
+        miss_paths: targets
+            .iter()
+            .map(|(_, identity, _)| identity.clone())
+            .collect(),
         hits: 0,
         misses: targets.len(),
         invalidations: 0,
     }
+}
+
+fn subject_key(kind: &str, identity: &str) -> String {
+    format!("{kind}\0{identity}")
 }
 
 fn matching_observations(

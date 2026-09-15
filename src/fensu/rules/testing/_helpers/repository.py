@@ -10,6 +10,7 @@ from fensu.config.main.build_config_for_rules import build_config_for_rules
 from fensu.config.models import Config
 from fensu.discovery.types import ScopeName
 from fensu.rules.authoring.models import RuleSpec
+from fensu.rules.authoring.types import RuleSubjectKind
 from fensu.rules.testing._helpers.validation import resolved_scope_root, scope_name
 from fensu.rules.testing.constants import (
     FALLBACK_RUNTIME_ROOT,
@@ -31,11 +32,16 @@ def build_harness_config(
     """Merge meaningful case config into deterministic harness-owned roots and selection."""
 
     runtime_roots, test_roots, tooling_roots = _scope_roots(test_case=test_case)
+    evaluation: dict[str, object] = (
+        {"include": [test_case.path]}
+        if rule.subject_kind is RuleSubjectKind.LEGACY
+        else {}
+    )
     raw: dict[str, object] = {
         "roots": list(runtime_roots),
         "tests": list(test_roots),
         "tooling": list(tooling_roots),
-        "evaluation": {"include": [test_case.path]},
+        "evaluation": evaluation,
     }
     if test_case.config is not None:
         raw.update(_plain_mapping(value=test_case.config))

@@ -77,6 +77,7 @@ def evaluate_file(
                     project=project,
                     file_cache=file_cache,
                     threshold_override_uses=threshold_override_uses,
+                    tree=tree,
                 )
             if exception_scope is not None:
                 if parsed_module is None:

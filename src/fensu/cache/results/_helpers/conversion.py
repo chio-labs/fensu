@@ -7,19 +7,30 @@ from fensu.analysis.models import ProjectDependency
 from fensu.analysis.types import ProjectDependencyKind
 from fensu.cache.fingerprints.models import CacheFingerprint
 from fensu.cache.results._helpers.paths import relative_repository_path
-from fensu.evaluation.models import FileEvaluation, RuleExceptionKey, ThresholdOverrideUse
+from fensu.evaluation.models import (
+    FileEvaluation,
+    ProjectEvaluation,
+    RuleExceptionKey,
+    ThresholdOverrideUse,
+)
 from fensu.rules.authoring.models import Fault
 from fensu.rules.authoring.types import Threshold
 
 
 def native_evaluation_payload(
-    *, evaluation: FileEvaluation, repo_root: Path
+    *, evaluation: FileEvaluation | ProjectEvaluation, repo_root: Path
 ) -> dict[str, object] | None:
     """Return one unvalidated native-publication boundary value or None when unowned."""
 
-    path: str | None = relative_repository_path(path=evaluation.path, repo_root=repo_root)
+    is_project = isinstance(evaluation, ProjectEvaluation)
+    path: str | None = (
+        evaluation.subject_identity
+        if is_project
+        else relative_repository_path(path=evaluation.path, repo_root=repo_root)
+    )
     if path is None:
         return None
+    requester_identity = ".fensu-project-rule" if is_project else path
     dependencies: list[dict[str, object]] = []
     for dependency in evaluation.dependencies:
         requester: str | None = relative_repository_path(
@@ -49,17 +60,19 @@ def native_evaluation_payload(
                     return None
                 converted_paths.append(converted)
             answer = converted_paths
-        if requester != path or query_path is None or dependency_path is None:
+        if requester != requester_identity or query_path is None or dependency_path is None:
             return None
         try:
-            kind: ProjectDependencyKind = ProjectDependencyKind(dependency.kind)
+            kind_value = ProjectDependencyKind(dependency.kind).value
         except ValueError:
-            return None
+            if not str(dependency.kind).startswith(("tree_", "graph_")):
+                return None
+            kind_value = str(dependency.kind)
         dependencies.append(
             {
                 "answer": answer,
                 "dependency_path": dependency_path,
-                "kind": kind.value,
+                "kind": kind_value,
                 "pattern": dependency.pattern,
                 "query_path": query_path,
                 "recursive": dependency.recursive,
@@ -76,7 +89,9 @@ def native_evaluation_payload(
             _native_fault_value(fault=fault, repo_root=repo_root) for fault in evaluation.faults
         ],
         "path": path,
-        "source_fingerprint": evaluation.source_fingerprint,
+        "source_fingerprint": ("0" * 64 if is_project else evaluation.source_fingerprint),
+        "subject_identity": path,
+        "subject_kind": "project" if is_project else "file",
         "threshold_override_uses": [
             {
                 "effective_value": use.effective_value,
@@ -95,22 +110,22 @@ def native_evaluation_payload(
     }
 
 
-def restore_native_evaluation(*, payload: dict[str, object], repo_root: Path) -> FileEvaluation:
-    """Restore one Rust-validated file-result payload into public runtime models."""
+def restore_native_evaluation(
+    *, payload: dict[str, object], repo_root: Path
+) -> FileEvaluation | ProjectEvaluation:
+    """Restore one Rust-validated subject-result payload into runtime models."""
 
     path: str = cast(str, payload["path"])
-    return FileEvaluation(
-        path=repo_root / path,
-        source_fingerprint=cast(str, payload["source_fingerprint"]),
-        faults=tuple(
+    common = {
+        "faults": tuple(
             _native_fault(value=value, repo_root=repo_root)
             for value in cast(list[dict[str, object]], payload["faults"])
         ),
-        warnings=tuple(
+        "warnings": tuple(
             _native_fault(value=value, repo_root=repo_root)
             for value in cast(list[dict[str, object]], payload["warnings"])
         ),
-        applied_exception_keys=tuple(
+        "applied_exception_keys": tuple(
             RuleExceptionKey(
                 rule=cast(str, value["rule"]),
                 path=cast(str, value["path"]),
@@ -118,18 +133,39 @@ def restore_native_evaluation(*, payload: dict[str, object], repo_root: Path) ->
             )
             for value in cast(list[dict[str, object]], payload["applied_exception_keys"])
         ),
-        dependencies=tuple(
+        "dependencies": tuple(
             ProjectDependency(
                 requester=repo_root / cast(str, value["requester_path"]),
                 query_path=repo_root / cast(str, value["query_path"]),
                 dependency=repo_root / cast(str, value["dependency_path"]),
-                kind=ProjectDependencyKind(cast(str, value["kind"])),
+                kind=cast(str, value["kind"]),
                 answer=_native_dependency_answer(value=value["answer"], repo_root=repo_root),
                 pattern=cast(str | None, value["pattern"]),
                 recursive=cast(bool, value["recursive"]),
             )
             for value in cast(list[dict[str, object]], payload["dependencies"])
         ),
+    }
+    if payload.get("subject_kind") == "project":
+        return ProjectEvaluation(
+            **common,
+            subject_identity=cast(str, payload["subject_identity"]),
+            threshold_override_uses=tuple(
+                ThresholdOverrideUse(
+                    threshold=Threshold(cast(str, value["threshold"])),
+                    effective_value=cast(int, value["effective_value"]),
+                    matched_pattern=cast(str, value["matched_pattern"]),
+                    reason=cast(str, value["reason"]),
+                    override_order=cast(int, value["override_order"]),
+                    repository_path=cast(str, value["repository_path"]),
+                )
+                for value in cast(list[dict[str, object]], payload["threshold_override_uses"])
+            ),
+        )
+    return FileEvaluation(
+        path=repo_root / path,
+        source_fingerprint=cast(str, payload["source_fingerprint"]),
+        **common,
         threshold_override_uses=tuple(
             ThresholdOverrideUse(
                 threshold=Threshold(cast(str, value["threshold"])),
@@ -156,8 +192,13 @@ def restore_native_contribution(
         **payload,
         "dependencies": [],
         "source_fingerprint": source_fingerprint.value,
+        "subject_identity": payload["path"],
+        "subject_kind": "file",
     }
-    return restore_native_evaluation(payload=value, repo_root=repo_root)
+    restored = restore_native_evaluation(payload=value, repo_root=repo_root)
+    if not isinstance(restored, FileEvaluation):
+        raise ValueError("native contribution must belong to a file subject")
+    return restored
 
 
 def _native_fault_value(*, fault: Fault, repo_root: Path) -> dict[str, object]:

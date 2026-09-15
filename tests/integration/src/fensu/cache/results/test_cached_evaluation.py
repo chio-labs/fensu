@@ -585,6 +585,49 @@ def test_given_independent_edit_when_replaying_then_skips_unchanged_record_reads
     )
 
 
+def test_given_two_consecutive_edit_replays_when_retaining_findings_then_none_are_lost(
+    tmp_path: Path,
+) -> None:
+    write_project_sources(
+        repo_root=tmp_path,
+        files=(
+            ("src/pkg/alpha.py", "ALPHA = 1\n"),
+            ("src/pkg/bravo.py", "BRAVO = 1\n"),
+            ("src/pkg/context.py", "CONTEXT = 1\n"),
+        ),
+    )
+    config, tree = discover_project(repo_root=tmp_path)
+    ruleset = (source_fault_rule(),)
+    cold = evaluate_with_cache(
+        tree=tree,
+        ruleset=ruleset,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+    write_project_sources(repo_root=tmp_path, files=(("src/pkg/alpha.py", "ALPHA = 2\n"),))
+    first_edit = evaluate_with_cache(
+        tree=discover_project(repo_root=tmp_path)[1],
+        ruleset=ruleset,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+    write_project_sources(repo_root=tmp_path, files=(("src/pkg/bravo.py", "BRAVO = 2\n"),))
+    second_edit = evaluate_with_cache(
+        tree=discover_project(repo_root=tmp_path)[1],
+        ruleset=ruleset,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+
+    assert len(evaluated_result(cold).faults) == 3
+    assert len(evaluated_result(first_edit).faults) == 3
+    assert tuple(fault.path.name for fault in evaluated_result(second_edit).faults) == (
+        "alpha.py",
+        "bravo.py",
+        "context.py",
+    )
+
+
 @pytest.mark.parametrize(
     "test_case",
     [

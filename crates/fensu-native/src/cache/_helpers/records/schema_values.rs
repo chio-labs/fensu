@@ -30,7 +30,7 @@ pub(crate) fn valid_relative_path(value: &str, allow_root: bool) -> bool {
 
 pub(crate) fn valid_dependency_shape(observation: &NativeDependencyObservation) -> bool {
     let key = &observation.key;
-    if key.kind == DEPENDENCY_GLOB_KIND {
+    if key.kind == DEPENDENCY_GLOB_KIND || key.kind == "tree_glob" {
         if key.pattern.as_ref().is_none_or(String::is_empty) {
             return false;
         }
@@ -51,6 +51,16 @@ pub(crate) fn valid_dependency_shape(observation: &NativeDependencyObservation) 
                 })
             })
         }
+        "tree_paths" | "tree_files" | "tree_children" | "tree_descendants" | "tree_glob"
+        | "tree_files_under" => observation.answer.as_list().is_some_and(|items| {
+            items.iter().all(|item| {
+                item.as_str()
+                    .is_some_and(|path| valid_relative_path(path, false))
+            })
+        }),
+        "tree_position" => observation.answer.as_str().is_some(),
+        "graph_node" | "graph_nodes" | "graph_dependencies" | "graph_dependents"
+        | "graph_imports" | "graph_cycles" => observation.answer.as_str().is_some(),
         _ => false,
     }
 }
@@ -85,12 +95,24 @@ pub(crate) fn valid_contribution(value: &CanonicalValue) -> Option<&str> {
 }
 
 pub(crate) fn decode_faults(value: &CanonicalValue, owner: &str) -> Option<()> {
+    decode_subject_faults(value, owner, true)
+}
+
+pub(crate) fn decode_subject_faults(
+    value: &CanonicalValue,
+    owner: &str,
+    strict_owner: bool,
+) -> Option<()> {
     for fault in value.as_list()? {
         if !exact_fields(
             fault,
             &["code", "column", "line", "message", "path", "remediation"],
         ) || !valid_rule_code(fault.field("code")?.as_str()?)
-            || fault.field("path")?.as_str()? != owner
+            || if strict_owner {
+                fault.field("path")?.as_str()? != owner
+            } else {
+                !valid_relative_path(fault.field("path")?.as_str()?, false)
+            }
             || fault.field("message")?.as_str().is_none()
             || !optional_position(fault.field("line")?, 1)
             || !optional_position(fault.field("column")?, 0)
@@ -104,10 +126,22 @@ pub(crate) fn decode_faults(value: &CanonicalValue, owner: &str) -> Option<()> {
 }
 
 pub(crate) fn decode_exceptions(value: &CanonicalValue, owner: &str) -> Option<()> {
+    decode_subject_exceptions(value, owner, true)
+}
+
+pub(crate) fn decode_subject_exceptions(
+    value: &CanonicalValue,
+    owner: &str,
+    strict_owner: bool,
+) -> Option<()> {
     let mut previous: Option<(String, String, String)> = None;
     for key in value.as_list()? {
         if !exact_fields(key, &["path", "rule", "symbol"])
-            || key.field("path")?.as_str()? != owner
+            || if strict_owner {
+                key.field("path")?.as_str()? != owner
+            } else {
+                !valid_relative_path(key.field("path")?.as_str()?, false)
+            }
             || !valid_rule_code(key.field("rule")?.as_str()?)
         {
             return None;
@@ -118,7 +152,7 @@ pub(crate) fn decode_exceptions(value: &CanonicalValue, owner: &str) -> Option<(
         }
         let identity = (
             key.field("rule")?.as_str()?.to_owned(),
-            owner.to_owned(),
+            key.field("path")?.as_str()?.to_owned(),
             symbol.unwrap_or_default(),
         );
         if previous.as_ref().is_some_and(|prior| prior >= &identity) {

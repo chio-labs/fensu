@@ -16,7 +16,7 @@ from fensu.cache.results.models import (
     CacheStats,
     NativeGenerationPlan,
 )
-from fensu.evaluation.models import FileEvaluation
+from fensu.evaluation.models import FileEvaluation, ProjectEvaluation
 
 
 class ResultCache:
@@ -36,6 +36,8 @@ class ResultCache:
         global_fingerprint: CacheFingerprint,
         targets: tuple[str, ...],
         source_fingerprints: dict[str, CacheFingerprint | None],
+        project_subject: bool = False,
+        tree_snapshot: dict[str, object] | None = None,
     ) -> CachedCheckOutput | None:
         """Return a fully native-validated rendered generation when current."""
 
@@ -47,7 +49,15 @@ class ResultCache:
             row, metrics = native.cache_replay_generation(
                 self._storage_root,
                 global_fingerprint.value,
-                [(path, _fingerprint_value(source_fingerprints.get(path))) for path in targets],
+                [
+                    (
+                        "project" if project_subject and path == "." else "file",
+                        path,
+                        _fingerprint_value(source_fingerprints.get(path)),
+                    )
+                    for path in targets
+                ],
+                tree_snapshot,
                 CACHE_RECORD_MAX_DECODED_BYTES,
             )
         except (AttributeError, ImportError, OSError, RuntimeError, TypeError, ValueError):
@@ -65,6 +75,39 @@ class ResultCache:
             exit_code=row[3],
         )
 
+    def native_dependency_kinds(
+        self,
+        *,
+        global_fingerprint: CacheFingerprint,
+        targets: tuple[str, ...],
+        source_fingerprints: dict[str, CacheFingerprint | None],
+        project_subject: bool = False,
+    ) -> frozenset[str] | None:
+        """Inspect matching-generation dependencies before requesting expensive snapshots."""
+
+        from fensu.cache.storage.classes.cache_store import _record_metrics
+        from fensu.cache.storage.constants import CACHE_RECORD_MAX_DECODED_BYTES
+
+        try:
+            native: ModuleType = import_module("fensu._native")
+            kinds, metrics = native.cache_generation_dependency_kinds(
+                self._storage_root,
+                global_fingerprint.value,
+                [
+                    (
+                        "project" if project_subject and path == "." else "file",
+                        path,
+                        _fingerprint_value(source_fingerprints.get(path)),
+                    )
+                    for path in targets
+                ],
+                CACHE_RECORD_MAX_DECODED_BYTES,
+            )
+        except (AttributeError, ImportError, OSError, RuntimeError, TypeError, ValueError):
+            return None
+        _record_metrics(metrics)
+        return None if kinds is None else frozenset(kinds)
+
     def plan_native_generation(
         self,
         *,
@@ -72,6 +115,8 @@ class ResultCache:
         targets: tuple[str, ...],
         source_fingerprints: dict[str, CacheFingerprint | None],
         allow_edit: bool = True,
+        project_subject: bool = False,
+        tree_snapshot: dict[str, object] | None = None,
     ) -> NativeGenerationPlan | None:
         """Return Rust-validated replay inputs and complete per-target miss decisions."""
 
@@ -83,7 +128,15 @@ class ResultCache:
             row, metrics = native.cache_plan_generation(
                 self._storage_root,
                 global_fingerprint.value,
-                [(path, _fingerprint_value(source_fingerprints.get(path))) for path in targets],
+                [
+                    (
+                        "project" if project_subject and path == "." else "file",
+                        path,
+                        _fingerprint_value(source_fingerprints.get(path)),
+                    )
+                    for path in targets
+                ],
+                tree_snapshot,
                 allow_edit,
                 CACHE_RECORD_MAX_DECODED_BYTES,
             )
@@ -94,18 +147,27 @@ class ResultCache:
             return None
         entries: tuple[CacheIndexEntry, ...] = tuple(
             CacheIndexEntry(
-                path=value[0],
-                source_fingerprint=CacheFingerprint(value[1]),
-                result_fingerprint=CacheFingerprint(value[2]),
-                record_fingerprint=CacheFingerprint(value[3]),
+                subject_kind=value[0],
+                subject_identity=value[1],
+                source_fingerprint=CacheFingerprint(value[2]),
+                result_fingerprint=CacheFingerprint(value[3]),
+                record_fingerprint=CacheFingerprint(value[4]),
             )
             for value in row[2]
         )
-        entries_by_path: dict[str, CacheIndexEntry] = {entry.path: entry for entry in entries}
+        entries_by_path: dict[str, CacheIndexEntry] = {
+            entry.subject_identity: entry for entry in entries
+        }
         try:
-            cached_evaluations: tuple[FileEvaluation, ...] = tuple(
+            cached_values = tuple(
                 restore_native_evaluation(payload=payload, repo_root=self._repo_root)
                 for payload in row[3]
+            )
+            cached_evaluations = tuple(
+                value for value in cached_values if isinstance(value, FileEvaluation)
+            )
+            cached_project = next(
+                (value for value in cached_values if isinstance(value, ProjectEvaluation)), None
             )
             retained_evaluations: tuple[FileEvaluation, ...] = tuple(
                 restore_native_contribution(
@@ -115,6 +177,7 @@ class ResultCache:
                 )
                 for payload in row[4]
             )
+            retained_project = None
         except (KeyError, TypeError, ValueError):
             return None
         return NativeGenerationPlan(
@@ -123,6 +186,8 @@ class ResultCache:
             retained_entries=entries,
             cached_evaluations=cached_evaluations,
             retained_evaluations=retained_evaluations,
+            cached_project_evaluation=cached_project,
+            retained_project_evaluation=retained_project,
             miss_paths=tuple(row[5]),
             hits=row[6],
             misses=row[7],
@@ -133,7 +198,7 @@ class ResultCache:
         self,
         *,
         global_fingerprint: CacheFingerprint,
-        evaluations: tuple[FileEvaluation, ...],
+        evaluations: tuple[FileEvaluation | ProjectEvaluation, ...],
         retained_entries: tuple[CacheIndexEntry, ...],
         expected_index_fingerprint: CacheFingerprint | None,
         retain_all_observations: bool,
@@ -155,7 +220,8 @@ class ResultCache:
                 _fingerprint_value(expected_index_fingerprint),
                 [
                     (
-                        entry.path,
+                        entry.subject_kind,
+                        entry.subject_identity,
                         entry.source_fingerprint.value,
                         entry.result_fingerprint.value,
                         entry.record_fingerprint.value,

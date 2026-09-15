@@ -11,7 +11,7 @@ from fensu.rules.authoring.models import CustomRuleRegistration, Fault
 
 @dataclass(frozen=True, slots=True)
 class RuleFile:
-    """One supporting Python file available to project queries."""
+    """One additional Python file discovered by the isolated rule harness."""
 
     path: str
     source: str
@@ -41,6 +41,6 @@ class RuleResult:
 
     @property
     def fault_count(self) -> int:
-        """Return the number of faults emitted for the primary source."""
+        """Return the number of faults emitted for the rule case."""
 
         return len(self.faults)

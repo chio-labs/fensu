@@ -8,6 +8,7 @@ from fensu.evaluation._helpers.collection import collect_evaluation_result
 from fensu.evaluation.main._evaluate_partition import evaluate_partition
 from fensu.evaluation.models import EvaluationResult, PartitionEvaluation
 from fensu.rules.authoring.models import CustomRuleRegistration, RuleSpec
+from fensu.rules.authoring.types import RuleSubjectKind
 
 
 def evaluate(
@@ -35,5 +36,11 @@ def evaluate(
         repo_root=tree.repo_root.path,
         project_root=project_root.path,
         evaluated_rule_codes=frozenset(rule.code for rule in (*ruleset, *warning_rules)),
+        project_rule_codes=frozenset(
+            rule.code
+            for rule in (*ruleset, *warning_rules)
+            if rule.subject_kind is RuleSubjectKind.PROJECT
+        ),
         selection=partition_evaluation.selection,
+        project_evaluation=partition_evaluation.project_evaluation,
     )

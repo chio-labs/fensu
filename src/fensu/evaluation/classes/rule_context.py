@@ -10,7 +10,6 @@ from typing import Any, cast
 from fensu.analysis.models import SourceLocation, SourceRange, SyntaxHandle
 from fensu.analysis.types import (
     FactAnalysis,
-    ProjectAnalysis,
     RelationAnalysis,
     SyntaxAnalysis,
     TextAnalysis,
@@ -23,12 +22,15 @@ from fensu.discovery.constants import (
     ROLE_FILE_TO_NAME,
     SNAPSHOT_TABLE,
 )
-from fensu.discovery.models import ProjectLayout, RepoRoot
+from fensu.discovery.models import DiscoveredTree, ProjectLayout, RepoRoot
 from fensu.discovery.types import RoleName, ScopeName
 from fensu.evaluation._helpers import ast_access
+from fensu.evaluation.classes.rule_project import RuleProjectView
 from fensu.evaluation.models import ParsedModule, ThresholdOverrideUse
+from fensu.evaluation.types import EvaluationProjectAnalysis
 from fensu.rules.authoring.constants import CUSTOM_RULE_REGISTRATIONS_CACHE_KEY
 from fensu.rules.authoring.exceptions import RuleDefinitionError
+from fensu.rules.authoring.graph import ArchitectureGraph
 from fensu.rules.authoring.models import (
     CustomRuleRegistration,
     Fault,
@@ -37,6 +39,7 @@ from fensu.rules.authoring.models import (
     RuleOption,
     RuleSpec,
 )
+from fensu.rules.authoring.subjects import ProjectPath
 from fensu.rules.authoring.types import RuleOptionValue, Threshold
 
 _POSIX_PATH_SEPARATOR: str = "/"
@@ -54,9 +57,10 @@ class EvaluationRuleContext:
         repo_root: RepoRoot,
         layout: ProjectLayout,
         rule: RuleSpec,
-        project: ProjectAnalysis,
+        project: EvaluationProjectAnalysis,
         file_cache: dict[str, object],
         threshold_override_uses: list[ThresholdOverrideUse],
+        tree: DiscoveredTree,
     ) -> None:
         """Bind context facts for one rule invocation."""
 
@@ -65,9 +69,12 @@ class EvaluationRuleContext:
         self._repo_root: RepoRoot = repo_root
         self._layout: ProjectLayout = layout
         self._rule: RuleSpec = rule
-        self.__project: ProjectAnalysis = project
+        self.__project: RuleProjectView = RuleProjectView(
+            tree=tree, analysis=project, requester=parsed_module.scoped_file.path
+        )
         self._file_cache: dict[str, Any] = file_cache
         self._threshold_override_uses: list[ThresholdOverrideUse] = threshold_override_uses
+        self._analysis = project
 
     @property
     def facts(self) -> FactAnalysis:
@@ -76,10 +83,16 @@ class EvaluationRuleContext:
         return self._parsed_module.analysis.facts
 
     @property
-    def project(self) -> ProjectAnalysis:
+    def project(self) -> RuleProjectView:
         """Return dependency-recording cross-file and filesystem queries."""
 
         return self.__project
+
+    @property
+    def graph(self) -> ArchitectureGraph:
+        """Return lazy analyzer-neutral import graph facts for this file invocation."""
+
+        return self._analysis.architecture_graph(requester=self.path)
 
     @property
     def text(self) -> TextAnalysis:
@@ -187,6 +200,8 @@ class EvaluationRuleContext:
             path = location.path
             line = location.line
             column = location.column
+        if not path.is_absolute():
+            path = self.__project.absolute_path(ProjectPath(path.as_posix()))
         return self.fault_for(
             path=path,
             line=line,
@@ -218,15 +233,22 @@ class EvaluationRuleContext:
     def path_fault(
         self,
         *,
-        path: Path | None = None,
+        path: ProjectPath | str | Path | None = None,
         message: str | None = None,
         remediation: str | None = None,
     ) -> Fault:
         """Construct a file-level Fault using the active rule metadata."""
 
+        resolved_path: Path
+        if path is None:
+            resolved_path = self.path
+        elif isinstance(path, Path):
+            resolved_path = path
+        else:
+            resolved_path = self.__project.absolute_path(path)
         return Fault(
             code=self._rule.code,
-            path=self.path if path is None else path,
+            path=resolved_path,
             message=self._rule.message if message is None else message,
             remediation=self._rule.remediation if remediation is None else remediation,
         )
@@ -390,7 +412,7 @@ class EvaluationRuleContext:
             parent_by_node=self._parsed_module.syntax_artifacts.parent_by_node,
         )
 
-    def threshold(self, *, name: Threshold, path: Path | None = None) -> int:
+    def threshold(self, *, name: Threshold, path: ProjectPath | str | Path | None = None) -> int:
         """The applicable path, role, or global threshold for a reported path."""
 
         resolution: ThresholdResolution = self._resolved_threshold(name=name, path=path)
@@ -413,16 +435,21 @@ class EvaluationRuleContext:
             )
         return resolution.effective_value
 
-    def _resolved_threshold(self, *, name: Threshold, path: Path | None) -> ThresholdResolution:
+    def _resolved_threshold(
+        self, *, name: Threshold, path: ProjectPath | str | Path | None
+    ) -> ThresholdResolution:
         relative_path, role = self._threshold_position(path=path)
         return resolve_threshold(config=self._config, name=name, path=relative_path, role=role)
 
-    def _threshold_position(self, *, path: Path | None) -> tuple[str, str | None]:
+    def _threshold_position(
+        self, *, path: ProjectPath | str | Path | None
+    ) -> tuple[str, str | None]:
         if path is None:
             return self._memoize(key="threshold:own_position", operation=self._own_position)
+        resolved_path = path if isinstance(path, Path) else self.__project.absolute_path(path)
         return (
-            path.relative_to(self.repo_root).as_posix(),
-            _role_for_path(path=path, scope_root=self.scope_root()),
+            resolved_path.relative_to(self.repo_root).as_posix(),
+            _role_for_path(path=resolved_path, scope_root=self.scope_root()),
         )
 
     def _own_position(self) -> tuple[str, str | None]:

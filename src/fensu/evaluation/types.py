@@ -9,7 +9,9 @@ from typing import Protocol
 from fensu.analysis.types import ProjectAnalysis
 from fensu.discovery.models import ScopedFile
 from fensu.evaluation.models import ParsedModule
+from fensu.rules.authoring.graph import ArchitectureGraph
 from fensu.rules.authoring.models import Fault
+from fensu.rules.authoring.subjects import ProjectTree
 
 type NativeFaultRow = tuple[str, str | None, int | None, int | None, str | None, str | None]
 type NativeFaultsByCode = dict[str, tuple[Fault, ...]]
@@ -68,4 +70,17 @@ class EvaluationProjectAnalysis(ProjectAnalysis, Protocol):
 
     def native_source(self, *, requester: Path, path: Path) -> str | None:
         """Return decoded source while recording its source dependency without a CPython AST."""
+        ...
+
+    def architecture_graph(self, *, requester: Path) -> ArchitectureGraph:
+        """Return the lazy graph with observations bound to one requester."""
+        ...
+
+    def graph_snapshot(self) -> dict[str, object]:
+        """Return deterministic repository-relative graph replay facts."""
+        ...
+
+    @property
+    def project_tree(self) -> ProjectTree:
+        """Return immutable authoritative discovered-tree facts."""
         ...

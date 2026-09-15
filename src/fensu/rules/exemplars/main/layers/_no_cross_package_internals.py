@@ -2,14 +2,9 @@
 
 import ast
 
-from fensu import Family, Fault, RuleContext, rule
-from fensu.rules.exemplars._helpers.import_ownership import (
-    is_public,
-    normalized_targets,
-    ownership,
-    target_initializer,
-)
-from fensu.rules.exemplars.types import ExemplarLayerPathName, ImportOwnership
+from fensu import Family, Fault, ModuleVisibility, ProjectPath, RuleContext, rule
+from fensu.rules.exemplars._helpers.import_ownership import is_public, ownership
+from fensu.rules.exemplars.types import ImportOwnership
 
 
 @rule(
@@ -22,38 +17,46 @@ from fensu.rules.exemplars.types import ExemplarLayerPathName, ImportOwnership
     ),
 )
 def no_cross_package_internals_equivalent(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
-    """Express FFL102 through public references and project existence."""
+    """Express FFL102 through public architecture graph facts."""
 
     del module
-    current: ImportOwnership = ownership(
-        parts=ctx.module_parts(), initializer=ctx.path.name == ExemplarLayerPathName.INIT
-    )
+    current = ctx.graph.node(ProjectPath(ctx.path.relative_to(ctx.repo_root).as_posix()))
+    if current is None:
+        return []
     faults: list[Fault] = []
-    for fact in ctx.facts.references().imports:
-        for parts in normalized_targets(
-            fact=fact,
-            current_parts=ctx.module_parts(),
-            initializer=ctx.path.name == ExemplarLayerPathName.INIT,
+    faulted_statements: set[tuple[int, int]] = set()
+    for edge in ctx.graph.imports(current):
+        statement = (edge.location.line, edge.location.column)
+        if statement in faulted_statements:
+            continue
+        target = edge.target
+        target_module = edge.module
+        if target_module is None:
+            continue
+        target_ownership: ImportOwnership = ownership(
+            parts=tuple(target_module.split(".")), initializer=False
+        )
+        target_internal = (
+            target.visibility is ModuleVisibility.INTERNAL
+            if target is not None
+            else not is_public(target_ownership)
+        )
+        if (
+            current.module.partition(".")[0] == target_module.partition(".")[0]
+            and current.domain_parts
+            and target_ownership.domain is not None
+            and current.domain_parts[0] != target_ownership.domain
+            and target_internal
         ):
-            target: ImportOwnership = ownership(
-                parts=parts, initializer=target_initializer(ctx=ctx, parts=parts)
-            )
-            if (
-                current.package == target.package
-                and current.domain is not None
-                and target.domain is not None
-                and current.domain != target.domain
-                and not is_public(target)
-            ):
-                package: str = ".".join(parts[:2])
-                faults.append(
-                    ctx.fault_at(
-                        location=fact.location,
-                        message=(
-                            f"import '{'.'.join(parts)}' reaches into internal structure of "
-                            f"'{package}'"
-                        ),
-                    )
+            parts = target_module.split(".")
+            package: str = ".".join(parts[:2])
+            faults.append(
+                ctx.fault_at(
+                    location=edge.location,
+                    message=(
+                        f"import '{target_module}' reaches into internal structure of '{package}'"
+                    ),
                 )
-                break
+            )
+            faulted_statements.add(statement)
     return faults

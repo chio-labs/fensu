@@ -5,14 +5,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from fensu.cache.fingerprints.models import CacheFingerprint
-from fensu.evaluation.models import EvaluationResult, FileEvaluation
+from fensu.evaluation.models import EvaluationResult, FileEvaluation, ProjectEvaluation
 
 
 @dataclass(frozen=True, slots=True)
 class CacheIndexEntry:
     """Validated lookup from one source to a native persisted result."""
 
-    path: str
+    subject_kind: str
+    subject_identity: str
     source_fingerprint: CacheFingerprint
     result_fingerprint: CacheFingerprint
     record_fingerprint: CacheFingerprint
@@ -64,6 +65,8 @@ class NativeGenerationPlan:
     retained_entries: tuple[CacheIndexEntry, ...]
     cached_evaluations: tuple[FileEvaluation, ...]
     retained_evaluations: tuple[FileEvaluation, ...]
+    cached_project_evaluation: ProjectEvaluation | None
+    retained_project_evaluation: ProjectEvaluation | None
     miss_paths: tuple[str, ...]
     hits: int
     misses: int

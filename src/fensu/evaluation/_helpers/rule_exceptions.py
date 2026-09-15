@@ -10,7 +10,9 @@ from fensu.analysis.main.parse_source import parse_python_source
 from fensu.analysis.types import PythonSourceArtifact
 from fensu.config.exceptions import ConfigError
 from fensu.config.models import Config, RuleExceptionEntry
+from fensu.discovery.models import DiscoveredTree, ScopedFile
 from fensu.evaluation.models import FileExceptionScope, ParsedModule, RuleExceptionKey
+from fensu.evaluation.types import EvaluationProjectAnalysis
 from fensu.rules.authoring.models import Fault
 
 _POSIX_PATH_SEPARATOR: str = "/"
@@ -105,6 +107,66 @@ def suppress_faults(
                 symbol=owner if matching.symbols else None,
             )
         )
+    return retained, frozenset(applied)
+
+
+def suppress_project_faults(
+    *,
+    faults: list[Fault],
+    config: Config,
+    repo_root: Path,
+    tree: DiscoveredTree,
+    analysis: EvaluationProjectAnalysis,
+    requester: Path,
+) -> tuple[list[Fault], frozenset[RuleExceptionKey]]:
+    """Apply exceptions using only a reported source when symbol ownership is required."""
+
+    retained: list[Fault] = []
+    applied: set[RuleExceptionKey] = set()
+    for fault in faults:
+        try:
+            relative_path = _repository_relative_path(path=fault.path, repo_root=repo_root)
+        except ValueError:
+            retained.append(fault)
+            continue
+        matching = next(
+            (
+                exception
+                for exception in config.rule_exceptions
+                if exception.path == relative_path
+                and exception.rule == fault.code
+            ),
+            None,
+        )
+        if matching is None:
+            retained.append(fault)
+            continue
+        if matching.symbols:
+            scoped_file: ScopedFile | None = next(
+                (item for item in tree.files if item.path == fault.path), None
+            )
+            if scoped_file is None or fault.line is None:
+                retained.append(fault)
+                continue
+            if analysis.native_source(requester=requester, path=fault.path) is None:
+                retained.append(fault)
+                continue
+            parsed_module = analysis.parsed_module(scoped_file)
+            scope = FileExceptionScope(
+                relative_path=relative_path,
+                exceptions=tuple(
+                    exception
+                    for exception in config.rule_exceptions
+                    if exception.path == relative_path
+                ),
+            )
+            symbol_retained, symbol_applied = suppress_faults(
+                faults=[fault], parsed_module=parsed_module, scope=scope
+            )
+            retained.extend(symbol_retained)
+            applied.update(symbol_applied)
+            continue
+        applied.add(RuleExceptionKey(rule=fault.code, path=relative_path, symbol=None))
     return retained, frozenset(applied)
 
 

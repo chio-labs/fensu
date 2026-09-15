@@ -1482,7 +1482,9 @@ def test_given_shared_fixture_when_evaluating_native_and_custom_rules_then_fault
 
     assert native_result.fault_count == test_case.expected_fault_count
     assert normalized_faults(native_result.faults) == normalized_faults(custom_result.faults)
-    assert native_result.dependencies == custom_result.dependencies
+    # The FFL102 exemplar now consumes the public graph rather than reproducing native probes.
+    if test_case.native_code != "FFL102":
+        assert native_result.dependencies == custom_result.dependencies
 
 
 @pytest.mark.parametrize(

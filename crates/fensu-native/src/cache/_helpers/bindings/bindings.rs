@@ -6,11 +6,13 @@ use pyo3::types::{PyAnyMethods, PyBytes, PyList};
 use pyo3::{pyfunction, Bound, Py, PyAny, PyResult, Python};
 
 use crate::cache::_helpers::generation_bindings::{
-    plan_generation_request, publish_generation_request, replay_generation_request,
-    store_check_output_request, PlanGenerationRequest, PublishGenerationRequest,
-    ReplayGenerationRequest, StoreCheckOutputRequest,
+    dependency_kinds_request, plan_generation_request, publish_generation_request,
+    replay_generation_request, store_check_output_request, PlanGenerationRequest,
+    PublishGenerationRequest, ReplayGenerationRequest, StoreCheckOutputRequest,
 };
-use crate::cache::_helpers::records::{decode_record, encode_record, value_to_python};
+use crate::cache::_helpers::records::{
+    canonical_from_python, decode_record, encode_record, value_to_python,
+};
 use crate::cache::_helpers::storage::{mutate_records, read_records, write_records};
 use crate::cache::models::{CacheMetrics, CacheMutation, DecodedRecord, EncodedWrite};
 use crate::cache::types::{
@@ -73,11 +75,29 @@ macro_rules! define_cache_python_bindings {
         }
 
         #[pyfunction]
+        pub(crate) fn cache_generation_dependency_kinds(
+            py: Python<'_>,
+            repo_root: PathBuf,
+            global_fingerprint: String,
+            targets: Vec<(String, String, Option<String>)>,
+            maximum_decoded_bytes: usize,
+        ) -> (Option<Vec<String>>, MetricsRow) {
+            dependency_kinds_request(
+                py,
+                repo_root,
+                global_fingerprint,
+                targets,
+                maximum_decoded_bytes,
+            )
+        }
+
+        #[pyfunction]
         pub(crate) fn cache_replay_generation(
             py: Python<'_>,
             repo_root: PathBuf,
             global_fingerprint: String,
-            targets: Vec<(String, Option<String>)>,
+            targets: Vec<(String, String, Option<String>)>,
+            tree_snapshot: Option<&Bound<'_, pyo3::PyAny>>,
             maximum_decoded_bytes: usize,
         ) -> (Option<ReplayRow>, MetricsRow) {
             replay_generation_request(ReplayGenerationRequest {
@@ -85,6 +105,11 @@ macro_rules! define_cache_python_bindings {
                 repo_root,
                 global_fingerprint,
                 targets,
+                tree_snapshot: tree_snapshot
+                    .map(canonical_from_python)
+                    .transpose()
+                    .ok()
+                    .flatten(),
                 maximum_decoded_bytes,
             })
         }
@@ -94,7 +119,8 @@ macro_rules! define_cache_python_bindings {
             py: Python<'_>,
             repo_root: PathBuf,
             global_fingerprint: String,
-            targets: Vec<(String, Option<String>)>,
+            targets: Vec<(String, String, Option<String>)>,
+            tree_snapshot: Option<&Bound<'_, pyo3::PyAny>>,
             allow_edit: bool,
             maximum_decoded_bytes: usize,
         ) -> PyResult<(Option<GenerationPlanRow>, MetricsRow)> {
@@ -103,6 +129,7 @@ macro_rules! define_cache_python_bindings {
                 repo_root,
                 global_fingerprint,
                 targets,
+                tree_snapshot: tree_snapshot.map(canonical_from_python).transpose()?,
                 allow_edit,
                 maximum_decoded_bytes,
             })
@@ -114,7 +141,7 @@ macro_rules! define_cache_python_bindings {
             repo_root: PathBuf,
             global_fingerprint: String,
             expected_index_fingerprint: Option<String>,
-            retained_entries: Vec<(String, String, String, String)>,
+            retained_entries: Vec<(String, String, String, String, String)>,
             evaluations: &Bound<'_, PyList>,
             options: (bool, usize),
         ) -> PyResult<(PublicationRow, MetricsRow)> {

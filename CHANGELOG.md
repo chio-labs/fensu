@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.0](https://github.com/chio-labs/fensu/compare/v0.16.0...v0.17.0) (2026-09-15)
+
+
+### Features
+
+* add Rust custom rule facts ([#81](https://github.com/chio-labs/fensu/issues/81)) ([87c72cc](https://github.com/chio-labs/fensu/commit/87c72cca4952728f53caf16497869e57a9e1e130))
+
 ## [0.16.0](https://github.com/chio-labs/fensu/compare/v0.15.3...v0.16.0) (2026-09-15)
 
 

@@ -318,6 +318,10 @@ fn given_unavailable_cargo_metadata_when_checking_then_failure_is_read_only_and_
 
 #[test]
 fn given_selected_custom_rust_file_rule_when_checking_then_owned_item_and_tree_facts_emit_fault() {
+    let python = workspace_python();
+    if !python.is_file() {
+        return;
+    }
     let test_cases = [RustCustomFileRuleTestCase {
         description: "typed Rust file rule reads item and tree facts",
         expected_exit_code: 1,
@@ -346,7 +350,7 @@ fn given_selected_custom_rust_file_rule_when_checking_then_owned_item_and_tree_f
         let output = std::process::Command::new(env!("CARGO_BIN_EXE_fensu"))
             .args(["check", "--no-color", "--no-cache"])
             .current_dir(repository.path())
-            .env("FENSU_PYTHON", workspace_python())
+            .env("FENSU_PYTHON", &python)
             .output()
             .expect("custom Rust check runs");
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -446,6 +450,10 @@ fn given_unselected_custom_rust_rule_when_checking_then_python_host_does_not_sta
 
 #[test]
 fn given_custom_rust_project_rule_when_dependency_changes_then_cached_result_invalidates() {
+    let python = workspace_python();
+    if !python.is_file() {
+        return;
+    }
     let test_cases = [RustCustomCacheInvalidationTestCase {
         description: "Cargo dependency changes invalidate a cached project rule",
         expected_code: "XRS002",
@@ -494,7 +502,7 @@ fn given_custom_rust_project_rule_when_dependency_changes_then_cached_result_inv
             std::process::Command::new(env!("CARGO_BIN_EXE_fensu"))
                 .args(["check", "--no-color", "--cache", "--cache-stats"])
                 .current_dir(repository.path())
-                .env("FENSU_PYTHON", workspace_python())
+                .env("FENSU_PYTHON", &python)
                 .output()
                 .expect("custom Rust project check runs")
         };
@@ -608,6 +616,10 @@ fn given_custom_rust_project_rule_when_dependency_changes_then_cached_result_inv
 #[test]
 fn given_file_fact_dependency_when_unrelated_file_changes_then_subject_cache_reuses_narrow_result()
 {
+    let python = workspace_python();
+    if !python.is_file() {
+        return;
+    }
     let test_cases = [RustCustomNarrowCacheTestCase {
         description: "focused Rust file query survives an unrelated source edit",
         unchanged_path: "src/first.rs",
@@ -645,7 +657,7 @@ fn given_file_fact_dependency_when_unrelated_file_changes_then_subject_cache_reu
             std::process::Command::new(env!("CARGO_BIN_EXE_fensu"))
                 .args(["check", "--no-color", "--cache"])
                 .current_dir(repository.path())
-                .env("FENSU_PYTHON", workspace_python())
+                .env("FENSU_PYTHON", &python)
                 .output()
                 .expect("narrow custom Rust cache check runs")
         };
@@ -686,6 +698,10 @@ fn given_file_fact_dependency_when_unrelated_file_changes_then_subject_cache_reu
 
 #[test]
 fn given_malformed_rust_when_custom_rule_reads_file_facts_then_parse_error_remains_explicit() {
+    let python = workspace_python();
+    if !python.is_file() {
+        return;
+    }
     let test_cases = [RustCustomMalformedSourceTestCase {
         description: "malformed source remains explicit in custom facts",
         expected_exit_code: 1,
@@ -711,7 +727,7 @@ fn given_malformed_rust_when_custom_rule_reads_file_facts_then_parse_error_remai
         let output = std::process::Command::new(env!("CARGO_BIN_EXE_fensu"))
             .args(["check", "--no-color", "--no-cache"])
             .current_dir(repository.path())
-            .env("FENSU_PYTHON", workspace_python())
+            .env("FENSU_PYTHON", &python)
             .output()
             .expect("malformed custom Rust check runs");
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -738,6 +754,10 @@ fn given_malformed_rust_when_custom_rule_reads_file_facts_then_parse_error_remai
 
 #[test]
 fn given_custom_rust_policy_when_checking_then_warning_ignore_and_exception_semantics_are_shared() {
+    let python = workspace_python();
+    if !python.is_file() {
+        return;
+    }
     let test_cases = [
         RustCustomPolicyTestCase {
             description: "warning tier emits advisory custom Rust finding",
@@ -793,7 +813,7 @@ fn given_custom_rust_policy_when_checking_then_warning_ignore_and_exception_sema
             .args(["check", "--no-color"])
             .args(test_case.arguments)
             .current_dir(repository.path())
-            .env("FENSU_PYTHON", workspace_python())
+            .env("FENSU_PYTHON", &python)
             .output()
             .expect("custom Rust policy check runs");
         let stdout = String::from_utf8_lossy(&output.stdout);

@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use crate::configuration::main::resolve_target_root::resolve_target_root;
 use crate::configuration::main::validate_exception_targets::validate_exception_targets;
-use crate::configuration::main::{load_target, load_targets};
+use crate::configuration::main::{load_repository_rule_config, load_target, load_targets};
 use crate::models::Config;
 use crate::repository_io::main::relative_path::relative_path;
 use crate::skills::_helpers::context::{exceptions, identity, selection};
@@ -28,7 +28,13 @@ pub(crate) fn build(invocation: &Path, options: &SkillOptions) -> Result<SkillCo
             .pop()
             .ok_or_else(|| "No configured target was loaded.".to_owned());
     }
-    aggregate(&invocation, options, contexts)
+    let mut aggregate = aggregate(&invocation, options, contexts)?;
+    if let Some(repository) = load_repository_rule_config::load_repository_rule_config(&invocation)?
+    {
+        let repository = build_loaded(&invocation, options, repository)?;
+        aggregate.repository_rules = Some(Box::new(repository));
+    }
+    Ok(aggregate)
 }
 
 fn build_loaded(
@@ -74,6 +80,7 @@ fn build_loaded(
         ignored: selection.ignored,
         config,
         targets: Vec::new(),
+        repository_rules: None,
         migration_contexts: Vec::new(),
     })
 }

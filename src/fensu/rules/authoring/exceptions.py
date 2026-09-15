@@ -41,3 +41,15 @@ class WebFactQueryTypeError(TypeError):
 
 class WebFactQueryError(ValueError):
     """A web fact query or text handle is invalid for the selected source."""
+
+
+class PythonFactQueryTypeError(TypeError):
+    """A Python target fact query received an unsupported subject value."""
+
+
+class TargetFactsUnavailableError(RuntimeError):
+    """A target handle was queried for facts owned by another analyzer."""
+
+
+class TargetFactQueryTypeError(TypeError):
+    """A repository target fact helper received an unsupported value."""

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path, PurePosixPath
 from types import MappingProxyType
@@ -23,7 +24,13 @@ from fensu.rules.authoring.constants import (
     WINDOWS_PATH_SEPARATOR,
 )
 from fensu.rules.authoring.exceptions import ProjectPathError, ProjectPathTypeError
-from fensu.rules.authoring.models import File, FilePosition, ProjectPath, ProjectTree
+from fensu.rules.authoring.models import (
+    File,
+    FilePosition,
+    ProjectPath,
+    ProjectTree,
+    PythonFileFacts,
+)
 from fensu.rules.authoring.types import SourceKind
 
 
@@ -187,6 +194,13 @@ def root_path() -> ProjectPath:
     value: ProjectPath = object.__new__(ProjectPath)
     object.__setattr__(value, "value", PROJECT_ROOT)
     return value
+
+
+def python_file_identity(*, value: PythonFileFacts) -> str:
+    """Return one deterministic complete Python source fact identity."""
+
+    digest: str = hashlib.sha256(value.source.encode("utf-8")).hexdigest()
+    return f"{value.file.path.value}\0{digest}"
 
 
 def project_path(*, value: ProjectPath | str, allow_root: bool = False) -> ProjectPath:

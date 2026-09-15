@@ -80,6 +80,13 @@ pub(crate) struct RustMixedTargetTestCase {
     pub(crate) expected_codes: &'static [&'static str],
 }
 
+pub(crate) struct RepositoryRuleTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_exit_code: i32,
+    pub(crate) expected_primary: &'static str,
+    pub(crate) expected_secondary: &'static str,
+}
+
 pub(crate) struct RustMetadataCacheTestCase {
     pub(crate) description: &'static str,
     pub(crate) expected_cache: &'static str,

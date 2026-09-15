@@ -22,7 +22,7 @@ from fensu.rules.authoring.main._inspect import rule_specs_in_module
 from fensu.rules.authoring.main.is_rule_code import is_rule_code
 from fensu.rules.authoring.main.matches_rule_selector import matches_rule_selector
 from fensu.rules.authoring.models import CustomRuleRegistration, RuleSpec
-from fensu.rules.authoring.types import Family, RuleKind, Threshold
+from fensu.rules.authoring.types import Family, RuleKind, RuleSubjectKind, Threshold
 from fensu.rules.catalog._helpers.hermeticity import validate_cacheable_rules
 from fensu.rules.catalog.constants import CORE_RULES, FPRS_RULES, FPSK_RULES, FPTS_RULES
 from fensu.rules.catalog.main._check_module_use import check_uses_module
@@ -98,6 +98,59 @@ def build_rule_selection_from_catalogue(
                 if project_root is None
                 else project_root.resolve()
             ),
+        ),
+    )
+
+
+def build_repository_rule_selection_from_catalogue(
+    *,
+    config: Config,
+    catalogue: tuple[RuleSpec, ...],
+    target_analyzers: frozenset[AnalyzerId],
+    repo_root: Path,
+) -> RuleSelection:
+    """Resolve repository-subject rules whose declared target capabilities exist."""
+
+    applicable: tuple[RuleSpec, ...] = tuple(
+        rule
+        for rule in catalogue
+        if rule.subject_kind is RuleSubjectKind.REPOSITORY
+        and set(rule.analyzers).issubset(target_analyzers)
+    )
+    repository_rules: tuple[RuleSpec, ...] = tuple(
+        rule for rule in catalogue if rule.subject_kind is RuleSubjectKind.REPOSITORY
+    )
+    _validate_config_selectors(
+        config=config,
+        rules=applicable,
+        configured_rules=repository_rules,
+    )
+    ignored: tuple[RuleSpec, ...] = _matching_rules(rules=applicable, selectors=config.ignore)
+    ignored_codes: frozenset[str] = frozenset(rule.code for rule in ignored)
+    blocking: tuple[RuleSpec, ...] = tuple(
+        rule
+        for rule in _selected_rules(rules=applicable, selectors=config.select)
+        if rule.code not in ignored_codes
+    )
+    warnings: tuple[RuleSpec, ...] = _selected_rules(rules=applicable, selectors=config.warn)
+    _validate_unique_implementations(rules=blocking)
+    _validate_unique_implementations(rules=warnings)
+    _validate_tier_overlaps(blocking=blocking, warnings=warnings, ignored=ignored)
+    _validate_unique_implementations(rules=(*blocking, *warnings))
+    validate_cacheable_rules(
+        rules=(*blocking, *warnings),
+        allowed_packages=frozenset(name.partition(".")[0] for name in config.rule_modules),
+    )
+    return RuleSelection(
+        catalogue=applicable,
+        blocking=blocking,
+        warnings=warnings,
+        ignored=ignored,
+        custom_registrations=_custom_registrations(
+            rules=applicable,
+            config=config,
+            repo_root=repo_root,
+            project_root=repo_root,
         ),
     )
 

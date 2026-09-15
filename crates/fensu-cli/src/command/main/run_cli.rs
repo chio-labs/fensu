@@ -48,8 +48,15 @@ fn dispatch_check(arguments: &[String]) -> Result<CliOutput, String> {
         return check::run(arguments, None);
     }
     let loaded = load_targets::load_targets(Path::new("."), routing.target)?;
+    let repository_policy = if routing.target.is_none() {
+        crate::configuration::main::load_repository_rule_policy::load_repository_rule_policy(
+            Path::new("."),
+        )?
+    } else {
+        None
+    };
     let cleanup = prepare_cleanup(Path::new("."), routing.target);
-    let result = match partitioned_check(arguments, &loaded) {
+    let result = match partitioned_check(arguments, &loaded, repository_policy.as_ref()) {
         Some(output) => Ok(output),
         None => check::run(arguments, None),
     };

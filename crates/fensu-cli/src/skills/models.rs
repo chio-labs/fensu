@@ -49,6 +49,7 @@ pub(crate) struct SkillContext {
     pub(crate) ignored: Vec<RuleMetadata>,
     pub(crate) config: Config,
     pub(crate) targets: Vec<SkillContext>,
+    pub(crate) repository_rules: Option<Box<SkillContext>>,
     pub(crate) migration_contexts: Vec<SkillContext>,
 }
 

@@ -32,6 +32,7 @@ pub(crate) struct CheckPlan {
     pub(crate) identity: String,
     pub(crate) cache_enabled: bool,
     pub(crate) color: bool,
+    pub(crate) repository_facts: Option<serde_json::Value>,
 }
 
 #[derive(Debug)]
@@ -98,6 +99,7 @@ pub(crate) struct StructuredCheckExecution {
     pub(crate) root: PathBuf,
     pub(crate) color: bool,
     pub(crate) show_warnings: bool,
+    pub(crate) repository_targets: Vec<RepositoryTargetPayload>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -110,6 +112,8 @@ pub(crate) struct CheckOutputOptions {
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct StructuredCachePayload {
     pub(crate) results: Vec<CheckResult>,
+    #[serde(default)]
+    pub(crate) repository_targets: Vec<RepositoryTargetPayload>,
 }
 
 #[derive(Debug)]
@@ -133,14 +137,61 @@ pub(crate) struct EvaluationRequest<'a> {
     pub(crate) excluded: usize,
     pub(crate) show_warnings: bool,
     pub(crate) cache_enabled: bool,
+    pub(crate) collect_repository_facts: bool,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Debug)]
+pub(crate) struct TargetEvaluation {
+    pub(crate) result: CheckResult,
+    pub(crate) repository_facts: Option<serde_json::Value>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub(crate) struct CustomRuleSubject {
     pub(crate) path: String,
     pub(crate) scope: String,
     pub(crate) scope_root: String,
     pub(crate) relative_parts: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct RepositoryTargetPayload {
+    pub(crate) name: String,
+    pub(crate) analyzer: AnalyzerId,
+    pub(crate) root: String,
+    pub(crate) facts: serde_json::Value,
+    pub(crate) subjects: Vec<CustomRuleSubject>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(crate) struct RepositoryCustomRulePayload {
+    pub(crate) show_warnings: bool,
+    pub(crate) cache_enabled: bool,
+    pub(crate) targets: Vec<RepositoryTargetPayload>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct RepositoryCustomDependency {
+    pub(crate) requester: String,
+    pub(crate) target: String,
+    pub(crate) kind: String,
+    pub(crate) query: String,
+    #[serde(rename = "answer")]
+    pub(crate) _answer: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct RepositoryCustomRuleResponse {
+    pub(crate) findings: Vec<Finding>,
+    pub(crate) blocking_codes: Vec<String>,
+    pub(crate) warning_codes: Vec<String>,
+    pub(crate) dependencies: Vec<RepositoryCustomDependency>,
+    pub(crate) cacheable: bool,
+    pub(crate) applied_exceptions: usize,
+    pub(crate) cache: Option<CheckCacheStats>,
 }
 
 #[derive(Clone, Debug, Serialize)]

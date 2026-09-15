@@ -6,6 +6,14 @@ use crate::configuration::_helpers::selectors::valid_code;
 const RULE_EXCEPTION_SYMBOLS: &str = "symbols";
 
 pub(crate) fn validate(value: Option<&toml::Value>, analyzer: AnalyzerId) -> Result<(), String> {
+    validate_for(value, Some(analyzer))
+}
+
+pub(crate) fn validate_repository(value: Option<&toml::Value>) -> Result<(), String> {
+    validate_for(value, None)
+}
+
+fn validate_for(value: Option<&toml::Value>, analyzer: Option<AnalyzerId>) -> Result<(), String> {
     let Some(value) = value else {
         return Ok(());
     };
@@ -37,8 +45,17 @@ pub(crate) fn validate(value: Option<&toml::Value>, analyzer: AnalyzerId) -> Res
             ));
         }
         validate_path(&path, analyzer)?;
-        if analyzer == AnalyzerId::Rust && table.contains_key(RULE_EXCEPTION_SYMBOLS) {
-            return Err("Rust rule exceptions support file-level exceptions only.".to_owned());
+        if matches!(analyzer, Some(AnalyzerId::Rust) | None)
+            && table.contains_key(RULE_EXCEPTION_SYMBOLS)
+        {
+            let owner = if analyzer.is_none() {
+                "Repository"
+            } else {
+                "Rust"
+            };
+            return Err(format!(
+                "{owner} rule exceptions support file-level exceptions only."
+            ));
         }
         let symbols = match table.get(RULE_EXCEPTION_SYMBOLS) {
             Some(value) => {
@@ -96,12 +113,19 @@ fn valid_qualified_symbol(value: &str) -> bool {
     first && second.is_none_or(valid) && parts.next().is_none()
 }
 
-fn validate_path(path: &str, analyzer: AnalyzerId) -> Result<(), String> {
+fn validate_path(path: &str, analyzer: Option<AnalyzerId>) -> Result<(), String> {
     let supported = match analyzer {
-        AnalyzerId::Python => path.ends_with(".py"),
-        AnalyzerId::Rust => path.ends_with(".rs") || path.ends_with("Cargo.toml"),
-        AnalyzerId::TypeScript => web_source_path(path),
-        AnalyzerId::Svelte => path.ends_with(".svelte") || web_source_path(path),
+        Some(AnalyzerId::Python) => path.ends_with(".py"),
+        Some(AnalyzerId::Rust) => path.ends_with(".rs") || path.ends_with("Cargo.toml"),
+        Some(AnalyzerId::TypeScript) => web_source_path(path),
+        Some(AnalyzerId::Svelte) => path.ends_with(".svelte") || web_source_path(path),
+        None => {
+            path.ends_with(".py")
+                || path.ends_with(".rs")
+                || path.ends_with("Cargo.toml")
+                || path.ends_with(".svelte")
+                || web_source_path(path)
+        }
     };
     if path.starts_with('/')
         || path.contains('\\')
@@ -110,10 +134,11 @@ fn validate_path(path: &str, analyzer: AnalyzerId) -> Result<(), String> {
         || !supported
     {
         let source = match analyzer {
-            AnalyzerId::Python => "Python",
-            AnalyzerId::Rust => "Rust",
-            AnalyzerId::TypeScript => "TypeScript",
-            AnalyzerId::Svelte => "Svelte",
+            Some(AnalyzerId::Python) => "Python",
+            Some(AnalyzerId::Rust) => "Rust",
+            Some(AnalyzerId::TypeScript) => "TypeScript",
+            Some(AnalyzerId::Svelte) => "Svelte",
+            None => "repository",
         };
         return Err(format!("Rule exception path must be one exact repository-relative POSIX {source} source file: {path}."));
     }

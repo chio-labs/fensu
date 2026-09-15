@@ -8,6 +8,8 @@ mod test_check_exceptions;
 mod test_check_mixed_targets;
 #[path = "command/test_check_policy.rs"]
 mod test_check_policy;
+#[path = "command/test_check_repository_custom.rs"]
+mod test_check_repository_custom;
 #[path = "command/test_check_rust.rs"]
 mod test_check_rust;
 #[path = "command/test_check_validation.rs"]

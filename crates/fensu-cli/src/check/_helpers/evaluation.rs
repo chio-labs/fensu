@@ -23,8 +23,9 @@ use crate::check::_helpers::rule_policy::{
     validate_config_tiers, validate_unique_implementations,
 };
 use crate::check::models::WebCustomRulePayload;
-use crate::check::models::{CheckResult, EvaluationRequest};
+use crate::check::models::{CheckResult, EvaluationRequest, TargetEvaluation};
 use crate::check::models::{CustomRuleSubject, RustCustomRulePayload};
+use crate::check::repository_custom_facts::python_repository_fact_payload;
 use crate::check::web_custom_facts::web_fact_payload;
 use crate::check::web_policy::{self, WebPolicyRequest};
 use crate::constants::{
@@ -37,7 +38,7 @@ use crate::models::{Config, Fault, ScopedSource, ThresholdUse};
 use crate::reporting::main::report::report;
 use crate::reporting::models::ReportRequest;
 
-pub(crate) fn evaluate(request: EvaluationRequest<'_>) -> Result<CheckResult, String> {
+pub(crate) fn evaluate(request: EvaluationRequest<'_>) -> Result<TargetEvaluation, String> {
     let EvaluationRequest {
         project_root,
         config,
@@ -46,6 +47,7 @@ pub(crate) fn evaluate(request: EvaluationRequest<'_>) -> Result<CheckResult, St
         excluded,
         show_warnings,
         cache_enabled,
+        collect_repository_facts,
     } = request;
     validate_config_tiers(config)?;
     if config.analyzer == crate::analyzer::AnalyzerId::Rust {
@@ -57,6 +59,7 @@ pub(crate) fn evaluate(request: EvaluationRequest<'_>) -> Result<CheckResult, St
             excluded,
             show_warnings,
             cache_enabled,
+            collect_repository_facts,
         });
     }
     if config.analyzer != crate::analyzer::AnalyzerId::Python {
@@ -68,6 +71,7 @@ pub(crate) fn evaluate(request: EvaluationRequest<'_>) -> Result<CheckResult, St
             excluded,
             show_warnings,
             cache_enabled,
+            collect_repository_facts,
         });
     }
     let blocking = selected_rules(config, &config.select, &config.ignore)?;
@@ -189,19 +193,22 @@ pub(crate) fn evaluate(request: EvaluationRequest<'_>) -> Result<CheckResult, St
         .filter(|fault| fault.warning)
         .cloned()
         .collect::<Vec<_>>();
-    Ok(CheckResult {
-        analyzer: config.analyzer,
-        faults: blocking_faults,
-        warnings,
-        selected: sources.len(),
-        excluded,
-        applied_exceptions: applied,
-        threshold_uses: uses,
-        cacheable: Some(true),
+    Ok(TargetEvaluation {
+        result: CheckResult {
+            analyzer: config.analyzer,
+            faults: blocking_faults,
+            warnings,
+            selected: sources.len(),
+            excluded,
+            applied_exceptions: applied,
+            threshold_uses: uses,
+            cacheable: Some(true),
+        },
+        repository_facts: collect_repository_facts.then(|| python_repository_fact_payload(sources)),
     })
 }
 
-fn evaluate_rust_target(request: EvaluationRequest<'_>) -> Result<CheckResult, String> {
+fn evaluate_rust_target(request: EvaluationRequest<'_>) -> Result<TargetEvaluation, String> {
     let EvaluationRequest {
         project_root,
         config,
@@ -210,6 +217,7 @@ fn evaluate_rust_target(request: EvaluationRequest<'_>) -> Result<CheckResult, S
         excluded,
         show_warnings,
         cache_enabled,
+        collect_repository_facts,
     } = request;
     let custom_option_codes = config
         .rule_options
@@ -277,6 +285,9 @@ fn evaluate_rust_target(request: EvaluationRequest<'_>) -> Result<CheckResult, S
         Some(&native_options),
         &config.tooling,
     )?;
+    let repository_facts: Option<serde_json::Value> = collect_repository_facts
+        .then(|| serde_json::to_value(&analysis.facts).map_err(|error| error.to_string()))
+        .transpose()?;
     let mut cacheable = !analysis
         .diagnostics
         .iter()
@@ -383,18 +394,21 @@ fn evaluate_rust_target(request: EvaluationRequest<'_>) -> Result<CheckResult, S
     })?;
     let faults = apply_rule_ignores(faults, project_root, config);
     let (blocking_faults, warnings) = faults.into_iter().partition(|fault| !fault.warning);
-    Ok(CheckResult {
-        analyzer: config.analyzer,
-        faults: blocking_faults,
-        warnings,
-        selected: sources
-            .iter()
-            .filter(|source| source.purpose.is_direct())
-            .count(),
-        excluded,
-        applied_exceptions: applied,
-        threshold_uses: Vec::new(),
-        cacheable: Some(cacheable),
+    Ok(TargetEvaluation {
+        result: CheckResult {
+            analyzer: config.analyzer,
+            faults: blocking_faults,
+            warnings,
+            selected: sources
+                .iter()
+                .filter(|source| source.purpose.is_direct())
+                .count(),
+            excluded,
+            applied_exceptions: applied,
+            threshold_uses: Vec::new(),
+            cacheable: Some(cacheable),
+        },
+        repository_facts,
     })
 }
 
@@ -482,7 +496,7 @@ fn confined_rust_custom_path(value: &str) -> bool {
         })
 }
 
-fn evaluate_parser_target(request: EvaluationRequest<'_>) -> Result<CheckResult, String> {
+fn evaluate_parser_target(request: EvaluationRequest<'_>) -> Result<TargetEvaluation, String> {
     let EvaluationRequest {
         project_root,
         config,
@@ -491,6 +505,7 @@ fn evaluate_parser_target(request: EvaluationRequest<'_>) -> Result<CheckResult,
         excluded,
         show_warnings,
         cache_enabled,
+        collect_repository_facts,
     } = request;
     let custom_option_codes = config
         .rule_options
@@ -589,9 +604,12 @@ fn evaluate_parser_target(request: EvaluationRequest<'_>) -> Result<CheckResult,
             remediation: metadata.remediation.clone(),
         });
     }
+    let custom_selected = web_custom_rules_selected(config, show_warnings);
+    let fact_payload = (collect_repository_facts || custom_selected)
+        .then(|| web_fact_payload(config.analyzer, sources));
     let mut custom_codes: Vec<String> = Vec::new();
     let mut cacheable = true;
-    if web_custom_rules_selected(config, show_warnings) {
+    if custom_selected {
         let subject_sources = sources
             .iter()
             .filter(|source| web_custom_subject(source, config.analyzer))
@@ -609,7 +627,9 @@ fn evaluate_parser_target(request: EvaluationRequest<'_>) -> Result<CheckResult,
             target: config.target.clone(),
             show_warnings,
             cache_enabled,
-            facts: web_fact_payload(config.analyzer, sources),
+            facts: fact_payload
+                .clone()
+                .ok_or_else(|| "Web custom facts were not collected.".to_owned())?,
             subjects,
         })?;
         let source_paths = sources
@@ -665,26 +685,33 @@ fn evaluate_parser_target(request: EvaluationRequest<'_>) -> Result<CheckResult,
         .collect();
     uses.sort();
     uses.dedup();
-    Ok(CheckResult {
-        analyzer: config.analyzer,
-        faults: blocking_faults,
-        warnings,
-        selected: sources
-            .iter()
-            .filter(|source| {
-                source.purpose.is_direct()
-                    || config.analyzer == crate::analyzer::AnalyzerId::Svelte
-                        && source.purpose == crate::models::SourcePurpose::Support
-                        && crate::check::_helpers::project::is_direct_source(
-                            &source.path,
-                            crate::analyzer::AnalyzerId::TypeScript,
-                        )
-            })
-            .count(),
-        excluded,
-        applied_exceptions: applied,
-        threshold_uses: uses,
-        cacheable: Some(cacheable),
+    Ok(TargetEvaluation {
+        result: CheckResult {
+            analyzer: config.analyzer,
+            faults: blocking_faults,
+            warnings,
+            selected: sources
+                .iter()
+                .filter(|source| {
+                    source.purpose.is_direct()
+                        || config.analyzer == crate::analyzer::AnalyzerId::Svelte
+                            && source.purpose == crate::models::SourcePurpose::Support
+                            && crate::check::_helpers::project::is_direct_source(
+                                &source.path,
+                                crate::analyzer::AnalyzerId::TypeScript,
+                            )
+                })
+                .count(),
+            excluded,
+            applied_exceptions: applied,
+            threshold_uses: uses,
+            cacheable: Some(cacheable),
+        },
+        repository_facts: if collect_repository_facts {
+            fact_payload
+        } else {
+            None
+        },
     })
 }
 

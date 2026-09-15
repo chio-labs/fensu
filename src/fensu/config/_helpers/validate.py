@@ -24,6 +24,7 @@ from fensu.config.constants import (
     PATH_SEPARATOR,
     PYTHON_ANALYZER,
     RECURSIVE_GLOB,
+    REPOSITORY_RULES_CONFIG_KEY,
     RULE_EXCEPTION_SYMBOLS_CONFIG_KEY,
     RULE_IGNORE_KEYS,
     RUST_SOURCE_SUFFIX,
@@ -124,7 +125,7 @@ def select_config_target(
         if target is not None:
             raise ConfigValidationError(f"Unknown target name: {target}.")
         return raw, None, PYTHON_ANALYZER, DEFAULT_TARGET_ROOT
-    mixed_keys: set[str] = set(raw) - {TARGETS_CONFIG_KEY}
+    mixed_keys: set[str] = set(raw) - {TARGETS_CONFIG_KEY, REPOSITORY_RULES_CONFIG_KEY}
     if mixed_keys:
         names: str = ", ".join(sorted(mixed_keys))
         raise ConfigValidationError(
@@ -644,7 +645,8 @@ def _validate_exception_path(*, path: str, analyzer: AnalyzerId | None) -> None:
         if analyzer is AnalyzerId.SVELTE
         else parsed.suffix == RUST_SOURCE_SUFFIX or path.endswith(CARGO_MANIFEST_FILE_NAME)
         if analyzer is AnalyzerId.RUST
-        else parsed.suffix == _python_file_suffix or path.endswith((*web_suffixes, ".svelte"))
+        else parsed.suffix in {_python_file_suffix, RUST_SOURCE_SUFFIX}
+        or path.endswith((*web_suffixes, ".svelte", CARGO_MANIFEST_FILE_NAME))
     )
     if (
         parsed.is_absolute()

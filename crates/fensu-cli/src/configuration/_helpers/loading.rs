@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use crate::configuration::_helpers::roots::resolve_target_root;
 use crate::configuration::_helpers::{discovery, parsing, validation};
-use crate::models::Config;
+use crate::models::{Config, RepositoryRulePolicy};
 
 pub(crate) fn load(start: &Path) -> Result<(PathBuf, Config), String> {
     load_target(start, None)
@@ -67,6 +67,82 @@ pub(crate) fn load_targets(
         .into_iter()
         .map(|name| load_target(start, name.as_deref()))
         .collect()
+}
+
+pub(crate) fn load_repository_rule_policy(
+    start: &Path,
+) -> Result<Option<RepositoryRulePolicy>, String> {
+    let (path, pyproject) = discovery::find(start)?;
+    let raw =
+        fs::read(&path).map_err(|error| format!("Could not read {}: {error}", path.display()))?;
+    let document = toml::from_slice::<toml::Value>(&raw)
+        .map_err(|error| format!("Could not parse {}: {error}", path.display()))?;
+    let value = if pyproject {
+        document
+            .get("tool")
+            .and_then(|value| value.get("fensu"))
+            .ok_or_else(|| format!("{} does not contain [tool.fensu].", path.display()))?
+    } else {
+        &document
+    };
+    let table = value.as_table().ok_or_else(|| {
+        format!(
+            "Config source {} did not contain a TOML table.",
+            path.display()
+        )
+    })?;
+    validation::validate_without_selection(table)?;
+    Ok(parsing::repository_rule_policy(table))
+}
+
+pub(crate) fn load_repository_rule_config(
+    start: &Path,
+) -> Result<Option<(PathBuf, Config)>, String> {
+    let (path, pyproject) = discovery::find(start)?;
+    let raw =
+        fs::read(&path).map_err(|error| format!("Could not read {}: {error}", path.display()))?;
+    let document = toml::from_slice::<toml::Value>(&raw)
+        .map_err(|error| format!("Could not parse {}: {error}", path.display()))?;
+    let value = if pyproject {
+        document
+            .get("tool")
+            .and_then(|value| value.get("fensu"))
+            .ok_or_else(|| format!("{} does not contain [tool.fensu].", path.display()))?
+    } else {
+        &document
+    };
+    let table = value.as_table().ok_or_else(|| {
+        format!(
+            "Config source {} did not contain a TOML table.",
+            path.display()
+        )
+    })?;
+    validation::validate_without_selection(table)?;
+    let Some(repository) = table
+        .get(crate::constants::CONFIG_REPOSITORY_RULES_KEY)
+        .and_then(toml::Value::as_table)
+    else {
+        return Ok(None);
+    };
+    let mut policy = repository.clone();
+    policy.insert(
+        "roots".to_owned(),
+        toml::Value::Array(vec![toml::Value::String(".".to_owned())]),
+    );
+    policy
+        .entry("select".to_owned())
+        .or_insert_with(|| toml::Value::Array(Vec::new()));
+    let config = parsing::build(
+        crate::models::TargetSelection {
+            table: policy,
+            target: None,
+            analyzer: crate::analyzer::AnalyzerId::Python,
+            root: ".".to_owned(),
+        },
+        raw,
+        pyproject,
+    )?;
+    Ok(Some((path, config)))
 }
 
 pub(crate) fn load_optional(

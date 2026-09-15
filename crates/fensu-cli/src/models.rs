@@ -111,6 +111,17 @@ pub(crate) struct Config {
     pub(crate) identity_raw: Vec<u8>,
 }
 
+#[derive(Clone, Debug, Default)]
+pub(crate) struct RepositoryRulePolicy {
+    pub(crate) rule_paths: Vec<String>,
+    pub(crate) rule_modules: Vec<String>,
+    pub(crate) select: Vec<String>,
+    pub(crate) warn: Vec<String>,
+    pub(crate) ignore: Vec<String>,
+    pub(crate) cache_enabled: bool,
+    pub(crate) has_custom_options: bool,
+}
+
 #[derive(Clone, Debug)]
 pub(crate) struct TargetSelection {
     pub(crate) table: toml::map::Map<String, toml::Value>,

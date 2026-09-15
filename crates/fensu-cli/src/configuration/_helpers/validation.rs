@@ -9,7 +9,7 @@ use crate::configuration::_helpers::scopes::validate_test_scopes;
 use crate::configuration::_helpers::selectors::valid_selector;
 use crate::configuration::constants::{CONFIG_ROLE_NAMES, CONTRACT_BEHAVIORS, DEFAULT_THRESHOLDS};
 use crate::configuration::main::expand_path_pattern::expand_path_pattern;
-use crate::constants::CONFIG_TARGETS_KEY;
+use crate::constants::{CONFIG_REPOSITORY_RULES_KEY, CONFIG_TARGETS_KEY};
 use crate::models::TargetSelection;
 
 const RECURSIVE_GLOB: &str = "**";
@@ -167,6 +167,7 @@ pub(crate) fn select_target(
             root: DEFAULT_TARGET_ROOT.to_owned(),
         });
     }
+    validate_repository_rules(table.get(CONFIG_REPOSITORY_RULES_KEY))?;
     let mut validated = validated_targets(table)?;
     let selected_name = match target {
         Some(name) if validated.contains_key(name) => name.to_owned(),
@@ -202,6 +203,7 @@ pub(crate) fn selected_target_names(
         validate(table)?;
         return Ok(vec![None]);
     }
+    validate_repository_rules(table.get(CONFIG_REPOSITORY_RULES_KEY))?;
     let validated = validated_targets(table)?;
     if let Some(name) = target {
         if !validated.contains_key(name) {
@@ -218,6 +220,7 @@ pub(crate) fn validate_without_selection(
     table: &toml::map::Map<String, toml::Value>,
 ) -> Result<(), String> {
     if table.contains_key(CONFIG_TARGETS_KEY) {
+        validate_repository_rules(table.get(CONFIG_REPOSITORY_RULES_KEY))?;
         let _ = validated_targets(table)?;
         return Ok(());
     }
@@ -229,7 +232,12 @@ fn validated_targets(
 ) -> Result<ValidatedTargets, String> {
     let mut mixed = table
         .keys()
-        .filter(|key| key.as_str() != CONFIG_TARGETS_KEY)
+        .filter(|key| {
+            !matches!(
+                key.as_str(),
+                CONFIG_TARGETS_KEY | CONFIG_REPOSITORY_RULES_KEY
+            )
+        })
         .cloned()
         .collect::<Vec<_>>();
     if !mixed.is_empty() {
@@ -297,6 +305,47 @@ fn validated_targets(
         validated.insert(name.clone(), (selected, analyzer, root));
     }
     Ok(validated)
+}
+
+fn validate_repository_rules(value: Option<&toml::Value>) -> Result<(), String> {
+    let Some(table) = value.and_then(toml::Value::as_table) else {
+        return if value.is_none() {
+            Ok(())
+        } else {
+            Err("Config key repository_rules must be a table.".to_owned())
+        };
+    };
+    validate_keys(
+        table,
+        &[
+            "cache",
+            "ignore",
+            "rule_exceptions",
+            "rule_ignores",
+            "rule_modules",
+            "rule_options",
+            "rule_paths",
+            "select",
+            "skills",
+            "warn",
+        ],
+        "repository_rules",
+    )?;
+    validate_optional_table(table, "cache", &["enabled", "require_cacheable"])?;
+    validate_optional_table(table, "skills", &["name"])?;
+    validate_boolean_table(table, "cache", &["enabled", "require_cacheable"])?;
+    validate_rule_options(table.get("rule_options"), AnalyzerId::Python)?;
+    for name in ["select", "warn", "ignore"] {
+        validate_selectors(table.get(name), name)?;
+    }
+    for name in ["rule_paths", "rule_modules"] {
+        if let Some(item) = table.get(name) {
+            let _ = required_strings(Some(item), name)?;
+        }
+    }
+    exceptions::validate_repository(table.get("rule_exceptions"))?;
+    validate_rule_ignores(table.get("rule_ignores"))?;
+    Ok(())
 }
 
 fn normalize_web_aliases(

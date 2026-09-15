@@ -105,13 +105,13 @@ impl VisibilityIndex {
             if is_test_source(file) {
                 continue;
             }
-            let Ok(syntax) = syn::parse_file(&file.source) else {
+            let Some(syntax) = file.syntax.file.as_ref() else {
                 continue;
             };
             let current_module = reference_paths::module_path(&crate_sources.package, file);
             let source_domain = current_module.get(1).cloned();
             for (target, line) in
-                reference_paths::collect(&syntax, &file.source, &crate_sources.package)
+                reference_paths::collect(syntax, &file.source, &crate_sources.package)
             {
                 let target = normalize_dependency_root(target, &crate_sources.dependency_roots);
                 if targets_bare_crate_surface(&target, &crate_sources.package, &module_visibility)
@@ -135,11 +135,11 @@ impl VisibilityIndex {
                     line,
                 });
             }
-            if let Some(entry) = collect_entry(file, &current_module, &module_visibility, &syntax) {
+            if let Some(entry) = collect_entry(file, &current_module, &module_visibility, syntax) {
                 self.entries.push(entry);
             }
             self.helper_types
-                .extend(collect_helper_types(file, &current_module, &syntax));
+                .extend(collect_helper_types(file, &current_module, syntax));
         }
     }
 }
@@ -159,11 +159,11 @@ fn normalize_dependency_root(
 fn module_visibility(crate_sources: &CrateSources) -> BTreeMap<Vec<String>, bool> {
     let mut result: BTreeMap<Vec<String>, bool> = BTreeMap::new();
     for file in &crate_sources.files {
-        let Ok(syntax) = syn::parse_file(&file.source) else {
+        let Some(syntax) = file.syntax.file.as_ref() else {
             continue;
         };
         let parent = reference_paths::module_path(&crate_sources.package, file);
-        for item in syntax.items {
+        for item in &syntax.items {
             let syn::Item::Mod(item_mod) = item else {
                 continue;
             };

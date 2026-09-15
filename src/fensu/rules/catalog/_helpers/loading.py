@@ -139,8 +139,12 @@ def _validate_rule_analyzers(*, rules: tuple[RuleSpec, ...]) -> None:
             or any(not isinstance(analyzer, AnalyzerId) for analyzer in rule.analyzers)
         ):
             raise ConfigError(f"rule {rule.code} declares invalid analyzer applicability")
-        if rule.kind is RuleKind.CUSTOM and rule.analyzers != (AnalyzerId.PYTHON,):
-            raise ConfigError(f"Custom rule {rule.code} must use analyzer python.")
+        if rule.kind is RuleKind.CUSTOM and any(
+            analyzer not in {AnalyzerId.PYTHON, AnalyzerId.RUST} for analyzer in rule.analyzers
+        ):
+            raise ConfigError(
+                f"Custom rule {rule.code} may use only Python or Rust analyzers in this release."
+            )
 
 
 def _validate_rule_constraints(*, rules: tuple[RuleSpec, ...]) -> None:
@@ -329,8 +333,10 @@ def _with_custom_source(*, rules: tuple[RuleSpec, ...], source: str) -> tuple[Ru
             )
         if not rule.code.startswith("X") or rule.kind is not RuleKind.CUSTOM:
             raise ConfigError(f"Custom rule {rule.code} from {source} must use the X* namespace.")
-        if rule.analyzers != (AnalyzerId.PYTHON,):
-            raise ConfigError(f"Custom rule {rule.code} from {source} must use analyzer python.")
+        if any(analyzer not in {AnalyzerId.PYTHON, AnalyzerId.RUST} for analyzer in rule.analyzers):
+            raise ConfigError(
+                f"Custom rule {rule.code} from {source} uses an unsupported analyzer."
+            )
         result.append(
             replace(
                 rule,

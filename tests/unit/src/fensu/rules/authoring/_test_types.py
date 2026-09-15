@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from fensu import RuleOption
+from fensu import AnalyzerId, RuleOption
 from fensu.rules.authoring.types import ExecutionOwner, Family, RuleKind
 
 
@@ -125,6 +125,17 @@ class RuleCacheableFlagTestCase:
     description: str
     cacheable: bool | None
     expected_cacheable: bool | None
+
+
+@dataclass(frozen=True)
+class RustAnalyzerDeclarationTestCase:
+    """One Rust applicability declaration and expected callback compatibility."""
+
+    description: str
+    analyzers: tuple[AnalyzerId, ...]
+    legacy: bool
+    expected_analyzers: tuple[AnalyzerId, ...]
+    expected_error_fragment: str | None
 
 
 @dataclass(frozen=True)

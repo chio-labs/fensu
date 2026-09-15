@@ -33,6 +33,7 @@ if TYPE_CHECKING:
         ProjectPath,
         ProjectTree,
         RuleOption,
+        RustWorkspaceFacts,
     )
 
 type RuleOptionValue = bool | int | str | tuple[str, ...] | tuple[int, ...]
@@ -42,6 +43,7 @@ class SourceKind(StrEnum):
     """Analyzer-neutral source representation identity."""
 
     PYTHON_MODULE = "python_module"
+    RUST_MODULE = "rust_module"
 
 
 class ImportResolution(StrEnum):
@@ -56,6 +58,35 @@ class ModuleVisibility(StrEnum):
 
     PUBLIC = "public"
     INTERNAL = "internal"
+
+
+class RustItemKind(StrEnum):
+    """Fensu-owned Rust declaration categories."""
+
+    FUNCTION = "function"
+    STRUCT = "struct"
+    ENUM = "enum"
+    TRAIT = "trait"
+    IMPLEMENTATION = "implementation"
+    MODULE = "module"
+
+
+class RustVisibility(StrEnum):
+    """Normalized Rust declaration visibility."""
+
+    PUBLIC = "public"
+    CRATE = "crate"
+    RESTRICTED = "restricted"
+    PRIVATE = "private"
+
+
+class RustUseResolution(StrEnum):
+    """Strongest statically provable destination of an authored Rust use path."""
+
+    RESOLVED = "resolved"
+    CRATE = "crate"
+    EXTERNAL = "external"
+    UNRESOLVED = "unresolved"
 
 
 class Family(StrEnum):
@@ -248,6 +279,11 @@ class RuleContext(Protocol):
     @property
     def graph(self) -> ArchitectureGraph:
         """Return the evaluation-scoped analyzer-neutral architecture graph."""
+        ...
+
+    @property
+    def rust(self) -> RustWorkspaceFacts:
+        """Return evaluation-scoped Fensu-owned Rust workspace facts."""
         ...
 
     @property

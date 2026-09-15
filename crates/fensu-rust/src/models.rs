@@ -17,9 +17,10 @@ pub struct AnalysisDiagnostic {
 }
 
 /// Deterministically ordered analysis of one Cargo workspace.
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RepositoryAnalysis {
     pub diagnostics: Vec<AnalysisDiagnostic>,
+    pub facts: crate::facts::models::RustWorkspaceFacts,
 }
 
 /// Resolved Rust rule settings. Cargo supplies workspace identities and targets.
@@ -210,6 +211,21 @@ pub struct SourceFile {
     pub source_root_relative: String,
     pub source_relative: String,
     pub source: String,
+    pub(crate) syntax: RustSyntax,
+}
+
+/// One shared parser result reused by built-in checks and serialized fact collection.
+#[derive(Debug, Clone)]
+pub(crate) struct RustSyntax {
+    pub(crate) file: Option<syn::File>,
+    pub(crate) error: Option<RustParseFailure>,
+}
+
+/// Stable parse failure details retained without exposing the parser error type.
+#[derive(Debug, Clone)]
+pub(crate) struct RustParseFailure {
+    pub(crate) line: usize,
+    pub(crate) message: String,
 }
 
 /// Files and setup violations produced while scanning one source root.
@@ -235,11 +251,15 @@ pub struct WorkspaceCrate {
     pub library_name: Option<String>,
     pub targets: Vec<WorkspaceTarget>,
     pub dependencies: Vec<WorkspaceDependency>,
+    pub(crate) files: Vec<SourceFile>,
 }
 
 /// One Cargo target source root and whether it follows test conventions.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct WorkspaceTarget {
+    pub name: String,
+    pub kinds: Vec<String>,
+    pub entry_path: path::PathBuf,
     pub source_root: path::PathBuf,
     pub test: bool,
 }
@@ -249,6 +269,7 @@ pub struct WorkspaceTarget {
 pub struct WorkspaceDependency {
     pub package_name: String,
     pub source_name: String,
+    pub kinds: Vec<String>,
     pub path: Option<path::PathBuf>,
     pub resolved: bool,
 }

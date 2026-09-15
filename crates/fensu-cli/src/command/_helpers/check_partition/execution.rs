@@ -36,7 +36,9 @@ pub(crate) fn partitioned_check(
                 python_targets.push(target.clone());
             }
         } else {
-            hosted_web_policy |= hosted_policy;
+            if config.analyzer != AnalyzerId::Rust {
+                hosted_web_policy |= hosted_policy;
+            }
             if let Some(target) = &config.target {
                 web_targets.insert(target.clone());
             }

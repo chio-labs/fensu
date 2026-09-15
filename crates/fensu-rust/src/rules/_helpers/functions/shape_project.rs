@@ -78,11 +78,11 @@ fn crate_sources(
 fn must_use_functions(crate_sources: &CrateSources) -> Vec<Vec<String>> {
     let mut functions: Vec<Vec<String>> = Vec::new();
     for file in &crate_sources.files {
-        let Ok(syntax) = syn::parse_file(&file.source) else {
+        let Some(syntax) = file.syntax.file.as_ref() else {
             continue;
         };
         let module = reference_paths::module_path(&crate_sources.package, file);
-        for item in syntax.items {
+        for item in &syntax.items {
             let syn::Item::Fn(function) = item else {
                 continue;
             };
@@ -108,7 +108,7 @@ fn discarded_calls(crate_sources: &CrateSources) -> Vec<DiscardedCall> {
         {
             continue;
         }
-        let Ok(syntax) = syn::parse_file(&file.source) else {
+        let Some(syntax) = file.syntax.file.as_ref() else {
             continue;
         };
         let module = reference_paths::module_path(&crate_sources.package, file);
@@ -120,7 +120,7 @@ fn discarded_calls(crate_sources: &CrateSources) -> Vec<DiscardedCall> {
             imports: BTreeMap::new(),
             calls: &mut calls,
         };
-        visitor.visit_file(&syntax);
+        visitor.visit_file(syntax);
     }
     calls
 }

@@ -21,3 +21,11 @@ class ArchitectureGraphQueryError(ValueError):
 
 class ArchitectureGraphQueryTypeError(TypeError):
     """An architecture graph query received an unsupported subject value."""
+
+
+class RustFactProtocolError(ValueError):
+    """A native Rust fact payload does not match the supported public contract."""
+
+
+class RustFactQueryTypeError(TypeError):
+    """A Rust fact query received an unsupported subject value."""

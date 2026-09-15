@@ -191,14 +191,18 @@ fn discover_workspace_crate(
         relative_display(repo_root, &package_dir),
         package.name
     );
-    let workspace_crate = models::WorkspaceCrate {
+    let mut workspace_crate = models::WorkspaceCrate {
         directory: package_dir,
         package_name: Some(package.name.clone()),
         package_identity,
         library_name: library_target_name(package),
         targets,
         dependencies,
+        files: Vec::new(),
     };
+    let source_scan = rust_workspace_files(repo_root, &workspace_crate);
+    workspace_crate.files = source_scan.files;
+    violations.extend(source_scan.violations);
     (Some(workspace_crate), violations)
 }
 
@@ -255,6 +259,14 @@ fn discover_targets(
             continue;
         }
         targets.push(models::WorkspaceTarget {
+            name: target.name.clone(),
+            kinds: target
+                .kind
+                .iter()
+                .map(target_kind_name)
+                .map(str::to_owned)
+                .collect(),
+            entry_path: source_path.clone(),
             source_root: conventional_root,
             test: is_test,
         });
@@ -330,6 +342,9 @@ fn add_conventional_tests(
             .any(|target| target.test && target.source_root == tests)
     {
         targets.push(models::WorkspaceTarget {
+            name: "integration-tests".to_owned(),
+            kinds: vec!["test".to_owned()],
+            entry_path: tests.clone(),
             source_root: tests,
             test: true,
         });
@@ -391,6 +406,12 @@ fn discover_dependencies(
         dependencies.push(models::WorkspaceDependency {
             package_name: resolved.name.clone(),
             source_name: dependency.name.replace('-', "_"),
+            kinds: dependency
+                .dep_kinds
+                .iter()
+                .map(|kind| dependency_kind_name(kind.kind))
+                .map(str::to_owned)
+                .collect(),
             path,
             resolved: true,
         });
@@ -431,6 +452,7 @@ fn discover_declared_dependencies(
         dependencies.push(models::WorkspaceDependency {
             package_name: dependency.name.clone(),
             source_name,
+            kinds: vec![dependency_kind_name(dependency.kind).to_owned()],
             path,
             resolved,
         });
@@ -521,6 +543,32 @@ fn supported_target_entry(
     source_path == conventional_root.join(constants::LIB_FILE)
 }
 
+fn target_kind_name(kind: &cargo_metadata::TargetKind) -> &'static str {
+    match kind {
+        cargo_metadata::TargetKind::Lib => "lib",
+        cargo_metadata::TargetKind::RLib => "rlib",
+        cargo_metadata::TargetKind::DyLib => "dylib",
+        cargo_metadata::TargetKind::CDyLib => "cdylib",
+        cargo_metadata::TargetKind::StaticLib => "staticlib",
+        cargo_metadata::TargetKind::ProcMacro => "proc-macro",
+        cargo_metadata::TargetKind::Bin => "bin",
+        cargo_metadata::TargetKind::Example => "example",
+        cargo_metadata::TargetKind::Test => "test",
+        cargo_metadata::TargetKind::Bench => "bench",
+        cargo_metadata::TargetKind::CustomBuild => "custom-build",
+        _ => "unknown",
+    }
+}
+
+fn dependency_kind_name(kind: cargo_metadata::DependencyKind) -> &'static str {
+    match kind {
+        cargo_metadata::DependencyKind::Normal => "normal",
+        cargo_metadata::DependencyKind::Development => "development",
+        cargo_metadata::DependencyKind::Build => "build",
+        _ => "unknown",
+    }
+}
+
 fn contained_canonical_path(
     root: &path::Path,
     candidate: &path::Path,
@@ -592,13 +640,29 @@ pub(crate) fn rust_files(repo_root: &path::Path, root: &path::Path) -> models::S
     paths.sort();
     for path in paths {
         match fs::read_to_string(&path) {
-            Ok(source) => files.push(models::SourceFile {
-                relative: relative_display(repo_root, &path),
-                source_root_relative: relative_display(repo_root, &canonical_root),
-                source_relative: relative_display(&canonical_root, &path),
-                path,
-                source,
-            }),
+            Ok(source) => {
+                let syntax = match syn::parse_file(&source) {
+                    Ok(file) => models::RustSyntax {
+                        file: Some(file),
+                        error: None,
+                    },
+                    Err(error) => models::RustSyntax {
+                        file: None,
+                        error: Some(models::RustParseFailure {
+                            line: error.span().start().line,
+                            message: error.to_string(),
+                        }),
+                    },
+                };
+                files.push(models::SourceFile {
+                    relative: relative_display(repo_root, &path),
+                    source_root_relative: relative_display(repo_root, &canonical_root),
+                    source_relative: relative_display(&canonical_root, &path),
+                    path,
+                    source,
+                    syntax,
+                });
+            }
             Err(error) => violations.push(models::Violation::new(models::ViolationRequest {
                 code: "RSH901",
                 path: path::Path::new(&relative_display(repo_root, &path)),
@@ -613,18 +677,45 @@ pub(crate) fn rust_files(repo_root: &path::Path, root: &path::Path) -> models::S
 
 /// Scan all Cargo-discovered source roots of one package without duplicate files.
 pub(crate) fn rust_target_files(
-    repo_root: &path::Path,
+    _repo_root: &path::Path,
     workspace_crate: &models::WorkspaceCrate,
     test: bool,
 ) -> models::SourceScan {
-    let mut files: Vec<models::SourceFile> = Vec::new();
-    let mut violations: Vec<models::Violation> = Vec::new();
-    for target in workspace_crate
+    let mut files: Vec<models::SourceFile> = workspace_crate
+        .files
+        .iter()
+        .filter(|file| file_matches_target(file, &workspace_crate.targets, test))
+        .cloned()
+        .collect();
+    let violations: Vec<models::Violation> = Vec::new();
+    files.sort_by(|left, right| left.path.cmp(&right.path));
+    files.dedup_by(|left, right| left.path == right.path);
+    models::SourceScan { files, violations }
+}
+
+fn file_matches_target(
+    file: &models::SourceFile,
+    targets: &[models::WorkspaceTarget],
+    test: bool,
+) -> bool {
+    targets
+        .iter()
+        .any(|target| target.test == test && file.path.starts_with(&target.source_root))
+}
+
+fn rust_workspace_files(
+    repo_root: &path::Path,
+    workspace_crate: &models::WorkspaceCrate,
+) -> models::SourceScan {
+    let roots: std::collections::BTreeSet<path::PathBuf> = workspace_crate
         .targets
         .iter()
-        .filter(|target| target.test == test)
-    {
-        let scan = rust_files(repo_root, &target.source_root);
+        .map(|target| target.source_root.clone())
+        .collect::<std::collections::BTreeSet<_>>();
+    let mut files: Vec<models::SourceFile> = Vec::new();
+    let mut violations: Vec<models::Violation> = Vec::new();
+    for root in roots {
+        let scan = rust_files(repo_root, &root);
         files.extend(scan.files);
         violations.extend(scan.violations);
     }
@@ -648,14 +739,14 @@ pub(crate) fn check_source_file(request: models::SourceCheckRequest<'_>) -> Vec<
         return check_test_syntax(file, kind, config, dependencies);
     }
     let kind = source_file_kind(file, repo_root, src_root);
-    let syntax = syn::parse_file(&file.source);
-    let mut violations: Vec<models::Violation> = match syntax.as_ref() {
-        Ok(syntax) => hygiene::check_source(file, Some(syntax), kind),
-        Err(_) => hygiene::check_source(file, None, kind),
+    let syntax = file.syntax.file.as_ref();
+    let mut violations: Vec<models::Violation> = match syntax {
+        Some(syntax) => hygiene::check_source(file, Some(syntax), kind),
+        None => hygiene::check_source(file, None, kind),
     };
     violations.extend(placement::check_common(file, &config.repository.thresholds));
-    match syntax.as_ref() {
-        Ok(syntax) => {
+    match syntax {
+        Some(syntax) => {
             violations.extend(tests_layout::check_source_scope(file, syntax));
             violations.extend(layers::check_uses(layers::UseCheckRequest {
                 file,
@@ -686,7 +777,7 @@ pub(crate) fn check_source_file(request: models::SourceCheckRequest<'_>) -> Vec<
                 thresholds: &config.repository.thresholds,
             }));
         }
-        Err(error) => violations.push(parse_violation(file, error)),
+        None => violations.push(parse_violation(file)),
     }
     violations
 }
@@ -709,14 +800,14 @@ fn check_test_syntax(
     config: &models::RustPolicy,
     dependencies: &[models::WorkspaceDependency],
 ) -> Vec<models::Violation> {
-    let syntax = syn::parse_file(&file.source);
-    let mut violations: Vec<models::Violation> = match syntax.as_ref() {
-        Ok(syntax) => hygiene::check_test_file(file, Some(syntax)),
-        Err(_) => hygiene::check_test_file(file, None),
+    let syntax = file.syntax.file.as_ref();
+    let mut violations: Vec<models::Violation> = match syntax {
+        Some(syntax) => hygiene::check_test_file(file, Some(syntax)),
+        None => hygiene::check_test_file(file, None),
     };
     violations.extend(placement::check_common(file, &config.repository.thresholds));
-    match syntax.as_ref() {
-        Ok(syntax) => {
+    match syntax {
+        Some(syntax) => {
             violations.extend(layers::check_uses(layers::UseCheckRequest {
                 file,
                 syntax,
@@ -727,7 +818,7 @@ fn check_test_syntax(
             violations.extend(tests_layout::check(file, syntax, kind));
             violations.extend(tests_shape::check(file, syntax, kind));
         }
-        Err(error) => violations.push(parse_violation(file, error)),
+        None => violations.push(parse_violation(file)),
     }
     violations
 }
@@ -749,12 +840,16 @@ fn inline_test_file_kind(file: &models::SourceFile) -> Option<FileKind> {
     })
 }
 
-fn parse_violation(file: &models::SourceFile, error: &syn::Error) -> models::Violation {
+fn parse_violation(file: &models::SourceFile) -> models::Violation {
+    let error = file.syntax.error.as_ref();
     models::Violation::new(models::ViolationRequest {
         code: "RSH902",
         path: file.relative_path(),
-        line: Some(error.span().start().line),
-        message: format!("cannot parse Rust source: {error}"),
+        line: error.map(|value| value.line),
+        message: format!(
+            "cannot parse Rust source: {}",
+            error.map_or("unknown parser failure", |value| value.message.as_str())
+        ),
         remediation: "fix the syntax error before checking structure",
     })
 }

@@ -1,6 +1,9 @@
-use crate::helpers::{run_check, run_check_with, write};
+use crate::helpers::{run_check, run_check_with, workspace_python, write};
 use crate::test_types::{
-    InvalidCheckConfigTestCase, RustCacheTestCase, RustCheckTestCase, RustMetadataCacheTestCase,
+    InvalidCheckConfigTestCase, RustCacheTestCase, RustCheckTestCase,
+    RustCustomCacheInvalidationTestCase, RustCustomFileRuleTestCase, RustCustomHostRoutingTestCase,
+    RustCustomMalformedSourceTestCase, RustCustomNarrowCacheTestCase, RustCustomPolicyTestCase,
+    RustMetadataCacheTestCase,
 };
 
 const RUST_CONFIG: &str = "[targets.rust]\nanalyzer = \"rust\"\nroots = [\"src\"]\ntests = []\ntooling = []\nrule_packs = [\"rust\"]\nselect = [\"FPRSL302\"]\n";
@@ -169,6 +172,12 @@ fn given_invalid_rust_configuration_when_checking_then_configuration_fails_close
             expected_error: "Unknown native rule options code",
         },
         InvalidCheckConfigTestCase {
+            description: "unselected custom option table",
+            config: "[targets.rust.rule_options.XTYPO001]\nunknown = true\n",
+            expected_exit_code: 2,
+            expected_error: "custom rule options require a selected custom rule",
+        },
+        InvalidCheckConfigTestCase {
             description: "invalid parser boundary path",
             config: "[targets.rust.rule_options.FPRSL102]\nrestricted_paths = [\"../outside\"]\n",
             expected_exit_code: 2,
@@ -304,5 +313,508 @@ fn given_unavailable_cargo_metadata_when_checking_then_failure_is_read_only_and_
             );
             assert_eq!(current_lock, stale_lock, "{}", test_case.description);
         }
+    }
+}
+
+#[test]
+fn given_selected_custom_rust_file_rule_when_checking_then_owned_item_and_tree_facts_emit_fault() {
+    let test_cases = [RustCustomFileRuleTestCase {
+        description: "typed Rust file rule reads item and tree facts",
+        expected_exit_code: 1,
+        expected_location: "src/lib.rs:2:11",
+        expected_code: "XRS001",
+    }];
+    for test_case in test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(
+            repository.path().join("Cargo.toml"),
+            "[package]\nname = \"example\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        );
+        write(
+            repository.path().join("src/lib.rs"),
+            "#[derive(Clone)]\npub struct LegacyService;\n",
+        );
+        write(
+            repository.path().join("rules/custom.py"),
+            "from fensu import AnalyzerId, Family, Fault, File, RuleContext, RuleOption, RustItemKind, rule\nNAME = RuleOption.string(name='name', default='LegacyService')\n@rule(code='XRS001', family=Family.CUSTOM, slug='rust-item', message='legacy item', analyzers=(AnalyzerId.RUST,), options=(NAME,), cacheable=True)\ndef rust_item(*, file: File, ctx: RuleContext) -> list[Fault]:\n    position = ctx.project.tree.position(file.path)\n    facts = ctx.rust.file(file)\n    if position is None or facts is None or position.analyzer is not AnalyzerId.RUST:\n        return []\n    return [ctx.fault_at(location=item.location) for item in facts.items if item.kind is RustItemKind.STRUCT and item.name == ctx.option(NAME)]\n",
+        );
+        write(
+            repository.path().join("fensu.toml"),
+            "[targets.rust]\nanalyzer = \"rust\"\nroots = [\"src\"]\ntests = []\ntooling = []\nrule_packs = [\"rust\"]\nrule_paths = [\"rules/custom.py\"]\nselect = [\"XRS001\"]\n[targets.rust.rule_options.XRS001]\nname = \"LegacyService\"\n",
+        );
+
+        let output = std::process::Command::new(env!("CARGO_BIN_EXE_fensu"))
+            .args(["check", "--no-color", "--no-cache"])
+            .current_dir(repository.path())
+            .env("FENSU_PYTHON", workspace_python())
+            .output()
+            .expect("custom Rust check runs");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {stdout} {stderr}",
+            test_case.description
+        );
+        assert!(
+            stdout.contains(test_case.expected_location),
+            "{}: {stdout}",
+            test_case.description
+        );
+        assert!(
+            stdout.contains(test_case.expected_code),
+            "{}: {stdout}",
+            test_case.description
+        );
+        assert!(
+            !repository.path().join("Cargo.lock").exists(),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            !repository
+                .path()
+                .join(".fensu/cache/rust-custom-v1.json")
+                .exists(),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_unselected_custom_rust_rule_when_checking_then_python_host_does_not_start() {
+    let test_cases = [
+        RustCustomHostRoutingTestCase {
+            description: "unselected custom Rust rule remains Python-free",
+            selection: "select = [\"FPRSL302\"]\n",
+            expected_non_error_exit_code: 2,
+            expected_absent: "host started",
+        },
+        RustCustomHostRoutingTestCase {
+            description: "fully ignored custom Rust selection remains Python-free",
+            selection: "select = [\"XRS\"]\nignore = [\"X\"]\n",
+            expected_non_error_exit_code: 2,
+            expected_absent: "host started",
+        },
+    ];
+    for test_case in test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(
+            repository.path().join("Cargo.toml"),
+            "[package]\nname = \"example\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        );
+        write(
+            repository.path().join("src/lib.rs"),
+            "pub fn value() -> usize { 1 }\n",
+        );
+        write(
+            repository.path().join("rules/custom.py"),
+            "raise RuntimeError('host started for an unselected custom rule')\n",
+        );
+        write(
+            repository.path().join("fensu.toml"),
+            &format!(
+                "[targets.rust]\nanalyzer = \"rust\"\nroots = [\"src\"]\ntests = []\ntooling = []\nrule_packs = [\"rust\"]\nrule_paths = [\"rules/custom.py\"]\n{}",
+                test_case.selection
+            ),
+        );
+
+        let output = run_check(repository.path());
+        let stderr = String::from_utf8_lossy(&output.stderr);
+
+        assert_ne!(
+            output.status.code(),
+            Some(test_case.expected_non_error_exit_code),
+            "{}: {stderr}",
+            test_case.description
+        );
+        assert!(
+            !stderr.contains(test_case.expected_absent),
+            "{}: {stderr}",
+            test_case.description
+        );
+        assert!(
+            !repository.path().join("Cargo.lock").exists(),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_custom_rust_project_rule_when_dependency_changes_then_cached_result_invalidates() {
+    let test_cases = [RustCustomCacheInvalidationTestCase {
+        description: "Cargo dependency changes invalidate a cached project rule",
+        expected_code: "XRS002",
+        expected_warm_cache: "Cache: hits=2 misses=0",
+        expected_changed_cache: "Cache: hits=0 misses=2",
+        expected_implementation_cache: "Cache: hits=0 misses=2",
+        expected_corruption_exit_code: 1,
+    }];
+    for test_case in test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(
+            repository.path().join("Cargo.toml"),
+            "[workspace]\nmembers = [\"crates/app\", \"crates/core\"]\nresolver = \"2\"\n",
+        );
+        write(
+            repository.path().join("crates/app/Cargo.toml"),
+            "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n[dependencies]\ncore = { path = \"../core\" }\n",
+        );
+        write(
+            repository.path().join("crates/app/src/lib.rs"),
+            "pub fn app() -> usize { core::value() }\n",
+        );
+        write(
+            repository.path().join("crates/core/Cargo.toml"),
+            "[package]\nname = \"core\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        );
+        write(
+            repository.path().join("crates/core/src/lib.rs"),
+            "pub fn value() -> usize { 1 }\n",
+        );
+        write(
+            repository.path().join("rules/custom.py"),
+            "from fensu import AnalyzerId, Family, Fault, Project, RuleContext, rule\nfrom rules.helper import has_restricted_dependency\n@rule(code='XRS002', family=Family.CUSTOM, slug='crate-dependency', message='dependency is not allowed', analyzers=(AnalyzerId.RUST,), cacheable=True)\ndef crate_dependency(*, project: Project, ctx: RuleContext) -> list[Fault]:\n    del project\n    return [ctx.path_fault(path=crate.manifest_path) for crate in ctx.rust.crates if has_restricted_dependency(crate)]\n",
+        );
+        write(repository.path().join("rules/__init__.py"), "");
+        write(
+            repository.path().join("rules/helper.py"),
+            "def has_restricted_dependency(crate):\n    return any(dependency.package_name == 'core' for dependency in crate.dependencies)\n",
+        );
+        write(
+            repository.path().join("fensu.toml"),
+            "[targets.rust]\nanalyzer = \"rust\"\nroots = [\"crates\"]\ntests = []\ntooling = []\nrule_packs = [\"rust\"]\nrule_modules = [\"rules.custom\"]\nselect = [\"XRS002\"]\n[targets.rust.cache]\nenabled = true\nrequire_cacheable = true\n",
+        );
+
+        let run = || {
+            std::process::Command::new(env!("CARGO_BIN_EXE_fensu"))
+                .args(["check", "--no-color", "--cache", "--cache-stats"])
+                .current_dir(repository.path())
+                .env("FENSU_PYTHON", workspace_python())
+                .output()
+                .expect("custom Rust project check runs")
+        };
+        let cold = run();
+        let warm = run();
+        write(
+            repository.path().join("crates/app/Cargo.toml"),
+            "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        );
+        let changed = run();
+        write(
+            repository.path().join("rules/helper.py"),
+            "def has_restricted_dependency(crate):\n    return True\n",
+        );
+        let implementation_changed = run();
+        let custom_cache = repository.path().join(".fensu/cache/rust-custom-v1.json");
+        std::fs::write(&custom_cache, [0xff]).expect("invalid UTF-8 cache fixture");
+        write(
+            repository.path().join("crates/core/src/lib.rs"),
+            "pub fn value() -> usize { 2 }\n",
+        );
+        let decode_corrupted = run();
+        let cache = std::fs::read_to_string(&custom_cache).expect("recovered custom cache");
+        let malformed_replay = cache.replace(
+            "\"kind\":\"rust_crates\",\"query\":\".\"",
+            "\"kind\":\"rust_file\",\"query\":\"../outside.rs\"",
+        );
+        assert_ne!(cache, malformed_replay, "{}", test_case.description);
+        std::fs::write(&custom_cache, malformed_replay).expect("malformed replay fixture");
+        write(
+            repository.path().join("crates/core/src/lib.rs"),
+            "pub fn value() -> usize { 3 }\n",
+        );
+        let replay_corrupted = run();
+        let cold_stdout = String::from_utf8_lossy(&cold.stdout);
+        let warm_stderr = String::from_utf8_lossy(&warm.stderr);
+        let changed_stdout = String::from_utf8_lossy(&changed.stdout);
+        let changed_stderr = String::from_utf8_lossy(&changed.stderr);
+        let implementation_stdout = String::from_utf8_lossy(&implementation_changed.stdout);
+        let implementation_stderr = String::from_utf8_lossy(&implementation_changed.stderr);
+        let decode_corrupted_stdout = String::from_utf8_lossy(&decode_corrupted.stdout);
+        let decode_corrupted_stderr = String::from_utf8_lossy(&decode_corrupted.stderr);
+        let replay_corrupted_stdout = String::from_utf8_lossy(&replay_corrupted.stdout);
+        let replay_corrupted_stderr = String::from_utf8_lossy(&replay_corrupted.stderr);
+
+        assert_eq!(
+            cold.stdout, warm.stdout,
+            "{}: cached and uncached diagnostics differ",
+            test_case.description
+        );
+        assert!(
+            cold_stdout.contains(test_case.expected_code),
+            "{}: {cold_stdout}",
+            test_case.description
+        );
+        assert!(
+            warm_stderr.contains(test_case.expected_warm_cache),
+            "{}: {warm_stderr}",
+            test_case.description
+        );
+        assert!(
+            !changed_stdout.contains(test_case.expected_code),
+            "{}: {changed_stdout}",
+            test_case.description
+        );
+        assert!(
+            changed_stderr.contains(test_case.expected_changed_cache),
+            "{}: {changed_stderr}",
+            test_case.description
+        );
+        assert!(
+            implementation_stdout.contains(test_case.expected_code),
+            "{}: {implementation_stdout}",
+            test_case.description
+        );
+        assert!(
+            implementation_stderr.contains(test_case.expected_implementation_cache),
+            "{}: {implementation_stderr}",
+            test_case.description
+        );
+        assert_eq!(
+            decode_corrupted.status.code(),
+            Some(test_case.expected_corruption_exit_code),
+            "{}: {decode_corrupted_stdout} {decode_corrupted_stderr}",
+            test_case.description
+        );
+        assert!(
+            decode_corrupted_stdout.contains(test_case.expected_code),
+            "{}: {decode_corrupted_stdout}",
+            test_case.description
+        );
+        assert_eq!(
+            replay_corrupted.status.code(),
+            Some(test_case.expected_corruption_exit_code),
+            "{}: {replay_corrupted_stdout} {replay_corrupted_stderr}",
+            test_case.description
+        );
+        assert!(
+            replay_corrupted_stdout.contains(test_case.expected_code),
+            "{}: {replay_corrupted_stdout}",
+            test_case.description
+        );
+        assert!(
+            !repository.path().join("Cargo.lock").exists(),
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_file_fact_dependency_when_unrelated_file_changes_then_subject_cache_reuses_narrow_result()
+{
+    let test_cases = [RustCustomNarrowCacheTestCase {
+        description: "focused Rust file query survives an unrelated source edit",
+        unchanged_path: "src/first.rs",
+        changed_path: "src/second.rs",
+        expected_reused_message: "reused narrow result",
+    }];
+    for test_case in test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(
+            repository.path().join("Cargo.toml"),
+            "[package]\nname = \"example\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        );
+        write(
+            repository.path().join("src/lib.rs"),
+            "pub mod first;\npub mod second;\n",
+        );
+        write(
+            repository.path().join(test_case.unchanged_path),
+            "pub struct First;\n",
+        );
+        write(
+            repository.path().join(test_case.changed_path),
+            "pub struct Second;\n",
+        );
+        write(repository.path().join("rules/__init__.py"), "");
+        write(
+            repository.path().join("rules/custom.py"),
+            "from fensu import AnalyzerId, Family, Fault, File, RuleContext, rule\n@rule(code='XRS005', family=Family.CUSTOM, slug='narrow-cache', message='narrow cache', analyzers=(AnalyzerId.RUST,), cacheable=True)\ndef narrow_cache(*, file: File, ctx: RuleContext) -> list[Fault]:\n    facts = ctx.rust.file(file)\n    if facts is None or file.path.name == 'lib.rs':\n        return []\n    return [ctx.path_fault(message=file.path.value)]\n",
+        );
+        write(
+            repository.path().join("fensu.toml"),
+            "[targets.rust]\nanalyzer = \"rust\"\nroots = [\"src\"]\ntests = []\ntooling = []\nrule_packs = [\"rust\"]\nrule_modules = [\"rules.custom\"]\nselect = [\"XRS005\"]\n[targets.rust.cache]\nenabled = true\nrequire_cacheable = true\n",
+        );
+        let run = || {
+            std::process::Command::new(env!("CARGO_BIN_EXE_fensu"))
+                .args(["check", "--no-color", "--cache"])
+                .current_dir(repository.path())
+                .env("FENSU_PYTHON", workspace_python())
+                .output()
+                .expect("narrow custom Rust cache check runs")
+        };
+
+        let before = run();
+        let cache_path = repository.path().join(".fensu/cache/rust-custom-v1.json");
+        let cache = std::fs::read_to_string(&cache_path).expect("custom Rust subject cache");
+        let cache = cache.replace(
+            &format!("\"message\":\"{}\"", test_case.unchanged_path),
+            &format!("\"message\":\"{}\"", test_case.expected_reused_message),
+        );
+        std::fs::write(cache_path, cache).expect("cache marker");
+        write(
+            repository.path().join(test_case.changed_path),
+            "pub struct SecondChanged;\n",
+        );
+        let after = run();
+        let before_stdout = String::from_utf8_lossy(&before.stdout);
+        let after_stdout = String::from_utf8_lossy(&after.stdout);
+
+        assert!(
+            before_stdout.contains(test_case.unchanged_path),
+            "{}: {before_stdout}",
+            test_case.description
+        );
+        assert!(
+            after_stdout.contains(test_case.expected_reused_message),
+            "{}: {after_stdout}",
+            test_case.description
+        );
+        assert!(
+            after_stdout.contains(test_case.changed_path),
+            "{}: {after_stdout}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_malformed_rust_when_custom_rule_reads_file_facts_then_parse_error_remains_explicit() {
+    let test_cases = [RustCustomMalformedSourceTestCase {
+        description: "malformed source remains explicit in custom facts",
+        expected_exit_code: 1,
+        expected_custom_code: "XRS003",
+        expected_native_absent: "FPRSH902",
+    }];
+    for test_case in test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(
+            repository.path().join("Cargo.toml"),
+            "[package]\nname = \"example\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        );
+        write(repository.path().join("src/lib.rs"), "pub fn broken( {\n");
+        write(
+            repository.path().join("rules/custom.py"),
+            "from fensu import AnalyzerId, Family, Fault, File, RuleContext, rule\n@rule(code='XRS003', family=Family.CUSTOM, slug='parse-evidence', message='source did not parse', analyzers=(AnalyzerId.RUST,), cacheable=True)\ndef parse_evidence(*, file: File, ctx: RuleContext) -> list[Fault]:\n    facts = ctx.rust.file(file)\n    return [ctx.path_fault()] if facts is not None and facts.parse_error is not None else []\n",
+        );
+        write(
+            repository.path().join("fensu.toml"),
+            "[targets.rust]\nanalyzer = \"rust\"\nroots = [\"src\"]\ntests = []\ntooling = []\nrule_packs = [\"rust\"]\nrule_paths = [\"rules/custom.py\"]\nselect = [\"XRS003\"]\n",
+        );
+
+        let output = std::process::Command::new(env!("CARGO_BIN_EXE_fensu"))
+            .args(["check", "--no-color", "--no-cache"])
+            .current_dir(repository.path())
+            .env("FENSU_PYTHON", workspace_python())
+            .output()
+            .expect("malformed custom Rust check runs");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {stdout} {stderr}",
+            test_case.description
+        );
+        assert!(
+            stdout.contains(test_case.expected_custom_code),
+            "{}: {stdout}",
+            test_case.description
+        );
+        assert!(
+            !stdout.contains(test_case.expected_native_absent),
+            "{}: {stdout}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_custom_rust_policy_when_checking_then_warning_ignore_and_exception_semantics_are_shared() {
+    let test_cases = [
+        RustCustomPolicyTestCase {
+            description: "warning tier emits advisory custom Rust finding",
+            selection: "select = []\nwarn = [\"XRS004\"]\n",
+            policy: "",
+            arguments: &["--no-cache", "--warn"],
+            expected_exit_code: 0,
+            expected_present: "XRS004",
+            expected_absent: "Found 1 fault",
+        },
+        RustCustomPolicyTestCase {
+            description: "scoped ignore suppresses custom Rust finding",
+            selection: "select = [\"XRS004\"]\n",
+            policy: "[[targets.rust.rule_ignores]]\nrules = [\"XRS004\"]\npaths = [\"src/**\"]\nreason = \"Generated adapter.\"\n",
+            arguments: &["--no-cache"],
+            expected_exit_code: 0,
+            expected_present: "Found 0 faults",
+            expected_absent: "XRS004 ",
+        },
+        RustCustomPolicyTestCase {
+            description: "exact exception suppresses custom Rust finding",
+            selection: "select = [\"XRS004\"]\n",
+            policy: "[[targets.rust.rule_exceptions]]\nrule = \"XRS004\"\npath = \"src/lib.rs\"\nreason = \"Accepted adapter.\"\n",
+            arguments: &["--no-cache"],
+            expected_exit_code: 0,
+            expected_present: "Applied 1 rule exception",
+            expected_absent: "XRS004 ",
+        },
+    ];
+    for test_case in test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(
+            repository.path().join("Cargo.toml"),
+            "[package]\nname = \"example\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        );
+        write(
+            repository.path().join("src/lib.rs"),
+            "pub fn value() -> usize { 1 }\n",
+        );
+        write(
+            repository.path().join("rules/custom.py"),
+            "from fensu import AnalyzerId, Family, Fault, File, RuleContext, rule\n@rule(code='XRS004', family=Family.CUSTOM, slug='shared-policy', message='review Rust file', analyzers=(AnalyzerId.RUST,), cacheable=True)\ndef shared_policy(*, file: File, ctx: RuleContext) -> list[Fault]:\n    return [ctx.path_fault()]\n",
+        );
+        write(
+            repository.path().join("fensu.toml"),
+            &format!(
+                "[targets.rust]\nanalyzer = \"rust\"\nroots = [\"src\"]\ntests = []\ntooling = []\nrule_packs = [\"rust\"]\nrule_paths = [\"rules/custom.py\"]\n{}{}",
+                test_case.selection, test_case.policy
+            ),
+        );
+
+        let output = std::process::Command::new(env!("CARGO_BIN_EXE_fensu"))
+            .args(["check", "--no-color"])
+            .args(test_case.arguments)
+            .current_dir(repository.path())
+            .env("FENSU_PYTHON", workspace_python())
+            .output()
+            .expect("custom Rust policy check runs");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let combined = format!("{stdout}{stderr}");
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {combined}",
+            test_case.description
+        );
+        assert!(
+            combined.contains(test_case.expected_present),
+            "{}: {combined}",
+            test_case.description
+        );
+        assert!(
+            !combined.contains(test_case.expected_absent),
+            "{}: {combined}",
+            test_case.description
+        );
     }
 }

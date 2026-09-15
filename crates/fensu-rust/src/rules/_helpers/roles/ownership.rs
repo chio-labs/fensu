@@ -104,10 +104,10 @@ fn is_root_role(part: &str) -> bool {
 fn consumer_graph(nodes: &[ModuleNode<'_>], package: &str) -> Vec<BTreeSet<usize>> {
     let mut consumers = vec![BTreeSet::new(); nodes.len()];
     for (consumer, node) in nodes.iter().enumerate() {
-        let Ok(syntax) = syn::parse_file(&node.file.source) else {
+        let Some(syntax) = node.file.syntax.file.as_ref() else {
             continue;
         };
-        for (target, _) in reference_paths::collect(&syntax, &node.file.source, package) {
+        for (target, _) in reference_paths::collect(syntax, &node.file.source, package) {
             let Some(owner) = referenced_module(nodes, &target) else {
                 continue;
             };

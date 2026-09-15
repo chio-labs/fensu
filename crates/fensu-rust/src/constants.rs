@@ -1,8 +1,13 @@
 //! Rust rule thresholds, names, and analyzer contract identities.
 
 pub const PARSER_CONTRACT_VERSION: &str = "rust-syn-workspace-v1";
-pub const CACHE_CONTRACT_VERSION: &str = "rust-rules-v2";
+pub const CACHE_CONTRACT_VERSION: &str = "rust-rules-v3";
+pub const FACT_SCHEMA_VERSION: &str = "rust-facts-v1";
 pub const METADATA_SETUP_CODE: &str = "RSL901";
+pub(crate) const CRATE_PATH_ROOT: &str = "crate";
+pub(crate) const SELF_PATH_ROOT: &str = "self";
+pub(crate) const SUPER_PATH_ROOT: &str = "super";
+pub(crate) const BINARY_TARGET_KIND: &str = "bin";
 
 pub const MAX_FILE_LINES: usize = 2000;
 pub const MAX_DECLARATION_FILE_LINES: usize = 80;

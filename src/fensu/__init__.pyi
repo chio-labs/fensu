@@ -163,6 +163,7 @@ from fensu.analysis.types import (
 from fensu.analysis.types import (
     TextAnalysis as TextAnalysis,
 )
+from fensu.config.types import AnalyzerId as AnalyzerId
 from fensu.config.types import ContractBehavior as ContractBehavior
 from fensu.discovery.types import ScopeName as ScopeName
 from fensu.rules.authoring.main.define import rule as rule
@@ -178,6 +179,13 @@ from fensu.rules.authoring.models import Project as Project
 from fensu.rules.authoring.models import ProjectPath as ProjectPath
 from fensu.rules.authoring.models import ProjectTree as ProjectTree
 from fensu.rules.authoring.models import RuleOption as RuleOption
+from fensu.rules.authoring.models import RustCrateFact as RustCrateFact
+from fensu.rules.authoring.models import RustDependencyFact as RustDependencyFact
+from fensu.rules.authoring.models import RustFileFacts as RustFileFacts
+from fensu.rules.authoring.models import RustItemFact as RustItemFact
+from fensu.rules.authoring.models import RustTargetFact as RustTargetFact
+from fensu.rules.authoring.models import RustUseFact as RustUseFact
+from fensu.rules.authoring.models import RustWorkspaceFacts as RustWorkspaceFacts
 from fensu.rules.authoring.types import (
     ExecutionOwner as ExecutionOwner,
 )
@@ -186,6 +194,9 @@ from fensu.rules.authoring.types import (
 )
 from fensu.rules.authoring.types import ImportResolution as ImportResolution
 from fensu.rules.authoring.types import ModuleVisibility as ModuleVisibility
+from fensu.rules.authoring.types import RustItemKind as RustItemKind
+from fensu.rules.authoring.types import RustUseResolution as RustUseResolution
+from fensu.rules.authoring.types import RustVisibility as RustVisibility
 from fensu.rules.authoring.types import (
     RuleContext as RuleContext,
 )

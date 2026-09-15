@@ -5,6 +5,12 @@ tests = ["tests"]
 tooling = ["scripts"]
 select = ["FF"]
 
+[[targets.python.rule_exceptions]]
+rule = "FFS010"
+path = "src/fensu/rules/authoring/main/define.py"
+symbols = ["rule"]
+reason = "The stable public rule decorator exposes one explicit keyword per authoring contract."
+
 [targets.rust]
 analyzer = "rust"
 roots = ["crates"]
@@ -12,6 +18,11 @@ tests = []
 tooling = ["crates/fensu-rust"]
 rule_packs = ["rust"]
 select = ["FPRS"]
+
+[[targets.rust.rule_exceptions]]
+rule = "FPRSL105"
+path = "crates/fensu-rust/src/rules/main/check_repository_with_config.rs"
+reason = "This public library entry is consumed directly by downstream crates and integration tests."
 
 [targets.rust.rule_options.FPRSL102]
 packages = ["ruff_python_ast", "ruff_python_parser"]

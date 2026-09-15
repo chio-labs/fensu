@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
 from fensu.analysis.models import SourceLocation
+from fensu.analysis.types import FactAnalysis, RelationAnalysis, SyntaxAnalysis, TextAnalysis
 from fensu.config.types import AnalyzerId
 from fensu.discovery.types import ScopeName
 from fensu.rules.authoring.constants import MISSING, PROJECT_ROOT
@@ -89,6 +90,91 @@ class File:
 @dataclass(frozen=True, slots=True)
 class Project:
     """Stable identity of the analyzed project."""
+
+
+@dataclass(frozen=True, slots=True)
+class Repository:
+    """Stable identity of the configured multi-target repository."""
+
+
+@dataclass(frozen=True, slots=True, order=True)
+class Target:
+    """Stable identity of one named analyzer target in a repository."""
+
+    name: str
+    analyzer: AnalyzerId
+    root: ProjectPath
+
+
+@dataclass(frozen=True, slots=True)
+class PythonFileFacts:
+    """One Python source identity, text, and analyzer-neutral analysis zones."""
+
+    file: File
+    source: str
+    facts: FactAnalysis
+    text: TextAnalysis
+    syntax: SyntaxAnalysis
+    relations: RelationAnalysis
+
+
+@dataclass(frozen=True, slots=True)
+class PythonWorkspaceFacts:
+    """Requester-observed Python facts for one named repository target."""
+
+    schema_version: str
+    parser_contract: str
+    _file_values: tuple[PythonFileFacts, ...] = field(repr=False)
+    _files_by_path: Mapping[ProjectPath, PythonFileFacts] = field(repr=False, compare=False)
+    _observe: Callable[[str, str, str], None] | None = field(
+        default=None, repr=False, compare=False
+    )
+
+    @property
+    def files(self) -> tuple[PythonFileFacts, ...]:
+        """Return every discovered Python file and observe the broad inventory."""
+
+        from fensu.rules.authoring._helpers.project_tree import python_file_identity
+
+        self._record(
+            kind="python_files",
+            query=PROJECT_ROOT,
+            answer="\n".join(python_file_identity(value=item) for item in self._file_values),
+        )
+        return self._file_values
+
+    def file(self, value: File | ProjectPath) -> PythonFileFacts | None:
+        """Return one focused Python file without observing the broad inventory."""
+
+        path: ProjectPath = value.path if isinstance(value, File) else value
+        if not isinstance(path, ProjectPath):
+            from fensu.rules.authoring.exceptions import PythonFactQueryTypeError
+
+            raise PythonFactQueryTypeError("Python file queries require a File or ProjectPath")
+        answer: PythonFileFacts | None = self._files_by_path.get(path)
+        from fensu.rules.authoring._helpers.project_tree import python_file_identity
+
+        self._record(
+            kind="python_file",
+            query=path.value,
+            answer="" if answer is None else python_file_identity(value=answer),
+        )
+        return answer
+
+    def observed(self, observer: Callable[[str, str, str], None]) -> PythonWorkspaceFacts:
+        """Return a fact view whose query answers are recorded for one invocation."""
+
+        return PythonWorkspaceFacts(
+            schema_version=self.schema_version,
+            parser_contract=self.parser_contract,
+            _file_values=self._file_values,
+            _files_by_path=self._files_by_path,
+            _observe=observer,
+        )
+
+    def _record(self, *, kind: str, query: str, answer: str) -> None:
+        if self._observe is not None:
+            self._observe(kind, query, answer)
 
 
 @dataclass(frozen=True, slots=True)
@@ -531,7 +617,7 @@ class RustWorkspaceFacts:
     def crates(self) -> tuple[RustCrateFact, ...]:
         """Return all workspace crates and observe the broad Cargo inventory."""
 
-        from fensu.rules.authoring._helpers.rust_fact_identity import rust_crate_identity
+        from fensu.rules.authoring._helpers.fact_identity import rust_crate_identity
 
         self._record(
             kind="rust_crates",
@@ -544,7 +630,7 @@ class RustWorkspaceFacts:
     def files(self) -> tuple[RustFileFacts, ...]:
         """Return all Rust files and observe the broad source inventory."""
 
-        from fensu.rules.authoring._helpers.rust_fact_identity import rust_file_identity
+        from fensu.rules.authoring._helpers.fact_identity import rust_file_identity
 
         self._record(
             kind="rust_files",
@@ -559,7 +645,7 @@ class RustWorkspaceFacts:
         if not isinstance(identity, str):
             raise RustFactQueryTypeError("Rust crate queries require a string identity")
         value: RustCrateFact | None = self._crates_by_identity.get(identity)
-        from fensu.rules.authoring._helpers.rust_fact_identity import rust_crate_identity
+        from fensu.rules.authoring._helpers.fact_identity import rust_crate_identity
 
         self._record(
             kind="rust_crate",
@@ -575,7 +661,7 @@ class RustWorkspaceFacts:
         if not isinstance(path, ProjectPath):
             raise RustFactQueryTypeError("Rust file queries require a File or ProjectPath")
         answer: RustFileFacts | None = self._files_by_path.get(path)
-        from fensu.rules.authoring._helpers.rust_fact_identity import rust_file_identity
+        from fensu.rules.authoring._helpers.fact_identity import rust_file_identity
 
         self._record(
             kind="rust_file",
@@ -791,7 +877,7 @@ class WebWorkspaceFacts:
     def files(self) -> tuple[WebFileFacts, ...]:
         """Return all discovered web files and observe the broad inventory."""
 
-        from fensu.rules.authoring._helpers.web_fact_identity import web_file_identity
+        from fensu.rules.authoring._helpers.fact_identity import web_file_identity
 
         self._record(
             kind="web_files",
@@ -809,7 +895,7 @@ class WebWorkspaceFacts:
 
             raise WebFactQueryTypeError("Web file queries require a File or ProjectPath")
         answer: WebFileFacts | None = self._files_by_path.get(path)
-        from fensu.rules.authoring._helpers.web_fact_identity import web_file_identity
+        from fensu.rules.authoring._helpers.fact_identity import web_file_identity
 
         self._record(
             kind="web_file",

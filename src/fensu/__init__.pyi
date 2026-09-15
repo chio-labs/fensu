@@ -178,6 +178,9 @@ from fensu.rules.authoring.models import ModuleNode as ModuleNode
 from fensu.rules.authoring.models import Project as Project
 from fensu.rules.authoring.models import ProjectPath as ProjectPath
 from fensu.rules.authoring.models import ProjectTree as ProjectTree
+from fensu.rules.authoring.models import PythonFileFacts as PythonFileFacts
+from fensu.rules.authoring.models import PythonWorkspaceFacts as PythonWorkspaceFacts
+from fensu.rules.authoring.models import Repository as Repository
 from fensu.rules.authoring.models import RuleOption as RuleOption
 from fensu.rules.authoring.models import RustCrateFact as RustCrateFact
 from fensu.rules.authoring.models import RustDependencyFact as RustDependencyFact
@@ -189,6 +192,7 @@ from fensu.rules.authoring.models import RustWorkspaceFacts as RustWorkspaceFact
 from fensu.rules.authoring.models import SvelteFileFacts as SvelteFileFacts
 from fensu.rules.authoring.models import SvelteRuneFact as SvelteRuneFact
 from fensu.rules.authoring.models import SvelteScriptFact as SvelteScriptFact
+from fensu.rules.authoring.models import Target as Target
 from fensu.rules.authoring.models import WebBindingFact as WebBindingFact
 from fensu.rules.authoring.models import WebCallFact as WebCallFact
 from fensu.rules.authoring.models import WebClassFact as WebClassFact
@@ -209,8 +213,12 @@ from fensu.rules.authoring.types import (
 from fensu.rules.authoring.types import ImportResolution as ImportResolution
 from fensu.rules.authoring.types import ModuleVisibility as ModuleVisibility
 from fensu.rules.authoring.types import (
+    RepositoryTargetFacts as RepositoryTargetFacts,
+)
+from fensu.rules.authoring.types import (
     RuleContext as RuleContext,
 )
+from fensu.rules.authoring.types import RuleTargetFacts as RuleTargetFacts
 from fensu.rules.authoring.types import RustItemKind as RustItemKind
 from fensu.rules.authoring.types import RustUseResolution as RustUseResolution
 from fensu.rules.authoring.types import RustVisibility as RustVisibility

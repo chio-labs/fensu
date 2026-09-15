@@ -62,7 +62,9 @@ def rule(  # noqa: PLR0913
         validate_code_namespace(code=code, kind=kind)
         subject_kind, subject_parameter, context_parameter = infer_rule_subject(check=check)
         inferred_owner: ExecutionOwner = (
-            ExecutionOwner.PROJECT
+            ExecutionOwner.REPOSITORY
+            if subject_kind is RuleSubjectKind.REPOSITORY
+            else ExecutionOwner.PROJECT
             if subject_kind is RuleSubjectKind.PROJECT
             else ExecutionOwner.FILE
         )
@@ -83,7 +85,8 @@ def rule(  # noqa: PLR0913
             subject_kind is RuleSubjectKind.LEGACY
         ):
             raise RuleDefinitionError(
-                f"Native-analyzer custom rule {code} must use a typed File or Project subject"
+                f"Native-analyzer custom rule {code} must use a typed File or Project subject, "
+                "or a typed Repository subject"
             )
         spec: RuleSpec = RuleSpec(
             code=code,

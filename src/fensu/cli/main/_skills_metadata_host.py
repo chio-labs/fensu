@@ -11,9 +11,14 @@ from fensu.cli._helpers.rule_metadata import rule_metadata_value
 from fensu.cli.constants import SKILLS_METADATA_PROTOCOL_VERSION
 from fensu.cli.exceptions import CliCommandError
 from fensu.config.main.load_project_config import load_project_config
+from fensu.config.main.load_project_target_names import load_project_target_names
+from fensu.config.main.load_repository_rule_config import load_repository_rule_config
 from fensu.config.main.load_target_project_config import load_target_project_config
 from fensu.config.models import LoadedConfig
 from fensu.rules.catalog.main.build_check_rule_selection import build_check_rule_selection
+from fensu.rules.catalog.main.build_repository_rule_selection import (
+    build_repository_rule_selection,
+)
 from fensu.rules.catalog.models import RuleSelection
 
 
@@ -29,19 +34,38 @@ def main() -> int:
     target_value: object = request.get("target")
     if target_value is not None and not isinstance(target_value, str):
         raise CliCommandError("custom metadata request target must be a string or null")
+    repository_loaded: LoadedConfig | None = (
+        load_repository_rule_config(start=Path(root_value)) if target_value is None else None
+    )
     loaded: LoadedConfig = (
-        load_project_config(Path(root_value))
+        repository_loaded
+        if repository_loaded is not None
+        else load_project_config(Path(root_value))
         if target_value is None
         else load_target_project_config(
             start=Path(root_value), target=target_value, allow_web_custom=True
         )
     )
     project_root: Path = loaded.source.path.parent.resolve()
-    selection: RuleSelection = build_check_rule_selection(
-        config=loaded.config,
-        repo_root=project_root,
-        include_warnings=True,
-        catalogue=loaded.catalogue,
+    selection: RuleSelection = (
+        build_repository_rule_selection(
+            loaded=loaded,
+            target_analyzers=frozenset(
+                load_target_project_config(
+                    start=Path(root_value), target=name, allow_web_custom=True
+                ).config.analyzer
+                for name in load_project_target_names(start=Path(root_value), target=None)
+                if name is not None
+            ),
+            repo_root=project_root,
+        )
+        if repository_loaded is not None
+        else build_check_rule_selection(
+            config=loaded.config,
+            repo_root=project_root,
+            include_warnings=True,
+            catalogue=loaded.catalogue,
+        )
     )
     response: dict[str, object] = {
         "protocol": SKILLS_METADATA_PROTOCOL_VERSION,

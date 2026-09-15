@@ -107,6 +107,7 @@ pub(crate) fn prepare_checks(
             identity,
             cache_enabled,
             color,
+            repository_facts: None,
         });
     }
     let first = plans

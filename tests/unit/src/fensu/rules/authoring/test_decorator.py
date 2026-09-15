@@ -8,16 +8,58 @@ from fensu.config.types import AnalyzerId
 from fensu.rules.authoring.constants import _RULE_SPEC_ATTRIBUTE
 from fensu.rules.authoring.exceptions import RuleDefinitionError
 from fensu.rules.authoring.main.define import rule
-from fensu.rules.authoring.models import Fault, File, RuleSpec
-from fensu.rules.authoring.types import ExecutionOwner, Family, RuleCheck, RuleContext, RuleKind
+from fensu.rules.authoring.models import Fault, File, Repository, RuleSpec
+from fensu.rules.authoring.types import (
+    ExecutionOwner,
+    Family,
+    RuleCheck,
+    RuleContext,
+    RuleKind,
+    RuleSubjectKind,
+)
 from tests.unit.src.fensu.rules.authoring._test_types import (
     InvalidEnvelopeTestCase,
+    RepositorySubjectTestCase,
     RuleCacheableFlagTestCase,
     RuleEnvelopeTestCase,
     RuleExecutionOwnerTestCase,
     RustAnalyzerDeclarationTestCase,
 )
 from tests.unit.src.fensu.rules.authoring.helpers import empty_check
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        RepositorySubjectTestCase(
+            description="typed repository callback owns one aggregate invocation",
+            expected_subject="repository",
+            expected_context="ctx",
+            expected_owner=ExecutionOwner.REPOSITORY,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_repository_subject_when_decorating_then_registers_repository_owner(
+    test_case: RepositorySubjectTestCase,
+) -> None:
+    def check(*, repository: Repository, ctx: RuleContext) -> list[Fault]:
+        del repository, ctx
+        return []
+
+    decorated: RuleCheck = rule(
+        code="XRP001",
+        family=Family.CUSTOM,
+        slug="repository-subject",
+        message="repository fault",
+        analyzers=(AnalyzerId.PYTHON, AnalyzerId.TYPESCRIPT),
+    )(check)
+    spec: RuleSpec = getattr(decorated, _RULE_SPEC_ATTRIBUTE)
+
+    assert spec.subject_kind is RuleSubjectKind.REPOSITORY
+    assert spec.execution_owner is test_case.expected_owner
+    assert spec.subject_parameter == test_case.expected_subject
+    assert spec.context_parameter == test_case.expected_context
 
 
 @pytest.mark.parametrize(

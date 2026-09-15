@@ -2,6 +2,8 @@ pub(crate) mod expand_path_pattern;
 pub(crate) mod is_rule_code;
 pub(crate) mod is_rule_selector;
 pub(crate) mod load_optional;
+pub(crate) mod load_repository_rule_config;
+pub(crate) mod load_repository_rule_policy;
 pub(crate) mod load_target;
 pub(crate) mod load_targets;
 pub(crate) mod render_target_config;

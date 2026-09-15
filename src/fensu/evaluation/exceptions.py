@@ -37,6 +37,10 @@ class WebCustomRuleError(RuntimeError):
     """Raised when a hosted web rule violates its callback or confinement contract."""
 
 
+class RepositoryRuleError(RuntimeError):
+    """Raised when a repository-rule request, query, or result is incompatible."""
+
+
 class ParseError(Exception):
     """Raised when a Python file cannot be parsed by the running interpreter."""
 

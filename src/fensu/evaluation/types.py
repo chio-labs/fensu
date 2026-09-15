@@ -15,6 +15,15 @@ type NativeFaultRow = tuple[str, str | None, int | None, int | None, str | None,
 type NativeFaultsByCode = dict[str, tuple[Fault, ...]]
 type NativeThresholdValues = dict[str, int]
 type NativeRuleOptionValues = dict[str, dict[str, str]]
+type RepositoryEvaluation = tuple[
+    list[dict[str, object]],
+    list[dict[str, str]],
+    tuple[str, ...],
+    tuple[str, ...],
+    bool,
+    int,
+    dict[str, int],
+]
 type NativeExecutionRequest = tuple[
     str,
     list[str],
@@ -53,6 +62,32 @@ class NativeProjectQueryKind(StrEnum):
     DIRECTORY_ENTRIES = "directory_entries"
     GLOB = "glob"
     PYTHON_ANCHOR = "python_anchor"
+
+
+class RepositoryDependencyKind(StrEnum):
+    """Replayable target-qualified repository-rule observation kinds."""
+
+    TREE_PATHS = "tree_paths"
+    TREE_FILES = "tree_files"
+    TREE_CHILDREN = "tree_children"
+    TREE_DESCENDANTS = "tree_descendants"
+    TREE_GLOB = "tree_glob"
+    TREE_FILES_UNDER = "tree_files_under"
+    TREE_POSITION = "tree_position"
+    GRAPH_NODES = "graph_nodes"
+    GRAPH_NODE = "graph_node"
+    GRAPH_IMPORTS = "graph_imports"
+    GRAPH_DEPENDENCIES = "graph_dependencies"
+    GRAPH_DEPENDENTS = "graph_dependents"
+    GRAPH_CYCLES = "graph_cycles"
+    PYTHON_FILES = "python_files"
+    PYTHON_FILE = "python_file"
+    RUST_CRATES = "rust_crates"
+    RUST_FILES = "rust_files"
+    RUST_CRATE = "rust_crate"
+    RUST_FILE = "rust_file"
+    WEB_FILES = "web_files"
+    WEB_FILE = "web_file"
 
 
 class EvaluationProjectAnalysis(ProjectAnalysis, Protocol):

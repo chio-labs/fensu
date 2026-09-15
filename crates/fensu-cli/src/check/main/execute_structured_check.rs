@@ -7,6 +7,11 @@ use crate::check::models::StructuredCheckExecution;
 pub(crate) fn execute_structured_check(
     arguments: &[String],
     target_names: &HashSet<String>,
+    collect_repository_facts: bool,
 ) -> Result<StructuredCheckExecution, String> {
-    crate::check::_helpers::execution::structured_checks(arguments, target_names)
+    crate::check::_helpers::execution::structured_checks(
+        arguments,
+        target_names,
+        collect_repository_facts,
+    )
 }

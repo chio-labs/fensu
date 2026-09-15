@@ -10,7 +10,14 @@ use crate::skills::main::catalogue::load_rule_selection;
 
 pub(crate) fn rule_output(arguments: &[String]) -> Result<String, String> {
     let (color, code, target) = parse_arguments(arguments)?;
-    let (config_path, loaded) = load_target::load_target(Path::new("."), target.as_deref())?;
+    let (config_path, loaded) = if target.is_none() {
+        crate::configuration::main::load_repository_rule_config::load_repository_rule_config(
+            Path::new("."),
+        )?
+        .map_or_else(|| load_target::load_target(Path::new("."), None), Ok)?
+    } else {
+        load_target::load_target(Path::new("."), target.as_deref())?
+    };
     let project_root = config_path
         .parent()
         .ok_or_else(|| "Configuration has no parent directory.".to_owned())?;

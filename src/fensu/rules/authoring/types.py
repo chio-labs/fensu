@@ -30,10 +30,13 @@ if TYPE_CHECKING:
         ArchitectureGraph,
         CustomRuleRegistration,
         Fault,
+        File,
         ProjectPath,
         ProjectTree,
+        PythonWorkspaceFacts,
         RuleOption,
         RustWorkspaceFacts,
+        Target,
         WebWorkspaceFacts,
     )
 
@@ -188,6 +191,7 @@ class ExecutionOwner(StrEnum):
     LEAF = "leaf"
     SCOPE = "scope"
     PROJECT = "project"
+    REPOSITORY = "repository"
 
 
 class RuleSubjectKind(StrEnum):
@@ -196,6 +200,7 @@ class RuleSubjectKind(StrEnum):
     LEGACY = "legacy"
     FILE = "file"
     PROJECT = "project"
+    REPOSITORY = "repository"
 
 
 class RuleOptionKind(StrEnum):
@@ -322,6 +327,60 @@ class RuleProjectFacts(Protocol):
         ...
 
 
+class RuleTargetFacts(Protocol):
+    """Explicit typed facts for one named analyzer target."""
+
+    @property
+    def identity(self) -> Target:
+        """Return the target's stable name, analyzer, and repository-relative root."""
+        ...
+
+    @property
+    def tree(self) -> ProjectTree:
+        """Return the target-local deterministic project tree."""
+        ...
+
+    @property
+    def graph(self) -> ArchitectureGraph:
+        """Return the target-local architecture graph."""
+        ...
+
+    @property
+    def python(self) -> PythonWorkspaceFacts:
+        """Return Python facts or fail when this is not a Python target."""
+        ...
+
+    @property
+    def rust(self) -> RustWorkspaceFacts:
+        """Return Rust facts or fail when this is not a Rust target."""
+        ...
+
+    @property
+    def web(self) -> WebWorkspaceFacts:
+        """Return web facts or fail when this is not a TypeScript or Svelte target."""
+        ...
+
+    def repository_path(self, value: File | ProjectPath) -> ProjectPath:
+        """Translate one target-local file or path to repository-relative identity."""
+        ...
+
+    def repository_location(self, value: SourceLocation) -> SourceLocation:
+        """Translate one target-local location to repository-relative identity."""
+        ...
+
+
+class RepositoryTargetFacts(Protocol):
+    """Deterministic named target lookup available to repository rules."""
+
+    def all(self) -> tuple[RuleTargetFacts, ...]:
+        """Return every configured target in name order."""
+        ...
+
+    def named(self, name: str) -> RuleTargetFacts | None:
+        """Return one named target, or None when it is not configured."""
+        ...
+
+
 class RuleContext(Protocol):
     """Analyzer-owned fact, project, location, and option surface for one rule."""
 
@@ -348,6 +407,11 @@ class RuleContext(Protocol):
     @property
     def web(self) -> WebWorkspaceFacts:
         """Return evaluation-scoped Fensu-owned web facts."""
+        ...
+
+    @property
+    def targets(self) -> RepositoryTargetFacts:
+        """Return explicit named target handles for a repository rule."""
         ...
 
     @property

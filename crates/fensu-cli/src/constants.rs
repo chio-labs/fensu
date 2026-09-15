@@ -7,6 +7,12 @@ pub(crate) const OPTION_HELP: &str = "--help";
 pub(crate) const OPTION_HELP_SHORT: &str = "-h";
 pub(crate) const OPTION_TARGET: &str = "--target";
 pub(crate) const CONFIG_TARGETS_KEY: &str = "targets";
+pub(crate) const CONFIG_REPOSITORY_RULES_KEY: &str = "repository_rules";
+pub(crate) const CHECK_WARN_ARGUMENT: &str = "--warn";
+pub(crate) const CHECK_CACHE_ARGUMENT: &str = "--cache";
+pub(crate) const CHECK_NO_CACHE_ARGUMENT: &str = "--no-cache";
+pub(crate) const REPOSITORY_RULE_REQUESTER: &str = ".fensu-repository-rule";
+pub(crate) const PROJECT_ROOT_PATH: &str = ".";
 pub(crate) const ROLE_HELPERS: &str = "_helpers";
 pub(crate) const ROLE_MAIN: &str = "main";
 pub(crate) const ROLE_RULES: &str = "rules";
@@ -45,6 +51,29 @@ pub(crate) const WEB_CUSTOM_DEPENDENCY_KINDS: &[&str] = &[
     "graph_dependencies",
     "graph_dependents",
     "graph_cycles",
+];
+pub(crate) const REPOSITORY_CUSTOM_DEPENDENCY_KINDS: &[&str] = &[
+    "tree_paths",
+    "tree_files",
+    "tree_children",
+    "tree_descendants",
+    "tree_glob",
+    "tree_files_under",
+    "tree_position",
+    "graph_nodes",
+    "graph_node",
+    "graph_imports",
+    "graph_dependencies",
+    "graph_dependents",
+    "graph_cycles",
+    "python_files",
+    "python_file",
+    "rust_crates",
+    "rust_files",
+    "rust_crate",
+    "rust_file",
+    "web_files",
+    "web_file",
 ];
 pub(crate) const SCOPE_TOOLING: &str = "tooling";
 pub(crate) const STEM_INIT: &str = "__init__";

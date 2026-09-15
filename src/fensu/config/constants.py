@@ -64,6 +64,21 @@ PYTHON_ANALYZER: AnalyzerId = AnalyzerId.PYTHON
 DEFAULT_TARGET_ROOT: str = "."
 TARGET_CONFIG_KEYS: frozenset[str] = frozenset({"analyzer", "root"})
 TARGETS_CONFIG_KEY: str = "targets"
+REPOSITORY_RULES_CONFIG_KEY: str = "repository_rules"
+REPOSITORY_RULE_CONFIG_KEYS: frozenset[str] = frozenset(
+    {
+        "cache",
+        "ignore",
+        "rule_exceptions",
+        "rule_ignores",
+        "rule_modules",
+        "rule_options",
+        "rule_paths",
+        "select",
+        "skills",
+        "warn",
+    }
+)
 SELECT_CONFIG_KEY: str = "select"
 
 CONFIG_TOP_LEVEL_KEYS: frozenset[str] = frozenset(

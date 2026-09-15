@@ -210,7 +210,14 @@ fn validate_host_catalogue(catalogue: &[RuleMetadata]) -> Result<(), String> {
             || !matches!(item.severity.as_str(), "error" | "warning")
             || !matches!(
                 item.execution_owner.as_str(),
-                "file" | "package" | "domain" | "subdomain" | "leaf" | "scope" | "project"
+                "file"
+                    | "package"
+                    | "domain"
+                    | "subdomain"
+                    | "leaf"
+                    | "scope"
+                    | "project"
+                    | "repository"
             )
             || (item.kind == CUSTOM_KIND && item.source.as_deref().is_none_or(str::is_empty))
             || (item.kind == CORE_KIND && (item.source.is_some() || item.pack.is_some()))

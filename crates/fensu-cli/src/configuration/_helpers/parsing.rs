@@ -7,7 +7,8 @@ use crate::configuration::constants::{
     WEB_DEFAULT_CONTRACTS,
 };
 use crate::models::{
-    Config, RuleException, RuleIgnore, TargetSelection, TestLayout, ThresholdOverride,
+    Config, RepositoryRulePolicy, RuleException, RuleIgnore, TargetSelection, TestLayout,
+    ThresholdOverride,
 };
 
 pub(crate) fn build(
@@ -105,6 +106,30 @@ pub(crate) fn build(
         source_kind: if pyproject { "pyproject" } else { "fensu_toml" }.to_owned(),
         raw,
         identity_raw,
+    })
+}
+
+pub(crate) fn repository_rule_policy(
+    table: &toml::map::Map<String, toml::Value>,
+) -> Option<RepositoryRulePolicy> {
+    let values = table
+        .get(crate::constants::CONFIG_REPOSITORY_RULES_KEY)?
+        .as_table()?;
+    let cache = values.get("cache").and_then(toml::Value::as_table);
+    Some(RepositoryRulePolicy {
+        rule_paths: strings(values.get("rule_paths")),
+        rule_modules: strings(values.get("rule_modules")),
+        select: strings(values.get("select")),
+        warn: strings(values.get("warn")),
+        ignore: strings(values.get("ignore")),
+        cache_enabled: cache
+            .and_then(|table| table.get("enabled"))
+            .and_then(toml::Value::as_bool)
+            .unwrap_or(DEFAULT_CACHE_ENABLED),
+        has_custom_options: values
+            .get("rule_options")
+            .and_then(toml::Value::as_table)
+            .is_some_and(|options| options.keys().any(|code| code.starts_with('X'))),
     })
 }
 

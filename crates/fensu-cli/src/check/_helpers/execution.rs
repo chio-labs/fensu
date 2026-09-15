@@ -9,9 +9,10 @@ use crate::check::_helpers::evaluation::{evaluate, render_results};
 use crate::check::_helpers::policy::python_version;
 use crate::check::_helpers::project as web;
 use crate::check::models::{
-    CheckCacheStats, CheckPlans, CheckResult, EvaluationRequest, StructuredCachePayload,
-    StructuredCheckExecution,
+    CheckCacheStats, CheckPlans, CheckResult, CustomRuleSubject, EvaluationRequest,
+    RepositoryTargetPayload, StructuredCachePayload, StructuredCheckExecution,
 };
+use crate::check::repository_custom_facts::python_repository_fact_payload;
 use crate::models::{CachedOutput, CheckOptions, CliOutput, ParsedProgram, ScopedSource};
 use crate::skills::main::core_freshness;
 
@@ -39,7 +40,7 @@ pub(crate) fn render_check(
     mut plan: CheckPlans,
     options: &CheckOptions,
 ) -> Result<CliOutput, String> {
-    let results = evaluate_checks(&mut plan, options)?;
+    let results = evaluate_checks(&mut plan, options, false)?;
     let cacheable = results
         .iter()
         .all(|result| result.cacheable.unwrap_or(true));
@@ -72,6 +73,7 @@ pub(crate) fn render_check(
 pub(crate) fn evaluate_checks(
     plan: &mut CheckPlans,
     options: &CheckOptions,
+    collect_repository_facts: bool,
 ) -> Result<Vec<CheckResult>, String> {
     let mut results = Vec::with_capacity(plan.plans.len());
     for target in &mut plan.plans {
@@ -81,7 +83,7 @@ pub(crate) fn evaluate_checks(
             std::mem::take(&mut target.sources),
             &target.project_inputs,
         )?;
-        results.push(evaluate(EvaluationRequest {
+        let evaluated = evaluate(EvaluationRequest {
             project_root: &target.project_root,
             config: &target.config,
             sources: &target.sources,
@@ -89,7 +91,10 @@ pub(crate) fn evaluate_checks(
             excluded: target.excluded,
             show_warnings: options.warn,
             cache_enabled: target.cache_enabled,
-        })?);
+            collect_repository_facts,
+        })?;
+        target.repository_facts = evaluated.repository_facts;
+        results.push(evaluated.result);
     }
     Ok(results)
 }
@@ -176,11 +181,16 @@ fn parse_sources(
 pub(crate) fn structured_checks(
     arguments: &[String],
     target_names: &HashSet<String>,
+    collect_repository_facts: bool,
 ) -> Result<StructuredCheckExecution, String> {
     let options = crate::check::_helpers::options::parse_options(arguments)?;
     let mut plan =
         crate::check::_helpers::preparation::prepare_checks(&options, Some(target_names))?;
-    plan.identity.push_str("-structured-check-v1");
+    plan.identity.push_str(if collect_repository_facts {
+        "-structured-check-repository-v1"
+    } else {
+        "-structured-check-v1"
+    });
     if plan.cache_enabled {
         if let Some(cached) = cache::read(&plan.root, &plan.identity, &plan.sources, false) {
             let payload: StructuredCachePayload = serde_json::from_str(&cached.output)
@@ -195,17 +205,46 @@ pub(crate) fn structured_checks(
                 root: plan.root,
                 color: plan.color,
                 show_warnings: options.warn,
+                repository_targets: payload.repository_targets,
             });
         }
     }
-    fresh_structured_execution(&options, plan)
+    fresh_structured_execution(&options, plan, collect_repository_facts)
+}
+
+pub(crate) fn repository_python_targets(
+    arguments: &[String],
+    target_names: &HashSet<String>,
+) -> Result<Vec<RepositoryTargetPayload>, String> {
+    let options = crate::check::_helpers::options::parse_options(arguments)?;
+    let mut plan =
+        crate::check::_helpers::preparation::prepare_checks(&options, Some(target_names))?;
+    for target in &mut plan.plans {
+        if target.config.analyzer != crate::analyzer::AnalyzerId::Python {
+            return Err("Repository Python snapshot received a non-Python target.".to_owned());
+        }
+        target.sources = parse_sources(
+            &target.config,
+            &target.project_root,
+            std::mem::take(&mut target.sources),
+            &target.project_inputs,
+        )?;
+        target.repository_facts = Some(python_repository_fact_payload(&target.sources));
+    }
+    repository_target_payloads(&plan)
 }
 
 fn fresh_structured_execution(
     options: &CheckOptions,
     mut plan: CheckPlans,
+    collect_repository_facts: bool,
 ) -> Result<StructuredCheckExecution, String> {
-    let results = evaluate_checks(&mut plan, options)?;
+    let results = evaluate_checks(&mut plan, options, collect_repository_facts)?;
+    let repository_targets = if collect_repository_facts {
+        repository_target_payloads(&plan)?
+    } else {
+        Vec::new()
+    };
     let cacheable = results
         .iter()
         .all(|result| result.cacheable.unwrap_or(true));
@@ -227,6 +266,7 @@ fn fresh_structured_execution(
     if plan.cache_enabled && cacheable {
         let payload = StructuredCachePayload {
             results: results.clone(),
+            repository_targets: repository_targets.clone(),
         };
         let output = serde_json::to_string(&payload).map_err(|error| error.to_string())?;
         let cached = CachedOutput {
@@ -250,5 +290,54 @@ fn fresh_structured_execution(
         root: plan.root,
         color: plan.color,
         show_warnings: options.warn,
+        repository_targets,
     })
+}
+
+fn repository_target_payloads(plan: &CheckPlans) -> Result<Vec<RepositoryTargetPayload>, String> {
+    plan.plans
+        .iter()
+        .map(|target| {
+            let name = target
+                .config
+                .target
+                .clone()
+                .ok_or_else(|| "Repository rules require explicit named targets.".to_owned())?;
+            let facts = target
+                .repository_facts
+                .clone()
+                .ok_or_else(|| format!("Repository facts were not collected for target {name}."))?;
+            let subjects: Vec<CustomRuleSubject> =
+                repository_subjects(&target.sources, target.config.analyzer);
+            Ok(RepositoryTargetPayload {
+                name,
+                analyzer: target.config.analyzer,
+                root: target.config.target_root.clone(),
+                facts,
+                subjects,
+            })
+        })
+        .collect()
+}
+
+fn repository_subjects(
+    sources: &[ScopedSource],
+    analyzer: crate::analyzer::AnalyzerId,
+) -> Vec<CustomRuleSubject> {
+    let mut subjects: Vec<CustomRuleSubject> = Vec::new();
+    for source in sources {
+        let evaluated = source.purpose.is_direct()
+            || analyzer == crate::analyzer::AnalyzerId::Svelte
+                && source.purpose == crate::models::SourcePurpose::Support
+                && web::is_direct_source(&source.path, crate::analyzer::AnalyzerId::TypeScript);
+        if evaluated {
+            subjects.push(CustomRuleSubject {
+                path: source.target_path.clone(),
+                scope: source.scope.clone(),
+                scope_root: source.root_text.clone(),
+                relative_parts: source.relative_parts.clone(),
+            });
+        }
+    }
+    subjects
 }

@@ -13,7 +13,7 @@ from fensu.rules.authoring.constants import (
     VAR_POSITIONAL_FLAG,
 )
 from fensu.rules.authoring.exceptions import RuleDefinitionError
-from fensu.rules.authoring.models import File, Project
+from fensu.rules.authoring.models import File, Project, Repository
 from fensu.rules.authoring.types import RuleCheck, RuleContext, RuleSubjectKind
 
 
@@ -39,7 +39,7 @@ def infer_rule_subject(*, check: RuleCheck) -> tuple[RuleSubjectKind, str | None
     ):
         raise RuleDefinitionError(
             "rule checks must declare either (module, ctx) or two keyword-only parameters "
-            "annotated as File/Project and RuleContext"
+            "annotated as File/Project/Repository and RuleContext"
         )
     try:
         annotations: dict[str, object] = get_type_hints(check)
@@ -49,7 +49,7 @@ def infer_rule_subject(*, check: RuleCheck) -> tuple[RuleSubjectKind, str | None
         (
             parameter
             for parameter in parameter_names
-            if annotations.get(parameter) in {File, Project}
+            if annotations.get(parameter) in {File, Project, Repository}
         ),
         None,
     )
@@ -60,10 +60,14 @@ def infer_rule_subject(*, check: RuleCheck) -> tuple[RuleSubjectKind, str | None
     if subject_parameter is not None and context_parameter is not None:
         annotation: object = annotations[subject_parameter]
         kind: RuleSubjectKind = (
-            RuleSubjectKind.FILE if annotation is File else RuleSubjectKind.PROJECT
+            RuleSubjectKind.FILE
+            if annotation is File
+            else RuleSubjectKind.PROJECT
+            if annotation is Project
+            else RuleSubjectKind.REPOSITORY
         )
         return kind, subject_parameter, context_parameter
     raise RuleDefinitionError(
-        "typed rule parameters must contain exactly one fensu.File or fensu.Project subject and "
-        "one fensu.RuleContext"
+        "typed rule parameters must contain exactly one fensu.File, fensu.Project, or "
+        "fensu.Repository subject and one fensu.RuleContext"
     )

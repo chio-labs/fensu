@@ -29,6 +29,27 @@ RUST_DEPENDENCY_CRATE: str = "rust_crate"
 RUST_DEPENDENCY_FILE: str = "rust_file"
 WEB_CUSTOM_CACHE_SCHEMA: int = 1
 WEB_CUSTOM_CACHE_RELATIVE_PATH: str = ".fensu/cache/web-custom-v1.json"
+REPOSITORY_CUSTOM_CACHE_SCHEMA: str = "repository-custom-v1"
+REPOSITORY_CUSTOM_CACHE_RELATIVE_PATH: str = ".fensu/cache/repository-custom-v1.json"
+REPOSITORY_FACT_SCHEMA_VERSION: str = "repository-facts-v1"
+REPOSITORY_RULE_CACHE_CONTRACT_VERSION: str = "repository-rules-v1"
+PYTHON_REPOSITORY_FACT_SCHEMA_VERSION: str = "python-repository-facts-v1"
+MINIMUM_REPOSITORY_TARGETS: int = 2
+REPOSITORY_RULE_REQUESTER: str = ".fensu-repository-rule"
+REPOSITORY_CACHE_RECORD_FIELDS: frozenset[str] = frozenset({"findings", "dependencies"})
+REPOSITORY_DEPENDENCY_FIELDS: frozenset[str] = frozenset(
+    {"requester", "target", "kind", "query", "answer"}
+)
+REPOSITORY_FINDING_FIELDS: frozenset[str] = frozenset(
+    {"code", "path", "line", "column", "symbol", "message", "remediation", "severity"}
+)
+REPOSITORY_FINDING_SEVERITIES: frozenset[str] = frozenset({"blocking", "warning"})
+REPOSITORY_TARGET_PAYLOAD_FIELDS: frozenset[str] = frozenset(
+    {"name", "analyzer", "root", "facts", "subjects"}
+)
+PYTHON_REPOSITORY_FACT_FIELDS: frozenset[str] = frozenset(
+    {"schema_version", "parser_contract", "files"}
+)
 WEB_CUSTOM_CACHE_RECORD_FIELDS: frozenset[str] = RUST_CUSTOM_CACHE_RECORD_FIELDS
 WEB_CUSTOM_DEPENDENCY_FIELDS: frozenset[str] = RUST_CUSTOM_DEPENDENCY_FIELDS
 WEB_CUSTOM_FINDING_FIELDS: frozenset[str] = RUST_CUSTOM_FINDING_FIELDS

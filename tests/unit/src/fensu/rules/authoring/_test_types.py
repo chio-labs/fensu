@@ -35,6 +35,16 @@ class EnumMembersTestCase:
 
 
 @dataclass(frozen=True)
+class RepositorySubjectTestCase:
+    """Expected metadata inferred from one repository-subject callback."""
+
+    description: str
+    expected_subject: str
+    expected_context: str
+    expected_owner: ExecutionOwner
+
+
+@dataclass(frozen=True)
 class RuleEnvelopeTestCase:
     """A set of envelope arguments and the rule identity they should produce."""
 

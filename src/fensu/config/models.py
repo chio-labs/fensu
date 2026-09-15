@@ -34,6 +34,7 @@ class LoadedConfig:
     config: Config
     source: ConfigSource
     catalogue: tuple[RuleSpec, ...] = ()
+    configured_rule_option_codes: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

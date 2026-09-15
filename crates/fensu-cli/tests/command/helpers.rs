@@ -1,5 +1,31 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+
+pub(crate) const REPOSITORY_RULE_SOURCE: &str = r#"from fensu import AnalyzerId, Family, Fault, ProjectPath, Repository, RuleContext, RuleOption, rule
+
+EXPECTED = RuleOption.string(name="expected", default="v2")
+UNUSED = RuleOption.integer(name="limit", default=1)
+
+@rule(code="XREP001", family=Family.CUSTOM, slug="contract-version", message="contract versions differ", analyzers=(AnalyzerId.PYTHON, AnalyzerId.TYPESCRIPT), options=(EXPECTED,), cacheable=True)
+def contract_version(*, repository: Repository, ctx: RuleContext) -> list[Fault]:
+    del repository
+    backend = ctx.targets.named("backend")
+    frontend = ctx.targets.named("frontend")
+    if backend is None or frontend is None:
+        return []
+    contract = backend.python.file(ProjectPath("backend/contracts.py"))
+    client = frontend.web.file(ProjectPath("frontend/client.ts"))
+    if contract is None or client is None or backend.tree.position(contract.file.path) is None or frontend.graph.node(client.file) is None:
+        return []
+    if "v1" not in contract.source or ctx.option(EXPECTED) not in client.source:
+        return []
+    return [ctx.path_fault(path=frontend.repository_path(client.file))]
+
+@rule(code="XREP009", family=Family.CUSTOM, slug="unselected-default", message="unselected default", analyzers=(AnalyzerId.PYTHON,), options=(UNUSED,), cacheable=True)
+def unselected_default(*, repository: Repository, ctx: RuleContext) -> list[Fault]:
+    del repository, ctx
+    return []
+"#;
 use std::process::{Command, Output};
 
 pub(crate) fn run_check(repository: &Path) -> Output {
@@ -57,6 +83,19 @@ pub(crate) fn run_check_colored(repository: &Path, arguments: &[&str]) -> Output
 
 pub(crate) fn write(path: impl AsRef<Path>, contents: &str) {
     write_bytes(path, contents.as_bytes());
+}
+
+pub(crate) fn write_repository_rule_fixture(repository: &Path, config: &str) {
+    write(
+        repository.join("backend/contracts.py"),
+        "API_VERSION = 'v1'\n",
+    );
+    write(
+        repository.join("frontend/client.ts"),
+        "export const apiVersion = 'v2';\n",
+    );
+    write(repository.join("rules/custom.py"), REPOSITORY_RULE_SOURCE);
+    write(repository.join("fensu.toml"), config);
 }
 
 pub(crate) fn write_bytes(path: impl AsRef<Path>, contents: &[u8]) {

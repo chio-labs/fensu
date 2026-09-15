@@ -90,6 +90,65 @@ fn generate_aggregate(context: &SkillContext) -> Result<String, String> {
     {
         lines.push("- Run `fensu map <SYMBOL>` for Python call-flow navigation.".to_owned());
     }
+    if let Some(repository) = &context.repository_rules {
+        lines.extend([
+            "## Repository Rules".to_owned(),
+            String::new(),
+            "Repository-subject custom rules run exactly once during an aggregate `fensu check`; target-scoped checks skip them. Use `ctx.targets.all()` for deterministic registry order and `ctx.targets.named(name)` for explicit target-local tree, graph, and typed analyzer facts. Translate target-local paths and locations with `repository_path(...)` and `repository_location(...)` before reporting findings."
+                .to_owned(),
+            String::new(),
+            format!(
+                "- Rule sources: {}",
+                repository
+                    .config
+                    .rule_paths
+                    .iter()
+                    .chain(repository.config.rule_modules.iter())
+                    .map(|value| format!("`{value}`"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            format!(
+                "- Blocking selectors: {}",
+                repository
+                    .config
+                    .select
+                    .iter()
+                    .map(|value| format!("`{value}`"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            format!(
+                "- Warning selectors: {}",
+                repository
+                    .config
+                    .warn
+                    .iter()
+                    .map(|value| format!("`{value}`"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            String::new(),
+        ]);
+        lines.extend(
+            tier_lines(
+                "Blocking Repository Rules",
+                &repository.blocking,
+                &repository.config,
+            )
+            .into_iter()
+            .map(|line| demote_heading(&line)),
+        );
+        lines.extend(
+            tier_lines(
+                "Warning Repository Rules",
+                &repository.warnings,
+                &repository.config,
+            )
+            .into_iter()
+            .map(|line| demote_heading(&line)),
+        );
+    }
     lines.extend([
         String::new(),
         "## Analyzer Targets".to_owned(),

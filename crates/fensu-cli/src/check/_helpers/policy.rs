@@ -227,6 +227,14 @@ pub(crate) fn check_identity(request: CheckIdentityRequest<'_>) -> Result<String
     digest_text(&mut digest, config.analyzer.parser_contract());
     if config.analyzer == crate::analyzer::AnalyzerId::Rust {
         digest_text(&mut digest, fensu_rust::FACT_SCHEMA_VERSION);
+    } else if matches!(
+        config.analyzer,
+        crate::analyzer::AnalyzerId::TypeScript | crate::analyzer::AnalyzerId::Svelte
+    ) {
+        digest_text(
+            &mut digest,
+            crate::check::web_custom_facts::WEB_FACT_SCHEMA_VERSION,
+        );
     }
     digest_text(&mut digest, config.target.as_deref().unwrap_or_default());
     digest_text(&mut digest, &config.target_root);

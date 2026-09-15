@@ -136,7 +136,7 @@ pub(crate) struct EvaluationRequest<'a> {
 }
 
 #[derive(Clone, Debug, Serialize)]
-pub(crate) struct RustCustomSubject {
+pub(crate) struct CustomRuleSubject {
     pub(crate) path: String,
     pub(crate) scope: String,
     pub(crate) scope_root: String,
@@ -149,7 +149,7 @@ pub(crate) struct RustCustomRulePayload {
     pub(crate) show_warnings: bool,
     pub(crate) cache_enabled: bool,
     pub(crate) facts: RustWorkspaceFacts,
-    pub(crate) subjects: Vec<RustCustomSubject>,
+    pub(crate) subjects: Vec<CustomRuleSubject>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -165,6 +165,25 @@ pub(crate) struct RustCustomDependency {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct RustCustomRuleResponse {
+    pub(crate) findings: Vec<Finding>,
+    pub(crate) blocking_codes: Vec<String>,
+    pub(crate) warning_codes: Vec<String>,
+    pub(crate) dependencies: Vec<RustCustomDependency>,
+    pub(crate) cacheable: bool,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(crate) struct WebCustomRulePayload {
+    pub(crate) target: Option<String>,
+    pub(crate) show_warnings: bool,
+    pub(crate) cache_enabled: bool,
+    pub(crate) facts: serde_json::Value,
+    pub(crate) subjects: Vec<CustomRuleSubject>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct WebCustomRuleResponse {
     pub(crate) findings: Vec<Finding>,
     pub(crate) blocking_codes: Vec<String>,
     pub(crate) warning_codes: Vec<String>,

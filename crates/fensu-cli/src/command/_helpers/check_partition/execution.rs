@@ -17,17 +17,10 @@ pub(crate) fn partitioned_check(
     arguments: &[String],
     loaded: &[(PathBuf, Config)],
 ) -> Option<CliOutput> {
-    let mut hosted_web_policy = false;
     let mut python_has_custom = false;
     let mut python_targets: Vec<String> = Vec::new();
     let mut web_targets: HashSet<String> = HashSet::new();
     for (_, config) in loaded {
-        let hosted_policy = !config.rule_paths.is_empty()
-            || !config.rule_modules.is_empty()
-            || config
-                .rule_options
-                .keys()
-                .any(|code| config.analyzer != AnalyzerId::Rust || code.starts_with('X'));
         if config.analyzer == AnalyzerId::Python {
             python_has_custom |= !config.rule_paths.is_empty()
                 || !config.rule_modules.is_empty()
@@ -36,15 +29,12 @@ pub(crate) fn partitioned_check(
                 python_targets.push(target.clone());
             }
         } else {
-            if config.analyzer != AnalyzerId::Rust {
-                hosted_web_policy |= hosted_policy;
-            }
             if let Some(target) = &config.target {
                 web_targets.insert(target.clone());
             }
         }
     }
-    if !python_has_custom || hosted_web_policy {
+    if !python_has_custom {
         return None;
     }
     let effective_arguments = aggregate_cache_arguments(arguments, loaded);

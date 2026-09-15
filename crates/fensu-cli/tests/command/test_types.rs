@@ -306,12 +306,6 @@ pub(crate) struct CacheBoundTestCase {
     pub(crate) expected_record_count: i64,
 }
 
-pub(crate) struct HostedWebPolicyTestCase {
-    pub(crate) description: &'static str,
-    pub(crate) config: &'static str,
-    pub(crate) expected_error: &'static str,
-}
-
 pub(crate) struct WebPolicyCheckTestCase {
     pub(crate) description: &'static str,
     pub(crate) expected_exit_code: i32,
@@ -341,4 +335,43 @@ pub(crate) struct FreshSvelteKitCheckTestCase {
     pub(crate) expected_cold_cache: &'static str,
     pub(crate) expected_warm_cache: &'static str,
     pub(crate) expected_appearance_cache: &'static str,
+}
+
+pub(crate) struct WebCustomRuleTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_exit_code: i32,
+    pub(crate) expected_code: &'static str,
+    pub(crate) expected_location: &'static str,
+    pub(crate) expected_message: &'static str,
+    pub(crate) expected_count: usize,
+}
+
+pub(crate) struct WebCustomRoutingTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) analyzer: &'static str,
+    pub(crate) source_path: &'static str,
+    pub(crate) source: &'static str,
+    pub(crate) selection: &'static str,
+    pub(crate) expected_exit_code: i32,
+    pub(crate) expected_present: &'static str,
+    pub(crate) expected_absent: &'static str,
+}
+
+pub(crate) struct WebCustomCacheTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_initial: &'static str,
+    pub(crate) expected_reused: &'static str,
+    pub(crate) expected_changed: &'static str,
+    pub(crate) expected_code: &'static str,
+    pub(crate) expected_exit_code: i32,
+}
+
+pub(crate) struct WebCustomPolicyTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) selection: &'static str,
+    pub(crate) policy: &'static str,
+    pub(crate) arguments: &'static [&'static str],
+    pub(crate) expected_exit_code: i32,
+    pub(crate) expected_present: &'static str,
+    pub(crate) expected_absent: &'static str,
 }

@@ -186,6 +186,20 @@ from fensu.rules.authoring.models import RustItemFact as RustItemFact
 from fensu.rules.authoring.models import RustTargetFact as RustTargetFact
 from fensu.rules.authoring.models import RustUseFact as RustUseFact
 from fensu.rules.authoring.models import RustWorkspaceFacts as RustWorkspaceFacts
+from fensu.rules.authoring.models import SvelteFileFacts as SvelteFileFacts
+from fensu.rules.authoring.models import SvelteRuneFact as SvelteRuneFact
+from fensu.rules.authoring.models import SvelteScriptFact as SvelteScriptFact
+from fensu.rules.authoring.models import WebBindingFact as WebBindingFact
+from fensu.rules.authoring.models import WebCallFact as WebCallFact
+from fensu.rules.authoring.models import WebClassFact as WebClassFact
+from fensu.rules.authoring.models import WebFileFacts as WebFileFacts
+from fensu.rules.authoring.models import WebFunctionFact as WebFunctionFact
+from fensu.rules.authoring.models import WebImportBindingFact as WebImportBindingFact
+from fensu.rules.authoring.models import WebImportFact as WebImportFact
+from fensu.rules.authoring.models import WebModelFact as WebModelFact
+from fensu.rules.authoring.models import WebResourceFact as WebResourceFact
+from fensu.rules.authoring.models import WebSyntaxHandle as WebSyntaxHandle
+from fensu.rules.authoring.models import WebWorkspaceFacts as WebWorkspaceFacts
 from fensu.rules.authoring.types import (
     ExecutionOwner as ExecutionOwner,
 )
@@ -207,6 +221,11 @@ from fensu.rules.authoring.types import SourceKind as SourceKind
 from fensu.rules.authoring.types import (
     Threshold as Threshold,
 )
+from fensu.rules.authoring.types import WebModelKind as WebModelKind
+from fensu.rules.authoring.types import WebScriptContext as WebScriptContext
+from fensu.rules.authoring.types import WebSourceKind as WebSourceKind
+from fensu.rules.authoring.types import WebSourcePurpose as WebSourcePurpose
+from fensu.rules.authoring.types import WebSyntaxKind as WebSyntaxKind
 from fensu.rules.testing.main.evaluate_rule import evaluate_rule as evaluate_rule
 from fensu.rules.testing.models import (
     RuleCase as RuleCase,

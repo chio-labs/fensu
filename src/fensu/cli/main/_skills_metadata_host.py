@@ -32,7 +32,9 @@ def main() -> int:
     loaded: LoadedConfig = (
         load_project_config(Path(root_value))
         if target_value is None
-        else load_target_project_config(start=Path(root_value), target=target_value)
+        else load_target_project_config(
+            start=Path(root_value), target=target_value, allow_web_custom=True
+        )
     )
     project_root: Path = loaded.source.path.parent.resolve()
     selection: RuleSelection = build_check_rule_selection(

@@ -96,11 +96,12 @@ class AnalyzerRuleSelectionTestCase:
 
 @dataclass(frozen=True)
 class CustomRuleAnalyzerTestCase:
-    """Custom rule analyzer applicability and expected registration error."""
+    """Custom rule analyzer applicability accepted by source registration."""
 
     description: str
     analyzer: AnalyzerId
-    expected_error_fragment: str
+    expected_analyzers: tuple[AnalyzerId, ...]
+    expected_source: str
 
 
 @dataclass(frozen=True)

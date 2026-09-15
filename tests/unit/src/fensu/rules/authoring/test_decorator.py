@@ -305,11 +305,25 @@ def test_given_cacheable_declaration_when_decorating_then_records_flag(
             legacy=False,
             expected_analyzers=(AnalyzerId.RUST,),
             expected_error_fragment=None,
-        )
+        ),
+        RustAnalyzerDeclarationTestCase(
+            description="typed file subject records TypeScript applicability",
+            analyzers=(AnalyzerId.TYPESCRIPT,),
+            legacy=False,
+            expected_analyzers=(AnalyzerId.TYPESCRIPT,),
+            expected_error_fragment=None,
+        ),
+        RustAnalyzerDeclarationTestCase(
+            description="typed file subject records Svelte applicability",
+            analyzers=(AnalyzerId.SVELTE,),
+            legacy=False,
+            expected_analyzers=(AnalyzerId.SVELTE,),
+            expected_error_fragment=None,
+        ),
     ],
     ids=lambda case: case.description,
 )
-def test_given_typed_rust_subject_when_decorating_then_records_rust_applicability(
+def test_given_typed_native_subject_when_decorating_then_records_analyzer_applicability(
     test_case: RustAnalyzerDeclarationTestCase,
 ) -> None:
     def check(*, file: File, ctx: RuleContext) -> list[Fault]:
@@ -337,11 +351,25 @@ def test_given_typed_rust_subject_when_decorating_then_records_rust_applicabilit
             legacy=True,
             expected_analyzers=(),
             expected_error_fragment="typed File or Project",
-        )
+        ),
+        RustAnalyzerDeclarationTestCase(
+            description="legacy module subject rejects TypeScript applicability",
+            analyzers=(AnalyzerId.TYPESCRIPT,),
+            legacy=True,
+            expected_analyzers=(),
+            expected_error_fragment="typed File or Project",
+        ),
+        RustAnalyzerDeclarationTestCase(
+            description="legacy module subject rejects Svelte applicability",
+            analyzers=(AnalyzerId.SVELTE,),
+            legacy=True,
+            expected_analyzers=(),
+            expected_error_fragment="typed File or Project",
+        ),
     ],
     ids=lambda case: case.description,
 )
-def test_given_legacy_subject_when_declaring_rust_rule_then_rejects_parser_contract(
+def test_given_legacy_subject_when_declaring_native_rule_then_rejects_parser_contract(
     test_case: RustAnalyzerDeclarationTestCase,
 ) -> None:
     with pytest.raises(RuleDefinitionError, match=test_case.expected_error_fragment):

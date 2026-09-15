@@ -11,7 +11,11 @@ pub(crate) const ROLE_HELPERS: &str = "_helpers";
 pub(crate) const ROLE_MAIN: &str = "main";
 pub(crate) const ROLE_RULES: &str = "rules";
 pub(crate) const SCOPE_TEST: &str = "test";
-pub(crate) const RUST_PROJECT_REQUESTER: &str = ".fensu-project-rule";
+pub(crate) const PROJECT_RULE_REQUESTER: &str = ".fensu-project-rule";
+pub(crate) const WEB_ROUTES_DIRECTORY: &str = "routes";
+pub(crate) const WEB_SVELTE_EXTENSION: &str = "svelte";
+pub(crate) const WEB_PARSE_DIAGNOSTIC_CODE: &str = "FWP001";
+pub(crate) const WEB_MODULE_PATH_SEPARATOR: &str = "/";
 pub(crate) const RUST_CUSTOM_DEPENDENCY_KINDS: &[&str] = &[
     "tree_paths",
     "tree_files",
@@ -24,6 +28,23 @@ pub(crate) const RUST_CUSTOM_DEPENDENCY_KINDS: &[&str] = &[
     "rust_files",
     "rust_crate",
     "rust_file",
+];
+pub(crate) const WEB_CUSTOM_DEPENDENCY_KINDS: &[&str] = &[
+    "tree_paths",
+    "tree_files",
+    "tree_children",
+    "tree_descendants",
+    "tree_glob",
+    "tree_files_under",
+    "tree_position",
+    "web_files",
+    "web_file",
+    "graph_nodes",
+    "graph_node",
+    "graph_imports",
+    "graph_dependencies",
+    "graph_dependents",
+    "graph_cycles",
 ];
 pub(crate) const SCOPE_TOOLING: &str = "tooling";
 pub(crate) const STEM_INIT: &str = "__init__";

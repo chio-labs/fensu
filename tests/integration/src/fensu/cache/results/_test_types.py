@@ -5,6 +5,27 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
+@dataclass(frozen=True, slots=True)
+class ProjectSubjectCacheTestCase:
+    """One project-subject cache behavior and its representative expected outcome."""
+
+    description: str
+    expected_outcome: object
+
+
+@dataclass(frozen=True, slots=True)
+class ConsecutiveEditReplayTestCase:
+    """Consecutive source edits and the expected retained finding paths."""
+
+    description: str
+    initial_files: tuple[tuple[str, str], ...]
+    first_edit: tuple[str, str]
+    second_edit: tuple[str, str]
+    expected_cold_fault_count: int
+    expected_first_edit_fault_count: int
+    expected_second_edit_paths: tuple[str, ...]
+
+
 @dataclass(frozen=True)
 class CachedEvaluationReuseTestCase:
     """Cold and warm evaluation counts with expected diagnostic parity."""

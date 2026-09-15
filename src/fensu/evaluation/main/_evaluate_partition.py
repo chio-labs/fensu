@@ -5,8 +5,8 @@ from __future__ import annotations
 from fensu.config.models import Config
 from fensu.discovery.models import DiscoveredTree
 from fensu.evaluation._helpers.project_analysis import build_project_analysis
-from fensu.evaluation._helpers.project_evaluation import evaluate_project_rules
 from fensu.evaluation.main.build_targets import build_evaluation_targets
+from fensu.evaluation.main.evaluate_project_rules import evaluate_project_rules
 from fensu.evaluation.main.evaluate_target_chunk import evaluate_target_chunk
 from fensu.evaluation.main.select_files import select_evaluation_files
 from fensu.evaluation.models import (

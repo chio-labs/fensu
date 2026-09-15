@@ -5,7 +5,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from fensu.cache.fingerprints.models import CacheFingerprint
-from fensu.evaluation.models import EvaluationResult, FileEvaluation, ProjectEvaluation
+from fensu.evaluation.models import (
+    EvaluationResult,
+    EvaluationSelection,
+    EvaluationTarget,
+    FileEvaluation,
+    ProjectEvaluation,
+)
+from fensu.rules.authoring.models import RuleSpec
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,3 +78,36 @@ class NativeGenerationPlan:
     hits: int
     misses: int
     invalidations: int
+
+
+@dataclass(frozen=True, slots=True)
+class SubjectRulePartitions:
+    """File and project rule selections preserving configured order."""
+
+    file_rules: tuple[RuleSpec, ...]
+    file_warnings: tuple[RuleSpec, ...]
+    project_rules: tuple[RuleSpec, ...]
+    project_warnings: tuple[RuleSpec, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class RuleScopes:
+    """Fresh and cacheable rule selections for one subject kind."""
+
+    fresh_ruleset: tuple[RuleSpec, ...]
+    fresh_warning_rules: tuple[RuleSpec, ...]
+    cacheable_ruleset: tuple[RuleSpec, ...]
+    cacheable_warning_rules: tuple[RuleSpec, ...]
+    scoped: bool
+    fully_fresh: bool
+
+
+@dataclass(frozen=True, slots=True)
+class CachedEvaluationSetup:
+    """Prepared subject partitions, selection, targets, and cache scopes."""
+
+    partitions: SubjectRulePartitions
+    selection: EvaluationSelection
+    targets: tuple[EvaluationTarget, ...]
+    file_scopes: RuleScopes
+    project_scopes: RuleScopes

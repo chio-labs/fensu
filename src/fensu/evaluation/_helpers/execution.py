@@ -15,8 +15,7 @@ from fensu.evaluation.exceptions import (
 )
 from fensu.evaluation.models import ParsedModule, ThresholdOverrideUse
 from fensu.evaluation.types import EvaluationProjectAnalysis
-from fensu.rules.authoring.models import Fault, RuleSpec
-from fensu.rules.authoring.subjects import File, ProjectPath
+from fensu.rules.authoring.models import Fault, File, ProjectPath, RuleSpec
 from fensu.rules.authoring.types import RuleCheck, RuleKind, RuleSubjectKind
 
 

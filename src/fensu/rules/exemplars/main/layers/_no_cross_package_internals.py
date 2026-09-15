@@ -2,7 +2,15 @@
 
 import ast
 
-from fensu import Family, Fault, ModuleVisibility, ProjectPath, RuleContext, rule
+from fensu import (
+    Family,
+    Fault,
+    ModuleNode,
+    ModuleVisibility,
+    ProjectPath,
+    RuleContext,
+    rule,
+)
 from fensu.rules.exemplars._helpers.import_ownership import is_public, ownership
 from fensu.rules.exemplars.types import ImportOwnership
 
@@ -20,23 +28,25 @@ def no_cross_package_internals_equivalent(*, module: ast.Module, ctx: RuleContex
     """Express FFL102 through public architecture graph facts."""
 
     del module
-    current = ctx.graph.node(ProjectPath(ctx.path.relative_to(ctx.repo_root).as_posix()))
+    current: ModuleNode | None = ctx.graph.node(
+        ProjectPath(ctx.path.relative_to(ctx.repo_root).as_posix())
+    )
     if current is None:
         return []
     faults: list[Fault] = []
     faulted_statements: set[tuple[int, int]] = set()
     for edge in ctx.graph.imports(current):
-        statement = (edge.location.line, edge.location.column)
+        statement: tuple[int, int] = (edge.location.line, edge.location.column)
         if statement in faulted_statements:
             continue
-        target = edge.target
-        target_module = edge.module
+        target: ModuleNode | None = edge.target
+        target_module: str | None = edge.module
         if target_module is None:
             continue
         target_ownership: ImportOwnership = ownership(
             parts=tuple(target_module.split(".")), initializer=False
         )
-        target_internal = (
+        target_internal: bool = (
             target.visibility is ModuleVisibility.INTERNAL
             if target is not None
             else not is_public(target_ownership)
@@ -48,7 +58,7 @@ def no_cross_package_internals_equivalent(*, module: ast.Module, ctx: RuleContex
             and current.domain_parts[0] != target_ownership.domain
             and target_internal
         ):
-            parts = target_module.split(".")
+            parts: list[str] = target_module.split(".")
             package: str = ".".join(parts[:2])
             faults.append(
                 ctx.fault_at(

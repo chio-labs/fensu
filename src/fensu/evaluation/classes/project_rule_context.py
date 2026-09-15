@@ -12,16 +12,22 @@ from fensu.config.main.resolve_threshold import resolve_threshold
 from fensu.config.models import Config, ThresholdResolution
 from fensu.discovery.models import DiscoveredTree, RepoRoot
 from fensu.evaluation.classes.rule_project import RuleProjectView
+from fensu.evaluation.constants import PARENT_PATH_PART, PROJECT_REQUESTER_NAME
 from fensu.evaluation.exceptions import ProjectContextUnavailableError
 from fensu.evaluation.models import ThresholdOverrideUse
 from fensu.evaluation.types import EvaluationProjectAnalysis
 from fensu.rules.authoring.exceptions import RuleDefinitionError
-from fensu.rules.authoring.graph import ArchitectureGraph
-from fensu.rules.authoring.models import Fault, RuleConstraint, RuleLimit, RuleOption, RuleSpec
-from fensu.rules.authoring.subjects import ProjectPath
+from fensu.rules.authoring.models import (
+    ArchitectureGraph,
+    Fault,
+    FilePosition,
+    ProjectPath,
+    RuleConstraint,
+    RuleLimit,
+    RuleOption,
+    RuleSpec,
+)
 from fensu.rules.authoring.types import RuleOptionValue, Threshold
-
-PROJECT_REQUESTER_NAME = ".fensu-project-rule"
 
 
 class ProjectRuleContext:
@@ -197,7 +203,7 @@ class ProjectRuleContext:
         if (
             not isinstance(path, Path)
             or not path.is_absolute()
-            or ".." in path.parts
+            or PARENT_PATH_PART in path.parts
             or not path.is_relative_to(self._project_root.path)
         ):
             raise ProjectContextUnavailableError(
@@ -223,8 +229,8 @@ class ProjectRuleContext:
             raise ProjectContextUnavailableError(
                 "project rule threshold path must be a ProjectPath or project-relative string"
             )
-        project_path = path if isinstance(path, ProjectPath) else ProjectPath(path)
-        position = self._project.tree.position(project_path)
+        project_path: ProjectPath = path if isinstance(path, ProjectPath) else ProjectPath(path)
+        position: FilePosition | None = self._project.tree.position(project_path)
         resolution: ThresholdResolution = resolve_threshold(
             config=self._config,
             name=name,
@@ -236,7 +242,7 @@ class ProjectRuleContext:
             and resolution.reason is not None
             and resolution.override_order is not None
         ):
-            visible_path = (
+            visible_path: str = (
                 resolution.repository_path
                 if self._config.target_root == DEFAULT_TARGET_ROOT
                 else f"{self._config.target_root}/{resolution.repository_path}"

@@ -8,8 +8,21 @@ from functools import singledispatch
 from pathlib import Path
 
 import fensu.rules
-from fensu.rules.authoring.models import Fault
-from fensu.rules.authoring.types import RuleContext
+from fensu import (
+    AuthoredImport,
+    Fault,
+    File,
+    ImportEdge,
+    ImportResolution,
+    ModuleNode,
+    ModuleVisibility,
+    ProjectPath,
+    RuleContext,
+    ScopeName,
+    SourceKind,
+    SourceLocation,
+)
+from fensu.config.types import AnalyzerId
 
 _BANNED_IMPORT_ROOTS: frozenset[str] = frozenset(
     {
@@ -97,6 +110,42 @@ _BANNED_OPERATION_ATTRIBUTES: frozenset[str] = frozenset(
     }
 )
 _TRACKED_FACADE_ATTRIBUTE: str = "project"
+
+
+def graph_node(index: int) -> ModuleNode:
+    """Build one module node for an iterative architecture-graph test."""
+
+    return ModuleNode(
+        file=File(ProjectPath(f"src/example/module_{index:04}.py")),
+        analyzer=AnalyzerId.PYTHON,
+        source_kind=SourceKind.PYTHON_MODULE,
+        module=f"example.module_{index:04}",
+        scope=ScopeName.ROOT,
+        scope_root=ProjectPath("src/example"),
+        package="example",
+        domain_parts=(),
+        role=None,
+        visibility=ModuleVisibility.INTERNAL,
+    )
+
+
+def graph_edge(*, source: ModuleNode, target: ModuleNode) -> ImportEdge:
+    """Build one resolved edge for an iterative architecture-graph test."""
+
+    return ImportEdge(
+        source=source,
+        authored=AuthoredImport(
+            module_parts=(),
+            imported_parts=tuple(target.module.split(".")),
+            bound_name="example",
+            relative_level=0,
+            from_import=False,
+        ),
+        module=target.module,
+        location=SourceLocation(path=Path(source.file.path.value), line=1, column=0),
+        status=ImportResolution.RESOLVED,
+        target=target,
+    )
 
 
 @dataclass(frozen=True)

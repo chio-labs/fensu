@@ -9,9 +9,7 @@ from typing import Protocol
 from fensu.analysis.types import ProjectAnalysis
 from fensu.discovery.models import ScopedFile
 from fensu.evaluation.models import ParsedModule
-from fensu.rules.authoring.graph import ArchitectureGraph
-from fensu.rules.authoring.models import Fault
-from fensu.rules.authoring.subjects import ProjectTree
+from fensu.rules.authoring.models import ArchitectureGraph, Fault, ProjectTree
 
 type NativeFaultRow = tuple[str, str | None, int | None, int | None, str | None, str | None]
 type NativeFaultsByCode = dict[str, tuple[Fault, ...]]

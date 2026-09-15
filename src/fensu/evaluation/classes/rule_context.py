@@ -30,16 +30,16 @@ from fensu.evaluation.models import ParsedModule, ThresholdOverrideUse
 from fensu.evaluation.types import EvaluationProjectAnalysis
 from fensu.rules.authoring.constants import CUSTOM_RULE_REGISTRATIONS_CACHE_KEY
 from fensu.rules.authoring.exceptions import RuleDefinitionError
-from fensu.rules.authoring.graph import ArchitectureGraph
 from fensu.rules.authoring.models import (
+    ArchitectureGraph,
     CustomRuleRegistration,
     Fault,
+    ProjectPath,
     RuleConstraint,
     RuleLimit,
     RuleOption,
     RuleSpec,
 )
-from fensu.rules.authoring.subjects import ProjectPath
 from fensu.rules.authoring.types import RuleOptionValue, Threshold
 
 _POSIX_PATH_SEPARATOR: str = "/"
@@ -446,7 +446,7 @@ class EvaluationRuleContext:
     ) -> tuple[str, str | None]:
         if path is None:
             return self._memoize(key="threshold:own_position", operation=self._own_position)
-        resolved_path = path if isinstance(path, Path) else self.__project.absolute_path(path)
+        resolved_path: Path = path if isinstance(path, Path) else self.__project.absolute_path(path)
         return (
             resolved_path.relative_to(self.repo_root).as_posix(),
             _role_for_path(path=resolved_path, scope_root=self.scope_root()),

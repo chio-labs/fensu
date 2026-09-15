@@ -3,12 +3,15 @@
 import ast
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import pytest
 
 import fensu.evaluation._helpers.file_evaluation as file_evaluation_module
+from fensu import File, Project, ProjectPath, Threshold, rule
+from fensu.analysis.models import SourceLocation
 from fensu.analysis.types import Analysis
 from fensu.cache.fingerprints.models import CacheFingerprint
 from fensu.cache.fingerprints.types import CanonicalValue
@@ -23,10 +26,191 @@ from fensu.config.models import Config, RuleExceptionEntry
 from fensu.discovery.main.discover_files import discover_files
 from fensu.discovery.models import DiscoveredTree
 from fensu.evaluation.models import EvaluationResult
+from fensu.rules.authoring.constants import _RULE_SPEC_ATTRIBUTE
 from fensu.rules.authoring.models import Fault, RuleSpec
 from fensu.rules.authoring.types import Family, RuleContext, RuleKind
 from fensu.rules.roles.constants import FFR_RULES
 from tests.integration.src.fensu.cache.storage.helpers import run_while_database_blocked
+
+PROJECT_RULE_CALLS: dict[str, int] = {}
+
+
+def record_project_rule_call(name: str) -> None:
+    """Record one project-cache rule execution."""
+
+    PROJECT_RULE_CALLS[name] = PROJECT_RULE_CALLS.get(name, 0) + 1
+
+
+@rule(code="XPC001", family=Family.CUSTOM, slug="project-files", message="project files")
+def project_files_rule(*, project: Project, ctx: RuleContext) -> list[Fault]:
+    """Report the project file count."""
+
+    del project
+    record_project_rule_call("files")
+    return [ctx.path_fault(path="src/example/report.py", message=str(len(ctx.project.tree.files)))]
+
+
+@rule(code="XPC002", family=Family.CUSTOM, slug="project-children", message="project children")
+def project_children_rule(*, project: Project, ctx: RuleContext) -> list[Fault]:
+    """Report children below the queried project path."""
+
+    del project
+    record_project_rule_call("children")
+    names: str = ",".join(path.name for path in ctx.project.tree.children("src/example/orders"))
+    return [ctx.path_fault(path="src/example/report.py", message=names)]
+
+
+@rule(code="XPC003", family=Family.CUSTOM, slug="project-position", message="project position")
+def project_position_rule(*, project: Project, ctx: RuleContext) -> list[Fault]:
+    """Report one project-tree position."""
+
+    del project
+    record_project_rule_call("position")
+    position: Any = ctx.project.tree.position("src/example/orders/models.py")
+    role: str = getattr(position, "role", "missing")
+    role_depth: str = str(getattr(position, "role_depth", ""))
+    message: str = f"{role}:{role_depth}".rstrip(":")
+    return [
+        ctx.path_fault(
+            path="src/example/report.py",
+            message=message,
+        )
+    ]
+
+
+@rule(code="XPC004", family=Family.CUSTOM, slug="file-position", message="file position")
+def file_position_rule(*, file: File, ctx: RuleContext) -> list[Fault]:
+    """Report one file's scope root."""
+
+    record_project_rule_call(file.path.value)
+    position: Any = ctx.project.tree.position(file.path)
+    assert position is not None
+    return [ctx.path_fault(message=position.scope_root.value)]
+
+
+@rule(code="XPC005", family=Family.CUSTOM, slug="project-location", message="location")
+def project_location_rule(*, project: Project, ctx: RuleContext) -> list[Fault]:
+    """Report one project-owned source location."""
+
+    del project
+    analysis: Analysis | None = ctx.project.analysis(
+        path=ProjectPath("src/example/orders/service.py")
+    )
+    assert analysis is not None
+    handle: Any = analysis.syntax.handles()[0]
+    return [ctx.fault_at(location=SourceLocation(path=handle.path, line=2, column=4))]
+
+
+@rule(code="XPC006", family=Family.CUSTOM, slug="project-threshold", message="threshold")
+def project_threshold_rule(*, project: Project, ctx: RuleContext) -> list[Fault]:
+    """Report one project threshold lookup."""
+
+    del project
+    assert ctx.contracts()
+    assert ctx.test_scopes()
+    value: int = ctx.threshold(name=Threshold.MAX_FILE_LINES, path="src/example/orders/service.py")
+    return [ctx.path_fault(path="src/example/orders/service.py", message=str(value))]
+
+
+@rule(code="XPC007", family=Family.CUSTOM, slug="graph-dependencies", message="dependencies")
+def graph_dependencies_rule(*, project: Project, ctx: RuleContext) -> list[Fault]:
+    """Report dependencies of one graph node."""
+
+    del project
+    record_project_rule_call("graph")
+    entry: Any = ctx.graph.node(ProjectPath("src/example/orders/entry.py"))
+    assert entry is not None
+    modules: str = ",".join(node.module for node in ctx.graph.dependencies(entry))
+    return [ctx.path_fault(path=entry.file.path, message=modules)]
+
+
+@rule(code="XPC008", family=Family.CUSTOM, slug="graph-nodes", message="nodes")
+def graph_nodes_rule(*, project: Project, ctx: RuleContext) -> list[Fault]:
+    """Report the broad graph-node count."""
+
+    del project
+    record_project_rule_call("nodes")
+    return [ctx.path_fault(path="src/example/orders/entry.py", message=str(len(ctx.graph.nodes)))]
+
+
+@rule(code="XPC009", family=Family.CUSTOM, slug="graph-node", message="node")
+def graph_node_rule(*, project: Project, ctx: RuleContext) -> list[Fault]:
+    """Report one narrow graph node."""
+
+    del project
+    record_project_rule_call("node")
+    node: Any = ctx.graph.node(ProjectPath("src/example/orders/entry.py"))
+    assert node is not None
+    return [ctx.path_fault(path=node.file.path, message=node.module)]
+
+
+@rule(code="XPC010", family=Family.CUSTOM, slug="graph-location-cycle", message="graph")
+def graph_location_cycle_rule(*, project: Project, ctx: RuleContext) -> list[Fault]:
+    """Report one cycle edge source location."""
+
+    del project
+    record_project_rule_call("location-cycle")
+    node: Any = ctx.graph.node(ProjectPath("src/example/orders/entry.py"))
+    assert node is not None
+    edge: Any = ctx.graph.imports(node)[0]
+    assert ctx.graph.cycles()
+    return [ctx.fault_at(location=edge.location)]
+
+
+@rule(code="XPC011", family=Family.CUSTOM, slug="file-graph-node", message="node")
+def file_graph_node_rule(*, file: File, ctx: RuleContext) -> list[Fault]:
+    """Report the graph module for one file subject."""
+
+    record_project_rule_call(file.path.value)
+    node: Any = ctx.graph.node(file)
+    assert node is not None
+    return [ctx.path_fault(message=node.module)]
+
+
+@rule(code="XPC012", family=Family.CUSTOM, slug="quiet-project", message="quiet project")
+def quiet_project_rule(*, project: Project, ctx: RuleContext) -> list[Fault]:
+    """Return no project faults."""
+
+    del project, ctx
+    return []
+
+
+def cacheable_rule_spec(callback: object) -> RuleSpec:
+    """Return the decorated callback's cacheable rule specification."""
+
+    return replace(getattr(callback, _RULE_SPEC_ATTRIBUTE), cacheable=True)
+
+
+def undecorated_rule_spec(callback: object) -> RuleSpec:
+    """Return the decorated callback's original rule specification."""
+
+    return getattr(callback, _RULE_SPEC_ATTRIBUTE)
+
+
+def symbol_position_rule(*, source: Path) -> RuleSpec:
+    """Return a project rule reporting a caller-provided source position."""
+
+    @rule(code="XPC013", family=Family.CUSTOM, slug="symbol-position", message="symbol position")
+    def check(*, project: Project, ctx: RuleContext) -> list[Fault]:
+        del project
+        _ = ctx.project.tree.files
+        return [ctx.fault_for(path=source, line=1, column=0)]
+
+    return cacheable_rule_spec(check)
+
+
+def reject_graph_build(**kwargs: object) -> None:
+    """Reject an unexpected architecture-graph build."""
+
+    del kwargs
+    raise AssertionError("graph was built without a graph query")
+
+
+def fail_project_build(**kwargs: object) -> object:
+    """Reject an unexpected project-analysis build."""
+
+    del kwargs
+    raise AssertionError("warm core-only replay built project analysis")
 
 
 def result_record_keys(*, repo_root: Path) -> tuple[str, ...]:

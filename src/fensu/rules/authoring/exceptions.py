@@ -5,3 +5,19 @@ from __future__ import annotations
 
 class RuleDefinitionError(Exception):
     """A rule's metadata envelope or code namespace is invalid at definition time."""
+
+
+class ProjectPathError(ValueError):
+    """A public project path or glob is invalid."""
+
+
+class ProjectPathTypeError(TypeError):
+    """A project query received an unsupported path value."""
+
+
+class ArchitectureGraphQueryError(ValueError):
+    """An architecture graph query does not identify a discovered module."""
+
+
+class ArchitectureGraphQueryTypeError(TypeError):
+    """An architecture graph query received an unsupported subject value."""

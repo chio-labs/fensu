@@ -10,7 +10,7 @@ from fensu.analysis.models import ProjectDependency
 from fensu.analysis.types import Analysis
 from fensu.config.models import RuleExceptionEntry
 from fensu.discovery.models import PositionFacts, ScopedFile
-from fensu.rules.authoring.models import CustomRuleRegistration, Fault
+from fensu.rules.authoring.models import CustomRuleRegistration, Fault, ModuleNode
 from fensu.rules.authoring.types import Threshold
 
 
@@ -24,6 +24,15 @@ class ParsedModule:
     syntax_artifacts: LazySyntaxArtifacts
     position: PositionFacts
     analysis: Analysis
+
+
+@dataclass(frozen=True, slots=True)
+class ArchitectureModule:
+    """One parsed discovered source and its public architecture node."""
+
+    scoped_file: ScopedFile
+    parsed: ParsedModule
+    node: ModuleNode
 
 
 @dataclass(frozen=True, slots=True)

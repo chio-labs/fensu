@@ -7,6 +7,12 @@ from fensu.analysis.models import ProjectDependency
 from fensu.analysis.types import ProjectDependencyKind
 from fensu.cache.fingerprints.models import CacheFingerprint
 from fensu.cache.results._helpers.paths import relative_repository_path
+from fensu.cache.results.constants import (
+    NATIVE_FILE_SUBJECT_KIND,
+    NATIVE_PROJECT_SUBJECT_KIND,
+    PROJECT_REQUESTER_IDENTITY,
+)
+from fensu.cache.storage.exceptions import CacheRecordError
 from fensu.evaluation.models import (
     FileEvaluation,
     ProjectEvaluation,
@@ -22,7 +28,7 @@ def native_evaluation_payload(
 ) -> dict[str, object] | None:
     """Return one unvalidated native-publication boundary value or None when unowned."""
 
-    is_project = isinstance(evaluation, ProjectEvaluation)
+    is_project: bool = isinstance(evaluation, ProjectEvaluation)
     path: str | None = (
         evaluation.subject_identity
         if is_project
@@ -30,7 +36,7 @@ def native_evaluation_payload(
     )
     if path is None:
         return None
-    requester_identity = ".fensu-project-rule" if is_project else path
+    requester_identity: str = PROJECT_REQUESTER_IDENTITY if is_project else path
     dependencies: list[dict[str, object]] = []
     for dependency in evaluation.dependencies:
         requester: str | None = relative_repository_path(
@@ -63,7 +69,7 @@ def native_evaluation_payload(
         if requester != requester_identity or query_path is None or dependency_path is None:
             return None
         try:
-            kind_value = ProjectDependencyKind(dependency.kind).value
+            kind_value: str = ProjectDependencyKind(dependency.kind).value
         except ValueError:
             if not str(dependency.kind).startswith(("tree_", "graph_")):
                 return None
@@ -91,7 +97,7 @@ def native_evaluation_payload(
         "path": path,
         "source_fingerprint": ("0" * 64 if is_project else evaluation.source_fingerprint),
         "subject_identity": path,
-        "subject_kind": "project" if is_project else "file",
+        "subject_kind": NATIVE_PROJECT_SUBJECT_KIND if is_project else NATIVE_FILE_SUBJECT_KIND,
         "threshold_override_uses": [
             {
                 "effective_value": use.effective_value,
@@ -116,7 +122,7 @@ def restore_native_evaluation(
     """Restore one Rust-validated subject-result payload into runtime models."""
 
     path: str = cast(str, payload["path"])
-    common = {
+    common: dict[str, object] = {
         "faults": tuple(
             _native_fault(value=value, repo_root=repo_root)
             for value in cast(list[dict[str, object]], payload["faults"])
@@ -146,7 +152,7 @@ def restore_native_evaluation(
             for value in cast(list[dict[str, object]], payload["dependencies"])
         ),
     }
-    if payload.get("subject_kind") == "project":
+    if payload.get("subject_kind") == NATIVE_PROJECT_SUBJECT_KIND:
         return ProjectEvaluation(
             **common,
             subject_identity=cast(str, payload["subject_identity"]),
@@ -193,11 +199,13 @@ def restore_native_contribution(
         "dependencies": [],
         "source_fingerprint": source_fingerprint.value,
         "subject_identity": payload["path"],
-        "subject_kind": "file",
+        "subject_kind": NATIVE_FILE_SUBJECT_KIND,
     }
-    restored = restore_native_evaluation(payload=value, repo_root=repo_root)
+    restored: FileEvaluation | ProjectEvaluation = restore_native_evaluation(
+        payload=value, repo_root=repo_root
+    )
     if not isinstance(restored, FileEvaluation):
-        raise ValueError("native contribution must belong to a file subject")
+        raise CacheRecordError("native contribution must belong to a file subject")
     return restored
 
 

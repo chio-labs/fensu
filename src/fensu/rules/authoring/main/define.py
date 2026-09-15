@@ -67,7 +67,7 @@ def rule(
                 f"{subject_kind.value} rule signature conflicts with explicit execution_owner "
                 f"{execution_owner.value!r}"
             )
-        resolved_execution_owner = execution_owner or inferred_owner
+        resolved_execution_owner: ExecutionOwner = execution_owner or inferred_owner
         spec: RuleSpec = RuleSpec(
             code=code,
             family=resolved_family,

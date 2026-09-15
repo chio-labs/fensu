@@ -125,11 +125,11 @@ def suppress_project_faults(
     applied: set[RuleExceptionKey] = set()
     for fault in faults:
         try:
-            relative_path = _repository_relative_path(path=fault.path, repo_root=repo_root)
+            relative_path: str = _repository_relative_path(path=fault.path, repo_root=repo_root)
         except ValueError:
             retained.append(fault)
             continue
-        matching = next(
+        matching: RuleExceptionEntry | None = next(
             (
                 exception
                 for exception in config.rule_exceptions
@@ -150,8 +150,8 @@ def suppress_project_faults(
             if analysis.native_source(requester=requester, path=fault.path) is None:
                 retained.append(fault)
                 continue
-            parsed_module = analysis.parsed_module(scoped_file)
-            scope = FileExceptionScope(
+            parsed_module: ParsedModule = analysis.parsed_module(scoped_file)
+            scope: FileExceptionScope = FileExceptionScope(
                 relative_path=relative_path,
                 exceptions=tuple(
                     exception

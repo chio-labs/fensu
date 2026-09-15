@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from fensu.discovery.models import DiscoveredTree, RepoRoot
-from fensu.rules.authoring.subjects import ProjectPath, ProjectTree
+from fensu.rules.authoring.models import ProjectPath, ProjectTree
 
 
 class RuleProjectView:
@@ -29,7 +29,7 @@ class RuleProjectView:
 
         return self._analysis.analysis(
             requester=self._bound_requester(requester),
-            path=self._absolute(path, legacy=requester is not None),
+            path=self._absolute(path=path, legacy=requester is not None),
         )
 
     def dataclasses(
@@ -42,7 +42,7 @@ class RuleProjectView:
 
         return self._analysis.dataclasses(
             requester=self._bound_requester(requester),
-            path=self._absolute(path, legacy=requester is not None),
+            path=self._absolute(path=path, legacy=requester is not None),
         )
 
     def directory_entries(
@@ -55,7 +55,7 @@ class RuleProjectView:
 
         return self._analysis.directory_entries(
             requester=self._bound_requester(requester),
-            path=self._absolute(path, legacy=requester is not None),
+            path=self._absolute(path=path, legacy=requester is not None),
         )
 
     def module_function(
@@ -88,7 +88,7 @@ class RuleProjectView:
 
         return self._analysis.python_anchor(
             requester=self._bound_requester(requester),
-            path=self._absolute(path, legacy=requester is not None),
+            path=self._absolute(path=path, legacy=requester is not None),
         )
 
     def exists(
@@ -101,7 +101,7 @@ class RuleProjectView:
 
         return self._analysis.exists(
             requester=self._bound_requester(requester),
-            path=self._absolute(path, legacy=requester is not None),
+            path=self._absolute(path=path, legacy=requester is not None),
         )
 
     def is_dir(
@@ -114,7 +114,7 @@ class RuleProjectView:
 
         return self._analysis.is_dir(
             requester=self._bound_requester(requester),
-            path=self._absolute(path, legacy=requester is not None),
+            path=self._absolute(path=path, legacy=requester is not None),
         )
 
     def is_file(
@@ -127,7 +127,7 @@ class RuleProjectView:
 
         return self._analysis.is_file(
             requester=self._bound_requester(requester),
-            path=self._absolute(path, legacy=requester is not None),
+            path=self._absolute(path=path, legacy=requester is not None),
         )
 
     def glob(
@@ -142,7 +142,7 @@ class RuleProjectView:
 
         return self._analysis.glob(
             requester=self._bound_requester(requester),
-            path=self._absolute(path, legacy=requester is not None),
+            path=self._absolute(path=path, legacy=requester is not None),
             pattern=pattern,
             recursive=recursive,
         )
@@ -160,15 +160,19 @@ class RuleProjectView:
     def absolute_path(self, path: ProjectPath | str) -> Path:
         """Resolve a confined public path for context-owned fault construction."""
 
-        return self._absolute(path, legacy=False)
+        return self._absolute(path=path, legacy=False)
 
     def _bound_requester(self, requester: Path | None) -> Path:
         return self._requester if requester is None else requester
 
-    def _absolute(self, path: ProjectPath | str | Path, *, legacy: bool) -> Path:
+    def _absolute(self, *, path: ProjectPath | str | Path, legacy: bool) -> Path:
         if isinstance(path, Path):
             if legacy:
                 return path
-            raise TypeError("typed project queries accept only ProjectPath or str values")
-        relative = path if isinstance(path, ProjectPath) else ProjectPath(path)
+            from fensu.evaluation.exceptions import ProjectQueryTypeError
+
+            raise ProjectQueryTypeError(
+                "typed project queries accept only ProjectPath or str values"
+            )
+        relative: ProjectPath = path if isinstance(path, ProjectPath) else ProjectPath(path)
         return self._root.joinpath(*relative.parts)

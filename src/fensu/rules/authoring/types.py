@@ -26,11 +26,36 @@ if TYPE_CHECKING:
         SyntaxAnalysis,
         TextAnalysis,
     )
-    from fensu.rules.authoring.graph import ArchitectureGraph
-    from fensu.rules.authoring.models import CustomRuleRegistration, Fault, RuleOption
-    from fensu.rules.authoring.subjects import ProjectPath, ProjectTree
+    from fensu.rules.authoring.models import (
+        ArchitectureGraph,
+        CustomRuleRegistration,
+        Fault,
+        ProjectPath,
+        ProjectTree,
+        RuleOption,
+    )
 
 type RuleOptionValue = bool | int | str | tuple[str, ...] | tuple[int, ...]
+
+
+class SourceKind(StrEnum):
+    """Analyzer-neutral source representation identity."""
+
+    PYTHON_MODULE = "python_module"
+
+
+class ImportResolution(StrEnum):
+    """Whether a static import resolves to a discovered project module."""
+
+    RESOLVED = "resolved"
+    UNRESOLVED = "unresolved"
+
+
+class ModuleVisibility(StrEnum):
+    """Structural visibility exposed by a discovered module."""
+
+    PUBLIC = "public"
+    INTERNAL = "internal"
 
 
 class Family(StrEnum):

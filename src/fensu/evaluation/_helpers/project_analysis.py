@@ -22,6 +22,7 @@ from fensu.analysis.types import (
 )
 from fensu.discovery.models import DiscoveredTree, ProjectSource, ScopedFile
 from fensu.evaluation._helpers.parsing import parse_scoped_file, read_source_snapshot
+from fensu.evaluation.constants import PROJECT_ROOT_PATH
 from fensu.evaluation.exceptions import ParseError
 from fensu.evaluation.models import ExternalAnalysisBuild, ParsedModule, SourceSnapshot
 from fensu.evaluation.types import EvaluationProjectAnalysis
@@ -33,11 +34,46 @@ from fensu.instrumentation.constants import (
     PROJECT_QUERY_OBSERVATION_OPERATION,
     PROJECT_QUERY_SOURCE_OPERATION,
 )
-from fensu.rules.authoring.graph import ArchitectureGraph
-from fensu.rules.authoring.subjects import ProjectPath, ProjectTree, build_project_tree
+from fensu.rules.authoring.main.build_project_tree import build_project_tree
+from fensu.rules.authoring.models import ArchitectureGraph, ProjectPath, ProjectTree
 
 _test_types_file_name: str = "_test_types.py"
 _pyproject_file_name: str = "pyproject.toml"
+
+
+class _TreeQueryRecorder:
+    def __init__(self, *, analysis: _EvaluationProjectAnalysis, requester: Path) -> None:
+        self._analysis: _EvaluationProjectAnalysis = analysis
+        self._requester: Path = requester
+
+    def __call__(
+        self,
+        kind: str,
+        query: ProjectPath,
+        answer: str | tuple[ProjectPath, ...],
+        pattern: str | None,
+    ) -> None:
+        self._analysis.record_tree_query(
+            requester=self._requester,
+            kind=kind,
+            query=query,
+            answer=answer,
+            pattern=pattern,
+        )
+
+
+class _GraphQueryRecorder:
+    def __init__(self, *, analysis: _EvaluationProjectAnalysis, requester: Path) -> None:
+        self._analysis: _EvaluationProjectAnalysis = analysis
+        self._requester: Path = requester
+
+    def __call__(self, kind: str, query: ProjectPath, answer: str) -> None:
+        self._analysis.record_graph_query(
+            requester=self._requester,
+            kind=kind,
+            query=query,
+            answer=answer,
+        )
 
 
 class _EvaluationProjectAnalysis:
@@ -95,36 +131,37 @@ class _EvaluationProjectAnalysis:
     def observed_project_tree(self, *, requester: Path) -> ProjectTree:
         """Return tree facts whose runtime accesses are recorded for this requester."""
 
-        def observe(
-            kind: str,
-            query: ProjectPath,
-            answer: str | tuple[ProjectPath, ...],
-            pattern: str | None,
-        ) -> None:
-            converted: str | tuple[Path, ...] = (
-                answer
-                if isinstance(answer, str)
-                else tuple(self._repo_root.joinpath(*item.parts) for item in answer)
-            )
-            dependency = ProjectDependency(
-                requester=requester,
-                query_path=(
-                    self._repo_root
-                    if query.value == "."
-                    else self._repo_root.joinpath(*query.parts)
-                ),
-                dependency=self._repo_root,
-                kind=kind,
-                answer=converted,
-                pattern=pattern,
-            )
-            if dependency not in self._dependency_set:
-                self._dependency_set.add(dependency)
-                self._dependencies.append(dependency)
-                self._dependencies_by_requester.setdefault(str(requester), []).append(dependency)
-                OPERATION_COUNTERS.record(operation=DEPENDENCY_RECORD_OPERATION)
+        return self.project_tree.observed(_TreeQueryRecorder(analysis=self, requester=requester))
 
-        return self.project_tree.observed(observe)
+    def record_tree_query(
+        self,
+        *,
+        requester: Path,
+        kind: str,
+        query: ProjectPath,
+        answer: str | tuple[ProjectPath, ...],
+        pattern: str | None,
+    ) -> None:
+        """Record one requester-bound project-tree observation."""
+
+        converted: str | tuple[Path, ...] = (
+            answer
+            if isinstance(answer, str)
+            else tuple(self._repo_root.joinpath(*item.parts) for item in answer)
+        )
+        dependency: ProjectDependency = ProjectDependency(
+            requester=requester,
+            query_path=(
+                self._repo_root
+                if query.value == PROJECT_ROOT_PATH
+                else self._repo_root.joinpath(*query.parts)
+            ),
+            dependency=self._repo_root,
+            kind=kind,
+            answer=converted,
+            pattern=pattern,
+        )
+        self._append_dependency(dependency=dependency)
 
     def parsed_module(self, scoped_file: ScopedFile) -> ParsedModule:
         """Return one strict discovered-file parse, reusing project queries."""
@@ -223,39 +260,49 @@ class _EvaluationProjectAnalysis:
         """Return the one lazily built graph with observations bound to the requester."""
 
         if self._architecture_graph is None:
-            from fensu.evaluation._helpers.architecture_graph import build_architecture_graph
+            from fensu.evaluation.main._build_architecture_graph import build_architecture_graph
 
             self._architecture_graph = build_architecture_graph(tree=self._tree, analysis=self)
 
-        def observe(kind: str, query: ProjectPath, answer: str) -> None:
-            query_path = (
-                self._repo_root if query.value == "." else self._repo_root.joinpath(*query.parts)
-            )
-            dependency = ProjectDependency(
-                requester=self._resolve(requester),
-                query_path=query_path,
-                dependency=self._repo_root,
-                kind=kind,
-                answer=answer,
-            )
-            if dependency not in self._dependency_set:
-                self._dependency_set.add(dependency)
-                self._dependencies.append(dependency)
-                self._dependencies_by_requester.setdefault(str(dependency.requester), []).append(
-                    dependency
-                )
-                OPERATION_COUNTERS.record(operation=DEPENDENCY_RECORD_OPERATION)
+        return self._architecture_graph.observed(
+            _GraphQueryRecorder(analysis=self, requester=requester)
+        )
 
-        return self._architecture_graph.observed(observe)
+    def record_graph_query(
+        self, *, requester: Path, kind: str, query: ProjectPath, answer: str
+    ) -> None:
+        """Record one requester-bound architecture-graph observation."""
+
+        query_path: Path = (
+            self._repo_root
+            if query.value == PROJECT_ROOT_PATH
+            else self._repo_root.joinpath(*query.parts)
+        )
+        dependency: ProjectDependency = ProjectDependency(
+            requester=self._resolve(requester),
+            query_path=query_path,
+            dependency=self._repo_root,
+            kind=kind,
+            answer=answer,
+        )
+        self._append_dependency(dependency=dependency)
+
+    def _append_dependency(self, *, dependency: ProjectDependency) -> None:
+        if dependency in self._dependency_set:
+            return
+        self._dependency_set.add(dependency)
+        self._dependencies.append(dependency)
+        self._dependencies_by_requester.setdefault(str(dependency.requester), []).append(dependency)
+        OPERATION_COUNTERS.record(operation=DEPENDENCY_RECORD_OPERATION)
 
     def graph_snapshot(self) -> dict[str, object]:
         """Return a deterministic repository-relative snapshot from the authoritative graph."""
 
         if self._architecture_graph is None:
-            from fensu.evaluation._helpers.architecture_graph import build_architecture_graph
+            from fensu.evaluation.main._build_architecture_graph import build_architecture_graph
 
             self._architecture_graph = build_architecture_graph(tree=self._tree, analysis=self)
-        prefix = self._repo_root.relative_to(self._tree.repo_root.path).as_posix()
+        prefix: str = self._repo_root.relative_to(self._tree.repo_root.path).as_posix()
         return self._architecture_graph.snapshot(repository_prefix=prefix)
 
     def dataclasses(self, *, requester: Path, path: Path) -> tuple[DataclassFact, ...]:

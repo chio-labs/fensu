@@ -10,6 +10,11 @@ from fensu.cache.results._helpers.conversion import (
     restore_native_contribution,
     restore_native_evaluation,
 )
+from fensu.cache.results.constants import (
+    NATIVE_FILE_SUBJECT_KIND,
+    NATIVE_PROJECT_SUBJECT_KIND,
+    PROJECT_SUBJECT_IDENTITY,
+)
 from fensu.cache.results.models import (
     CachedCheckOutput,
     CacheIndexEntry,
@@ -51,7 +56,9 @@ class ResultCache:
                 global_fingerprint.value,
                 [
                     (
-                        "project" if project_subject and path == "." else "file",
+                        NATIVE_PROJECT_SUBJECT_KIND
+                        if project_subject and path == PROJECT_SUBJECT_IDENTITY
+                        else NATIVE_FILE_SUBJECT_KIND,
                         path,
                         _fingerprint_value(source_fingerprints.get(path)),
                     )
@@ -95,7 +102,9 @@ class ResultCache:
                 global_fingerprint.value,
                 [
                     (
-                        "project" if project_subject and path == "." else "file",
+                        NATIVE_PROJECT_SUBJECT_KIND
+                        if project_subject and path == PROJECT_SUBJECT_IDENTITY
+                        else NATIVE_FILE_SUBJECT_KIND,
                         path,
                         _fingerprint_value(source_fingerprints.get(path)),
                     )
@@ -130,7 +139,9 @@ class ResultCache:
                 global_fingerprint.value,
                 [
                     (
-                        "project" if project_subject and path == "." else "file",
+                        NATIVE_PROJECT_SUBJECT_KIND
+                        if project_subject and path == PROJECT_SUBJECT_IDENTITY
+                        else NATIVE_FILE_SUBJECT_KIND,
                         path,
                         _fingerprint_value(source_fingerprints.get(path)),
                     )
@@ -159,14 +170,14 @@ class ResultCache:
             entry.subject_identity: entry for entry in entries
         }
         try:
-            cached_values = tuple(
+            cached_values: tuple[FileEvaluation | ProjectEvaluation, ...] = tuple(
                 restore_native_evaluation(payload=payload, repo_root=self._repo_root)
                 for payload in row[3]
             )
-            cached_evaluations = tuple(
+            cached_evaluations: tuple[FileEvaluation, ...] = tuple(
                 value for value in cached_values if isinstance(value, FileEvaluation)
             )
-            cached_project = next(
+            cached_project: ProjectEvaluation | None = next(
                 (value for value in cached_values if isinstance(value, ProjectEvaluation)), None
             )
             retained_evaluations: tuple[FileEvaluation, ...] = tuple(
@@ -177,7 +188,7 @@ class ResultCache:
                 )
                 for payload in row[4]
             )
-            retained_project = None
+            retained_project: ProjectEvaluation | None = None
         except (KeyError, TypeError, ValueError):
             return None
         return NativeGenerationPlan(

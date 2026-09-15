@@ -1484,9 +1484,10 @@ class RestoreProbe:
         """Record one restore and delegate to the real conversion."""
 
         self.calls += 1
-        restored = restore_native_evaluation(payload=payload, repo_root=repo_root)
-        if not isinstance(restored, FileEvaluation):
-            raise AssertionError("CLI cache fixture expected a file evaluation")
+        restored: FileEvaluation | object = restore_native_evaluation(
+            payload=payload, repo_root=repo_root
+        )
+        assert isinstance(restored, FileEvaluation), "CLI cache fixture expected a file evaluation"
         return restored
 
 

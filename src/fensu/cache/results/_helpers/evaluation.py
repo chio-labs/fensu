@@ -11,17 +11,25 @@ from fensu.cache.fingerprints.main._source import fingerprint_source
 from fensu.cache.fingerprints.models import CacheFingerprint
 from fensu.cache.results._helpers.paths import relative_repository_path
 from fensu.cache.results.classes.result_cache import ResultCache
-from fensu.cache.results.constants import NATIVE_COLD_MODE, NATIVE_EDIT_MODE
+from fensu.cache.results.constants import (
+    NATIVE_COLD_MODE,
+    NATIVE_EDIT_MODE,
+    PROJECT_SUBJECT_IDENTITY,
+)
 from fensu.cache.results.models import (
     CachedCheckOutput,
+    CachedEvaluationSetup,
     CacheEvaluation,
     CacheIndexEntry,
     CacheStats,
     NativeGenerationPlan,
+    RuleScopes,
+    SubjectRulePartitions,
 )
 from fensu.cache.storage.exceptions import CachePathError, CacheRecordError
 from fensu.discovery.constants import SNAPSHOT_TABLE
 from fensu.discovery.main.prime_snapshot_hashes import prime_snapshot_hashes
+from fensu.evaluation.exceptions import ProjectAnalysisUnavailableError
 from fensu.evaluation.main.build_targets import build_evaluation_targets
 from fensu.evaluation.main.select_files import select_evaluation_files
 from fensu.instrumentation.constants import CACHE_MANIFEST_VALIDATION_OPERATION, OPERATION_COUNTERS
@@ -42,23 +50,6 @@ if TYPE_CHECKING:
     from fensu.rules.authoring.models import CustomRuleRegistration, RuleSpec
 
 
-class _RuleScopes:
-    def __init__(
-        self,
-        *,
-        fresh_ruleset: tuple[RuleSpec, ...],
-        fresh_warning_rules: tuple[RuleSpec, ...],
-        cacheable_ruleset: tuple[RuleSpec, ...],
-        cacheable_warning_rules: tuple[RuleSpec, ...],
-    ) -> None:
-        self.fresh_ruleset: tuple[RuleSpec, ...] = fresh_ruleset
-        self.fresh_warning_rules: tuple[RuleSpec, ...] = fresh_warning_rules
-        self.cacheable_ruleset: tuple[RuleSpec, ...] = cacheable_ruleset
-        self.cacheable_warning_rules: tuple[RuleSpec, ...] = cacheable_warning_rules
-        self.scoped: bool = bool(fresh_ruleset or fresh_warning_rules)
-        self.fully_fresh: bool = False
-
-
 def run_cached_evaluation(
     *,
     tree: DiscoveredTree,
@@ -73,33 +64,18 @@ def run_cached_evaluation(
 ) -> CacheEvaluation:
     """Return a complete evaluation using only native-validated cache hits."""
 
-    from fensu.rules.authoring.types import RuleSubjectKind
-
-    file_rules = tuple(rule for rule in ruleset if rule.subject_kind is not RuleSubjectKind.PROJECT)
-    file_warnings = tuple(
-        rule for rule in warning_rules if rule.subject_kind is not RuleSubjectKind.PROJECT
+    setup: CachedEvaluationSetup = _prepare_cached_evaluation(
+        tree=tree,
+        ruleset=ruleset,
+        warning_rules=warning_rules,
+        config=config,
+        custom_rule_registrations=custom_rule_registrations,
     )
-    project_rules = tuple(rule for rule in ruleset if rule.subject_kind is RuleSubjectKind.PROJECT)
-    project_warnings = tuple(
-        rule for rule in warning_rules if rule.subject_kind is RuleSubjectKind.PROJECT
-    )
-    selection: EvaluationSelection = select_evaluation_files(tree=tree, config=config.evaluation)
-    targets: tuple[EvaluationTarget, ...] = (
-        build_evaluation_targets(
-            tree=tree,
-            selection=selection,
-            ruleset=file_rules,
-            warning_rules=file_warnings,
-            custom_rule_registrations=custom_rule_registrations,
-            plan_rule_owners=False,
-        )
-        if file_rules or file_warnings
-        else ()
-    )
-    scopes: _RuleScopes = _rule_scopes(ruleset=file_rules, warning_rules=file_warnings)
-    project_scopes: _RuleScopes = _rule_scopes(
-        ruleset=project_rules, warning_rules=project_warnings
-    )
+    partitions: SubjectRulePartitions = setup.partitions
+    selection: EvaluationSelection = setup.selection
+    targets: tuple[EvaluationTarget, ...] = setup.targets
+    scopes: RuleScopes = setup.file_scopes
+    project_scopes: RuleScopes = setup.project_scopes
     if not (
         scopes.cacheable_ruleset
         or scopes.cacheable_warning_rules
@@ -118,7 +94,8 @@ def run_cached_evaluation(
         return CacheEvaluation(
             result=result,
             stats=CacheStats(
-                non_cacheable=len(targets) + int(bool(project_rules or project_warnings))
+                non_cacheable=len(targets)
+                + int(bool(partitions.project_rules or partitions.project_warnings))
             ),
         )
     cache: ResultCache = ResultCache(
@@ -129,22 +106,22 @@ def run_cached_evaluation(
         targets=targets,
         repo_root=tree.repo_root.path,
     )
-    has_cached_project = bool(
+    has_cached_project: bool = bool(
         project_scopes.cacheable_ruleset or project_scopes.cacheable_warning_rules
     )
     sorted_targets: tuple[str, ...] = (
         *tuple(sorted(target_paths)),
-        *((".",) if has_cached_project else ()),
+        *((PROJECT_SUBJECT_IDENTITY,) if has_cached_project else ()),
     )
     if has_cached_project:
-        source_fingerprints["."] = CacheFingerprint("0" * 64)
-    cacheable_rules = (
+        source_fingerprints[PROJECT_SUBJECT_IDENTITY] = CacheFingerprint("0" * 64)
+    cacheable_rules: tuple[RuleSpec, ...] = (
         *scopes.cacheable_ruleset,
         *scopes.cacheable_warning_rules,
         *project_scopes.cacheable_ruleset,
         *project_scopes.cacheable_warning_rules,
     )
-    dependency_kinds = (
+    dependency_kinds: frozenset[str] | None = (
         cache.native_dependency_kinds(
             global_fingerprint=global_fingerprint,
             targets=sorted_targets,
@@ -154,17 +131,17 @@ def run_cached_evaluation(
         if any(rule.kind is RuleKind.CUSTOM for rule in cacheable_rules)
         else frozenset()
     )
-    needs_tree_snapshot = dependency_kinds is not None and any(
+    needs_tree_snapshot: bool = dependency_kinds is not None and any(
         kind.startswith("tree_") for kind in dependency_kinds
     )
-    needs_graph_snapshot = dependency_kinds is not None and any(
+    needs_graph_snapshot: bool = dependency_kinds is not None and any(
         kind.startswith("graph_") for kind in dependency_kinds
     )
     project: EvaluationProjectAnalysis | None = None
     tree_snapshot: dict[str, object] | None = None
     if needs_tree_snapshot or needs_graph_snapshot:
         from fensu.evaluation.main.build_project import build_evaluation_project
-        from fensu.rules.authoring.subjects import project_tree_snapshot
+        from fensu.rules.authoring.main.project_tree_snapshot import project_tree_snapshot
 
         project = build_evaluation_project(tree=tree)
         tree_snapshot = (
@@ -189,11 +166,11 @@ def run_cached_evaluation(
         build_evaluation_targets(
             tree=tree,
             selection=selection,
-            ruleset=file_rules,
-            warning_rules=file_warnings,
+            ruleset=partitions.file_rules,
+            warning_rules=partitions.file_warnings,
             custom_rule_registrations=custom_rule_registrations,
         )
-        if file_rules or file_warnings
+        if partitions.file_rules or partitions.file_warnings
         else ()
     )
     plan: NativeGenerationPlan | None = cache.plan_native_generation(
@@ -226,12 +203,12 @@ def run_cached_evaluation(
             sorted_targets=sorted_targets,
             jobs=jobs,
         )
-    needs_project = bool(plan.miss_paths or scopes.scoped or project_scopes.scoped)
+    needs_project: bool = bool(plan.miss_paths or scopes.scoped or project_scopes.scoped)
     if project is None and needs_project:
         from fensu.evaluation.main.build_project import build_evaluation_project
 
         project = build_evaluation_project(tree=tree)
-    file_misses = frozenset(plan.miss_paths).intersection(target_paths)
+    file_misses: frozenset[str] = frozenset(plan.miss_paths).intersection(target_paths)
     fresh: tuple[FileEvaluation, ...] = (
         _evaluate_misses(
             plan=plan,
@@ -263,11 +240,11 @@ def run_cached_evaluation(
             )
             for target, evaluation in zip(targets, evaluations, strict=True)
         )
-    from fensu.evaluation._helpers.project_evaluation import evaluate_project_rules
+    from fensu.evaluation.main.evaluate_project_rules import evaluate_project_rules
 
     project_evaluation: ProjectEvaluation | None = plan.cached_project_evaluation
     fresh_project: ProjectEvaluation | None = None
-    if has_cached_project and "." in plan.miss_paths:
+    if has_cached_project and PROJECT_SUBJECT_IDENTITY in plan.miss_paths:
         fresh_project = evaluate_project_rules(
             ruleset=project_scopes.cacheable_ruleset,
             warning_rules=project_scopes.cacheable_warning_rules,
@@ -277,14 +254,14 @@ def run_cached_evaluation(
         )
         project_evaluation = fresh_project
     if project_scopes.scoped:
-        supplement = evaluate_project_rules(
+        supplement: ProjectEvaluation | None = evaluate_project_rules(
             ruleset=project_scopes.fresh_ruleset,
             warning_rules=project_scopes.fresh_warning_rules,
             config=config,
             tree=tree,
             analysis=_required_project(project),
         )
-        project_evaluation = _merge_project_evaluations(project_evaluation, supplement)
+        project_evaluation = _merge_project_evaluations(first=project_evaluation, second=supplement)
     dependencies: list[ProjectDependency] = []
     for evaluation in evaluations:
         dependencies.extend(evaluation.dependencies)
@@ -300,7 +277,9 @@ def run_cached_evaluation(
         repo_root=tree.repo_root.path,
         project_root=project_root.path,
         evaluated_rule_codes=frozenset(rule.code for rule in (*ruleset, *warning_rules)),
-        project_rule_codes=frozenset(rule.code for rule in (*project_rules, *project_warnings)),
+        project_rule_codes=frozenset(
+            rule.code for rule in (*partitions.project_rules, *partitions.project_warnings)
+        ),
         selection=selection,
         project_evaluation=project_evaluation,
     )
@@ -372,7 +351,7 @@ def _evaluate_misses(
     *,
     plan: NativeGenerationPlan,
     targets: tuple[EvaluationTarget, ...],
-    scopes: _RuleScopes,
+    scopes: RuleScopes,
     config: Config,
     tree: DiscoveredTree,
     project: EvaluationProjectAnalysis,
@@ -426,7 +405,7 @@ def _planned_evaluations(
 def _native_replayed_evaluation(
     *,
     cache: ResultCache,
-    scopes: _RuleScopes,
+    scopes: RuleScopes,
     allow_short_circuit: bool,
     global_fingerprint: CacheFingerprint,
     targets: tuple[EvaluationTarget, ...],
@@ -509,19 +488,19 @@ def _rule_scopes(
     *,
     ruleset: tuple[RuleSpec, ...],
     warning_rules: tuple[RuleSpec, ...],
-) -> _RuleScopes:
+) -> RuleScopes:
     fresh_ruleset: tuple[RuleSpec, ...] = _fresh_subset(ruleset)
     fresh_warning_rules: tuple[RuleSpec, ...] = _fresh_subset(warning_rules)
-    scopes: _RuleScopes = _RuleScopes(
+    return RuleScopes(
         fresh_ruleset=fresh_ruleset,
         fresh_warning_rules=fresh_warning_rules,
         cacheable_ruleset=_cacheable_subset(ruleset),
         cacheable_warning_rules=_cacheable_subset(warning_rules),
+        scoped=bool(fresh_ruleset or fresh_warning_rules),
+        fully_fresh=(
+            len(fresh_ruleset) == len(ruleset) and len(fresh_warning_rules) == len(warning_rules)
+        ),
     )
-    scopes.fully_fresh = len(fresh_ruleset) == len(ruleset) and len(fresh_warning_rules) == len(
-        warning_rules
-    )
-    return scopes
 
 
 def _fresh_subset(rules: tuple[RuleSpec, ...]) -> tuple[RuleSpec, ...]:
@@ -585,7 +564,7 @@ def _publish_native_generation(
 
 
 def _merge_project_evaluations(
-    first: ProjectEvaluation | None, second: ProjectEvaluation | None
+    *, first: ProjectEvaluation | None, second: ProjectEvaluation | None
 ) -> ProjectEvaluation | None:
     if first is None:
         return second
@@ -612,8 +591,78 @@ def _required_project(
     project: EvaluationProjectAnalysis | None,
 ) -> EvaluationProjectAnalysis:
     if project is None:
-        raise RuntimeError("project analysis was not prepared for fresh rule evaluation")
+        raise ProjectAnalysisUnavailableError(
+            "project analysis was not prepared for fresh rule evaluation"
+        )
     return project
+
+
+def _prepare_cached_evaluation(
+    *,
+    tree: DiscoveredTree,
+    ruleset: tuple[RuleSpec, ...],
+    warning_rules: tuple[RuleSpec, ...],
+    config: Config,
+    custom_rule_registrations: tuple[CustomRuleRegistration, ...],
+) -> CachedEvaluationSetup:
+    """Prepare subject partitions, selected files, targets, and cache scopes."""
+
+    partitions: SubjectRulePartitions = _partition_subject_rules(
+        ruleset=ruleset, warning_rules=warning_rules
+    )
+    selection: EvaluationSelection = select_evaluation_files(tree=tree, config=config.evaluation)
+    targets: tuple[EvaluationTarget, ...] = (
+        build_evaluation_targets(
+            tree=tree,
+            selection=selection,
+            ruleset=partitions.file_rules,
+            warning_rules=partitions.file_warnings,
+            custom_rule_registrations=custom_rule_registrations,
+            plan_rule_owners=False,
+        )
+        if partitions.file_rules or partitions.file_warnings
+        else ()
+    )
+    return CachedEvaluationSetup(
+        partitions=partitions,
+        selection=selection,
+        targets=targets,
+        file_scopes=_rule_scopes(
+            ruleset=partitions.file_rules,
+            warning_rules=partitions.file_warnings,
+        ),
+        project_scopes=_rule_scopes(
+            ruleset=partitions.project_rules,
+            warning_rules=partitions.project_warnings,
+        ),
+    )
+
+
+def _partition_subject_rules(
+    *, ruleset: tuple[RuleSpec, ...], warning_rules: tuple[RuleSpec, ...]
+) -> SubjectRulePartitions:
+    """Partition file and project rules while preserving authored order."""
+
+    from fensu.rules.authoring.types import RuleSubjectKind
+
+    file_rules: tuple[RuleSpec, ...] = tuple(
+        rule for rule in ruleset if rule.subject_kind is not RuleSubjectKind.PROJECT
+    )
+    file_warnings: tuple[RuleSpec, ...] = tuple(
+        rule for rule in warning_rules if rule.subject_kind is not RuleSubjectKind.PROJECT
+    )
+    project_rules: tuple[RuleSpec, ...] = tuple(
+        rule for rule in ruleset if rule.subject_kind is RuleSubjectKind.PROJECT
+    )
+    project_warnings: tuple[RuleSpec, ...] = tuple(
+        rule for rule in warning_rules if rule.subject_kind is RuleSubjectKind.PROJECT
+    )
+    return SubjectRulePartitions(
+        file_rules=file_rules,
+        file_warnings=file_warnings,
+        project_rules=project_rules,
+        project_warnings=project_warnings,
+    )
 
 
 def _target_source_state(

@@ -12,12 +12,11 @@ from typing import cast
 
 import fensu.evaluation._helpers.file_evaluation as file_evaluation_module
 import fensu.evaluation._helpers.project_analysis as project_analysis_module
-from fensu.analysis.types import ProjectAnalysis
 from fensu.cli._helpers.check_reporting import render_check_result
 from fensu.config.main.load_config import load_config
 from fensu.config.models import Config
 from fensu.discovery.main.discover_files import discover_files
-from fensu.discovery.models import ProjectLayout, RepoRoot, ScopedFile
+from fensu.discovery.models import DiscoveredTree, ProjectLayout, RepoRoot, ScopedFile
 from fensu.evaluation.main.evaluate import evaluate
 from fensu.evaluation.models import (
     ExternalAnalysisBuild,
@@ -25,6 +24,7 @@ from fensu.evaluation.models import (
     SourceSnapshot,
     ThresholdOverrideUse,
 )
+from fensu.evaluation.types import EvaluationProjectAnalysis
 from fensu.rules.authoring.models import Fault, RuleSpec
 from fensu.rules.catalog.main.build_ruleset import build_ruleset
 from scripts.benchmarking.models import ProfileReport
@@ -103,9 +103,10 @@ class CheckProfiler:
         config: Config,
         repo_root: RepoRoot,
         layout: ProjectLayout,
-        project: ProjectAnalysis,
+        project: EvaluationProjectAnalysis,
         file_cache: dict[str, object],
         threshold_override_uses: list[ThresholdOverrideUse],
+        tree: DiscoveredTree,
     ) -> list[Fault]:
         started: float = time.perf_counter()
         previous_inside_rule: bool = self._inside_rule
@@ -120,6 +121,7 @@ class CheckProfiler:
                 project=project,
                 file_cache=file_cache,
                 threshold_override_uses=threshold_override_uses,
+                tree=tree,
             )
         finally:
             self._inside_rule = previous_inside_rule

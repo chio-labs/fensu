@@ -133,8 +133,7 @@ def suppress_project_faults(
             (
                 exception
                 for exception in config.rule_exceptions
-                if exception.path == relative_path
-                and exception.rule == fault.code
+                if exception.path == relative_path and exception.rule == fault.code
             ),
             None,
         )

@@ -7,8 +7,9 @@ use pyo3::{pyfunction, Bound, Py, PyAny, PyResult, Python};
 
 use crate::cache::_helpers::generation_bindings::{
     dependency_kinds_request, plan_generation_request, publish_generation_request,
-    replay_generation_request, store_check_output_request, PlanGenerationRequest,
-    PublishGenerationRequest, ReplayGenerationRequest, StoreCheckOutputRequest,
+    replay_generation_request, store_check_output_request, DependencyKindsRequest,
+    PlanGenerationRequest, PublishGenerationRequest, ReplayGenerationRequest,
+    StoreCheckOutputRequest,
 };
 use crate::cache::_helpers::records::{
     canonical_from_python, decode_record, encode_record, value_to_python,
@@ -82,13 +83,13 @@ macro_rules! define_cache_python_bindings {
             targets: Vec<(String, String, Option<String>)>,
             maximum_decoded_bytes: usize,
         ) -> (Option<Vec<String>>, MetricsRow) {
-            dependency_kinds_request(
+            dependency_kinds_request(DependencyKindsRequest {
                 py,
                 repo_root,
                 global_fingerprint,
                 targets,
                 maximum_decoded_bytes,
-            )
+            })
         }
 
         #[pyfunction]

@@ -32,6 +32,63 @@ pub(crate) fn maximum_record_bytes() -> usize {
     MAXIMUM_RECORD_BYTES
 }
 
+pub(crate) fn subject_fault(path: &str) -> CanonicalValue {
+    object(&[
+        ("code", CanonicalValue::String("XPC001".to_owned())),
+        ("column", CanonicalValue::Null),
+        ("line", CanonicalValue::Null),
+        (
+            "message",
+            CanonicalValue::String("project finding".to_owned()),
+        ),
+        ("path", CanonicalValue::String(path.to_owned())),
+        ("remediation", CanonicalValue::Null),
+    ])
+}
+
+pub(crate) fn subject_exception(path: &str) -> CanonicalValue {
+    object(&[
+        ("path", CanonicalValue::String(path.to_owned())),
+        ("rule", CanonicalValue::String("XPC001".to_owned())),
+        ("symbol", CanonicalValue::Null),
+    ])
+}
+
+pub(crate) fn keyed_graph_snapshot(
+    query_path: &str,
+    root_prefix: &str,
+    answer_field: &str,
+    answer: &CanonicalValue,
+) -> CanonicalValue {
+    object(&[(
+        "graph",
+        object(&[
+            (
+                "root_prefix",
+                CanonicalValue::String(root_prefix.to_owned()),
+            ),
+            (answer_field, object(&[(query_path, answer.clone())])),
+        ]),
+    )])
+}
+
+pub(crate) fn scalar_graph_snapshot(
+    root_prefix: &str,
+    answer_field: &str,
+    answer: &CanonicalValue,
+) -> CanonicalValue {
+    object(&[(
+        "graph",
+        object(&[
+            (
+                "root_prefix",
+                CanonicalValue::String(root_prefix.to_owned()),
+            ),
+            (answer_field, answer.clone()),
+        ]),
+    )])
+}
+
 pub(crate) fn concurrent_writes(repo_root: &std::path::Path, count: usize) -> Vec<bool> {
     let root = Arc::new(repo_root.to_path_buf());
     let handles = (0..count)

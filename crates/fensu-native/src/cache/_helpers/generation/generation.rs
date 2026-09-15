@@ -9,6 +9,7 @@ use crate::cache::_helpers::schema::{
     metadata_is_current, observation_map, resolved_file_payload,
 };
 use crate::cache::_helpers::storage::read_records;
+use crate::cache::constants::{PROJECT_REQUESTER_PATH, PROJECT_SUBJECT_KIND};
 use crate::cache::models::{
     CacheMetrics, CanonicalValue, NativeDependencyKey, NativeDependencyObservation,
     NativeGenerationPlan, NativeIndexEntry,
@@ -207,8 +208,8 @@ fn result_plan(inputs: ResultPlanInputs<'_>) -> NativeGenerationPlan {
                 .insert(subject_key(&entry.subject_kind, &entry.subject_identity));
             continue;
         }
-        let requester = if entry.subject_kind == "project" {
-            ".fensu-project-rule"
+        let requester = if entry.subject_kind == PROJECT_SUBJECT_KIND {
+            PROJECT_REQUESTER_PATH
         } else {
             entry.subject_identity.as_str()
         };
@@ -236,12 +237,8 @@ fn result_plan(inputs: ResultPlanInputs<'_>) -> NativeGenerationPlan {
     let misses = miss_paths
         .iter()
         .filter(|path| {
-            !existing
-                .values()
-                .any(|entry| entry.subject_identity == **path)
-                || corrupt_paths
-                    .iter()
-                    .any(|key| key.ends_with(&format!("\0{path}")))
+            !contains_subject_identity(&existing, path)
+                || contains_identity_suffix(&corrupt_paths, path)
         })
         .count();
     let source_invalidations = inputs
@@ -298,16 +295,7 @@ fn edit_plan(inputs: EditPlanInputs<'_>) -> NativeGenerationPlan {
         .collect::<HashSet<_>>();
     let contributions: Vec<CanonicalValue> = collection
         .into_iter()
-        .filter(|value| {
-            value
-                .field("path")
-                .and_then(CanonicalValue::as_str)
-                .is_some_and(|identity| {
-                    retained_paths
-                        .iter()
-                        .any(|key| key.ends_with(&format!("\0{identity}")))
-                })
-        })
+        .filter(|value| contribution_is_retained(value, &retained_paths))
         .collect();
     let miss_paths = targets
         .iter()
@@ -317,11 +305,7 @@ fn edit_plan(inputs: EditPlanInputs<'_>) -> NativeGenerationPlan {
         .collect::<Vec<_>>();
     let misses = miss_paths
         .iter()
-        .filter(|path| {
-            !existing_paths
-                .iter()
-                .any(|key| key.ends_with(&format!("\0{path}")))
-        })
+        .filter(|path| !contains_identity_suffix(&existing_paths, path))
         .count();
     let changed_invalidations = miss_paths.len() - misses;
     NativeGenerationPlan {
@@ -363,6 +347,32 @@ fn cold_plan(targets: &[(String, String, Option<String>)]) -> NativeGenerationPl
 
 fn subject_key(kind: &str, identity: &str) -> String {
     format!("{kind}\0{identity}")
+}
+
+fn contains_subject_identity(entries: &HashMap<String, &NativeIndexEntry>, identity: &str) -> bool {
+    for entry in entries.values() {
+        if entry.subject_identity == identity {
+            return true;
+        }
+    }
+    false
+}
+
+fn contains_identity_suffix(keys: &HashSet<String>, identity: &str) -> bool {
+    let suffix = format!("\0{identity}");
+    for key in keys {
+        if key.ends_with(&suffix) {
+            return true;
+        }
+    }
+    false
+}
+
+fn contribution_is_retained(value: &CanonicalValue, retained_paths: &HashSet<String>) -> bool {
+    let Some(identity) = value.field("path").and_then(CanonicalValue::as_str) else {
+        return false;
+    };
+    contains_identity_suffix(retained_paths, identity)
 }
 
 fn matching_observations(

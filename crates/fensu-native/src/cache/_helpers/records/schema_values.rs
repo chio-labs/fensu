@@ -5,7 +5,7 @@ use std::path::{Component, Path};
 
 use crate::cache::constants::{
     CORE_RULE_SUFFIX_LENGTH, DEPENDENCY_GLOB_KIND, FINGERPRINT_LENGTH, MAXIMUM_SYMBOL_PARTS,
-    REPOSITORY_ROOT_PATH,
+    REPOSITORY_ROOT_PATH, TREE_GLOB_KIND,
 };
 use crate::cache::models::{CanonicalValue, NativeDependencyObservation};
 
@@ -30,7 +30,7 @@ pub(crate) fn valid_relative_path(value: &str, allow_root: bool) -> bool {
 
 pub(crate) fn valid_dependency_shape(observation: &NativeDependencyObservation) -> bool {
     let key = &observation.key;
-    if key.kind == DEPENDENCY_GLOB_KIND || key.kind == "tree_glob" {
+    if key.kind == DEPENDENCY_GLOB_KIND || key.kind == TREE_GLOB_KIND {
         if key.pattern.as_ref().is_none_or(String::is_empty) {
             return false;
         }
@@ -51,7 +51,7 @@ pub(crate) fn valid_dependency_shape(observation: &NativeDependencyObservation) 
                 })
             })
         }
-        "tree_paths" | "tree_files" | "tree_children" | "tree_descendants" | "tree_glob"
+        "tree_paths" | "tree_files" | "tree_children" | "tree_descendants" | TREE_GLOB_KIND
         | "tree_files_under" => observation.answer.as_list().is_some_and(|items| {
             items.iter().all(|item| {
                 item.as_str()

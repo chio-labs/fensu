@@ -76,9 +76,7 @@ class RuleProjectView:
     def entrypoint_modules(self, *, requester: Path | None = None) -> tuple[str, ...]:
         """Return configured entrypoint modules with requester tracking."""
 
-        return self._analysis.entrypoint_modules(
-            requester=self._bound_requester(requester)
-        )
+        return self._analysis.entrypoint_modules(requester=self._bound_requester(requester))
 
     def python_anchor(
         self,
@@ -157,9 +155,7 @@ class RuleProjectView:
     def dependencies_for(self, *, requester: Path | None = None) -> tuple[Any, ...]:
         """Return dependencies for the bound or explicitly supplied legacy requester."""
 
-        return self._analysis.dependencies_for(
-            requester=self._bound_requester(requester)
-        )
+        return self._analysis.dependencies_for(requester=self._bound_requester(requester))
 
     def absolute_path(self, path: ProjectPath | str) -> Path:
         """Resolve a confined public path for context-owned fault construction."""

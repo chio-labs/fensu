@@ -15,6 +15,9 @@ use crate::cache::_helpers::schema::{
 };
 use crate::cache::_helpers::schema_values::exact_fields;
 use crate::cache::_helpers::storage::read_records;
+use crate::cache::constants::{
+    DOUBLE_WILDCARD_SEGMENT, REPOSITORY_ROOT_PATH, SINGLE_WILDCARD_SEGMENT, TREE_GLOB_KIND,
+};
 use crate::cache::models::{
     CacheMetrics, CanonicalValue, DecodedRecord, NativeDependencyKey, NativeDependencyObservation,
     NativeIndexEntry, NativeReplay,
@@ -27,13 +30,24 @@ const REPLAY_BODY_READS: [(&str, &str); 2] = [
     ("dependencies.json", "dependencies"),
 ];
 
+pub(crate) struct ReplayGenerationRequest<'a> {
+    pub(crate) repo_root: &'a Path,
+    pub(crate) global_fingerprint: &'a str,
+    pub(crate) targets: &'a [(String, String, Option<String>)],
+    pub(crate) tree_snapshot: Option<&'a CanonicalValue>,
+    pub(crate) maximum_decoded_bytes: usize,
+}
+
 pub(crate) fn build_replay_generation(
-    repo_root: &Path,
-    global_fingerprint: &str,
-    targets: &[(String, String, Option<String>)],
-    tree_snapshot: Option<&CanonicalValue>,
-    maximum_decoded_bytes: usize,
+    request: ReplayGenerationRequest<'_>,
 ) -> Option<(NativeReplay, CacheMetrics)> {
+    let ReplayGenerationRequest {
+        repo_root,
+        global_fingerprint,
+        targets,
+        tree_snapshot,
+        maximum_decoded_bytes,
+    } = request;
     let reads = REPLAY_HEADER_READS
         .iter()
         .map(|(path, kind)| ((*path).to_owned(), (*kind).to_owned()))
@@ -175,7 +189,7 @@ fn observations_are_current(
     current.len() == observations.len() && current.values().all(|value| *value)
 }
 
-pub(super) fn observe_dependencies(
+pub(crate) fn observe_dependencies(
     repo_root: &Path,
     observations: &HashMap<NativeDependencyKey, NativeDependencyObservation>,
     tree_snapshot: Option<&CanonicalValue>,
@@ -270,7 +284,7 @@ fn observe_tree_query(
             .into_iter()
             .filter(|path| path == &key.query_path || is_under(path, &key.query_path))
             .collect(),
-        "tree_glob" => {
+        TREE_GLOB_KIND => {
             let pattern = key.pattern.as_ref()?;
             paths
                 .into_iter()
@@ -316,13 +330,13 @@ fn observe_graph_query(
 }
 
 fn project_relative_path<'a>(path: &'a str, root_prefix: &str) -> Option<&'a str> {
-    if root_prefix == "." {
+    if root_prefix == REPOSITORY_ROOT_PATH {
         return Some(path);
     }
     path.strip_prefix(root_prefix)?.strip_prefix('/')
 }
 
-fn python_path_matches(path: &str, pattern: &str) -> bool {
+pub(crate) fn python_path_matches(path: &str, pattern: &str) -> bool {
     if !pattern.contains('/') {
         return build_glob(pattern).is_some_and(|matcher| {
             matcher.is_match(path.rsplit_once('/').map_or(path, |(_, name)| name))
@@ -340,16 +354,23 @@ fn python_path_matches(path: &str, pattern: &str) -> bool {
 fn build_glob(pattern: &str) -> Option<globset::GlobMatcher> {
     let normalized = pattern
         .split('/')
-        .map(|part| if part == "**" { "*" } else { part })
+        .map(|part| {
+            if part == DOUBLE_WILDCARD_SEGMENT {
+                SINGLE_WILDCARD_SEGMENT
+            } else {
+                part
+            }
+        })
         .collect::<Vec<_>>()
         .join("/");
-    Some(
-        GlobBuilder::new(&normalized)
-            .literal_separator(true)
-            .build()
-            .ok()?
-            .compile_matcher(),
-    )
+    let glob = match GlobBuilder::new(&normalized)
+        .literal_separator(true)
+        .build()
+    {
+        Ok(glob) => glob,
+        Err(_) => return None,
+    };
+    Some(glob.compile_matcher())
 }
 
 fn string_values(value: &CanonicalValue) -> Option<Vec<String>> {
@@ -361,11 +382,12 @@ fn string_values(value: &CanonicalValue) -> Option<Vec<String>> {
 }
 
 fn parent_path(path: &str) -> &str {
-    path.rsplit_once('/').map_or(".", |(parent, _)| parent)
+    path.rsplit_once('/')
+        .map_or(REPOSITORY_ROOT_PATH, |(parent, _)| parent)
 }
 
 fn is_under(path: &str, parent: &str) -> bool {
-    parent == "."
+    parent == REPOSITORY_ROOT_PATH
         || path
             .strip_prefix(parent)
             .is_some_and(|suffix| suffix.starts_with('/'))
@@ -394,94 +416,4 @@ fn state_matches(
                 })
             }
         }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn graph_dependency_observation_matches_snapshot_answer() {
-        let key = NativeDependencyKey {
-            query_path: "src/example/entry.py".to_owned(),
-            kind: "graph_dependencies".to_owned(),
-            pattern: None,
-            recursive: false,
-        };
-        let answer = CanonicalValue::String("[]".to_owned());
-        let snapshot = CanonicalValue::Object(vec![(
-            "graph".to_owned(),
-            CanonicalValue::Object(vec![
-                (
-                    "root_prefix".to_owned(),
-                    CanonicalValue::String(".".to_owned()),
-                ),
-                (
-                    "dependencies".to_owned(),
-                    CanonicalValue::Object(vec![(key.query_path.clone(), answer.clone())]),
-                ),
-            ]),
-        )]);
-        let observations = HashMap::from([(
-            key.clone(),
-            NativeDependencyObservation {
-                requester_path: ".fensu-project-rule".to_owned(),
-                key: key.clone(),
-                dependency_path: ".".to_owned(),
-                answer,
-            },
-        )]);
-
-        assert_eq!(
-            observe_dependencies(Path::new("."), &observations, Some(&snapshot)),
-            HashMap::from([(key, true)])
-        );
-    }
-
-    #[test]
-    fn nested_graph_cycle_observation_uses_explicit_root_prefix() {
-        let key = NativeDependencyKey {
-            query_path: "workspace".to_owned(),
-            kind: "graph_cycles".to_owned(),
-            pattern: None,
-            recursive: false,
-        };
-        let answer = CanonicalValue::String("[]".to_owned());
-        let snapshot = CanonicalValue::Object(vec![(
-            "graph".to_owned(),
-            CanonicalValue::Object(vec![
-                (
-                    "root_prefix".to_owned(),
-                    CanonicalValue::String("workspace".to_owned()),
-                ),
-                ("cycles".to_owned(), answer.clone()),
-            ]),
-        )]);
-        let observations = HashMap::from([(
-            key.clone(),
-            NativeDependencyObservation {
-                requester_path: ".fensu-project-rule".to_owned(),
-                key: key.clone(),
-                dependency_path: "workspace".to_owned(),
-                answer,
-            },
-        )]);
-
-        assert_eq!(
-            observe_dependencies(Path::new("."), &observations, Some(&snapshot)),
-            HashMap::from([(key, true)])
-        );
-    }
-
-    #[test]
-    fn tree_glob_matching_preserves_pure_path_double_star_segments() {
-        assert!(!python_path_matches("entry.py", "**/*.py"));
-        assert!(python_path_matches("src/entry.py", "**/*.py"));
-        assert!(!python_path_matches("src/entry.py", "src/**/*.py"));
-        assert!(python_path_matches("src/orders/entry.py", "src/**/*.py"));
-        assert!(!python_path_matches(
-            "src/orders/main/entry.py",
-            "src/**/*.py"
-        ));
-    }
 }

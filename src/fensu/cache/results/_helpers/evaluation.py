@@ -300,9 +300,7 @@ def run_cached_evaluation(
         repo_root=tree.repo_root.path,
         project_root=project_root.path,
         evaluated_rule_codes=frozenset(rule.code for rule in (*ruleset, *warning_rules)),
-        project_rule_codes=frozenset(
-            rule.code for rule in (*project_rules, *project_warnings)
-        ),
+        project_rule_codes=frozenset(rule.code for rule in (*project_rules, *project_warnings)),
         selection=selection,
         project_evaluation=project_evaluation,
     )

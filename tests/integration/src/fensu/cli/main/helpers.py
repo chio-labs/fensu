@@ -1484,7 +1484,10 @@ class RestoreProbe:
         """Record one restore and delegate to the real conversion."""
 
         self.calls += 1
-        return restore_native_evaluation(payload=payload, repo_root=repo_root)
+        restored = restore_native_evaluation(payload=payload, repo_root=repo_root)
+        if not isinstance(restored, FileEvaluation):
+            raise AssertionError("CLI cache fixture expected a file evaluation")
+        return restored
 
 
 class CallCounter:
@@ -1510,6 +1513,8 @@ def counting_plan_native_generation(
         targets: tuple[str, ...],
         source_fingerprints: dict[str, CacheFingerprint | None],
         allow_edit: bool = True,
+        project_subject: bool = False,
+        tree_snapshot: dict[str, object] | None = None,
     ) -> NativeGenerationPlan | None:
         counter.calls += 1
         return original(
@@ -1518,6 +1523,8 @@ def counting_plan_native_generation(
             targets=targets,
             source_fingerprints=source_fingerprints,
             allow_edit=allow_edit,
+            project_subject=project_subject,
+            tree_snapshot=tree_snapshot,
         )
 
     return _plan_native_generation

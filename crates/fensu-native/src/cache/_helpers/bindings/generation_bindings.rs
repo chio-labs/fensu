@@ -11,7 +11,8 @@ use crate::cache::_helpers::publication::{
     prepare_publication, publish_generation, store_check_output, PublicationRequest,
 };
 use crate::cache::_helpers::records::{canonical_from_python, value_to_python};
-use crate::cache::main::replay_generation::{dependency_kinds, replay_generation};
+use crate::cache::main::dependency_kinds::dependency_kinds;
+use crate::cache::main::replay_generation::replay_generation;
 use crate::cache::models::{CacheMetrics, CanonicalValue, NativeIndexEntry};
 use crate::cache::types::{GenerationPlanRow, MetricsRow, PublicationRow, ReplayRow};
 
@@ -21,6 +22,14 @@ pub(crate) struct ReplayGenerationRequest<'py> {
     pub(crate) global_fingerprint: String,
     pub(crate) targets: Vec<(String, String, Option<String>)>,
     pub(crate) tree_snapshot: Option<CanonicalValue>,
+    pub(crate) maximum_decoded_bytes: usize,
+}
+
+pub(crate) struct DependencyKindsRequest<'py> {
+    pub(crate) py: Python<'py>,
+    pub(crate) repo_root: PathBuf,
+    pub(crate) global_fingerprint: String,
+    pub(crate) targets: Vec<(String, String, Option<String>)>,
     pub(crate) maximum_decoded_bytes: usize,
 }
 
@@ -65,13 +74,13 @@ pub(super) fn replay_generation_request(
         maximum_decoded_bytes,
     } = request;
     let outcome = py.detach(move || {
-        replay_generation(
-            &repo_root,
-            &global_fingerprint,
-            &targets,
-            tree_snapshot.as_ref(),
+        replay_generation(crate::cache::_helpers::replay::ReplayGenerationRequest {
+            repo_root: &repo_root,
+            global_fingerprint: &global_fingerprint,
+            targets: &targets,
+            tree_snapshot: tree_snapshot.as_ref(),
             maximum_decoded_bytes,
-        )
+        })
     });
     let Some((replay, metrics)) = outcome else {
         return (None, metrics_row(&CacheMetrics::default()));
@@ -89,12 +98,15 @@ pub(super) fn replay_generation_request(
 }
 
 pub(super) fn dependency_kinds_request(
-    py: Python<'_>,
-    repo_root: PathBuf,
-    global_fingerprint: String,
-    targets: Vec<(String, String, Option<String>)>,
-    maximum_decoded_bytes: usize,
+    request: DependencyKindsRequest<'_>,
 ) -> (Option<Vec<String>>, MetricsRow) {
+    let DependencyKindsRequest {
+        py,
+        repo_root,
+        global_fingerprint,
+        targets,
+        maximum_decoded_bytes,
+    } = request;
     let outcome = py.detach(move || {
         dependency_kinds(
             &repo_root,

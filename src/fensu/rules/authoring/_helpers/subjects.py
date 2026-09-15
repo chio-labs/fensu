@@ -2,25 +2,33 @@
 
 from __future__ import annotations
 
-import inspect
+from types import FunctionType
 from typing import get_type_hints
 
 from fensu.rules.authoring.exceptions import RuleDefinitionError
 from fensu.rules.authoring.subjects import File, Project
 from fensu.rules.authoring.types import RuleCheck, RuleContext, RuleSubjectKind
 
+_VAR_POSITIONAL_FLAG = 0x04
+_VAR_KEYWORD_FLAG = 0x08
 
-def infer_rule_subject(
-    *, check: RuleCheck
-) -> tuple[RuleSubjectKind, str | None, str | None]:
+
+def infer_rule_subject(*, check: RuleCheck) -> tuple[RuleSubjectKind, str | None, str | None]:
     """Return the supported callback shape inferred from parameter annotations."""
 
-    parameters: tuple[inspect.Parameter, ...] = tuple(inspect.signature(check).parameters.values())
-    if tuple(parameter.name for parameter in parameters) == ("module", "ctx"):
-        return RuleSubjectKind.LEGACY, None, None
-    if len(parameters) != 2 or any(
-        parameter.kind is not inspect.Parameter.KEYWORD_ONLY for parameter in parameters
+    if not isinstance(check, FunctionType):
+        raise RuleDefinitionError("rule checks must be Python functions")
+    code = check.__code__
+    has_variadic_parameters = bool(code.co_flags & (_VAR_POSITIONAL_FLAG | _VAR_KEYWORD_FLAG))
+    parameter_count = code.co_argcount + code.co_kwonlyargcount
+    parameter_names = code.co_varnames[:parameter_count]
+    if (
+        parameter_count == 2
+        and not has_variadic_parameters
+        and parameter_names == ("module", "ctx")
     ):
+        return RuleSubjectKind.LEGACY, None, None
+    if code.co_argcount != 0 or code.co_kwonlyargcount != 2 or has_variadic_parameters:
         raise RuleDefinitionError(
             "rule checks must declare either (module, ctx) or two keyword-only parameters "
             "annotated as File/Project and RuleContext"
@@ -28,27 +36,23 @@ def infer_rule_subject(
     try:
         annotations: dict[str, object] = get_type_hints(check)
     except (NameError, TypeError):
-        annotations = {parameter.name: parameter.annotation for parameter in parameters}
+        annotations = dict(check.__annotations__)
     subject_parameter = next(
         (
             parameter
-            for parameter in parameters
-            if annotations.get(parameter.name) in {File, Project}
+            for parameter in parameter_names
+            if annotations.get(parameter) in {File, Project}
         ),
         None,
     )
     context_parameter = next(
-        (
-            parameter
-            for parameter in parameters
-            if annotations.get(parameter.name) is RuleContext
-        ),
+        (parameter for parameter in parameter_names if annotations.get(parameter) is RuleContext),
         None,
     )
     if subject_parameter is not None and context_parameter is not None:
-        annotation = annotations[subject_parameter.name]
+        annotation = annotations[subject_parameter]
         kind = RuleSubjectKind.FILE if annotation is File else RuleSubjectKind.PROJECT
-        return kind, subject_parameter.name, context_parameter.name
+        return kind, subject_parameter, context_parameter
     raise RuleDefinitionError(
         "typed rule parameters must contain exactly one fensu.File or fensu.Project subject and "
         "one fensu.RuleContext"

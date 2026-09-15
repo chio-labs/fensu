@@ -112,14 +112,11 @@ class ProjectTree:
 
     _paths: tuple[ProjectPath, ...]
     _files: tuple[File, ...]
-    _children: Mapping[ProjectPath, tuple[ProjectPath, ...]] = field(
-        repr=False, compare=False
-    )
+    _children: Mapping[ProjectPath, tuple[ProjectPath, ...]] = field(repr=False, compare=False)
     _positions: Mapping[ProjectPath, FilePosition] = field(repr=False, compare=False)
     _repository_prefix: str = field(default=_PROJECT_ROOT, repr=False, compare=False)
     _observe: (
-        Callable[[str, ProjectPath, str | tuple[ProjectPath, ...], str | None], None]
-        | None
+        Callable[[str, ProjectPath, str | tuple[ProjectPath, ...], str | None], None] | None
     ) = field(default=None, repr=False, compare=False)
 
     @property
@@ -144,9 +141,7 @@ class ProjectTree:
         self._record("tree_children", query, answer)
         return answer
 
-    def descendants(
-        self, path: ProjectPath | str = _PROJECT_ROOT
-    ) -> tuple[ProjectPath, ...]:
+    def descendants(self, path: ProjectPath | str = _PROJECT_ROOT) -> tuple[ProjectPath, ...]:
         """Return every discovered descendant in lexical POSIX order."""
 
         parent = _path(path, allow_root=True)
@@ -176,10 +171,7 @@ class ProjectTree:
             file
             for file in self._files
             if file.path == parent
-            or (
-                len(file.path.parts) > len(prefix)
-                and file.path.parts[: len(prefix)] == prefix
-            )
+            or (len(file.path.parts) > len(prefix) and file.path.parts[: len(prefix)] == prefix)
         )
         self._record("tree_files_under", parent, tuple(file.path for file in answer))
         return answer
@@ -247,12 +239,9 @@ def build_project_tree(*, tree: DiscoveredTree) -> ProjectTree:
     return ProjectTree(
         _paths=ordered_paths,
         _files=tuple(
-            File(path=path)
-            for path in sorted(scoped_by_path, key=lambda item: item.value)
+            File(path=path) for path in sorted(scoped_by_path, key=lambda item: item.value)
         ),
-        _children=MappingProxyType(
-            {key: tuple(value) for key, value in child_lists.items()}
-        ),
+        _children=MappingProxyType({key: tuple(value) for key, value in child_lists.items()}),
         _positions=MappingProxyType(positions),
         _repository_prefix=(
             project_root.path.relative_to(tree.repo_root.path).as_posix()

@@ -23,7 +23,7 @@ from tests.unit.src.fensu.cache.storage._test_types import (
             description="Python containers convert to canonical native bytes and back",
             kind="metadata",
             payload={"zeta": [2, 1], "alpha": True},
-            expected_bytes=b'{"kind":"metadata","payload":{"alpha":true,"zeta":[2,1]},"schema_version":4}',
+            expected_bytes=b'{"kind":"metadata","payload":{"alpha":true,"zeta":[2,1]},"schema_version":5}',
         )
     ],
     ids=lambda case: case.description,

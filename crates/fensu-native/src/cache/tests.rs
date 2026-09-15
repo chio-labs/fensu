@@ -2,6 +2,8 @@
 mod _helpers;
 #[path = "tests/test_records.rs"]
 mod test_records;
+#[path = "tests/test_replay.rs"]
+mod test_replay;
 #[path = "tests/test_storage.rs"]
 mod test_storage;
 #[path = "tests/test_subject_schema.rs"]

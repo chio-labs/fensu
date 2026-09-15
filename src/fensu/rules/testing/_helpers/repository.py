@@ -33,9 +33,7 @@ def build_harness_config(
 
     runtime_roots, test_roots, tooling_roots = _scope_roots(test_case=test_case)
     evaluation: dict[str, object] = (
-        {"include": [test_case.path]}
-        if rule.subject_kind is RuleSubjectKind.LEGACY
-        else {}
+        {"include": [test_case.path]} if rule.subject_kind is RuleSubjectKind.LEGACY else {}
     )
     raw: dict[str, object] = {
         "roots": list(runtime_roots),

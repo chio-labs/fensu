@@ -9,7 +9,10 @@ use crate::cache::_helpers::schema_values::{
     optional_fingerprint, optional_string, valid_contribution, valid_dependency_shape,
     valid_fingerprint, valid_relative_path,
 };
-use crate::cache::constants::DEPENDENCIES_FIELD;
+use crate::cache::constants::{
+    DEPENDENCIES_FIELD, FILE_SUBJECT_KIND, PROJECT_REQUESTER_PATH, PROJECT_SUBJECT_KIND,
+    REPOSITORY_ROOT_PATH,
+};
 use crate::cache::models::{
     CanonicalValue, DecodedRecord, NativeDependencyKey, NativeDependencyObservation,
     NativeIndexEntry, NativePublicationCandidate,
@@ -128,8 +131,8 @@ pub(crate) fn decode_file_result_dependencies(
     {
         return None;
     }
-    let strict_file = entry.subject_kind == "file";
-    if !strict_file && entry.subject_kind != "project" {
+    let strict_file = entry.subject_kind == FILE_SUBJECT_KIND;
+    if !strict_file && entry.subject_kind != PROJECT_SUBJECT_KIND {
         return None;
     }
     decode_subject_faults(
@@ -217,12 +220,13 @@ pub(crate) fn prepare_publication_candidate(
     let subject_identity = payload.field("subject_identity")?.as_str()?.to_owned();
     let path = payload.field("path")?.as_str()?.to_owned();
     let source_fingerprint = payload.field("source_fingerprint")?.as_str()?.to_owned();
-    let valid_subject = (subject_kind == "file" && valid_relative_path(&subject_identity, false))
-        || (subject_kind == "project" && subject_identity == ".");
+    let valid_subject = (subject_kind == FILE_SUBJECT_KIND
+        && valid_relative_path(&subject_identity, false))
+        || (subject_kind == PROJECT_SUBJECT_KIND && subject_identity == REPOSITORY_ROOT_PATH);
     if !valid_subject || path != subject_identity || !valid_fingerprint(&source_fingerprint) {
         return None;
     }
-    let strict_file = subject_kind == "file";
+    let strict_file = subject_kind == FILE_SUBJECT_KIND;
     decode_subject_faults(payload.field("faults")?, &path, strict_file)?;
     decode_subject_faults(payload.field("warnings")?, &path, strict_file)?;
     decode_subject_exceptions(payload.field("applied_exception_keys")?, &path, strict_file)?;
@@ -238,7 +242,7 @@ pub(crate) fn prepare_publication_candidate(
             != if strict_file {
                 path.as_str()
             } else {
-                ".fensu-project-rule"
+                PROJECT_REQUESTER_PATH
             }
     }) {
         return None;
@@ -338,8 +342,10 @@ fn decode_index_entry(value: &CanonicalValue) -> Option<NativeIndexEntry> {
         result_fingerprint: value.field("result_fingerprint")?.as_str()?.to_owned(),
         record_fingerprint: value.field("record_fingerprint")?.as_str()?.to_owned(),
     };
-    (((entry.subject_kind == "file" && valid_relative_path(&entry.subject_identity, false))
-        || (entry.subject_kind == "project" && entry.subject_identity == "."))
+    (((entry.subject_kind == FILE_SUBJECT_KIND
+        && valid_relative_path(&entry.subject_identity, false))
+        || (entry.subject_kind == PROJECT_SUBJECT_KIND
+            && entry.subject_identity == REPOSITORY_ROOT_PATH))
         && valid_fingerprint(&entry.source_fingerprint)
         && valid_fingerprint(&entry.result_fingerprint)
         && valid_fingerprint(&entry.record_fingerprint))

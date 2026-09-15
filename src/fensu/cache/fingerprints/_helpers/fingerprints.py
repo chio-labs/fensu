@@ -138,6 +138,9 @@ def _rule_spec_value(
         "severity": rule.severity.value,
         "slug": rule.slug,
         "source": rule.source,
+        "subject_kind": rule.subject_kind.value,
+        "subject_parameter": rule.subject_parameter,
+        "context_parameter": rule.context_parameter,
         "source_fingerprint": _check_source_fingerprint(
             check=rule.check,
             source_fingerprints=source_fingerprints,

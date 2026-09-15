@@ -56,3 +56,28 @@ pub(crate) struct ConcurrentStorageTestCase {
     pub(crate) writer_count: usize,
     pub(crate) expected_success: bool,
 }
+
+pub(crate) struct SubjectSchemaTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) value_path: &'static str,
+    pub(crate) owner: &'static str,
+    pub(crate) strict_owner: bool,
+    pub(crate) expected_faults_valid: bool,
+    pub(crate) expected_exceptions_valid: bool,
+}
+
+pub(crate) struct ReplayObservationTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) query_path: &'static str,
+    pub(crate) kind: &'static str,
+    pub(crate) root_prefix: &'static str,
+    pub(crate) snapshot: CanonicalValue,
+    pub(crate) expected_current: bool,
+}
+
+pub(crate) struct TreeGlobTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) path: &'static str,
+    pub(crate) pattern: &'static str,
+    pub(crate) expected_match: bool,
+}

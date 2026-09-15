@@ -40,7 +40,7 @@ pub(crate) fn encode_record(
     encoded = write_string(kind, encoded);
     encoded.extend_from_slice(b",\"payload\":");
     encoded = write_value(&canonical, encoded);
-    encoded.extend_from_slice(b",\"schema_version\":4}");
+    encoded.extend_from_slice(b",\"schema_version\":5}");
     if encoded.len() > maximum_decoded_bytes {
         return Err(PyValueError::new_err(
             "Cache record exceeds the decoded size limit.",
@@ -145,7 +145,7 @@ fn encode_decoded(
     encoded = write_string(kind, encoded);
     encoded.extend_from_slice(b",\"payload\":");
     encoded = write_value(payload, encoded);
-    encoded.extend_from_slice(b",\"schema_version\":4}");
+    encoded.extend_from_slice(b",\"schema_version\":5}");
     if encoded.len() > maximum_decoded_bytes {
         return None;
     }

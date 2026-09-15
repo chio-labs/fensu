@@ -1,20 +1,10 @@
 //! Native complete-generation validation and rendered-output replay.
 
-use std::path::Path;
-
-use crate::cache::_helpers::replay::build_replay_generation;
+use crate::cache::_helpers::replay::{build_replay_generation, ReplayGenerationRequest};
 use crate::cache::models::{CacheMetrics, NativeReplay};
 
 pub(in crate::cache) fn replay_generation(
-    repo_root: &Path,
-    global_fingerprint: &str,
-    targets: &[(String, Option<String>)],
-    maximum_decoded_bytes: usize,
+    request: ReplayGenerationRequest<'_>,
 ) -> Option<(NativeReplay, CacheMetrics)> {
-    build_replay_generation(
-        repo_root,
-        global_fingerprint,
-        targets,
-        maximum_decoded_bytes,
-    )
+    build_replay_generation(request)
 }

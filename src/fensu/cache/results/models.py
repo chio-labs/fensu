@@ -5,14 +5,22 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from fensu.cache.fingerprints.models import CacheFingerprint
-from fensu.evaluation.models import EvaluationResult, FileEvaluation
+from fensu.evaluation.models import (
+    EvaluationResult,
+    EvaluationSelection,
+    EvaluationTarget,
+    FileEvaluation,
+    ProjectEvaluation,
+)
+from fensu.rules.authoring.models import RuleSpec
 
 
 @dataclass(frozen=True, slots=True)
 class CacheIndexEntry:
     """Validated lookup from one source to a native persisted result."""
 
-    path: str
+    subject_kind: str
+    subject_identity: str
     source_fingerprint: CacheFingerprint
     result_fingerprint: CacheFingerprint
     record_fingerprint: CacheFingerprint
@@ -64,7 +72,42 @@ class NativeGenerationPlan:
     retained_entries: tuple[CacheIndexEntry, ...]
     cached_evaluations: tuple[FileEvaluation, ...]
     retained_evaluations: tuple[FileEvaluation, ...]
+    cached_project_evaluation: ProjectEvaluation | None
+    retained_project_evaluation: ProjectEvaluation | None
     miss_paths: tuple[str, ...]
     hits: int
     misses: int
     invalidations: int
+
+
+@dataclass(frozen=True, slots=True)
+class SubjectRulePartitions:
+    """File and project rule selections preserving configured order."""
+
+    file_rules: tuple[RuleSpec, ...]
+    file_warnings: tuple[RuleSpec, ...]
+    project_rules: tuple[RuleSpec, ...]
+    project_warnings: tuple[RuleSpec, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class RuleScopes:
+    """Fresh and cacheable rule selections for one subject kind."""
+
+    fresh_ruleset: tuple[RuleSpec, ...]
+    fresh_warning_rules: tuple[RuleSpec, ...]
+    cacheable_ruleset: tuple[RuleSpec, ...]
+    cacheable_warning_rules: tuple[RuleSpec, ...]
+    scoped: bool
+    fully_fresh: bool
+
+
+@dataclass(frozen=True, slots=True)
+class CachedEvaluationSetup:
+    """Prepared subject partitions, selection, targets, and cache scopes."""
+
+    partitions: SubjectRulePartitions
+    selection: EvaluationSelection
+    targets: tuple[EvaluationTarget, ...]
+    file_scopes: RuleScopes
+    project_scopes: RuleScopes

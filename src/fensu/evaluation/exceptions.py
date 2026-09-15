@@ -9,6 +9,18 @@ class ModuleUnavailableError(Exception):
     """Raised when a rule declared module-free reads the raw module parameter."""
 
 
+class ProjectContextUnavailableError(RuntimeError):
+    """Raised when a project rule requests facts that require a current file."""
+
+
+class ProjectQueryTypeError(TypeError):
+    """Raised when a project query receives an unsupported path type."""
+
+
+class ProjectAnalysisUnavailableError(RuntimeError):
+    """Raised when fresh evaluation lacks its required project analysis."""
+
+
 class NativeCoreCallbackError(RuntimeError):
     """Raised when native evaluation omits a selected core rule result."""
 

@@ -12,6 +12,10 @@ pub(crate) fn register_cache_functions(module: &Bound<'_, PyModule>) -> PyResult
     module.add_function(wrap_pyfunction!(bindings::cache_write_batch, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::cache_mutate_batch, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::cache_replay_generation, module)?)?;
+    module.add_function(wrap_pyfunction!(
+        bindings::cache_generation_dependency_kinds,
+        module
+    )?)?;
     module.add_function(wrap_pyfunction!(bindings::cache_plan_generation, module)?)?;
     module.add_function(wrap_pyfunction!(
         bindings::cache_publish_generation,

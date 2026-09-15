@@ -5,11 +5,14 @@ use std::collections::{HashMap, HashSet};
 use sha2::{Digest, Sha256};
 
 use crate::cache::_helpers::schema_values::{
-    decode_exceptions, decode_faults, decode_threshold_uses, exact_fields, optional_fingerprint,
-    optional_string, valid_contribution, valid_dependency_shape, valid_fingerprint,
-    valid_relative_path,
+    decode_subject_exceptions, decode_subject_faults, decode_threshold_uses, exact_fields,
+    optional_fingerprint, optional_string, valid_contribution, valid_dependency_shape,
+    valid_fingerprint, valid_relative_path,
 };
-use crate::cache::constants::DEPENDENCIES_FIELD;
+use crate::cache::constants::{
+    DEPENDENCIES_FIELD, FILE_SUBJECT_KIND, PROJECT_REQUESTER_PATH, PROJECT_SUBJECT_KIND,
+    REPOSITORY_ROOT_PATH,
+};
 use crate::cache::models::{
     CanonicalValue, DecodedRecord, NativeDependencyKey, NativeDependencyObservation,
     NativeIndexEntry, NativePublicationCandidate,
@@ -48,13 +51,15 @@ pub(crate) fn decode_index(
     let mut previous: Option<String> = None;
     for value in payload.field("entries")?.as_list()? {
         let entry = decode_index_entry(value)?;
-        if previous
-            .as_deref()
-            .is_some_and(|path| path >= entry.path.as_str())
-        {
+        if previous.as_deref().is_some_and(|key| {
+            key >= format!("{}\0{}", entry.subject_kind, entry.subject_identity).as_str()
+        }) {
             return None;
         }
-        previous = Some(entry.path.clone());
+        previous = Some(format!(
+            "{}\0{}",
+            entry.subject_kind, entry.subject_identity
+        ));
         entries.push(entry);
     }
     Some((entries, dependencies, collection))
@@ -96,8 +101,12 @@ pub(crate) fn decode_file_result_dependencies(
     observations: &HashMap<NativeDependencyKey, NativeDependencyObservation>,
 ) -> Option<Vec<NativeDependencyKey>> {
     if record.fingerprint != entry.record_fingerprint
-        || file_result_identity(global_fingerprint, &entry.record_fingerprint)
-            != entry.result_fingerprint
+        || file_result_identity(
+            global_fingerprint,
+            &entry.subject_kind,
+            &entry.subject_identity,
+            &entry.record_fingerprint,
+        ) != entry.result_fingerprint
     {
         return None;
     }
@@ -110,17 +119,37 @@ pub(crate) fn decode_file_result_dependencies(
             "faults",
             "path",
             "source_fingerprint",
+            "subject_identity",
+            "subject_kind",
             "threshold_override_uses",
             "warnings",
         ],
-    ) || payload.field("path")?.as_str()? != entry.path
+    ) || payload.field("subject_kind")?.as_str()? != entry.subject_kind
+        || payload.field("subject_identity")?.as_str()? != entry.subject_identity
+        || payload.field("path")?.as_str()? != entry.subject_identity
         || payload.field("source_fingerprint")?.as_str()? != entry.source_fingerprint
     {
         return None;
     }
-    decode_faults(payload.field("faults")?, &entry.path)?;
-    decode_faults(payload.field("warnings")?, &entry.path)?;
-    decode_exceptions(payload.field("applied_exception_keys")?, &entry.path)?;
+    let strict_file = entry.subject_kind == FILE_SUBJECT_KIND;
+    if !strict_file && entry.subject_kind != PROJECT_SUBJECT_KIND {
+        return None;
+    }
+    decode_subject_faults(
+        payload.field("faults")?,
+        &entry.subject_identity,
+        strict_file,
+    )?;
+    decode_subject_faults(
+        payload.field("warnings")?,
+        &entry.subject_identity,
+        strict_file,
+    )?;
+    decode_subject_exceptions(
+        payload.field("applied_exception_keys")?,
+        &entry.subject_identity,
+        strict_file,
+    )?;
     decode_threshold_uses(payload.field("threshold_override_uses")?)?;
     let mut seen: HashSet<NativeDependencyKey> = HashSet::new();
     let mut dependencies: Vec<NativeDependencyKey> = Vec::new();
@@ -179,20 +208,28 @@ pub(crate) fn prepare_publication_candidate(
             "faults",
             "path",
             "source_fingerprint",
+            "subject_identity",
+            "subject_kind",
             "threshold_override_uses",
             "warnings",
         ],
     ) {
         return None;
     }
+    let subject_kind = payload.field("subject_kind")?.as_str()?.to_owned();
+    let subject_identity = payload.field("subject_identity")?.as_str()?.to_owned();
     let path = payload.field("path")?.as_str()?.to_owned();
     let source_fingerprint = payload.field("source_fingerprint")?.as_str()?.to_owned();
-    if !valid_relative_path(&path, false) || !valid_fingerprint(&source_fingerprint) {
+    let valid_subject = (subject_kind == FILE_SUBJECT_KIND
+        && valid_relative_path(&subject_identity, false))
+        || (subject_kind == PROJECT_SUBJECT_KIND && subject_identity == REPOSITORY_ROOT_PATH);
+    if !valid_subject || path != subject_identity || !valid_fingerprint(&source_fingerprint) {
         return None;
     }
-    decode_faults(payload.field("faults")?, &path)?;
-    decode_faults(payload.field("warnings")?, &path)?;
-    decode_exceptions(payload.field("applied_exception_keys")?, &path)?;
+    let strict_file = subject_kind == FILE_SUBJECT_KIND;
+    decode_subject_faults(payload.field("faults")?, &path, strict_file)?;
+    decode_subject_faults(payload.field("warnings")?, &path, strict_file)?;
+    decode_subject_exceptions(payload.field("applied_exception_keys")?, &path, strict_file)?;
     decode_threshold_uses(payload.field("threshold_override_uses")?)?;
     let observations = payload
         .field(DEPENDENCIES_FIELD)?
@@ -200,10 +237,14 @@ pub(crate) fn prepare_publication_candidate(
         .iter()
         .map(decode_observation)
         .collect::<Option<Vec<_>>>()?;
-    if observations
-        .iter()
-        .any(|observation| observation.requester_path != path)
-    {
+    if observations.iter().any(|observation| {
+        observation.requester_path
+            != if strict_file {
+                path.as_str()
+            } else {
+                PROJECT_REQUESTER_PATH
+            }
+    }) {
         return None;
     }
     let mut seen: HashSet<NativeDependencyKey> = HashSet::new();
@@ -223,7 +264,8 @@ pub(crate) fn prepare_publication_candidate(
         .find(|(name, _)| name == DEPENDENCIES_FIELD)?;
     *dependencies = CanonicalValue::List(references);
     Some(NativePublicationCandidate {
-        path,
+        subject_kind,
+        subject_identity,
         source_fingerprint,
         payload: CanonicalValue::Object(stored_entries),
         contribution: collection_contribution(payload),
@@ -264,10 +306,18 @@ pub(crate) fn observation_value(
     ]))
 }
 
-pub(crate) fn file_result_identity(global_fingerprint: &str, record_fingerprint: &str) -> String {
+pub(crate) fn file_result_identity(
+    global_fingerprint: &str,
+    subject_kind: &str,
+    subject_identity: &str,
+    record_fingerprint: &str,
+) -> String {
     let mut digest = Sha256::new();
     digest.update(FILE_RESULT_DOMAIN);
     digest.update(global_fingerprint.as_bytes());
+    digest.update(subject_kind.as_bytes());
+    digest.update([0]);
+    digest.update(subject_identity.as_bytes());
     digest.update(record_fingerprint.as_bytes());
     format!("{:x}", digest.finalize())
 }
@@ -276,7 +326,8 @@ fn decode_index_entry(value: &CanonicalValue) -> Option<NativeIndexEntry> {
     if !exact_fields(
         value,
         &[
-            "path",
+            "subject_identity",
+            "subject_kind",
             "record_fingerprint",
             "result_fingerprint",
             "source_fingerprint",
@@ -285,12 +336,16 @@ fn decode_index_entry(value: &CanonicalValue) -> Option<NativeIndexEntry> {
         return None;
     }
     let entry = NativeIndexEntry {
-        path: value.field("path")?.as_str()?.to_owned(),
+        subject_kind: value.field("subject_kind")?.as_str()?.to_owned(),
+        subject_identity: value.field("subject_identity")?.as_str()?.to_owned(),
         source_fingerprint: value.field("source_fingerprint")?.as_str()?.to_owned(),
         result_fingerprint: value.field("result_fingerprint")?.as_str()?.to_owned(),
         record_fingerprint: value.field("record_fingerprint")?.as_str()?.to_owned(),
     };
-    (valid_relative_path(&entry.path, false)
+    (((entry.subject_kind == FILE_SUBJECT_KIND
+        && valid_relative_path(&entry.subject_identity, false))
+        || (entry.subject_kind == PROJECT_SUBJECT_KIND
+            && entry.subject_identity == REPOSITORY_ROOT_PATH))
         && valid_fingerprint(&entry.source_fingerprint)
         && valid_fingerprint(&entry.result_fingerprint)
         && valid_fingerprint(&entry.record_fingerprint))
@@ -353,6 +408,10 @@ fn reference_answer(key: &NativeDependencyKey) -> CanonicalValue {
     match key.kind.as_str() {
         "source" => CanonicalValue::Null,
         "exists" | "is_file" | "is_dir" => CanonicalValue::Bool(false),
+        "tree_position" | "graph_node" | "graph_nodes" | "graph_dependencies"
+        | "graph_dependents" | "graph_imports" | "graph_cycles" => {
+            CanonicalValue::String("null".to_owned())
+        }
         _ => CanonicalValue::List(Vec::new()),
     }
 }

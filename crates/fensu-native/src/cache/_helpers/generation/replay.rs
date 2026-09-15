@@ -3,6 +3,8 @@
 use std::collections::HashMap;
 use std::path::Path;
 
+use globset::GlobBuilder;
+
 use fensu_facts::snapshot::main::build_repository_observation_index::build_repository_observation_index;
 use fensu_facts::snapshot::models::{
     RepositoryObservationAnswer, RepositoryObservationQuery, RepositoryObservationState,
@@ -13,6 +15,9 @@ use crate::cache::_helpers::schema::{
 };
 use crate::cache::_helpers::schema_values::exact_fields;
 use crate::cache::_helpers::storage::read_records;
+use crate::cache::constants::{
+    DOUBLE_WILDCARD_SEGMENT, REPOSITORY_ROOT_PATH, SINGLE_WILDCARD_SEGMENT, TREE_GLOB_KIND,
+};
 use crate::cache::models::{
     CacheMetrics, CanonicalValue, DecodedRecord, NativeDependencyKey, NativeDependencyObservation,
     NativeIndexEntry, NativeReplay,
@@ -25,12 +30,24 @@ const REPLAY_BODY_READS: [(&str, &str); 2] = [
     ("dependencies.json", "dependencies"),
 ];
 
+pub(crate) struct ReplayGenerationRequest<'a> {
+    pub(crate) repo_root: &'a Path,
+    pub(crate) global_fingerprint: &'a str,
+    pub(crate) targets: &'a [(String, String, Option<String>)],
+    pub(crate) tree_snapshot: Option<&'a CanonicalValue>,
+    pub(crate) maximum_decoded_bytes: usize,
+}
+
 pub(crate) fn build_replay_generation(
-    repo_root: &Path,
-    global_fingerprint: &str,
-    targets: &[(String, Option<String>)],
-    maximum_decoded_bytes: usize,
+    request: ReplayGenerationRequest<'_>,
 ) -> Option<(NativeReplay, CacheMetrics)> {
+    let ReplayGenerationRequest {
+        repo_root,
+        global_fingerprint,
+        targets,
+        tree_snapshot,
+        maximum_decoded_bytes,
+    } = request;
     let reads = REPLAY_HEADER_READS
         .iter()
         .map(|(path, kind)| ((*path).to_owned(), (*kind).to_owned()))
@@ -59,19 +76,57 @@ pub(crate) fn build_replay_generation(
     let replay = current_output(&output, global_fingerprint, &index.fingerprint, targets)?;
     let observations = decode_observations(&dependencies)?;
     let indexed = observation_map(&observations)?;
-    observations_are_current(repo_root, &indexed).then_some((replay, metrics))
+    observations_are_current(repo_root, &indexed, tree_snapshot).then_some((replay, metrics))
+}
+
+pub(crate) fn replay_dependency_kinds(
+    repo_root: &Path,
+    global_fingerprint: &str,
+    _targets: &[(String, String, Option<String>)],
+    maximum_decoded_bytes: usize,
+) -> Option<(Vec<String>, CacheMetrics)> {
+    let reads = REPLAY_HEADER_READS
+        .iter()
+        .map(|(path, kind)| ((*path).to_owned(), (*kind).to_owned()))
+        .collect::<Vec<_>>();
+    let (records, mut metrics) = read_records(repo_root, &reads, maximum_decoded_bytes)?;
+    let mut records = records.into_iter();
+    let metadata = records.next()??;
+    let index = records.next()??;
+    if !metadata_is_current(&metadata, global_fingerprint) {
+        return None;
+    }
+    let (_, dependencies_fingerprint, _) = decode_index(&index, global_fingerprint)?;
+    let reads = vec![("dependencies.json".to_owned(), "dependencies".to_owned())];
+    let (records, body_metrics) = read_records(repo_root, &reads, maximum_decoded_bytes)?;
+    metrics.merge(&body_metrics);
+    let dependencies = records.into_iter().next()??;
+    if Some(dependencies.fingerprint.as_str()) != dependencies_fingerprint.as_deref() {
+        return None;
+    }
+    let observations = decode_observations(&dependencies)?;
+    let mut kinds = observations
+        .into_iter()
+        .map(|observation| observation.key.kind)
+        .collect::<Vec<_>>();
+    kinds.sort();
+    kinds.dedup();
+    Some((kinds, metrics))
 }
 
 fn current_manifest(
     entries: &[NativeIndexEntry],
-    targets: &[(String, Option<String>)],
+    targets: &[(String, String, Option<String>)],
 ) -> Option<()> {
     if entries.len() != targets.len() {
         return None;
     }
-    for (entry, (target_path, target_fingerprint)) in entries.iter().zip(targets) {
+    for (entry, (target_kind, target_identity, target_fingerprint)) in entries.iter().zip(targets) {
         let fingerprint = target_fingerprint.as_ref()?;
-        if entry.path != *target_path || entry.source_fingerprint != *fingerprint {
+        if entry.subject_kind != *target_kind
+            || entry.subject_identity != *target_identity
+            || entry.source_fingerprint != *fingerprint
+        {
             return None;
         }
     }
@@ -82,7 +137,7 @@ fn current_output(
     record: &DecodedRecord,
     global_fingerprint: &str,
     index_fingerprint: &str,
-    targets: &[(String, Option<String>)],
+    targets: &[(String, String, Option<String>)],
 ) -> Option<NativeReplay> {
     let payload = &record.payload;
     if !exact_fields(
@@ -103,7 +158,7 @@ fn current_output(
     let output_targets = string_list(payload.field("targets")?)?;
     let expected_targets = targets
         .iter()
-        .map(|(path, _)| path.clone())
+        .map(|(_, identity, _)| identity.clone())
         .collect::<Vec<_>>();
     if output_targets != expected_targets {
         return None;
@@ -128,17 +183,53 @@ fn string_list(value: &CanonicalValue) -> Option<Vec<String>> {
 fn observations_are_current(
     repo_root: &Path,
     observations: &HashMap<NativeDependencyKey, NativeDependencyObservation>,
+    tree_snapshot: Option<&CanonicalValue>,
 ) -> bool {
-    let current = observe_dependencies(repo_root, observations);
+    let current = observe_dependencies(repo_root, observations, tree_snapshot);
     current.len() == observations.len() && current.values().all(|value| *value)
 }
 
-pub(super) fn observe_dependencies(
+pub(crate) fn observe_dependencies(
     repo_root: &Path,
     observations: &HashMap<NativeDependencyKey, NativeDependencyObservation>,
+    tree_snapshot: Option<&CanonicalValue>,
 ) -> HashMap<NativeDependencyKey, bool> {
+    let tree_results = observations
+        .iter()
+        .filter(|(key, _)| key.kind.starts_with("tree_"))
+        .map(|(key, expected)| {
+            let root_prefix = tree_snapshot
+                .and_then(|snapshot| snapshot.field("root_prefix"))
+                .and_then(CanonicalValue::as_str);
+            (
+                key.clone(),
+                observe_tree_query(key, tree_snapshot).is_some_and(|answer| {
+                    root_prefix == Some(expected.dependency_path.as_str())
+                        && answer == expected.answer
+                }),
+            )
+        })
+        .collect::<HashMap<_, _>>();
+    let graph_results = observations
+        .iter()
+        .filter(|(key, _)| key.kind.starts_with("graph_"))
+        .map(|(key, expected)| {
+            let root_prefix = tree_snapshot
+                .and_then(|snapshot| snapshot.field("graph"))
+                .and_then(|graph| graph.field("root_prefix"))
+                .and_then(CanonicalValue::as_str);
+            (
+                key.clone(),
+                observe_graph_query(key, tree_snapshot).is_some_and(|answer| {
+                    root_prefix == Some(expected.dependency_path.as_str())
+                        && answer == expected.answer
+                }),
+            )
+        })
+        .collect::<HashMap<_, _>>();
     let queries = observations
         .keys()
+        .filter(|key| !key.kind.starts_with("tree_") && !key.kind.starts_with("graph_"))
         .map(|key| RepositoryObservationQuery {
             relative_path: key.query_path.clone(),
             kind: key.kind.clone(),
@@ -147,9 +238,11 @@ pub(super) fn observe_dependencies(
         })
         .collect::<Vec<_>>();
     let Some(index) = build_repository_observation_index(repo_root, &queries) else {
-        return HashMap::new();
+        let mut results = tree_results;
+        results.extend(graph_results);
+        return results;
     };
-    queries
+    let mut results = queries
         .into_iter()
         .filter_map(|query| {
             let key = NativeDependencyKey {
@@ -162,7 +255,142 @@ pub(super) fn observe_dependencies(
             let current = query.observe(&index);
             Some((key, state_matches(current, expected)))
         })
+        .collect::<HashMap<_, _>>();
+    results.extend(tree_results);
+    results.extend(graph_results);
+    results
+}
+
+fn observe_tree_query(
+    key: &NativeDependencyKey,
+    snapshot: Option<&CanonicalValue>,
+) -> Option<CanonicalValue> {
+    let snapshot = snapshot?;
+    let root_prefix = snapshot.field("root_prefix")?.as_str()?;
+    let paths = string_values(snapshot.field("paths")?)?;
+    let files = string_values(snapshot.field("files")?)?;
+    let answer = match key.kind.as_str() {
+        "tree_paths" => paths,
+        "tree_files" => files,
+        "tree_children" => paths
+            .into_iter()
+            .filter(|path| parent_path(path) == key.query_path)
+            .collect(),
+        "tree_descendants" => paths
+            .into_iter()
+            .filter(|path| is_under(path, &key.query_path) && path != &key.query_path)
+            .collect(),
+        "tree_files_under" => files
+            .into_iter()
+            .filter(|path| path == &key.query_path || is_under(path, &key.query_path))
+            .collect(),
+        TREE_GLOB_KIND => {
+            let pattern = key.pattern.as_ref()?;
+            paths
+                .into_iter()
+                .filter(|path| {
+                    project_relative_path(path, root_prefix)
+                        .is_some_and(|relative| python_path_matches(relative, pattern))
+                })
+                .collect()
+        }
+        "tree_position" => {
+            return snapshot
+                .field("positions")?
+                .field(&key.query_path)
+                .cloned()
+                .or(Some(CanonicalValue::String("null".to_owned())));
+        }
+        _ => return None,
+    };
+    Some(CanonicalValue::List(
+        answer.into_iter().map(CanonicalValue::String).collect(),
+    ))
+}
+
+fn observe_graph_query(
+    key: &NativeDependencyKey,
+    snapshot: Option<&CanonicalValue>,
+) -> Option<CanonicalValue> {
+    let graph = snapshot?.field("graph")?;
+    let root_prefix = graph.field("root_prefix")?.as_str()?;
+    match key.kind.as_str() {
+        "graph_nodes" if key.query_path == root_prefix => graph.field("nodes").cloned(),
+        "graph_node" => graph
+            .field("node")?
+            .field(&key.query_path)
+            .cloned()
+            .or(Some(CanonicalValue::String("null".to_owned()))),
+        "graph_dependencies" => graph.field("dependencies")?.field(&key.query_path).cloned(),
+        "graph_dependents" => graph.field("dependents")?.field(&key.query_path).cloned(),
+        "graph_imports" => graph.field("imports")?.field(&key.query_path).cloned(),
+        "graph_cycles" if key.query_path == root_prefix => graph.field("cycles").cloned(),
+        _ => None,
+    }
+}
+
+fn project_relative_path<'a>(path: &'a str, root_prefix: &str) -> Option<&'a str> {
+    if root_prefix == REPOSITORY_ROOT_PATH {
+        return Some(path);
+    }
+    path.strip_prefix(root_prefix)?.strip_prefix('/')
+}
+
+pub(crate) fn python_path_matches(path: &str, pattern: &str) -> bool {
+    if !pattern.contains('/') {
+        return build_glob(pattern).is_some_and(|matcher| {
+            matcher.is_match(path.rsplit_once('/').map_or(path, |(_, name)| name))
+        });
+    }
+    let suffixes =
+        std::iter::once(path).chain(path.match_indices('/').map(|(index, _)| &path[index + 1..]));
+    build_glob(pattern).is_some_and(|matcher| {
+        suffixes
+            .clone()
+            .any(|candidate| matcher.is_match(candidate))
+    })
+}
+
+fn build_glob(pattern: &str) -> Option<globset::GlobMatcher> {
+    let normalized = pattern
+        .split('/')
+        .map(|part| {
+            if part == DOUBLE_WILDCARD_SEGMENT {
+                SINGLE_WILDCARD_SEGMENT
+            } else {
+                part
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("/");
+    let glob = match GlobBuilder::new(&normalized)
+        .literal_separator(true)
+        .build()
+    {
+        Ok(glob) => glob,
+        Err(_) => return None,
+    };
+    Some(glob.compile_matcher())
+}
+
+fn string_values(value: &CanonicalValue) -> Option<Vec<String>> {
+    value
+        .as_list()?
+        .iter()
+        .map(|item| item.as_str().map(str::to_owned))
         .collect()
+}
+
+fn parent_path(path: &str) -> &str {
+    path.rsplit_once('/')
+        .map_or(REPOSITORY_ROOT_PATH, |(parent, _)| parent)
+}
+
+fn is_under(path: &str, parent: &str) -> bool {
+    parent == REPOSITORY_ROOT_PATH
+        || path
+            .strip_prefix(parent)
+            .is_some_and(|suffix| suffix.starts_with('/'))
 }
 
 fn state_matches(

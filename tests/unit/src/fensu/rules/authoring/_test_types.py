@@ -165,3 +165,12 @@ class PublicRuleOptionExportTestCase:
     description: str
     attribute_name: str
     expected_export: object
+
+
+@dataclass(frozen=True, slots=True)
+class IterativeGraphCycleTestCase:
+    """One long import cycle and its expected iterative result."""
+
+    description: str
+    recursion_limit_offset: int
+    expected_cycle_count: int

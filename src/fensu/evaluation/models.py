@@ -10,7 +10,7 @@ from fensu.analysis.models import ProjectDependency
 from fensu.analysis.types import Analysis
 from fensu.config.models import RuleExceptionEntry
 from fensu.discovery.models import PositionFacts, ScopedFile
-from fensu.rules.authoring.models import CustomRuleRegistration, Fault
+from fensu.rules.authoring.models import CustomRuleRegistration, Fault, ModuleNode
 from fensu.rules.authoring.types import Threshold
 
 
@@ -24,6 +24,15 @@ class ParsedModule:
     syntax_artifacts: LazySyntaxArtifacts
     position: PositionFacts
     analysis: Analysis
+
+
+@dataclass(frozen=True, slots=True)
+class ArchitectureModule:
+    """One parsed discovered source and its public architecture node."""
+
+    scoped_file: ScopedFile
+    parsed: ParsedModule
+    node: ModuleNode
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,12 +126,25 @@ class FileEvaluation:
 
 
 @dataclass(frozen=True, slots=True)
+class ProjectEvaluation:
+    """Source-independent project rule output and observed inputs."""
+
+    faults: tuple[Fault, ...]
+    warnings: tuple[Fault, ...]
+    applied_exception_keys: tuple[RuleExceptionKey, ...]
+    dependencies: tuple[ProjectDependency, ...]
+    threshold_override_uses: tuple[ThresholdOverrideUse, ...] = ()
+    subject_identity: str = "."
+
+
+@dataclass(frozen=True, slots=True)
 class PartitionEvaluation:
     """Raw per-file evaluations for one target partition before collection."""
 
     file_evaluations: tuple[FileEvaluation, ...]
     dependencies: tuple[ProjectDependency, ...]
     selection: EvaluationSelection
+    project_evaluation: ProjectEvaluation | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -136,3 +158,4 @@ class EvaluationResult:
     file_evaluations: tuple[FileEvaluation, ...] = ()
     threshold_override_uses: tuple[ThresholdOverrideUse, ...] = ()
     selection: EvaluationSelection | None = None
+    project_evaluation: ProjectEvaluation | None = None

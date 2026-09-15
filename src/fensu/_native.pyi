@@ -31,23 +31,31 @@ def cache_mutate_batch(
 def cache_replay_generation(
     repo_root: Path,
     global_fingerprint: str,
-    targets: list[tuple[str, str | None]],
+    targets: list[tuple[str, str, str | None]],
+    tree_snapshot: dict[str, object] | None,
     maximum_decoded_bytes: int,
 ) -> tuple[
     tuple[list[str], str, str, int, str] | None,
     NativeCacheMetrics,
 ]: ...
+def cache_generation_dependency_kinds(
+    repo_root: Path,
+    global_fingerprint: str,
+    targets: list[tuple[str, str, str | None]],
+    maximum_decoded_bytes: int,
+) -> tuple[list[str] | None, NativeCacheMetrics]: ...
 def cache_plan_generation(
     repo_root: Path,
     global_fingerprint: str,
-    targets: list[tuple[str, str | None]],
+    targets: list[tuple[str, str, str | None]],
+    tree_snapshot: dict[str, object] | None,
     allow_edit: bool,
     maximum_decoded_bytes: int,
 ) -> tuple[
     tuple[
         str,
         str | None,
-        list[tuple[str, str, str, str]],
+        list[tuple[str, str, str, str, str]],
         list[dict[str, object]],
         list[dict[str, object]],
         list[str],
@@ -62,7 +70,7 @@ def cache_publish_generation(
     repo_root: Path,
     global_fingerprint: str,
     expected_index_fingerprint: str | None,
-    retained_entries: list[tuple[str, str, str, str]],
+    retained_entries: list[tuple[str, str, str, str, str]],
     evaluations: list[dict[str, object] | None],
     options: tuple[bool, int],
 ) -> tuple[

@@ -11,15 +11,25 @@ use crate::cache::_helpers::publication::{
     prepare_publication, publish_generation, store_check_output, PublicationRequest,
 };
 use crate::cache::_helpers::records::{canonical_from_python, value_to_python};
+use crate::cache::main::dependency_kinds::dependency_kinds;
 use crate::cache::main::replay_generation::replay_generation;
-use crate::cache::models::{CacheMetrics, NativeIndexEntry};
+use crate::cache::models::{CacheMetrics, CanonicalValue, NativeIndexEntry};
 use crate::cache::types::{GenerationPlanRow, MetricsRow, PublicationRow, ReplayRow};
 
 pub(crate) struct ReplayGenerationRequest<'py> {
     pub(crate) py: Python<'py>,
     pub(crate) repo_root: PathBuf,
     pub(crate) global_fingerprint: String,
-    pub(crate) targets: Vec<(String, Option<String>)>,
+    pub(crate) targets: Vec<(String, String, Option<String>)>,
+    pub(crate) tree_snapshot: Option<CanonicalValue>,
+    pub(crate) maximum_decoded_bytes: usize,
+}
+
+pub(crate) struct DependencyKindsRequest<'py> {
+    pub(crate) py: Python<'py>,
+    pub(crate) repo_root: PathBuf,
+    pub(crate) global_fingerprint: String,
+    pub(crate) targets: Vec<(String, String, Option<String>)>,
     pub(crate) maximum_decoded_bytes: usize,
 }
 
@@ -27,7 +37,8 @@ pub(crate) struct PlanGenerationRequest<'py> {
     pub(crate) py: Python<'py>,
     pub(crate) repo_root: PathBuf,
     pub(crate) global_fingerprint: String,
-    pub(crate) targets: Vec<(String, Option<String>)>,
+    pub(crate) targets: Vec<(String, String, Option<String>)>,
+    pub(crate) tree_snapshot: Option<CanonicalValue>,
     pub(crate) allow_edit: bool,
     pub(crate) maximum_decoded_bytes: usize,
 }
@@ -37,7 +48,7 @@ pub(crate) struct PublishGenerationRequest<'a, 'py> {
     pub(crate) repo_root: PathBuf,
     pub(crate) global_fingerprint: String,
     pub(crate) expected_index_fingerprint: Option<String>,
-    pub(crate) retained_entries: Vec<(String, String, String, String)>,
+    pub(crate) retained_entries: Vec<(String, String, String, String, String)>,
     pub(crate) evaluations: &'a Bound<'py, PyList>,
     pub(crate) options: (bool, usize),
 }
@@ -59,15 +70,17 @@ pub(super) fn replay_generation_request(
         repo_root,
         global_fingerprint,
         targets,
+        tree_snapshot,
         maximum_decoded_bytes,
     } = request;
     let outcome = py.detach(move || {
-        replay_generation(
-            &repo_root,
-            &global_fingerprint,
-            &targets,
+        replay_generation(crate::cache::_helpers::replay::ReplayGenerationRequest {
+            repo_root: &repo_root,
+            global_fingerprint: &global_fingerprint,
+            targets: &targets,
+            tree_snapshot: tree_snapshot.as_ref(),
             maximum_decoded_bytes,
-        )
+        })
     });
     let Some((replay, metrics)) = outcome else {
         return (None, metrics_row(&CacheMetrics::default()));
@@ -84,6 +97,30 @@ pub(super) fn replay_generation_request(
     )
 }
 
+pub(super) fn dependency_kinds_request(
+    request: DependencyKindsRequest<'_>,
+) -> (Option<Vec<String>>, MetricsRow) {
+    let DependencyKindsRequest {
+        py,
+        repo_root,
+        global_fingerprint,
+        targets,
+        maximum_decoded_bytes,
+    } = request;
+    let outcome = py.detach(move || {
+        dependency_kinds(
+            &repo_root,
+            &global_fingerprint,
+            &targets,
+            maximum_decoded_bytes,
+        )
+    });
+    match outcome {
+        Some((kinds, metrics)) => (Some(kinds), metrics_row(&metrics)),
+        None => (None, metrics_row(&CacheMetrics::default())),
+    }
+}
+
 pub(super) fn plan_generation_request(
     request: PlanGenerationRequest<'_>,
 ) -> PyResult<(Option<GenerationPlanRow>, MetricsRow)> {
@@ -92,6 +129,7 @@ pub(super) fn plan_generation_request(
         repo_root,
         global_fingerprint,
         targets,
+        tree_snapshot,
         allow_edit,
         maximum_decoded_bytes,
     } = request;
@@ -100,6 +138,7 @@ pub(super) fn plan_generation_request(
             repo_root: &repo_root,
             global_fingerprint: &global_fingerprint,
             targets: &targets,
+            tree_snapshot: tree_snapshot.as_ref(),
             allow_edit,
             maximum_decoded_bytes,
         })
@@ -117,12 +156,13 @@ pub(super) fn plan_generation_request(
         .into_iter()
         .map(|value| value_to_python(py, value))
         .collect::<PyResult<Vec<_>>>()?;
-    let entries: Vec<(String, String, String, String)> = plan
+    let entries: Vec<(String, String, String, String, String)> = plan
         .entries
         .into_iter()
         .map(|entry| {
             (
-                entry.path,
+                entry.subject_kind,
+                entry.subject_identity,
                 entry.source_fingerprint,
                 entry.result_fingerprint,
                 entry.record_fingerprint,
@@ -168,9 +208,16 @@ pub(super) fn publish_generation_request(
         retained_entries: retained_entries
             .into_iter()
             .map(
-                |(path, source_fingerprint, result_fingerprint, record_fingerprint)| {
+                |(
+                    subject_kind,
+                    subject_identity,
+                    source_fingerprint,
+                    result_fingerprint,
+                    record_fingerprint,
+                )| {
                     NativeIndexEntry {
-                        path,
+                        subject_kind,
+                        subject_identity,
                         source_fingerprint,
                         result_fingerprint,
                         record_fingerprint,

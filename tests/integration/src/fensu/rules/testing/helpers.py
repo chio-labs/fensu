@@ -3,15 +3,21 @@
 from __future__ import annotations
 
 import ast
+from collections.abc import Callable
 from pathlib import Path
 
 from fensu import (
     Family,
     Fault,
+    File,
+    FilePosition,
     FunctionFacts,
+    Project,
     ProjectFunctionFact,
+    ProjectPath,
     RuleContext,
     RuleOption,
+    SourceKind,
     SyntaxHandle,
     Threshold,
     rule,
@@ -38,6 +44,134 @@ _LOCAL_OPTION: RuleOption[bool] = RuleOption.boolean(
     name="local_option",
     default=True,
 )
+
+
+def _assert_check_position(position: FilePosition) -> None:
+    assert position.scope_root == ProjectPath("src/example")
+    assert position.module == "example.orders.fulfillment.main.internal.check"
+    assert position.package == "example.orders.fulfillment.main.internal"
+    assert position.domain_parts == ("orders", "fulfillment")
+    assert position.role == "main"
+    assert position.role_depth == 1
+    assert position.is_entry_module
+    assert position.is_main_module
+
+
+def _assert_models_position(position: FilePosition) -> None:
+    assert position.role == "models"
+    assert position.role_depth == 0
+
+
+def _assert_other_position(position: FilePosition) -> None:
+    del position
+
+
+_POSITION_ASSERTIONS: dict[str, Callable[[FilePosition], None]] = {
+    "check.py": _assert_check_position,
+    "models.py": _assert_models_position,
+}
+
+
+@rule(
+    code="XTS001",
+    family=Family.CUSTOM,
+    slug="typed-file-subject",
+    message="typed file",
+)
+def typed_file_subject(*, subject: File, context: RuleContext) -> list[Fault]:
+    """Report complete stable position facts supplied for each file identity."""
+
+    position: FilePosition | None = context.project.tree.position(subject.path)
+    assert position is not None
+    assert position.path == subject.path
+    assert position.analyzer.value == "python"
+    assert position.source_kind is SourceKind.PYTHON_MODULE
+    assertion: Callable[[FilePosition], None] = _POSITION_ASSERTIONS.get(
+        subject.path.name, _assert_other_position
+    )
+    assertion(position)
+    return [context.path_fault(message=f"{subject.path}:{position.role}")]
+
+
+@rule(
+    code="XTS002",
+    family=Family.CUSTOM,
+    slug="typed-project-subject",
+    message="typed project",
+)
+def typed_project_subject(*, owner: Project, context: RuleContext) -> list[Fault]:
+    """Report deterministic tree and requester-bound cross-file facts once."""
+
+    del owner
+    support: ProjectPath = ProjectPath("tests/test_checkout.py")
+    position: FilePosition | None = context.project.tree.position(support)
+    assert position is not None
+    assert context.project.exists(path=support)
+    assert context.project.tree.children("tests") == (support,)
+    assert support in context.project.tree.descendants()
+    assert support in context.project.tree.glob("**/*.py")
+    assert context.project.tree.files_under("tests") == (File(path=support),)
+    return [
+        context.path_fault(
+            path=support,
+            message=f"{len(context.project.tree.files)}:{position.scope.value}",
+        )
+    ]
+
+
+@rule(
+    code="XTS003",
+    family=Family.CUSTOM,
+    slug="anchor-free-project",
+    message="anchor free",
+)
+def anchor_free_project(*, project: Project, ctx: RuleContext) -> list[Fault]:
+    """Report without reading any current-file state."""
+
+    del project
+    return [ctx.path_fault(path="src/example/main/example.py")]
+
+
+@rule(
+    code="XTS004",
+    family=Family.CUSTOM,
+    slug="invalid-project-context-read",
+    message="invalid project context read",
+)
+def invalid_project_context_read(*, project: Project, ctx: RuleContext) -> list[Fault]:
+    """Exercise clear failure for current-file-only context state."""
+
+    del project
+    _ = ctx.source
+    return []
+
+
+@rule(
+    code="XTS005",
+    family=Family.CUSTOM,
+    slug="invalid-project-glob",
+    message="invalid project glob",
+)
+def invalid_project_glob(*, project: Project, ctx: RuleContext) -> list[Fault]:
+    """Exercise confinement validation on tree glob inputs."""
+
+    del project
+    _ = ctx.project.tree.glob("../*.py")
+    return []
+
+
+@rule(
+    code="XTS007",
+    family=Family.CUSTOM,
+    slug="invalid-project-tree-path",
+    message="invalid project tree path",
+)
+def invalid_project_tree_path(*, project: Project, ctx: RuleContext) -> list[Fault]:
+    """Exercise rejection of pathlib and absolute tree inputs."""
+
+    del project
+    _ = ctx.project.tree.position(Path("/outside.py"))  # ty: ignore[invalid-argument-type]
+    return []
 
 
 @rule(

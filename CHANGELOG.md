@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.0](https://github.com/chio-labs/fensu/compare/v0.15.3...v0.16.0) (2026-09-15)
+
+
+### Features
+
+* add project architecture rule API ([#79](https://github.com/chio-labs/fensu/issues/79)) ([23c927d](https://github.com/chio-labs/fensu/commit/23c927d931d278f6e4ba0d4abfc9027bea9b1530))
+
 ## [0.15.3](https://github.com/chio-labs/fensu/compare/v0.15.2...v0.15.3) (2026-09-14)
 
 

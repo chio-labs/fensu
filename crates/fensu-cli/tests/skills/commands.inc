@@ -500,6 +500,61 @@ fn given_custom_rule_target_when_generating_skills_then_python_host_uses_same_se
 }
 
 #[test]
+fn given_custom_web_rule_target_when_generating_skills_then_metadata_uses_web_analyzer() {
+    let test_cases = [ConfigTargetSkillsTestCase {
+        description: "custom web metadata host renders the selected TypeScript policy",
+        arguments: &["--target", "agents", "--config-target=web"],
+        expected_exit_code: 0,
+        expected_stdout: "SKILL.md",
+        expected_stderr: "",
+    }];
+    let Some(python) = workspace_python() else {
+        return;
+    };
+    for test_case in test_cases {
+        let repository = tempfile::tempdir().expect("custom web skills project");
+        write(repository.path().join(".git/keep"), b"");
+        write(
+            repository.path().join("fensu.toml"),
+            b"[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"XSK002\"]\nrule_paths = [\"rules/custom.py\"]\n[targets.web.skills]\nname = \"web-custom\"\n",
+        );
+        write(repository.path().join("src/value.ts"), b"export const value = 1;\n");
+        write(
+            repository.path().join("rules/custom.py"),
+            b"from fensu import AnalyzerId, Family, Fault, File, RuleContext, rule\n@rule(code='XSK002', family=Family.CUSTOM, slug='web-skill-target', message='custom web target', analyzers=(AnalyzerId.TYPESCRIPT,), cacheable=True)\ndef custom_web_target(*, file: File, ctx: RuleContext) -> list[Fault]:\n    return []\n",
+        );
+
+        let result = native_with_python(repository.path(), test_case.arguments, &python);
+
+        assert_eq!(
+            result.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {}",
+            test_case.description,
+            text(&result.stderr)
+        );
+        assert!(
+            text(&result.stdout).contains(test_case.expected_stdout),
+            "{}",
+            test_case.description
+        );
+        assert!(
+            text(&result.stderr).contains(test_case.expected_stderr),
+            "{}",
+            test_case.description
+        );
+        let guidance = fs::read_to_string(target(
+            repository.path(),
+            ".agents",
+            "fensu-web-custom",
+        ))
+        .expect("custom web target guidance");
+        assert!(guidance.contains("XSK002"), "{}", test_case.description);
+        assert!(guidance.contains("typescript"), "{}", test_case.description);
+    }
+}
+
+#[test]
 fn given_web_test_layout_when_generating_skills_then_rule_and_effective_config_retain_provenance() {
     let repository = tempfile::tempdir().expect("web skills project");
     write(repository.path().join(".git/keep"), b"");

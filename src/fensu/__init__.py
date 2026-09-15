@@ -1,4 +1,4 @@
-"""Fensu: an architecture linter for Python repos, with a public rule-authoring API."""
+"""Fensu: a multi-language architecture linter with a public rule-authoring API."""
 
 from fensu.public_api.main.load_attribute import load_public_attribute as __getattr__  # noqa: F401
 
@@ -91,9 +91,28 @@ __all__ = [
     "StaticReferenceFact",
     "SyntaxAnalysis",
     "SyntaxHandle",
+    "SvelteFileFacts",
+    "SvelteRuneFact",
+    "SvelteScriptFact",
     "TextAnalysis",
     "Threshold",
     "TypeDeclarationFact",
+    "WebBindingFact",
+    "WebCallFact",
+    "WebClassFact",
+    "WebFileFacts",
+    "WebFunctionFact",
+    "WebImportBindingFact",
+    "WebImportFact",
+    "WebModelFact",
+    "WebModelKind",
+    "WebResourceFact",
+    "WebScriptContext",
+    "WebSourceKind",
+    "WebSourcePurpose",
+    "WebSyntaxHandle",
+    "WebSyntaxKind",
+    "WebWorkspaceFacts",
     "evaluate_rule",
     "rule",
 ]

@@ -66,16 +66,28 @@ pub(crate) fn prepare_checks(
         validate_exception_targets(&config, &project_root)?;
         let discovered = discover(&root, &project_root, &config)?;
         let (sources, excluded) = select_sources(discovered, &config);
-        let project_inputs = match config.analyzer {
+        let mut project_inputs = match config.analyzer {
             crate::analyzer::AnalyzerId::Python => Vec::new(),
             crate::analyzer::AnalyzerId::Rust => {
                 rust_project_inputs(&root, &project_root, &config)?
             }
             _ => web::discover_project_inputs(&root, &project_root, &config)?,
         };
+        if matches!(
+            config.analyzer,
+            crate::analyzer::AnalyzerId::TypeScript | crate::analyzer::AnalyzerId::Svelte
+        ) {
+            project_inputs.extend(custom_rule_project_inputs(&root, &project_root, &config)?);
+            project_inputs.sort_by(|left, right| left.repository_path.cmp(&right.repository_path));
+            project_inputs.dedup_by(|left, right| left.path == right.path);
+        }
         let cache_enabled = options.cache_enabled.unwrap_or(config.cache_enabled)
-            && (config.analyzer != crate::analyzer::AnalyzerId::Rust
-                || rust_custom_cache_inputs_complete(&project_root, &config));
+            && (!matches!(
+                config.analyzer,
+                crate::analyzer::AnalyzerId::Rust
+                    | crate::analyzer::AnalyzerId::TypeScript
+                    | crate::analyzer::AnalyzerId::Svelte
+            ) || custom_cache_inputs_complete(&project_root, &config));
         let color = use_color(&options.color);
         let identity = check_identity(CheckIdentityRequest {
             root: &root,
@@ -347,6 +359,22 @@ fn rust_project_inputs(
         }
         inputs.push(project_input(entry.path(), repository_root, project_root)?);
     }
+    inputs.extend(custom_rule_project_inputs(
+        repository_root,
+        project_root,
+        config,
+    )?);
+    inputs.sort_by(|left, right| left.repository_path.cmp(&right.repository_path));
+    inputs.dedup_by(|left, right| left.path == right.path);
+    Ok(inputs)
+}
+
+fn custom_rule_project_inputs(
+    repository_root: &Path,
+    project_root: &Path,
+    config: &Config,
+) -> Result<Vec<crate::models::ProjectInput>, String> {
+    let mut inputs: Vec<crate::models::ProjectInput> = Vec::new();
     for configured in &config.rule_paths {
         let Some(path) = local_custom_rule_path(project_root, configured) else {
             continue;
@@ -380,12 +408,10 @@ fn rust_project_inputs(
             }
         }
     }
-    inputs.sort_by(|left, right| left.repository_path.cmp(&right.repository_path));
-    inputs.dedup_by(|left, right| left.path == right.path);
     Ok(inputs)
 }
 
-fn rust_custom_cache_inputs_complete(project_root: &Path, config: &Config) -> bool {
+fn custom_cache_inputs_complete(project_root: &Path, config: &Config) -> bool {
     config
         .rule_paths
         .iter()

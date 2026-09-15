@@ -1,8 +1,8 @@
 use crate::helpers::{poison_processes, run_internal_web_check_with, run_web_command, write};
 use crate::test_types::{
-    HostedWebPolicyTestCase, InternalGateCommandTestCase, WebCacheCheckTestCase,
-    WebConfigFailureTestCase, WebExceptionOwnerTestCase, WebParseDiagnosticTestCase,
-    WebPolicyCheckTestCase, WebSourcePurposeTestCase, WebTestCaseTypeResolutionTestCase,
+    InternalGateCommandTestCase, WebCacheCheckTestCase, WebConfigFailureTestCase,
+    WebExceptionOwnerTestCase, WebParseDiagnosticTestCase, WebPolicyCheckTestCase,
+    WebSourcePurposeTestCase, WebTestCaseTypeResolutionTestCase,
 };
 
 const CONFIG: &str = "[targets.a_typescript]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = []\n\n[targets.a_typescript.cache]\nenabled = true\n\n[targets.a_typescript.evaluation]\nexclude = [\"src/lib/value.ts\"]\n\n[targets.b_svelte]\nanalyzer = \"svelte\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = []\n\n[targets.b_svelte.cache]\nenabled = true\n";
@@ -571,88 +571,6 @@ fn given_invalid_extended_typescript_configs_when_checking_then_precise_errors_f
             "{}: {}",
             test_case.description,
             String::from_utf8_lossy(&output.stderr)
-        );
-    }
-}
-
-#[test]
-fn given_hosted_policy_on_web_target_when_checking_then_rejects_after_native_parsing_before_python()
-{
-    let test_cases = [
-        HostedWebPolicyTestCase {
-            description: "custom rule paths cannot route a TypeScript target to Python",
-            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = []\nrule_paths = [\"rules/custom.py\"]\n",
-            expected_error: "Native typescript check integration does not support Python-hosted rule paths, modules, or options.",
-        },
-        HostedWebPolicyTestCase {
-            description: "custom rule modules cannot route a Svelte target to Python",
-            config: "[targets.web]\nanalyzer = \"svelte\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = []\nrule_modules = [\"policy.web\"]\n",
-            expected_error: "Native svelte check integration does not support Python-hosted rule paths, modules, or options.",
-        },
-        HostedWebPolicyTestCase {
-            description: "custom rule options cannot route a TypeScript target to Python",
-            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = []\n[targets.web.rule_options.XOP001]\nenabled = true\n",
-            expected_error: "Native typescript check integration does not support Python-hosted rule paths, modules, or options.",
-        },
-    ];
-    for test_case in &test_cases {
-        let repository = tempfile::tempdir().expect("temporary repository");
-        write(repository.path().join("fensu.toml"), test_case.config);
-        write(
-            repository.path().join("src/valid.ts"),
-            "export const valid: number = 1;\n",
-        );
-        let process_directory = poison_processes(repository.path());
-
-        let output =
-            run_internal_web_check_with(repository.path(), &["--no-cache"], &process_directory);
-
-        assert_eq!(output.status.code(), Some(2), "{}", test_case.description);
-        assert!(
-            String::from_utf8_lossy(&output.stderr).contains(test_case.expected_error),
-            "{}: {}",
-            test_case.description,
-            String::from_utf8_lossy(&output.stderr)
-        );
-        assert!(
-            !repository.path().join("process-invoked").exists(),
-            "{}",
-            test_case.description
-        );
-    }
-}
-
-#[test]
-fn given_hosted_policy_and_malformed_web_source_when_checking_then_configuration_still_fails_closed(
-) {
-    let test_cases = [HostedWebPolicyTestCase {
-        description: "hosted policy cannot bypass native TypeScript parsing",
-        config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = []\nrule_paths = [\"rules/custom.py\"]\n",
-        expected_error: "Native typescript check integration does not support Python-hosted rule paths, modules, or options.",
-    }];
-    for test_case in &test_cases {
-        let repository = tempfile::tempdir().expect("temporary repository");
-        write(repository.path().join("fensu.toml"), test_case.config);
-        write(
-            repository.path().join("src/malformed.ts"),
-            "export const malformed: = 1;\n",
-        );
-        let process_directory = poison_processes(repository.path());
-
-        let output =
-            run_internal_web_check_with(repository.path(), &["--no-cache"], &process_directory);
-
-        assert_eq!(output.status.code(), Some(2), "{}", test_case.description);
-        assert!(
-            String::from_utf8_lossy(&output.stderr).contains(test_case.expected_error),
-            "{}: {}",
-            test_case.description,
-            String::from_utf8_lossy(&output.stderr)
-        );
-        assert!(
-            !repository.path().join("process-invoked").exists(),
-            "{}",
-            test_case.description
         );
     }
 }

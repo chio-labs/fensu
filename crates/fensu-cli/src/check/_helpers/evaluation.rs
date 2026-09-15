@@ -22,11 +22,17 @@ use crate::check::_helpers::rule_policy::{
     applicable, display_codes_by_implementation, resolved_thresholds, selected_rules,
     validate_config_tiers, validate_unique_implementations,
 };
+use crate::check::models::WebCustomRulePayload;
 use crate::check::models::{CheckResult, EvaluationRequest};
-use crate::check::models::{RustCustomRulePayload, RustCustomSubject};
+use crate::check::models::{CustomRuleSubject, RustCustomRulePayload};
+use crate::check::web_custom_facts::web_fact_payload;
 use crate::check::web_policy::{self, WebPolicyRequest};
-use crate::constants::{RUST_CUSTOM_DEPENDENCY_KINDS, RUST_PROJECT_REQUESTER, SCOPE_TEST};
+use crate::constants::{
+    PROJECT_RULE_REQUESTER, RUST_CUSTOM_DEPENDENCY_KINDS, SCOPE_TEST, WEB_CUSTOM_DEPENDENCY_KINDS,
+    WEB_PARSE_DIAGNOSTIC_CODE,
+};
 use crate::hosting::main::run_rust_custom_rule_host::run_rust_custom_rule_host;
+use crate::hosting::main::run_web_custom_rule_host::run_web_custom_rule_host;
 use crate::models::{Config, Fault, ScopedSource, ThresholdUse};
 use crate::reporting::main::report::report;
 use crate::reporting::models::ReportRequest;
@@ -317,10 +323,10 @@ fn evaluate_rust_target(request: EvaluationRequest<'_>) -> Result<CheckResult, S
     }
     let mut custom_codes: Vec<String> = Vec::new();
     if rust_custom_rules_selected(config, show_warnings) {
-        let subjects: Vec<RustCustomSubject> = sources
+        let subjects: Vec<CustomRuleSubject> = sources
             .iter()
             .filter(|source| source.purpose.is_direct())
-            .map(|source| RustCustomSubject {
+            .map(|source| CustomRuleSubject {
                 path: source.target_path.clone(),
                 scope: source.scope.clone(),
                 scope_root: source.root_text.clone(),
@@ -436,7 +442,7 @@ fn validate_rust_custom_response(
         );
     }
     for dependency in &response.dependencies {
-        if dependency.requester != RUST_PROJECT_REQUESTER
+        if dependency.requester != PROJECT_RULE_REQUESTER
             && !source_paths.contains(dependency.requester.as_str())
             || !RUST_CUSTOM_DEPENDENCY_KINDS.contains(&dependency.kind.as_str())
             || dependency.query.is_empty()
@@ -484,20 +490,44 @@ fn evaluate_parser_target(request: EvaluationRequest<'_>) -> Result<CheckResult,
         project_inputs,
         excluded,
         show_warnings,
-        cache_enabled: _,
+        cache_enabled,
     } = request;
-    if !config.rule_paths.is_empty()
-        || !config.rule_modules.is_empty()
-        || !config.rule_options.is_empty()
-    {
+    let custom_option_codes = config
+        .rule_options
+        .keys()
+        .filter(|code| code.starts_with('X'))
+        .collect::<Vec<_>>();
+    if !custom_option_codes.is_empty() && !web_custom_rules_selected(config, show_warnings) {
         return Err(format!(
-            "Native {} check integration does not support Python-hosted rule paths, modules, or options.",
-            config.analyzer
+            "Web custom rule options require a selected custom rule: {}.",
+            custom_option_codes
+                .iter()
+                .map(|code| code.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
         ));
     }
-    let blocking = selected_rules(config, &config.select, &config.ignore)?;
+    let native_select = config
+        .select
+        .iter()
+        .filter(|selector| !selector.starts_with('X'))
+        .cloned()
+        .collect::<Vec<_>>();
+    let native_warn = config
+        .warn
+        .iter()
+        .filter(|selector| !selector.starts_with('X'))
+        .cloned()
+        .collect::<Vec<_>>();
+    let native_ignore = config
+        .ignore
+        .iter()
+        .filter(|selector| !selector.starts_with('X'))
+        .cloned()
+        .collect::<Vec<_>>();
+    let blocking = selected_rules(config, &native_select, &native_ignore)?;
     let warning_rules = if show_warnings {
-        selected_rules(config, &config.warn, &config.ignore)?
+        selected_rules(config, &native_warn, &native_ignore)?
     } else {
         Vec::new()
     };
@@ -539,12 +569,15 @@ fn evaluate_parser_target(request: EvaluationRequest<'_>) -> Result<CheckResult,
     });
     let mut faults: Vec<Fault> = Vec::with_capacity(rows.len());
     for row in rows {
-        let metadata = display_codes.get(row.code).ok_or_else(|| {
-            format!(
+        let Some(metadata) = display_codes.get(row.code) else {
+            if row.code == WEB_PARSE_DIAGNOSTIC_CODE {
+                continue;
+            }
+            return Err(format!(
                 "No configured identity for native web rule code: {}",
                 row.code
-            )
-        })?;
+            ));
+        };
         faults.push(Fault {
             warning: warning_codes.contains(metadata.code.as_str()),
             code: metadata.code.clone(),
@@ -556,7 +589,62 @@ fn evaluate_parser_target(request: EvaluationRequest<'_>) -> Result<CheckResult,
             remediation: metadata.remediation.clone(),
         });
     }
-    let evaluated_codes = selected_codes;
+    let mut custom_codes: Vec<String> = Vec::new();
+    let mut cacheable = true;
+    if web_custom_rules_selected(config, show_warnings) {
+        let subject_sources = sources
+            .iter()
+            .filter(|source| web_custom_subject(source, config.analyzer))
+            .collect::<Vec<_>>();
+        let subjects: Vec<CustomRuleSubject> = subject_sources
+            .iter()
+            .map(|source| CustomRuleSubject {
+                path: source.target_path.clone(),
+                scope: source.scope.clone(),
+                scope_root: source.root_text.clone(),
+                relative_parts: source.relative_parts.clone(),
+            })
+            .collect();
+        let custom = run_web_custom_rule_host(WebCustomRulePayload {
+            target: config.target.clone(),
+            show_warnings,
+            cache_enabled,
+            facts: web_fact_payload(config.analyzer, sources),
+            subjects,
+        })?;
+        let source_paths = sources
+            .iter()
+            .map(|source| source.target_path.as_str())
+            .collect::<HashSet<_>>();
+        validate_web_custom_response(&custom, &source_paths)?;
+        cacheable &= custom.cacheable;
+        custom_codes.extend(custom.blocking_codes);
+        custom_codes.extend(custom.warning_codes);
+        for finding in custom.findings {
+            faults.push(Fault {
+                warning: finding.severity == FindingSeverity::Warning,
+                code: finding.code,
+                alias_of: None,
+                path: project_root
+                    .join(finding.path)
+                    .to_string_lossy()
+                    .into_owned(),
+                line: finding.line,
+                column: finding.column,
+                message: finding.message,
+                remediation: finding.remediation,
+            });
+        }
+    }
+    let mut evaluated_code_values = selected_codes
+        .into_iter()
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+    evaluated_code_values.extend(custom_codes);
+    let evaluated_codes = evaluated_code_values
+        .iter()
+        .map(String::as_str)
+        .collect::<HashSet<_>>();
     let (faults, applied) = apply_exceptions(ApplyExceptionsRequest {
         faults,
         sources,
@@ -596,8 +684,84 @@ fn evaluate_parser_target(request: EvaluationRequest<'_>) -> Result<CheckResult,
         excluded,
         applied_exceptions: applied,
         threshold_uses: uses,
-        cacheable: Some(true),
+        cacheable: Some(cacheable),
     })
+}
+
+fn web_custom_rules_selected(config: &Config, show_warnings: bool) -> bool {
+    let configured = !config.rule_paths.is_empty() || !config.rule_modules.is_empty();
+    configured
+        && (config
+            .select
+            .iter()
+            .any(|selector| custom_selector_not_ignored(selector, &config.ignore))
+            || show_warnings
+                && config
+                    .warn
+                    .iter()
+                    .any(|selector| custom_selector_not_ignored(selector, &config.ignore)))
+}
+
+fn web_custom_subject(source: &ScopedSource, analyzer: crate::analyzer::AnalyzerId) -> bool {
+    source.purpose.is_direct()
+        || analyzer == crate::analyzer::AnalyzerId::Svelte
+            && source.purpose == crate::models::SourcePurpose::Support
+            && crate::check::_helpers::project::is_direct_source(
+                &source.path,
+                crate::analyzer::AnalyzerId::TypeScript,
+            )
+}
+
+fn validate_web_custom_response(
+    response: &crate::check::models::WebCustomRuleResponse,
+    source_paths: &HashSet<&str>,
+) -> Result<(), String> {
+    let blocking = response
+        .blocking_codes
+        .iter()
+        .map(String::as_str)
+        .collect::<HashSet<_>>();
+    let warnings = response
+        .warning_codes
+        .iter()
+        .map(String::as_str)
+        .collect::<HashSet<_>>();
+    if blocking.len() != response.blocking_codes.len()
+        || warnings.len() != response.warning_codes.len()
+        || !blocking.is_disjoint(&warnings)
+    {
+        return Err(
+            "Web custom-rule host returned duplicate or overlapping rule tiers.".to_owned(),
+        );
+    }
+    for dependency in &response.dependencies {
+        if dependency.requester != PROJECT_RULE_REQUESTER
+            && !source_paths.contains(dependency.requester.as_str())
+            || !WEB_CUSTOM_DEPENDENCY_KINDS.contains(&dependency.kind.as_str())
+            || dependency.query.is_empty()
+        {
+            return Err("Web custom-rule host returned invalid dependency evidence.".to_owned());
+        }
+    }
+    for finding in &response.findings {
+        let selected = match finding.severity {
+            FindingSeverity::Blocking => blocking.contains(finding.code.as_str()),
+            FindingSeverity::Warning => warnings.contains(finding.code.as_str()),
+        };
+        if !selected || !finding.code.starts_with('X') {
+            return Err(format!(
+                "Web custom-rule host returned a finding for unselected code {}.",
+                finding.code
+            ));
+        }
+        if !confined_rust_custom_path(&finding.path) {
+            return Err(format!(
+                "Web custom-rule host returned an invalid project path: {}.",
+                finding.path
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn web_display_codes(

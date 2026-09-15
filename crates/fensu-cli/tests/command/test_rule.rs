@@ -170,11 +170,18 @@ fn given_target_local_custom_rule_when_inspecting_then_rule_uses_selected_root()
             expected_stdout: "target-root Rust rule",
             expected_stderr: "",
         },
+        ConfigCommandTargetTestCase {
+            description: "rule exposes custom TypeScript metadata from the selected target",
+            arguments: &["rule", "XRT003", "--target", "web", "--color", "never"],
+            expected_exit_code: 0,
+            expected_stdout: "target-root TypeScript rule",
+            expected_stderr: "",
+        },
     ];
     let repository = tempfile::tempdir().expect("temporary repository");
     write(
         repository.path().join("fensu.toml"),
-        "[targets.frontend]\nanalyzer = \"python\"\nroot = \"frontend\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"XRT001\"]\nrule_paths = [\"rules/custom.py\"]\n[targets.rust]\nanalyzer = \"rust\"\nroot = \"rust\"\nroots = [\"src\"]\ntests = []\ntooling = []\nrule_packs = [\"rust\"]\nselect = [\"XRT002\"]\nrule_paths = [\"rules/custom.py\"]\n",
+        "[targets.frontend]\nanalyzer = \"python\"\nroot = \"frontend\"\nroots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"XRT001\"]\nrule_paths = [\"rules/custom.py\"]\n[targets.rust]\nanalyzer = \"rust\"\nroot = \"rust\"\nroots = [\"src\"]\ntests = []\ntooling = []\nrule_packs = [\"rust\"]\nselect = [\"XRT002\"]\nrule_paths = [\"rules/custom.py\"]\n[targets.web]\nanalyzer = \"typescript\"\nroot = \"web\"\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"XRT003\"]\nrule_paths = [\"rules/custom.py\"]\n",
     );
     write(repository.path().join("frontend/src/pkg/__init__.py"), "");
     write(
@@ -189,6 +196,14 @@ fn given_target_local_custom_rule_when_inspecting_then_rule_uses_selected_root()
     write(
         repository.path().join("rust/rules/custom.py"),
         "from fensu import AnalyzerId, Family, Fault, File, RuleContext, rule\n@rule(code='XRT002', family=Family.CUSTOM, slug='target-root-rust', message='target-root Rust rule', analyzers=(AnalyzerId.RUST,), cacheable=True)\ndef target_root_rust(*, file: File, ctx: RuleContext) -> list[Fault]:\n    return []\n",
+    );
+    write(
+        repository.path().join("web/src/value.ts"),
+        "export const value = 1;\n",
+    );
+    write(
+        repository.path().join("web/rules/custom.py"),
+        "from fensu import AnalyzerId, Family, Fault, File, RuleContext, rule\n@rule(code='XRT003', family=Family.CUSTOM, slug='target-root-typescript', message='target-root TypeScript rule', analyzers=(AnalyzerId.TYPESCRIPT,), cacheable=True)\ndef target_root_typescript(*, file: File, ctx: RuleContext) -> list[Fault]:\n    return []\n",
     );
 
     for test_case in &test_cases {

@@ -34,6 +34,7 @@ if TYPE_CHECKING:
         ProjectTree,
         RuleOption,
         RustWorkspaceFacts,
+        WebWorkspaceFacts,
     )
 
 type RuleOptionValue = bool | int | str | tuple[str, ...] | tuple[int, ...]
@@ -44,6 +45,9 @@ class SourceKind(StrEnum):
 
     PYTHON_MODULE = "python_module"
     RUST_MODULE = "rust_module"
+    TYPESCRIPT_MODULE = "typescript_module"
+    JAVASCRIPT_MODULE = "javascript_module"
+    SVELTE_COMPONENT = "svelte_component"
 
 
 class ImportResolution(StrEnum):
@@ -87,6 +91,61 @@ class RustUseResolution(StrEnum):
     CRATE = "crate"
     EXTERNAL = "external"
     UNRESOLVED = "unresolved"
+
+
+class WebSourceKind(StrEnum):
+    """Parser-independent TypeScript, JavaScript, and Svelte source identity."""
+
+    JAVASCRIPT = "javascript"
+    JAVASCRIPT_MODULE = "javascript_module"
+    JAVASCRIPT_COMMONJS = "javascript_commonjs"
+    JAVASCRIPT_JSX = "javascript_jsx"
+    TYPESCRIPT = "typescript"
+    TYPESCRIPT_MODULE = "typescript_module"
+    TYPESCRIPT_COMMONJS = "typescript_commonjs"
+    TYPESCRIPT_DEFINITION = "typescript_definition"
+    TYPESCRIPT_MODULE_DEFINITION = "typescript_module_definition"
+    TYPESCRIPT_COMMONJS_DEFINITION = "typescript_commonjs_definition"
+    TYPESCRIPT_JSX = "typescript_jsx"
+    SVELTE = "svelte"
+
+
+class WebModelKind(StrEnum):
+    """Fensu-owned TypeScript model declaration category."""
+
+    INTERFACE = "interface"
+    TYPE_LITERAL_ALIAS = "type_literal_alias"
+
+
+class WebScriptContext(StrEnum):
+    """Ownership of one Svelte script block."""
+
+    MODULE = "module"
+    INSTANCE = "instance"
+
+
+class WebSourcePurpose(StrEnum):
+    """How a discovered web source participates in target evaluation."""
+
+    DIRECT = "direct"
+    SUPPORT = "support"
+    EXCLUDED = "excluded"
+    GENERATED = "generated"
+
+
+class WebSyntaxKind(StrEnum):
+    """Stable Fensu-owned kinds for analyzer-specific web text handles."""
+
+    IMPORT = "import"
+    FUNCTION = "function"
+    CLASS = "class"
+    MODEL = "model"
+    BINDING = "binding"
+    CALL = "call"
+    RESOURCE = "resource"
+    RE_EXPORT = "re_export"
+    SVELTE_SCRIPT = "svelte_script"
+    SVELTE_RUNE = "svelte_rune"
 
 
 class Family(StrEnum):
@@ -264,7 +323,7 @@ class RuleProjectFacts(Protocol):
 
 
 class RuleContext(Protocol):
-    """Convenience AST/position toolbox passed to a rule check; may be ignored."""
+    """Analyzer-owned fact, project, location, and option surface for one rule."""
 
     @property
     def facts(self) -> FactAnalysis:
@@ -284,6 +343,11 @@ class RuleContext(Protocol):
     @property
     def rust(self) -> RustWorkspaceFacts:
         """Return evaluation-scoped Fensu-owned Rust workspace facts."""
+        ...
+
+    @property
+    def web(self) -> WebWorkspaceFacts:
+        """Return evaluation-scoped Fensu-owned web facts."""
         ...
 
     @property

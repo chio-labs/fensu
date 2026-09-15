@@ -373,14 +373,21 @@ def test_given_exact_incompatible_rule_when_selecting_then_error_names_analyzer(
     "test_case",
     [
         CustomRuleAnalyzerTestCase(
-            description="TypeScript custom rule fails closed",
+            description="TypeScript custom rule is supported",
             analyzer=AnalyzerId.TYPESCRIPT,
-            expected_error_fragment="XTS001.*uses an unsupported analyzer",
-        )
+            expected_analyzers=(AnalyzerId.TYPESCRIPT,),
+            expected_source="rules/custom.py",
+        ),
+        CustomRuleAnalyzerTestCase(
+            description="Svelte custom rule is supported",
+            analyzer=AnalyzerId.SVELTE,
+            expected_analyzers=(AnalyzerId.SVELTE,),
+            expected_source="rules/custom.py",
+        ),
     ],
     ids=lambda case: case.description,
 )
-def test_given_custom_rule_with_non_python_applicability_when_registering_then_fails_closed(
+def test_given_custom_rule_with_web_applicability_when_registering_then_retains_source(
     test_case: CustomRuleAnalyzerTestCase,
 ) -> None:
     custom_rule: RuleSpec = replace(
@@ -388,8 +395,12 @@ def test_given_custom_rule_with_non_python_applicability_when_registering_then_f
         analyzers=(test_case.analyzer,),
     )
 
-    with pytest.raises(ConfigError, match=test_case.expected_error_fragment):
-        loading_module._with_custom_source(rules=(custom_rule,), source="rules/custom.py")
+    actual: tuple[RuleSpec, ...] = loading_module._with_custom_source(
+        rules=(custom_rule,), source="rules/custom.py"
+    )
+
+    assert actual[0].analyzers == test_case.expected_analyzers
+    assert actual[0].source == test_case.expected_source
 
 
 @pytest.mark.parametrize(

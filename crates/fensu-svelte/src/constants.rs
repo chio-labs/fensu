@@ -23,7 +23,7 @@ pub(crate) const ELEMENT_KIND: &str = "element";
 pub(crate) const END_TAG_KIND: &str = "end_tag";
 pub(crate) const EXPRESSION_KIND: &str = "expression";
 pub(crate) const EXPRESSION_VALUE_KIND: &str = "expression_value";
-pub(crate) const KNOWN_RUNES: [&str; 17] = [
+pub const KNOWN_RUNES: [&str; 17] = [
     "$bindable",
     "$derived",
     "$derived.by",

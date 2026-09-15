@@ -76,9 +76,14 @@ def rule(  # noqa: PLR0913
                 f"{execution_owner.value!r}"
             )
         resolved_execution_owner: ExecutionOwner = execution_owner or inferred_owner
-        if AnalyzerId.RUST in analyzers and subject_kind is RuleSubjectKind.LEGACY:
+        native_analyzers: frozenset[AnalyzerId] = frozenset(
+            {AnalyzerId.RUST, AnalyzerId.TYPESCRIPT, AnalyzerId.SVELTE}
+        )
+        if any(analyzer in native_analyzers for analyzer in analyzers) and (
+            subject_kind is RuleSubjectKind.LEGACY
+        ):
             raise RuleDefinitionError(
-                f"Rust custom rule {code} must use a typed File or Project subject"
+                f"Native-analyzer custom rule {code} must use a typed File or Project subject"
             )
         spec: RuleSpec = RuleSpec(
             code=code,

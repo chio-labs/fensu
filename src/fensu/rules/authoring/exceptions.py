@@ -29,3 +29,15 @@ class RustFactProtocolError(ValueError):
 
 class RustFactQueryTypeError(TypeError):
     """A Rust fact query received an unsupported subject value."""
+
+
+class WebFactProtocolError(ValueError):
+    """A native web fact payload does not match the supported public contract."""
+
+
+class WebFactQueryTypeError(TypeError):
+    """A web fact query received an unsupported subject value."""
+
+
+class WebFactQueryError(ValueError):
+    """A web fact query or text handle is invalid for the selected source."""

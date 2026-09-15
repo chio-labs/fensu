@@ -613,12 +613,6 @@ fn given_invalid_explicit_targets_when_checking_then_configuration_fails_closed(
             expected_error: "Unknown analyzer for target web: ruby",
         },
         InvalidCheckConfigTestCase {
-            description: "public TypeScript analyzer rejects hosted custom policy",
-            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\nrule_paths = [\"rules/custom.py\"]\n",
-            expected_exit_code: 2,
-            expected_error: "does not support Python-hosted rule paths",
-        },
-        InvalidCheckConfigTestCase {
             description: "legacy flat configuration rejects web test layout",
             config: "roots = [\"src/pkg\"]\ntest_layout = \"mirrored\"\n",
             expected_exit_code: 2,

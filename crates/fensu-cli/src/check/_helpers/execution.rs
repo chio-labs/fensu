@@ -54,7 +54,7 @@ pub(crate) fn render_check(
             options.cache_stats,
         ));
     } else if plan.cache_enabled {
-        stderr.push_str("Cache disabled for this run: Rust workspace metadata was unavailable\n");
+        stderr.push_str("Cache disabled for this run: analysis produced non-cacheable results\n");
         if options.cache_stats {
             stderr.push_str(&format!(
                 "Cache: hits=0 misses=0 invalidations=0 writes=0 non_cacheable={}\n",
@@ -115,11 +115,29 @@ fn stored_output(plan: &CheckPlans, output: &str, exit_code: i32, cache_stats: b
 }
 
 fn freshness(plan: &CheckPlans) -> String {
-    if !plan.check_skill_freshness {
+    if !plan.check_skill_freshness || plan.plans.iter().any(native_custom_policy_is_inactive) {
         return String::new();
     }
     core_freshness::core_freshness(&plan.invocation, plan.config_target.as_deref())
         .unwrap_or_default()
+}
+
+fn native_custom_policy_is_inactive(plan: &crate::check::models::CheckPlan) -> bool {
+    let config = &plan.config;
+    if config.analyzer == crate::analyzer::AnalyzerId::Python {
+        return false;
+    }
+    let custom_configured = !config.rule_paths.is_empty() || !config.rule_modules.is_empty();
+    custom_configured
+        && !config.select.iter().any(|selector| {
+            selector.starts_with('X') && !custom_selector_is_ignored(selector, &config.ignore)
+        })
+}
+
+fn custom_selector_is_ignored(selector: &str, ignores: &[String]) -> bool {
+    ignores
+        .iter()
+        .any(|ignored| ignored.starts_with('X') && selector.starts_with(ignored))
 }
 
 fn parse_sources(

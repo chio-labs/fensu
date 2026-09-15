@@ -51,15 +51,6 @@ pub(crate) fn selection(config: &Config, project_root: &Path) -> Result<RuleSele
         || !config.rule_modules.is_empty()
         || config.rule_options.keys().any(|code| code.starts_with('X'))
     {
-        if !matches!(
-            config.analyzer,
-            crate::analyzer::AnalyzerId::Python | crate::analyzer::AnalyzerId::Rust
-        ) {
-            return Err(format!(
-                "Native {} skills do not support Python-hosted rule paths, modules, or options.",
-                config.analyzer
-            ));
-        }
         return hosted_selection(project_root, config.target.as_deref());
     }
     let configured_catalogue = configured_rule_catalogue(&config.rule_packs)?;
@@ -235,7 +226,10 @@ fn validate_host_catalogue(catalogue: &[RuleMetadata]) -> Result<(), String> {
                 && item.analyzers.iter().any(|analyzer| {
                     !matches!(
                         analyzer,
-                        crate::analyzer::AnalyzerId::Python | crate::analyzer::AnalyzerId::Rust
+                        crate::analyzer::AnalyzerId::Python
+                            | crate::analyzer::AnalyzerId::Rust
+                            | crate::analyzer::AnalyzerId::TypeScript
+                            | crate::analyzer::AnalyzerId::Svelte
                     )
                 }))
         {

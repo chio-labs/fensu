@@ -31,6 +31,11 @@ from fensu.rules.authoring.types import (
     Severity,
     SourceKind,
     Threshold,
+    WebModelKind,
+    WebScriptContext,
+    WebSourceKind,
+    WebSourcePurpose,
+    WebSyntaxKind,
 )
 
 
@@ -231,7 +236,7 @@ class ProjectTree:
 
 @dataclass(frozen=True, slots=True, order=True)
 class ModuleNode:
-    """Stable architecture identity and ownership of one discovered Python module."""
+    """Stable architecture identity and ownership of one discovered source module."""
 
     file: File
     analyzer: AnalyzerId
@@ -277,7 +282,7 @@ class ImportCycle:
 
 @dataclass(frozen=True, slots=True)
 class ArchitectureGraph:
-    """Resolved static imports from authoritative discovered Python sources."""
+    """Resolved static imports from authoritative discovered analyzer sources."""
 
     _node_values: tuple[ModuleNode, ...] = field(repr=False)
     _nodes_by_path: Mapping[ProjectPath, ModuleNode] = field(repr=False, compare=False)
@@ -418,7 +423,7 @@ class ArchitectureGraph:
             )
         if path not in self._nodes_by_path:
             raise ArchitectureGraphQueryError(
-                f"graph path is not a discovered Python module: {path}"
+                f"graph path is not a discovered source module: {path}"
             )
         return path
 
@@ -588,6 +593,239 @@ class RustWorkspaceFacts:
             _crate_values=self._crate_values,
             _file_values=self._file_values,
             _crates_by_identity=self._crates_by_identity,
+            _files_by_path=self._files_by_path,
+            _observe=observer,
+        )
+
+    def _record(self, *, kind: str, query: str, answer: str) -> None:
+        if self._observe is not None:
+            self._observe(kind, query, answer)
+
+
+@dataclass(frozen=True, slots=True, order=True)
+class WebImportBindingFact:
+    """One local binding introduced by a static web import."""
+
+    local_name: str
+    imported_name: str
+
+
+@dataclass(frozen=True, slots=True, order=True)
+class WebImportFact:
+    """One authored TypeScript, JavaScript, or Svelte script import."""
+
+    specifier: str
+    bindings: tuple[WebImportBindingFact, ...]
+    type_only: bool
+    namespace: bool
+    location: SourceLocation
+    target: File | None
+
+
+@dataclass(frozen=True, slots=True, order=True)
+class WebFunctionFact:
+    """One parser-independent web function declaration."""
+
+    name: str
+    qualified_name: str
+    exported: bool
+    export_owner: str | None
+    parameter_count: int
+    parameters_annotated: bool
+    return_type: str | None
+    statement_count: int
+    distinct_call_count: int
+    local_count: int
+    location: SourceLocation
+
+
+@dataclass(frozen=True, slots=True, order=True)
+class WebClassFact:
+    """One parser-independent web class declaration."""
+
+    name: str
+    exported: bool
+    error_class: bool
+    location: SourceLocation
+
+
+@dataclass(frozen=True, slots=True, order=True)
+class WebModelFact:
+    """One TypeScript interface or type-literal declaration."""
+
+    name: str
+    kind: WebModelKind
+    exported: bool
+    readonly_properties: bool
+    readonly_shape: bool
+    property_names: tuple[str, ...]
+    location: SourceLocation
+
+
+@dataclass(frozen=True, slots=True, order=True)
+class WebCallFact:
+    """One statically named call and its lexical owner."""
+
+    name: str
+    function_name: str | None
+    ancestor_calls: tuple[str, ...]
+    function_argument: bool
+    returned_cleanup: bool
+    location: SourceLocation
+
+
+@dataclass(frozen=True, slots=True, order=True)
+class WebBindingFact:
+    """One top-level web binding declaration."""
+
+    name: str
+    initializer_call: str | None
+    location: SourceLocation
+
+
+@dataclass(frozen=True, slots=True, order=True)
+class WebResourceFact:
+    """One statically recognized external resource operation."""
+
+    family: str
+    binding_name: str | None
+    ancestor_calls: tuple[str, ...]
+    location: SourceLocation
+
+
+@dataclass(frozen=True, slots=True, order=True)
+class SvelteScriptFact:
+    """One Svelte script block and its ownership context."""
+
+    context: WebScriptContext
+    location: SourceLocation
+
+
+@dataclass(frozen=True, slots=True, order=True)
+class SvelteRuneFact:
+    """One statically recognized Svelte rune call."""
+
+    name: str
+    location: SourceLocation
+
+
+@dataclass(frozen=True, slots=True, order=True)
+class SvelteFileFacts:
+    """Svelte-specific extensions kept separate from common web facts."""
+
+    scripts: tuple[SvelteScriptFact, ...]
+    module_runes: tuple[SvelteRuneFact, ...]
+    has_component_markup: bool
+    route: bool
+    state_module: bool
+
+
+@dataclass(frozen=True, slots=True, order=True)
+class WebSyntaxHandle:
+    """Stable byte range for an analyzer-owned web syntax fact."""
+
+    file: File
+    kind: WebSyntaxKind
+    name: str | None
+    start: int
+    end: int
+    location: SourceLocation
+
+
+@dataclass(frozen=True, slots=True, order=True)
+class WebFileFacts:
+    """Owned immutable semantic facts for one discovered web source file."""
+
+    file: File
+    analyzer: AnalyzerId
+    source_kind: WebSourceKind
+    purpose: WebSourcePurpose
+    module: str
+    source_root: ProjectPath
+    scope: ScopeName
+    source: str
+    parse_error: str | None
+    imports: tuple[WebImportFact, ...]
+    functions: tuple[WebFunctionFact, ...]
+    classes: tuple[WebClassFact, ...]
+    models: tuple[WebModelFact, ...]
+    bindings: tuple[WebBindingFact, ...]
+    calls: tuple[WebCallFact, ...]
+    resources: tuple[WebResourceFact, ...]
+    re_exports: tuple[SourceLocation, ...]
+    public_export_count: int
+    runtime_declaration_count: int
+    syntax_handles: tuple[WebSyntaxHandle, ...]
+    svelte: SvelteFileFacts | None
+
+    def text(self, handle: WebSyntaxHandle) -> str:
+        """Return authored UTF-8 text for one owned stable syntax handle."""
+
+        from fensu.rules.authoring.exceptions import WebFactQueryError
+
+        if handle.file != self.file or handle.start < 0 or handle.end < handle.start:
+            raise WebFactQueryError("Web syntax handle does not belong to this file")
+        encoded: bytes = self.source.encode("utf-8")
+        if handle.end > len(encoded):
+            raise WebFactQueryError("Web syntax handle exceeds its source file")
+        try:
+            return encoded[handle.start : handle.end].decode("utf-8")
+        except UnicodeDecodeError as error:
+            raise WebFactQueryError("Web syntax handle does not align to UTF-8 text") from error
+
+
+@dataclass(frozen=True, slots=True)
+class WebWorkspaceFacts:
+    """Versioned requester-observed facts for one TypeScript or Svelte target."""
+
+    schema_version: str
+    parser_contract: str
+    analyzer: AnalyzerId
+    _file_values: tuple[WebFileFacts, ...] = field(repr=False)
+    _files_by_path: Mapping[ProjectPath, WebFileFacts] = field(repr=False, compare=False)
+    _observe: Callable[[str, str, str], None] | None = field(
+        default=None, repr=False, compare=False
+    )
+
+    @property
+    def files(self) -> tuple[WebFileFacts, ...]:
+        """Return all discovered web files and observe the broad inventory."""
+
+        from fensu.rules.authoring._helpers.web_fact_identity import web_file_identity
+
+        self._record(
+            kind="web_files",
+            query=".",
+            answer="\n".join(web_file_identity(value=item) for item in self._file_values),
+        )
+        return self._file_values
+
+    def file(self, value: File | ProjectPath) -> WebFileFacts | None:
+        """Return one focused selected web file."""
+
+        path: ProjectPath = value.path if isinstance(value, File) else value
+        if not isinstance(path, ProjectPath):
+            from fensu.rules.authoring.exceptions import WebFactQueryTypeError
+
+            raise WebFactQueryTypeError("Web file queries require a File or ProjectPath")
+        answer: WebFileFacts | None = self._files_by_path.get(path)
+        from fensu.rules.authoring._helpers.web_fact_identity import web_file_identity
+
+        self._record(
+            kind="web_file",
+            query=path.value,
+            answer="" if answer is None else web_file_identity(value=answer),
+        )
+        return answer
+
+    def observed(self, observer: Callable[[str, str, str], None]) -> WebWorkspaceFacts:
+        """Return a fact view whose query answers are recorded for one invocation."""
+
+        return WebWorkspaceFacts(
+            schema_version=self.schema_version,
+            parser_contract=self.parser_contract,
+            analyzer=self.analyzer,
+            _file_values=self._file_values,
             _files_by_path=self._files_by_path,
             _observe=observer,
         )

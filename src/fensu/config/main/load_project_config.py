@@ -27,7 +27,9 @@ def load_project_config(start: Path | None = None) -> LoadedConfig:
     return _load_project_config(start=start, target=None)
 
 
-def _load_project_config(*, start: Path | None, target: str | None) -> LoadedConfig:
+def _load_project_config(
+    *, start: Path | None, target: str | None, allow_web_custom: bool = False
+) -> LoadedConfig:
     """Load validated config for an optional named target."""
 
     source: ConfigSource = locate_config(start)
@@ -48,8 +50,10 @@ def _load_project_config(*, start: Path | None, target: str | None) -> LoadedCon
         else base_bootstrap.select,
     )
     _ = require_analyzer_backend(bootstrap.analyzer)
-    if bootstrap.analyzer in {AnalyzerId.TYPESCRIPT, AnalyzerId.SVELTE} and (
-        bootstrap.rule_paths or bootstrap.rule_modules or bool(raw_config.get("rule_options"))
+    if (
+        not allow_web_custom
+        and bootstrap.analyzer in {AnalyzerId.TYPESCRIPT, AnalyzerId.SVELTE}
+        and (bootstrap.rule_paths or bootstrap.rule_modules or bool(raw_config.get("rule_options")))
     ):
         raise ConfigError(
             f"Native {bootstrap.analyzer.value} targets do not support Python-hosted custom rules."

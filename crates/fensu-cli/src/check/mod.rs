@@ -4,5 +4,7 @@ pub(crate) mod _helpers;
 pub(crate) mod constants;
 pub(crate) mod main;
 pub(crate) mod models;
+#[path = "_helpers/web_custom_facts.inc"]
+pub(crate) mod web_custom_facts;
 #[path = "_helpers/web_policy.inc"]
 pub(crate) mod web_policy;

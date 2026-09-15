@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.0](https://github.com/chio-labs/fensu/compare/v0.17.0...v0.18.0) (2026-09-15)
+
+
+### Features
+
+* add web custom rule facts ([#83](https://github.com/chio-labs/fensu/issues/83)) ([6272aab](https://github.com/chio-labs/fensu/commit/6272aabaf4a43fdb08b0b5f0b13bdc507f792eb8))
+
 ## [0.17.0](https://github.com/chio-labs/fensu/compare/v0.16.0...v0.17.0) (2026-09-15)
 
 

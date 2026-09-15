@@ -194,12 +194,12 @@ from fensu.rules.authoring.types import (
 )
 from fensu.rules.authoring.types import ImportResolution as ImportResolution
 from fensu.rules.authoring.types import ModuleVisibility as ModuleVisibility
-from fensu.rules.authoring.types import RustItemKind as RustItemKind
-from fensu.rules.authoring.types import RustUseResolution as RustUseResolution
-from fensu.rules.authoring.types import RustVisibility as RustVisibility
 from fensu.rules.authoring.types import (
     RuleContext as RuleContext,
 )
+from fensu.rules.authoring.types import RustItemKind as RustItemKind
+from fensu.rules.authoring.types import RustUseResolution as RustUseResolution
+from fensu.rules.authoring.types import RustVisibility as RustVisibility
 from fensu.rules.authoring.types import (
     Severity as Severity,
 )

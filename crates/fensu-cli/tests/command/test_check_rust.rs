@@ -1,4 +1,4 @@
-use crate::helpers::{run_check, run_check_with, workspace_python, write};
+use crate::helpers::{require_workspace_python, run_check, run_check_with, write};
 use crate::test_types::{
     InvalidCheckConfigTestCase, RustCacheTestCase, RustCheckTestCase,
     RustCustomCacheInvalidationTestCase, RustCustomFileRuleTestCase, RustCustomHostRoutingTestCase,
@@ -318,10 +318,7 @@ fn given_unavailable_cargo_metadata_when_checking_then_failure_is_read_only_and_
 
 #[test]
 fn given_selected_custom_rust_file_rule_when_checking_then_owned_item_and_tree_facts_emit_fault() {
-    let python = workspace_python();
-    if !python.is_file() {
-        return;
-    }
+    let python = require_workspace_python!();
     let test_cases = [RustCustomFileRuleTestCase {
         description: "typed Rust file rule reads item and tree facts",
         expected_exit_code: 1,
@@ -450,10 +447,7 @@ fn given_unselected_custom_rust_rule_when_checking_then_python_host_does_not_sta
 
 #[test]
 fn given_custom_rust_project_rule_when_dependency_changes_then_cached_result_invalidates() {
-    let python = workspace_python();
-    if !python.is_file() {
-        return;
-    }
+    let python = require_workspace_python!();
     let test_cases = [RustCustomCacheInvalidationTestCase {
         description: "Cargo dependency changes invalidate a cached project rule",
         expected_code: "XRS002",
@@ -616,10 +610,7 @@ fn given_custom_rust_project_rule_when_dependency_changes_then_cached_result_inv
 #[test]
 fn given_file_fact_dependency_when_unrelated_file_changes_then_subject_cache_reuses_narrow_result()
 {
-    let python = workspace_python();
-    if !python.is_file() {
-        return;
-    }
+    let python = require_workspace_python!();
     let test_cases = [RustCustomNarrowCacheTestCase {
         description: "focused Rust file query survives an unrelated source edit",
         unchanged_path: "src/first.rs",
@@ -698,10 +689,7 @@ fn given_file_fact_dependency_when_unrelated_file_changes_then_subject_cache_reu
 
 #[test]
 fn given_malformed_rust_when_custom_rule_reads_file_facts_then_parse_error_remains_explicit() {
-    let python = workspace_python();
-    if !python.is_file() {
-        return;
-    }
+    let python = require_workspace_python!();
     let test_cases = [RustCustomMalformedSourceTestCase {
         description: "malformed source remains explicit in custom facts",
         expected_exit_code: 1,
@@ -754,10 +742,7 @@ fn given_malformed_rust_when_custom_rule_reads_file_facts_then_parse_error_remai
 
 #[test]
 fn given_custom_rust_policy_when_checking_then_warning_ignore_and_exception_semantics_are_shared() {
-    let python = workspace_python();
-    if !python.is_file() {
-        return;
-    }
+    let python = require_workspace_python!();
     let test_cases = [
         RustCustomPolicyTestCase {
             description: "warning tier emits advisory custom Rust finding",

@@ -75,6 +75,18 @@ pub(crate) fn workspace_python() -> PathBuf {
     workspace.join(".venv/bin/python")
 }
 
+macro_rules! require_workspace_python {
+    () => {{
+        let python = crate::helpers::workspace_python();
+        if !python.is_file() {
+            return;
+        }
+        python
+    }};
+}
+
+pub(crate) use require_workspace_python;
+
 #[cfg(windows)]
 pub(crate) fn workspace_python() -> PathBuf {
     let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");

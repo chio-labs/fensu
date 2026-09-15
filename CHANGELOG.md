@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.0](https://github.com/chio-labs/fensu/compare/v0.18.0...v0.19.0) (2026-09-15)
+
+
+### Features
+
+* add cross-target repository rules ([#85](https://github.com/chio-labs/fensu/issues/85)) ([6125f5c](https://github.com/chio-labs/fensu/commit/6125f5c65e928106ea45879767288eeb0f62e849))
+
 ## [0.18.0](https://github.com/chio-labs/fensu/compare/v0.17.0...v0.18.0) (2026-09-15)
 
 

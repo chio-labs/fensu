@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.2](https://github.com/chio-labs/fensu/compare/v0.19.1...v0.19.2) (2026-09-16)
+
+
+### Bug Fixes
+
+* enforce Rust private entry naming ([#89](https://github.com/chio-labs/fensu/issues/89)) ([20e6218](https://github.com/chio-labs/fensu/commit/20e6218c4d99dc30882db64068bfa9e6810bfe96))
+
 ## [0.19.1](https://github.com/chio-labs/fensu/compare/v0.19.0...v0.19.1) (2026-09-16)
 
 

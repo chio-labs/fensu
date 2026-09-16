@@ -5,7 +5,10 @@ use crate::check::main::check_routing::check_routing;
 use crate::check::main::clean_caches::clean_caches;
 use crate::check::main::prepare_cleanup::prepare_cleanup;
 use crate::command::_helpers::check_partition::execution::partitioned_check;
-use crate::command::main::{check, help, init, map, rule, skills, target};
+use crate::command::main::{
+    _check as check, _help as help, _init as init, _map as map, _rule as rule, _skills as skills,
+    _target as target,
+};
 use crate::configuration::main::load_targets;
 use crate::models::CliOutput;
 

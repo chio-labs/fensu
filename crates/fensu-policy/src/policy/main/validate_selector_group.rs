@@ -1,7 +1,7 @@
 //! Validate selectors against configured and applicable catalogues.
 
 use crate::policy::errors::PolicyError;
-use crate::policy::main::code_matches_selector;
+use crate::policy::main::_code_matches_selector as code_matches_selector;
 use crate::policy::models::PolicyCatalogues;
 use crate::policy::types::{PolicyRule, RuleCodeGrammar};
 

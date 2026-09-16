@@ -1,5 +1,5 @@
 //! Native cache entry operations.
 
-pub(in crate::cache) mod dependency_kinds;
+pub(in crate::cache) mod _dependency_kinds;
+pub(in crate::cache) mod _replay_generation;
 pub(crate) mod register_cache;
-pub(in crate::cache) mod replay_generation;

@@ -1,7 +1,7 @@
 use std::io::{self, Write};
 use std::process::ExitCode;
 
-use crate::command::main::run_cli::run_cli;
+use crate::command::main::_run_cli::run_cli;
 
 pub fn execute_cli() -> ExitCode {
     let output = run_cli();

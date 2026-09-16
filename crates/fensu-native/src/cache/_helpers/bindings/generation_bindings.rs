@@ -11,8 +11,8 @@ use crate::cache::_helpers::publication::{
     prepare_publication, publish_generation, store_check_output, PublicationRequest,
 };
 use crate::cache::_helpers::records::{canonical_from_python, value_to_python};
-use crate::cache::main::dependency_kinds::dependency_kinds;
-use crate::cache::main::replay_generation::replay_generation;
+use crate::cache::main::_dependency_kinds::dependency_kinds;
+use crate::cache::main::_replay_generation::replay_generation;
 use crate::cache::models::{CacheMetrics, CanonicalValue, NativeIndexEntry};
 use crate::cache::types::{GenerationPlanRow, MetricsRow, PublicationRow, ReplayRow};
 

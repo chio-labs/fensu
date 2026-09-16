@@ -1,6 +1,6 @@
 //! Public policy entrypoints.
 
-pub(super) mod code_matches_selector;
+pub(super) mod _code_matches_selector;
 pub mod resolve_catalogue_policy;
 pub mod resolve_policy;
 pub mod rule_code_is_exact;

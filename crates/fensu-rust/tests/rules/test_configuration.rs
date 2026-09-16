@@ -255,10 +255,10 @@ fn given_renamed_workspace_library_when_checking_then_project_graph_uses_source_
             },
             test_types::RepoFile {
                 path: "crates/consumer/src/writing/main/mod.rs".to_owned(),
-                contents: "pub(super) mod run;\n".to_owned(),
+                contents: "pub(super) mod _run;\n".to_owned(),
             },
             test_types::RepoFile {
-                path: "crates/consumer/src/writing/main/run.rs".to_owned(),
+                path: "crates/consumer/src/writing/main/_run.rs".to_owned(),
                 contents: "use provider_alias::reading::main::value::value;\n\npub fn run() { value(); }\n"
                     .to_owned(),
             },
@@ -276,10 +276,10 @@ fn given_renamed_workspace_library_when_checking_then_project_graph_uses_source_
             },
             test_types::RepoFile {
                 path: "crates/direct-consumer/src/writing/main/mod.rs".to_owned(),
-                contents: "pub(super) mod run;\n".to_owned(),
+                contents: "pub(super) mod _run;\n".to_owned(),
             },
             test_types::RepoFile {
-                path: "crates/direct-consumer/src/writing/main/run.rs".to_owned(),
+                path: "crates/direct-consumer/src/writing/main/_run.rs".to_owned(),
                 contents: "use common_api::reading::main::value::value;\n\npub fn run() { value(); }\n"
                     .to_owned(),
             },
@@ -317,10 +317,10 @@ fn given_renamed_workspace_library_when_checking_then_project_graph_uses_source_
             },
             test_types::RepoFile {
                 path: "crates/beta-consumer/src/writing/main/mod.rs".to_owned(),
-                contents: "pub(super) mod run;\n".to_owned(),
+                contents: "pub(super) mod _run;\n".to_owned(),
             },
             test_types::RepoFile {
-                path: "crates/beta-consumer/src/writing/main/run.rs".to_owned(),
+                path: "crates/beta-consumer/src/writing/main/_run.rs".to_owned(),
                 contents: "use beta_provider::reading::main::value::value;\n\npub fn run() { value(); }\n"
                     .to_owned(),
             },
@@ -396,10 +396,10 @@ fn given_same_named_external_dependency_when_checking_then_workspace_graph_stays
             },
             test_types::RepoFile {
                 path: "crates/consumer/src/writing/main/mod.rs".to_owned(),
-                contents: "pub(super) mod run;\n".to_owned(),
+                contents: "pub(super) mod _run;\n".to_owned(),
             },
             test_types::RepoFile {
-                path: "crates/consumer/src/writing/main/run.rs".to_owned(),
+                path: "crates/consumer/src/writing/main/_run.rs".to_owned(),
                 contents: "use external::reading::main::value::value as external_value;\n#[cfg(feature = \"patched\")]\nuse patched::reading::main::value::value as patched_value;\n\npub fn run() {\n    external_value();\n    #[cfg(feature = \"patched\")]\n    patched_value();\n}\n".to_owned(),
             },
         ],

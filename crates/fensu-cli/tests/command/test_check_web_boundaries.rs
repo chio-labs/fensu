@@ -4,9 +4,115 @@ use std::process::Command;
 use crate::helpers::{poison_processes, run_internal_web_check_with, write};
 use crate::test_types::{
     CheckCacheTestCase, FreshSvelteKitCheckTestCase, MixedWebExecutionTestCase,
-    WebConfigFailureTestCase, WebDiagnosticCountTestCase, WebSourcePurposeTestCase,
-    WebThresholdCacheIdentityTestCase,
+    WebBoundaryRuleTestCase, WebConfigFailureTestCase, WebDiagnosticCountTestCase,
+    WebSourcePurposeTestCase, WebThresholdCacheIdentityTestCase,
 };
+
+#[test]
+fn given_root_and_main_boundary_modules_when_checking_then_visibility_and_placement_are_explicit() {
+    let test_cases = [
+        WebBoundaryRuleTestCase {
+            description: "an ad hoc TypeScript runtime-root module is reported",
+            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FPTSR304\"]\n",
+            files: &[(
+                "src/billing.ts",
+                "export function total(): number { return 1; }\n",
+            )],
+            expected_exit_code: 1,
+            expected_present: Some("FPTSR304"),
+        },
+        WebBoundaryRuleTestCase {
+            description: "an ad hoc SvelteKit runtime-root support module is reported",
+            config: "[targets.web]\nanalyzer = \"svelte\"\nrule_packs = [\"typescript\", \"sveltekit\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FPSKR304\"]\n",
+            files: &[(
+                "src/bootstrap.ts",
+                "export function bootstrap(): number { return 1; }\n",
+            )],
+            expected_exit_code: 1,
+            expected_present: Some("FPSKR304"),
+        },
+        WebBoundaryRuleTestCase {
+            description: "recognized TypeScript and SvelteKit runtime-root protocols are accepted",
+            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FPTSR304\"]\n",
+            files: &[
+                (
+                    "src/main.tsx",
+                    "export function main(): number { return 1; }\n",
+                ),
+                (
+                    "src/hooks.ts",
+                    "export function handle(): number { return 1; }\n",
+                ),
+                (
+                    "src/instrumentation.server.ts",
+                    "export function instrument(): number { return 1; }\n",
+                ),
+                ("src/vite-env.d.ts", "declare const VERSION: string;\n"),
+            ],
+            expected_exit_code: 0,
+            expected_present: None,
+        },
+        WebBoundaryRuleTestCase {
+            description: "a cross-capability import of a private main entry is reported",
+            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FPTSL108\"]\n",
+            files: &[
+                (
+                    "src/lib/orders/main/_calculate.ts",
+                    "export function calculate(): number { return 1; }\n",
+                ),
+                (
+                    "src/lib/payments/main/pay.ts",
+                    "import { calculate } from '../../orders/main/_calculate';\nexport function pay(): number { return calculate(); }\n",
+                ),
+            ],
+            expected_exit_code: 1,
+            expected_present: Some("FPTSL108"),
+        },
+        WebBoundaryRuleTestCase {
+            description: "a public main entry without an external consumer is reported",
+            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FPTSL109\"]\n",
+            files: &[(
+                "src/lib/orders/main/calculate.ts",
+                "export function calculate(): number { return 1; }\n",
+            )],
+            expected_exit_code: 1,
+            expected_present: Some("FPTSL109"),
+        },
+    ];
+    for test_case in test_cases {
+        let repository = tempfile::tempdir().expect("web boundary repository");
+        write(repository.path().join("fensu.toml"), test_case.config);
+        for (path, source) in test_case.files {
+            write(repository.path().join(path), source);
+        }
+        let process_directory = poison_processes(repository.path());
+
+        let output =
+            run_internal_web_check_with(repository.path(), &["--no-cache"], &process_directory);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {stdout} {stderr}",
+            test_case.description
+        );
+        assert_eq!(
+            test_case
+                .expected_present
+                .is_some_and(|value| stdout.contains(value)),
+            test_case.expected_present.is_some(),
+            "{}: {stdout}",
+            test_case.description
+        );
+        assert!(
+            !repository.path().join("process-invoked").exists(),
+            "{}",
+            test_case.description
+        );
+    }
+}
 
 #[test]
 fn given_sveltekit_alias_when_checking_then_typescript_policy_reports_sveltekit_identity() {

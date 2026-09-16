@@ -100,6 +100,17 @@ pub(crate) struct RustCustomFileRuleTestCase {
     pub(crate) expected_code: &'static str,
 }
 
+pub(crate) struct RustCustomCoverageTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_uncovered_exit_code: i32,
+    pub(crate) expected_covered_exit_code: i32,
+    pub(crate) expected_disabled_exit_code: i32,
+    pub(crate) expected_enabled_exit_code: i32,
+    pub(crate) expected_excepted_exit_code: i32,
+    pub(crate) expected_code: &'static str,
+    pub(crate) expected_zero_faults: &'static str,
+}
+
 pub(crate) struct RustCustomHostRoutingTestCase {
     pub(crate) description: &'static str,
     pub(crate) selection: &'static str,
@@ -327,6 +338,14 @@ pub(crate) struct WebDiagnosticCountTestCase {
     pub(crate) expected_absent: Option<&'static str>,
 }
 
+pub(crate) struct WebBoundaryRuleTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) config: &'static str,
+    pub(crate) files: &'static [(&'static str, &'static str)],
+    pub(crate) expected_exit_code: i32,
+    pub(crate) expected_present: Option<&'static str>,
+}
+
 pub(crate) struct MixedWebExecutionTestCase {
     pub(crate) description: &'static str,
     pub(crate) expected_exit_code: i32,
@@ -351,6 +370,14 @@ pub(crate) struct WebCustomRuleTestCase {
     pub(crate) expected_location: &'static str,
     pub(crate) expected_message: &'static str,
     pub(crate) expected_count: usize,
+}
+
+pub(crate) struct WebCustomCoverageTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_uncovered_exit_code: i32,
+    pub(crate) expected_covered_exit_code: i32,
+    pub(crate) expected_code: &'static str,
+    pub(crate) expected_zero_faults: &'static str,
 }
 
 pub(crate) struct WebCustomRoutingTestCase {

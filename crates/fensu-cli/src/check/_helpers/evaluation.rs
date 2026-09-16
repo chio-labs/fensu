@@ -29,8 +29,8 @@ use crate::check::repository_custom_facts::python_repository_fact_payload;
 use crate::check::web_custom_facts::web_fact_payload;
 use crate::check::web_policy::{self, WebPolicyRequest};
 use crate::constants::{
-    PROJECT_RULE_REQUESTER, RUST_CUSTOM_DEPENDENCY_KINDS, SCOPE_TEST, WEB_CUSTOM_DEPENDENCY_KINDS,
-    WEB_PARSE_DIAGNOSTIC_CODE,
+    CUSTOM_RULE_TEST_COVERAGE_CODE, PROJECT_RULE_REQUESTER, RUST_CUSTOM_DEPENDENCY_KINDS,
+    SCOPE_TEST, WEB_CUSTOM_DEPENDENCY_KINDS, WEB_PARSE_DIAGNOSTIC_CODE,
 };
 use crate::hosting::main::run_rust_custom_rule_host::run_rust_custom_rule_host;
 use crate::hosting::main::run_web_custom_rule_host::run_web_custom_rule_host;
@@ -224,7 +224,8 @@ fn evaluate_rust_target(request: EvaluationRequest<'_>) -> Result<TargetEvaluati
         .keys()
         .filter(|code| code.starts_with('X'))
         .collect::<Vec<_>>();
-    if !custom_option_codes.is_empty() && !rust_custom_rules_selected(config, show_warnings) {
+    let custom_selected = rust_custom_rules_selected(config, show_warnings);
+    if !custom_option_codes.is_empty() && !custom_selected {
         return Err(format!(
             "Rust custom rule options require a selected custom rule: {}.",
             custom_option_codes
@@ -260,6 +261,11 @@ fn evaluate_rust_target(request: EvaluationRequest<'_>) -> Result<TargetEvaluati
     };
     let mut all_rules = blocking.clone();
     all_rules.extend(warning_rules.iter().copied());
+    let custom_host_required = custom_rules_configured(config)
+        && (custom_selected
+            || all_rules
+                .iter()
+                .any(|rule| rule.code == CUSTOM_RULE_TEST_COVERAGE_CODE));
     validate_unique_implementations(&all_rules)?;
     let warning_codes = warning_rules
         .iter()
@@ -333,7 +339,7 @@ fn evaluate_rust_target(request: EvaluationRequest<'_>) -> Result<TargetEvaluati
         });
     }
     let mut custom_codes: Vec<String> = Vec::new();
-    if rust_custom_rules_selected(config, show_warnings) {
+    if custom_host_required {
         let subjects: Vec<CustomRuleSubject> = sources
             .iter()
             .filter(|source| source.purpose.is_direct())
@@ -433,6 +439,10 @@ fn custom_selector_not_ignored(selector: &str, ignores: &[String]) -> bool {
             .any(|ignored| ignored.starts_with('X') && selector.starts_with(ignored))
 }
 
+fn custom_rules_configured(config: &Config) -> bool {
+    !config.rule_paths.is_empty() || !config.rule_modules.is_empty()
+}
+
 fn validate_rust_custom_response(
     response: &crate::check::models::RustCustomRuleResponse,
     source_paths: &HashSet<&str>,
@@ -469,7 +479,9 @@ fn validate_rust_custom_response(
             FindingSeverity::Blocking => blocking.contains(finding.code.as_str()),
             FindingSeverity::Warning => warnings.contains(finding.code.as_str()),
         };
-        if !selected || !finding.code.starts_with('X') {
+        if !selected
+            || !(finding.code.starts_with('X') || finding.code == CUSTOM_RULE_TEST_COVERAGE_CODE)
+        {
             return Err(format!(
                 "Rust custom-rule host returned a finding for unselected code {}.",
                 finding.code
@@ -605,11 +617,16 @@ fn evaluate_parser_target(request: EvaluationRequest<'_>) -> Result<TargetEvalua
         });
     }
     let custom_selected = web_custom_rules_selected(config, show_warnings);
-    let fact_payload = (collect_repository_facts || custom_selected)
+    let custom_host_required = custom_rules_configured(config)
+        && (custom_selected
+            || all_rules
+                .iter()
+                .any(|rule| rule.code == CUSTOM_RULE_TEST_COVERAGE_CODE));
+    let fact_payload = (collect_repository_facts || custom_host_required)
         .then(|| web_fact_payload(config.analyzer, sources));
     let mut custom_codes: Vec<String> = Vec::new();
     let mut cacheable = true;
-    if custom_selected {
+    if custom_host_required {
         let subject_sources = sources
             .iter()
             .filter(|source| web_custom_subject(source, config.analyzer))
@@ -775,7 +792,9 @@ fn validate_web_custom_response(
             FindingSeverity::Blocking => blocking.contains(finding.code.as_str()),
             FindingSeverity::Warning => warnings.contains(finding.code.as_str()),
         };
-        if !selected || !finding.code.starts_with('X') {
+        if !selected
+            || !(finding.code.starts_with('X') || finding.code == CUSTOM_RULE_TEST_COVERAGE_CODE)
+        {
             return Err(format!(
                 "Web custom-rule host returned a finding for unselected code {}.",
                 finding.code

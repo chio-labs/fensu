@@ -41,6 +41,7 @@ from fensu.config.types import AnalyzerId, TestLayout
 from fensu.rules.authoring.main.is_rule_code import is_rule_code
 from fensu.rules.authoring.main.is_rule_selector import is_rule_selector
 from fensu.rules.authoring.types import Threshold
+from fensu.rules.roles.types import RoleCode
 
 _empty_string: str = ""
 _windows_path_separator: str = "\\"
@@ -588,7 +589,7 @@ def _validate_rule_exception_entry(
         raise ConfigValidationError("Rule exception reason must be non-empty.")
     if not is_rule_code(rule):
         raise ConfigValidationError(f"Rule exception must use one exact rule code: {rule}.")
-    _validate_exception_path(path=path, analyzer=analyzer)
+    _validate_exception_path(path=path, analyzer=analyzer, rule=rule)
     if RULE_EXCEPTION_SYMBOLS_CONFIG_KEY not in typed_entry:
         key: tuple[str, str, str | None] = (rule, path, None)
         if key in seen:
@@ -597,8 +598,11 @@ def _validate_rule_exception_entry(
             )
         seen.add(key)
         return seen
-    if analyzer is AnalyzerId.RUST:
-        raise ConfigValidationError("Rust rule exceptions support file-level exceptions only.")
+    if analyzer is AnalyzerId.RUST or rule == RoleCode.CUSTOM_RULE_TEST_COVERAGE:
+        owner: str = (
+            "Rust" if rule != RoleCode.CUSTOM_RULE_TEST_COVERAGE else "Custom-rule coverage"
+        )
+        raise ConfigValidationError(f"{owner} rule exceptions support file-level exceptions only.")
     symbols: tuple[str, ...] = _validate_string_sequence(
         name="rule_exceptions.symbols", value=typed_entry[RULE_EXCEPTION_SYMBOLS_CONFIG_KEY]
     )
@@ -623,7 +627,7 @@ def _exception_string(*, entry: Mapping[object, object], key: str) -> str:
     return value
 
 
-def _validate_exception_path(*, path: str, analyzer: AnalyzerId | None) -> None:
+def _validate_exception_path(*, path: str, analyzer: AnalyzerId | None, rule: str) -> None:
     parsed: PurePosixPath = PurePosixPath(path)
     analyzer_name: str = analyzer.value if analyzer is not None else "the configured analyzer"
     web_suffixes: tuple[str, ...] = (
@@ -638,15 +642,19 @@ def _validate_exception_path(*, path: str, analyzer: AnalyzerId | None) -> None:
     )
     supported: bool = (
         parsed.suffix == _python_file_suffix
-        if analyzer is AnalyzerId.PYTHON
-        else path.endswith(web_suffixes)
-        if analyzer is AnalyzerId.TYPESCRIPT
-        else path.endswith((*web_suffixes, ".svelte"))
-        if analyzer is AnalyzerId.SVELTE
-        else parsed.suffix == RUST_SOURCE_SUFFIX or path.endswith(CARGO_MANIFEST_FILE_NAME)
-        if analyzer is AnalyzerId.RUST
-        else parsed.suffix in {_python_file_suffix, RUST_SOURCE_SUFFIX}
-        or path.endswith((*web_suffixes, ".svelte", CARGO_MANIFEST_FILE_NAME))
+        if rule == RoleCode.CUSTOM_RULE_TEST_COVERAGE
+        else (
+            parsed.suffix == _python_file_suffix
+            if analyzer is AnalyzerId.PYTHON
+            else path.endswith(web_suffixes)
+            if analyzer is AnalyzerId.TYPESCRIPT
+            else path.endswith((*web_suffixes, ".svelte"))
+            if analyzer is AnalyzerId.SVELTE
+            else parsed.suffix == RUST_SOURCE_SUFFIX or path.endswith(CARGO_MANIFEST_FILE_NAME)
+            if analyzer is AnalyzerId.RUST
+            else parsed.suffix in {_python_file_suffix, RUST_SOURCE_SUFFIX}
+            or path.endswith((*web_suffixes, ".svelte", CARGO_MANIFEST_FILE_NAME))
+        )
     )
     if (
         parsed.is_absolute()

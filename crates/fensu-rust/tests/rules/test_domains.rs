@@ -7,6 +7,36 @@ use crate::test_types;
 fn given_domain_shape_fixtures_when_checking_then_reports_expected_codes() {
     let test_cases = [
         test_types::CheckRepoTestCase {
+            description: "an ad hoc module at the runtime source root is reported",
+            repo_files: vec![test_types::RepoFile {
+                path: "crates/example/src/billing.rs".to_owned(),
+                contents: "pub(crate) fn total() -> usize {\n    1\n}\n".to_owned(),
+            }],
+            expected_violation_codes: vec!["RSR307"],
+        },
+        test_types::CheckRepoTestCase {
+            description: "a role file at the runtime source root is accepted",
+            repo_files: vec![test_types::RepoFile {
+                path: "crates/example/src/constants.rs".to_owned(),
+                contents: "pub(crate) const LIMIT: usize = 1;\n".to_owned(),
+            }],
+            expected_violation_codes: vec![],
+        },
+        test_types::CheckRepoTestCase {
+            description: "a nested Cargo entry does not exempt a same-named source-root module",
+            repo_files: vec![
+                test_types::RepoFile {
+                    path: "crates/example/src/bin/tool.rs".to_owned(),
+                    contents: "fn main() {}\n".to_owned(),
+                },
+                test_types::RepoFile {
+                    path: "crates/example/src/tool.rs".to_owned(),
+                    contents: "pub(crate) fn run() {}\n".to_owned(),
+                },
+            ],
+            expected_violation_codes: vec!["RSR702", "RSR307"],
+        },
+        test_types::CheckRepoTestCase {
             description: "a leaf domain with a main entry reports nothing",
             repo_files: vec![
                 test_types::RepoFile {

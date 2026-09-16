@@ -18,6 +18,7 @@ use crate::check::models::{CheckIdentityRequest, CheckPlan, CheckPlans};
 use crate::configuration::main::load_targets;
 use crate::configuration::main::resolve_target_root::resolve_target_root;
 use crate::configuration::main::validate_exception_targets::validate_exception_targets;
+use crate::constants::CUSTOM_RULE_TEST_COVERAGE_CODE;
 use crate::constants::{PYTHON_CACHE_DIRECTORY, SCOPE_TEST};
 use crate::models::{CheckOptions, Config, ScopedSource, SourcePurpose};
 use crate::repository_io::main::relative_path::relative_path;
@@ -78,6 +79,13 @@ pub(crate) fn prepare_checks(
             crate::analyzer::AnalyzerId::TypeScript | crate::analyzer::AnalyzerId::Svelte
         ) {
             project_inputs.extend(custom_rule_project_inputs(&root, &project_root, &config)?);
+            project_inputs.sort_by(|left, right| left.repository_path.cmp(&right.repository_path));
+            project_inputs.dedup_by(|left, right| left.path == right.path);
+        }
+        if config.analyzer != crate::analyzer::AnalyzerId::Python
+            && custom_rule_coverage_selected(&config, options.warn)
+        {
+            project_inputs.extend(custom_rule_test_inputs(&root, &project_root, &config)?);
             project_inputs.sort_by(|left, right| left.repository_path.cmp(&right.repository_path));
             project_inputs.dedup_by(|left, right| left.path == right.path);
         }
@@ -410,6 +418,49 @@ fn custom_rule_project_inputs(
         }
     }
     Ok(inputs)
+}
+
+fn custom_rule_test_inputs(
+    repository_root: &Path,
+    project_root: &Path,
+    config: &Config,
+) -> Result<Vec<crate::models::ProjectInput>, String> {
+    let mut inputs: Vec<crate::models::ProjectInput> = Vec::new();
+    for configured in &config.tests {
+        let root = project_root.join(configured);
+        if !root.is_dir() {
+            continue;
+        }
+        for entry in WalkDir::new(root).follow_links(false) {
+            let entry =
+                entry.map_err(|error| format!("Could not discover custom rule tests: {error}"))?;
+            if entry.file_type().is_file()
+                && entry.path().extension().and_then(|value| value.to_str()) == Some("py")
+            {
+                inputs.push(project_input(entry.path(), repository_root, project_root)?);
+            }
+        }
+    }
+    Ok(inputs)
+}
+
+fn custom_rule_coverage_selected(config: &Config, show_warnings: bool) -> bool {
+    let configured = !config.rule_paths.is_empty() || !config.rule_modules.is_empty();
+    let ignored = config
+        .ignore
+        .iter()
+        .any(|selector| CUSTOM_RULE_TEST_COVERAGE_CODE.starts_with(selector));
+    configured
+        && !ignored
+        && (config
+            .select
+            .iter()
+            .any(|selector| CUSTOM_RULE_TEST_COVERAGE_CODE.starts_with(selector))
+            || show_warnings
+                && config
+                    .warn
+                    .iter()
+                    .any(|selector| CUSTOM_RULE_TEST_COVERAGE_CODE.starts_with(selector)))
 }
 
 fn custom_cache_inputs_complete(project_root: &Path, config: &Config) -> bool {

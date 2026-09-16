@@ -12,12 +12,16 @@ struct DirectoryContents {
     directories: BTreeSet<String>,
 }
 
-pub(crate) fn check_domains(files: &[models::SourceFile]) -> Vec<models::Violation> {
+pub(crate) fn check_domains(
+    files: &[models::SourceFile],
+    targets: &[models::WorkspaceTarget],
+) -> Vec<models::Violation> {
     let Some(source_root) = source_root(files) else {
         return Vec::new();
     };
     let tree = directory_tree(files);
     let mut violations: Vec<models::Violation> = Vec::new();
+    violations.extend(root_direct_module_violations(&source_root, &tree, targets));
     for domain in top_level_domains(&tree) {
         violations.extend(direct_module_violations(&source_root, &tree, &domain));
         violations.extend(domain_shape_violations(&source_root, &tree, &domain));
@@ -29,6 +33,42 @@ pub(crate) fn check_domains(files: &[models::SourceFile]) -> Vec<models::Violati
     violations.sort_by(|left, right| left.sort_key().cmp(&right.sort_key()));
     violations.dedup_by(|left, right| left.sort_key() == right.sort_key());
     violations
+}
+
+fn root_direct_module_violations(
+    source_root: &str,
+    tree: &BTreeMap<String, DirectoryContents>,
+    targets: &[models::WorkspaceTarget],
+) -> Vec<models::Violation> {
+    let Some(root) = tree.get("") else {
+        return Vec::new();
+    };
+    let entry_files = targets
+        .iter()
+        .filter(|target| !target.test)
+        .filter(|target| target.source_root.ends_with(path::Path::new(source_root)))
+        .filter(|target| target.entry_path.parent() == Some(target.source_root.as_path()))
+        .filter_map(|target| target.entry_path.file_name())
+        .filter_map(|name| name.to_str())
+        .collect::<BTreeSet<_>>();
+    root.modules
+        .iter()
+        .filter(|name| {
+            !entry_files.contains(name.as_str())
+                && name.as_str() != constants::INLINE_TEST_HARNESS_FILE
+                && !is_role_file(name)
+        })
+        .map(|name| {
+            let relative = format!("{source_root}/{name}");
+            models::Violation::new(models::ViolationRequest {
+                code: "RSR307",
+                path: path::Path::new(&relative),
+                line: None,
+                message: "runtime source root holds an ad hoc direct module",
+                remediation: "keep Cargo entry files and role files at the source root; move behavior into an owning domain",
+            })
+        })
+        .collect()
 }
 
 fn source_root(files: &[models::SourceFile]) -> Option<String> {

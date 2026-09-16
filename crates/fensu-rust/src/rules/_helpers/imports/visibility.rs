@@ -26,6 +26,7 @@ struct Entry {
     domain: Option<String>,
     file: String,
     module: Vec<String>,
+    private_name: bool,
     public_to_crate: bool,
     externally_declared: bool,
 }
@@ -63,6 +64,9 @@ pub(crate) fn check_workspace(
     for crate_sources in &crates {
         index.collect_crate(crate_sources);
     }
+    index
+        .violations
+        .extend(entry_visibility_violations(&index.entries));
     index.violations.extend(private_entry_import_violations(
         &index.references,
         &index.entries,
@@ -192,9 +196,34 @@ fn collect_entry(
         domain: module.get(1).cloned(),
         file: file.relative.clone(),
         module: module.to_vec(),
+        private_name: file.file_name().starts_with('_'),
         public_to_crate,
         externally_declared: syntax.items.iter().any(externally_declared_item),
     })
+}
+
+fn entry_visibility_violations(entries: &[Entry]) -> Vec<models::Violation> {
+    entries
+        .iter()
+        .filter_map(|entry| match (entry.private_name, entry.public_to_crate) {
+            (true, true) => Some(models::Violation::new(models::ViolationRequest {
+                code: "RSL104",
+                path: path::Path::new(&entry.file),
+                line: None,
+                message: "underscore-prefixed main entry is visible outside its owning domain",
+                remediation:
+                    "restrict the module to its owning domain or remove the leading underscore",
+            })),
+            (false, false) => Some(models::Violation::new(models::ViolationRequest {
+                code: "RSL105",
+                path: path::Path::new(&entry.file),
+                line: None,
+                message: "publicly named main entry is not visible to the crate",
+                remediation: "publish the module to the crate or prefix its filename with '_'",
+            })),
+            _ => None,
+        })
+        .collect()
 }
 
 fn externally_declared_item(item: &syn::Item) -> bool {
@@ -246,7 +275,7 @@ fn private_entry_import_violations(
 ) -> Vec<models::Violation> {
     let private = entries
         .iter()
-        .filter(|entry| !entry.public_to_crate)
+        .filter(|entry| entry.private_name)
         .collect::<Vec<_>>();
     let mut violations: Vec<models::Violation> = Vec::new();
     for reference in references {
@@ -284,7 +313,7 @@ fn unused_public_entry_violations(
 ) -> Vec<models::Violation> {
     let mut violations: Vec<models::Violation> = Vec::new();
     for entry in entries {
-        if !entry.public_to_crate || entry.externally_declared {
+        if entry.private_name || !entry.public_to_crate || entry.externally_declared {
             continue;
         }
         let used_externally = references.iter().any(|reference| {

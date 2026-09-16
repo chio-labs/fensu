@@ -1,9 +1,9 @@
-pub(super) mod check;
+pub(super) mod _check;
+pub(super) mod _help;
+pub(super) mod _init;
+pub(super) mod _map;
+pub(super) mod _rule;
+pub(super) mod _run_cli;
+pub(super) mod _skills;
+pub(super) mod _target;
 pub mod execute_cli;
-pub(super) mod help;
-pub(super) mod init;
-pub(super) mod map;
-pub(super) mod rule;
-pub(super) mod run_cli;
-pub(super) mod skills;
-pub(super) mod target;

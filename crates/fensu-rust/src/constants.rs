@@ -1,7 +1,7 @@
 //! Rust rule thresholds, names, and analyzer contract identities.
 
 pub const PARSER_CONTRACT_VERSION: &str = "rust-syn-workspace-v1";
-pub const CACHE_CONTRACT_VERSION: &str = "rust-rules-v3";
+pub const CACHE_CONTRACT_VERSION: &str = "rust-rules-v4";
 pub const FACT_SCHEMA_VERSION: &str = "rust-facts-v1";
 pub const METADATA_SETUP_CODE: &str = "RSL901";
 pub(crate) const CRATE_PATH_ROOT: &str = "crate";

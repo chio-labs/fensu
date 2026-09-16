@@ -179,6 +179,13 @@ def test_given_rust_pack_when_building_catalogue_then_registers_owned_project_po
     assert all(rule.code.startswith("FPRS") and rule.pack == "rust" for rule in FPRS_RULES)
     assert all(rule.analyzers == (AnalyzerId.RUST,) for rule in FPRS_RULES)
     assert all(rule.kind is RuleKind.PACK and rule.check is None for rule in FPRS_RULES)
+    by_code: dict[str, RuleSpec] = {rule.code: rule for rule in FPRS_RULES}
+    private_entry: RuleSpec = by_code["FPRSL104"]
+    public_entry: RuleSpec = by_code["FPRSL105"]
+    assert "underscore-prefixed" in private_entry.message
+    assert "_*.rs" in private_entry.constraints[0].values
+    assert "publicly named" in public_entry.message
+    assert "*.rs without a leading underscore" in public_entry.constraints[0].values
 
 
 @pytest.mark.parametrize(

@@ -27,12 +27,12 @@ fn given_visibility_fixtures_when_checking_then_reports_expected_codes() {
         test_types::CheckRepoTestCase {
             description: "a cross-domain import of a private main entry is reported",
             repo_files: vec![
-                helpers::main_module("reading", "pub(super) mod read_value;\n"),
-                helpers::entry("reading", "read_value", "read_value"),
+                helpers::main_module("reading", "pub(super) mod _read_value;\n"),
+                helpers::entry("reading", "_read_value", "read_value"),
                 helpers::entry_with_import(
                     "writing",
                     "write_value",
-                    "use crate::reading::main::read_value::read_value;",
+                    "use crate::reading::main::_read_value::read_value;",
                 ),
             ],
             expected_violation_codes: vec!["RSL104"],
@@ -40,15 +40,47 @@ fn given_visibility_fixtures_when_checking_then_reports_expected_codes() {
         test_types::CheckRepoTestCase {
             description: "a same-domain import of a private main entry is accepted",
             repo_files: vec![
-                helpers::main_module("reading", "pub(super) mod read_value;\n"),
-                helpers::entry("reading", "read_value", "read_value"),
+                helpers::main_module("reading", "pub(super) mod _read_value;\n"),
+                helpers::entry("reading", "_read_value", "read_value"),
                 test_types::RepoFile {
                     path: "crates/example/src/reading/_helpers/calling.rs".to_owned(),
-                    contents: "use crate::reading::main::read_value::read_value;\n\npub(crate) fn call() -> usize {\n    read_value()\n}\n"
+                    contents: "use crate::reading::main::_read_value::read_value;\n\npub(crate) fn call() -> usize {\n    read_value()\n}\n"
                         .to_owned(),
                 },
             ],
             expected_violation_codes: vec![],
+        },
+        test_types::CheckRepoTestCase {
+            description: "a private entry may use domain-scoped module visibility",
+            repo_files: vec![
+                test_types::RepoFile {
+                    path: "crates/example/src/lib.rs".to_owned(),
+                    contents: "#![forbid(unsafe_code)]\npub mod reading;\n".to_owned(),
+                },
+                test_types::RepoFile {
+                    path: "crates/example/src/reading/mod.rs".to_owned(),
+                    contents: "pub mod main;\n".to_owned(),
+                },
+                helpers::main_module("reading", "pub(in crate::reading) mod _read_value;\n"),
+                helpers::entry("reading", "_read_value", "read_value"),
+            ],
+            expected_violation_codes: vec![],
+        },
+        test_types::CheckRepoTestCase {
+            description: "an underscore-prefixed entry must remain domain-private",
+            repo_files: vec![
+                helpers::main_module("reading", "pub(crate) mod _read_value;\n"),
+                helpers::entry("reading", "_read_value", "read_value"),
+            ],
+            expected_violation_codes: vec!["RSL104"],
+        },
+        test_types::CheckRepoTestCase {
+            description: "a publicly named entry must be visible to the crate",
+            repo_files: vec![
+                helpers::main_module("reading", "pub(super) mod read_value;\n"),
+                helpers::entry("reading", "read_value", "read_value"),
+            ],
+            expected_violation_codes: vec!["RSL105"],
         },
         test_types::CheckRepoTestCase {
             description: "a public main entry without an external-domain importer is reported",

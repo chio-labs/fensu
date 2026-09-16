@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fensu.config.constants import RUST_RULE_PACK
 from fensu.config.types import AnalyzerId
-from fensu.rules.authoring.models import RuleOption, RuleSpec
+from fensu.rules.authoring.models import RuleConstraint, RuleOption, RuleSpec
 from fensu.rules.authoring.types import ExecutionOwner, Family, RuleKind
 
 _IMPLEMENTATION_CODES: tuple[str, ...] = (
@@ -162,6 +162,39 @@ _OPTIONS: dict[str, tuple[RuleOption[object], ...]] = {
     ),
 }
 
+_MESSAGES: dict[str, str] = {
+    "RSL104": "underscore-prefixed Rust main entries remain inside their owning domain",
+    "RSL105": "publicly named Rust main entries have an external consumer",
+}
+
+_REMEDIATIONS: dict[str, str] = {
+    "RSL104": (
+        "Keep private main entry filenames prefixed with '_' and restrict their module visibility "
+        "to the owning domain; remove the prefix only when publishing the entry."
+    ),
+    "RSL105": (
+        "Prefix the filename with '_' and restrict its visibility until another domain consumes "
+        "it, or keep the public name crate-visible."
+    ),
+}
+
+_CONSTRAINTS: dict[str, tuple[RuleConstraint, ...]] = {
+    "RSL104": (
+        RuleConstraint(
+            name="private Rust main entry convention",
+            description="Filename and visibility forms for domain-private main entries",
+            values=("_*.rs", "pub(super)", "pub(in crate::<domain>)"),
+        ),
+    ),
+    "RSL105": (
+        RuleConstraint(
+            name="public Rust main entry convention",
+            description="Filename and visibility forms for externally consumable main entries",
+            values=("*.rs without a leading underscore", "pub(crate)", "pub"),
+        ),
+    ),
+}
+
 
 def rust_rules() -> tuple[RuleSpec, ...]:
     """Return Rust pack identities for every structure-engine implementation."""
@@ -171,14 +204,18 @@ def rust_rules() -> tuple[RuleSpec, ...]:
             code=f"FP{implementation}",
             family=_FAMILIES[implementation[2]],
             slug=f"rust-{implementation.lower()}",
-            message="Rust workspace structure policy violation.",
-            remediation="Run fensu check for the diagnostic's rule-specific remediation.",
+            message=_MESSAGES.get(implementation, "Rust workspace structure policy violation."),
+            remediation=_REMEDIATIONS.get(
+                implementation,
+                "Run fensu check for the diagnostic's rule-specific remediation.",
+            ),
             analyzers=(AnalyzerId.RUST,),
             execution_owner=ExecutionOwner.PROJECT,
             kind=RuleKind.PACK,
             pack=RUST_RULE_PACK,
             implementation_code=implementation,
             options=_OPTIONS.get(implementation, ()),
+            constraints=_CONSTRAINTS.get(implementation, ()),
         )
         for implementation in _IMPLEMENTATION_CODES
     )

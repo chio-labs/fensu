@@ -34,7 +34,7 @@ fn given_tooling_role_fixtures_when_checking_then_reports_expected_codes() {
                 path: "crates/example-tooling/src/runner.rs".to_owned(),
                 contents: "fn run() -> usize {\n    1\n}\n".to_owned(),
             }],
-            expected_violation_codes: vec!["RSR705"],
+            expected_violation_codes: vec!["RSR307", "RSR705"],
         },
         test_types::CheckRepoTestCase {
             description: "rule-code module filename is reported",

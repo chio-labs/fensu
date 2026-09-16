@@ -84,6 +84,13 @@ fn given_every_core_rule_when_rendering_then_complete_authored_metadata_is_visib
             );
             assert!(
                 metadata.analyzers == [AnalyzerId::Python]
+                    || metadata.analyzers
+                        == [
+                            AnalyzerId::Python,
+                            AnalyzerId::Rust,
+                            AnalyzerId::TypeScript,
+                            AnalyzerId::Svelte,
+                        ]
                     || metadata.analyzers == [AnalyzerId::Rust]
                     || metadata.analyzers == [AnalyzerId::Svelte]
                     || metadata.analyzers == [AnalyzerId::TypeScript, AnalyzerId::Svelte]
@@ -96,19 +103,19 @@ fn given_every_core_rule_when_rendering_then_complete_authored_metadata_is_visib
 fn given_python_catalogue_and_other_analyzer_when_selecting_then_applicability_precedes_selectors()
 {
     let test_cases = [AnalyzerCatalogueTestCase {
-        description: "broad catalogue view contains no Python rules for TypeScript",
+        description: "broad catalogue view contains only TypeScript-applicable rules",
         analyzer: AnalyzerId::TypeScript,
         select: &[],
         expected_codes: &[
-            "FPTSA001", "FPTSA002", "FPTSA003", "FPTSC101", "FPTSC102", "FPTSC103", "FPTSH009",
-            "FPTSL101", "FPTSL102", "FPTSL103", "FPTSL105", "FPTSL108", "FPTSL109", "FPTSL201",
-            "FPTSN001", "FPTSN002", "FPTSN003", "FPTSN004", "FPTSP001", "FPTSR001", "FPTSR002",
-            "FPTSR003", "FPTSR201", "FPTSR204", "FPTSR301", "FPTSR304", "FPTSR306", "FPTSR309",
-            "FPTSR310", "FPTSR311", "FPTSR401", "FPTSR403", "FPTSR501", "FPTSS001", "FPTSS002",
-            "FPTSS003", "FPTSS010", "FPTSS011", "FPTSS105", "FPTSS106", "FPTSS110", "FPTSS111",
-            "FPTSS201", "FPTSS601", "FPTST001", "FPTST002", "FPTST003", "FPTST004", "FPTST201",
-            "FPTST202", "FPTST302", "FPTST401", "FPTST402", "FPTST403", "FPTST404", "FPTST405",
-            "FPTST406", "FPTST410", "FPTST411", "FPTST412",
+            "FFR707", "FPTSA001", "FPTSA002", "FPTSA003", "FPTSC101", "FPTSC102", "FPTSC103",
+            "FPTSH009", "FPTSL101", "FPTSL102", "FPTSL103", "FPTSL105", "FPTSL108", "FPTSL109",
+            "FPTSL201", "FPTSN001", "FPTSN002", "FPTSN003", "FPTSN004", "FPTSP001", "FPTSR001",
+            "FPTSR002", "FPTSR003", "FPTSR201", "FPTSR204", "FPTSR301", "FPTSR304", "FPTSR306",
+            "FPTSR309", "FPTSR310", "FPTSR311", "FPTSR401", "FPTSR403", "FPTSR501", "FPTSS001",
+            "FPTSS002", "FPTSS003", "FPTSS010", "FPTSS011", "FPTSS105", "FPTSS106", "FPTSS110",
+            "FPTSS111", "FPTSS201", "FPTSS601", "FPTST001", "FPTST002", "FPTST003", "FPTST004",
+            "FPTST201", "FPTST202", "FPTST302", "FPTST401", "FPTST402", "FPTST403", "FPTST404",
+            "FPTST405", "FPTST406", "FPTST410", "FPTST411", "FPTST412",
         ],
         expected_error: None,
     }];

@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-import ast
 from pathlib import Path
 
+from fensu.analysis.exceptions import PythonSourceParseError
 from fensu.analysis.main.associate_rule_tests import associate_rule_tests
 from fensu.analysis.main.build import build_analysis
+from fensu.analysis.main.parse_source import parse_python_source
 from fensu.analysis.models import EvaluateRuleCallFact, RuleTestAssociationFact
-from fensu.analysis.types import Analysis
+from fensu.analysis.types import Analysis, PythonSourceArtifact
 from fensu.config.main.resolve_threshold import resolve_threshold
 from fensu.config.models import Config
 from fensu.discovery.constants import INIT_MODULE_NAME
@@ -108,11 +109,12 @@ class CustomRuleCoverageEvaluator:
     @staticmethod
     def _analysis(*, path: Path) -> Analysis | None:
         try:
-            source: str = path.read_text(encoding="utf-8")
-            module: ast.Module = ast.parse(source, filename=str(path))
-        except (OSError, SyntaxError, UnicodeError):
+            artifact: PythonSourceArtifact = parse_python_source(
+                path=path, content=path.read_bytes()
+            )
+        except (OSError, PythonSourceParseError):
             return None
-        return build_analysis(path=path, source=source, module=module)
+        return build_analysis(path=path, source=artifact.source, module=artifact.module)
 
     @staticmethod
     def _registration_role(*, root: Path, config: Config, path: Path) -> str | None:

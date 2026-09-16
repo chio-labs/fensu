@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.1](https://github.com/chio-labs/fensu/compare/v0.19.0...v0.19.1) (2026-09-16)
+
+
+### Bug Fixes
+
+* close analyzer policy parity gaps ([#87](https://github.com/chio-labs/fensu/issues/87)) ([cd538d6](https://github.com/chio-labs/fensu/commit/cd538d662e0d0683348734bfecf1a3f5179a7239))
+
 ## [0.19.0](https://github.com/chio-labs/fensu/compare/v0.18.0...v0.19.0) (2026-09-15)
 
 

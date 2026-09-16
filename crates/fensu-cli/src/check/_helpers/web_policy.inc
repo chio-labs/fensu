@@ -42,6 +42,34 @@ const LEAF_ROLES: &[&str] = &[
     "_test",
 ];
 const ROLE_FILE_STEMS: &[&str] = &["constants", "errors", "models", "schemas", "types"];
+const WEB_ROOT_PROTOCOL_FILES: &[&str] = &[
+    "hooks.client.js",
+    "hooks.client.ts",
+    "hooks.js",
+    "hooks.server.js",
+    "hooks.server.ts",
+    "hooks.ts",
+    "index.cjs",
+    "index.cts",
+    "index.js",
+    "index.jsx",
+    "index.mjs",
+    "index.mts",
+    "index.ts",
+    "index.tsx",
+    "instrumentation.server.js",
+    "instrumentation.server.ts",
+    "main.cjs",
+    "main.cts",
+    "main.js",
+    "main.jsx",
+    "main.mjs",
+    "main.mts",
+    "main.ts",
+    "main.tsx",
+    "service-worker.js",
+    "service-worker.ts",
+];
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct WebDiagnostic {
@@ -195,13 +223,22 @@ fn role_diagnostics(
             &format!("generic filename '{basename}' hides its responsibility"),
         );
     }
-    if active(request, "FWR304") && owner_segments.len() == 1 && !is_role_file(basename) {
-        push_path(
-            diagnostics,
-            "FWR304",
-            source,
-            "module is loose at the owner root",
-        );
+    if active(request, "FWR304") {
+        if loose_runtime_root_module(source, request.config) {
+            push_path(
+                diagnostics,
+                "FWR304",
+                source,
+                "runtime source root contains an ad hoc module",
+            );
+        } else if owner_segments.len() == 1 && !is_role_file(basename) {
+            push_path(
+                diagnostics,
+                "FWR304",
+                source,
+                "module is loose at the owner root",
+            );
+        }
     }
     if active(request, "FWR310") {
         for segment in owner_segments
@@ -2169,6 +2206,17 @@ fn relative_to_source_root<'a>(source: &'a ScopedSource, config: &Config) -> Opt
     ownership_path(source)
         .strip_prefix(root)
         .and_then(|value| value.strip_prefix('/'))
+}
+
+fn loose_runtime_root_module(source: &ScopedSource, config: &Config) -> bool {
+    let Some(relative) = relative_to_source_root(source, config) else {
+        return false;
+    };
+    !relative.contains('/')
+        && !WEB_ROOT_PROTOCOL_FILES.contains(&relative)
+        && !relative.ends_with(".d.ts")
+        && !relative.ends_with(".d.mts")
+        && !relative.ends_with(".d.cts")
 }
 
 fn source_root_for<'a>(source: &ScopedSource, config: &'a Config) -> Option<&'a str> {

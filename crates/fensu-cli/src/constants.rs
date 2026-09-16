@@ -11,6 +11,7 @@ pub(crate) const CONFIG_REPOSITORY_RULES_KEY: &str = "repository_rules";
 pub(crate) const CHECK_WARN_ARGUMENT: &str = "--warn";
 pub(crate) const CHECK_CACHE_ARGUMENT: &str = "--cache";
 pub(crate) const CHECK_NO_CACHE_ARGUMENT: &str = "--no-cache";
+pub(crate) const CUSTOM_RULE_TEST_COVERAGE_CODE: &str = "FFR707";
 pub(crate) const REPOSITORY_RULE_REQUESTER: &str = ".fensu-repository-rule";
 pub(crate) const PROJECT_ROOT_PATH: &str = ".";
 pub(crate) const ROLE_HELPERS: &str = "_helpers";

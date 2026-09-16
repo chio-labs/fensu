@@ -120,7 +120,10 @@ fn check_aggregate_structure(
 ) -> Vec<models::Violation> {
     let mut violations =
         containers::check_containers(structural_files, &config.repository.thresholds);
-    violations.extend(domains::check_domains(structural_files));
+    violations.extend(domains::check_domains(
+        structural_files,
+        &workspace_crate.targets,
+    ));
     violations.extend(ownership::check(
         &workspace_crate.directory,
         workspace_crate.package_name.as_deref(),

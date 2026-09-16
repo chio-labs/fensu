@@ -2,8 +2,8 @@ use crate::helpers::{
     poison_processes, require_workspace_python, run_internal_web_check_with, write,
 };
 use crate::test_types::{
-    WebCustomCacheTestCase, WebCustomPolicyTestCase, WebCustomRoutingTestCase,
-    WebCustomRuleTestCase,
+    WebCustomCacheTestCase, WebCustomCoverageTestCase, WebCustomPolicyTestCase,
+    WebCustomRoutingTestCase, WebCustomRuleTestCase,
 };
 
 #[test]
@@ -85,6 +85,81 @@ fn given_selected_typescript_rule_when_checking_then_owned_facts_and_graph_emit_
             stdout.matches(test_case.expected_code).count(),
             test_case.expected_count,
             "{}: {stdout}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_typescript_custom_rule_when_checking_coverage_then_public_harness_is_required() {
+    let python = require_workspace_python!();
+    let test_cases = [WebCustomCoverageTestCase {
+        description: "TypeScript custom-rule coverage requires a public harness",
+        expected_uncovered_exit_code: 1,
+        expected_covered_exit_code: 0,
+        expected_code: "FFR707",
+        expected_zero_faults: "Found 0 faults",
+    }];
+    for test_case in test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(
+            repository.path().join("src/main.ts"),
+            "export function main(): number { return 1; }\n",
+        );
+        write(repository.path().join("rules/__init__.py"), "");
+        write(
+        repository.path().join("rules/custom.py"),
+        "from fensu import AnalyzerId, Family, Fault, Project, RuleContext, rule\n@rule(code='XWEB707', family=Family.CUSTOM, slug='web-policy', message='web policy', analyzers=(AnalyzerId.TYPESCRIPT,), cacheable=True)\ndef web_policy(*, project: Project, ctx: RuleContext) -> list[Fault]:\n    del project, ctx\n    return []\n",
+    );
+        write(
+        repository.path().join("fensu.toml"),
+        "[targets.web]\nanalyzer = \"typescript\"\nroots = [\"src\"]\ntests = [\"policy_tests\"]\ntooling = []\nrule_packs = [\"typescript\"]\nrule_paths = [\"rules/custom.py\"]\nselect = [\"FFR707\"]\n",
+    );
+
+        let uncovered = std::process::Command::new(env!("CARGO_BIN_EXE_fensu"))
+            .args(["check", "--no-color", "--no-cache"])
+            .current_dir(repository.path())
+            .env("FENSU_PYTHON", &python)
+            .output()
+            .expect("uncovered custom TypeScript rule check runs");
+        write(
+        repository.path().join("policy_tests/test_custom.py"),
+        "from fensu import RuleCase, evaluate_rule\nfrom rules.custom import web_policy\n\ndef test_given_project_when_checking_then_matches() -> None:\n    evaluate_rule(rule=web_policy, test_case=RuleCase(description='covered', source='VALUE: int = 1', expected_fault_count=0))\n",
+    );
+        let covered = std::process::Command::new(env!("CARGO_BIN_EXE_fensu"))
+            .args(["check", "--no-color", "--no-cache"])
+            .current_dir(repository.path())
+            .env("FENSU_PYTHON", &python)
+            .output()
+            .expect("covered custom TypeScript rule check runs");
+        let uncovered_stdout = String::from_utf8_lossy(&uncovered.stdout);
+        let covered_stdout = String::from_utf8_lossy(&covered.stdout);
+
+        assert_eq!(
+            uncovered.status.code(),
+            Some(test_case.expected_uncovered_exit_code),
+            "{}: {uncovered_stdout}",
+            test_case.description
+        );
+        assert!(
+            uncovered_stdout.contains(test_case.expected_code),
+            "{}: {uncovered_stdout}",
+            test_case.description
+        );
+        assert!(
+            uncovered_stdout.contains("custom rule XWEB707 has 0 statically declared test cases"),
+            "{}: {uncovered_stdout}",
+            test_case.description
+        );
+        assert_eq!(
+            covered.status.code(),
+            Some(test_case.expected_covered_exit_code),
+            "{}: {covered_stdout}",
+            test_case.description
+        );
+        assert!(
+            covered_stdout.contains(test_case.expected_zero_faults),
+            "{}: {covered_stdout}",
             test_case.description
         );
     }

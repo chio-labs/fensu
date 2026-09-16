@@ -99,7 +99,15 @@ def test_given_dagster_pack_when_building_catalogue_then_registers_complete_stan
     assert all(rule.code.startswith("FPDG") for rule in FPDG_RULES)
     assert all(rule.code.startswith("FPDG") for rule in ruleset)
     assert all(rule.analyzers == (AnalyzerId.PYTHON,) for rule in FPDG_RULES)
-    assert all(rule.analyzers == (AnalyzerId.PYTHON,) for rule in CORE_RULES)
+    core_by_code: dict[str, RuleSpec] = {rule.code: rule for rule in CORE_RULES}
+    coverage: RuleSpec = core_by_code.pop("FFR707")
+    assert {rule.analyzers for rule in core_by_code.values()} == {(AnalyzerId.PYTHON,)}
+    assert coverage.analyzers == (
+        AnalyzerId.PYTHON,
+        AnalyzerId.RUST,
+        AnalyzerId.TYPESCRIPT,
+        AnalyzerId.SVELTE,
+    )
 
 
 @pytest.mark.parametrize(

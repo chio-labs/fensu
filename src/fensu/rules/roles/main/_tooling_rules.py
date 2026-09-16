@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from fensu.config.types import AnalyzerId
 from fensu.rules.authoring.models import RuleSpec
 from fensu.rules.authoring.types import Family
 from fensu.rules.roles._helpers.constraints import get_role_rule_constraints
@@ -90,5 +91,11 @@ def tooling_rules() -> tuple[RuleSpec, ...]:
                 "min_custom_rule_test_cases to 0 disables this rule."
             ),
             thresholds=get_role_rule_thresholds(RoleCode.CUSTOM_RULE_TEST_COVERAGE),
+            analyzers=(
+                AnalyzerId.PYTHON,
+                AnalyzerId.RUST,
+                AnalyzerId.TYPESCRIPT,
+                AnalyzerId.SVELTE,
+            ),
         ),
     )

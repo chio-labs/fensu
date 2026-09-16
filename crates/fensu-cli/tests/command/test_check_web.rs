@@ -886,7 +886,7 @@ fn given_configured_ui_kit_when_checking_then_deliberate_surface_exemptions_appl
             "export { button } from './button'; export { Button } from './wrong'; export { runtime } from './types'; export { helper } from './helpers';\n",
         );
         write(
-            repository.path().join("src/use.ts"),
+            repository.path().join("src/main.ts"),
             "import * as ui from './ui-kit/family'; export const button = ui.button;\n",
         );
         let process_directory = poison_processes(repository.path());

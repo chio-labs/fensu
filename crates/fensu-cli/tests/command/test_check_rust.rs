@@ -1,9 +1,9 @@
 use crate::helpers::{require_workspace_python, run_check, run_check_with, write};
 use crate::test_types::{
     InvalidCheckConfigTestCase, RustCacheTestCase, RustCheckTestCase,
-    RustCustomCacheInvalidationTestCase, RustCustomFileRuleTestCase, RustCustomHostRoutingTestCase,
-    RustCustomMalformedSourceTestCase, RustCustomNarrowCacheTestCase, RustCustomPolicyTestCase,
-    RustMetadataCacheTestCase,
+    RustCustomCacheInvalidationTestCase, RustCustomCoverageTestCase, RustCustomFileRuleTestCase,
+    RustCustomHostRoutingTestCase, RustCustomMalformedSourceTestCase,
+    RustCustomNarrowCacheTestCase, RustCustomPolicyTestCase, RustMetadataCacheTestCase,
 };
 
 const RUST_CONFIG: &str = "[targets.rust]\nanalyzer = \"rust\"\nroots = [\"src\"]\ntests = []\ntooling = []\nrule_packs = [\"rust\"]\nselect = [\"FPRSL302\"]\n";
@@ -380,6 +380,163 @@ fn given_selected_custom_rust_file_rule_when_checking_then_owned_item_and_tree_f
                 .join(".fensu/cache/rust-custom-v1.json")
                 .exists(),
             "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_rust_custom_rule_when_coverage_harness_changes_then_policy_and_cache_follow_it() {
+    let python = require_workspace_python!();
+    let test_cases = [RustCustomCoverageTestCase {
+        description:
+            "Rust custom-rule coverage follows harness, threshold, exception, and cache policy",
+        expected_uncovered_exit_code: 1,
+        expected_covered_exit_code: 0,
+        expected_disabled_exit_code: 0,
+        expected_enabled_exit_code: 1,
+        expected_excepted_exit_code: 0,
+        expected_code: "FFR707",
+        expected_zero_faults: "Found 0 faults",
+    }];
+    for test_case in test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(
+            repository.path().join("Cargo.toml"),
+            "[package]\nname = \"example\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        );
+        write(
+            repository.path().join("src/lib.rs"),
+            "pub fn value() -> usize { 1 }\n",
+        );
+        write(repository.path().join("rules/__init__.py"), "");
+        write(
+        repository.path().join("rules/custom.py"),
+        "from fensu import AnalyzerId, Family, Fault, Project, RuleContext, rule\n@rule(code='XRS707', family=Family.CUSTOM, slug='rust-policy', message='rust policy', analyzers=(AnalyzerId.RUST,), cacheable=True)\ndef rust_policy(*, project: Project, ctx: RuleContext) -> list[Fault]:\n    del project, ctx\n    return []\n",
+    );
+        write(
+        repository.path().join("fensu.toml"),
+        "[targets.rust]\nanalyzer = \"rust\"\nroots = [\"src\"]\ntests = [\"policy_tests\"]\ntooling = []\nrule_packs = [\"rust\"]\nrule_paths = [\"rules/custom.py\"]\nselect = [\"FFR707\"]\n[targets.rust.cache]\nenabled = true\n",
+    );
+
+        let uncovered = std::process::Command::new(env!("CARGO_BIN_EXE_fensu"))
+            .args(["check", "--no-color", "--cache"])
+            .current_dir(repository.path())
+            .env("FENSU_PYTHON", &python)
+            .output()
+            .expect("uncovered custom Rust rule check runs");
+        write(
+        repository.path().join("policy_tests/test_custom.py"),
+        "from fensu import RuleCase, evaluate_rule\nfrom rules.custom import rust_policy\n\ndef test_given_project_when_checking_then_matches() -> None:\n    evaluate_rule(rule=rust_policy, test_case=RuleCase(description='covered', source='VALUE: int = 1', expected_fault_count=0))\n",
+    );
+        let covered = std::process::Command::new(env!("CARGO_BIN_EXE_fensu"))
+            .args(["check", "--no-color", "--cache"])
+            .current_dir(repository.path())
+            .env("FENSU_PYTHON", &python)
+            .output()
+            .expect("covered custom Rust rule check runs");
+        let uncovered_stdout = String::from_utf8_lossy(&uncovered.stdout);
+        let covered_stdout = String::from_utf8_lossy(&covered.stdout);
+
+        assert_eq!(
+            uncovered.status.code(),
+            Some(test_case.expected_uncovered_exit_code),
+            "{}: {uncovered_stdout}",
+            test_case.description
+        );
+        assert!(
+            uncovered_stdout.contains(test_case.expected_code),
+            "{}: {uncovered_stdout}",
+            test_case.description
+        );
+        assert!(
+            uncovered_stdout.contains("custom rule XRS707 has 0 statically declared test cases"),
+            "{}: {uncovered_stdout}",
+            test_case.description
+        );
+        assert_eq!(
+            covered.status.code(),
+            Some(test_case.expected_covered_exit_code),
+            "{}: {covered_stdout}",
+            test_case.description
+        );
+        assert!(
+            covered_stdout.contains(test_case.expected_zero_faults),
+            "{}: {covered_stdout}",
+            test_case.description
+        );
+
+        std::fs::remove_file(repository.path().join("policy_tests/test_custom.py"))
+            .expect("coverage test is removable");
+        write(
+        repository.path().join("fensu.toml"),
+        "[targets.rust]\nanalyzer = \"rust\"\nroots = [\"src\"]\ntests = [\"policy_tests\"]\ntooling = []\nrule_packs = [\"rust\"]\nrule_paths = [\"rules/custom.py\"]\nselect = [\"FFR707\"]\n[[targets.rust.threshold_overrides]]\npaths = [\"rules/custom.py\"]\nreason = \"This fixture disables coverage for one declaration owner.\"\nthresholds = { min_custom_rule_test_cases = 0 }\n",
+    );
+        let overridden = std::process::Command::new(env!("CARGO_BIN_EXE_fensu"))
+            .args(["check", "--no-color", "--no-cache"])
+            .current_dir(repository.path())
+            .env("FENSU_PYTHON", &python)
+            .output()
+            .expect("threshold-overridden custom Rust coverage check runs");
+        let overridden_stdout = String::from_utf8_lossy(&overridden.stdout);
+        let overridden_stderr = String::from_utf8_lossy(&overridden.stderr);
+        assert_eq!(
+            overridden.status.code(),
+            Some(test_case.expected_disabled_exit_code),
+            "{}: {overridden_stdout} {overridden_stderr}",
+            test_case.description
+        );
+        assert!(
+            overridden_stdout.contains(test_case.expected_zero_faults),
+            "{}: {overridden_stdout}",
+            test_case.description
+        );
+
+        write(
+        repository.path().join("fensu.toml"),
+        "[targets.rust]\nanalyzer = \"rust\"\nroots = [\"src\"]\ntests = [\"policy_tests\"]\ntooling = []\nrule_packs = [\"rust\"]\nrule_paths = [\"rules/custom.py\"]\nselect = [\"FFR707\"]\n[targets.rust.thresholds]\nmin_custom_rule_test_cases = 0\n[[targets.rust.threshold_overrides]]\npaths = [\"rules/custom.py\"]\nreason = \"This fixture enables coverage for one declaration owner.\"\nthresholds = { min_custom_rule_test_cases = 1 }\n",
+    );
+        let enabled = std::process::Command::new(env!("CARGO_BIN_EXE_fensu"))
+            .args(["check", "--no-color", "--no-cache"])
+            .current_dir(repository.path())
+            .env("FENSU_PYTHON", &python)
+            .output()
+            .expect("threshold-enabled custom Rust coverage check runs");
+        let enabled_stdout = String::from_utf8_lossy(&enabled.stdout);
+        let enabled_stderr = String::from_utf8_lossy(&enabled.stderr);
+        assert_eq!(
+            enabled.status.code(),
+            Some(test_case.expected_enabled_exit_code),
+            "{}: {enabled_stdout} {enabled_stderr}",
+            test_case.description
+        );
+        assert!(
+            enabled_stdout.contains(test_case.expected_code),
+            "{}: {enabled_stdout}",
+            test_case.description
+        );
+
+        write(
+        repository.path().join("fensu.toml"),
+        "[targets.rust]\nanalyzer = \"rust\"\nroots = [\"src\"]\ntests = [\"policy_tests\"]\ntooling = []\nrule_packs = [\"rust\"]\nrule_paths = [\"rules/custom.py\"]\nselect = [\"FFR707\"]\n[[targets.rust.rule_exceptions]]\nrule = \"FFR707\"\npath = \"rules/custom.py\"\nreason = \"This fixture verifies analyzer-neutral file exceptions.\"\n",
+    );
+        let excepted = std::process::Command::new(env!("CARGO_BIN_EXE_fensu"))
+            .args(["check", "--no-color", "--no-cache"])
+            .current_dir(repository.path())
+            .env("FENSU_PYTHON", &python)
+            .output()
+            .expect("excepted custom Rust coverage check runs");
+        let excepted_stdout = String::from_utf8_lossy(&excepted.stdout);
+        let excepted_stderr = String::from_utf8_lossy(&excepted.stderr);
+        assert_eq!(
+            excepted.status.code(),
+            Some(test_case.expected_excepted_exit_code),
+            "{}: {excepted_stdout} {excepted_stderr}",
+            test_case.description
+        );
+        assert!(
+            excepted_stdout.contains(test_case.expected_zero_faults),
+            "{}: {excepted_stdout}",
             test_case.description
         );
     }

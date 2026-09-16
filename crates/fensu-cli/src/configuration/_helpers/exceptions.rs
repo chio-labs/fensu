@@ -2,6 +2,7 @@ use std::collections::HashSet;
 
 use crate::analyzer::AnalyzerId;
 use crate::configuration::_helpers::selectors::valid_code;
+use crate::constants::CUSTOM_RULE_TEST_COVERAGE_CODE;
 
 const RULE_EXCEPTION_SYMBOLS: &str = "symbols";
 
@@ -44,11 +45,14 @@ fn validate_for(value: Option<&toml::Value>, analyzer: Option<AnalyzerId>) -> Re
                 "Rule exception must use one exact rule code: {rule}."
             ));
         }
-        validate_path(&path, analyzer)?;
-        if matches!(analyzer, Some(AnalyzerId::Rust) | None)
+        validate_path(&path, analyzer, &rule)?;
+        if (matches!(analyzer, Some(AnalyzerId::Rust) | None)
+            || rule == CUSTOM_RULE_TEST_COVERAGE_CODE)
             && table.contains_key(RULE_EXCEPTION_SYMBOLS)
         {
-            let owner = if analyzer.is_none() {
+            let owner = if rule == CUSTOM_RULE_TEST_COVERAGE_CODE {
+                "Custom-rule coverage"
+            } else if analyzer.is_none() {
                 "Repository"
             } else {
                 "Rust"
@@ -113,18 +117,22 @@ fn valid_qualified_symbol(value: &str) -> bool {
     first && second.is_none_or(valid) && parts.next().is_none()
 }
 
-fn validate_path(path: &str, analyzer: Option<AnalyzerId>) -> Result<(), String> {
-    let supported = match analyzer {
-        Some(AnalyzerId::Python) => path.ends_with(".py"),
-        Some(AnalyzerId::Rust) => path.ends_with(".rs") || path.ends_with("Cargo.toml"),
-        Some(AnalyzerId::TypeScript) => web_source_path(path),
-        Some(AnalyzerId::Svelte) => path.ends_with(".svelte") || web_source_path(path),
-        None => {
-            path.ends_with(".py")
-                || path.ends_with(".rs")
-                || path.ends_with("Cargo.toml")
-                || path.ends_with(".svelte")
-                || web_source_path(path)
+fn validate_path(path: &str, analyzer: Option<AnalyzerId>, rule: &str) -> Result<(), String> {
+    let supported = if rule == CUSTOM_RULE_TEST_COVERAGE_CODE {
+        path.ends_with(".py")
+    } else {
+        match analyzer {
+            Some(AnalyzerId::Python) => path.ends_with(".py"),
+            Some(AnalyzerId::Rust) => path.ends_with(".rs") || path.ends_with("Cargo.toml"),
+            Some(AnalyzerId::TypeScript) => web_source_path(path),
+            Some(AnalyzerId::Svelte) => path.ends_with(".svelte") || web_source_path(path),
+            None => {
+                path.ends_with(".py")
+                    || path.ends_with(".rs")
+                    || path.ends_with("Cargo.toml")
+                    || path.ends_with(".svelte")
+                    || web_source_path(path)
+            }
         }
     };
     if path.starts_with('/')

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+from fensu.config.types import AnalyzerId
 from fensu.rules.annotations.constants import FFA_RULES
 from fensu.rules.authoring.models import RuleOption, RuleSpec
 from fensu.rules.authoring.types import Family, RuleKind
@@ -340,4 +341,5 @@ def _alias(*, rule: RuleSpec) -> RuleSpec:
         kind=RuleKind.PACK,
         pack=_DAGSTER_PACK_NAME,
         alias_of=rule.code,
+        analyzers=(AnalyzerId.PYTHON,),
     )

@@ -13,7 +13,7 @@ use crate::check::models::{
     RepositoryTargetPayload, StructuredCachePayload, StructuredCheckExecution,
 };
 use crate::check::repository_custom_facts::python_repository_fact_payload;
-use crate::models::{CachedOutput, CheckOptions, CliOutput, ParsedProgram, ScopedSource};
+use crate::models::{CachedOutput, CheckOptions, CliOutput, Config, ParsedProgram, ScopedSource};
 use crate::skills::main::core_freshness;
 
 pub(crate) fn cached_output(plan: &CheckPlans, options: &CheckOptions) -> Option<CliOutput> {
@@ -229,10 +229,7 @@ pub(crate) fn repository_python_targets(
             std::mem::take(&mut target.sources),
             &target.project_inputs,
         )?;
-        target.repository_facts = Some(python_repository_fact_payload(
-            &target.sources,
-            target.config.ownership_depth,
-        ));
+        target.repository_facts = Some(python_repository_fact_payload(&target.sources));
     }
     repository_target_payloads(&plan)
 }
@@ -312,15 +309,38 @@ fn repository_target_payloads(plan: &CheckPlans) -> Result<Vec<RepositoryTargetP
                 .ok_or_else(|| format!("Repository facts were not collected for target {name}."))?;
             let subjects: Vec<CustomRuleSubject> =
                 repository_subjects(&target.sources, target.config.analyzer);
+            let ownership_roots = repository_ownership_roots(&target.config, &facts);
             Ok(RepositoryTargetPayload {
                 name,
                 analyzer: target.config.analyzer,
                 root: target.config.target_root.clone(),
-                ownership_depth: target.config.ownership_depth.max(2),
+                ownership_roots,
                 facts,
                 subjects,
             })
         })
+        .collect()
+}
+
+fn repository_ownership_roots(config: &Config, facts: &serde_json::Value) -> Vec<String> {
+    if config.analyzer == crate::analyzer::AnalyzerId::Rust && config.ownership_roots.is_empty() {
+        let mut roots = facts
+            .get("files")
+            .and_then(serde_json::Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|file| file.get("source_root"))
+            .filter_map(serde_json::Value::as_str)
+            .map(str::to_owned)
+            .collect::<Vec<_>>();
+        roots.sort();
+        roots.dedup();
+        return roots;
+    }
+    config
+        .resolved_ownership_roots
+        .iter()
+        .map(|root| root.path.clone())
         .collect()
 }
 
@@ -340,6 +360,9 @@ fn repository_subjects(
                 scope: source.scope.clone(),
                 scope_root: source.root_text.clone(),
                 relative_parts: source.relative_parts.clone(),
+                ownership_root: source.ownership_root.clone(),
+                ownership_root_declaration: source.ownership_root_declaration.clone(),
+                ownership_relative_parts: source.ownership_relative_parts.clone(),
             });
         }
     }

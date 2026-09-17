@@ -289,7 +289,7 @@ fn given_cacheable_repository_rule_when_registry_changes_then_result_invalidates
         write(
             repository
                 .path()
-                .join(".fensu/cache/repository-custom-v2.json"),
+                .join(".fensu/cache/repository-custom-v3.json"),
             "{not-json",
         );
         let recovered = std::process::Command::new(env!("CARGO_BIN_EXE_fensu"))

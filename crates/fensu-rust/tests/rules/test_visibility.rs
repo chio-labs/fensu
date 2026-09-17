@@ -239,10 +239,13 @@ fn given_grouped_domains_when_importing_private_entry_then_domain_offset_is_resp
     }];
     for test_case in test_cases {
         let repo_root = helpers::write_temp_repo_verbatim(&test_case);
-        let actual_codes = helpers::collect_violation_codes_with_ownership_depth(&repo_root, 3)
-            .into_iter()
-            .filter(|code| *code == "RSL104")
-            .collect::<Vec<_>>();
+        let actual_codes = helpers::collect_violation_codes_with_ownership_roots(
+            &repo_root,
+            vec!["crates/example/src/sources".to_owned()],
+        )
+        .into_iter()
+        .filter(|code| *code == "RSL104")
+        .collect::<Vec<_>>();
         helpers::remove_temp_repo(&repo_root);
 
         assert_eq!(

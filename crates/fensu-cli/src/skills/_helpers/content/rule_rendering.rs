@@ -105,10 +105,14 @@ fn rule_configuration_lines(rule: &RuleMetadata, config: &Config) -> Vec<String>
             lines.push(format!("- `test_layout`: {}", config.test_layout));
             continue;
         }
-        if name == crate::constants::OWNERSHIP_DEPTH_CONFIG_KEY {
+        if name == crate::constants::OWNERSHIP_ROOTS_CONFIG_KEY {
             lines.push(format!(
-                "- `ownership_depth`: {}",
-                config.ownership_depth.max(2)
+                "- `ownership_roots`: {}",
+                if config.ownership_roots.is_empty() {
+                    config.roots.join(", ")
+                } else {
+                    config.ownership_roots.join(", ")
+                }
             ));
             continue;
         }

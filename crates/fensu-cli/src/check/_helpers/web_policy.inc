@@ -1959,16 +1959,21 @@ fn owner_project_diagnostics(request: &WebPolicyRequest<'_>, diagnostics: &mut V
 }
 
 fn structural_group_role_path(source: &ScopedSource, config: &Config) -> Option<String> {
-    let relative = relative_to_source_root(source, config)?;
-    let parts = relative.split('/').collect::<Vec<_>>();
-    if parts.first() != Some(&"lib") {
-        return None;
-    }
-    let owner_index = 1 + config.ownership_depth.max(2).saturating_sub(2);
-    let role_index = parts.iter().enumerate().skip(1).find_map(|(index, part)| {
+    let parts = if source.ownership_root.is_some() {
+        source
+            .ownership_relative_parts
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>()
+    } else {
+        relative_to_source_root(source, config)?
+            .split('/')
+            .collect::<Vec<_>>()
+    };
+    let role_index = parts.iter().enumerate().find_map(|(index, part)| {
         (LEAF_ROLES.contains(part) || is_role_file(part)).then_some(index)
     })?;
-    (role_index <= owner_index).then(|| source.target_path.clone())
+    (source.ownership_root.is_none() || role_index == 0).then(|| source.target_path.clone())
 }
 
 fn overdeep_owner_path(source: &ScopedSource, config: &Config) -> Option<String> {
@@ -2228,30 +2233,20 @@ fn is_ui_kit_family_surface(source: &ScopedSource, config: &Config) -> bool {
 }
 
 fn owner_segments(source: &ScopedSource, config: &Config) -> Vec<String> {
-    let Some(relative) = relative_to_source_root(source, config) else {
-        return Vec::new();
-    };
-    let parts = relative.split('/').collect::<Vec<_>>();
-    let owner_index = 1 + config.ownership_depth.max(2).saturating_sub(2);
-    if parts.first() != Some(&"lib") || parts.len() <= owner_index + 1 {
+    let _ = config;
+    if source.ownership_relative_parts.len() <= 1 {
         return Vec::new();
     }
-    parts[owner_index + 1..]
-        .iter()
-        .map(|part| (*part).to_owned())
-        .collect()
+    source.ownership_relative_parts[1..].to_vec()
 }
 
 fn owner_for(source: &ScopedSource, config: &Config) -> Option<String> {
-    let relative = relative_to_source_root(source, config)?;
-    let parts = relative.split('/').collect::<Vec<_>>();
-    let owner_index = 1 + config.ownership_depth.max(2).saturating_sub(2);
-    let owner = parts.get(owner_index)?;
-    (parts.first() == Some(&"lib")
-        && parts.len() > owner_index + 1
-        && !LEAF_ROLES.contains(owner)
+    let _ = config;
+    let owner = source.ownership_relative_parts.first()?;
+    (source.ownership_relative_parts.len() > 1
+        && !LEAF_ROLES.contains(&owner.as_str())
         && !is_role_file(owner))
-    .then(|| (*owner).to_owned())
+    .then(|| owner.clone())
 }
 
 fn relative_to_source_root<'a>(source: &'a ScopedSource, config: &Config) -> Option<&'a str> {
@@ -2337,12 +2332,9 @@ fn capability_identity(source: &ScopedSource, config: &Config) -> Option<(String
 }
 
 fn physical_owner_identity(source: &ScopedSource, config: &Config) -> Option<(String, String)> {
-    let root = source_root_for(source, config)?;
-    let relative = relative_to_source_root(source, config)?;
-    let parts = relative.split('/').collect::<Vec<_>>();
-    let owner_index = 1 + config.ownership_depth.max(2).saturating_sub(2);
-    owner_for(source, config)?;
-    Some((root.to_owned(), parts[1..=owner_index].join("/")))
+    let root = source.ownership_root.as_ref()?;
+    let owner = owner_for(source, config)?;
+    Some((root.clone(), owner))
 }
 
 fn physical_capability_identity(
@@ -2420,23 +2412,11 @@ fn test_source_root(source: &ScopedSource, config: &Config) -> Option<String> {
         .cloned()
 }
 
-fn test_capability(source: &ScopedSource, config: &Config) -> Option<String> {
-    let relative = config.tests.iter().find_map(|root| {
-        source
-            .target_path
-            .strip_prefix(root)
-            .and_then(|value| value.strip_prefix('/'))
-    })?;
-    let parts = relative.split('/').collect::<Vec<_>>();
-    let lib = parts.iter().position(|part| *part == "lib")?;
-    let owner_index = lib + 1 + config.ownership_depth.max(2).saturating_sub(2);
-    let owner = parts.get(owner_index)?;
-    let remaining = parts[owner_index + 1..]
-        .iter()
-        .map(|part| (*part).to_owned())
-        .collect::<Vec<_>>();
+fn test_capability(source: &ScopedSource, _config: &Config) -> Option<String> {
+    let owner = source.ownership_relative_parts.first()?;
+    let remaining = source.ownership_relative_parts[1..].to_vec();
     let end = role_index(&remaining).unwrap_or(remaining.len().saturating_sub(1));
-    let mut capability = vec![(*owner).to_owned()];
+    let mut capability = vec![owner.clone()];
     capability.extend(remaining[..end].iter().cloned());
     Some(capability.join("/"))
 }
@@ -2462,45 +2442,23 @@ fn path_after_role(source: &ScopedSource, config: &Config) -> Vec<String> {
 }
 
 fn owner_path(source: &ScopedSource, config: &Config) -> String {
-    let root = config
-        .roots
-        .iter()
-        .find(|root| source.target_path.starts_with(&format!("{root}/")))
-        .map(String::as_str)
-        .unwrap_or("src");
-    let groups = relative_to_source_root(source, config)
-        .map(|relative| relative.split('/').collect::<Vec<_>>())
-        .unwrap_or_default();
-    let owner_index = 1 + config.ownership_depth.max(2).saturating_sub(2);
-    if groups.len() > owner_index {
-        format!("{root}/{}", groups[..=owner_index].join("/"))
-    } else {
-        format!("{root}/lib/unknown")
-    }
+    source.ownership_root.as_ref().map_or_else(
+        || "src/lib/unknown".to_owned(),
+        |root| {
+            format!(
+                "{root}/{}",
+                owner_for(source, config).unwrap_or_else(|| "unknown".to_owned())
+            )
+        },
+    )
 }
 
 fn capability_path(source: &ScopedSource, config: &Config, capability: &str) -> String {
-    let root = config
-        .roots
-        .iter()
-        .find(|root| source.target_path.starts_with(&format!("{root}/")))
-        .map(String::as_str)
-        .unwrap_or("src");
-    let grouping_depth = config.ownership_depth.max(2).saturating_sub(2);
-    let groups = relative_to_source_root(source, config)
-        .map(|relative| {
-            relative
-                .split('/')
-                .skip(1)
-                .take(grouping_depth)
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
-    if groups.is_empty() {
-        format!("{root}/lib/{capability}")
-    } else {
-        format!("{root}/lib/{}/{capability}", groups.join("/"))
-    }
+    let _ = config;
+    source.ownership_root.as_ref().map_or_else(
+        || format!("src/lib/{capability}"),
+        |root| format!("{root}/{capability}"),
+    )
 }
 
 fn resource_suffix(name: &str) -> bool {

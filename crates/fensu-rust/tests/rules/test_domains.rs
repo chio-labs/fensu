@@ -181,7 +181,7 @@ fn given_domain_shape_fixtures_when_checking_then_reports_expected_codes() {
 }
 
 #[test]
-fn given_configured_ownership_depth_when_checking_then_groups_remain_structural() {
+fn given_scoped_ownership_roots_when_checking_then_groups_remain_structural() {
     let test_cases = [
         test_types::CheckRepoTestCase {
             description: "a grouped leaf domain with a main entry is accepted",
@@ -222,11 +222,25 @@ fn given_configured_ownership_depth_when_checking_then_groups_remain_structural(
             ],
             expected_violation_codes: vec!["RSR305", "RSR304"],
         },
+        test_types::CheckRepoTestCase {
+            description: "runtime domains can begin at a shallower ownership root",
+            repo_files: vec![test_types::RepoFile {
+                path: "crates/example/src/runtime/scraping/main/run.rs".to_owned(),
+                contents: "pub fn run() -> usize {\n    1\n}\n".to_owned(),
+            }],
+            expected_violation_codes: vec![],
+        },
     ];
 
     for test_case in test_cases {
         let repo_root = helpers::write_temp_repo_verbatim(&test_case);
-        let actual_codes = helpers::collect_violation_codes_with_ownership_depth(&repo_root, 3);
+        let actual_codes = helpers::collect_violation_codes_with_ownership_roots(
+            &repo_root,
+            vec![
+                "crates/example/src/sources".to_owned(),
+                "crates/example/src/runtime".to_owned(),
+            ],
+        );
         helpers::remove_temp_repo(&repo_root);
         assert_eq!(
             actual_codes, test_case.expected_violation_codes,

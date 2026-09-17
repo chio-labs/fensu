@@ -1,11 +1,13 @@
 //! Resolve configuration and discover the sources a check will evaluate.
 
+use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use walkdir::WalkDir;
 
+use crate::analyzer::AnalyzerId;
 use crate::catalogue::main::rule_catalogue::configured_rule_catalogue;
 use crate::check::_helpers::options::use_color;
 use crate::check::_helpers::policy::{
@@ -19,9 +21,11 @@ use crate::configuration::main::load_targets;
 use crate::configuration::main::resolve_target_root::resolve_target_root;
 use crate::configuration::main::validate_exception_targets::validate_exception_targets;
 use crate::constants::CUSTOM_RULE_TEST_COVERAGE_CODE;
-use crate::constants::{PYTHON_CACHE_DIRECTORY, SCOPE_TEST};
-use crate::models::{CheckOptions, Config, ScopedSource, SourcePurpose};
+use crate::constants::{CURRENT_PATH, PYTHON_CACHE_DIRECTORY, SCOPE_ROOT, SCOPE_TEST};
+use crate::models::{CheckOptions, Config, ResolvedOwnershipRoot, ScopedSource, SourcePurpose};
 use crate::repository_io::main::relative_path::relative_path;
+
+include!("preparation_ownership.inc");
 
 pub(crate) fn prepare_checks(
     options: &CheckOptions,
@@ -65,6 +69,7 @@ pub(crate) fn prepare_checks(
         validate_exception_codes(&config)?;
         validate_scope_roots(&project_root, &config)?;
         validate_exception_targets(&config, &project_root)?;
+        config.resolved_ownership_roots = resolve_ownership_roots(&project_root, &config)?;
         let discovered = discover(&root, &project_root, &config)?;
         let (sources, excluded) = select_sources(discovered, &config);
         let mut project_inputs = match config.analyzer {
@@ -306,18 +311,27 @@ fn discover(
             } else {
                 scope
             };
+            let effective_ownership_root = (source_scope == SCOPE_ROOT)
+                .then(|| effective_ownership_root(&target_path, config))
+                .flatten();
             sources.push(ScopedSource {
                 analyzer: config.analyzer,
                 target_identity: config.target.clone().unwrap_or_default(),
                 parser_contract: config.analyzer.parser_contract(),
                 path,
                 repository_path,
-                target_path,
+                target_path: target_path.clone(),
                 test_owner_path: None,
                 root: source_root.clone(),
                 root_text: configured_root.clone(),
                 scope: source_scope.to_owned(),
                 relative_parts,
+                ownership_root: effective_ownership_root.map(|root| root.path.clone()),
+                ownership_root_declaration: effective_ownership_root
+                    .map(|root| root.declaration.clone()),
+                ownership_relative_parts: effective_ownership_root.map_or_else(Vec::new, |root| {
+                    ownership_relative_parts(&target_path, &root.path)
+                }),
                 fingerprint: hex_digest(&content),
                 content,
                 purpose,
@@ -341,7 +355,43 @@ fn discover(
     if config.test_layout == crate::models::TestLayout::Colocated {
         assign_colocated_test_owners(&mut sources, config);
     }
+    assign_mirrored_test_owners(&mut sources, config);
     Ok(sources)
+}
+
+fn assign_mirrored_test_owners(sources: &mut [ScopedSource], config: &Config) {
+    for source in sources
+        .iter_mut()
+        .filter(|source| source.scope == SCOPE_TEST)
+    {
+        if source.test_owner_path.is_none() {
+            source.test_owner_path = projected_runtime_path(&source.target_path, &config.roots);
+        }
+        let Some(owner_path) = source.test_owner_path.as_deref() else {
+            continue;
+        };
+        let Some(root) = effective_ownership_root(owner_path, config) else {
+            continue;
+        };
+        source.ownership_root = Some(root.path.clone());
+        source.ownership_root_declaration = Some(root.declaration.clone());
+        source.ownership_relative_parts = ownership_relative_parts(owner_path, &root.path);
+    }
+}
+
+fn projected_runtime_path(path: &str, runtime_roots: &[String]) -> Option<String> {
+    let parts = path.split('/').collect::<Vec<_>>();
+    let mut projected: Vec<String> = Vec::new();
+    for root in runtime_roots {
+        let root_parts = root.split('/').collect::<Vec<_>>();
+        for (index, window) in parts.windows(root_parts.len()).enumerate() {
+            if window == root_parts {
+                projected.push(parts[index..].join("/"));
+                break;
+            }
+        }
+    }
+    projected.into_iter().max_by_key(String::len)
 }
 
 fn rust_project_inputs(

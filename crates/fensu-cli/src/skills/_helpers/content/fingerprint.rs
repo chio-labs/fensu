@@ -289,7 +289,7 @@ fn config_value(config: &Config) -> Value {
         "ui_kit": config.ui_kit,
         "shadcn": config.shadcn,
         "openapi": config.openapi,
-        "ownership_depth": config.ownership_depth.max(2),
+        "ownership_roots": config.ownership_roots,
         "role_thresholds": role_thresholds,
         "threshold_overrides": config.threshold_overrides.iter().map(|item| {
             let values = item.thresholds.iter().map(|(key, value)| (key.clone(), json!(value))).collect::<BTreeMap<_, _>>();

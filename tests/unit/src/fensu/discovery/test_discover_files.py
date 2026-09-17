@@ -17,6 +17,7 @@ from tests.unit.src.fensu.discovery._test_types import (
     DiscoveryFilesTestCase,
     LayoutConfigErrorTestCase,
     MissingRootTestCase,
+    OwnershipRootErrorTestCase,
     ScopedRelativePartsTestCase,
     SymlinkDiscoveryTestCase,
 )
@@ -310,6 +311,54 @@ def test_given_ambiguous_or_external_layout_when_discovering_then_reports_config
         discover_files(
             config=layout_error_config(test_case=test_case, external_root=external_root),
             repo_root=repo_root,
+        )
+
+    assert test_case.expected_error_fragment in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        OwnershipRootErrorTestCase(
+            description="ownership roots cannot cross a role directory",
+            ownership_roots=("src/pkg/main/runtime",),
+            directories=("src/pkg/main/runtime",),
+            expected_error_fragment="crosses a role directory",
+        ),
+        OwnershipRootErrorTestCase(
+            description="ownership roots must contain analyzable files",
+            ownership_roots=("src/pkg/runtime",),
+            directories=("src/pkg/runtime",),
+            expected_error_fragment="contains no Python files",
+        ),
+        OwnershipRootErrorTestCase(
+            description="shadowed ownership roots are rejected as unused",
+            ownership_roots=("src/pkg", "src/pkg/runtime"),
+            directories=("src/pkg/runtime",),
+            files=("src/pkg/runtime/orders/main/run.py",),
+            expected_error_fragment="ownership root is unused",
+        ),
+        OwnershipRootErrorTestCase(
+            description="shadowed ownership root declarations are rejected as unused",
+            ownership_roots=("src/pkg/*", "src/pkg/runtime"),
+            directories=("src/pkg/runtime",),
+            files=("src/pkg/runtime/orders/main/run.py",),
+            expected_error_fragment="ownership root declaration is unused",
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_structurally_invalid_ownership_root_when_discovering_then_reports_config_error(
+    tmp_path: Path, test_case: OwnershipRootErrorTestCase
+) -> None:
+    for directory in test_case.directories:
+        (tmp_path / directory).mkdir(parents=True)
+    write_python_files(root=tmp_path, relative_paths=test_case.files)
+
+    with pytest.raises(ConfigError) as error:
+        discover_files(
+            config=make_config(ownership_roots=test_case.ownership_roots),
+            repo_root=tmp_path,
         )
 
     assert test_case.expected_error_fragment in str(error.value)

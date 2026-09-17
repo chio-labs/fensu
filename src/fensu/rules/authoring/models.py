@@ -193,6 +193,9 @@ class FilePosition:
     role_depth: int | None
     is_entry_module: bool
     is_main_module: bool
+    ownership_root: ProjectPath | None = None
+    ownership_root_declaration: str | None = None
+    ownership_relative_parts: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -334,6 +337,7 @@ class ModuleNode:
     domain_parts: tuple[str, ...]
     role: str | None
     visibility: ModuleVisibility
+    ownership_root: ProjectPath | None = None
 
 
 @dataclass(frozen=True, slots=True, order=True)

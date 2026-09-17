@@ -213,16 +213,16 @@ fn write_missing_integration_harnesses(root: &path::Path) {
 }
 
 pub(crate) fn collect_violation_codes(repo_root: &path::Path) -> Vec<&'static str> {
-    collect_violation_codes_with_ownership_depth(repo_root, 2)
+    collect_violation_codes_with_ownership_roots(repo_root, Vec::new())
 }
 
-pub(crate) fn collect_violation_codes_with_ownership_depth(
+pub(crate) fn collect_violation_codes_with_ownership_roots(
     repo_root: &path::Path,
-    ownership_depth: usize,
+    ownership_roots: Vec<String>,
 ) -> Vec<&'static str> {
     let defaults = fensu_rust::models::RustPolicy::default();
     let policy = fensu_rust::models::RustPolicy {
-        ownership_depth,
+        ownership_roots,
         tooling: fensu_rust::models::ToolingConfig {
             paths: vec!["crates/example-tooling".to_owned()],
             runtime_forbidden_packages: vec!["example-tooling".to_owned()],

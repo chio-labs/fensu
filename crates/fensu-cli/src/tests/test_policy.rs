@@ -5,13 +5,14 @@ use crate::configuration::main::expand_path_pattern::expand_path_pattern;
 use crate::configuration::main::resolve_target_root::resolve_target_root;
 use crate::mapping::_helpers::cache::generation;
 use crate::mapping::models::SourceSnapshot;
-use crate::models::Config;
+use crate::models::{Config, ResolvedOwnershipRoot};
 use crate::repository_io::main::relative_path::relative_path;
 use crate::tests::test_types::{
     CacheIdentityFramingTestCase, EscapingSymlinkTargetTestCase, MapCacheIdentityTestCase,
     MissingSuffixSymlinkTargetTestCase, PathExpansionTestCase, PathMatchTestCase,
-    TargetRootRepresentationTestCase, WebTestLayoutIdentityTestCase,
-    WindowsFilesystemContainmentTestCase, WindowsPathContainmentTestCase,
+    ResolvedOwnershipRootsIdentityTestCase, TargetRootRepresentationTestCase,
+    WebTestLayoutIdentityTestCase, WindowsFilesystemContainmentTestCase,
+    WindowsPathContainmentTestCase,
 };
 
 #[cfg(windows)]
@@ -318,11 +319,11 @@ fn given_web_test_layout_change_when_fingerprinting_then_check_identity_changes(
 }
 
 #[test]
-fn given_ownership_depth_change_when_fingerprinting_then_check_identity_changes() {
-    let test_cases = [crate::tests::test_types::OwnershipDepthIdentityTestCase {
-        description: "default and grouped ownership layouts have distinct identities",
-        first_depth: 2,
-        second_depth: 3,
+fn given_ownership_roots_change_when_fingerprinting_then_check_identity_changes() {
+    let test_cases = [crate::tests::test_types::OwnershipRootsIdentityTestCase {
+        description: "implicit and scoped ownership layouts have distinct identities",
+        first_roots: &[],
+        second_roots: &["src/lib/sources/*", "src/lib/runtime"],
         expected_equal: false,
     }];
     let repository = tempfile::tempdir().expect("cache identity repository");
@@ -330,12 +331,70 @@ fn given_ownership_depth_change_when_fingerprinting_then_check_identity_changes(
         let first = Config {
             analyzer: AnalyzerId::Python,
             target: Some("app".to_owned()),
-            ownership_depth: test_case.first_depth,
+            ownership_roots: test_case
+                .first_roots
+                .iter()
+                .map(|root| (*root).to_owned())
+                .collect(),
             raw: b"same config source".to_vec(),
             ..Config::default()
         };
         let second = Config {
-            ownership_depth: test_case.second_depth,
+            ownership_roots: test_case
+                .second_roots
+                .iter()
+                .map(|root| (*root).to_owned())
+                .collect(),
+            ..first.clone()
+        };
+        let identity = |config| {
+            check_identity(CheckIdentityRequest {
+                root: repository.path(),
+                project_root: repository.path(),
+                config,
+                sources: &[],
+                project_inputs: &[],
+                warnings: false,
+            })
+            .expect("check identity")
+        };
+
+        assert_eq!(
+            identity(&first) == identity(&second),
+            test_case.expected_equal,
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_resolved_ownership_roots_change_when_fingerprinting_then_check_identity_changes() {
+    let test_cases = [ResolvedOwnershipRootsIdentityTestCase {
+        description: "wildcard expansion participates in check identity",
+        first_path: "src/lib/sources/region_a",
+        second_path: "src/lib/sources/region_b",
+        expected_equal: false,
+    }];
+    let repository = tempfile::tempdir().expect("cache identity repository");
+    for test_case in test_cases {
+        let configured = vec!["src/lib/sources/*".to_owned()];
+        let first = Config {
+            analyzer: AnalyzerId::TypeScript,
+            target: Some("web".to_owned()),
+            ownership_roots: configured.clone(),
+            resolved_ownership_roots: vec![ResolvedOwnershipRoot {
+                path: test_case.first_path.to_owned(),
+                declaration: "ownership_roots[0] (src/lib/sources/*)".to_owned(),
+            }],
+            raw: b"same config source".to_vec(),
+            ..Config::default()
+        };
+        let second = Config {
+            resolved_ownership_roots: vec![ResolvedOwnershipRoot {
+                path: test_case.second_path.to_owned(),
+                declaration: "ownership_roots[0] (src/lib/sources/*)".to_owned(),
+            }],
             ..first.clone()
         };
         let identity = |config| {

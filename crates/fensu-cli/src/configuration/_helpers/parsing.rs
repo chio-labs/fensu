@@ -6,7 +6,6 @@ use crate::configuration::constants::{
     DEFAULT_SELECT, DEFAULT_TEST_PATHS, DEFAULT_TEST_SCOPES, DEFAULT_THRESHOLDS, DEFAULT_WARN,
     WEB_DEFAULT_CONTRACTS,
 };
-use crate::constants::DEFAULT_OWNERSHIP_DEPTH;
 use crate::models::{
     Config, RepositoryRulePolicy, RuleException, RuleIgnore, TargetSelection, TestLayout,
     ThresholdOverride,
@@ -36,11 +35,8 @@ pub(crate) fn build(
         target: selection.target,
         target_root: selection.root,
         roots,
-        ownership_depth: table
-            .get(crate::constants::OWNERSHIP_DEPTH_CONFIG_KEY)
-            .and_then(toml::Value::as_integer)
-            .map(|value| value as usize)
-            .unwrap_or(DEFAULT_OWNERSHIP_DEPTH),
+        ownership_roots: strings(table.get(crate::constants::OWNERSHIP_ROOTS_CONFIG_KEY)),
+        resolved_ownership_roots: Vec::new(),
         tests: strings_or(table.get("tests"), DEFAULT_TEST_PATHS),
         test_scopes: strings_or(table.get("test_scopes"), DEFAULT_TEST_SCOPES),
         test_layout: match table.get("test_layout").and_then(toml::Value::as_str) {

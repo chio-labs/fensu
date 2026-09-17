@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import NoReturn, cast
 
 from fensu.analysis.models import SourceLocation
-from fensu.config.constants import MINIMUM_OWNERSHIP_DEPTH
 from fensu.config.types import AnalyzerId
 from fensu.evaluation.classes.repository_dependency_observer import (
     RepositoryDependencyObserver,
@@ -245,7 +244,9 @@ def build_repository_rule_target(*, payload: object) -> RepositoryRuleTargetView
     analyzer: AnalyzerId = AnalyzerId(_string(value=value["analyzer"], name="target analyzer"))
     root_text: str = _string(value=value["root"], name="target root")
     root: ProjectPath = project_root_path() if root_text == PROJECT_ROOT else ProjectPath(root_text)
-    ownership_depth: int = _ownership_depth(value["ownership_depth"])
+    ownership_roots: tuple[str, ...] = _string_sequence(
+        value=value["ownership_roots"], name="target ownership roots"
+    )
     identity: Target = Target(name=name, analyzer=analyzer, root=root)
     if analyzer is AnalyzerId.PYTHON:
         python, tree, graph = build_python_repository_facts(
@@ -260,7 +261,7 @@ def build_repository_rule_target(*, payload: object) -> RepositoryRuleTargetView
         tree, selected = build_rust_project_tree(
             subjects=value["subjects"],
             workspace=workspace,
-            ownership_depth=ownership_depth,
+            ownership_roots=ownership_roots,
         )
         workspace = select_rust_workspace_facts(workspace=workspace, files=selected)
         return RepositoryRuleTargetView(
@@ -275,14 +276,15 @@ def build_repository_rule_target(*, payload: object) -> RepositoryRuleTargetView
     tree: ProjectTree = build_web_project_tree(
         subjects=value["subjects"],
         workspace=workspace,
-        ownership_depth=ownership_depth,
+        ownership_roots=ownership_roots,
     )
     return RepositoryRuleTargetView(
         identity=identity,
         tree=tree,
         graph=build_web_architecture_graph(
             workspace=workspace,
-            ownership_depth=ownership_depth,
+            ownership_roots=ownership_roots,
+            subjects=value["subjects"],
         ),
         python=None,
         rust=None,
@@ -308,6 +310,7 @@ def _rust_graph(*, tree: ProjectTree, workspace: RustWorkspaceFacts) -> Architec
                 domain_parts=position.domain_parts,
                 role=position.role,
                 visibility=ModuleVisibility.PUBLIC,
+                ownership_root=position.ownership_root,
             )
         )
     by_path: dict[ProjectPath, ModuleNode] = {item.file.path: item for item in nodes}
@@ -359,9 +362,7 @@ def _string(*, value: object, name: str) -> str:
     return value
 
 
-def _ownership_depth(value: object) -> int:
-    if isinstance(value, bool) or not isinstance(value, int) or value < MINIMUM_OWNERSHIP_DEPTH:
-        raise RepositoryRuleError(
-            f"Repository target ownership depth must be at least {MINIMUM_OWNERSHIP_DEPTH}"
-        )
-    return value
+def _string_sequence(*, value: object, name: str) -> tuple[str, ...]:
+    if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+        raise RepositoryRuleError(f"Repository {name} must be an array of strings")
+    return tuple(cast("list[str]", value))

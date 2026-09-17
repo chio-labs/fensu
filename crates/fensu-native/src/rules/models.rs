@@ -11,7 +11,8 @@ pub struct NativeExecutionTarget {
     pub root: String,
     pub relative_parts: Vec<String>,
     pub direct: bool,
-    pub ownership_depth: usize,
+    pub ownership_root: Option<String>,
+    pub ownership_offset: Option<usize>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -67,12 +68,25 @@ impl NativeProjectModule {
         module_parts: Vec<String>,
         program: ProgramHandle,
     ) -> Self {
+        let ownership_root = module_parts.first().cloned();
         Self {
             path,
             scope,
             module_parts,
             program,
+            ownership_start: Some(1),
+            ownership_root,
         }
+    }
+
+    pub fn with_ownership(
+        mut self,
+        ownership_start: Option<usize>,
+        ownership_root: Option<String>,
+    ) -> Self {
+        self.ownership_start = ownership_start;
+        self.ownership_root = ownership_root;
+        self
     }
 }
 
@@ -99,7 +113,9 @@ pub struct NativeRuleContext {
     pub tooling_packages: Vec<String>,
     pub scope_roots: Vec<(String, String)>,
     pub test_scopes: Vec<String>,
-    pub ownership_depth: usize,
+    pub ownership_root: Option<String>,
+    pub ownership_roots: Vec<String>,
+    pub ownership_offset: Option<usize>,
     pub observations: HashMap<String, Vec<String>>,
     pub custom_registrations: Vec<(String, String, String, String, u32, u32)>,
     pub repo_root: String,
@@ -121,7 +137,9 @@ impl Default for NativeRuleContext {
             tooling_packages: Vec::new(),
             scope_roots: Vec::new(),
             test_scopes: Vec::new(),
-            ownership_depth: 2,
+            ownership_root: None,
+            ownership_roots: Vec::new(),
+            ownership_offset: Some(0),
             observations: HashMap::new(),
             custom_registrations: Vec::new(),
             repo_root: String::new(),
@@ -131,8 +149,8 @@ impl Default for NativeRuleContext {
 }
 
 impl NativeRuleContext {
-    pub fn grouping_depth(&self) -> usize {
-        self.ownership_depth.saturating_sub(2)
+    pub fn ownership_offset(&self) -> Option<usize> {
+        self.ownership_offset
     }
 
     pub fn observation(&self, query: &NativeProjectQuery) -> &[String] {
@@ -156,6 +174,8 @@ pub struct NativeProjectModule {
     pub scope: String,
     pub module_parts: Vec<String>,
     pub program: ProgramHandle,
+    pub ownership_start: Option<usize>,
+    pub ownership_root: Option<String>,
 }
 
 #[derive(Clone, Debug, Default)]

@@ -10,6 +10,7 @@ class ImportOwnership(NamedTuple):
     """Structural ownership facts for one imported module path."""
 
     package: str | None
+    ownership_root: tuple[str, ...]
     owner: tuple[str, ...]
     domain: str | None
     role: str | None

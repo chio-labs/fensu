@@ -84,5 +84,5 @@ def _rule(
         execution_owner=execution_owner,
         thresholds=get_role_rule_thresholds(code),
         constraints=get_role_rule_constraints(code),
-        configuration_inputs=("ownership_depth",) if code in ownership_codes else (),
+        configuration_inputs=("ownership_roots",) if code in ownership_codes else (),
     )

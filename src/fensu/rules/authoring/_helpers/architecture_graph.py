@@ -152,6 +152,7 @@ def node_value(node: ModuleNode) -> dict[str, object]:
         "analyzer": node.analyzer.value,
         "domain_parts": list(node.domain_parts),
         "module": node.module,
+        "ownership_root": None if node.ownership_root is None else node.ownership_root.value,
         "package": node.package,
         "path": node.file.path.value,
         "role": node.role,

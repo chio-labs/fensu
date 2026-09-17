@@ -510,8 +510,20 @@ class RuleContext(Protocol):
         """The current file's path parts relative to its matched scope root."""
         ...
 
-    def ownership_depth(self) -> int:
-        """The configured ownership depth for the current target."""
+    def ownership_root(self) -> Path | None:
+        """The effective production ownership root for the current file."""
+        ...
+
+    def ownership_roots(self) -> tuple[Path, ...]:
+        """All concrete production ownership roots for the target."""
+        ...
+
+    def ownership_relative_parts(self) -> tuple[str, ...]:
+        """The current path parts below its effective ownership root."""
+        ...
+
+    def ownership_root_declaration(self) -> str | None:
+        """The configuration declaration that selected the ownership root."""
         ...
 
     def repo_relative_parts(self) -> tuple[str, ...]:

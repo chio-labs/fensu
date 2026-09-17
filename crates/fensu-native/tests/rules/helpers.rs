@@ -112,6 +112,18 @@ fn evaluate_fixture(test_case: &CoreRuleFixture) -> Vec<ExpectedFault> {
         .collect();
     let project = NativeProjectPlane::new(modules, test_case.entrypoint_modules.clone());
     let repo_root = repository.path().to_string_lossy().replace('\\', "/");
+    let ownership_root = test_case
+        .context
+        .scope_roots
+        .iter()
+        .find(|(scope, _)| scope == &test_case.context.scope)
+        .map(|(_, root)| format!("{repo_root}/{root}"));
+    let ownership_roots = test_case
+        .context
+        .scope_roots
+        .iter()
+        .map(|(_, root)| format!("{repo_root}/{root}"))
+        .collect();
     let context = NativeRuleContext {
         scope: test_case.context.scope.clone(),
         role: test_case.context.role.clone(),
@@ -143,7 +155,9 @@ fn evaluate_fixture(test_case: &CoreRuleFixture) -> Vec<ExpectedFault> {
             .collect(),
         repo_root,
         rule_options: HashMap::new(),
-        ownership_depth: 2,
+        ownership_root: ownership_root.clone(),
+        ownership_roots,
+        ownership_offset: Some(0),
     };
 
     evaluate_core_rules(&program, &test_case.codes, &context, &project)

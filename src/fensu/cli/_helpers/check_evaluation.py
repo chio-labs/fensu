@@ -55,6 +55,10 @@ def evaluated_check(
                 repo_root=project_dir,
                 custom_rule_root=target_dir,
                 warnings_enabled=warn,
+                resolved_ownership_roots=tuple(
+                    root.path.relative_to(project_dir).as_posix()
+                    for root in tree.layout.ownership_roots
+                ),
             ),
         )
         if config.cache.enabled

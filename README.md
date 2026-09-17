@@ -132,6 +132,8 @@ See [Rust analyzer configuration](docs/rust.md) for rule options and tooling bou
 
 ## Default Structure
 
+The default architecture follows SQLBuild Compiler Rules v0.101.1.
+
 Product code uses domain, optional subdomain, then role. Every leaf domain or
 subdomain owns meaningful behavior through a direct `main/` containing at least one
 entry module. Branch-domain parents do not need their own `main/`; their leaf
@@ -170,31 +172,41 @@ such as `_helpers/entry/models.py`.
 Direct `scripts/*.py` files are thin command adapters. Supporting logic belongs
 under `scripts/<tool>/<role>/`.
 
-Targets may add uniform structural grouping levels above domain ownership. The default
-`ownership_depth = 2` means domain plus optional subdomain. Increasing the value makes every
-earlier level mandatory while preserving the final domain/subdomain slots:
+Targets may declare path-scoped ownership roots when domains begin at different physical depths.
+The first package below each matched ownership root is a domain; the next non-role package is its
+optional subdomain. Without this setting, each Python source root, Cargo source root, or web
+`lib/` directory is the ownership root:
 
 ```toml
 [targets.app]
 analyzer = "python"
 roots = ["src/example"]
-ownership_depth = 3
+ownership_roots = [
+  "src/example/sources/*",
+  "src/example/runtime",
+]
 ```
 
 ```text
 src/example/
 ├── sources/
-│   ├── orders/main/process.py
-│   └── partners/importing/main/load.py
-└── platform/
+│   ├── region_a/
+│   │   ├── orders/main/process.py
+│   │   └── partners/importing/main/load.py
+│   └── region_b/
+│       └── inventory/main/refresh.py
+└── runtime/
+    ├── scraping/main/collect.py
     └── observability/main/report.py
 ```
 
-Here `sources/` and `platform/` are structural groups, `orders`, `partners`, and
-`observability` are domains, and `importing` is a subdomain. Every runtime owner must use the
-configured grouping depth. Structural groups cannot contain role files or role directories
-directly. Rust applies the same shape below each Cargo source root, while TypeScript and Svelte
-apply it below `lib/`.
+Here each directory matched by `sources/*` and the explicit `runtime/` directory establishes an
+ownership root. `orders`, `partners`, `inventory`, `scraping`, and `observability` are domains;
+`importing` is a subdomain. The most-specific matching ownership root wins. Structural directories
+above and including an ownership root cannot contain role files or role directories directly.
+Mirrored tests inherit the production ownership root they cover. Rust, TypeScript, and Svelte use
+the same path-scoped model. Declarations must resolve beneath a configured runtime source, select
+analyzable files, and own at least one effective path after more-specific matches are applied.
 
 ## Core Commands
 

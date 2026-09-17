@@ -1,9 +1,7 @@
 //! Rust rule thresholds, names, and analyzer contract identities.
 
 pub const PARSER_CONTRACT_VERSION: &str = "rust-syn-workspace-v1";
-pub const CACHE_CONTRACT_VERSION: &str = "rust-rules-v5";
-pub(crate) const DEFAULT_OWNERSHIP_DEPTH: usize = 2;
-pub(crate) const MINIMUM_OWNERSHIP_DEPTH: usize = 2;
+pub const CACHE_CONTRACT_VERSION: &str = "rust-rules-v6";
 pub const FACT_SCHEMA_VERSION: &str = "rust-facts-v1";
 pub const METADATA_SETUP_CODE: &str = "RSL901";
 pub(crate) const CRATE_PATH_ROOT: &str = "crate";

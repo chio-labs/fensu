@@ -10,7 +10,15 @@ use crate::extension::constants::RECURSIVE_GLOB;
 use crate::rules::main::plan_execution_owners::plan_execution_owners;
 use crate::rules::models::{NativeExecutionRule, NativeExecutionTarget};
 
-type TargetTuple = (String, String, String, Vec<String>, bool, usize);
+type TargetTuple = (
+    String,
+    String,
+    String,
+    Vec<String>,
+    bool,
+    Option<String>,
+    Option<usize>,
+);
 type RuleTuple = (String, String, String);
 type PlannedTargetTuple = (Vec<String>, Vec<(String, String)>);
 
@@ -58,14 +66,23 @@ pub(crate) fn plan_native_execution_owners(
     let native_targets: Vec<NativeExecutionTarget> = targets
         .into_iter()
         .map(
-            |(repository_path, scope, root, relative_parts, direct, ownership_depth)| {
+            |(
+                repository_path,
+                scope,
+                root,
+                relative_parts,
+                direct,
+                ownership_root,
+                ownership_offset,
+            )| {
                 NativeExecutionTarget {
                     repository_path,
                     scope,
                     root,
                     relative_parts,
                     direct,
-                    ownership_depth,
+                    ownership_root,
+                    ownership_offset,
                 }
             },
         )

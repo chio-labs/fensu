@@ -7,6 +7,7 @@ from fensu.rules.exemplars._helpers.import_ownership import (
     is_public,
     normalized_targets,
     ownership,
+    ownership_start,
     target_initializer,
 )
 from fensu.rules.exemplars.types import ExemplarLayerPathName, ImportOwnership
@@ -26,7 +27,7 @@ def no_sibling_package_internals_equivalent(*, module: ast.Module, ctx: RuleCont
     current: ImportOwnership = ownership(
         parts=ctx.module_parts(),
         initializer=ctx.path.name == ExemplarLayerPathName.INIT,
-        ownership_depth=ctx.ownership_depth(),
+        owner_start=ownership_start(ctx=ctx, parts=ctx.module_parts()),
     )
     faults: list[Fault] = []
     for fact in ctx.facts.references().imports:
@@ -38,7 +39,7 @@ def no_sibling_package_internals_equivalent(*, module: ast.Module, ctx: RuleCont
             target: ImportOwnership = ownership(
                 parts=parts,
                 initializer=target_initializer(ctx=ctx, parts=parts),
-                ownership_depth=ctx.ownership_depth(),
+                owner_start=ownership_start(ctx=ctx, parts=parts),
             )
             if (
                 current.package == target.package

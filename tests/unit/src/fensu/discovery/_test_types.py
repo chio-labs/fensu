@@ -52,6 +52,17 @@ class ScopedRelativePartsTestCase:
 
 
 @dataclass(frozen=True)
+class OwnershipRootErrorTestCase:
+    """Invalid ownership-root declaration and its expected error."""
+
+    description: str
+    ownership_roots: tuple[str, ...]
+    directories: tuple[str, ...]
+    expected_error_fragment: str
+    files: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class PositionFactTestCase:
     """A file path and the expected position facts."""
 
@@ -61,7 +72,19 @@ class PositionFactTestCase:
     expected_domain: str | None
     expected_subdomain: str | None
     expected_role: str | None
-    ownership_depth: int = 2
+    ownership_roots: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class MixedOwnershipRootTestCase:
+    """Mixed-depth ownership paths and expected resolved positions."""
+
+    description: str
+    ownership_roots: tuple[str, ...]
+    expected_partner_owner: str
+    expected_runtime_owner: str
+    expected_partner_declaration: str
+    expected_runtime_declaration: str
 
 
 @dataclass(frozen=True)

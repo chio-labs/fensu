@@ -152,6 +152,9 @@ pub(crate) struct CustomRuleSubject {
     pub(crate) scope: String,
     pub(crate) scope_root: String,
     pub(crate) relative_parts: Vec<String>,
+    pub(crate) ownership_root: Option<String>,
+    pub(crate) ownership_root_declaration: Option<String>,
+    pub(crate) ownership_relative_parts: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -160,7 +163,7 @@ pub(crate) struct RepositoryTargetPayload {
     pub(crate) name: String,
     pub(crate) analyzer: AnalyzerId,
     pub(crate) root: String,
-    pub(crate) ownership_depth: usize,
+    pub(crate) ownership_roots: Vec<String>,
     pub(crate) facts: serde_json::Value,
     pub(crate) subjects: Vec<CustomRuleSubject>,
 }

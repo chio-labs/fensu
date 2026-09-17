@@ -9,12 +9,12 @@ from fensu.rules.authoring.models import ProjectPath, ProjectTree, RustFileFacts
 
 
 def build_rust_project_tree(
-    *, subjects: object, workspace: RustWorkspaceFacts, ownership_depth: int = 2
+    *, subjects: object, workspace: RustWorkspaceFacts, ownership_roots: tuple[str, ...] = ()
 ) -> tuple[ProjectTree, Mapping[ProjectPath, RustFileFacts]]:
     """Build the common project tree and selected-file fact index."""
 
     return rust_project_tree(
         subjects=subjects,
         workspace=workspace,
-        ownership_depth=ownership_depth,
+        ownership_roots=ownership_roots,
     )

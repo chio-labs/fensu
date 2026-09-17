@@ -80,7 +80,7 @@ fn given_root_and_main_boundary_modules_when_checking_then_visibility_and_placem
         },
         WebBoundaryRuleTestCase {
             description: "a configured group is excluded from web domain ownership",
-            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nownership_depth = 3\nselect = [\"FPTSL108\"]\n",
+            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nownership_roots = [\"src/lib/sources\"]\nselect = [\"FPTSL108\"]\n",
             files: &[
                 (
                     "src/lib/sources/orders/main/_calculate.ts",
@@ -96,7 +96,7 @@ fn given_root_and_main_boundary_modules_when_checking_then_visibility_and_placem
         },
         WebBoundaryRuleTestCase {
             description: "a structural web group cannot contain main directly",
-            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nownership_depth = 3\nselect = [\"FPTSR306\"]\n",
+            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nownership_roots = [\"src/lib/sources\"]\nselect = [\"FPTSR306\"]\n",
             files: &[(
                 "src/lib/sources/main/run.ts",
                 "export function run(): number { return 1; }\n",
@@ -106,7 +106,7 @@ fn given_root_and_main_boundary_modules_when_checking_then_visibility_and_placem
         },
         WebBoundaryRuleTestCase {
             description: "same-named domains in sibling groups retain separate physical leaves",
-            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nownership_depth = 3\nselect = [\"FPTSR309\"]\n",
+            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nownership_roots = [\"src/lib/sources\", \"src/lib/platform\"]\nselect = [\"FPTSR309\"]\n",
             files: &[
                 (
                     "src/lib/sources/orders/main/process.ts",
@@ -122,13 +122,45 @@ fn given_root_and_main_boundary_modules_when_checking_then_visibility_and_placem
         },
         WebBoundaryRuleTestCase {
             description: "web ownership cannot nest below the grouped subdomain slot",
-            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nownership_depth = 3\nselect = [\"FPTSR306\"]\n",
+            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nownership_roots = [\"src/lib/sources\"]\nselect = [\"FPTSR306\"]\n",
             files: &[(
                 "src/lib/sources/orders/importing/extra/models.ts",
                 "export interface Order { id: string; }\n",
             )],
             expected_exit_code: 1,
             expected_present: Some("FPTSR306"),
+        },
+        WebBoundaryRuleTestCase {
+            description: "source and runtime ownership roots classify domains at different depths",
+            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nownership_roots = [\"src/lib/sources/*\", \"src/lib/runtime\"]\nselect = [\"FPTSL108\"]\n",
+            files: &[
+                (
+                    "src/lib/sources/region_a/orders/main/_calculate.ts",
+                    "export function calculate(): number { return 1; }\n",
+                ),
+                (
+                    "src/lib/runtime/scraping/main/run.ts",
+                    "import { calculate } from '../../../sources/region_a/orders/main/_calculate';\nexport function run(): number { return calculate(); }\n",
+                ),
+            ],
+            expected_exit_code: 1,
+            expected_present: Some("FPTSL108"),
+        },
+        WebBoundaryRuleTestCase {
+            description: "single-component ownership roots remain target-relative and anchored",
+            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\"]\nroots = [\"src\"]\nownership_roots = [\"src\"]\ntests = []\ntooling = []\nselect = [\"FPTSR309\"]\n",
+            files: &[
+                (
+                    "src/orders/main/run.ts",
+                    "export function run(): number { return 1; }\n",
+                ),
+                (
+                    "tests/unit/src/unrelated.ts",
+                    "export const unrelated: number = 1;\n",
+                ),
+            ],
+            expected_exit_code: 0,
+            expected_present: None,
         },
     ];
     for test_case in test_cases {

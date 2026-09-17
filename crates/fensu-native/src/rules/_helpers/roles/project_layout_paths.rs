@@ -44,7 +44,7 @@ pub(crate) fn role_package(context: &NativeRuleContext, role: &str) -> Option<Pa
 }
 
 pub(crate) fn domain_dir(context: &NativeRuleContext) -> Option<PathBuf> {
-    let index = context.grouping_depth();
+    let index = context.ownership_offset()?;
     context
         .relative_parts
         .get(index)
@@ -53,7 +53,7 @@ pub(crate) fn domain_dir(context: &NativeRuleContext) -> Option<PathBuf> {
 }
 
 pub(crate) fn leaf_dir(context: &NativeRuleContext) -> Option<PathBuf> {
-    let domain_index = context.grouping_depth();
+    let domain_index = context.ownership_offset()?;
     let subdomain_index = domain_index + 1;
     if context.scope != ROOT_SCOPE || context.relative_parts.len() <= domain_index + 1 {
         return None;
@@ -70,49 +70,52 @@ pub(crate) fn leaf_dir(context: &NativeRuleContext) -> Option<PathBuf> {
 }
 
 pub(crate) fn ownership_root(context: &NativeRuleContext) -> PathBuf {
-    scope_root(context).join(
-        context.relative_parts[..context.grouping_depth().min(context.relative_parts.len())]
-            .iter()
-            .collect::<PathBuf>(),
-    )
+    context
+        .ownership_root
+        .as_ref()
+        .map(PathBuf::from)
+        .unwrap_or_else(|| scope_root(context))
 }
 
 pub(crate) fn ownership_roots(context: &NativeRuleContext) -> Vec<PathBuf> {
-    let mut roots = vec![scope_root(context)];
-    for _ in 0..context.grouping_depth() {
-        roots = roots
-            .into_iter()
-            .flat_map(|root| directory_entries(&root))
-            .filter(|entry| {
-                entry.is_dir()
-                    && !role_name(entry)
-                    && file_name(entry) != PYTHON_CACHE
-                    && !recursive_python(entry).is_empty()
-            })
-            .collect();
-    }
+    let mut roots = context
+        .ownership_roots
+        .iter()
+        .map(PathBuf::from)
+        .collect::<Vec<_>>();
     roots.sort();
+    roots.dedup();
     roots
 }
 
 pub(crate) fn grouping_roots(context: &NativeRuleContext) -> Vec<PathBuf> {
-    let mut current = vec![scope_root(context)];
     let mut groups: Vec<PathBuf> = Vec::new();
-    for _ in 0..context.grouping_depth() {
-        current = current
-            .into_iter()
-            .flat_map(|root| directory_entries(&root))
-            .filter(|entry| {
-                entry.is_dir()
-                    && !role_name(entry)
-                    && file_name(entry) != PYTHON_CACHE
-                    && !recursive_python(entry).is_empty()
-            })
-            .collect();
-        current.sort();
-        groups.extend(current.iter().cloned());
+    for root in ownership_roots(context) {
+        let Some(scope) = runtime_scope_root(context, &root) else {
+            continue;
+        };
+        let mut current = root;
+        while current != scope {
+            groups.push(current.clone());
+            let Some(parent) = current.parent() else {
+                break;
+            };
+            current = parent.to_path_buf();
+        }
     }
+    groups.sort();
+    groups.dedup();
     groups
+}
+
+fn runtime_scope_root(context: &NativeRuleContext, ownership_root: &Path) -> Option<PathBuf> {
+    context
+        .scope_roots
+        .iter()
+        .filter(|(scope, _)| scope == ROOT_SCOPE)
+        .map(|(_, root)| Path::new(&context.repo_root).join(root))
+        .filter(|root| ownership_root == root || ownership_root.starts_with(root))
+        .max_by_key(|root| root.components().count())
 }
 
 pub(crate) fn domain_roots(context: &NativeRuleContext) -> Vec<PathBuf> {

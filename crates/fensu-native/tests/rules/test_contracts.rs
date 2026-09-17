@@ -75,7 +75,8 @@ fn given_applicable_rule_without_execution_owner_when_planning_then_fails_closed
                 "main.py".to_owned(),
             ],
             direct: true,
-            ownership_depth: 2,
+            ownership_root: Some("pkg".to_owned()),
+            ownership_offset: Some(0),
         }];
         let rules = [NativeExecutionRule::new(
             test_case.code.to_owned(),
@@ -107,7 +108,8 @@ fn given_same_named_domains_in_sibling_groups_when_planning_then_each_leaf_execu
                     .map(str::to_owned)
                     .collect(),
                 direct: true,
-                ownership_depth: 3,
+                ownership_root: Some("src/example/sources".to_owned()),
+                ownership_offset: Some(1),
             },
             NativeExecutionTarget {
                 repository_path: "src/example/platform/orders/main/report.py".to_owned(),
@@ -118,7 +120,8 @@ fn given_same_named_domains_in_sibling_groups_when_planning_then_each_leaf_execu
                     .map(str::to_owned)
                     .collect(),
                 direct: true,
-                ownership_depth: 3,
+                ownership_root: Some("src/example/platform".to_owned()),
+                ownership_offset: Some(1),
             },
         ];
         let rules = [NativeExecutionRule::new(

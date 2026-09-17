@@ -20,7 +20,7 @@ from fensu.rules.testing.models import RuleCase, RuleFile
 _allowed_config_keys: frozenset[str] = frozenset(
     {
         "contracts",
-        "ownership_depth",
+        "ownership_roots",
         "roles",
         "rule_exceptions",
         "rule_ignores",

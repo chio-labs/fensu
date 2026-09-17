@@ -215,7 +215,7 @@ pub(crate) fn check_identity(request: CheckIdentityRequest<'_>) -> Result<String
         warnings,
     } = request;
     let mut digest = Sha256::new();
-    digest.update(b"fensu-native-check-v5\0");
+    digest.update(b"fensu-native-check-v6\0");
     digest.update(env!("CARGO_PKG_VERSION").as_bytes());
     digest.update(if config.identity_raw.is_empty() {
         &config.raw
@@ -238,7 +238,13 @@ pub(crate) fn check_identity(request: CheckIdentityRequest<'_>) -> Result<String
     }
     digest_text(&mut digest, config.target.as_deref().unwrap_or_default());
     digest_text(&mut digest, &config.target_root);
-    digest_text(&mut digest, &config.ownership_depth.to_string());
+    for ownership_root in &config.ownership_roots {
+        digest_text(&mut digest, ownership_root);
+    }
+    for ownership_root in &config.resolved_ownership_roots {
+        digest_text(&mut digest, &ownership_root.path);
+        digest_text(&mut digest, &ownership_root.declaration);
+    }
     if config.analyzer != crate::analyzer::AnalyzerId::Python {
         digest_text(&mut digest, &config.test_layout.to_string());
     }

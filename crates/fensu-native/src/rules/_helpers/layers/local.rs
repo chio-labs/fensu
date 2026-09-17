@@ -54,7 +54,9 @@ fn internal_public_surface_faults(
 }
 
 fn exempt_subdomain(context: &NativeRuleContext) -> bool {
-    let start = context.grouping_depth();
+    let Some(start) = context.ownership_offset() else {
+        return false;
+    };
     let Some([domain, subdomain]) = context.relative_parts.get(start..start + 2) else {
         return false;
     };

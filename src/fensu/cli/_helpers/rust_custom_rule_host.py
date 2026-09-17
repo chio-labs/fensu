@@ -14,6 +14,7 @@ from fensu.cli.constants import (
 )
 from fensu.cli.exceptions import CliCommandError
 from fensu.config.main.load_target_project_config import load_target_project_config
+from fensu.config.main.resolve_ownership_roots import resolve_ownership_roots
 from fensu.config.main.resolve_target_root import resolve_target_root
 from fensu.config.models import LoadedConfig, ResolvedTargetRoot
 from fensu.config.types import AnalyzerId
@@ -90,10 +91,16 @@ def build_rust_custom_response(*, request: object, runtime_version: str) -> dict
     )
     tree: ProjectTree
     selected_files: Mapping[ProjectPath, RustFileFacts]
+    ownership_roots: tuple[str, ...] = resolve_ownership_roots(
+        config=loaded.config, project_root=resolved.path
+    )
+    if not ownership_roots:
+        ownership_roots = tuple(sorted({fact.source_root.value for fact in workspace.files}))
+    loaded = replace(loaded, config=replace(loaded.config, ownership_roots=ownership_roots))
     tree, selected_files = build_rust_project_tree(
         subjects=payload["subjects"],
         workspace=workspace,
-        ownership_depth=loaded.config.ownership_depth,
+        ownership_roots=ownership_roots,
     )
     workspace = select_rust_workspace_facts(workspace=workspace, files=selected_files)
     selection: RuleSelection = build_check_rule_selection(

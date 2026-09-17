@@ -766,7 +766,7 @@ pub(crate) fn check_source_file(request: models::SourceCheckRequest<'_>) -> Vec<
                 syntax,
                 kind,
                 thresholds: &config.repository.thresholds,
-                ownership_depth: config.ownership_depth,
+                ownership_roots: &config.ownership_roots,
             }));
             violations.extend(role_files::check(file, syntax, kind));
             violations.extend(naming::check(file, syntax));

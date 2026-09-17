@@ -13,12 +13,10 @@ _PUBLIC_ROLES: frozenset[str] = frozenset(
 )
 
 
-def ownership(
-    *, parts: tuple[str, ...], initializer: bool, ownership_depth: int
-) -> ImportOwnership:
+def ownership(*, parts: tuple[str, ...], initializer: bool, owner_start: int) -> ImportOwnership:
     """Classify one module using only stable structural path names."""
 
-    owner_start: int = min(1 + max(0, ownership_depth - 2), len(parts))
+    owner_start = min(owner_start, len(parts))
     role_index: int | None = next(
         (
             index
@@ -37,13 +35,34 @@ def ownership(
         role = "helpers" if parts[role_index] == ExemplarRoleName.HELPERS else parts[role_index]
         tail = parts[role_index + 1 :]
     package: str | None = parts[0] if parts else None
+    ownership_root: tuple[str, ...] = parts[:owner_start]
     return ImportOwnership(
         package=package,
-        owner=(() if package is None else (package,)) + owner_prefix,
+        ownership_root=ownership_root,
+        owner=ownership_root + owner_prefix,
         domain=owner_prefix[0] if owner_prefix else None,
         role=role,
         tail=tail,
     )
+
+
+def ownership_start(*, ctx: RuleContext, parts: tuple[str, ...]) -> int:
+    """Return the domain index selected by the most-specific ownership root."""
+
+    prefixes: list[tuple[str, ...]] = []
+    for source_root in ctx.scope_roots(ScopeName.ROOT):
+        if not parts or source_root.name != parts[0]:
+            continue
+        for ownership_root in ctx.ownership_roots():
+            if ownership_root != source_root and not ownership_root.is_relative_to(source_root):
+                continue
+            prefix: tuple[str, ...] = (
+                source_root.name,
+                *ownership_root.relative_to(source_root).parts,
+            )
+            if parts[: len(prefix)] == prefix:
+                prefixes.append(prefix)
+    return len(max(prefixes, key=len, default=parts))
 
 
 def normalized_targets(

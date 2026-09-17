@@ -95,9 +95,23 @@ fn family_applies(family: &str, scope: &str) -> bool {
 }
 
 fn owner_identity(target: &NativeExecutionTarget, owner: &str) -> Option<String> {
-    let domain_index = target.ownership_depth.saturating_sub(2);
-    let grouping_prefix =
-        target.relative_parts[..domain_index.min(target.relative_parts.len())].join("/");
+    match owner {
+        "project" => return Some("project".to_owned()),
+        "scope" => return Some(format!("scope\0{}\0{}", target.scope, target.root)),
+        PACKAGE_OWNER => {
+            return Some(format!(
+                "package\0{}",
+                target
+                    .repository_path
+                    .rsplit_once('/')
+                    .map(|(parent, _)| parent)
+                    .unwrap_or(".")
+            ));
+        }
+        _ => {}
+    }
+    let domain_index = target.ownership_offset?;
+    let ownership_root = target.ownership_root.as_deref()?;
     let domain = target
         .relative_parts
         .get(domain_index)
@@ -106,35 +120,20 @@ fn owner_identity(target: &NativeExecutionTarget, owner: &str) -> Option<String>
         !part.ends_with(".py") && !RECOGNIZED_ROLE_DIRECTORIES.contains(&part.as_str())
     });
     match owner {
-        "project" => Some("project".to_owned()),
-        "scope" => Some(format!("scope\0{}\0{}", target.scope, target.root)),
-        PACKAGE_OWNER => Some(format!(
-            "package\0{}",
-            target
-                .repository_path
-                .rsplit_once('/')
-                .map(|(parent, _)| parent)
-                .unwrap_or(".")
-        )),
-        "domain" => domain.map(|domain| {
-            format!(
-                "domain\0{}\0{}\0{grouping_prefix}\0{domain}",
-                target.scope, target.root
-            )
-        }),
+        "domain" => {
+            domain.map(|domain| format!("domain\0{}\0{ownership_root}\0{domain}", target.scope))
+        }
         "subdomain" => subdomain.map(|subdomain| {
             format!(
-                "subdomain\0{}\0{}\0{grouping_prefix}\0{}\0{subdomain}",
+                "subdomain\0{}\0{ownership_root}\0{}\0{subdomain}",
                 target.scope,
-                target.root,
                 domain.map(String::as_str).unwrap_or_default()
             )
         }),
         "leaf" => domain.map(|domain| {
             format!(
-                "leaf\0{}\0{}\0{grouping_prefix}\0{domain}\0{}",
+                "leaf\0{}\0{ownership_root}\0{domain}\0{}",
                 target.scope,
-                target.root,
                 subdomain.map(String::as_str).unwrap_or_default()
             )
         }),
@@ -144,7 +143,9 @@ fn owner_identity(target: &NativeExecutionTarget, owner: &str) -> Option<String>
 
 fn anchor_key<'a>(target: &'a NativeExecutionTarget, owner: &str) -> (bool, usize, &'a str) {
     let parts = &target.relative_parts;
-    let grouping_depth = target.ownership_depth.saturating_sub(2);
+    let Some(grouping_depth) = target.ownership_offset else {
+        return (true, parts.len(), target.repository_path.as_str());
+    };
     let domain = parts
         .get(grouping_depth)
         .is_some_and(|part| !part.ends_with(".py"));

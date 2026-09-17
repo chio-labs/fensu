@@ -41,8 +41,8 @@ def relative_parts(*, path: Path, root: Path) -> tuple[str, ...]:
 def domain(scoped_file: ScopedFile) -> str | None:
     """Return the configured domain under any structural ownership groups."""
 
-    parts: tuple[str, ...] = scoped_file.relative_parts
-    index: int = scoped_file.ownership_depth - 2
+    parts: tuple[str, ...] = scoped_file.ownership_parts()
+    index: int = 0
     if (
         len(parts) <= index
         or parts[index].endswith(PYTHON_FILE_SUFFIX)
@@ -55,8 +55,8 @@ def domain(scoped_file: ScopedFile) -> str | None:
 def subdomain(scoped_file: ScopedFile) -> str | None:
     """Return the subdomain under the domain, excluding role directories."""
 
-    parts: tuple[str, ...] = scoped_file.relative_parts
-    index: int = scoped_file.ownership_depth - 1
+    parts: tuple[str, ...] = scoped_file.ownership_parts()
+    index: int = 1
     if (
         len(parts) <= index
         or parts[index].endswith(PYTHON_FILE_SUFFIX)

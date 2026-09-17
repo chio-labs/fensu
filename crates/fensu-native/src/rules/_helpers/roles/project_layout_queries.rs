@@ -5,8 +5,8 @@ use std::path::Path;
 use crate::rules::_helpers::role_project_layout_paths::{
     direct_modules, directory_entries, domain_dir, domain_roots, file_name, grouping_roots,
     leaf_dir, main_entries, mixed_domain, named_subdomains, ownership_roots, prefix_candidates,
-    prefix_groups, python_anchor, repository_path, role_name, role_package, scope_root, HELPERS,
-    INIT_FILE, PYTHON_CACHE,
+    prefix_groups, python_anchor, repository_path, role_name, role_package, HELPERS, INIT_FILE,
+    PYTHON_CACHE,
 };
 use crate::rules::constants::{
     HELPERS_PACKAGE_LAYOUT_CODE, LEAF_MAIN_BOUNDARY_CODE, MAIN_PACKAGE_LAYOUT_CODE,
@@ -133,27 +133,17 @@ fn append_grouping_discovery_queries(
     mut queries: Vec<NativeProjectQuery>,
     context: &NativeRuleContext,
 ) -> Vec<NativeProjectQuery> {
-    let mut roots = vec![scope_root(context)];
-    for _ in 0..context.grouping_depth() {
-        let mut next: Vec<std::path::PathBuf> = Vec::new();
-        for root in roots {
-            queries.push(query("directory_entries", &root, ""));
-            for entry in directory_entries(&root) {
-                if role_name(&entry) || file_name(&entry) == PYTHON_CACHE {
-                    continue;
-                }
-                queries.push(query("is_dir", &entry, ""));
-                if entry.is_dir() {
-                    queries.push(glob_query(&entry, true));
-                    if !crate::rules::_helpers::role_project_layout_paths::recursive_python(&entry)
-                        .is_empty()
-                    {
-                        next.push(entry);
-                    }
-                }
+    for root in grouping_roots(context) {
+        queries.push(query("directory_entries", &root, ""));
+        for entry in directory_entries(&root) {
+            if role_name(&entry) || file_name(&entry) == PYTHON_CACHE {
+                continue;
+            }
+            queries.push(query("is_dir", &entry, ""));
+            if entry.is_dir() {
+                queries.push(glob_query(&entry, true));
             }
         }
-        roots = next;
     }
     queries
 }

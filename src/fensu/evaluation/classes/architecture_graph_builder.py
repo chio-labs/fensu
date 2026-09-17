@@ -81,6 +81,7 @@ class ArchitectureGraphBuilder:
                 domain_parts=position.domain_parts,
                 role=position.role,
                 visibility=self._visibility(module=module, package=package, role=position.role),
+                ownership_root=position.ownership_root,
             ),
         )
 

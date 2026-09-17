@@ -18,10 +18,10 @@ pub(crate) fn check(
     repo_root: &Path,
     crates: &[models::WorkspaceCrate],
     config: &models::RepositoryPolicyConfig,
-    ownership_depth: usize,
+    ownership_roots: &[String],
 ) -> Vec<models::Violation> {
     let mut violations = crate_name_violations(repo_root, crates, config);
-    violations.extend(path_violations(repo_root, crates, config, ownership_depth));
+    violations.extend(path_violations(repo_root, crates, config, ownership_roots));
     violations
 }
 
@@ -87,7 +87,7 @@ fn path_violations(
     repo_root: &Path,
     crates: &[models::WorkspaceCrate],
     config: &models::RepositoryPolicyConfig,
-    ownership_depth: usize,
+    ownership_roots: &[String],
 ) -> Vec<models::Violation> {
     let source_roots = crates
         .iter()
@@ -127,7 +127,7 @@ fn path_violations(
         repo_root,
         &source_roots,
         config,
-        ownership_depth,
+        ownership_roots,
     ));
     violations
 }
@@ -172,7 +172,7 @@ fn closed_inventory_violations(
     repo_root: &Path,
     source_roots: &[PathBuf],
     config: &models::RepositoryPolicyConfig,
-    ownership_depth: usize,
+    ownership_roots: &[String],
 ) -> Vec<models::Violation> {
     if config.domain_paths.is_empty() && config.role_paths.is_empty() {
         return Vec::new();
@@ -198,21 +198,33 @@ fn closed_inventory_violations(
             {
                 continue;
             }
-            if let Ok(inside_source) = path.strip_prefix(source_root) {
-                let components = inside_source.components().collect::<Vec<_>>();
-                let domain_index = ownership_depth.saturating_sub(2);
-                if let Some(component) = components.get(domain_index) {
-                    let name = component.as_os_str().to_string_lossy();
-                    if components.get(domain_index + 1).is_some()
-                        && !constants::CONTAINER_DIRECTORY_NAMES.contains(&name.as_ref())
-                        && name != constants::TESTS_DIRECTORY
-                        && name != constants::BIN_DIRECTORY
-                    {
-                        let domain = source_root
-                            .join(components[..=domain_index].iter().collect::<PathBuf>());
-                        domains.insert(display_path(
-                            domain.strip_prefix(repo_root).unwrap_or(&domain),
-                        ));
+            let configured_roots = if ownership_roots.is_empty() {
+                vec![source_root.clone()]
+            } else {
+                ownership_roots
+                    .iter()
+                    .map(|root| repo_root.join(root))
+                    .collect()
+            };
+            let ownership_root = configured_roots
+                .iter()
+                .filter(|root| path.starts_with(root))
+                .max_by_key(|root| root.components().count());
+            if let Some(ownership_root) = ownership_root {
+                if let Ok(inside_ownership) = path.strip_prefix(ownership_root) {
+                    let components = inside_ownership.components().collect::<Vec<_>>();
+                    if let Some(component) = components.first() {
+                        let name = component.as_os_str().to_string_lossy();
+                        if components.get(1).is_some()
+                            && !constants::CONTAINER_DIRECTORY_NAMES.contains(&name.as_ref())
+                            && name != constants::TESTS_DIRECTORY
+                            && name != constants::BIN_DIRECTORY
+                        {
+                            let domain = ownership_root.join(component);
+                            domains.insert(display_path(
+                                domain.strip_prefix(repo_root).unwrap_or(&domain),
+                            ));
+                        }
                     }
                 }
             }

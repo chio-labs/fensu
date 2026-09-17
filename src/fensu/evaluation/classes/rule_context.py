@@ -276,10 +276,25 @@ class EvaluationRuleContext:
 
         return self._parsed_module.scoped_file.relative_parts
 
-    def ownership_depth(self) -> int:
-        """Return the target-wide ownership depth."""
+    def ownership_root(self) -> Path | None:
+        """Return the effective production ownership root for the current file."""
 
-        return self._config.ownership_depth
+        return self._parsed_module.scoped_file.ownership_root
+
+    def ownership_roots(self) -> tuple[Path, ...]:
+        """Return all concrete production ownership roots for the target."""
+
+        return tuple(root.path for root in self._layout.ownership_roots)
+
+    def ownership_relative_parts(self) -> tuple[str, ...]:
+        """Return current path parts below its effective ownership root."""
+
+        return self._parsed_module.scoped_file.ownership_parts()
+
+    def ownership_root_declaration(self) -> str | None:
+        """Return the configuration declaration that selected the ownership root."""
+
+        return self._parsed_module.scoped_file.ownership_root_declaration
 
     def repo_relative_parts(self) -> tuple[str, ...]:
         """The current file's path parts relative to the repository root."""

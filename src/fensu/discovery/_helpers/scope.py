@@ -8,7 +8,7 @@ from types import ModuleType
 
 from fensu.analysis.constants import NATIVE_FACT_MODULE_NAME
 from fensu.discovery._helpers.position import normalize_path_spelling, relative_parts
-from fensu.discovery.models import ProjectLayout, ScopedFile
+from fensu.discovery.models import OwnershipRoot, ProjectLayout, ScopedFile
 from fensu.discovery.types import ScopeName
 
 
@@ -29,18 +29,69 @@ def discover_scoped_files(*, layout: ProjectLayout) -> tuple[ScopedFile, ...]:
                 continue
             if resolved_path in discovered:
                 continue
+            relative: tuple[str, ...] = (
+                tuple(parts)
+                if parts is not None
+                else relative_parts(path=resolved_path, root=resolved_root)
+            )
+            ownership_root, ownership_relative = _ownership_position(
+                path=resolved_path,
+                relative=relative,
+                scope=scope,
+                layout=layout,
+            )
             discovered[resolved_path] = ScopedFile(
                 path=resolved_path,
                 root=resolved_root,
                 scope=scope,
-                relative_parts=(
-                    tuple(parts)
-                    if parts is not None
-                    else relative_parts(path=resolved_path, root=resolved_root)
+                relative_parts=relative,
+                ownership_root=None if ownership_root is None else ownership_root.path,
+                ownership_root_declaration=(
+                    None if ownership_root is None else ownership_root.declaration
                 ),
-                ownership_depth=layout.ownership_depth,
+                ownership_relative_parts=ownership_relative,
             )
     return tuple(discovered[path] for path in sorted(discovered))
+
+
+def _ownership_position(
+    *,
+    path: Path,
+    relative: tuple[str, ...],
+    scope: ScopeName,
+    layout: ProjectLayout,
+) -> tuple[OwnershipRoot | None, tuple[str, ...]]:
+    if scope is ScopeName.TOOLING:
+        return None, relative
+    candidate_path: Path = path
+    if scope is ScopeName.TEST:
+        projected: Path | None = _project_test_path(relative=relative, layout=layout)
+        if projected is None:
+            return None, relative
+        candidate_path = projected
+    matches: tuple[OwnershipRoot, ...] = tuple(
+        root
+        for root in layout.ownership_roots
+        if candidate_path == root.path or candidate_path.is_relative_to(root.path)
+    )
+    if not matches:
+        return None, ()
+    root: OwnershipRoot = max(matches, key=lambda item: len(item.path.parts))
+    return root, candidate_path.relative_to(root.path).parts
+
+
+def _project_test_path(*, relative: tuple[str, ...], layout: ProjectLayout) -> Path | None:
+    directories: tuple[str, ...] = relative[:-1]
+    for source in sorted(
+        layout.runtime_sources, key=lambda item: len(item.relative_parts), reverse=True
+    ):
+        width: int = len(source.relative_parts)
+        for index in range(len(directories) - width + 1):
+            if directories[index : index + width] != source.relative_parts:
+                continue
+            suffix: tuple[str, ...] = relative[index + width :]
+            return source.path.joinpath(*suffix)
+    return None
 
 
 def _configured_scope_roots(*, layout: ProjectLayout) -> tuple[tuple[ScopeName, Path], ...]:

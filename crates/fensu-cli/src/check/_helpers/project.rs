@@ -20,6 +20,7 @@ use crate::models::{
 use crate::repository_io::main::relative_path::relative_path;
 
 const ENTRYPOINT_SECTIONS: [&str; 3] = ["scripts", "gui-scripts", "entry-points"];
+const STUB_INIT_FILE: &str = "/__init__.pyi";
 
 include!("web.inc");
 
@@ -43,12 +44,16 @@ pub(crate) fn project_plane(
         if parts.last().is_some_and(|part| part == STEM_INIT) {
             parts.pop();
         }
-        modules.push(NativeProjectModule::new(
-            source.target_path.clone(),
-            source.scope.clone(),
-            parts,
-            program(source).clone(),
-        ));
+        let (ownership_start, ownership_root) = source_module_ownership(source, &parts);
+        modules.push(
+            NativeProjectModule::new(
+                source.target_path.clone(),
+                source.scope.clone(),
+                parts,
+                program(source).clone(),
+            )
+            .with_ownership(ownership_start, ownership_root),
+        );
     }
     for (scope, configured_root) in config
         .roots
@@ -95,18 +100,66 @@ pub(crate) fn project_plane(
             if parts.last().is_some_and(|part| part == STEM_INIT) {
                 parts.pop();
             }
-            modules.push(NativeProjectModule::new(
-                target_path,
-                scope.to_owned(),
-                parts,
-                program,
-            ));
+            let (ownership_start, ownership_root) =
+                support_module_ownership(&target_path, &parts, &config.resolved_ownership_roots);
+            modules.push(
+                NativeProjectModule::new(target_path, scope.to_owned(), parts, program)
+                    .with_ownership(ownership_start, ownership_root),
+            );
         }
     }
     Ok(NativeProjectPlane::new(
         modules,
         entrypoint_modules(root, &config.raw),
     ))
+}
+
+fn source_module_ownership(
+    source: &ScopedSource,
+    module_parts: &[String],
+) -> (Option<usize>, Option<String>) {
+    let Some(root) = source.ownership_root.clone() else {
+        return (None, None);
+    };
+    let initializer = source
+        .path
+        .file_stem()
+        .is_some_and(|stem| stem == STEM_INIT);
+    let owned_width = source
+        .ownership_relative_parts
+        .len()
+        .saturating_sub(usize::from(initializer));
+    (
+        Some(module_parts.len().saturating_sub(owned_width)),
+        Some(root),
+    )
+}
+
+fn support_module_ownership(
+    target_path: &str,
+    module_parts: &[String],
+    ownership_roots: &[crate::models::ResolvedOwnershipRoot],
+) -> (Option<usize>, Option<String>) {
+    let root = ownership_roots
+        .iter()
+        .filter(|root| {
+            target_path == root.path || target_path.starts_with(&format!("{}/", root.path))
+        })
+        .max_by_key(|root| root.path.split('/').count());
+    let Some(root) = root else {
+        return (None, None);
+    };
+    let relative = target_path
+        .strip_prefix(&root.path)
+        .and_then(|value| value.strip_prefix('/'))
+        .unwrap_or_default();
+    let relative_width = relative.split('/').filter(|part| !part.is_empty()).count();
+    let initializer = target_path.ends_with(STUB_INIT_FILE);
+    let owned_width = relative_width.saturating_sub(usize::from(initializer));
+    (
+        Some(module_parts.len().saturating_sub(owned_width)),
+        Some(root.path.clone()),
+    )
 }
 
 pub(crate) fn entrypoint_modules(root: &Path, _config_raw: &[u8]) -> Vec<String> {
@@ -240,7 +293,10 @@ pub(crate) fn glob_answers(
     }
     for result in WalkDir::new(path).min_depth(1).max_depth(depth).into_iter() {
         let entry = result.map_err(|error| {
-            format!("Could not evaluate glob under {}: {error}", path.display())
+            format!(
+                "Could not evaluate glob '{pattern}' under {}: {error}",
+                path.display()
+            )
         })?;
         if !matcher.is_match(entry.path().strip_prefix(path).unwrap_or(entry.path())) {
             continue;

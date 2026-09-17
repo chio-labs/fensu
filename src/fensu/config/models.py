@@ -10,7 +10,6 @@ from types import MappingProxyType
 from fensu.config.constants import (
     DEFAULT_CACHE_ENABLED,
     DEFAULT_CONTRACTS,
-    DEFAULT_OWNERSHIP_DEPTH,
     DEFAULT_TEST_LAYOUT,
     DEFAULT_TEST_SCOPES,
     DEFAULT_THRESHOLDS,
@@ -154,7 +153,7 @@ class Config:
     shadcn: str | None = None
     openapi: str | None = None
     test_layout: TestLayout = DEFAULT_TEST_LAYOUT
-    ownership_depth: int = DEFAULT_OWNERSHIP_DEPTH
+    ownership_roots: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         """Freeze defensive copies of nested rule-option mappings."""

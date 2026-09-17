@@ -9,8 +9,8 @@ use crate::configuration::_helpers::scopes::validate_test_scopes;
 use crate::configuration::_helpers::selectors::valid_selector;
 use crate::configuration::constants::{CONFIG_ROLE_NAMES, CONTRACT_BEHAVIORS, DEFAULT_THRESHOLDS};
 use crate::configuration::main::expand_path_pattern::expand_path_pattern;
+use crate::constants::OWNERSHIP_ROOTS_CONFIG_KEY;
 use crate::constants::{CONFIG_REPOSITORY_RULES_KEY, CONFIG_TARGETS_KEY};
-use crate::constants::{MINIMUM_OWNERSHIP_DEPTH, OWNERSHIP_DEPTH_CONFIG_KEY};
 use crate::models::TargetSelection;
 
 const RECURSIVE_GLOB: &str = "**";
@@ -42,7 +42,7 @@ const CONFIG_KEYS: &[&str] = &[
     "ui_kit",
     "shadcn",
     "openapi",
-    "ownership_depth",
+    "ownership_roots",
     "rule_exceptions",
     "rule_ignores",
     "threshold_overrides",
@@ -91,6 +91,7 @@ pub(crate) fn validate_for_analyzer(
         "rule_paths",
         "rule_modules",
         "rule_packs",
+        "ownership_roots",
     ] {
         if let Some(value) = table.get(name) {
             let _ = required_strings(Some(value), name)?;
@@ -107,12 +108,16 @@ pub(crate) fn validate_for_analyzer(
         return Err("Config must define at least one root in roots.".to_owned());
     }
     validate_nested_roots(roots.clone())?;
-    if let Some(value) = table.get(OWNERSHIP_DEPTH_CONFIG_KEY) {
-        if value
-            .as_integer()
-            .is_none_or(|depth| depth < MINIMUM_OWNERSHIP_DEPTH)
-        {
-            return Err("Config key ownership_depth must be an integer of at least 2.".to_owned());
+    if let Some(value) = table.get(OWNERSHIP_ROOTS_CONFIG_KEY) {
+        let ownership_roots = required_strings(Some(value), OWNERSHIP_ROOTS_CONFIG_KEY)?;
+        if ownership_roots.is_empty() {
+            return Err("Config key ownership_roots must not be empty.".to_owned());
+        }
+        if ownership_roots.iter().collect::<HashSet<_>>().len() != ownership_roots.len() {
+            return Err("Config key ownership_roots must not contain duplicates.".to_owned());
+        }
+        for pattern in ownership_roots {
+            validate_path_pattern(&pattern, "Ownership root")?;
         }
     }
     validate_boolean_table(table, "cache", &["enabled", "require_cacheable"])?;

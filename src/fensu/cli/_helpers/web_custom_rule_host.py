@@ -14,6 +14,7 @@ from fensu.cli.constants import (
 )
 from fensu.cli.exceptions import CliCommandError
 from fensu.config.main.load_target_project_config import load_target_project_config
+from fensu.config.main.resolve_ownership_roots import resolve_ownership_roots
 from fensu.config.main.resolve_target_root import resolve_target_root
 from fensu.config.models import LoadedConfig, ResolvedTargetRoot
 from fensu.config.types import AnalyzerId
@@ -96,14 +97,19 @@ def build_web_custom_response(*, request: object, runtime_version: str) -> dict[
     resolved: ResolvedTargetRoot = resolve_target_root(
         config=loaded.config, repo_root=repository_root
     )
+    ownership_roots: tuple[str, ...] = resolve_ownership_roots(
+        config=loaded.config, project_root=resolved.path
+    )
+    loaded = replace(loaded, config=replace(loaded.config, ownership_roots=ownership_roots))
     tree: ProjectTree = build_web_project_tree(
         subjects=payload["subjects"],
         workspace=workspace,
-        ownership_depth=loaded.config.ownership_depth,
+        ownership_roots=ownership_roots,
     )
     graph: ArchitectureGraph = build_web_architecture_graph(
         workspace=workspace,
-        ownership_depth=loaded.config.ownership_depth,
+        ownership_roots=ownership_roots,
+        subjects=payload["subjects"],
     )
     selection: RuleSelection = build_check_rule_selection(
         config=loaded.config,

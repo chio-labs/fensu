@@ -18,6 +18,15 @@ pub(crate) fn web_source(root: &Path, target_path: &str) -> ScopedSource {
         root_text: "src".to_owned(),
         scope: "root".to_owned(),
         relative_parts: target_path.split('/').skip(1).map(str::to_owned).collect(),
+        ownership_root: Some("src/lib".to_owned()),
+        ownership_root_declaration: Some("roots[0]".to_owned()),
+        ownership_relative_parts: target_path
+            .strip_prefix("src/lib/")
+            .unwrap_or_default()
+            .split('/')
+            .filter(|part| !part.is_empty())
+            .map(str::to_owned)
+            .collect(),
         fingerprint: "source-fingerprint".to_owned(),
         content: fs::read(&path).expect("web source content"),
         purpose: SourcePurpose::Direct,

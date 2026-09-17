@@ -1,6 +1,7 @@
 //! Rust workspace facts, rule policy, and diagnostics.
 
 use std::collections::BTreeMap;
+use std::collections::HashSet;
 use std::path;
 
 use crate::configuration::main::validate_repository_policy::validate_repository_policy;
@@ -26,7 +27,7 @@ pub struct RepositoryAnalysis {
 /// Resolved Rust rule settings. Cargo supplies workspace identities and targets.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct RustPolicy {
-    pub ownership_depth: usize,
+    pub ownership_roots: Vec<String>,
     pub tooling: ToolingConfig,
     pub raw_parser_boundary: RawParserBoundaryConfig,
     pub repository: RepositoryPolicyConfig,
@@ -88,7 +89,7 @@ impl Default for ThresholdConfig {
 impl Default for RustPolicy {
     fn default() -> Self {
         Self {
-            ownership_depth: constants::DEFAULT_OWNERSHIP_DEPTH,
+            ownership_roots: Vec::new(),
             tooling: ToolingConfig {
                 paths: Vec::new(),
                 runtime_forbidden_packages: Vec::new(),
@@ -106,8 +107,15 @@ impl Default for RustPolicy {
 impl RustPolicy {
     /// Reject unsupported versions and identities that cannot match a package.
     pub fn validate(&self) -> Result<(), String> {
-        if self.ownership_depth < constants::MINIMUM_OWNERSHIP_DEPTH {
-            return Err("ownership depth must be at least 2".to_owned());
+        if self
+            .ownership_roots
+            .iter()
+            .any(|root| root.trim().is_empty())
+        {
+            return Err("ownership roots must not be empty".to_owned());
+        }
+        if self.ownership_roots.iter().collect::<HashSet<_>>().len() != self.ownership_roots.len() {
+            return Err("ownership roots must not contain duplicates".to_owned());
         }
         if self
             .tooling
@@ -217,6 +225,38 @@ pub struct SourceFile {
     pub source_relative: String,
     pub source: String,
     pub(crate) syntax: RustSyntax,
+}
+
+impl SourceFile {
+    pub(crate) fn ownership_root(&self, configured: &[String]) -> Option<String> {
+        if configured.is_empty() {
+            return Some(self.source_root_relative.clone());
+        }
+        configured
+            .iter()
+            .filter(|root| {
+                self.relative == **root || self.relative.starts_with(&format!("{root}/"))
+            })
+            .max_by_key(|root| root.split('/').count())
+            .cloned()
+    }
+
+    pub(crate) fn ownership_offset(&self, configured: &[String]) -> Option<usize> {
+        let root = self.ownership_root(configured)?;
+        if root == self.source_root_relative {
+            return Some(0);
+        }
+        root.strip_prefix(&format!("{}/", self.source_root_relative))
+            .map(|relative| relative.split('/').count())
+    }
+
+    pub(crate) fn ownership_relative(&self, configured: &[String]) -> Option<String> {
+        let root = self.ownership_root(configured)?;
+        self.relative
+            .strip_prefix(&root)
+            .and_then(|value| value.strip_prefix('/'))
+            .map(str::to_owned)
+    }
 }
 
 /// One shared parser result reused by built-in checks and serialized fact collection.

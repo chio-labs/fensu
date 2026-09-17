@@ -17,7 +17,6 @@ from fensu.discovery.models import (
     RepoRoot,
     ScopedFile,
 )
-from fensu.discovery.types import ScopeName
 from fensu.rules.authoring.constants import (
     CURRENT_PATH_PART,
     PARENT_PATH_PART,
@@ -107,6 +106,11 @@ def position_identity(*, position: FilePosition | None) -> str:
             "domain_parts": list(position.domain_parts),
             "is_entry_module": position.is_entry_module,
             "is_main_module": position.is_main_module,
+            "ownership_root": (
+                None if position.ownership_root is None else position.ownership_root.value
+            ),
+            "ownership_root_declaration": position.ownership_root_declaration,
+            "ownership_relative_parts": list(position.ownership_relative_parts),
             "module": position.module,
             "package": position.package,
             "path": position.path.value,
@@ -127,15 +131,12 @@ def file_position(
     """Build analyzer-neutral position facts for one discovered file."""
 
     facts: PositionFacts = position_facts(scoped_file)
-    directories: tuple[str, ...] = scoped_file.relative_parts[:-1]
+    directories: tuple[str, ...] = scoped_file.ownership_parts()[:-1]
     role_index: int | None = next(
         (index for index, part in enumerate(directories) if part in ROLE_DIR_NAMES), None
     )
-    grouping_depth: int = (
-        scoped_file.ownership_depth - 2 if scoped_file.scope is ScopeName.ROOT else 0
-    )
     owner_end: int = len(directories) if role_index is None else role_index
-    domain_parts: tuple[str, ...] = directories[grouping_depth:owner_end]
+    domain_parts: tuple[str, ...] = directories[:owner_end]
     module, package = module_identity(scoped_file=scoped_file, tree=tree)
     return FilePosition(
         path=path,
@@ -156,6 +157,13 @@ def file_position(
         ),
         is_entry_module=facts.is_entry_module,
         is_main_module=facts.is_main_module,
+        ownership_root=(
+            None
+            if scoped_file.ownership_root is None
+            else relative_path(path=scoped_file.ownership_root, root=project_root)
+        ),
+        ownership_root_declaration=scoped_file.ownership_root_declaration,
+        ownership_relative_parts=scoped_file.ownership_parts(),
     )
 
 

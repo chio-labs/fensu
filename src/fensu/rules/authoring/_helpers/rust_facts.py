@@ -61,7 +61,7 @@ def rust_workspace_facts(*, payload: object) -> RustWorkspaceFacts:
 
 
 def rust_project_tree(
-    *, subjects: object, workspace: RustWorkspaceFacts, ownership_depth: int = 2
+    *, subjects: object, workspace: RustWorkspaceFacts, ownership_roots: tuple[str, ...] = ()
 ) -> tuple[ProjectTree, MappingProxyType[ProjectPath, RustFileFacts]]:
     """Build a deterministic common project tree from native Rust subjects."""
 
@@ -73,18 +73,45 @@ def rust_project_tree(
         subject: dict[str, object] = _mapping(value=raw_subject, name="Rust subject")
         _keys(
             value=subject,
-            expected={"path", "scope", "scope_root", "relative_parts"},
+            expected={
+                "path",
+                "scope",
+                "scope_root",
+                "relative_parts",
+                "ownership_root",
+                "ownership_root_declaration",
+                "ownership_relative_parts",
+            },
             name="Rust subject",
         )
         path: ProjectPath = ProjectPath(_string(value=subject["path"], name="Rust subject path"))
         fact: RustFileFacts | None = facts_by_path.get(path)
         if fact is None:
             continue
-        relative_parts: tuple[str, ...] = _strings(
-            value=subject["relative_parts"], name="Rust relative parts"
+        configured_ownership_relative_parts: tuple[str, ...] = _strings(
+            value=subject["ownership_relative_parts"], name="Rust ownership-relative parts"
         )
-        directories: tuple[str, ...] = relative_parts[:-1]
-        grouping_depth: int = max(2, ownership_depth) - 2
+        subject_ownership_root: ProjectPath | None = (
+            None
+            if subject["ownership_root"] is None
+            else ProjectPath(_string(value=subject["ownership_root"], name="ownership root"))
+        )
+        ownership_root: ProjectPath | None = subject_ownership_root
+        ownership_root_declaration: str | None = (
+            None
+            if subject["ownership_root_declaration"] is None
+            else _string(
+                value=subject["ownership_root_declaration"],
+                name="ownership root declaration",
+            )
+        )
+        if ownership_root is None and fact.source_root.value in ownership_roots:
+            ownership_root = fact.source_root
+            ownership_root_declaration = "Cargo source root"
+        ownership_relative_parts: tuple[str, ...] = configured_ownership_relative_parts
+        if ownership_root is not None and not ownership_relative_parts:
+            ownership_relative_parts = path.parts[len(ownership_root.parts) :]
+        directories: tuple[str, ...] = ownership_relative_parts[:-1]
         role_index: int | None = next(
             (index for index, part in enumerate(directories) if part in ROLE_DIR_NAMES), None
         )
@@ -101,15 +128,14 @@ def rust_project_tree(
             scope_root=scope_root,
             module="::".join(fact.module_parts),
             package=fact.crate_name,
-            domain_parts=(
-                directories[grouping_depth:]
-                if role_index is None
-                else directories[grouping_depth:role_index]
-            ),
+            domain_parts=directories if role_index is None else directories[:role_index],
             role=role,
             role_depth=None if role_index is None else len(directories) - role_index - 1,
             is_entry_module=_is_entry_path(path=path, crates=workspace._crate_values),
             is_main_module=RoleName.MAIN.value in directories,
+            ownership_root=ownership_root,
+            ownership_root_declaration=ownership_root_declaration,
+            ownership_relative_parts=ownership_relative_parts,
         )
     all_paths: set[ProjectPath] = set(positions)
     for file_path in tuple(all_paths):

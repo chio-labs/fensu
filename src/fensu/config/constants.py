@@ -62,8 +62,6 @@ SKILLS_NAME_CONFIG_KEY: str = "name"
 DEFAULT_CACHE_REQUIRE_CACHEABLE: bool = False
 PYTHON_ANALYZER: AnalyzerId = AnalyzerId.PYTHON
 DEFAULT_TARGET_ROOT: str = "."
-DEFAULT_OWNERSHIP_DEPTH: int = 2
-MINIMUM_OWNERSHIP_DEPTH: int = 2
 TARGET_CONFIG_KEYS: frozenset[str] = frozenset({"analyzer", "root"})
 TARGETS_CONFIG_KEY: str = "targets"
 REPOSITORY_RULES_CONFIG_KEY: str = "repository_rules"
@@ -104,7 +102,7 @@ CONFIG_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
         "ui_kit",
         "shadcn",
         "openapi",
-        "ownership_depth",
+        "ownership_roots",
         "rule_exceptions",
         "rule_ignores",
         "threshold_overrides",
@@ -120,7 +118,7 @@ RULE_CONFIGURATION_INPUTS: frozenset[str] = frozenset(
         "contracts",
         "generated",
         "openapi",
-        "ownership_depth",
+        "ownership_roots",
         "rule_packs",
         "roots",
         "shadcn",

@@ -24,7 +24,7 @@ from tests.unit.src.fensu.config._test_types import (
     CanonicalTargetRootTestCase,
     EvaluationFingerprintTestCase,
     InvalidTargetConfigTestCase,
-    OwnershipDepthConfigTestCase,
+    OwnershipRootsConfigTestCase,
     TargetConfigTestCase,
     WebExceptionPathTestCase,
     WebTargetDefaultsTestCase,
@@ -204,30 +204,30 @@ def test_given_explicit_targets_when_loading_then_selects_flat_python_config(
 @pytest.mark.parametrize(
     "test_case",
     [
-        OwnershipDepthConfigTestCase(
-            description="grouped ownership changes resolved config and cache identity",
-            configured_depth=3,
-            expected_depth=3,
+        OwnershipRootsConfigTestCase(
+            description="scoped ownership changes resolved config and cache identity",
+            configured_roots=("src/app/sources/*", "src/app/runtime"),
+            expected_roots=("src/app/sources/*", "src/app/runtime"),
             expected_fingerprints_equal=False,
         )
     ],
     ids=lambda case: case.description,
 )
-def test_given_ownership_depth_when_loading_target_then_preserves_config_and_cache_identity(
-    tmp_path: Path, test_case: OwnershipDepthConfigTestCase
+def test_given_ownership_roots_when_loading_target_then_preserves_config_and_cache_identity(
+    tmp_path: Path, test_case: OwnershipRootsConfigTestCase
 ) -> None:
     write_fensu_toml(
         root=tmp_path,
         contents=(
             '[targets.app]\nanalyzer = "python"\nroots = ["src/app"]\n'
-            f"ownership_depth = {test_case.configured_depth}\n"
+            f"ownership_roots = {list(test_case.configured_roots)!r}\n".replace("'", '"')
         ),
     )
 
     configured: Config = load_target_project_config(start=tmp_path, target="app").config
     default: Config = Config(roots=("src/app",), target="app")
 
-    assert configured.ownership_depth == test_case.expected_depth
+    assert configured.ownership_roots == test_case.expected_roots
     assert (
         config_fingerprint(configured) == config_fingerprint(default)
     ) is test_case.expected_fingerprints_equal
@@ -567,20 +567,28 @@ def test_given_analyzer_compatible_web_exception_when_loading_then_path_is_accep
             expected_error_fragment="Unknown target name: missing",
         ),
         InvalidTargetConfigTestCase(
-            description="ownership depth cannot omit the domain and subdomain slots",
+            description="ownership roots cannot be empty",
             config_text=(
-                '[targets.app]\nanalyzer = "python"\nroots = ["src/app"]\nownership_depth = 1\n'
+                '[targets.app]\nanalyzer = "python"\nroots = ["src/app"]\nownership_roots = []\n'
             ),
             target="app",
-            expected_error_fragment="ownership_depth must be an integer of at least 2",
+            expected_error_fragment="ownership_roots must not be empty",
         ),
         InvalidTargetConfigTestCase(
-            description="ownership depth rejects booleans",
+            description="ownership roots reject non-path values",
             config_text=(
-                '[targets.app]\nanalyzer = "python"\nroots = ["src/app"]\nownership_depth = true\n'
+                '[targets.app]\nanalyzer = "python"\nroots = ["src/app"]\nownership_roots = true\n'
             ),
             target="app",
-            expected_error_fragment="ownership_depth must be an integer of at least 2",
+            expected_error_fragment="ownership_roots must be a list of strings",
+        ),
+        InvalidTargetConfigTestCase(
+            description="removed ownership depth configuration is rejected",
+            config_text=(
+                '[targets.app]\nanalyzer = "python"\nroots = ["src/app"]\nownership_depth = 3\n'
+            ),
+            target="app",
+            expected_error_fragment="Unknown targets.app config key(s): ownership_depth",
         ),
         InvalidTargetConfigTestCase(
             description="multiple targets require explicit selection",
@@ -866,7 +874,7 @@ def test_given_noncanonical_analyzer_spelling_when_parsing_then_identity_is_unkn
             description=f"known {analyzer.value} backend is publicly available",
             analyzer=analyzer,
             expected_available=True,
-            expected_cache_contract=f"{analyzer.value}-policy-v4",
+            expected_cache_contract=f"{analyzer.value}-policy-v5",
         )
         for analyzer in (AnalyzerId.TYPESCRIPT, AnalyzerId.SVELTE)
     ],
@@ -889,7 +897,7 @@ def test_given_known_web_analyzer_when_resolving_backend_then_is_publicly_availa
             description="known Rust backend is publicly available",
             analyzer=AnalyzerId.RUST,
             expected_available=True,
-            expected_cache_contract="rust-rules-v2",
+            expected_cache_contract="rust-rules-v3",
         )
     ],
     ids=lambda case: case.description,

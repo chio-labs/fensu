@@ -5,12 +5,12 @@ from fensu.rules.authoring.models import ProjectTree, WebWorkspaceFacts
 
 
 def build_web_project_tree(
-    *, subjects: object, workspace: WebWorkspaceFacts, ownership_depth: int = 2
+    *, subjects: object, workspace: WebWorkspaceFacts, ownership_roots: tuple[str, ...] = ()
 ) -> ProjectTree:
     """Build the deterministic common tree for selected file subjects."""
 
     return web_project_tree(
         subjects=subjects,
         workspace=workspace,
-        ownership_depth=ownership_depth,
+        ownership_roots=ownership_roots,
     )

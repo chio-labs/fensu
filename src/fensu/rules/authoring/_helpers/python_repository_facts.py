@@ -11,7 +11,6 @@ from typing import cast
 from fensu.analysis.main.build import build_analysis
 from fensu.analysis.models import ImportAliasFact, ImportFact
 from fensu.analysis.types import Analysis, FactAnalysis
-from fensu.config.constants import MINIMUM_OWNERSHIP_DEPTH
 from fensu.config.exceptions import ConfigError
 from fensu.config.types import AnalyzerId
 from fensu.discovery.constants import (
@@ -56,7 +55,6 @@ def build_python_repository_facts(
     if envelope["schema_version"] != PYTHON_REPOSITORY_FACT_SCHEMA_VERSION:
         raise ConfigError("Python target facts use an unsupported schema.")
     parser_contract: str = _string(value=envelope["parser_contract"], name="Python parser contract")
-    ownership_depth: int = _ownership_depth(envelope["ownership_depth"])
     files: list[object] = _sequence(value=envelope["files"], name="Python target files")
     values: list[PythonFileFacts] = []
     metadata: dict[ProjectPath, dict[str, object]] = {}
@@ -74,7 +72,6 @@ def build_python_repository_facts(
     tree: ProjectTree = _project_tree(
         subjects=subjects,
         metadata=metadata,
-        ownership_depth=ownership_depth,
     )
     graph: ArchitectureGraph = _architecture_graph(workspace=workspace, tree=tree)
     return workspace, tree, graph
@@ -87,6 +84,9 @@ def _python_file(*, payload: object) -> tuple[PythonFileFacts, dict[str, object]
         "scope",
         "scope_root",
         "relative_parts",
+        "ownership_root",
+        "ownership_root_declaration",
+        "ownership_relative_parts",
         "purpose",
         "source",
     }
@@ -119,6 +119,15 @@ def _python_file(*, payload: object) -> tuple[PythonFileFacts, dict[str, object]
                     value=value["relative_parts"], name="Python relative path parts"
                 )
             ),
+            "ownership_root": value["ownership_root"],
+            "ownership_root_declaration": value["ownership_root_declaration"],
+            "ownership_relative_parts": tuple(
+                _string(value=part, name="Python ownership-relative path part")
+                for part in _sequence(
+                    value=value["ownership_relative_parts"],
+                    name="Python ownership-relative path parts",
+                )
+            ),
             "purpose": _string(value=value["purpose"], name="Python source purpose"),
         },
     )
@@ -128,7 +137,6 @@ def _project_tree(
     *,
     subjects: object,
     metadata: Mapping[ProjectPath, dict[str, object]],
-    ownership_depth: int,
 ) -> ProjectTree:
     subject_values: list[object] = _sequence(value=subjects, name="Python target subjects")
     positions: dict[ProjectPath, FilePosition] = {}
@@ -141,7 +149,10 @@ def _project_tree(
         relative_parts: tuple[str, ...] = cast("tuple[str, ...]", details["relative_parts"])
         scope_root: ProjectPath = ProjectPath(cast(str, details["scope_root"]))
         module, package = _module_identity(scope_root=scope_root, relative_parts=relative_parts)
-        directories: tuple[str, ...] = relative_parts[:-1]
+        ownership_relative_parts: tuple[str, ...] = cast(
+            "tuple[str, ...]", details["ownership_relative_parts"]
+        )
+        directories: tuple[str, ...] = ownership_relative_parts[:-1]
         role_index: int | None = next(
             (index for index, part in enumerate(directories) if part in ROLE_DIRECTORY_TO_NAME),
             None,
@@ -152,10 +163,7 @@ def _project_tree(
             else ROLE_DIRECTORY_TO_NAME[directories[role_index]]
         )
         owner_end: int = len(directories) if role_index is None else role_index
-        grouping_depth: int = (
-            ownership_depth - 2 if ScopeName(cast(str, details["scope"])) is ScopeName.ROOT else 0
-        )
-        domain_parts: tuple[str, ...] = directories[grouping_depth:owner_end]
+        domain_parts: tuple[str, ...] = directories[:owner_end]
         first_runtime_role: str | None = next(
             (
                 STRUCTURAL_MODULE_PART_TO_NAME[part]
@@ -185,6 +193,20 @@ def _project_tree(
                 first_runtime_role == RoleName.MAIN and relative_parts[-1] != INIT_MODULE_FILE_NAME
             ),
             is_main_module=first_runtime_role == RoleName.MAIN,
+            ownership_root=(
+                None
+                if details["ownership_root"] is None
+                else ProjectPath(_string(value=details["ownership_root"], name="ownership root"))
+            ),
+            ownership_root_declaration=(
+                None
+                if details["ownership_root_declaration"] is None
+                else _string(
+                    value=details["ownership_root_declaration"],
+                    name="ownership root declaration",
+                )
+            ),
+            ownership_relative_parts=ownership_relative_parts,
         )
     ordered_files: tuple[File, ...] = tuple(File(path) for path in sorted(positions))
     paths: set[ProjectPath] = {_root_path()}
@@ -238,6 +260,7 @@ def _architecture_graph(*, workspace: PythonWorkspaceFacts, tree: ProjectTree) -
                     package=position.package or "",
                     role=position.role,
                 ),
+                ownership_root=position.ownership_root,
             )
         )
         analyses[item.file.path] = item.facts
@@ -351,14 +374,6 @@ def _sequence(*, value: object, name: str) -> list[object]:
 def _string(*, value: object, name: str) -> str:
     if not isinstance(value, str):
         raise ConfigError(f"{name} must be a string.")
-    return value
-
-
-def _ownership_depth(value: object) -> int:
-    if isinstance(value, bool) or not isinstance(value, int) or value < MINIMUM_OWNERSHIP_DEPTH:
-        raise ConfigError(
-            f"Python ownership depth must be an integer of at least {MINIMUM_OWNERSHIP_DEPTH}."
-        )
     return value
 
 

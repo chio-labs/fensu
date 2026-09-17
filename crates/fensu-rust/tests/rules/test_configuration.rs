@@ -899,7 +899,7 @@ fn given_custom_parser_boundary_when_checking_then_uses_configured_policy() {
                 .to_owned(),
         }],
         config: models::RustPolicy {
-            ownership_depth: 2,
+            ownership_roots: Vec::new(),
             tooling: models::ToolingConfig {
                 paths: vec!["crates/example-validator".to_owned()],
                 runtime_forbidden_packages: vec![
@@ -1143,7 +1143,7 @@ fn given_invalid_config_when_validating_then_fails_closed() {
         test_types::ConfigValidationTestCase {
             description: "empty forbidden package",
             config: models::RustPolicy {
-                ownership_depth: 2,
+                ownership_roots: Vec::new(),
                 tooling: models::ToolingConfig {
                     paths: Vec::new(),
                     runtime_forbidden_packages: vec![String::new()],
@@ -1155,7 +1155,7 @@ fn given_invalid_config_when_validating_then_fails_closed() {
         test_types::ConfigValidationTestCase {
             description: "non-canonical trailing slash path",
             config: models::RustPolicy {
-                ownership_depth: 2,
+                ownership_roots: Vec::new(),
                 repository: models::RepositoryPolicyConfig {
                     domain_paths: vec!["crates/example/src/domain/".to_owned()],
                     ..models::RepositoryPolicyConfig::default()
@@ -1167,7 +1167,7 @@ fn given_invalid_config_when_validating_then_fails_closed() {
         test_types::ConfigValidationTestCase {
             description: "platform-independent drive path",
             config: models::RustPolicy {
-                ownership_depth: 2,
+                ownership_roots: Vec::new(),
                 repository: models::RepositoryPolicyConfig {
                     domain_paths: vec!["C:/repository/domain".to_owned()],
                     ..models::RepositoryPolicyConfig::default()
@@ -1179,7 +1179,7 @@ fn given_invalid_config_when_validating_then_fails_closed() {
         test_types::ConfigValidationTestCase {
             description: "overlapping intentional layout paths",
             config: models::RustPolicy {
-                ownership_depth: 2,
+                ownership_roots: Vec::new(),
                 repository: models::RepositoryPolicyConfig {
                     intentional_layout_paths: vec![
                         "crates/example/src/generated".to_owned(),
@@ -1194,7 +1194,7 @@ fn given_invalid_config_when_validating_then_fails_closed() {
         test_types::ConfigValidationTestCase {
             description: "intentional layout overlaps declared domain",
             config: models::RustPolicy {
-                ownership_depth: 2,
+                ownership_roots: Vec::new(),
                 repository: models::RepositoryPolicyConfig {
                     domain_paths: vec!["crates/example/src/domain".to_owned()],
                     intentional_layout_paths: vec!["crates/example/src/domain/generated".to_owned()],

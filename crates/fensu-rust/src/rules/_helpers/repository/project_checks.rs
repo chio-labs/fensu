@@ -32,7 +32,7 @@ pub(crate) fn check(
         repo_root,
         workspace_crates,
         &config.repository,
-        config.ownership_depth,
+        &config.ownership_roots,
     );
     violations.extend(architecture_checks(repo_root, workspace_crates, config));
     violations
@@ -128,13 +128,13 @@ fn check_aggregate_structure(
     violations.extend(domains::check_domains(
         structural_files,
         &workspace_crate.targets,
-        config.ownership_depth,
+        &config.ownership_roots,
     ));
     violations.extend(ownership::check(
         &workspace_crate.directory,
         workspace_crate.package_name.as_deref(),
         structural_files,
-        config.ownership_depth,
+        &config.ownership_roots,
     ));
     violations.extend(surfaces::check(structural_files));
     if is_tooling_crate {
@@ -162,7 +162,7 @@ fn architecture_checks(
     config: &models::RustPolicy,
 ) -> Vec<models::Violation> {
     let mut violations =
-        visibility::check_workspace(repo_root, workspace_crates, config.ownership_depth);
+        visibility::check_workspace(repo_root, workspace_crates, &config.ownership_roots);
     violations.extend(shape_project::check_workspace(repo_root, workspace_crates));
     violations
 }

@@ -43,6 +43,7 @@ class _Module:
     scope: ScopeName
     parts: tuple[str, ...]
     domain: str | None
+    ownership_root: Path | None
     first_role: str | None
     tail: tuple[str, ...]
     imports: tuple[ImportFact, ...]
@@ -67,10 +68,20 @@ def public_main_entry_external_use_impl(*, module: ast.Module, ctx: RuleContext)
                 parts: tuple[str, ...] = (*path.relative_to(root.parent).parts[:-1], path.stem)
                 if parts[-1] == _INIT_STEM:
                     parts = parts[:-1]
+                ownership_root: Path | None = (
+                    _effective_ownership_root(path=path, roots=ctx.ownership_roots())
+                    if scope is ScopeName.ROOT
+                    else root
+                )
+                owner_start: int = (
+                    len(ownership_root.relative_to(root.parent).parts)
+                    if ownership_root is not None
+                    else len(parts)
+                )
                 domain, first_role, tail = _ownership(
                     parts=parts,
                     initializer=path.name == _INIT,
-                    ownership_depth=ctx.ownership_depth() if scope is ScopeName.ROOT else 2,
+                    owner_start=owner_start,
                 )
                 modules.append(
                     _Module(
@@ -78,6 +89,7 @@ def public_main_entry_external_use_impl(*, module: ast.Module, ctx: RuleContext)
                         scope=scope,
                         parts=parts,
                         domain=domain,
+                        ownership_root=ownership_root,
                         first_role=first_role,
                         tail=tail,
                         imports=analysis.facts.references().imports,
@@ -109,7 +121,7 @@ def public_main_entry_external_use_impl(*, module: ast.Module, ctx: RuleContext)
                     importer.scope is ScopeName.TOOLING
                     or importer.domain is None
                     or importer.domain != target.domain
-                    or importer.parts[0] != target.parts[0]
+                    or importer.ownership_root != target.ownership_root
                 ):
                     used.add(target_parts)
     return [
@@ -324,17 +336,17 @@ def leaf_main_boundary_impl(*, module: ast.Module, ctx: RuleContext) -> list[Fau
     """Require each runtime leaf to own at least one meaningful main entry."""
 
     del module
-    domain_index: int = ctx.ownership_depth() - 2
-    if ctx.scope() is not ScopeName.ROOT or len(ctx.relative_parts()) <= domain_index + 1:
+    ownership_root: Path | None = ctx.ownership_root()
+    if ctx.scope() is not ScopeName.ROOT or ownership_root is None:
         return []
-    parts: tuple[str, ...] = ctx.relative_parts()
-    domain: Path = ctx.scope_root().joinpath(*parts[: domain_index + 1])
+    parts: tuple[str, ...] = ctx.ownership_relative_parts()
+    if len(parts) <= 1:
+        return []
+    domain: Path = ownership_root / parts[0]
     leaf: Path = (
         domain
-        if len(parts) <= domain_index + 1
-        or parts[domain_index + 1] in _ROLE_NAMES
-        or parts[domain_index + 1].endswith(_PYTHON_SUFFIX)
-        else domain / parts[domain_index + 1]
+        if parts[1] in _ROLE_NAMES or parts[1].endswith(_PYTHON_SUFFIX)
+        else domain / parts[1]
     )
     if leaf == domain:
         entries: tuple[Path, ...] = ctx.project.directory_entries(requester=ctx.path, path=domain)
@@ -362,9 +374,9 @@ def leaf_main_boundary_impl(*, module: ast.Module, ctx: RuleContext) -> list[Fau
 
 
 def _ownership(
-    *, parts: tuple[str, ...], initializer: bool, ownership_depth: int
+    *, parts: tuple[str, ...], initializer: bool, owner_start: int
 ) -> tuple[str | None, str | None, tuple[str, ...]]:
-    owner_start: int = min(1 + max(0, ownership_depth - 2), len(parts))
+    owner_start = min(owner_start, len(parts))
     role_index: int | None = next(
         (
             index
@@ -427,19 +439,28 @@ def _direct_role_entries(entries: tuple[Path, ...]) -> tuple[Path, ...]:
 
 
 def _grouping_roots(*, ctx: RuleContext) -> tuple[Path, ...]:
-    current: tuple[Path, ...] = (ctx.scope_root(),)
-    groups: list[Path] = []
-    for _ in range(ctx.ownership_depth() - 2):
-        current = _owned_directories(ctx=ctx, roots=current)
-        groups.extend(current)
-    return tuple(groups)
+    groups: set[Path] = set()
+    scope_roots: tuple[Path, ...] = ctx.scope_roots(ScopeName.ROOT)
+    for ownership_root in ctx.ownership_roots():
+        scope_root: Path | None = next(
+            (
+                root
+                for root in sorted(scope_roots, key=lambda item: len(item.parts), reverse=True)
+                if ownership_root == root or ownership_root.is_relative_to(root)
+            ),
+            None,
+        )
+        if scope_root is None:
+            continue
+        current: Path = ownership_root
+        while current != scope_root:
+            groups.add(current)
+            current = current.parent
+    return tuple(sorted(groups))
 
 
 def _ownership_roots(*, ctx: RuleContext) -> tuple[Path, ...]:
-    current: tuple[Path, ...] = (ctx.scope_root(),)
-    for _ in range(ctx.ownership_depth() - 2):
-        current = _owned_directories(ctx=ctx, roots=current)
-    return current
+    return ctx.ownership_roots()
 
 
 def _domain_roots(*, ctx: RuleContext) -> tuple[Path, ...]:
@@ -463,6 +484,13 @@ def _owned_directories(*, ctx: RuleContext, roots: tuple[Path, ...]) -> tuple[Pa
                 continue
             directories.append(entry)
     return tuple(sorted(directories))
+
+
+def _effective_ownership_root(*, path: Path, roots: tuple[Path, ...]) -> Path | None:
+    matches: tuple[Path, ...] = tuple(
+        root for root in roots if path == root or path.is_relative_to(root)
+    )
+    return max(matches, key=lambda item: len(item.parts), default=None)
 
 
 def _natural_list(values: tuple[str, ...]) -> str:

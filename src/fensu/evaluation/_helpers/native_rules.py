@@ -18,6 +18,7 @@ from fensu.analysis.types import Analysis
 from fensu.config.constants import DEFAULT_TARGET_ROOT
 from fensu.config.main.resolve_threshold import resolve_threshold
 from fensu.config.models import Config, ThresholdResolution
+from fensu.discovery.constants import INIT_MODULE_FILE_NAME
 from fensu.discovery.main.position import position_facts
 from fensu.discovery.models import PositionFacts
 from fensu.discovery.types import ScopeName
@@ -56,6 +57,7 @@ def prepare_native_execution_request(
     repo_root: Path,
     tooling_packages: tuple[str, ...],
     scope_roots: tuple[tuple[str, str], ...],
+    ownership_roots: tuple[str, ...],
     project: EvaluationProjectAnalysis,
 ) -> tuple[NativeExecutionRequest, tuple[ThresholdOverrideUse, ...]]:
     """Build one source-owned request for the opaque native execution batch."""
@@ -139,7 +141,18 @@ def prepare_native_execution_request(
             str(repo_root),
             _native_rule_options(config=config, codes=codes),
             list(config.test_scopes),
-            config.ownership_depth,
+            (
+                None
+                if target.scoped_file.ownership_root is None
+                else len(target.scoped_file.relative_parts)
+                - len(target.scoped_file.ownership_parts())
+            ),
+            (
+                None
+                if target.scoped_file.ownership_root is None
+                else str(target.scoped_file.ownership_root)
+            ),
+            list(ownership_roots),
         ),
     )
     return request, tuple(uses)
@@ -201,6 +214,15 @@ def prepare_native_execution_requests(
             ).source
         decoded.append(source)
     sources: tuple[str, ...] = tuple(decoded)
+    ownership_roots: tuple[str, ...] = tuple(
+        sorted(
+            {
+                str(target.scoped_file.ownership_root)
+                for target in targets
+                if target.scoped_file.ownership_root is not None
+            }
+        )
+    )
     prepared: tuple[tuple[NativeExecutionRequest, tuple[ThresholdOverrideUse, ...]], ...] = tuple(
         prepare_native_execution_request(
             target=target,
@@ -210,6 +232,7 @@ def prepare_native_execution_requests(
             repo_root=repo_root,
             tooling_packages=tooling_packages,
             scope_roots=scope_roots,
+            ownership_roots=ownership_roots,
             project=project,
         )
         for target, source, codes in zip(targets, sources, codes_by_target, strict=True)
@@ -249,6 +272,18 @@ def prepare_native_project_plane(
     if requester is None:
         return [], []
     files: list[NativeProjectFile] = []
+    ownership_roots: tuple[Path, ...] = tuple(
+        sorted(
+            {
+                target.scoped_file.ownership_root
+                for target in targets
+                if target.scoped_file.ownership_root is not None
+            }
+        )
+    )
+    targets_by_path: dict[Path, EvaluationTarget] = {
+        target.scoped_file.path: target for target in targets
+    }
     for scope, root_text in scope_roots:
         if scope not in {ScopeName.ROOT, ScopeName.TEST, ScopeName.TOOLING}:
             continue
@@ -270,15 +305,53 @@ def prepare_native_project_plane(
             module_parts: tuple[str, ...] = (*path.relative_to(root.parent).parts[:-1], path.stem)
             if module_parts[-1] == INIT_MODULE_NAME:
                 module_parts = module_parts[:-1]
+            ownership_start, matched_ownership_root = _project_module_ownership(
+                path=path,
+                module_parts=module_parts,
+                root=root,
+                target=targets_by_path.get(path),
+                ownership_roots=ownership_roots,
+            )
             files.append(
                 (
                     path.relative_to(repo_root).as_posix(),
                     scope,
                     list(module_parts),
                     source,
+                    ownership_start,
+                    None if matched_ownership_root is None else str(matched_ownership_root),
                 )
             )
     return files, list(project.entrypoint_modules(requester=requester))
+
+
+def _project_module_ownership(
+    *,
+    path: Path,
+    module_parts: tuple[str, ...],
+    root: Path,
+    target: EvaluationTarget | None,
+    ownership_roots: tuple[Path, ...],
+) -> tuple[int | None, Path | None]:
+    if target is not None and target.scoped_file.ownership_root is not None:
+        owned_parts: tuple[str, ...] = target.scoped_file.ownership_parts()
+        owned_module_width: int = len(owned_parts) - int(path.name == INIT_MODULE_FILE_NAME)
+        return (
+            len(module_parts) - min(owned_module_width, len(module_parts)),
+            target.scoped_file.ownership_root,
+        )
+    matched: Path | None = max(
+        (
+            ownership_root
+            for ownership_root in ownership_roots
+            if path == ownership_root or path.is_relative_to(ownership_root)
+        ),
+        key=lambda item: len(item.parts),
+        default=None,
+    )
+    if matched is None:
+        return None, None
+    return len(matched.relative_to(root.parent).parts), matched
 
 
 def _native_threshold_path(

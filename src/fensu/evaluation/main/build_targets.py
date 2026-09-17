@@ -59,7 +59,17 @@ def build_evaluation_targets(
                 str(target.scoped_file.root),
                 list(target.scoped_file.relative_parts),
                 target.direct,
-                tree.layout.ownership_depth,
+                (
+                    None
+                    if target.scoped_file.ownership_root is None
+                    else str(target.scoped_file.ownership_root)
+                ),
+                (
+                    None
+                    if target.scoped_file.ownership_root is None
+                    else len(target.scoped_file.relative_parts)
+                    - len(target.scoped_file.ownership_parts())
+                ),
             )
             for target in ordered
         ],

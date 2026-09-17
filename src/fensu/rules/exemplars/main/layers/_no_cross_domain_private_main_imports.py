@@ -6,6 +6,7 @@ from fensu import Family, Fault, RuleContext, rule
 from fensu.rules.exemplars._helpers.import_ownership import (
     normalized_targets,
     ownership,
+    ownership_start,
     target_module_exists,
 )
 from fensu.rules.exemplars.types import (
@@ -34,7 +35,7 @@ def no_cross_domain_private_main_imports_equivalent(
     current: ImportOwnership = ownership(
         parts=ctx.module_parts(),
         initializer=ctx.path.name == ExemplarLayerPathName.INIT,
-        ownership_depth=ctx.ownership_depth(),
+        owner_start=ownership_start(ctx=ctx, parts=ctx.module_parts()),
     )
     faults: list[Fault] = []
     for fact in ctx.facts.references().imports:
@@ -52,7 +53,7 @@ def no_cross_domain_private_main_imports_equivalent(
             target: ImportOwnership = ownership(
                 parts=parts,
                 initializer=False,
-                ownership_depth=ctx.ownership_depth(),
+                owner_start=ownership_start(ctx=ctx, parts=parts),
             )
             private: bool = (
                 target.role == ExemplarRoleName.MAIN
@@ -62,6 +63,7 @@ def no_cross_domain_private_main_imports_equivalent(
             )
             shares_domain: bool = (
                 current.package == target.package
+                and current.ownership_root == target.ownership_root
                 and current.domain is not None
                 and current.domain == target.domain
             )

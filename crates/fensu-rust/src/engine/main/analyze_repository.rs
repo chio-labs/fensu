@@ -10,10 +10,5 @@ pub fn analyze_repository(
     options: Option<&toml::map::Map<String, toml::Value>>,
     tooling: &[String],
 ) -> Result<RepositoryAnalysis, String> {
-    crate::engine::_helpers::repository_analysis::analyze(
-        repository_root,
-        options,
-        tooling,
-        crate::constants::DEFAULT_OWNERSHIP_DEPTH,
-    )
+    crate::engine::_helpers::repository_analysis::analyze(repository_root, options, tooling, &[])
 }

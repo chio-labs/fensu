@@ -30,7 +30,7 @@ use crate::check::web_custom_facts::web_fact_payload;
 use crate::check::web_policy::{self, WebPolicyRequest};
 use crate::constants::{
     CUSTOM_RULE_TEST_COVERAGE_CODE, PROJECT_RULE_REQUESTER, RUST_CUSTOM_DEPENDENCY_KINDS,
-    SCOPE_TEST, WEB_CUSTOM_DEPENDENCY_KINDS, WEB_PARSE_DIAGNOSTIC_CODE,
+    SCOPE_ROOT, SCOPE_TEST, WEB_CUSTOM_DEPENDENCY_KINDS, WEB_PARSE_DIAGNOSTIC_CODE,
 };
 use crate::hosting::main::run_rust_custom_rule_host::run_rust_custom_rule_host;
 use crate::hosting::main::run_web_custom_rule_host::run_web_custom_rule_host;
@@ -87,7 +87,7 @@ pub(crate) fn evaluate(request: EvaluationRequest<'_>) -> Result<TargetEvaluatio
         .iter()
         .map(|rule| rule.code.as_str())
         .collect::<HashSet<_>>();
-    let codes_by_source = owner_plan(sources, &all_rules, config.ownership_depth)?;
+    let codes_by_source = owner_plan(sources, &all_rules)?;
     let project = project_plane(project_root, config, sources)?;
     let program_by_path = sources
         .iter()
@@ -122,11 +122,13 @@ pub(crate) fn evaluate(request: EvaluationRequest<'_>) -> Result<TargetEvaluatio
                 tooling_packages: tooling_packages(config),
                 scope_roots: scope_roots(config),
                 test_scopes: config.test_scopes.clone(),
+                ownership_root: resolved_source_ownership_root(source, project_root),
+                ownership_roots: resolved_ownership_root_paths(config, project_root),
+                ownership_offset: ownership_offset(source),
                 observations: HashMap::new(),
                 custom_registrations: Vec::new(),
                 repo_root: project_root.to_string_lossy().into_owned(),
                 rule_options: native_rule_options(codes, config)?,
-                ownership_depth: config.ownership_depth.max(2),
             };
             let plans = plan_core_rule_queries(program(source), &implementation_codes, &context);
             context.observations =
@@ -205,8 +207,7 @@ pub(crate) fn evaluate(request: EvaluationRequest<'_>) -> Result<TargetEvaluatio
             threshold_uses: uses,
             cacheable: Some(true),
         },
-        repository_facts: collect_repository_facts
-            .then(|| python_repository_fact_payload(sources, config.ownership_depth)),
+        repository_facts: collect_repository_facts.then(|| python_repository_fact_payload(sources)),
     })
 }
 
@@ -288,18 +289,18 @@ fn evaluate_rust_target(request: EvaluationRequest<'_>) -> Result<TargetEvaluati
         .filter(|(code, _)| !code.starts_with('X'))
         .map(|(code, options)| (code.clone(), options.clone()))
         .collect::<toml::map::Map<_, _>>();
-    let analysis = if config.ownership_depth <= crate::constants::DEFAULT_OWNERSHIP_DEPTH {
+    let analysis = if config.ownership_roots.is_empty() {
         fensu_rust::engine::main::analyze_repository::analyze_repository(
             project_root,
             Some(&native_options),
             &config.tooling,
         )?
     } else {
-        fensu_rust::engine::main::analyze_repository_with_ownership_depth::analyze_repository_with_ownership_depth(
+        fensu_rust::engine::main::analyze_repository_with_ownership_roots::analyze_repository_with_ownership_roots(
             project_root,
             Some(&native_options),
             &config.tooling,
-            config.ownership_depth,
+            &config.resolved_ownership_roots.iter().map(|root| root.path.clone()).collect::<Vec<_>>(),
         )?
     };
     let repository_facts: Option<serde_json::Value> = collect_repository_facts
@@ -359,6 +360,9 @@ fn evaluate_rust_target(request: EvaluationRequest<'_>) -> Result<TargetEvaluati
                 scope: source.scope.clone(),
                 scope_root: source.root_text.clone(),
                 relative_parts: source.relative_parts.clone(),
+                ownership_root: source.ownership_root.clone(),
+                ownership_root_declaration: source.ownership_root_declaration.clone(),
+                ownership_relative_parts: source.ownership_relative_parts.clone(),
             })
             .collect();
         let custom = run_rust_custom_rule_host(RustCustomRulePayload {
@@ -649,6 +653,9 @@ fn evaluate_parser_target(request: EvaluationRequest<'_>) -> Result<TargetEvalua
                 scope: source.scope.clone(),
                 scope_root: source.root_text.clone(),
                 relative_parts: source.relative_parts.clone(),
+                ownership_root: source.ownership_root.clone(),
+                ownership_root_declaration: source.ownership_root_declaration.clone(),
+                ownership_relative_parts: source.ownership_relative_parts.clone(),
             })
             .collect();
         let custom = run_web_custom_rule_host(WebCustomRulePayload {
@@ -984,7 +991,6 @@ fn package_name(source: &ScopedSource) -> String {
 pub(crate) fn owner_plan(
     sources: &[ScopedSource],
     rules: &[&RuleMetadata],
-    ownership_depth: usize,
 ) -> Result<Vec<Vec<String>>, String> {
     let targets: Vec<NativeExecutionTarget> = sources
         .iter()
@@ -994,7 +1000,8 @@ pub(crate) fn owner_plan(
             root: source.root_text.clone(),
             relative_parts: source.relative_parts.clone(),
             direct: true,
-            ownership_depth: ownership_depth.max(2),
+            ownership_root: source.ownership_root.clone(),
+            ownership_offset: ownership_offset(source),
         })
         .collect();
     let native_rules: Vec<NativeExecutionRule> = rules
@@ -1011,4 +1018,29 @@ pub(crate) fn owner_plan(
         .into_iter()
         .map(|plan| plan.codes)
         .collect())
+}
+
+fn resolved_ownership_root_paths(config: &Config, project_root: &Path) -> Vec<String> {
+    let mut paths: Vec<String> = Vec::new();
+    for root in &config.resolved_ownership_roots {
+        paths.push(project_root.join(&root.path).to_string_lossy().into_owned());
+    }
+    paths
+}
+
+fn resolved_source_ownership_root(source: &ScopedSource, project_root: &Path) -> Option<String> {
+    let root = source.ownership_root.as_ref()?;
+    Some(project_root.join(root).to_string_lossy().into_owned())
+}
+
+fn ownership_offset(source: &ScopedSource) -> Option<usize> {
+    if source.scope != SCOPE_ROOT || source.ownership_root.is_none() {
+        return None;
+    }
+    Some(
+        source
+            .relative_parts
+            .len()
+            .saturating_sub(source.ownership_relative_parts.len()),
+    )
 }

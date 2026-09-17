@@ -9,11 +9,11 @@ from fensu.analysis.main.analyzer_capability import analyzer_capability
 from fensu.analysis.main.resolve_native_backend_version import resolve_native_backend_version
 from fensu.cache.fingerprints._helpers.fingerprints import (
     collect_implementation_paths,
-    config_fingerprint,
     custom_rules_fingerprint,
     global_fingerprint,
     implementation_fingerprint,
     installed_implementation_fingerprint,
+    resolved_config_fingerprint,
     ruleset_fingerprint,
 )
 from fensu.cache.fingerprints.constants import NO_CACHEABLE_RULES_REASON
@@ -30,6 +30,7 @@ def build_global_fingerprint(
     repo_root: Path,
     custom_rule_root: Path | None = None,
     warnings_enabled: bool = False,
+    resolved_ownership_roots: tuple[str, ...] = (),
 ) -> GlobalFingerprintBuild:
     """Return a complete installed/editable identity or the reason it is unavailable."""
 
@@ -78,7 +79,9 @@ def build_global_fingerprint(
         return GlobalFingerprintBuild(
             fingerprint=global_fingerprint(
                 implementation=implementation,
-                config=config_fingerprint(config),
+                config=resolved_config_fingerprint(
+                    config=config, resolved_ownership_roots=resolved_ownership_roots
+                ),
                 ruleset=ruleset_fingerprint(ruleset),
                 custom_rules=custom_rules,
                 native_backend_version=resolve_native_backend_version(),

@@ -11,21 +11,21 @@ def analyzer_capability(analyzer: AnalyzerId) -> AnalyzerCapability:
         AnalyzerId.PYTHON: AnalyzerCapability(
             analyzer=AnalyzerId.PYTHON,
             available=True,
-            cache_contract="python-ruff-py312-v1",
+            cache_contract="python-ruff-py312-v2",
         ),
         AnalyzerId.RUST: AnalyzerCapability(
             analyzer=AnalyzerId.RUST,
             available=True,
-            cache_contract="rust-rules-v2",
+            cache_contract="rust-rules-v3",
         ),
         AnalyzerId.TYPESCRIPT: AnalyzerCapability(
             analyzer=AnalyzerId.TYPESCRIPT,
             available=True,
-            cache_contract="typescript-policy-v4",
+            cache_contract="typescript-policy-v5",
         ),
         AnalyzerId.SVELTE: AnalyzerCapability(
             analyzer=AnalyzerId.SVELTE,
             available=True,
-            cache_contract="svelte-policy-v4",
+            cache_contract="svelte-policy-v5",
         ),
     }[analyzer]

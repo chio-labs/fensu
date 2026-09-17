@@ -1229,7 +1229,7 @@ _PYTHON_OWNED_SFR_CODES: frozenset[str] = frozenset()
                     source="def load() -> None:\n    pass\n",
                 ),
             ),
-            config={"ownership_depth": 3},
+            config={"ownership_roots": ("src/example/sources",)},
         ),
         NativeCustomRuleParityTestCase(
             description="FFR204 matches public namespace package anchors",
@@ -1272,7 +1272,7 @@ _PYTHON_OWNED_SFR_CODES: frozenset[str] = frozenset()
             source="",
             expected_fault_count=0,
             path="src/example/sources/orders/models.py",
-            config={"ownership_depth": 3},
+            config={"ownership_roots": ("src/example/sources",)},
         ),
         NativeCustomRuleParityTestCase(
             description="FFR304 applies nested module depth after a structural group",
@@ -1280,7 +1280,7 @@ _PYTHON_OWNED_SFR_CODES: frozenset[str] = frozenset()
             source="value: int = 1\n",
             expected_fault_count=1,
             path="src/example/sources/orders/importing/load.py",
-            config={"ownership_depth": 3},
+            config={"ownership_roots": ("src/example/sources",)},
         ),
         NativeCustomRuleParityTestCase(
             description="FFR305 rejects ownership deeper than the grouped subdomain slot",
@@ -1288,7 +1288,7 @@ _PYTHON_OWNED_SFR_CODES: frozenset[str] = frozenset()
             source="value: int = 1\n",
             expected_fault_count=1,
             path="src/example/sources/orders/importing/extra/models.py",
-            config={"ownership_depth": 3},
+            config={"ownership_roots": ("src/example/sources",)},
         ),
         NativeCustomRuleParityTestCase(
             description="FFR306 rejects role content directly inside a structural group",
@@ -1296,7 +1296,7 @@ _PYTHON_OWNED_SFR_CODES: frozenset[str] = frozenset()
             source="",
             expected_fault_count=1,
             path="src/example/sources/models.py",
-            config={"ownership_depth": 3},
+            config={"ownership_roots": ("src/example/sources",)},
         ),
         NativeCustomRuleParityTestCase(
             description="FFR307 rejects direct modules inside a structural group",
@@ -1304,7 +1304,7 @@ _PYTHON_OWNED_SFR_CODES: frozenset[str] = frozenset()
             source="value: int = 1\n",
             expected_fault_count=1,
             path="src/example/sources/load.py",
-            config={"ownership_depth": 3},
+            config={"ownership_roots": ("src/example/sources",)},
         ),
         NativeCustomRuleParityTestCase(
             description="FFR308 matches public scope prefix observations",
@@ -1326,7 +1326,7 @@ _PYTHON_OWNED_SFR_CODES: frozenset[str] = frozenset()
             source="def run() -> None:\n    pass\n",
             expected_fault_count=0,
             path="src/example/sources/orders/importing/main/run.py",
-            config={"ownership_depth": 3},
+            config={"ownership_roots": ("src/example/sources",)},
         ),
         NativeCustomRuleParityTestCase(
             description="FFR405 matches public sibling directory observations",

@@ -65,6 +65,21 @@ def source_fingerprint(source: bytes) -> CacheFingerprint:
 def config_fingerprint(config: Config) -> CacheFingerprint:
     """Return a deterministic identity for semantic evaluation configuration."""
 
+    return _config_fingerprint(config=config, resolved_ownership_roots=())
+
+
+def resolved_config_fingerprint(
+    *, config: Config, resolved_ownership_roots: tuple[str, ...]
+) -> CacheFingerprint:
+    """Return a config identity including concrete path-scoped ownership roots."""
+
+    return _config_fingerprint(config=config, resolved_ownership_roots=resolved_ownership_roots)
+
+
+def _config_fingerprint(
+    *, config: Config, resolved_ownership_roots: tuple[str, ...]
+) -> CacheFingerprint:
+
     payload: CanonicalValue = {
         "analyzer": config.analyzer,
         "contracts": dict(sorted(config.contracts.items())),
@@ -73,7 +88,8 @@ def config_fingerprint(config: Config) -> CacheFingerprint:
             "include": list(config.evaluation.include),
         },
         "ignore": list(config.ignore),
-        "ownership_depth": config.ownership_depth,
+        "ownership_roots": list(config.ownership_roots),
+        "resolved_ownership_roots": list(resolved_ownership_roots),
         "role_thresholds": _role_threshold_values(config.role_thresholds),
         "roots": list(config.roots),
         "rule_exceptions": [_rule_exception_value(item) for item in config.rule_exceptions],

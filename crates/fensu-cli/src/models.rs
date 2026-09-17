@@ -80,7 +80,8 @@ pub(crate) struct Config {
     pub(crate) target: Option<String>,
     pub(crate) target_root: String,
     pub(crate) roots: Vec<String>,
-    pub(crate) ownership_depth: usize,
+    pub(crate) ownership_roots: Vec<String>,
+    pub(crate) resolved_ownership_roots: Vec<ResolvedOwnershipRoot>,
     pub(crate) tests: Vec<String>,
     pub(crate) test_scopes: Vec<String>,
     pub(crate) test_layout: TestLayout,
@@ -110,6 +111,12 @@ pub(crate) struct Config {
     pub(crate) source_kind: String,
     pub(crate) raw: Vec<u8>,
     pub(crate) identity_raw: Vec<u8>,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub(crate) struct ResolvedOwnershipRoot {
+    pub(crate) path: String,
+    pub(crate) declaration: String,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -166,6 +173,9 @@ pub(crate) struct ScopedSource {
     pub(crate) root_text: String,
     pub(crate) scope: String,
     pub(crate) relative_parts: Vec<String>,
+    pub(crate) ownership_root: Option<String>,
+    pub(crate) ownership_root_declaration: Option<String>,
+    pub(crate) ownership_relative_parts: Vec<String>,
     pub(crate) content: Vec<u8>,
     pub(crate) fingerprint: String,
     pub(crate) purpose: SourcePurpose,

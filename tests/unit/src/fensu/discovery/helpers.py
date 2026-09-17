@@ -23,7 +23,7 @@ def make_config(
     roots: tuple[str, ...] = ("src/pkg",),
     tests: tuple[str, ...] = (),
     tooling: tuple[str, ...] = (),
-    ownership_depth: int = 2,
+    ownership_roots: tuple[str, ...] = (),
 ) -> Config:
     """Build a Config for discovery tests without invoking the config loader."""
 
@@ -31,7 +31,7 @@ def make_config(
         roots=roots,
         tests=tests,
         tooling=tooling,
-        ownership_depth=ownership_depth,
+        ownership_roots=ownership_roots,
     )
 
 

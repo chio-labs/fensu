@@ -56,12 +56,12 @@ class TargetConfigTestCase:
 
 
 @dataclass(frozen=True)
-class OwnershipDepthConfigTestCase:
-    """Configured ownership depth and expected resolved/cache behavior."""
+class OwnershipRootsConfigTestCase:
+    """Configured ownership roots and expected resolved/cache behavior."""
 
     description: str
-    configured_depth: int
-    expected_depth: int
+    configured_roots: tuple[str, ...]
+    expected_roots: tuple[str, ...]
     expected_fingerprints_equal: bool
 
 

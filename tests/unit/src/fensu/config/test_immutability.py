@@ -126,7 +126,7 @@ def test_given_loaded_config_when_mutating_role_thresholds_then_raises_type_erro
                 "shadcn",
                 "openapi",
                 "test_layout",
-                "ownership_depth",
+                "ownership_roots",
             ),
         )
     ],

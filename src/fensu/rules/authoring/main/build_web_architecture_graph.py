@@ -5,8 +5,15 @@ from fensu.rules.authoring.models import ArchitectureGraph, WebWorkspaceFacts
 
 
 def build_web_architecture_graph(
-    *, workspace: WebWorkspaceFacts, ownership_depth: int = 2
+    *,
+    workspace: WebWorkspaceFacts,
+    ownership_roots: tuple[str, ...] = (),
+    subjects: object | None = None,
 ) -> ArchitectureGraph:
     """Build a common graph from native-resolved web imports."""
 
-    return web_architecture_graph(workspace=workspace, ownership_depth=ownership_depth)
+    return web_architecture_graph(
+        workspace=workspace,
+        ownership_roots=ownership_roots,
+        subjects=subjects,
+    )

@@ -274,11 +274,14 @@ fn helpers_reserved_filename_faults(
 
 fn nested_direct_module_faults(code: &str, context: &NativeRuleContext) -> Vec<NativeFaultRow> {
     let parts = &context.relative_parts;
+    let Some(ownership_offset) = context.ownership_offset() else {
+        return Vec::new();
+    };
     let Some(name) = path_name(context) else {
         return Vec::new();
     };
     if context.scope == TOOLING_SCOPE
-        || parts.len() < context.grouping_depth() + 3
+        || parts.len() < ownership_offset + 3
         || directories(context)
             .iter()
             .any(|part| part == MAIN_DIRECTORY_NAME)
@@ -298,16 +301,19 @@ fn nested_direct_module_faults(code: &str, context: &NativeRuleContext) -> Vec<N
 
 fn nested_direct_subpackage_faults(code: &str, context: &NativeRuleContext) -> Vec<NativeFaultRow> {
     let parts = &context.relative_parts;
+    let Some(ownership_offset) = context.ownership_offset() else {
+        return Vec::new();
+    };
     let package_parts = directories(context);
     if context.scope == TOOLING_SCOPE
-        || parts.len() < context.grouping_depth() + 4
+        || parts.len() < ownership_offset + 4
         || package_parts
             .iter()
             .any(|part| part == MAIN_DIRECTORY_NAME || part == HELPERS_DIRECTORY_NAME)
     {
         return Vec::new();
     }
-    for index in context.grouping_depth() + TOP_LEVEL_MODULE_PARTS..package_parts.len() {
+    for index in ownership_offset + TOP_LEVEL_MODULE_PARTS..package_parts.len() {
         let parent = package_parts[index - 1].as_str();
         let child = package_parts[index].as_str();
         if FFR305_RECOGNIZED_ROLE_DIRECTORIES.contains(&parent)
@@ -336,13 +342,19 @@ fn top_level_direct_module_faults(code: &str, context: &NativeRuleContext) -> Ve
             Some("runtime roots may contain only package protocol modules and domain packages"),
         )];
     }
-    if context.relative_parts.len() <= context.grouping_depth() + ROOT_MODULE_PARTS {
+    let Some(ownership_offset) = context.ownership_offset() else {
+        return vec![path_fault(
+            code,
+            Some("structural ownership groups must contain domain packages, not direct modules"),
+        )];
+    };
+    if context.relative_parts.len() <= ownership_offset + ROOT_MODULE_PARTS {
         return vec![path_fault(
             code,
             Some("structural ownership groups must contain domain packages, not direct modules"),
         )];
     }
-    if context.relative_parts.len() != context.grouping_depth() + TOP_LEVEL_MODULE_PARTS
+    if context.relative_parts.len() != ownership_offset + TOP_LEVEL_MODULE_PARTS
         || FFR307_RECOGNIZED_ROLE_FILENAMES.contains(&name)
     {
         return Vec::new();

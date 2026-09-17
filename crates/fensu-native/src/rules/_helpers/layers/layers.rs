@@ -2,6 +2,7 @@
 
 use fensu_facts::extension::models::ProgramHandle;
 use fensu_facts::facts::models::ImportRow;
+use std::path::Path;
 
 use crate::rules::_helpers::layer_local::local_layer_faults;
 use crate::rules::_helpers::layer_project::public_entry_faults;
@@ -46,9 +47,7 @@ pub(crate) fn layer_faults(
         NO_CROSS_DOMAIN_PRIVATE_MAIN_IMPORTS_CODE => {
             private_main_import_faults(code, context, &rows.imports)
         }
-        PUBLIC_MAIN_ENTRY_EXTERNAL_USE_CODE => {
-            public_entry_faults(code, project, context.grouping_depth())
-        }
+        PUBLIC_MAIN_ENTRY_EXTERNAL_USE_CODE => public_entry_faults(code, project),
         _ => return local_layer_faults(program, code, context),
     };
     Some(faults)
@@ -69,6 +68,7 @@ pub(crate) struct Ownership {
     pub(crate) domain: Option<String>,
     pub(crate) first_role: Option<String>,
     pub(crate) tail: Vec<String>,
+    pub(crate) ownership_root: Option<String>,
 }
 
 fn ownership_faults(
@@ -77,10 +77,12 @@ fn ownership_faults(
     imports: &[ImportRow],
 ) -> Vec<NativeFaultRow> {
     let current_parts = current_module_parts(context);
+    let (current_start, current_root) = current_ownership_position(context, &current_parts);
     let current = classify(
         &current_parts,
         file_name(context) == INIT_FILE_NAME,
-        context.grouping_depth(),
+        current_start,
+        current_root,
     );
     let mut faults: Vec<NativeFaultRow> = Vec::new();
     for row in imports {
@@ -89,7 +91,8 @@ fn ownership_faults(
         {
             let initializer = module_init_path(context, &target_parts)
                 .is_some_and(|path| observed_bool(context, "exists", &path));
-            let target = classify(&target_parts, initializer, context.grouping_depth());
+            let (target_start, target_root) = ownership_position(context, &target_parts);
+            let target = classify(&target_parts, initializer, target_start, target_root);
             let violation = if code == NO_SIBLING_PACKAGE_INTERNALS_CODE {
                 sibling_internal(&current, &target)
             } else {
@@ -122,10 +125,12 @@ fn private_main_import_faults(
     imports: &[ImportRow],
 ) -> Vec<NativeFaultRow> {
     let current_parts = current_module_parts(context);
+    let (current_start, current_root) = current_ownership_position(context, &current_parts);
     let current = classify(
         &current_parts,
         file_name(context) == INIT_FILE_NAME,
-        context.grouping_depth(),
+        current_start,
+        current_root,
     );
     let mut faults: Vec<NativeFaultRow> = Vec::new();
     for row in imports {
@@ -143,7 +148,8 @@ fn private_main_import_faults(
             }
         }
         for parts in targets {
-            let target = classify(&parts, false, context.grouping_depth());
+            let (target_start, target_root) = ownership_position(context, &parts);
+            let target = classify(&parts, false, target_start, target_root);
             if !private_main(&target) || shares_domain(&current, &target) {
                 continue;
             }
@@ -166,7 +172,12 @@ fn private_main_import_faults(
     faults
 }
 
-pub(crate) fn classify(parts: &[String], initializer: bool, grouping_depth: usize) -> Ownership {
+pub(crate) fn classify(
+    parts: &[String],
+    initializer: bool,
+    owner_start: usize,
+    ownership_root: Option<String>,
+) -> Ownership {
     let structural = [
         "main",
         "_helpers",
@@ -176,7 +187,7 @@ pub(crate) fn classify(parts: &[String], initializer: bool, grouping_depth: usiz
         "constants",
         "exceptions",
     ];
-    let owner_start = (1 + grouping_depth).min(parts.len());
+    let owner_start = owner_start.min(parts.len());
     let role_index = parts
         .iter()
         .enumerate()
@@ -211,7 +222,58 @@ pub(crate) fn classify(parts: &[String], initializer: bool, grouping_depth: usiz
         owner_prefix,
         first_role,
         tail,
+        ownership_root,
     }
+}
+
+fn current_ownership_position(
+    context: &NativeRuleContext,
+    parts: &[String],
+) -> (usize, Option<String>) {
+    context.ownership_offset.map_or_else(
+        || (parts.len(), None),
+        |offset| (1 + offset, context.ownership_root.clone()),
+    )
+}
+
+fn ownership_position(context: &NativeRuleContext, parts: &[String]) -> (usize, Option<String>) {
+    let mut matches: Vec<(usize, String)> = Vec::new();
+    for (scope, source_root) in &context.scope_roots {
+        if scope != ROOT_SCOPE {
+            continue;
+        }
+        let configured_source = Path::new(source_root);
+        let source = if configured_source.is_absolute() {
+            configured_source.to_path_buf()
+        } else {
+            Path::new(&context.repo_root).join(configured_source)
+        };
+        let Some(package) = source.file_name().and_then(|value| value.to_str()) else {
+            continue;
+        };
+        if parts.first().map(String::as_str) != Some(package) {
+            continue;
+        }
+        for ownership_root in &context.ownership_roots {
+            let ownership = Path::new(ownership_root);
+            let Ok(relative) = ownership.strip_prefix(&source) else {
+                continue;
+            };
+            let mut prefix = vec![package.to_owned()];
+            prefix.extend(
+                relative
+                    .components()
+                    .map(|part| part.as_os_str().to_string_lossy().into_owned()),
+            );
+            if parts.starts_with(&prefix) {
+                matches.push((prefix.len(), ownership_root.clone()));
+            }
+        }
+    }
+    matches
+        .into_iter()
+        .max_by_key(|(start, _)| *start)
+        .map_or_else(|| (parts.len(), None), |(start, root)| (start, Some(root)))
 }
 
 fn public_surface(target: &Ownership) -> bool {
@@ -228,6 +290,7 @@ fn sibling_internal(current: &Ownership, target: &Ownership) -> bool {
         && current.package == target.package
         && current.domain.is_some()
         && current.domain == target.domain
+        && current.ownership_root == target.ownership_root
         && current.owner_prefix != target.owner_prefix
         && !public_surface(target)
 }
@@ -237,7 +300,7 @@ fn cross_package_internal(current: &Ownership, target: &Ownership) -> bool {
         && current.package == target.package
         && current.domain.is_some()
         && target.domain.is_some()
-        && current.domain != target.domain
+        && (current.domain != target.domain || current.ownership_root != target.ownership_root)
         && !public_surface(target)
 }
 
@@ -254,6 +317,7 @@ pub(crate) fn shares_domain(current: &Ownership, target: &Ownership) -> bool {
         && current.package == target.package
         && current.domain.is_some()
         && current.domain == target.domain
+        && current.ownership_root == target.ownership_root
 }
 
 pub(crate) fn normalized_targets(

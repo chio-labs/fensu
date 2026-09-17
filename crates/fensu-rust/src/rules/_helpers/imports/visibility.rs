@@ -50,20 +50,20 @@ struct VisibilityIndex {
     entries: Vec<Entry>,
     helper_types: Vec<HelperType>,
     violations: Vec<models::Violation>,
-    ownership_depth: usize,
+    ownership_roots: Vec<String>,
 }
 
 pub(crate) fn check_workspace(
     repo_root: &path::Path,
     workspace_crates: &[models::WorkspaceCrate],
-    ownership_depth: usize,
+    ownership_roots: &[String],
 ) -> Vec<models::Violation> {
     let crates = workspace_crates
         .iter()
         .filter_map(|workspace_crate| crate_sources(repo_root, workspace_crate, workspace_crates))
         .collect::<Vec<_>>();
     let mut index = VisibilityIndex {
-        ownership_depth,
+        ownership_roots: ownership_roots.to_vec(),
         ..VisibilityIndex::default()
     };
     for crate_sources in &crates {
@@ -118,8 +118,7 @@ impl VisibilityIndex {
                 continue;
             };
             let current_module = reference_paths::module_path(&crate_sources.package, file);
-            let domain_index = 1 + self.ownership_depth.saturating_sub(2);
-            let source_domain = current_module.get(domain_index).cloned();
+            let source_domain = domain_identity(file, &current_module, &self.ownership_roots);
             for (target, line) in
                 reference_paths::collect(syntax, &file.source, &crate_sources.package)
             {
@@ -145,9 +144,12 @@ impl VisibilityIndex {
                     line,
                 });
             }
-            if let Some(entry) =
-                collect_entry(file, &current_module, &module_visibility, domain_index)
-            {
+            if let Some(entry) = collect_entry(
+                file,
+                &current_module,
+                &module_visibility,
+                source_domain.clone(),
+            ) {
                 self.entries.push(entry);
             }
             self.helper_types
@@ -191,7 +193,7 @@ fn collect_entry(
     file: &models::SourceFile,
     module: &[String],
     visibility: &BTreeMap<Vec<String>, bool>,
-    domain_index: usize,
+    domain: Option<String>,
 ) -> Option<Entry> {
     if !file.has_directory(constants::MAIN_DIRECTORY)
         || file.file_name() == constants::MOD_FILE
@@ -201,7 +203,7 @@ fn collect_entry(
     }
     let public_to_crate = visibility.get(module).copied()?;
     Some(Entry {
-        domain: module.get(domain_index).cloned(),
+        domain,
         file: file.relative.clone(),
         module: module.to_vec(),
         private_name: file.file_name().starts_with('_'),
@@ -212,6 +214,17 @@ fn collect_entry(
             .as_ref()
             .is_some_and(|syntax| syntax.items.iter().any(externally_declared_item)),
     })
+}
+
+fn domain_identity(
+    file: &models::SourceFile,
+    module: &[String],
+    ownership_roots: &[String],
+) -> Option<String> {
+    let root = file.ownership_root(ownership_roots)?;
+    let index = 1 + file.ownership_offset(ownership_roots)?;
+    let domain = module.get(index)?;
+    Some(format!("{root}\0{domain}"))
 }
 
 fn entry_visibility_violations(entries: &[Entry]) -> Vec<models::Violation> {

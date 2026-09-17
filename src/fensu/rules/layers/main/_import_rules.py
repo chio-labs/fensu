@@ -33,7 +33,7 @@ def import_rules() -> tuple[RuleSpec, ...]:
             remediation=(
                 "Publish the dependency through the owning sibling's main/ entry or role files."
             ),
-            configuration_inputs=("ownership_depth",),
+            configuration_inputs=("ownership_roots",),
         ),
         RuleSpec(
             code=LayerCode.NO_CROSS_PACKAGE_INTERNALS,
@@ -43,7 +43,7 @@ def import_rules() -> tuple[RuleSpec, ...]:
             remediation=(
                 "Import from classes, models, types, constants, exceptions, or a thin main/ entry."
             ),
-            configuration_inputs=("ownership_depth",),
+            configuration_inputs=("ownership_roots",),
         ),
         RuleSpec(
             code=LayerCode.NO_INTERNAL_PUBLIC_SURFACE_IMPORTS,
@@ -58,7 +58,7 @@ def import_rules() -> tuple[RuleSpec, ...]:
                     values=("rules/exemplars",),
                 ),
             ),
-            configuration_inputs=("ownership_depth",),
+            configuration_inputs=("ownership_roots",),
         ),
         RuleSpec(
             code=LayerCode.NO_CROSS_DOMAIN_PRIVATE_MAIN_IMPORTS,
@@ -69,7 +69,7 @@ def import_rules() -> tuple[RuleSpec, ...]:
                 "Remove the leading underscore to publish the main entry, or route the caller "
                 "through a public main entry owned by the target domain."
             ),
-            configuration_inputs=("ownership_depth",),
+            configuration_inputs=("ownership_roots",),
         ),
         RuleSpec(
             code=LayerCode.PUBLIC_MAIN_ENTRY_EXTERNAL_USE,
@@ -81,7 +81,7 @@ def import_rules() -> tuple[RuleSpec, ...]:
                 "imports it."
             ),
             execution_owner=ExecutionOwner.PROJECT,
-            configuration_inputs=("ownership_depth",),
+            configuration_inputs=("ownership_roots",),
         ),
         RuleSpec(
             code=LayerCode.NO_RUNTIME_IMPORTS_FROM_TOOLING,

@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from fensu.config.constants import DEFAULT_OWNERSHIP_DEPTH
 from fensu.discovery.types import ScopeName
 
 
@@ -35,13 +34,22 @@ class ProjectSource:
 
 
 @dataclass(frozen=True, slots=True)
+class OwnershipRoot:
+    """One concrete directory where domain ownership begins."""
+
+    path: Path
+    relative_parts: tuple[str, ...]
+    declaration: str
+
+
+@dataclass(frozen=True, slots=True)
 class ProjectLayout:
     """Authoritative resolved runtime, test, and tooling layout."""
 
     runtime_sources: tuple[ProjectSource, ...]
     test_roots: tuple[ProjectPath, ...]
     tooling_sources: tuple[ProjectSource, ...]
-    ownership_depth: int = DEFAULT_OWNERSHIP_DEPTH
+    ownership_roots: tuple[OwnershipRoot, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,7 +60,18 @@ class ScopedFile:
     root: Path
     scope: ScopeName
     relative_parts: tuple[str, ...]
-    ownership_depth: int = DEFAULT_OWNERSHIP_DEPTH
+    ownership_root: Path | None = None
+    ownership_root_declaration: str | None = None
+    ownership_relative_parts: tuple[str, ...] | None = None
+
+    def ownership_parts(self) -> tuple[str, ...]:
+        """Return ownership-relative parts or the physical fallback for synthetic files."""
+
+        return (
+            self.relative_parts
+            if self.ownership_relative_parts is None
+            else self.ownership_relative_parts
+        )
 
 
 @dataclass(frozen=True, slots=True)

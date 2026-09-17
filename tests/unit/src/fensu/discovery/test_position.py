@@ -19,6 +19,7 @@ from fensu.discovery.main.discover_files import discover_files
 from fensu.discovery.models import DiscoveredTree, ScopedFile
 from tests.unit.src.fensu.discovery._test_types import (
     MainModuleTestCase,
+    MixedOwnershipRootTestCase,
     ModulePathTestCase,
     PositionFactTestCase,
 )
@@ -75,7 +76,7 @@ from tests.unit.src.fensu.discovery.helpers import make_config, only_file, write
             expected_domain="orders",
             expected_subdomain=None,
             expected_role="main",
-            ownership_depth=3,
+            ownership_roots=("src/pkg/sources",),
         ),
         PositionFactTestCase(
             description="configured grouping level preserves an optional subdomain",
@@ -90,7 +91,7 @@ from tests.unit.src.fensu.discovery.helpers import make_config, only_file, write
             expected_domain="orders",
             expected_subdomain="importing",
             expected_role="main",
-            ownership_depth=3,
+            ownership_roots=("src/pkg/sources",),
         ),
     ],
     ids=lambda case: case.description,
@@ -104,7 +105,7 @@ def test_given_scoped_file_when_reading_position_then_returns_expected_facts(
     monkeypatch.chdir(tmp_path)
 
     tree: DiscoveredTree = discover_files(
-        config=make_config(ownership_depth=test_case.ownership_depth)
+        config=make_config(ownership_roots=test_case.ownership_roots)
     )
     scoped_file: ScopedFile = only_file(files=tree.files)
 
@@ -112,6 +113,69 @@ def test_given_scoped_file_when_reading_position_then_returns_expected_facts(
     assert domain(scoped_file) == test_case.expected_domain
     assert subdomain(scoped_file) == test_case.expected_subdomain
     assert role_of(scoped_file) == test_case.expected_role
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        MixedOwnershipRootTestCase(
+            description="regional sources and runtime capabilities use separate boundaries",
+            ownership_roots=(
+                "src/pkg/sources/*",
+                "src/pkg/sources/region_a*",
+                "src/pkg/runtime",
+            ),
+            expected_partner_owner="src/pkg/sources/region_a",
+            expected_runtime_owner="src/pkg/runtime",
+            expected_partner_declaration="ownership_roots[1] (src/pkg/sources/region_a*)",
+            expected_runtime_declaration="ownership_roots[2] (src/pkg/runtime)",
+        ),
+        MixedOwnershipRootTestCase(
+            description="brace selectors expand to concrete mixed-depth boundaries",
+            ownership_roots=("src/pkg/{sources/*,runtime}",),
+            expected_partner_owner="src/pkg/sources/region_a",
+            expected_runtime_owner="src/pkg/runtime",
+            expected_partner_declaration=("ownership_roots[0] (src/pkg/{sources/*,runtime})"),
+            expected_runtime_declaration=("ownership_roots[0] (src/pkg/{sources/*,runtime})"),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_mixed_depth_ownership_roots_when_discovering_then_each_file_uses_its_boundary(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, test_case: MixedOwnershipRootTestCase
+) -> None:
+    write_python_files(
+        root=tmp_path,
+        relative_paths=(
+            "src/pkg/sources/region_a/partner/programmes/main/load.py",
+            "src/pkg/sources/region_b/inventory/main/refresh.py",
+            "src/pkg/runtime/scraping/main/run.py",
+            "tests/unit/src/pkg/runtime/scraping/test_run.py",
+        ),
+    )
+    monkeypatch.chdir(tmp_path)
+
+    tree: DiscoveredTree = discover_files(
+        config=make_config(
+            tests=("tests",),
+            ownership_roots=test_case.ownership_roots,
+        )
+    )
+    by_path: dict[str, ScopedFile] = {
+        file.path.relative_to(tmp_path).as_posix(): file for file in tree.files
+    }
+
+    partner: ScopedFile = by_path["src/pkg/sources/region_a/partner/programmes/main/load.py"]
+    runtime: ScopedFile = by_path["src/pkg/runtime/scraping/main/run.py"]
+    mirrored_test: ScopedFile = by_path["tests/unit/src/pkg/runtime/scraping/test_run.py"]
+    assert (domain(partner), subdomain(partner)) == ("partner", "programmes")
+    assert (domain(runtime), subdomain(runtime)) == ("scraping", None)
+    assert (domain(mirrored_test), subdomain(mirrored_test)) == ("scraping", None)
+    assert partner.ownership_root == tmp_path / test_case.expected_partner_owner
+    assert runtime.ownership_root == tmp_path / test_case.expected_runtime_owner
+    assert mirrored_test.ownership_root == runtime.ownership_root
+    assert partner.ownership_root_declaration == test_case.expected_partner_declaration
+    assert runtime.ownership_root_declaration == test_case.expected_runtime_declaration
 
 
 @pytest.mark.parametrize(

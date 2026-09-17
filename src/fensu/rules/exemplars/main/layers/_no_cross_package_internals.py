@@ -11,8 +11,12 @@ from fensu import (
     RuleContext,
     rule,
 )
-from fensu.rules.exemplars._helpers.import_ownership import is_public, ownership
-from fensu.rules.exemplars.types import ImportOwnership
+from fensu.rules.exemplars._helpers.import_ownership import (
+    is_public,
+    ownership,
+    ownership_start,
+)
+from fensu.rules.exemplars.types import ExemplarLayerPathName, ImportOwnership
 
 
 @rule(
@@ -33,6 +37,12 @@ def no_cross_package_internals_equivalent(*, module: ast.Module, ctx: RuleContex
     )
     if current is None:
         return []
+    current_parts: tuple[str, ...] = tuple(current.module.split("."))
+    current_ownership: ImportOwnership = ownership(
+        parts=current_parts,
+        initializer=ctx.path.name == ExemplarLayerPathName.INIT,
+        owner_start=ownership_start(ctx=ctx, parts=current_parts),
+    )
     faults: list[Fault] = []
     faulted_statements: set[tuple[int, int]] = set()
     for edge in ctx.graph.imports(current):
@@ -46,7 +56,7 @@ def no_cross_package_internals_equivalent(*, module: ast.Module, ctx: RuleContex
         target_ownership: ImportOwnership = ownership(
             parts=tuple(target_module.split(".")),
             initializer=False,
-            ownership_depth=ctx.ownership_depth(),
+            owner_start=ownership_start(ctx=ctx, parts=tuple(target_module.split("."))),
         )
         target_internal: bool = (
             target.visibility is ModuleVisibility.INTERNAL
@@ -55,13 +65,16 @@ def no_cross_package_internals_equivalent(*, module: ast.Module, ctx: RuleContex
         )
         if (
             current.module.partition(".")[0] == target_module.partition(".")[0]
-            and current.domain_parts
+            and current_ownership.domain is not None
             and target_ownership.domain is not None
-            and current.domain_parts[0] != target_ownership.domain
+            and (
+                current_ownership.ownership_root != target_ownership.ownership_root
+                or current_ownership.domain != target_ownership.domain
+            )
             and target_internal
         ):
             parts: list[str] = target_module.split(".")
-            package: str = ".".join(parts[: ctx.ownership_depth()])
+            package: str = ".".join(parts[: ownership_start(ctx=ctx, parts=tuple(parts)) + 1])
             faults.append(
                 ctx.fault_at(
                     location=edge.location,

@@ -33,11 +33,20 @@ type NativeProjectContextTuple = (
     String,
     HashMap<String, HashMap<String, String>>,
     Vec<String>,
-    usize,
+    Option<usize>,
+    Option<String>,
+    Vec<String>,
 );
 
 type NativeProjectQueryTuple = (String, String, String, String);
-type NativeProjectFileTuple = (String, String, Vec<String>, String);
+type NativeProjectFileTuple = (
+    String,
+    String,
+    Vec<String>,
+    String,
+    Option<usize>,
+    Option<String>,
+);
 
 type NativeRuleContextTuple = (
     String,
@@ -143,7 +152,9 @@ fn plan_execution_batch(
                     repo_root: request.11 .4,
                     rule_options: request.11 .5,
                     test_scopes: request.11 .6,
-                    ownership_depth: request.11 .7,
+                    ownership_offset: request.11 .7,
+                    ownership_root: request.11 .8,
+                    ownership_roots: request.11 .9,
                 },
             }));
         }
@@ -158,13 +169,13 @@ fn plan_execution_batch(
             prepared.iter().filter_map(request_program).collect();
         let missing_sources: Vec<String> = project_files
             .iter()
-            .filter(|(path, _, _, _)| !request_programs.contains_key(path))
-            .map(|(_, _, _, source)| source.clone())
+            .filter(|(path, _, _, _, _, _)| !request_programs.contains_key(path))
+            .map(|(_, _, _, source, _, _)| source.clone())
             .collect();
         let mut parsed_missing = ProgramHandle::parse_many(missing_sources, version).into_iter();
         let project_programs: Vec<Option<ProgramHandle>> = project_files
             .iter()
-            .map(|(path, _, _, _)| {
+            .map(|(path, _, _, _, _, _)| {
                 request_programs
                     .get(path)
                     .cloned()
@@ -173,7 +184,7 @@ fn plan_execution_batch(
             })
             .collect();
         let mut modules: Vec<NativeProjectModule> = Vec::new();
-        for ((path, scope, module_parts, _), program) in
+        for ((path, scope, module_parts, _, ownership_start, ownership_root), program) in
             project_files.into_iter().zip(project_programs)
         {
             if let Some(program) = program {
@@ -182,6 +193,8 @@ fn plan_execution_batch(
                     scope,
                     module_parts,
                     program,
+                    ownership_start,
+                    ownership_root,
                 });
             }
         }

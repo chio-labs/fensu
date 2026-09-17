@@ -88,7 +88,7 @@ def annotation_facts(handle: ProgramHandle, path: Path) -> Any: ...
 def native_rule_fact_families() -> list[tuple[str, list[str]]]: ...
 def plan_native_execution_batch(
     requests: list[tuple[Any, ...]],
-    project_files: list[tuple[str, str, list[str], str]],
+    project_files: list[tuple[str, str, list[str], str, int | None, str | None]],
     entrypoint_modules: list[str],
     major: int,
     minor: int,
@@ -107,7 +107,7 @@ def select_native_execution_files(
     paths: list[str], includes: list[str], excludes: list[str]
 ) -> tuple[list[int] | None, int]: ...
 def plan_native_execution_owners(
-    targets: list[tuple[str, str, str, list[str], bool]],
+    targets: list[tuple[str, str, str, list[str], bool, str | None, int | None]],
     rules: list[tuple[str, str, str]],
 ) -> list[tuple[list[str], list[tuple[str, str]]]]: ...
 def partition_native_execution_targets(

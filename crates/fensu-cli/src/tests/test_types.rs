@@ -37,10 +37,17 @@ pub(crate) struct WebTestLayoutIdentityTestCase {
     pub(crate) expected_equal: bool,
 }
 
-pub(crate) struct OwnershipDepthIdentityTestCase {
+pub(crate) struct OwnershipRootsIdentityTestCase {
     pub(crate) description: &'static str,
-    pub(crate) first_depth: usize,
-    pub(crate) second_depth: usize,
+    pub(crate) first_roots: &'static [&'static str],
+    pub(crate) second_roots: &'static [&'static str],
+    pub(crate) expected_equal: bool,
+}
+
+pub(crate) struct ResolvedOwnershipRootsIdentityTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) first_path: &'static str,
+    pub(crate) second_path: &'static str,
     pub(crate) expected_equal: bool,
 }
 

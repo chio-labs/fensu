@@ -44,10 +44,12 @@ type NativeExecutionRequest = tuple[
         str,
         NativeRuleOptionValues,
         list[str],
-        int,
+        int | None,
+        str | None,
+        list[str],
     ],
 ]
-type NativeProjectFile = tuple[str, str, list[str], str]
+type NativeProjectFile = tuple[str, str, list[str], str, int | None, str | None]
 
 
 class NativeProjectQueryKind(StrEnum):

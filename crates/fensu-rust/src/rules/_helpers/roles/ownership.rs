@@ -9,21 +9,21 @@ use crate::rules::_helpers::imports::reference_paths;
 struct ModuleNode<'a> {
     file: &'a models::SourceFile,
     path: Vec<String>,
-    domain: Option<String>,
-    helper_owner: Option<String>,
+    domain: Option<(String, String)>,
+    helper_owner: Option<(String, String)>,
 }
 
 pub(crate) fn check(
     crate_dir: &std::path::Path,
     package_name: Option<&str>,
     files: &[models::SourceFile],
-    ownership_depth: usize,
+    ownership_roots: &[String],
 ) -> Vec<models::Violation> {
     let package = package_name
         .or_else(|| crate_dir.file_name().and_then(|name| name.to_str()))
         .unwrap_or_default()
         .replace('-', "_");
-    let nodes = module_nodes(files, &package, ownership_depth);
+    let nodes = module_nodes(files, &package, ownership_roots);
     let consumers = consumer_graph(&nodes, &package);
     let mut violations: Vec<models::Violation> = Vec::new();
     for (index, node) in nodes.iter().enumerate() {
@@ -44,7 +44,7 @@ pub(crate) fn check(
         if external_domains.len() != 1 {
             continue;
         }
-        let Some(consumer) = external_domains.iter().next() else {
+        let Some((_, consumer)) = external_domains.iter().next() else {
             continue;
         };
         if local_consumer {
@@ -55,7 +55,8 @@ pub(crate) fn check(
             path: node.file.relative_path(),
             line: None,
             message: format!(
-                "helper owned by {owner} is consumed transitively only by the {consumer} domain"
+                "helper owned by {} is consumed transitively only by the {consumer} domain",
+                owner.1
             ),
             remediation: "move the helper and its private support chain into the consuming domain",
         }));
@@ -66,20 +67,18 @@ pub(crate) fn check(
 fn module_nodes<'a>(
     files: &'a [models::SourceFile],
     package: &str,
-    ownership_depth: usize,
+    ownership_roots: &[String],
 ) -> Vec<ModuleNode<'a>> {
     files
         .iter()
         .map(|file| {
-            let parts = source_parts(file);
-            let domain_index = ownership_depth.saturating_sub(2);
-            let domain = source_domain(parts.get(domain_index));
-            let helper_owner = parts
-                .get(domain_index)
-                .zip(parts.get(domain_index + 1))
-                .and_then(|(owner, role)| {
-                    (role == constants::HELPERS_DIRECTORY).then(|| owner.clone())
-                });
+            let parts = ownership_parts(file, ownership_roots);
+            let ownership_root = file.ownership_root(ownership_roots);
+            let domain = ownership_root.clone().zip(source_domain(parts.first()));
+            let helper_owner = parts.first().zip(parts.get(1)).and_then(|(owner, role)| {
+                (role == constants::HELPERS_DIRECTORY)
+                    .then(|| (ownership_root.clone().unwrap_or_default(), owner.clone()))
+            });
             ModuleNode {
                 file,
                 path: reference_paths::module_path(package, file),
@@ -97,8 +96,9 @@ fn source_domain(part: Option<&String>) -> Option<String> {
     }
 }
 
-fn source_parts(file: &models::SourceFile) -> Vec<String> {
-    file.source_relative
+fn ownership_parts(file: &models::SourceFile, ownership_roots: &[String]) -> Vec<String> {
+    file.ownership_relative(ownership_roots)
+        .unwrap_or_default()
         .split('/')
         .take_while(|part| !part.ends_with(".rs"))
         .map(str::to_owned)

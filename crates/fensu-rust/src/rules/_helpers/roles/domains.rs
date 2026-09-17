@@ -15,20 +15,20 @@ struct DirectoryContents {
 pub(crate) fn check_domains(
     files: &[models::SourceFile],
     targets: &[models::WorkspaceTarget],
-    ownership_depth: usize,
+    configured_ownership_roots: &[String],
 ) -> Vec<models::Violation> {
     let Some(source_root) = source_root(files) else {
         return Vec::new();
     };
     let tree = directory_tree(files);
-    let grouping_depth = ownership_depth.saturating_sub(2);
+    let ownership_roots = local_ownership_roots(&source_root, configured_ownership_roots);
     let mut violations: Vec<models::Violation> = Vec::new();
     violations.extend(root_direct_module_violations(&source_root, &tree, targets));
-    for group in grouping_roots(&tree, grouping_depth) {
+    for group in grouping_roots(&tree, &ownership_roots) {
         violations.extend(grouping_shape_violations(&source_root, &tree, &group));
         violations.extend(direct_module_violations(&source_root, &tree, &group));
     }
-    for domain in domain_roots(&tree, grouping_depth) {
+    for domain in domain_roots(&tree, &ownership_roots) {
         violations.extend(direct_module_violations(&source_root, &tree, &domain));
         violations.extend(domain_shape_violations(&source_root, &tree, &domain));
     }
@@ -37,13 +37,13 @@ pub(crate) fn check_domains(
             &source_root,
             &tree,
             directory,
-            grouping_depth,
+            &ownership_roots,
         ));
         violations.extend(main_boundary_violations(
             &source_root,
             &tree,
             directory,
-            grouping_depth,
+            &ownership_roots,
         ));
     }
     violations.sort_by(|left, right| left.sort_key().cmp(&right.sort_key()));
@@ -117,38 +117,38 @@ fn directory_tree(files: &[models::SourceFile]) -> BTreeMap<String, DirectoryCon
 
 fn grouping_roots(
     tree: &BTreeMap<String, DirectoryContents>,
-    grouping_depth: usize,
+    ownership_roots: &[String],
 ) -> Vec<String> {
-    if grouping_depth == 0 {
-        return Vec::new();
+    let mut groups: BTreeSet<String> = BTreeSet::new();
+    for root in ownership_roots {
+        let parts = root
+            .split('/')
+            .filter(|part| !part.is_empty())
+            .collect::<Vec<_>>();
+        for depth in 1..=parts.len() {
+            let group = parts[..depth].join("/");
+            if tree.contains_key(&group) && !inside_role_container(&group) {
+                groups.insert(group);
+            }
+        }
     }
-    tree.keys()
-        .filter(|directory| {
-            let depth = path_depth(directory);
-            depth > 0 && depth <= grouping_depth && !inside_role_container(directory)
-        })
-        .cloned()
-        .collect()
+    groups.into_iter().collect()
 }
 
 fn ownership_roots(
     tree: &BTreeMap<String, DirectoryContents>,
-    grouping_depth: usize,
+    configured: &[String],
 ) -> Vec<String> {
-    if grouping_depth == 0 {
-        return vec![String::new()];
-    }
-    tree.keys()
-        .filter(|directory| {
-            path_depth(directory) == grouping_depth && !inside_role_container(directory)
-        })
+    configured
+        .iter()
+        .filter(|directory| tree.contains_key(*directory) && !inside_role_container(directory))
         .cloned()
         .collect()
 }
 
-fn domain_roots(tree: &BTreeMap<String, DirectoryContents>, grouping_depth: usize) -> Vec<String> {
+fn domain_roots(tree: &BTreeMap<String, DirectoryContents>, ownership: &[String]) -> Vec<String> {
     let mut domains: Vec<String> = Vec::new();
-    for root in ownership_roots(tree, grouping_depth) {
+    for root in ownership_roots(tree, ownership) {
         let Some(contents) = tree.get(&root) else {
             continue;
         };
@@ -276,12 +276,15 @@ fn role_boundary_violations(
     source_root: &str,
     tree: &BTreeMap<String, DirectoryContents>,
     directory: &str,
-    grouping_depth: usize,
+    ownership_roots: &[String],
 ) -> Vec<models::Violation> {
     if directory.is_empty() || inside_role_container(directory) {
         return Vec::new();
     }
-    if path_depth(directory) < grouping_depth + constants::MIN_NESTED_PACKAGE_DEPTH {
+    let Some(root) = effective_ownership_root(directory, ownership_roots) else {
+        return Vec::new();
+    };
+    if relative_depth(directory, root) < constants::MIN_NESTED_PACKAGE_DEPTH {
         return Vec::new();
     }
     let Some(contents) = tree.get(directory) else {
@@ -306,10 +309,13 @@ fn main_boundary_violations(
     source_root: &str,
     tree: &BTreeMap<String, DirectoryContents>,
     directory: &str,
-    grouping_depth: usize,
+    ownership_roots: &[String],
 ) -> Vec<models::Violation> {
+    let Some(root) = effective_ownership_root(directory, ownership_roots) else {
+        return Vec::new();
+    };
     if directory.is_empty()
-        || path_depth(directory) <= grouping_depth
+        || relative_depth(directory, root) == 0
         || inside_role_container(directory)
     {
         return Vec::new();
@@ -362,6 +368,37 @@ fn path_depth(directory: &str) -> usize {
     } else {
         directory.split('/').count()
     }
+}
+
+fn local_ownership_roots(source_root: &str, configured: &[String]) -> Vec<String> {
+    if configured.is_empty() {
+        return vec![String::new()];
+    }
+    configured
+        .iter()
+        .filter_map(|root| {
+            (root == source_root).then(String::new).or_else(|| {
+                root.strip_prefix(&format!("{source_root}/"))
+                    .map(str::to_owned)
+            })
+        })
+        .collect()
+}
+
+fn effective_ownership_root<'a>(directory: &str, roots: &'a [String]) -> Option<&'a str> {
+    roots
+        .iter()
+        .filter(|root| {
+            root.is_empty()
+                || directory == root.as_str()
+                || directory.starts_with(&format!("{root}/"))
+        })
+        .max_by_key(|root| path_depth(root))
+        .map(String::as_str)
+}
+
+fn relative_depth(directory: &str, root: &str) -> usize {
+    path_depth(directory).saturating_sub(path_depth(root))
 }
 
 fn join_path(parent: &str, child: &str) -> String {

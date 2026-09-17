@@ -12,7 +12,6 @@ from fensu.config.constants import (
     DEFAULT_CACHE_REQUIRE_CACHEABLE,
     DEFAULT_CONTRACTS,
     DEFAULT_IGNORE,
-    DEFAULT_OWNERSHIP_DEPTH,
     DEFAULT_SELECT,
     DEFAULT_TEST_LAYOUT,
     DEFAULT_TEST_PATHS,
@@ -63,15 +62,9 @@ def build_config(
             }
         )
     raw_ui_kit: object = raw.get("ui_kit")
-    raw_ownership_depth: object = raw.get("ownership_depth", DEFAULT_OWNERSHIP_DEPTH)
-    ownership_depth: int = (
-        raw_ownership_depth
-        if isinstance(raw_ownership_depth, int) and not isinstance(raw_ownership_depth, bool)
-        else DEFAULT_OWNERSHIP_DEPTH
-    )
     return Config(
         roots=_string_tuple(value=raw["roots"]),
-        ownership_depth=ownership_depth,
+        ownership_roots=_string_tuple(value=raw.get("ownership_roots")),
         tests=_string_tuple(value=raw.get("tests"), default=DEFAULT_TEST_PATHS),
         test_scopes=_string_tuple(value=raw.get("test_scopes"), default=DEFAULT_TEST_SCOPES),
         test_layout=TestLayout(str(raw.get("test_layout", DEFAULT_TEST_LAYOUT))),

@@ -249,10 +249,38 @@ class RustRuleContext:
             return facts.file.path.parts
         return facts.file.path.parts[len(position.scope_root.parts) :]
 
-    def ownership_depth(self) -> int:
-        """Return the target-wide ownership depth."""
+    def ownership_root(self) -> Path | None:
+        """Return the effective ownership root for the current file."""
 
-        return self._config.ownership_depth
+        position: FilePosition | None = self._current_position()
+        return (
+            None
+            if position is None or position.ownership_root is None
+            else self._root / position.ownership_root.value
+        )
+
+    def ownership_roots(self) -> tuple[Path, ...]:
+        """Return configured ownership roots."""
+
+        return tuple(self._root / root for root in self._config.ownership_roots)
+
+    def ownership_relative_parts(self) -> tuple[str, ...]:
+        """Return path parts below the effective ownership root."""
+
+        position: FilePosition | None = self._current_position()
+        if position is None:
+            return self.relative_parts()
+        return position.ownership_relative_parts
+
+    def ownership_root_declaration(self) -> str | None:
+        """Return the matched ownership-root declaration."""
+
+        position: FilePosition | None = self._current_position()
+        return None if position is None else position.ownership_root_declaration
+
+    def _current_position(self) -> FilePosition | None:
+        facts: RustFileFacts = self._require_file("ownership position")
+        return self._project.tree.position(facts.file.path)
 
     def repo_relative_parts(self) -> tuple[str, ...]:
         """Return project-relative parts for the current Rust file."""

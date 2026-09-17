@@ -109,9 +109,11 @@ def web_workspace_facts(*, payload: object) -> WebWorkspaceFacts:
 
 
 def web_project_tree(
-    *, subjects: object, workspace: WebWorkspaceFacts, ownership_depth: int = 2
+    *, subjects: object, workspace: WebWorkspaceFacts, ownership_roots: tuple[str, ...] = ()
 ) -> ProjectTree:
     """Build a deterministic common tree from authoritative direct web subjects."""
+
+    del ownership_roots
 
     facts_by_path: dict[ProjectPath, WebFileFacts] = {
         item.file.path: item for item in workspace._file_values
@@ -121,7 +123,15 @@ def web_project_tree(
         subject: dict[str, object] = _mapping(value=raw_subject, name="Web subject")
         _keys(
             value=subject,
-            expected={"path", "scope", "scope_root", "relative_parts"},
+            expected={
+                "path",
+                "scope",
+                "scope_root",
+                "relative_parts",
+                "ownership_root",
+                "ownership_root_declaration",
+                "ownership_relative_parts",
+            },
             name="Web subject",
         )
         path: ProjectPath = ProjectPath(_string(value=subject["path"], name="Web subject path"))
@@ -140,10 +150,13 @@ def web_project_tree(
         scope_root: ProjectPath = (
             root_path() if scope_root_text == PROJECT_ROOT else ProjectPath(scope_root_text)
         )
-        domain_parts: tuple[str, ...] = _domain_parts(
-            directories=directories,
-            role_index=role_index,
-            ownership_depth=ownership_depth,
+        ownership_relative_parts: tuple[str, ...] = _strings(
+            value=subject["ownership_relative_parts"], name="Web ownership-relative parts"
+        )
+        ownership_directories: tuple[str, ...] = ownership_relative_parts[:-1]
+        ownership_role_index: int | None = next(
+            (index for index, part in enumerate(ownership_directories) if part in _WEB_ROLES),
+            None,
         )
         positions[path] = FilePosition(
             path=path,
@@ -153,11 +166,29 @@ def web_project_tree(
             scope_root=scope_root,
             module=fact.module,
             package=_package(module=fact.module),
-            domain_parts=domain_parts,
+            domain_parts=(
+                ownership_directories
+                if ownership_role_index is None
+                else ownership_directories[:ownership_role_index]
+            ),
             role=role,
             role_depth=None if role_index is None else len(directories) - role_index - 1,
             is_entry_module=relative_parts[-1].startswith("+") if relative_parts else False,
             is_main_module=role == RoleName.MAIN,
+            ownership_root=(
+                None
+                if subject["ownership_root"] is None
+                else ProjectPath(_string(value=subject["ownership_root"], name="ownership root"))
+            ),
+            ownership_root_declaration=(
+                None
+                if subject["ownership_root_declaration"] is None
+                else _string(
+                    value=subject["ownership_root_declaration"],
+                    name="ownership root declaration",
+                )
+            ),
+            ownership_relative_parts=ownership_relative_parts,
         )
     all_paths: set[ProjectPath] = set(positions)
     for file_path in tuple(all_paths):
@@ -177,12 +208,23 @@ def web_project_tree(
 
 
 def web_architecture_graph(
-    *, workspace: WebWorkspaceFacts, ownership_depth: int = 2
+    *,
+    workspace: WebWorkspaceFacts,
+    ownership_roots: tuple[str, ...] = (),
+    subjects: object | None = None,
 ) -> ArchitectureGraph:
     """Build the common graph from native-resolved web import targets."""
 
+    subject_ownership: dict[ProjectPath, tuple[ProjectPath | None, tuple[str, ...]]] = (
+        {} if subjects is None else _subject_ownership(subjects=subjects)
+    )
     nodes: tuple[ModuleNode, ...] = tuple(
-        _node(value=item, ownership_depth=ownership_depth) for item in workspace._file_values
+        _node(
+            value=item,
+            ownership_roots=ownership_roots,
+            subject_ownership=subject_ownership.get(item.file.path),
+        )
+        for item in workspace._file_values
     )
     nodes_by_path: dict[ProjectPath, ModuleNode] = {item.file.path: item for item in nodes}
     imports: dict[ProjectPath, tuple[ImportEdge, ...]] = {}
@@ -531,7 +573,12 @@ def _syntax_handle(*, payload: object, path: ProjectPath) -> WebSyntaxHandle:
     )
 
 
-def _node(*, value: WebFileFacts, ownership_depth: int) -> ModuleNode:
+def _node(
+    *,
+    value: WebFileFacts,
+    ownership_roots: tuple[str, ...],
+    subject_ownership: tuple[ProjectPath | None, tuple[str, ...]] | None,
+) -> ModuleNode:
     source_root_depth: int = len(value.source_root.parts)
     directories: tuple[str, ...] = value.file.path.parts[source_root_depth:-1]
     role_index: int | None = next(
@@ -546,10 +593,11 @@ def _node(*, value: WebFileFacts, ownership_depth: int) -> ModuleNode:
         scope=value.scope,
         scope_root=value.source_root,
         package=_package(module=value.module),
-        domain_parts=_domain_parts(
+        domain_parts=_node_domain_parts(
+            value=value,
             directories=directories,
-            role_index=role_index,
-            ownership_depth=ownership_depth,
+            ownership_roots=ownership_roots,
+            subject_ownership=subject_ownership,
         ),
         role=role,
         visibility=(
@@ -557,17 +605,85 @@ def _node(*, value: WebFileFacts, ownership_depth: int) -> ModuleNode:
             if any(part.startswith("_") for part in value.file.path.parts)
             else ModuleVisibility.PUBLIC
         ),
+        ownership_root=(
+            subject_ownership[0]
+            if subject_ownership is not None
+            else _effective_ownership_root(path=value.file.path, ownership_roots=ownership_roots)
+        ),
     )
 
 
-def _domain_parts(
-    *, directories: tuple[str, ...], role_index: int | None, ownership_depth: int
+def _node_domain_parts(
+    *,
+    value: WebFileFacts,
+    directories: tuple[str, ...],
+    ownership_roots: tuple[str, ...],
+    subject_ownership: tuple[ProjectPath | None, tuple[str, ...]] | None,
 ) -> tuple[str, ...]:
-    owner_end: int = len(directories) if role_index is None else role_index
-    if not directories or directories[0] != _LIB_DIRECTORY:
-        return directories[:owner_end]
-    grouping_depth: int = max(2, ownership_depth) - 2
-    return (*directories[:1], *directories[1 + grouping_depth : owner_end])
+    owned: tuple[str, ...] = (
+        subject_ownership[1][:-1]
+        if subject_ownership is not None
+        else _ownership_directories(
+            path=value.file.path,
+            directories=directories,
+            ownership_roots=ownership_roots,
+        )
+    )
+    owned_role_index: int | None = next(
+        (index for index, part in enumerate(owned) if part in _WEB_ROLES), None
+    )
+    return owned if owned_role_index is None else owned[:owned_role_index]
+
+
+def _ownership_directories(
+    *,
+    path: ProjectPath,
+    directories: tuple[str, ...],
+    ownership_roots: tuple[str, ...],
+) -> tuple[str, ...]:
+    matches: tuple[str, ...] = tuple(
+        root for root in ownership_roots if path.value == root or path.value.startswith(f"{root}/")
+    )
+    if matches:
+        root: str = max(matches, key=lambda item: len(PurePosixPath(item).parts))
+        return PurePosixPath(path.value).relative_to(PurePosixPath(root)).parts[:-1]
+    if ownership_roots:
+        return ()
+    if directories and directories[0] == _LIB_DIRECTORY:
+        return directories[1:]
+    return directories
+
+
+def _effective_ownership_root(
+    *, path: ProjectPath, ownership_roots: tuple[str, ...]
+) -> ProjectPath | None:
+    matches: tuple[str, ...] = tuple(
+        root for root in ownership_roots if path.value == root or path.value.startswith(f"{root}/")
+    )
+    if not matches:
+        return None
+    return ProjectPath(max(matches, key=lambda item: len(PurePosixPath(item).parts)))
+
+
+def _subject_ownership(
+    *, subjects: object
+) -> dict[ProjectPath, tuple[ProjectPath | None, tuple[str, ...]]]:
+    values: dict[ProjectPath, tuple[ProjectPath | None, tuple[str, ...]]] = {}
+    for raw_subject in _sequence(value=subjects, name="Web subjects"):
+        subject: dict[str, object] = _mapping(value=raw_subject, name="Web subject")
+        path: ProjectPath = ProjectPath(_string(value=subject.get("path"), name="Web subject path"))
+        raw_root: object = subject.get("ownership_root")
+        root: ProjectPath | None = (
+            None
+            if raw_root is None
+            else ProjectPath(_string(value=raw_root, name="ownership root"))
+        )
+        relative: tuple[str, ...] = _strings(
+            value=subject.get("ownership_relative_parts"),
+            name="Web ownership-relative parts",
+        )
+        values[path] = (root, relative)
+    return values
 
 
 def _edge(

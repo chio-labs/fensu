@@ -6,7 +6,6 @@ from pathlib import Path
 
 from fensu.discovery.constants import (
     INIT_MODULE_FILE_NAME,
-    MINIMUM_NESTED_PATH_PARTS,
     PYTHON_FILE_SUFFIX,
     ROLE_DIR_NAMES,
     ROLE_DIRECTORY_TO_NAME,
@@ -40,25 +39,31 @@ def relative_parts(*, path: Path, root: Path) -> tuple[str, ...]:
 
 
 def domain(scoped_file: ScopedFile) -> str | None:
-    """Return the top-level domain under the code root, if the file has one."""
+    """Return the configured domain under any structural ownership groups."""
 
     parts: tuple[str, ...] = scoped_file.relative_parts
-    if len(parts) == 0 or parts[0].endswith(PYTHON_FILE_SUFFIX):
+    index: int = scoped_file.ownership_depth - 2
+    if (
+        len(parts) <= index
+        or parts[index].endswith(PYTHON_FILE_SUFFIX)
+        or parts[index] in ROLE_DIR_NAMES
+    ):
         return None
-    return parts[0]
+    return parts[index]
 
 
 def subdomain(scoped_file: ScopedFile) -> str | None:
     """Return the subdomain under the domain, excluding role directories."""
 
     parts: tuple[str, ...] = scoped_file.relative_parts
+    index: int = scoped_file.ownership_depth - 1
     if (
-        len(parts) < MINIMUM_NESTED_PATH_PARTS
-        or parts[1].endswith(PYTHON_FILE_SUFFIX)
-        or parts[1] in ROLE_DIR_NAMES
+        len(parts) <= index
+        or parts[index].endswith(PYTHON_FILE_SUFFIX)
+        or parts[index] in ROLE_DIR_NAMES
     ):
         return None
-    return parts[1]
+    return parts[index]
 
 
 def role_of(scoped_file: ScopedFile) -> str | None:

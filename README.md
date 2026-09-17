@@ -170,6 +170,32 @@ such as `_helpers/entry/models.py`.
 Direct `scripts/*.py` files are thin command adapters. Supporting logic belongs
 under `scripts/<tool>/<role>/`.
 
+Targets may add uniform structural grouping levels above domain ownership. The default
+`ownership_depth = 2` means domain plus optional subdomain. Increasing the value makes every
+earlier level mandatory while preserving the final domain/subdomain slots:
+
+```toml
+[targets.app]
+analyzer = "python"
+roots = ["src/example"]
+ownership_depth = 3
+```
+
+```text
+src/example/
+├── sources/
+│   ├── orders/main/process.py
+│   └── partners/importing/main/load.py
+└── platform/
+    └── observability/main/report.py
+```
+
+Here `sources/` and `platform/` are structural groups, `orders`, `partners`, and
+`observability` are domains, and `importing` is a subdomain. Every runtime owner must use the
+configured grouping depth. Structural groups cannot contain role files or role directories
+directly. Rust applies the same shape below each Cargo source root, while TypeScript and Svelte
+apply it below `lib/`.
+
 ## Core Commands
 
 ```bash

@@ -26,6 +26,7 @@ pub struct RepositoryAnalysis {
 /// Resolved Rust rule settings. Cargo supplies workspace identities and targets.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct RustPolicy {
+    pub ownership_depth: usize,
     pub tooling: ToolingConfig,
     pub raw_parser_boundary: RawParserBoundaryConfig,
     pub repository: RepositoryPolicyConfig,
@@ -87,6 +88,7 @@ impl Default for ThresholdConfig {
 impl Default for RustPolicy {
     fn default() -> Self {
         Self {
+            ownership_depth: constants::DEFAULT_OWNERSHIP_DEPTH,
             tooling: ToolingConfig {
                 paths: Vec::new(),
                 runtime_forbidden_packages: Vec::new(),
@@ -104,6 +106,9 @@ impl Default for RustPolicy {
 impl RustPolicy {
     /// Reject unsupported versions and identities that cannot match a package.
     pub fn validate(&self) -> Result<(), String> {
+        if self.ownership_depth < constants::MINIMUM_OWNERSHIP_DEPTH {
+            return Err("ownership depth must be at least 2".to_owned());
+        }
         if self
             .tooling
             .runtime_forbidden_packages

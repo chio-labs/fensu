@@ -9,7 +9,7 @@ use crate::test_types::{EngineTestCase, RustFactsEngineTestCase};
 fn given_minimal_workspace_when_analyzing_then_engine_returns_owned_diagnostics() {
     let test_cases = [EngineTestCase {
         description: "minimal workspace returns owned diagnostics and stable contracts",
-        expected_cache_contract: "rust-rules-v4",
+        expected_cache_contract: "rust-rules-v5",
         expected_diagnostics: true,
         expected_lock_created: false,
         expected_parser_contract: "rust-syn-workspace-v1",

@@ -73,6 +73,7 @@ def config_fingerprint(config: Config) -> CacheFingerprint:
             "include": list(config.evaluation.include),
         },
         "ignore": list(config.ignore),
+        "ownership_depth": config.ownership_depth,
         "role_thresholds": _role_threshold_values(config.role_thresholds),
         "roots": list(config.roots),
         "rule_exceptions": [_rule_exception_value(item) for item in config.rule_exceptions],

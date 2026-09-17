@@ -95,11 +95,14 @@ fn family_applies(family: &str, scope: &str) -> bool {
 }
 
 fn owner_identity(target: &NativeExecutionTarget, owner: &str) -> Option<String> {
+    let domain_index = target.ownership_depth.saturating_sub(2);
+    let grouping_prefix =
+        target.relative_parts[..domain_index.min(target.relative_parts.len())].join("/");
     let domain = target
         .relative_parts
-        .first()
+        .get(domain_index)
         .filter(|part| !part.ends_with(".py"));
-    let subdomain = target.relative_parts.get(1).filter(|part| {
+    let subdomain = target.relative_parts.get(domain_index + 1).filter(|part| {
         !part.ends_with(".py") && !RECOGNIZED_ROLE_DIRECTORIES.contains(&part.as_str())
     });
     match owner {
@@ -113,12 +116,15 @@ fn owner_identity(target: &NativeExecutionTarget, owner: &str) -> Option<String>
                 .map(|(parent, _)| parent)
                 .unwrap_or(".")
         )),
-        "domain" => {
-            domain.map(|domain| format!("domain\0{}\0{}\0{domain}", target.scope, target.root))
-        }
+        "domain" => domain.map(|domain| {
+            format!(
+                "domain\0{}\0{}\0{grouping_prefix}\0{domain}",
+                target.scope, target.root
+            )
+        }),
         "subdomain" => subdomain.map(|subdomain| {
             format!(
-                "subdomain\0{}\0{}\0{}\0{subdomain}",
+                "subdomain\0{}\0{}\0{grouping_prefix}\0{}\0{subdomain}",
                 target.scope,
                 target.root,
                 domain.map(String::as_str).unwrap_or_default()
@@ -126,7 +132,7 @@ fn owner_identity(target: &NativeExecutionTarget, owner: &str) -> Option<String>
         }),
         "leaf" => domain.map(|domain| {
             format!(
-                "leaf\0{}\0{}\0{domain}\0{}",
+                "leaf\0{}\0{}\0{grouping_prefix}\0{domain}\0{}",
                 target.scope,
                 target.root,
                 subdomain.map(String::as_str).unwrap_or_default()
@@ -138,15 +144,18 @@ fn owner_identity(target: &NativeExecutionTarget, owner: &str) -> Option<String>
 
 fn anchor_key<'a>(target: &'a NativeExecutionTarget, owner: &str) -> (bool, usize, &'a str) {
     let parts = &target.relative_parts;
-    let domain = parts.first().is_some_and(|part| !part.ends_with(".py"));
-    let subdomain = parts.get(1).is_some_and(|part| {
+    let grouping_depth = target.ownership_depth.saturating_sub(2);
+    let domain = parts
+        .get(grouping_depth)
+        .is_some_and(|part| !part.ends_with(".py"));
+    let subdomain = parts.get(grouping_depth + 1).is_some_and(|part| {
         !part.ends_with(".py") && !RECOGNIZED_ROLE_DIRECTORIES.contains(&part.as_str())
     });
     let expected_depth = match owner {
         "scope" => Some(1),
-        "domain" => Some(2),
-        "subdomain" => Some(3),
-        "leaf" if domain => Some(if subdomain { 3 } else { 2 }),
+        "domain" => Some(grouping_depth + 2),
+        "subdomain" => Some(grouping_depth + 3),
+        "leaf" if domain => Some(grouping_depth + if subdomain { 3 } else { 2 }),
         _ => None,
     };
     let mut owner_init = expected_depth.is_some_and(|depth| {

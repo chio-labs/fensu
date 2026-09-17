@@ -14,8 +14,6 @@ pub(crate) const PYTHON_CACHE: &str = "__pycache__";
 pub(crate) const ROOT_SCOPE: &str = "root";
 const MAIN_ROLE: &str = "main";
 const LEGACY_HELPERS: &str = "helpers";
-const MINIMUM_DOMAIN_PARTS: usize = 2;
-const MINIMUM_SUBDOMAIN_PARTS: usize = 3;
 const PYTHON_EXTENSION: &str = "py";
 pub(crate) const ROLE_NAMES: &[&str] = &[
     MAIN_ROLE,
@@ -46,25 +44,90 @@ pub(crate) fn role_package(context: &NativeRuleContext, role: &str) -> Option<Pa
 }
 
 pub(crate) fn domain_dir(context: &NativeRuleContext) -> Option<PathBuf> {
+    let index = context.grouping_depth();
     context
         .relative_parts
-        .first()
-        .map(|domain| scope_root(context).join(domain))
+        .get(index)
+        .filter(|domain| !ROLE_NAMES.contains(&domain.as_str()) && !domain.ends_with(".py"))
+        .map(|domain| ownership_root(context).join(domain))
 }
 
 pub(crate) fn leaf_dir(context: &NativeRuleContext) -> Option<PathBuf> {
-    if context.scope != ROOT_SCOPE || context.relative_parts.len() < MINIMUM_DOMAIN_PARTS {
+    let domain_index = context.grouping_depth();
+    let subdomain_index = domain_index + 1;
+    if context.scope != ROOT_SCOPE || context.relative_parts.len() <= domain_index + 1 {
         return None;
     }
-    let domain = scope_root(context).join(&context.relative_parts[0]);
-    if context.relative_parts.len() < MINIMUM_SUBDOMAIN_PARTS
-        || ROLE_NAMES.contains(&context.relative_parts[1].as_str())
-        || context.relative_parts[1].ends_with(".py")
+    let domain = domain_dir(context)?;
+    if context.relative_parts.len() <= subdomain_index
+        || ROLE_NAMES.contains(&context.relative_parts[subdomain_index].as_str())
+        || context.relative_parts[subdomain_index].ends_with(".py")
     {
         Some(domain)
     } else {
-        Some(domain.join(&context.relative_parts[1]))
+        Some(domain.join(&context.relative_parts[subdomain_index]))
     }
+}
+
+pub(crate) fn ownership_root(context: &NativeRuleContext) -> PathBuf {
+    scope_root(context).join(
+        context.relative_parts[..context.grouping_depth().min(context.relative_parts.len())]
+            .iter()
+            .collect::<PathBuf>(),
+    )
+}
+
+pub(crate) fn ownership_roots(context: &NativeRuleContext) -> Vec<PathBuf> {
+    let mut roots = vec![scope_root(context)];
+    for _ in 0..context.grouping_depth() {
+        roots = roots
+            .into_iter()
+            .flat_map(|root| directory_entries(&root))
+            .filter(|entry| {
+                entry.is_dir()
+                    && !role_name(entry)
+                    && file_name(entry) != PYTHON_CACHE
+                    && !recursive_python(entry).is_empty()
+            })
+            .collect();
+    }
+    roots.sort();
+    roots
+}
+
+pub(crate) fn grouping_roots(context: &NativeRuleContext) -> Vec<PathBuf> {
+    let mut current = vec![scope_root(context)];
+    let mut groups: Vec<PathBuf> = Vec::new();
+    for _ in 0..context.grouping_depth() {
+        current = current
+            .into_iter()
+            .flat_map(|root| directory_entries(&root))
+            .filter(|entry| {
+                entry.is_dir()
+                    && !role_name(entry)
+                    && file_name(entry) != PYTHON_CACHE
+                    && !recursive_python(entry).is_empty()
+            })
+            .collect();
+        current.sort();
+        groups.extend(current.iter().cloned());
+    }
+    groups
+}
+
+pub(crate) fn domain_roots(context: &NativeRuleContext) -> Vec<PathBuf> {
+    let mut domains = ownership_roots(context)
+        .into_iter()
+        .flat_map(|root| directory_entries(&root))
+        .filter(|entry| {
+            entry.is_dir()
+                && !role_name(entry)
+                && file_name(entry) != PYTHON_CACHE
+                && !recursive_python(entry).is_empty()
+        })
+        .collect::<Vec<_>>();
+    domains.sort();
+    domains
 }
 
 pub(crate) fn mixed_domain(domain: &Path) -> bool {

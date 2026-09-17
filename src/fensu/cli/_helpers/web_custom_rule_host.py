@@ -96,8 +96,15 @@ def build_web_custom_response(*, request: object, runtime_version: str) -> dict[
     resolved: ResolvedTargetRoot = resolve_target_root(
         config=loaded.config, repo_root=repository_root
     )
-    tree: ProjectTree = build_web_project_tree(subjects=payload["subjects"], workspace=workspace)
-    graph: ArchitectureGraph = build_web_architecture_graph(workspace=workspace)
+    tree: ProjectTree = build_web_project_tree(
+        subjects=payload["subjects"],
+        workspace=workspace,
+        ownership_depth=loaded.config.ownership_depth,
+    )
+    graph: ArchitectureGraph = build_web_architecture_graph(
+        workspace=workspace,
+        ownership_depth=loaded.config.ownership_depth,
+    )
     selection: RuleSelection = build_check_rule_selection(
         config=loaded.config,
         repo_root=repository_root,

@@ -11,6 +11,7 @@ pub struct NativeExecutionTarget {
     pub root: String,
     pub relative_parts: Vec<String>,
     pub direct: bool,
+    pub ownership_depth: usize,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -84,7 +85,7 @@ impl NativeProjectPlane {
     }
 }
 
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NativeRuleContext {
     pub scope: String,
     pub role: Option<String>,
@@ -98,13 +99,42 @@ pub struct NativeRuleContext {
     pub tooling_packages: Vec<String>,
     pub scope_roots: Vec<(String, String)>,
     pub test_scopes: Vec<String>,
+    pub ownership_depth: usize,
     pub observations: HashMap<String, Vec<String>>,
     pub custom_registrations: Vec<(String, String, String, String, u32, u32)>,
     pub repo_root: String,
     pub rule_options: HashMap<String, HashMap<String, String>>,
 }
 
+impl Default for NativeRuleContext {
+    fn default() -> Self {
+        Self {
+            scope: String::new(),
+            role: None,
+            is_main_module: false,
+            thresholds: HashMap::new(),
+            repository_path: String::new(),
+            contracts: Vec::new(),
+            relative_parts: Vec::new(),
+            is_entry_module: false,
+            package_name: String::new(),
+            tooling_packages: Vec::new(),
+            scope_roots: Vec::new(),
+            test_scopes: Vec::new(),
+            ownership_depth: 2,
+            observations: HashMap::new(),
+            custom_registrations: Vec::new(),
+            repo_root: String::new(),
+            rule_options: HashMap::new(),
+        }
+    }
+}
+
 impl NativeRuleContext {
+    pub fn grouping_depth(&self) -> usize {
+        self.ownership_depth.saturating_sub(2)
+    }
+
     pub fn observation(&self, query: &NativeProjectQuery) -> &[String] {
         self.observations
             .get(&query.key())

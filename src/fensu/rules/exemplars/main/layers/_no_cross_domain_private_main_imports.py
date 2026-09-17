@@ -32,7 +32,9 @@ def no_cross_domain_private_main_imports_equivalent(
 
     del module
     current: ImportOwnership = ownership(
-        parts=ctx.module_parts(), initializer=ctx.path.name == ExemplarLayerPathName.INIT
+        parts=ctx.module_parts(),
+        initializer=ctx.path.name == ExemplarLayerPathName.INIT,
+        ownership_depth=ctx.ownership_depth(),
     )
     faults: list[Fault] = []
     for fact in ctx.facts.references().imports:
@@ -47,7 +49,11 @@ def no_cross_domain_private_main_imports_equivalent(
                 target_items.extend((*base, *alias.imported_parts) for alias in fact.aliases)
         targets: tuple[tuple[str, ...], ...] = tuple(dict.fromkeys(target_items))
         for parts in targets:
-            target: ImportOwnership = ownership(parts=parts, initializer=False)
+            target: ImportOwnership = ownership(
+                parts=parts,
+                initializer=False,
+                ownership_depth=ctx.ownership_depth(),
+            )
             private: bool = (
                 target.role == ExemplarRoleName.MAIN
                 and bool(target.tail)

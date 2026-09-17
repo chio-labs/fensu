@@ -44,6 +44,7 @@ type NativeExecutionRequest = tuple[
         str,
         NativeRuleOptionValues,
         list[str],
+        int,
     ],
 ]
 type NativeProjectFile = tuple[str, str, list[str], str]

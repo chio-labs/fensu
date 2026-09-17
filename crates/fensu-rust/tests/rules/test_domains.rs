@@ -179,3 +179,59 @@ fn given_domain_shape_fixtures_when_checking_then_reports_expected_codes() {
         );
     }
 }
+
+#[test]
+fn given_configured_ownership_depth_when_checking_then_groups_remain_structural() {
+    let test_cases = [
+        test_types::CheckRepoTestCase {
+            description: "a grouped leaf domain with a main entry is accepted",
+            repo_files: vec![test_types::RepoFile {
+                path: "crates/example/src/sources/reading/main/read_value.rs".to_owned(),
+                contents: "pub fn read_value() -> usize {\n    1\n}\n".to_owned(),
+            }],
+            expected_violation_codes: vec![],
+        },
+        test_types::CheckRepoTestCase {
+            description: "a structural group containing main directly is rejected",
+            repo_files: vec![test_types::RepoFile {
+                path: "crates/example/src/sources/main/read_value.rs".to_owned(),
+                contents: "pub fn read_value() -> usize {\n    1\n}\n".to_owned(),
+            }],
+            expected_violation_codes: vec!["RSR306"],
+        },
+        test_types::CheckRepoTestCase {
+            description: "a grouped domain may branch into a subdomain",
+            repo_files: vec![test_types::RepoFile {
+                path: "crates/example/src/sources/reading/paper/main/read_value.rs".to_owned(),
+                contents: "pub fn read_value() -> usize {\n    1\n}\n".to_owned(),
+            }],
+            expected_violation_codes: vec![],
+        },
+        test_types::CheckRepoTestCase {
+            description: "ownership cannot nest below the grouped subdomain slot",
+            repo_files: vec![
+                test_types::RepoFile {
+                    path: "crates/example/src/sources/reading/screen/main/read_screen.rs"
+                        .to_owned(),
+                    contents: "pub fn read_screen() -> usize {\n    1\n}\n".to_owned(),
+                },
+                test_types::RepoFile {
+                    path: "crates/example/src/sources/reading/screen/parsing/tokens.rs".to_owned(),
+                    contents: "pub(crate) fn tokens() -> usize {\n    1\n}\n".to_owned(),
+                },
+            ],
+            expected_violation_codes: vec!["RSR305", "RSR304"],
+        },
+    ];
+
+    for test_case in test_cases {
+        let repo_root = helpers::write_temp_repo_verbatim(&test_case);
+        let actual_codes = helpers::collect_violation_codes_with_ownership_depth(&repo_root, 3);
+        helpers::remove_temp_repo(&repo_root);
+        assert_eq!(
+            actual_codes, test_case.expected_violation_codes,
+            "case failed: {}",
+            test_case.description
+        );
+    }
+}

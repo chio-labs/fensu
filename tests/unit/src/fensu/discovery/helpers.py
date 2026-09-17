@@ -23,10 +23,16 @@ def make_config(
     roots: tuple[str, ...] = ("src/pkg",),
     tests: tuple[str, ...] = (),
     tooling: tuple[str, ...] = (),
+    ownership_depth: int = 2,
 ) -> Config:
     """Build a Config for discovery tests without invoking the config loader."""
 
-    return Config(roots=roots, tests=tests, tooling=tooling)
+    return Config(
+        roots=roots,
+        tests=tests,
+        tooling=tooling,
+        ownership_depth=ownership_depth,
+    )
 
 
 def only_file(*, files: tuple[ScopedFile, ...]) -> ScopedFile:

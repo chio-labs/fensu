@@ -37,7 +37,7 @@ from tests.unit.src.fensu.rules.roles._test_types import FfrCatalogueTestCase
                 "Keep direct role content in a leaf domain, or move it into a named subdomain "
                 "when the domain contains subdomains."
             ),
-            expected_sfr306_owner=ExecutionOwner.DOMAIN,
+            expected_sfr306_owner=ExecutionOwner.SCOPE,
             expected_sfr307_message=(
                 "runtime roots and top-level domains must not contain ad hoc direct modules"
             ),

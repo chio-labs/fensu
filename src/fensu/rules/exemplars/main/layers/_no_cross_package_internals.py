@@ -44,7 +44,9 @@ def no_cross_package_internals_equivalent(*, module: ast.Module, ctx: RuleContex
         if target_module is None:
             continue
         target_ownership: ImportOwnership = ownership(
-            parts=tuple(target_module.split(".")), initializer=False
+            parts=tuple(target_module.split(".")),
+            initializer=False,
+            ownership_depth=ctx.ownership_depth(),
         )
         target_internal: bool = (
             target.visibility is ModuleVisibility.INTERNAL
@@ -59,7 +61,7 @@ def no_cross_package_internals_equivalent(*, module: ast.Module, ctx: RuleContex
             and target_internal
         ):
             parts: list[str] = target_module.split(".")
-            package: str = ".".join(parts[:2])
+            package: str = ".".join(parts[: ctx.ownership_depth()])
             faults.append(
                 ctx.fault_at(
                     location=edge.location,

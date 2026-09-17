@@ -143,6 +143,7 @@ fn evaluate_fixture(test_case: &CoreRuleFixture) -> Vec<ExpectedFault> {
             .collect(),
         repo_root,
         rule_options: HashMap::new(),
+        ownership_depth: 2,
     };
 
     evaluate_core_rules(&program, &test_case.codes, &context, &project)

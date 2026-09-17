@@ -25,8 +25,6 @@ const INIT_FILE_NAME: &str = "__init__.py";
 const MAIN_DIRECTORY_NAME: &str = "main";
 const MAIN_FILE_NAME: &str = "main.py";
 const MAIN_INIT_FILE_NAME: &str = "__main__.py";
-const MINIMUM_NESTED_MODULE_PARTS: usize = 3;
-const MINIMUM_NESTED_SUBPACKAGE_PARTS: usize = 4;
 const PYTHON_SUFFIX: &str = ".py";
 const RULES_ROLE: &str = "rules";
 const ROOT_SCOPE: &str = "root";
@@ -280,7 +278,7 @@ fn nested_direct_module_faults(code: &str, context: &NativeRuleContext) -> Vec<N
         return Vec::new();
     };
     if context.scope == TOOLING_SCOPE
-        || parts.len() < MINIMUM_NESTED_MODULE_PARTS
+        || parts.len() < context.grouping_depth() + 3
         || directories(context)
             .iter()
             .any(|part| part == MAIN_DIRECTORY_NAME)
@@ -302,14 +300,14 @@ fn nested_direct_subpackage_faults(code: &str, context: &NativeRuleContext) -> V
     let parts = &context.relative_parts;
     let package_parts = directories(context);
     if context.scope == TOOLING_SCOPE
-        || parts.len() < MINIMUM_NESTED_SUBPACKAGE_PARTS
+        || parts.len() < context.grouping_depth() + 4
         || package_parts
             .iter()
             .any(|part| part == MAIN_DIRECTORY_NAME || part == HELPERS_DIRECTORY_NAME)
     {
         return Vec::new();
     }
-    for index in TOP_LEVEL_MODULE_PARTS..package_parts.len() {
+    for index in context.grouping_depth() + TOP_LEVEL_MODULE_PARTS..package_parts.len() {
         let parent = package_parts[index - 1].as_str();
         let child = package_parts[index].as_str();
         if FFR305_RECOGNIZED_ROLE_DIRECTORIES.contains(&parent)
@@ -338,7 +336,13 @@ fn top_level_direct_module_faults(code: &str, context: &NativeRuleContext) -> Ve
             Some("runtime roots may contain only package protocol modules and domain packages"),
         )];
     }
-    if context.relative_parts.len() != TOP_LEVEL_MODULE_PARTS
+    if context.relative_parts.len() <= context.grouping_depth() + ROOT_MODULE_PARTS {
+        return vec![path_fault(
+            code,
+            Some("structural ownership groups must contain domain packages, not direct modules"),
+        )];
+    }
+    if context.relative_parts.len() != context.grouping_depth() + TOP_LEVEL_MODULE_PARTS
         || FFR307_RECOGNIZED_ROLE_FILENAMES.contains(&name)
     {
         return Vec::new();

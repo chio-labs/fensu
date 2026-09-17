@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from fensu.config.constants import DEFAULT_OWNERSHIP_DEPTH
 from fensu.discovery.types import ScopeName
 
 
@@ -40,6 +41,7 @@ class ProjectLayout:
     runtime_sources: tuple[ProjectSource, ...]
     test_roots: tuple[ProjectPath, ...]
     tooling_sources: tuple[ProjectSource, ...]
+    ownership_depth: int = DEFAULT_OWNERSHIP_DEPTH
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,6 +52,7 @@ class ScopedFile:
     root: Path
     scope: ScopeName
     relative_parts: tuple[str, ...]
+    ownership_depth: int = DEFAULT_OWNERSHIP_DEPTH
 
 
 @dataclass(frozen=True, slots=True)

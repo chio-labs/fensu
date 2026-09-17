@@ -160,6 +160,7 @@ pub(crate) struct RepositoryTargetPayload {
     pub(crate) name: String,
     pub(crate) analyzer: AnalyzerId,
     pub(crate) root: String,
+    pub(crate) ownership_depth: usize,
     pub(crate) facts: serde_json::Value,
     pub(crate) subjects: Vec<CustomRuleSubject>,
 }

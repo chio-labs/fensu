@@ -78,6 +78,58 @@ fn given_root_and_main_boundary_modules_when_checking_then_visibility_and_placem
             expected_exit_code: 1,
             expected_present: Some("FPTSL109"),
         },
+        WebBoundaryRuleTestCase {
+            description: "a configured group is excluded from web domain ownership",
+            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nownership_depth = 3\nselect = [\"FPTSL108\"]\n",
+            files: &[
+                (
+                    "src/lib/sources/orders/main/_calculate.ts",
+                    "export function calculate(): number { return 1; }\n",
+                ),
+                (
+                    "src/lib/sources/payments/main/pay.ts",
+                    "import { calculate } from '../../orders/main/_calculate';\nexport function pay(): number { return calculate(); }\n",
+                ),
+            ],
+            expected_exit_code: 1,
+            expected_present: Some("FPTSL108"),
+        },
+        WebBoundaryRuleTestCase {
+            description: "a structural web group cannot contain main directly",
+            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nownership_depth = 3\nselect = [\"FPTSR306\"]\n",
+            files: &[(
+                "src/lib/sources/main/run.ts",
+                "export function run(): number { return 1; }\n",
+            )],
+            expected_exit_code: 1,
+            expected_present: Some("FPTSR306"),
+        },
+        WebBoundaryRuleTestCase {
+            description: "same-named domains in sibling groups retain separate physical leaves",
+            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nownership_depth = 3\nselect = [\"FPTSR309\"]\n",
+            files: &[
+                (
+                    "src/lib/sources/orders/main/process.ts",
+                    "export function process(): number { return 1; }\n",
+                ),
+                (
+                    "src/lib/platform/orders/models.ts",
+                    "export interface Order { id: string; }\n",
+                ),
+            ],
+            expected_exit_code: 1,
+            expected_present: Some("FPTSR309"),
+        },
+        WebBoundaryRuleTestCase {
+            description: "web ownership cannot nest below the grouped subdomain slot",
+            config: "[targets.web]\nanalyzer = \"typescript\"\nrule_packs = [\"typescript\"]\nroots = [\"src\"]\ntests = []\ntooling = []\nownership_depth = 3\nselect = [\"FPTSR306\"]\n",
+            files: &[(
+                "src/lib/sources/orders/importing/extra/models.ts",
+                "export interface Order { id: string; }\n",
+            )],
+            expected_exit_code: 1,
+            expected_present: Some("FPTSR306"),
+        },
     ];
     for test_case in test_cases {
         let repository = tempfile::tempdir().expect("web boundary repository");

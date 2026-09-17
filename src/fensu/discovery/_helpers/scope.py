@@ -38,6 +38,7 @@ def discover_scoped_files(*, layout: ProjectLayout) -> tuple[ScopedFile, ...]:
                     if parts is not None
                     else relative_parts(path=resolved_path, root=resolved_root)
                 ),
+                ownership_depth=layout.ownership_depth,
             )
     return tuple(discovered[path] for path in sorted(discovered))
 

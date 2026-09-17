@@ -318,6 +318,48 @@ fn given_web_test_layout_change_when_fingerprinting_then_check_identity_changes(
 }
 
 #[test]
+fn given_ownership_depth_change_when_fingerprinting_then_check_identity_changes() {
+    let test_cases = [crate::tests::test_types::OwnershipDepthIdentityTestCase {
+        description: "default and grouped ownership layouts have distinct identities",
+        first_depth: 2,
+        second_depth: 3,
+        expected_equal: false,
+    }];
+    let repository = tempfile::tempdir().expect("cache identity repository");
+    for test_case in test_cases {
+        let first = Config {
+            analyzer: AnalyzerId::Python,
+            target: Some("app".to_owned()),
+            ownership_depth: test_case.first_depth,
+            raw: b"same config source".to_vec(),
+            ..Config::default()
+        };
+        let second = Config {
+            ownership_depth: test_case.second_depth,
+            ..first.clone()
+        };
+        let identity = |config| {
+            check_identity(CheckIdentityRequest {
+                root: repository.path(),
+                project_root: repository.path(),
+                config,
+                sources: &[],
+                project_inputs: &[],
+                warnings: false,
+            })
+            .expect("check identity")
+        };
+
+        assert_eq!(
+            identity(&first) == identity(&second),
+            test_case.expected_equal,
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
 fn given_analyzer_and_path_boundaries_when_mapping_then_cache_identity_is_framed() {
     let test_cases = [MapCacheIdentityTestCase {
         description: "mapping path and analyzer cache identities cannot collide",

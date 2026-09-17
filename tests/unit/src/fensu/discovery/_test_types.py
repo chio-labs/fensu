@@ -61,6 +61,7 @@ class PositionFactTestCase:
     expected_domain: str | None
     expected_subdomain: str | None
     expected_role: str | None
+    ownership_depth: int = 2
 
 
 @dataclass(frozen=True)

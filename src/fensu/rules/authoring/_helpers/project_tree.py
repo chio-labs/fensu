@@ -17,6 +17,7 @@ from fensu.discovery.models import (
     RepoRoot,
     ScopedFile,
 )
+from fensu.discovery.types import ScopeName
 from fensu.rules.authoring.constants import (
     CURRENT_PATH_PART,
     PARENT_PATH_PART,
@@ -130,7 +131,11 @@ def file_position(
     role_index: int | None = next(
         (index for index, part in enumerate(directories) if part in ROLE_DIR_NAMES), None
     )
-    domain_parts: tuple[str, ...] = directories if role_index is None else directories[:role_index]
+    grouping_depth: int = (
+        scoped_file.ownership_depth - 2 if scoped_file.scope is ScopeName.ROOT else 0
+    )
+    owner_end: int = len(directories) if role_index is None else role_index
+    domain_parts: tuple[str, ...] = directories[grouping_depth:owner_end]
     module, package = module_identity(scoped_file=scoped_file, tree=tree)
     return FilePosition(
         path=path,

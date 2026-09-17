@@ -3,9 +3,10 @@
 use std::path::Path;
 
 use crate::rules::_helpers::role_project_layout_paths::{
-    direct_modules, directory_entries, domain_dir, file_name, leaf_dir, main_entries, mixed_domain,
-    named_subdomains, prefix_candidates, prefix_groups, python_anchor, repository_path, role_name,
-    role_package, scope_root, HELPERS, INIT_FILE, PYTHON_CACHE,
+    direct_modules, directory_entries, domain_dir, domain_roots, file_name, grouping_roots,
+    leaf_dir, main_entries, mixed_domain, named_subdomains, ownership_roots, prefix_candidates,
+    prefix_groups, python_anchor, repository_path, role_name, role_package, scope_root, HELPERS,
+    INIT_FILE, PYTHON_CACHE,
 };
 use crate::rules::constants::{
     HELPERS_PACKAGE_LAYOUT_CODE, LEAF_MAIN_BOUNDARY_CODE, MAIN_PACKAGE_LAYOUT_CODE,
@@ -58,15 +59,19 @@ pub(crate) fn project_layout_queries(
             }
         }
         TOP_LEVEL_DOMAIN_SHAPE_CODE => {
-            let Some(domain) = domain_dir(context) else {
-                return Some(queries);
-            };
-            queries.push(query("directory_entries", &domain, ""));
-            queries = append_subdomain_queries(queries, &domain);
-            if mixed_domain(&domain) {
-                queries.push(query("is_file", &domain.join(INIT_FILE), ""));
-                if !domain.join(INIT_FILE).is_file() {
-                    queries.push(glob_query(&domain, true));
+            queries = append_grouping_discovery_queries(queries, context);
+            for group in grouping_roots(context) {
+                queries.push(query("directory_entries", &group, ""));
+            }
+            queries = append_domain_discovery_queries(queries, context);
+            for domain in domain_roots(context) {
+                queries.push(query("directory_entries", &domain, ""));
+                queries = append_subdomain_queries(queries, &domain);
+                if mixed_domain(&domain) {
+                    queries.push(query("is_file", &domain.join(INIT_FILE), ""));
+                    if !domain.join(INIT_FILE).is_file() {
+                        queries.push(glob_query(&domain, true));
+                    }
                 }
             }
         }
@@ -80,22 +85,23 @@ pub(crate) fn project_layout_queries(
             {
                 return Some(queries);
             }
-            let root = scope_root(context);
-            queries.push(query("is_file", &root.join(INIT_FILE), ""));
-            if !root.join(INIT_FILE).is_file() {
-                queries.push(glob_query(&root, true));
-            }
-            queries.push(query("directory_entries", &root, ""));
-            for entry in prefix_candidates(&root) {
-                queries.push(query("is_dir", &entry, ""));
-                if entry.is_dir() {
-                    queries.push(glob_query(&entry, true));
+            for root in ownership_roots(context) {
+                queries.push(query("is_file", &root.join(INIT_FILE), ""));
+                if !root.join(INIT_FILE).is_file() {
+                    queries.push(glob_query(&root, true));
                 }
-            }
-            for (prefix, names) in prefix_groups(&root) {
-                let minimum = context.thresholds[MINIMUM_SHARED_PREFIX_THRESHOLD] as usize;
-                if names.len() >= minimum {
-                    queries.push(query("is_dir", &root.join(prefix), ""));
+                queries.push(query("directory_entries", &root, ""));
+                for entry in prefix_candidates(&root) {
+                    queries.push(query("is_dir", &entry, ""));
+                    if entry.is_dir() {
+                        queries.push(glob_query(&entry, true));
+                    }
+                }
+                for (prefix, names) in prefix_groups(&root) {
+                    let minimum = context.thresholds[MINIMUM_SHARED_PREFIX_THRESHOLD] as usize;
+                    if names.len() >= minimum {
+                        queries.push(query("is_dir", &root.join(prefix), ""));
+                    }
                 }
             }
         }
@@ -103,7 +109,9 @@ pub(crate) fn project_layout_queries(
             let Some(leaf) = leaf_dir(context) else {
                 return Some(queries);
             };
-            let domain = scope_root(context).join(&context.relative_parts[0]);
+            let Some(domain) = domain_dir(context) else {
+                return Some(queries);
+            };
             if leaf == domain {
                 queries.push(query("directory_entries", &domain, ""));
                 queries = append_subdomain_queries(queries, &domain);
@@ -119,6 +127,54 @@ pub(crate) fn project_layout_queries(
         _ => return None,
     }
     Some(queries)
+}
+
+fn append_grouping_discovery_queries(
+    mut queries: Vec<NativeProjectQuery>,
+    context: &NativeRuleContext,
+) -> Vec<NativeProjectQuery> {
+    let mut roots = vec![scope_root(context)];
+    for _ in 0..context.grouping_depth() {
+        let mut next: Vec<std::path::PathBuf> = Vec::new();
+        for root in roots {
+            queries.push(query("directory_entries", &root, ""));
+            for entry in directory_entries(&root) {
+                if role_name(&entry) || file_name(&entry) == PYTHON_CACHE {
+                    continue;
+                }
+                queries.push(query("is_dir", &entry, ""));
+                if entry.is_dir() {
+                    queries.push(glob_query(&entry, true));
+                    if !crate::rules::_helpers::role_project_layout_paths::recursive_python(&entry)
+                        .is_empty()
+                    {
+                        next.push(entry);
+                    }
+                }
+            }
+        }
+        roots = next;
+    }
+    queries
+}
+
+fn append_domain_discovery_queries(
+    mut queries: Vec<NativeProjectQuery>,
+    context: &NativeRuleContext,
+) -> Vec<NativeProjectQuery> {
+    for root in ownership_roots(context) {
+        queries.push(query("directory_entries", &root, ""));
+        for entry in directory_entries(&root) {
+            if role_name(&entry) || file_name(&entry) == PYTHON_CACHE {
+                continue;
+            }
+            queries.push(query("is_dir", &entry, ""));
+            if entry.is_dir() {
+                queries.push(glob_query(&entry, true));
+            }
+        }
+    }
+    queries
 }
 
 fn append_subdomain_queries(

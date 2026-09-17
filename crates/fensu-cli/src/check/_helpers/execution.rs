@@ -229,7 +229,10 @@ pub(crate) fn repository_python_targets(
             std::mem::take(&mut target.sources),
             &target.project_inputs,
         )?;
-        target.repository_facts = Some(python_repository_fact_payload(&target.sources));
+        target.repository_facts = Some(python_repository_fact_payload(
+            &target.sources,
+            target.config.ownership_depth,
+        ));
     }
     repository_target_payloads(&plan)
 }
@@ -313,6 +316,7 @@ fn repository_target_payloads(plan: &CheckPlans) -> Result<Vec<RepositoryTargetP
                 name,
                 analyzer: target.config.analyzer,
                 root: target.config.target_root.clone(),
+                ownership_depth: target.config.ownership_depth.max(2),
                 facts,
                 subjects,
             })

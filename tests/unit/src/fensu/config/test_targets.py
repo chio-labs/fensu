@@ -24,6 +24,7 @@ from tests.unit.src.fensu.config._test_types import (
     CanonicalTargetRootTestCase,
     EvaluationFingerprintTestCase,
     InvalidTargetConfigTestCase,
+    OwnershipDepthConfigTestCase,
     TargetConfigTestCase,
     WebExceptionPathTestCase,
     WebTargetDefaultsTestCase,
@@ -198,6 +199,38 @@ def test_given_explicit_targets_when_loading_then_selects_flat_python_config(
     assert config.target_root == test_case.expected_target_root
     assert config.roots == test_case.expected_roots
     assert config.select == test_case.expected_select
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        OwnershipDepthConfigTestCase(
+            description="grouped ownership changes resolved config and cache identity",
+            configured_depth=3,
+            expected_depth=3,
+            expected_fingerprints_equal=False,
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_ownership_depth_when_loading_target_then_preserves_config_and_cache_identity(
+    tmp_path: Path, test_case: OwnershipDepthConfigTestCase
+) -> None:
+    write_fensu_toml(
+        root=tmp_path,
+        contents=(
+            '[targets.app]\nanalyzer = "python"\nroots = ["src/app"]\n'
+            f"ownership_depth = {test_case.configured_depth}\n"
+        ),
+    )
+
+    configured: Config = load_target_project_config(start=tmp_path, target="app").config
+    default: Config = Config(roots=("src/app",), target="app")
+
+    assert configured.ownership_depth == test_case.expected_depth
+    assert (
+        config_fingerprint(configured) == config_fingerprint(default)
+    ) is test_case.expected_fingerprints_equal
 
 
 @pytest.mark.parametrize(
@@ -532,6 +565,22 @@ def test_given_analyzer_compatible_web_exception_when_loading_then_path_is_accep
             config_text=('[targets.app]\nanalyzer = "python"\nroots = ["src/app"]\n'),
             target="missing",
             expected_error_fragment="Unknown target name: missing",
+        ),
+        InvalidTargetConfigTestCase(
+            description="ownership depth cannot omit the domain and subdomain slots",
+            config_text=(
+                '[targets.app]\nanalyzer = "python"\nroots = ["src/app"]\nownership_depth = 1\n'
+            ),
+            target="app",
+            expected_error_fragment="ownership_depth must be an integer of at least 2",
+        ),
+        InvalidTargetConfigTestCase(
+            description="ownership depth rejects booleans",
+            config_text=(
+                '[targets.app]\nanalyzer = "python"\nroots = ["src/app"]\nownership_depth = true\n'
+            ),
+            target="app",
+            expected_error_fragment="ownership_depth must be an integer of at least 2",
         ),
         InvalidTargetConfigTestCase(
             description="multiple targets require explicit selection",

@@ -21,6 +21,7 @@ from fensu.config.constants import (
     EVALUATION_INCLUDE_CONFIG_KEY,
     INVALID_UI_KIT_PATH_PARTS,
     MAX_THRESHOLD_VALUE,
+    MINIMUM_OWNERSHIP_DEPTH,
     PATH_SEPARATOR,
     PYTHON_ANALYZER,
     RECURSIVE_GLOB,
@@ -60,6 +61,15 @@ def validate_config(*, raw: Mapping[str, object], analyzer: AnalyzerId | None = 
     if len(roots) == 0:
         raise ConfigError("Config must define at least one root in roots.")
     _validate_no_nested_paths(name="roots", paths=roots)
+    ownership_depth: object = raw.get("ownership_depth")
+    if ownership_depth is not None and (
+        isinstance(ownership_depth, bool)
+        or not isinstance(ownership_depth, int)
+        or ownership_depth < MINIMUM_OWNERSHIP_DEPTH
+    ):
+        raise ConfigValidationError(
+            f"Config key ownership_depth must be an integer of at least {MINIMUM_OWNERSHIP_DEPTH}."
+        )
     _validate_optional_string_sequence(name="tests", value=raw.get("tests"))
     _validate_test_scopes(value=raw.get("test_scopes"))
     test_layout: object = raw.get("test_layout")

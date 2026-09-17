@@ -33,6 +33,7 @@ type NativeProjectContextTuple = (
     String,
     HashMap<String, HashMap<String, String>>,
     Vec<String>,
+    usize,
 );
 
 type NativeProjectQueryTuple = (String, String, String, String);
@@ -142,6 +143,7 @@ fn plan_execution_batch(
                     repo_root: request.11 .4,
                     rule_options: request.11 .5,
                     test_scopes: request.11 .6,
+                    ownership_depth: request.11 .7,
                 },
             }));
         }

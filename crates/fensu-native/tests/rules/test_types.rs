@@ -55,6 +55,11 @@ pub(crate) struct TopLevelDirectModuleTestCase {
     pub(crate) expected_fault_count: usize,
 }
 
+pub(crate) struct GroupedExecutionPlanningTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_planned_targets: usize,
+}
+
 #[derive(Debug, Deserialize)]
 pub(crate) struct FilesystemEntry {
     pub(crate) path: String,

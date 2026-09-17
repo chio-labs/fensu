@@ -10,6 +10,7 @@ from types import MappingProxyType
 from fensu.config.constants import (
     DEFAULT_CACHE_ENABLED,
     DEFAULT_CONTRACTS,
+    DEFAULT_OWNERSHIP_DEPTH,
     DEFAULT_TEST_LAYOUT,
     DEFAULT_TEST_SCOPES,
     DEFAULT_THRESHOLDS,
@@ -118,6 +119,7 @@ class Config:
     """Validated fensu configuration."""
 
     roots: tuple[str, ...]
+    ownership_depth: int = DEFAULT_OWNERSHIP_DEPTH
     tests: tuple[str, ...] = ("tests",)
     test_scopes: tuple[str, ...] = DEFAULT_TEST_SCOPES
     tooling: tuple[str, ...] = ()

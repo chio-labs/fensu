@@ -10,6 +10,7 @@ use crate::configuration::_helpers::selectors::valid_selector;
 use crate::configuration::constants::{CONFIG_ROLE_NAMES, CONTRACT_BEHAVIORS, DEFAULT_THRESHOLDS};
 use crate::configuration::main::expand_path_pattern::expand_path_pattern;
 use crate::constants::{CONFIG_REPOSITORY_RULES_KEY, CONFIG_TARGETS_KEY};
+use crate::constants::{MINIMUM_OWNERSHIP_DEPTH, OWNERSHIP_DEPTH_CONFIG_KEY};
 use crate::models::TargetSelection;
 
 const RECURSIVE_GLOB: &str = "**";
@@ -41,6 +42,7 @@ const CONFIG_KEYS: &[&str] = &[
     "ui_kit",
     "shadcn",
     "openapi",
+    "ownership_depth",
     "rule_exceptions",
     "rule_ignores",
     "threshold_overrides",
@@ -105,6 +107,14 @@ pub(crate) fn validate_for_analyzer(
         return Err("Config must define at least one root in roots.".to_owned());
     }
     validate_nested_roots(roots.clone())?;
+    if let Some(value) = table.get(OWNERSHIP_DEPTH_CONFIG_KEY) {
+        if value
+            .as_integer()
+            .is_none_or(|depth| depth < MINIMUM_OWNERSHIP_DEPTH)
+        {
+            return Err("Config key ownership_depth must be an integer of at least 2.".to_owned());
+        }
+    }
     validate_boolean_table(table, "cache", &["enabled", "require_cacheable"])?;
     validate_threshold_table(table.get("thresholds"), "thresholds", false)?;
     validate_roles(table.get("roles"))?;

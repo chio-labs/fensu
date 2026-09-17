@@ -39,7 +39,7 @@ def layout_rules() -> tuple[RuleSpec, ...]:
         _rule(
             code=RoleCode.TOP_LEVEL_DOMAIN_SHAPE,
             slug="top-level-domain-shape",
-            execution_owner=ExecutionOwner.DOMAIN,
+            execution_owner=ExecutionOwner.SCOPE,
         ),
         _rule(
             code=RoleCode.TOP_LEVEL_DIRECT_MODULES,
@@ -65,6 +65,16 @@ def _rule(
     execution_owner: ExecutionOwner = ExecutionOwner.FILE,
 ) -> RuleSpec:
     message, remediation = role_rule_details(code)
+    ownership_codes: frozenset[RoleCode] = frozenset(
+        {
+            RoleCode.NESTED_DIRECT_MODULES,
+            RoleCode.NESTED_DIRECT_SUBPACKAGES,
+            RoleCode.TOP_LEVEL_DOMAIN_SHAPE,
+            RoleCode.TOP_LEVEL_DIRECT_MODULES,
+            RoleCode.SHARED_DOMAIN_PREFIX,
+            RoleCode.LEAF_MAIN_BOUNDARY,
+        }
+    )
     return RuleSpec(
         code=code,
         family=Family.ROLES,
@@ -74,4 +84,5 @@ def _rule(
         execution_owner=execution_owner,
         thresholds=get_role_rule_thresholds(code),
         constraints=get_role_rule_constraints(code),
+        configuration_inputs=("ownership_depth",) if code in ownership_codes else (),
     )

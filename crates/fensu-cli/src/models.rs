@@ -80,6 +80,7 @@ pub(crate) struct Config {
     pub(crate) target: Option<String>,
     pub(crate) target_root: String,
     pub(crate) roots: Vec<String>,
+    pub(crate) ownership_depth: usize,
     pub(crate) tests: Vec<String>,
     pub(crate) test_scopes: Vec<String>,
     pub(crate) test_layout: TestLayout,

@@ -12,11 +12,15 @@ const MAIN_ROLE: &str = "main";
 const PYTHON_SUFFIX: &str = ".py";
 const ROOT_SCOPE: &str = "root";
 
-pub(crate) fn public_entry_faults(code: &str, project: &NativeProjectPlane) -> Vec<NativeFaultRow> {
+pub(crate) fn public_entry_faults(
+    code: &str,
+    project: &NativeProjectPlane,
+    grouping_depth: usize,
+) -> Vec<NativeFaultRow> {
     let mut entries: BTreeMap<Vec<String>, (&str, Ownership)> = BTreeMap::new();
     for module in &project.modules {
         let initializer = module.path.ends_with(&format!("/{INIT_FILE}"));
-        let ownership = classify(&module.module_parts, initializer);
+        let ownership = classify(&module.module_parts, initializer, grouping_depth);
         if module.scope == ROOT_SCOPE
             && module.path.ends_with(PYTHON_SUFFIX)
             && !initializer
@@ -33,7 +37,7 @@ pub(crate) fn public_entry_faults(code: &str, project: &NativeProjectPlane) -> V
         .collect();
     for importer in &project.modules {
         let initializer = importer.path.ends_with(&format!("/{INIT_FILE}"));
-        let importer_owner = classify(&importer.module_parts, initializer);
+        let importer_owner = classify(&importer.module_parts, initializer, grouping_depth);
         for row in &importer.program.reference_rows().imports {
             for target in import_module_targets(row, &importer.module_parts, initializer) {
                 let Some((_, target_owner)) = entries.get(&target) else {

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.0](https://github.com/chio-labs/fensu/compare/v0.19.2...v0.20.0) (2026-09-17)
+
+
+### Features
+
+* support configurable ownership depth ([#91](https://github.com/chio-labs/fensu/issues/91)) ([fd5b5ed](https://github.com/chio-labs/fensu/commit/fd5b5ed08dc4ce8bb2b78325ff70b320a4cf290b))
+
 ## [0.19.2](https://github.com/chio-labs/fensu/compare/v0.19.1...v0.19.2) (2026-09-16)
 
 

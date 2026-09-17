@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.0](https://github.com/chio-labs/fensu/compare/v0.20.0...v0.21.0) (2026-09-17)
+
+
+### Features
+
+* add scoped ownership roots ([#93](https://github.com/chio-labs/fensu/issues/93)) ([456fd83](https://github.com/chio-labs/fensu/commit/456fd83c5e1d21a5b3851eeb1746d3e03b7de31f))
+
 ## [0.20.0](https://github.com/chio-labs/fensu/compare/v0.19.2...v0.20.0) (2026-09-17)
 
 

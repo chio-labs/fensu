@@ -354,8 +354,10 @@ fn discover(
     sources.dedup_by(|left, right| left.repository_path == right.repository_path);
     if config.test_layout == crate::models::TestLayout::Colocated {
         assign_colocated_test_owners(&mut sources, config);
+    } else {
+        assign_mirrored_test_owners(&mut sources, config);
     }
-    assign_mirrored_test_owners(&mut sources, config);
+    inherit_test_ownership(&mut sources, config);
     Ok(sources)
 }
 
@@ -365,8 +367,16 @@ fn assign_mirrored_test_owners(sources: &mut [ScopedSource], config: &Config) {
         .filter(|source| source.scope == SCOPE_TEST)
     {
         if source.test_owner_path.is_none() {
-            source.test_owner_path = projected_runtime_path(&source.target_path, &config.roots);
+            source.test_owner_path = projected_runtime_path(&source.target_path, config);
         }
+    }
+}
+
+fn inherit_test_ownership(sources: &mut [ScopedSource], config: &Config) {
+    for source in sources
+        .iter_mut()
+        .filter(|source| source.scope == SCOPE_TEST)
+    {
         let Some(owner_path) = source.test_owner_path.as_deref() else {
             continue;
         };
@@ -379,19 +389,38 @@ fn assign_mirrored_test_owners(sources: &mut [ScopedSource], config: &Config) {
     }
 }
 
-fn projected_runtime_path(path: &str, runtime_roots: &[String]) -> Option<String> {
-    let parts = path.split('/').collect::<Vec<_>>();
-    let mut projected: Vec<String> = Vec::new();
-    for root in runtime_roots {
-        let root_parts = root.split('/').collect::<Vec<_>>();
-        for (index, window) in parts.windows(root_parts.len()).enumerate() {
-            if window == root_parts {
-                projected.push(parts[index..].join("/"));
-                break;
-            }
-        }
+fn projected_runtime_path(path: &str, config: &Config) -> Option<String> {
+    let relative = config
+        .tests
+        .iter()
+        .filter_map(|root| {
+            path.strip_prefix(root)
+                .and_then(|value| value.strip_prefix('/'))
+        })
+        .min_by_key(|value| value.len())?;
+    let relative = without_test_scope(relative, &config.test_scopes);
+    if config
+        .roots
+        .iter()
+        .any(|root| relative == root || relative.starts_with(&format!("{root}/")))
+    {
+        return Some(relative.to_owned());
     }
-    projected.into_iter().max_by_key(String::len)
+    let [root] = config.roots.as_slice() else {
+        return None;
+    };
+    Some(format!("{root}/{relative}"))
+}
+
+fn without_test_scope<'a>(relative: &'a str, test_scopes: &[String]) -> &'a str {
+    let Some((scope, remainder)) = relative.split_once('/') else {
+        return relative;
+    };
+    if test_scopes.iter().any(|value| value == scope) {
+        remainder
+    } else {
+        relative
+    }
 }
 
 fn rust_project_inputs(

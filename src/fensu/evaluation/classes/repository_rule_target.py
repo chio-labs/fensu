@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import NoReturn, cast
 
 from fensu.analysis.models import SourceLocation
+from fensu.config.constants import MINIMUM_OWNERSHIP_DEPTH
 from fensu.config.types import AnalyzerId
 from fensu.evaluation.classes.repository_dependency_observer import (
     RepositoryDependencyObserver,
@@ -244,6 +245,7 @@ def build_repository_rule_target(*, payload: object) -> RepositoryRuleTargetView
     analyzer: AnalyzerId = AnalyzerId(_string(value=value["analyzer"], name="target analyzer"))
     root_text: str = _string(value=value["root"], name="target root")
     root: ProjectPath = project_root_path() if root_text == PROJECT_ROOT else ProjectPath(root_text)
+    ownership_depth: int = _ownership_depth(value["ownership_depth"])
     identity: Target = Target(name=name, analyzer=analyzer, root=root)
     if analyzer is AnalyzerId.PYTHON:
         python, tree, graph = build_python_repository_facts(
@@ -255,7 +257,11 @@ def build_repository_rule_target(*, payload: object) -> RepositoryRuleTargetView
     if analyzer is AnalyzerId.RUST:
         workspace: RustWorkspaceFacts = build_rust_workspace_facts(payload=value["facts"])
         selected: Mapping[ProjectPath, RustFileFacts]
-        tree, selected = build_rust_project_tree(subjects=value["subjects"], workspace=workspace)
+        tree, selected = build_rust_project_tree(
+            subjects=value["subjects"],
+            workspace=workspace,
+            ownership_depth=ownership_depth,
+        )
         workspace = select_rust_workspace_facts(workspace=workspace, files=selected)
         return RepositoryRuleTargetView(
             identity=identity,
@@ -266,11 +272,18 @@ def build_repository_rule_target(*, payload: object) -> RepositoryRuleTargetView
             web=None,
         )
     workspace = build_web_workspace_facts(payload=value["facts"])
-    tree: ProjectTree = build_web_project_tree(subjects=value["subjects"], workspace=workspace)
+    tree: ProjectTree = build_web_project_tree(
+        subjects=value["subjects"],
+        workspace=workspace,
+        ownership_depth=ownership_depth,
+    )
     return RepositoryRuleTargetView(
         identity=identity,
         tree=tree,
-        graph=build_web_architecture_graph(workspace=workspace),
+        graph=build_web_architecture_graph(
+            workspace=workspace,
+            ownership_depth=ownership_depth,
+        ),
         python=None,
         rust=None,
         web=workspace,
@@ -343,4 +356,12 @@ def _mapping(*, value: object) -> Mapping[str, object]:
 def _string(*, value: object, name: str) -> str:
     if not isinstance(value, str):
         raise RepositoryRuleError(f"Repository {name} must be a string")
+    return value
+
+
+def _ownership_depth(value: object) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < MINIMUM_OWNERSHIP_DEPTH:
+        raise RepositoryRuleError(
+            f"Repository target ownership depth must be at least {MINIMUM_OWNERSHIP_DEPTH}"
+        )
     return value

@@ -67,7 +67,11 @@ def public_main_entry_external_use_impl(*, module: ast.Module, ctx: RuleContext)
                 parts: tuple[str, ...] = (*path.relative_to(root.parent).parts[:-1], path.stem)
                 if parts[-1] == _INIT_STEM:
                     parts = parts[:-1]
-                domain, first_role, tail = _ownership(parts=parts, initializer=path.name == _INIT)
+                domain, first_role, tail = _ownership(
+                    parts=parts,
+                    initializer=path.name == _INIT,
+                    ownership_depth=ctx.ownership_depth() if scope is ScopeName.ROOT else 2,
+                )
                 modules.append(
                     _Module(
                         path=path,
@@ -203,35 +207,46 @@ def top_level_domain_shape_impl(*, module: ast.Module, ctx: RuleContext) -> list
     """Reject domains mixing direct role content with named subdomains."""
 
     del module
-    if ctx.scope() is ScopeName.TOOLING or len(ctx.relative_parts()) < _MINIMUM_DOMAIN_PARTS:
+    if ctx.scope() is ScopeName.TOOLING:
         return []
-    domain: Path = ctx.scope_root() / ctx.relative_parts()[0]
-    entries: tuple[Path, ...] = ctx.project.directory_entries(requester=ctx.path, path=domain)
-    direct: tuple[Path, ...] = tuple(
-        entry
-        for entry in entries
-        if entry.name in _ROLE_NAMES
-        or (entry.suffix == _PYTHON_SUFFIX and entry.name in _ROLE_FILES)
-    )
-    if not direct or not _named_subdomains(ctx=ctx, entries=entries):
-        return []
-    init_path: Path = domain / _INIT
-    if ctx.project.is_file(requester=ctx.path, path=init_path):
-        anchor: Path = init_path
-    else:
-        files: tuple[Path, ...] = tuple(
-            sorted(
-                ctx.project.glob(requester=ctx.path, path=domain, pattern="*.py", recursive=True)
+    faults: list[Fault] = []
+    for group in _grouping_roots(ctx=ctx):
+        entries: tuple[Path, ...] = ctx.project.directory_entries(requester=ctx.path, path=group)
+        direct: tuple[Path, ...] = _direct_role_entries(entries)
+        if direct:
+            faults.append(
+                ctx.path_fault(
+                    path=direct[0],
+                    message="structural ownership group contains direct role content",
+                    remediation="move role content beneath the required domain level",
+                )
+            )
+    for domain in _domain_roots(ctx=ctx):
+        entries = ctx.project.directory_entries(requester=ctx.path, path=domain)
+        direct = _direct_role_entries(entries)
+        if not direct or not _named_subdomains(ctx=ctx, entries=entries):
+            continue
+        init_path: Path = domain / _INIT
+        if ctx.project.is_file(requester=ctx.path, path=init_path):
+            anchor: Path = init_path
+        else:
+            files: tuple[Path, ...] = tuple(
+                sorted(
+                    ctx.project.glob(
+                        requester=ctx.path, path=domain, pattern="*.py", recursive=True
+                    )
+                )
+            )
+            if not files:
+                continue
+            anchor = files[0]
+        faults.append(
+            ctx.path_fault(
+                path=anchor,
+                message="top-level domain mixes direct roles and named subdomains",
             )
         )
-        if not files:
-            return []
-        anchor = files[0]
-    return [
-        ctx.path_fault(
-            path=anchor, message="top-level domain mixes direct roles and named subdomains"
-        )
-    ]
+    return faults
 
 
 def shared_domain_prefix_impl(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
@@ -240,59 +255,68 @@ def shared_domain_prefix_impl(*, module: ast.Module, ctx: RuleContext) -> list[F
     del module
     if ctx.scope() is not ScopeName.ROOT:
         return []
-    root: Path = ctx.scope_root()
-    init_path: Path = root / _INIT
-    if ctx.project.is_file(requester=ctx.path, path=init_path):
-        anchor: Path | None = init_path
-    else:
-        files: tuple[Path, ...] = tuple(
-            sorted(ctx.project.glob(requester=ctx.path, path=root, pattern="*.py", recursive=True))
-        )
-        anchor = files[0] if files else None
-    if anchor is None:
-        return []
-    minimum: int = ctx.threshold(name=Threshold.MIN_SHARED_DOMAIN_PREFIX_PACKAGES, path=anchor)
+    minimum: int = ctx.threshold(
+        name=Threshold.MIN_SHARED_DOMAIN_PREFIX_PACKAGES,
+        path=ctx.path,
+    )
     if minimum == 0:
         return []
-    grouped: dict[str, list[str]] = {}
-    for entry in sorted(ctx.project.directory_entries(requester=ctx.path, path=root)):
-        name: str = entry.name
-        if (
-            name.startswith("_")
-            or name in _ROLE_NAMES
-            or name in {_LEGACY_HELPERS, _PYTHON_CACHE}
-            or _SEPARATOR not in name
-            or not name.isidentifier()
-            or not ctx.project.is_dir(requester=ctx.path, path=entry)
-        ):
-            continue
-        prefix, separator, suffix = name.partition(_SEPARATOR)
-        if not separator or not prefix or not suffix:
-            continue
-        if not ctx.project.glob(requester=ctx.path, path=entry, pattern="*.py", recursive=True):
-            continue
-        grouped.setdefault(prefix, []).append(name)
     faults: list[Fault] = []
-    for prefix, names_list in sorted(grouped.items()):
-        names: tuple[str, ...] = tuple(sorted(names_list))
-        if len(names) < minimum:
-            continue
-        suffixes: tuple[str, ...] = tuple(f"{name.removeprefix(f'{prefix}_')}/" for name in names)
-        destination: Path = root / prefix
-        remediation: str = (
-            f"Move them under the existing {prefix}/ domain as "
-            f"{_natural_list(suffixes)} subdomains."
-            if ctx.project.is_dir(requester=ctx.path, path=destination)
-            else f"Create {prefix}/ and move them beneath it as "
-            f"{_natural_list(suffixes)} subdomains."
-        )
-        faults.append(
-            ctx.path_fault(
-                path=anchor,
-                message=f"sibling domains {_natural_list(names)} share the {prefix}_ owner prefix",
-                remediation=remediation,
+    for root in _ownership_roots(ctx=ctx):
+        init_path: Path = root / _INIT
+        if ctx.project.is_file(requester=ctx.path, path=init_path):
+            anchor: Path | None = init_path
+        else:
+            files: tuple[Path, ...] = tuple(
+                sorted(
+                    ctx.project.glob(requester=ctx.path, path=root, pattern="*.py", recursive=True)
+                )
             )
-        )
+            anchor = files[0] if files else None
+        if anchor is None:
+            continue
+        grouped: dict[str, list[str]] = {}
+        for entry in sorted(ctx.project.directory_entries(requester=ctx.path, path=root)):
+            name: str = entry.name
+            if (
+                name.startswith("_")
+                or name in _ROLE_NAMES
+                or name in {_LEGACY_HELPERS, _PYTHON_CACHE}
+                or _SEPARATOR not in name
+                or not name.isidentifier()
+                or not ctx.project.is_dir(requester=ctx.path, path=entry)
+            ):
+                continue
+            prefix, separator, suffix = name.partition(_SEPARATOR)
+            if not separator or not prefix or not suffix:
+                continue
+            if not ctx.project.glob(requester=ctx.path, path=entry, pattern="*.py", recursive=True):
+                continue
+            grouped.setdefault(prefix, []).append(name)
+        for prefix, names_list in sorted(grouped.items()):
+            names: tuple[str, ...] = tuple(sorted(names_list))
+            if len(names) < minimum:
+                continue
+            suffixes: tuple[str, ...] = tuple(
+                f"{name.removeprefix(f'{prefix}_')}/" for name in names
+            )
+            destination: Path = root / prefix
+            remediation: str = (
+                f"Move them under the existing {prefix}/ domain as "
+                f"{_natural_list(suffixes)} subdomains."
+                if ctx.project.is_dir(requester=ctx.path, path=destination)
+                else f"Create {prefix}/ and move them beneath it as "
+                f"{_natural_list(suffixes)} subdomains."
+            )
+            faults.append(
+                ctx.path_fault(
+                    path=anchor,
+                    message=(
+                        f"sibling domains {_natural_list(names)} share the {prefix}_ owner prefix"
+                    ),
+                    remediation=remediation,
+                )
+            )
     return faults
 
 
@@ -300,16 +324,17 @@ def leaf_main_boundary_impl(*, module: ast.Module, ctx: RuleContext) -> list[Fau
     """Require each runtime leaf to own at least one meaningful main entry."""
 
     del module
-    if ctx.scope() is not ScopeName.ROOT or len(ctx.relative_parts()) < _MINIMUM_DOMAIN_PARTS:
+    domain_index: int = ctx.ownership_depth() - 2
+    if ctx.scope() is not ScopeName.ROOT or len(ctx.relative_parts()) <= domain_index + 1:
         return []
     parts: tuple[str, ...] = ctx.relative_parts()
-    domain: Path = ctx.scope_root() / parts[0]
+    domain: Path = ctx.scope_root().joinpath(*parts[: domain_index + 1])
     leaf: Path = (
         domain
-        if len(parts) < _MINIMUM_SUBDOMAIN_PARTS
-        or parts[1] in _ROLE_NAMES
-        or parts[1].endswith(_PYTHON_SUFFIX)
-        else domain / parts[1]
+        if len(parts) <= domain_index + 1
+        or parts[domain_index + 1] in _ROLE_NAMES
+        or parts[domain_index + 1].endswith(_PYTHON_SUFFIX)
+        else domain / parts[domain_index + 1]
     )
     if leaf == domain:
         entries: tuple[Path, ...] = ctx.project.directory_entries(requester=ctx.path, path=domain)
@@ -337,16 +362,22 @@ def leaf_main_boundary_impl(*, module: ast.Module, ctx: RuleContext) -> list[Fau
 
 
 def _ownership(
-    *, parts: tuple[str, ...], initializer: bool
+    *, parts: tuple[str, ...], initializer: bool, ownership_depth: int
 ) -> tuple[str | None, str | None, tuple[str, ...]]:
+    owner_start: int = min(1 + max(0, ownership_depth - 2), len(parts))
     role_index: int | None = next(
-        (index for index, part in enumerate(parts[1:], start=1) if part in _ROLE_NAMES), None
+        (
+            index
+            for index, part in enumerate(parts[owner_start:], start=owner_start)
+            if part in _ROLE_NAMES
+        ),
+        None,
     )
     if role_index is None:
-        end: int = len(parts) if initializer else max(1, len(parts) - 1)
-        owner: tuple[str, ...] = parts[1:end]
+        end: int = len(parts) if initializer else max(owner_start, len(parts) - 1)
+        owner: tuple[str, ...] = parts[owner_start:end]
         return (owner[0] if owner else None, None, parts[end:])
-    owner = parts[1:role_index]
+    owner = parts[owner_start:role_index]
     return (owner[0] if owner else None, parts[role_index], parts[role_index + 1 :])
 
 
@@ -384,6 +415,54 @@ def _named_subdomains(*, ctx: RuleContext, entries: tuple[Path, ...]) -> tuple[P
         and ctx.project.is_dir(requester=ctx.path, path=entry)
         and ctx.project.glob(requester=ctx.path, path=entry, pattern="*.py", recursive=True)
     )
+
+
+def _direct_role_entries(entries: tuple[Path, ...]) -> tuple[Path, ...]:
+    return tuple(
+        entry
+        for entry in entries
+        if entry.name in _ROLE_NAMES
+        or (entry.suffix == _PYTHON_SUFFIX and entry.name in _ROLE_FILES)
+    )
+
+
+def _grouping_roots(*, ctx: RuleContext) -> tuple[Path, ...]:
+    current: tuple[Path, ...] = (ctx.scope_root(),)
+    groups: list[Path] = []
+    for _ in range(ctx.ownership_depth() - 2):
+        current = _owned_directories(ctx=ctx, roots=current)
+        groups.extend(current)
+    return tuple(groups)
+
+
+def _ownership_roots(*, ctx: RuleContext) -> tuple[Path, ...]:
+    current: tuple[Path, ...] = (ctx.scope_root(),)
+    for _ in range(ctx.ownership_depth() - 2):
+        current = _owned_directories(ctx=ctx, roots=current)
+    return current
+
+
+def _domain_roots(*, ctx: RuleContext) -> tuple[Path, ...]:
+    return _owned_directories(ctx=ctx, roots=_ownership_roots(ctx=ctx))
+
+
+def _owned_directories(*, ctx: RuleContext, roots: tuple[Path, ...]) -> tuple[Path, ...]:
+    directories: list[Path] = []
+    for root in roots:
+        for entry in ctx.project.directory_entries(requester=ctx.path, path=root):
+            if entry.name in _ROLE_NAMES or entry.name == _PYTHON_CACHE:
+                continue
+            if not ctx.project.is_dir(requester=ctx.path, path=entry):
+                continue
+            if not ctx.project.glob(
+                requester=ctx.path,
+                path=entry,
+                pattern="*.py",
+                recursive=True,
+            ):
+                continue
+            directories.append(entry)
+    return tuple(sorted(directories))
 
 
 def _natural_list(values: tuple[str, ...]) -> str:

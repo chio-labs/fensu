@@ -49,6 +49,7 @@ from fensu.rules.authoring.types import (
     WebSyntaxKind,
 )
 
+_LIB_DIRECTORY: str = "lib"
 _WEB_ROLES: frozenset[str] = frozenset(
     {
         "_adapters",
@@ -107,7 +108,9 @@ def web_workspace_facts(*, payload: object) -> WebWorkspaceFacts:
     )
 
 
-def web_project_tree(*, subjects: object, workspace: WebWorkspaceFacts) -> ProjectTree:
+def web_project_tree(
+    *, subjects: object, workspace: WebWorkspaceFacts, ownership_depth: int = 2
+) -> ProjectTree:
     """Build a deterministic common tree from authoritative direct web subjects."""
 
     facts_by_path: dict[ProjectPath, WebFileFacts] = {
@@ -137,6 +140,11 @@ def web_project_tree(*, subjects: object, workspace: WebWorkspaceFacts) -> Proje
         scope_root: ProjectPath = (
             root_path() if scope_root_text == PROJECT_ROOT else ProjectPath(scope_root_text)
         )
+        domain_parts: tuple[str, ...] = _domain_parts(
+            directories=directories,
+            role_index=role_index,
+            ownership_depth=ownership_depth,
+        )
         positions[path] = FilePosition(
             path=path,
             analyzer=workspace.analyzer,
@@ -145,7 +153,7 @@ def web_project_tree(*, subjects: object, workspace: WebWorkspaceFacts) -> Proje
             scope_root=scope_root,
             module=fact.module,
             package=_package(module=fact.module),
-            domain_parts=directories if role_index is None else directories[:role_index],
+            domain_parts=domain_parts,
             role=role,
             role_depth=None if role_index is None else len(directories) - role_index - 1,
             is_entry_module=relative_parts[-1].startswith("+") if relative_parts else False,
@@ -168,10 +176,14 @@ def web_project_tree(*, subjects: object, workspace: WebWorkspaceFacts) -> Proje
     )
 
 
-def web_architecture_graph(*, workspace: WebWorkspaceFacts) -> ArchitectureGraph:
+def web_architecture_graph(
+    *, workspace: WebWorkspaceFacts, ownership_depth: int = 2
+) -> ArchitectureGraph:
     """Build the common graph from native-resolved web import targets."""
 
-    nodes: tuple[ModuleNode, ...] = tuple(_node(value=item) for item in workspace._file_values)
+    nodes: tuple[ModuleNode, ...] = tuple(
+        _node(value=item, ownership_depth=ownership_depth) for item in workspace._file_values
+    )
     nodes_by_path: dict[ProjectPath, ModuleNode] = {item.file.path: item for item in nodes}
     imports: dict[ProjectPath, tuple[ImportEdge, ...]] = {}
     for facts in workspace._file_values:
@@ -519,7 +531,7 @@ def _syntax_handle(*, payload: object, path: ProjectPath) -> WebSyntaxHandle:
     )
 
 
-def _node(*, value: WebFileFacts) -> ModuleNode:
+def _node(*, value: WebFileFacts, ownership_depth: int) -> ModuleNode:
     source_root_depth: int = len(value.source_root.parts)
     directories: tuple[str, ...] = value.file.path.parts[source_root_depth:-1]
     role_index: int | None = next(
@@ -534,7 +546,11 @@ def _node(*, value: WebFileFacts) -> ModuleNode:
         scope=value.scope,
         scope_root=value.source_root,
         package=_package(module=value.module),
-        domain_parts=directories if role_index is None else directories[:role_index],
+        domain_parts=_domain_parts(
+            directories=directories,
+            role_index=role_index,
+            ownership_depth=ownership_depth,
+        ),
         role=role,
         visibility=(
             ModuleVisibility.INTERNAL
@@ -542,6 +558,16 @@ def _node(*, value: WebFileFacts) -> ModuleNode:
             else ModuleVisibility.PUBLIC
         ),
     )
+
+
+def _domain_parts(
+    *, directories: tuple[str, ...], role_index: int | None, ownership_depth: int
+) -> tuple[str, ...]:
+    owner_end: int = len(directories) if role_index is None else role_index
+    if not directories or directories[0] != _LIB_DIRECTORY:
+        return directories[:owner_end]
+    grouping_depth: int = max(2, ownership_depth) - 2
+    return (*directories[:1], *directories[1 + grouping_depth : owner_end])
 
 
 def _edge(

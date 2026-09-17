@@ -15,20 +15,36 @@ struct DirectoryContents {
 pub(crate) fn check_domains(
     files: &[models::SourceFile],
     targets: &[models::WorkspaceTarget],
+    ownership_depth: usize,
 ) -> Vec<models::Violation> {
     let Some(source_root) = source_root(files) else {
         return Vec::new();
     };
     let tree = directory_tree(files);
+    let grouping_depth = ownership_depth.saturating_sub(2);
     let mut violations: Vec<models::Violation> = Vec::new();
     violations.extend(root_direct_module_violations(&source_root, &tree, targets));
-    for domain in top_level_domains(&tree) {
+    for group in grouping_roots(&tree, grouping_depth) {
+        violations.extend(grouping_shape_violations(&source_root, &tree, &group));
+        violations.extend(direct_module_violations(&source_root, &tree, &group));
+    }
+    for domain in domain_roots(&tree, grouping_depth) {
         violations.extend(direct_module_violations(&source_root, &tree, &domain));
         violations.extend(domain_shape_violations(&source_root, &tree, &domain));
     }
     for directory in tree.keys() {
-        violations.extend(role_boundary_violations(&source_root, &tree, directory));
-        violations.extend(main_boundary_violations(&source_root, &tree, directory));
+        violations.extend(role_boundary_violations(
+            &source_root,
+            &tree,
+            directory,
+            grouping_depth,
+        ));
+        violations.extend(main_boundary_violations(
+            &source_root,
+            &tree,
+            directory,
+            grouping_depth,
+        ));
     }
     violations.sort_by(|left, right| left.sort_key().cmp(&right.sort_key()));
     violations.dedup_by(|left, right| left.sort_key() == right.sort_key());
@@ -99,19 +115,57 @@ fn directory_tree(files: &[models::SourceFile]) -> BTreeMap<String, DirectoryCon
     tree
 }
 
-fn top_level_domains(tree: &BTreeMap<String, DirectoryContents>) -> Vec<String> {
-    let Some(root) = tree.get("") else {
+fn grouping_roots(
+    tree: &BTreeMap<String, DirectoryContents>,
+    grouping_depth: usize,
+) -> Vec<String> {
+    if grouping_depth == 0 {
         return Vec::new();
-    };
-    root.directories
-        .iter()
-        .filter(|name| {
-            !is_role_container(name)
-                && *name != constants::TESTS_DIRECTORY
-                && *name != constants::BIN_DIRECTORY
+    }
+    tree.keys()
+        .filter(|directory| {
+            let depth = path_depth(directory);
+            depth > 0 && depth <= grouping_depth && !inside_role_container(directory)
         })
         .cloned()
         .collect()
+}
+
+fn ownership_roots(
+    tree: &BTreeMap<String, DirectoryContents>,
+    grouping_depth: usize,
+) -> Vec<String> {
+    if grouping_depth == 0 {
+        return vec![String::new()];
+    }
+    tree.keys()
+        .filter(|directory| {
+            path_depth(directory) == grouping_depth && !inside_role_container(directory)
+        })
+        .cloned()
+        .collect()
+}
+
+fn domain_roots(tree: &BTreeMap<String, DirectoryContents>, grouping_depth: usize) -> Vec<String> {
+    let mut domains: Vec<String> = Vec::new();
+    for root in ownership_roots(tree, grouping_depth) {
+        let Some(contents) = tree.get(&root) else {
+            continue;
+        };
+        domains.extend(
+            contents
+                .directories
+                .iter()
+                .filter(|name| {
+                    !is_role_container(name)
+                        && *name != constants::TESTS_DIRECTORY
+                        && *name != constants::BIN_DIRECTORY
+                })
+                .map(|name| join_path(&root, name)),
+        );
+    }
+    domains.sort();
+    domains
 }
 
 fn is_role_container(name: &str) -> bool {
@@ -197,15 +251,37 @@ fn domain_shape_violations(
     })]
 }
 
+fn grouping_shape_violations(
+    source_root: &str,
+    tree: &BTreeMap<String, DirectoryContents>,
+    group: &str,
+) -> Vec<models::Violation> {
+    let Some(contents) = tree.get(group) else {
+        return Vec::new();
+    };
+    if !holds_role_content(contents) {
+        return Vec::new();
+    }
+    let relative = format!("{source_root}/{group}");
+    vec![models::Violation::new(models::ViolationRequest {
+        code: "RSR306",
+        path: path::Path::new(&relative),
+        line: None,
+        message: "structural ownership group contains direct role content".to_owned(),
+        remediation: "move role content beneath the required domain level",
+    })]
+}
+
 fn role_boundary_violations(
     source_root: &str,
     tree: &BTreeMap<String, DirectoryContents>,
     directory: &str,
+    grouping_depth: usize,
 ) -> Vec<models::Violation> {
     if directory.is_empty() || inside_role_container(directory) {
         return Vec::new();
     }
-    if directory.split('/').count() < constants::MIN_NESTED_PACKAGE_DEPTH {
+    if path_depth(directory) < grouping_depth + constants::MIN_NESTED_PACKAGE_DEPTH {
         return Vec::new();
     }
     let Some(contents) = tree.get(directory) else {
@@ -230,8 +306,12 @@ fn main_boundary_violations(
     source_root: &str,
     tree: &BTreeMap<String, DirectoryContents>,
     directory: &str,
+    grouping_depth: usize,
 ) -> Vec<models::Violation> {
-    if directory.is_empty() || inside_role_container(directory) {
+    if directory.is_empty()
+        || path_depth(directory) <= grouping_depth
+        || inside_role_container(directory)
+    {
         return Vec::new();
     }
     let Some(contents) = tree.get(directory) else {
@@ -274,4 +354,20 @@ fn inside_role_container(directory: &str) -> bool {
     directory
         .split('/')
         .any(|part| is_role_container(part) || part == constants::TESTS_DIRECTORY)
+}
+
+fn path_depth(directory: &str) -> usize {
+    if directory.is_empty() {
+        0
+    } else {
+        directory.split('/').count()
+    }
+}
+
+fn join_path(parent: &str, child: &str) -> String {
+    if parent.is_empty() {
+        child.to_owned()
+    } else {
+        format!("{parent}/{child}")
+    }
 }

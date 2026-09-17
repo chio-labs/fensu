@@ -91,7 +91,9 @@ def build_rust_custom_response(*, request: object, runtime_version: str) -> dict
     tree: ProjectTree
     selected_files: Mapping[ProjectPath, RustFileFacts]
     tree, selected_files = build_rust_project_tree(
-        subjects=payload["subjects"], workspace=workspace
+        subjects=payload["subjects"],
+        workspace=workspace,
+        ownership_depth=loaded.config.ownership_depth,
     )
     workspace = select_rust_workspace_facts(workspace=workspace, files=selected_files)
     selection: RuleSelection = build_check_rule_selection(

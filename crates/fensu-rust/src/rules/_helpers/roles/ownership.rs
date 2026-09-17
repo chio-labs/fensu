@@ -17,12 +17,13 @@ pub(crate) fn check(
     crate_dir: &std::path::Path,
     package_name: Option<&str>,
     files: &[models::SourceFile],
+    ownership_depth: usize,
 ) -> Vec<models::Violation> {
     let package = package_name
         .or_else(|| crate_dir.file_name().and_then(|name| name.to_str()))
         .unwrap_or_default()
         .replace('-', "_");
-    let nodes = module_nodes(files, &package);
+    let nodes = module_nodes(files, &package, ownership_depth);
     let consumers = consumer_graph(&nodes, &package);
     let mut violations: Vec<models::Violation> = Vec::new();
     for (index, node) in nodes.iter().enumerate() {
@@ -62,16 +63,23 @@ pub(crate) fn check(
     violations
 }
 
-fn module_nodes<'a>(files: &'a [models::SourceFile], package: &str) -> Vec<ModuleNode<'a>> {
+fn module_nodes<'a>(
+    files: &'a [models::SourceFile],
+    package: &str,
+    ownership_depth: usize,
+) -> Vec<ModuleNode<'a>> {
     files
         .iter()
         .map(|file| {
             let parts = source_parts(file);
-            let domain = source_domain(parts.first());
-            let helper_owner = match parts.as_slice() {
-                [owner, role, ..] if role == constants::HELPERS_DIRECTORY => Some(owner.clone()),
-                _ => None,
-            };
+            let domain_index = ownership_depth.saturating_sub(2);
+            let domain = source_domain(parts.get(domain_index));
+            let helper_owner = parts
+                .get(domain_index)
+                .zip(parts.get(domain_index + 1))
+                .and_then(|(owner, role)| {
+                    (role == constants::HELPERS_DIRECTORY).then(|| owner.clone())
+                });
             ModuleNode {
                 file,
                 path: reference_paths::module_path(package, file),

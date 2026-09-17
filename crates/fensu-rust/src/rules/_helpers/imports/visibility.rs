@@ -50,17 +50,22 @@ struct VisibilityIndex {
     entries: Vec<Entry>,
     helper_types: Vec<HelperType>,
     violations: Vec<models::Violation>,
+    ownership_depth: usize,
 }
 
 pub(crate) fn check_workspace(
     repo_root: &path::Path,
     workspace_crates: &[models::WorkspaceCrate],
+    ownership_depth: usize,
 ) -> Vec<models::Violation> {
     let crates = workspace_crates
         .iter()
         .filter_map(|workspace_crate| crate_sources(repo_root, workspace_crate, workspace_crates))
         .collect::<Vec<_>>();
-    let mut index = VisibilityIndex::default();
+    let mut index = VisibilityIndex {
+        ownership_depth,
+        ..VisibilityIndex::default()
+    };
     for crate_sources in &crates {
         index.collect_crate(crate_sources);
     }
@@ -113,7 +118,8 @@ impl VisibilityIndex {
                 continue;
             };
             let current_module = reference_paths::module_path(&crate_sources.package, file);
-            let source_domain = current_module.get(1).cloned();
+            let domain_index = 1 + self.ownership_depth.saturating_sub(2);
+            let source_domain = current_module.get(domain_index).cloned();
             for (target, line) in
                 reference_paths::collect(syntax, &file.source, &crate_sources.package)
             {
@@ -139,7 +145,9 @@ impl VisibilityIndex {
                     line,
                 });
             }
-            if let Some(entry) = collect_entry(file, &current_module, &module_visibility, syntax) {
+            if let Some(entry) =
+                collect_entry(file, &current_module, &module_visibility, domain_index)
+            {
                 self.entries.push(entry);
             }
             self.helper_types
@@ -183,7 +191,7 @@ fn collect_entry(
     file: &models::SourceFile,
     module: &[String],
     visibility: &BTreeMap<Vec<String>, bool>,
-    syntax: &syn::File,
+    domain_index: usize,
 ) -> Option<Entry> {
     if !file.has_directory(constants::MAIN_DIRECTORY)
         || file.file_name() == constants::MOD_FILE
@@ -193,12 +201,16 @@ fn collect_entry(
     }
     let public_to_crate = visibility.get(module).copied()?;
     Some(Entry {
-        domain: module.get(1).cloned(),
+        domain: module.get(domain_index).cloned(),
         file: file.relative.clone(),
         module: module.to_vec(),
         private_name: file.file_name().starts_with('_'),
         public_to_crate,
-        externally_declared: syntax.items.iter().any(externally_declared_item),
+        externally_declared: file
+            .syntax
+            .file
+            .as_ref()
+            .is_some_and(|syntax| syntax.items.iter().any(externally_declared_item)),
     })
 }
 

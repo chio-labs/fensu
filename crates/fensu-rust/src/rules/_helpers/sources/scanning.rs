@@ -761,12 +761,13 @@ pub(crate) fn check_source_file(request: models::SourceCheckRequest<'_>) -> Vec<
                 kind,
                 &config.repository.thresholds,
             ));
-            violations.extend(containers::check_file(
+            violations.extend(containers::check_file(containers::FileCheckRequest {
                 file,
                 syntax,
                 kind,
-                &config.repository.thresholds,
-            ));
+                thresholds: &config.repository.thresholds,
+                ownership_depth: config.ownership_depth,
+            }));
             violations.extend(role_files::check(file, syntax, kind));
             violations.extend(naming::check(file, syntax));
             violations.extend(shape::check(models::SourceShapeCheckRequest {

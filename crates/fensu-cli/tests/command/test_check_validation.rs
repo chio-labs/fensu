@@ -631,6 +631,18 @@ fn given_invalid_explicit_targets_when_checking_then_configuration_fails_closed(
             expected_error: "must be 'mirrored' or 'colocated'",
         },
         InvalidCheckConfigTestCase {
+            description: "ownership depth must retain domain and subdomain slots",
+            config: "[targets.app]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\nownership_depth = 1\n",
+            expected_exit_code: 2,
+            expected_error: "ownership_depth must be an integer of at least 2",
+        },
+        InvalidCheckConfigTestCase {
+            description: "ownership depth rejects non-integer values",
+            config: "[targets.app]\nanalyzer = \"python\"\nroots = [\"src/pkg\"]\nownership_depth = true\n",
+            expected_exit_code: 2,
+            expected_error: "ownership_depth must be an integer of at least 2",
+        },
+        InvalidCheckConfigTestCase {
             description: "legacy flat configuration rejects empty evaluation include",
             config: "roots = [\"src/pkg\"]\n[evaluation]\ninclude = []\n",
             expected_exit_code: 2,

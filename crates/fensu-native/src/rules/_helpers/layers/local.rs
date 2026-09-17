@@ -54,7 +54,8 @@ fn internal_public_surface_faults(
 }
 
 fn exempt_subdomain(context: &NativeRuleContext) -> bool {
-    let Some([domain, subdomain]) = context.relative_parts.get(..2) else {
+    let start = context.grouping_depth();
+    let Some([domain, subdomain]) = context.relative_parts.get(start..start + 2) else {
         return false;
     };
     let path = format!("{domain}/{subdomain}");

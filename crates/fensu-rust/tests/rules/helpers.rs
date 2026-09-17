@@ -213,13 +213,30 @@ fn write_missing_integration_harnesses(root: &path::Path) {
 }
 
 pub(crate) fn collect_violation_codes(repo_root: &path::Path) -> Vec<&'static str> {
-    let mut policy = fensu_rust::models::RustPolicy::default();
-    policy.tooling.paths = vec!["crates/example-tooling".to_owned()];
-    policy.tooling.runtime_forbidden_packages = vec!["example-tooling".to_owned()];
-    policy.raw_parser_boundary.packages = vec![
-        "ruff_python_ast".to_owned(),
-        "ruff_python_parser".to_owned(),
-    ];
+    collect_violation_codes_with_ownership_depth(repo_root, 2)
+}
+
+pub(crate) fn collect_violation_codes_with_ownership_depth(
+    repo_root: &path::Path,
+    ownership_depth: usize,
+) -> Vec<&'static str> {
+    let defaults = fensu_rust::models::RustPolicy::default();
+    let policy = fensu_rust::models::RustPolicy {
+        ownership_depth,
+        tooling: fensu_rust::models::ToolingConfig {
+            paths: vec!["crates/example-tooling".to_owned()],
+            runtime_forbidden_packages: vec!["example-tooling".to_owned()],
+        },
+        raw_parser_boundary: fensu_rust::models::RawParserBoundaryConfig {
+            packages: vec![
+                "ruff_python_ast".to_owned(),
+                "ruff_python_parser".to_owned(),
+            ],
+            remediation: defaults.raw_parser_boundary.remediation,
+            restricted_paths: defaults.raw_parser_boundary.restricted_paths,
+        },
+        repository: defaults.repository,
+    };
     fensu_rust::rules::main::check_repository_with_config::check_repository_with_config(
         repo_root, &policy,
     )

@@ -154,6 +154,7 @@ pub(crate) fn effective_config_lines(context: &SkillContext) -> Result<Vec<Strin
         format!("- Complete loaded catalogue size: {}", context.catalogue.len()), String::new(),
         "### Scopes".to_owned(), String::new(),
         format!("- Product roots: {}", path_list(context, &config.roots)?),
+        format!("- Ownership depth: `{}`", config.ownership_depth.max(2)),
         format!("- Test roots: {}", path_list(context, &config.tests)?),
         format!("- Tooling roots: {}", path_list(context, &config.tooling)?), String::new(),
         format!("- Generated source patterns: {}", sorted_json(&config.generated)?), String::new(),

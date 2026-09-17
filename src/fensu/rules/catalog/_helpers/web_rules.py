@@ -992,6 +992,7 @@ _UI_KIT_CONFIGURATION_RULES: frozenset[str] = frozenset(
 _NAMING_RULES: frozenset[str] = frozenset({"FWN001", "FWN002", "FWN003", "FWN004"})
 _BASE_CONFIGURATION_INPUTS: tuple[str, ...] = (
     "generated",
+    "ownership_depth",
     "roots",
     "rule_packs",
     "test_layout",

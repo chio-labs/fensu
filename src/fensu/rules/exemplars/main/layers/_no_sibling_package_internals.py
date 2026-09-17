@@ -24,7 +24,9 @@ def no_sibling_package_internals_equivalent(*, module: ast.Module, ctx: RuleCont
 
     del module
     current: ImportOwnership = ownership(
-        parts=ctx.module_parts(), initializer=ctx.path.name == ExemplarLayerPathName.INIT
+        parts=ctx.module_parts(),
+        initializer=ctx.path.name == ExemplarLayerPathName.INIT,
+        ownership_depth=ctx.ownership_depth(),
     )
     faults: list[Fault] = []
     for fact in ctx.facts.references().imports:
@@ -34,7 +36,9 @@ def no_sibling_package_internals_equivalent(*, module: ast.Module, ctx: RuleCont
             initializer=ctx.path.name == ExemplarLayerPathName.INIT,
         ):
             target: ImportOwnership = ownership(
-                parts=parts, initializer=target_initializer(ctx=ctx, parts=parts)
+                parts=parts,
+                initializer=target_initializer(ctx=ctx, parts=parts),
+                ownership_depth=ctx.ownership_depth(),
             )
             if (
                 current.package == target.package

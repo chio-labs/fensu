@@ -95,6 +95,7 @@ fn configuration_values(name: &str, config: &Config) -> Vec<String> {
         "rule_packs" => config.rule_packs.clone(),
         "shadcn" => config.shadcn.iter().cloned().collect(),
         "openapi" => config.openapi.iter().cloned().collect(),
+        "ownership_depth" => vec![config.ownership_depth.max(2).to_string()],
         _ => Vec::new(),
     }
 }

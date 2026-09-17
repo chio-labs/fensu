@@ -18,9 +18,10 @@ pub(crate) fn check(
     repo_root: &Path,
     crates: &[models::WorkspaceCrate],
     config: &models::RepositoryPolicyConfig,
+    ownership_depth: usize,
 ) -> Vec<models::Violation> {
     let mut violations = crate_name_violations(repo_root, crates, config);
-    violations.extend(path_violations(repo_root, crates, config));
+    violations.extend(path_violations(repo_root, crates, config, ownership_depth));
     violations
 }
 
@@ -86,6 +87,7 @@ fn path_violations(
     repo_root: &Path,
     crates: &[models::WorkspaceCrate],
     config: &models::RepositoryPolicyConfig,
+    ownership_depth: usize,
 ) -> Vec<models::Violation> {
     let source_roots = crates
         .iter()
@@ -125,6 +127,7 @@ fn path_violations(
         repo_root,
         &source_roots,
         config,
+        ownership_depth,
     ));
     violations
 }
@@ -169,6 +172,7 @@ fn closed_inventory_violations(
     repo_root: &Path,
     source_roots: &[PathBuf],
     config: &models::RepositoryPolicyConfig,
+    ownership_depth: usize,
 ) -> Vec<models::Violation> {
     if config.domain_paths.is_empty() && config.role_paths.is_empty() {
         return Vec::new();
@@ -195,15 +199,17 @@ fn closed_inventory_violations(
                 continue;
             }
             if let Ok(inside_source) = path.strip_prefix(source_root) {
-                let mut components = inside_source.components();
-                if let Some(first) = components.next() {
-                    let name = first.as_os_str().to_string_lossy();
-                    if components.next().is_some()
+                let components = inside_source.components().collect::<Vec<_>>();
+                let domain_index = ownership_depth.saturating_sub(2);
+                if let Some(component) = components.get(domain_index) {
+                    let name = component.as_os_str().to_string_lossy();
+                    if components.get(domain_index + 1).is_some()
                         && !constants::CONTAINER_DIRECTORY_NAMES.contains(&name.as_ref())
                         && name != constants::TESTS_DIRECTORY
                         && name != constants::BIN_DIRECTORY
                     {
-                        let domain = source_root.join(name.as_ref());
+                        let domain = source_root
+                            .join(components[..=domain_index].iter().collect::<PathBuf>());
                         domains.insert(display_path(
                             domain.strip_prefix(repo_root).unwrap_or(&domain),
                         ));

@@ -68,6 +68,30 @@ from tests.unit.src.fensu.discovery.helpers import make_config, only_file, write
             expected_subdomain="core",
             expected_role=None,
         ),
+        PositionFactTestCase(
+            description="configured grouping level is excluded from domain identity",
+            file_path="src/pkg/sources/orders/main/process.py",
+            expected_relative_parts=("sources", "orders", "main", "process.py"),
+            expected_domain="orders",
+            expected_subdomain=None,
+            expected_role="main",
+            ownership_depth=3,
+        ),
+        PositionFactTestCase(
+            description="configured grouping level preserves an optional subdomain",
+            file_path="src/pkg/sources/orders/importing/main/load.py",
+            expected_relative_parts=(
+                "sources",
+                "orders",
+                "importing",
+                "main",
+                "load.py",
+            ),
+            expected_domain="orders",
+            expected_subdomain="importing",
+            expected_role="main",
+            ownership_depth=3,
+        ),
     ],
     ids=lambda case: case.description,
 )
@@ -79,7 +103,9 @@ def test_given_scoped_file_when_reading_position_then_returns_expected_facts(
     write_python_files(root=tmp_path, relative_paths=(test_case.file_path,))
     monkeypatch.chdir(tmp_path)
 
-    tree: DiscoveredTree = discover_files(config=make_config())
+    tree: DiscoveredTree = discover_files(
+        config=make_config(ownership_depth=test_case.ownership_depth)
+    )
     scoped_file: ScopedFile = only_file(files=tree.files)
 
     assert scoped_file.relative_parts == test_case.expected_relative_parts

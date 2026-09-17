@@ -56,6 +56,16 @@ class TargetConfigTestCase:
 
 
 @dataclass(frozen=True)
+class OwnershipDepthConfigTestCase:
+    """Configured ownership depth and expected resolved/cache behavior."""
+
+    description: str
+    configured_depth: int
+    expected_depth: int
+    expected_fingerprints_equal: bool
+
+
+@dataclass(frozen=True)
 class WebTargetDefaultsTestCase:
     """Web analyzer configuration and expected pack-local defaults."""
 

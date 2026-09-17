@@ -13,20 +13,27 @@ _PUBLIC_ROLES: frozenset[str] = frozenset(
 )
 
 
-def ownership(*, parts: tuple[str, ...], initializer: bool) -> ImportOwnership:
+def ownership(
+    *, parts: tuple[str, ...], initializer: bool, ownership_depth: int
+) -> ImportOwnership:
     """Classify one module using only stable structural path names."""
 
+    owner_start: int = min(1 + max(0, ownership_depth - 2), len(parts))
     role_index: int | None = next(
-        (index for index, part in enumerate(parts[1:], start=1) if part in _STRUCTURAL_ROLES),
+        (
+            index
+            for index, part in enumerate(parts[owner_start:], start=owner_start)
+            if part in _STRUCTURAL_ROLES
+        ),
         None,
     )
     if role_index is None:
-        owner_end: int = len(parts) if initializer else max(1, len(parts) - 1)
-        owner_prefix: tuple[str, ...] = parts[1:owner_end]
+        owner_end: int = len(parts) if initializer else max(owner_start, len(parts) - 1)
+        owner_prefix: tuple[str, ...] = parts[owner_start:owner_end]
         role: str | None = None
         tail: tuple[str, ...] = parts[owner_end:]
     else:
-        owner_prefix = parts[1:role_index]
+        owner_prefix = parts[owner_start:role_index]
         role = "helpers" if parts[role_index] == ExemplarRoleName.HELPERS else parts[role_index]
         tail = parts[role_index + 1 :]
     package: str | None = parts[0] if parts else None

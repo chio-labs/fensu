@@ -46,7 +46,9 @@ pub(crate) fn layer_faults(
         NO_CROSS_DOMAIN_PRIVATE_MAIN_IMPORTS_CODE => {
             private_main_import_faults(code, context, &rows.imports)
         }
-        PUBLIC_MAIN_ENTRY_EXTERNAL_USE_CODE => public_entry_faults(code, project),
+        PUBLIC_MAIN_ENTRY_EXTERNAL_USE_CODE => {
+            public_entry_faults(code, project, context.grouping_depth())
+        }
         _ => return local_layer_faults(program, code, context),
     };
     Some(faults)
@@ -75,7 +77,11 @@ fn ownership_faults(
     imports: &[ImportRow],
 ) -> Vec<NativeFaultRow> {
     let current_parts = current_module_parts(context);
-    let current = classify(&current_parts, file_name(context) == INIT_FILE_NAME);
+    let current = classify(
+        &current_parts,
+        file_name(context) == INIT_FILE_NAME,
+        context.grouping_depth(),
+    );
     let mut faults: Vec<NativeFaultRow> = Vec::new();
     for row in imports {
         for target_parts in
@@ -83,7 +89,7 @@ fn ownership_faults(
         {
             let initializer = module_init_path(context, &target_parts)
                 .is_some_and(|path| observed_bool(context, "exists", &path));
-            let target = classify(&target_parts, initializer);
+            let target = classify(&target_parts, initializer, context.grouping_depth());
             let violation = if code == NO_SIBLING_PACKAGE_INTERNALS_CODE {
                 sibling_internal(&current, &target)
             } else {
@@ -116,7 +122,11 @@ fn private_main_import_faults(
     imports: &[ImportRow],
 ) -> Vec<NativeFaultRow> {
     let current_parts = current_module_parts(context);
-    let current = classify(&current_parts, file_name(context) == INIT_FILE_NAME);
+    let current = classify(
+        &current_parts,
+        file_name(context) == INIT_FILE_NAME,
+        context.grouping_depth(),
+    );
     let mut faults: Vec<NativeFaultRow> = Vec::new();
     for row in imports {
         let bases = normalized_targets(row, &current_parts, file_name(context) == INIT_FILE_NAME);
@@ -133,7 +143,7 @@ fn private_main_import_faults(
             }
         }
         for parts in targets {
-            let target = classify(&parts, false);
+            let target = classify(&parts, false, context.grouping_depth());
             if !private_main(&target) || shares_domain(&current, &target) {
                 continue;
             }
@@ -156,7 +166,7 @@ fn private_main_import_faults(
     faults
 }
 
-pub(crate) fn classify(parts: &[String], initializer: bool) -> Ownership {
+pub(crate) fn classify(parts: &[String], initializer: bool, grouping_depth: usize) -> Ownership {
     let structural = [
         "main",
         "_helpers",
@@ -166,10 +176,11 @@ pub(crate) fn classify(parts: &[String], initializer: bool) -> Ownership {
         "constants",
         "exceptions",
     ];
+    let owner_start = (1 + grouping_depth).min(parts.len());
     let role_index = parts
         .iter()
         .enumerate()
-        .skip(1)
+        .skip(owner_start)
         .find_map(|(index, part)| structural.contains(&part.as_str()).then_some(index));
     let (owner_prefix, first_role, tail) = if let Some(index) = role_index {
         let role = if parts[index] == HELPERS_ROLE_NAME {
@@ -178,7 +189,7 @@ pub(crate) fn classify(parts: &[String], initializer: bool) -> Ownership {
             parts[index].clone()
         };
         (
-            parts[1..index].to_vec(),
+            parts[owner_start..index].to_vec(),
             Some(role),
             parts[index + 1..].to_vec(),
         )
@@ -186,9 +197,13 @@ pub(crate) fn classify(parts: &[String], initializer: bool) -> Ownership {
         let end = if initializer {
             parts.len()
         } else {
-            parts.len().saturating_sub(1).max(1)
+            parts.len().saturating_sub(1).max(owner_start)
         };
-        (parts[1..end].to_vec(), None, parts[end..].to_vec())
+        (
+            parts[owner_start..end].to_vec(),
+            None,
+            parts[end..].to_vec(),
+        )
     };
     Ownership {
         package: parts.first().cloned(),

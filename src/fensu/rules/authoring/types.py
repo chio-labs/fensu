@@ -510,6 +510,10 @@ class RuleContext(Protocol):
         """The current file's path parts relative to its matched scope root."""
         ...
 
+    def ownership_depth(self) -> int:
+        """The configured ownership depth for the current target."""
+        ...
+
     def repo_relative_parts(self) -> tuple[str, ...]:
         """The current file's path parts relative to the repository root."""
         ...

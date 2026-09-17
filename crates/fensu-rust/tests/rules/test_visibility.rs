@@ -196,3 +196,59 @@ fn given_visibility_fixtures_when_checking_then_reports_expected_codes() {
         );
     }
 }
+
+#[test]
+fn given_grouped_domains_when_importing_private_entry_then_domain_offset_is_respected() {
+    let test_cases = [test_types::CheckRepoTestCase {
+        description: "grouped domains preserve private main import boundaries",
+        repo_files: vec![
+            test_types::RepoFile {
+                path: "crates/example/src/lib.rs".to_owned(),
+                contents: "pub(crate) mod sources;\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/example/src/sources/mod.rs".to_owned(),
+                contents: "pub(crate) mod reading;\npub(crate) mod writing;\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/example/src/sources/reading/mod.rs".to_owned(),
+                contents: "pub(crate) mod main;\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/example/src/sources/reading/main/mod.rs".to_owned(),
+                contents: "pub(super) mod _read_value;\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/example/src/sources/reading/main/_read_value.rs".to_owned(),
+                contents: "pub(crate) fn read_value() -> usize {\n    1\n}\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/example/src/sources/writing/mod.rs".to_owned(),
+                contents: "pub(crate) mod main;\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/example/src/sources/writing/main/mod.rs".to_owned(),
+                contents: "pub(crate) mod write_value;\n".to_owned(),
+            },
+            test_types::RepoFile {
+                path: "crates/example/src/sources/writing/main/write_value.rs".to_owned(),
+                contents: "use crate::sources::reading::main::_read_value::read_value;\n\npub(crate) fn write_value() -> usize {\n    read_value()\n}\n".to_owned(),
+            },
+        ],
+        expected_violation_codes: vec!["RSL104"],
+    }];
+    for test_case in test_cases {
+        let repo_root = helpers::write_temp_repo_verbatim(&test_case);
+        let actual_codes = helpers::collect_violation_codes_with_ownership_depth(&repo_root, 3)
+            .into_iter()
+            .filter(|code| *code == "RSL104")
+            .collect::<Vec<_>>();
+        helpers::remove_temp_repo(&repo_root);
+
+        assert_eq!(
+            actual_codes, test_case.expected_violation_codes,
+            "{}",
+            test_case.description
+        );
+    }
+}

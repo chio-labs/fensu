@@ -249,6 +249,11 @@ class RustRuleContext:
             return facts.file.path.parts
         return facts.file.path.parts[len(position.scope_root.parts) :]
 
+    def ownership_depth(self) -> int:
+        """Return the target-wide ownership depth."""
+
+        return self._config.ownership_depth
+
     def repo_relative_parts(self) -> tuple[str, ...]:
         """Return project-relative parts for the current Rust file."""
 

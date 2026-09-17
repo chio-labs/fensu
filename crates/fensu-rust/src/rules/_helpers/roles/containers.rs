@@ -8,6 +8,14 @@ use crate::constants;
 use crate::models;
 use crate::types::FileKind;
 
+pub(crate) struct FileCheckRequest<'a> {
+    pub(crate) file: &'a models::SourceFile,
+    pub(crate) syntax: &'a syn::File,
+    pub(crate) kind: FileKind,
+    pub(crate) thresholds: &'a models::ThresholdConfig,
+    pub(crate) ownership_depth: usize,
+}
+
 pub(crate) fn check_containers(
     files: &[models::SourceFile],
     thresholds: &models::ThresholdConfig,
@@ -103,12 +111,14 @@ fn module_position(relative: &str) -> Option<(String, &str)> {
     Some((directory.to_owned(), stem))
 }
 
-pub(crate) fn check_file(
-    file: &models::SourceFile,
-    syntax: &syn::File,
-    kind: FileKind,
-    thresholds: &models::ThresholdConfig,
-) -> Vec<models::Violation> {
+pub(crate) fn check_file(request: FileCheckRequest<'_>) -> Vec<models::Violation> {
+    let FileCheckRequest {
+        file,
+        syntax,
+        kind,
+        thresholds,
+        ownership_depth,
+    } = request;
     if kind != FileKind::ModuleFile {
         return Vec::new();
     }
@@ -121,7 +131,7 @@ pub(crate) fn check_file(
     if constants::ROLE_FILE_NAMES.contains(&file.file_name()) {
         return Vec::new();
     }
-    if !inside_nested_package(&file.source_relative) {
+    if !inside_nested_package(&file.source_relative, ownership_depth) {
         return Vec::new();
     }
     vec![models::Violation::new(models::ViolationRequest {
@@ -134,8 +144,9 @@ pub(crate) fn check_file(
 }
 
 /// Return whether the module sits inside a nested package rather than at domain position.
-fn inside_nested_package(relative: &str) -> bool {
-    relative.split('/').count() > constants::MAX_CONTAINER_COMPONENT_DEPTH
+fn inside_nested_package(relative: &str, ownership_depth: usize) -> bool {
+    relative.split('/').count()
+        > constants::MAX_CONTAINER_COMPONENT_DEPTH + ownership_depth.saturating_sub(2)
 }
 
 fn check_entry_shape(

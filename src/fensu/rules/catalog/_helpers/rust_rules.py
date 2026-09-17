@@ -216,6 +216,7 @@ def rust_rules() -> tuple[RuleSpec, ...]:
             implementation_code=implementation,
             options=_OPTIONS.get(implementation, ()),
             constraints=_CONSTRAINTS.get(implementation, ()),
+            configuration_inputs=("ownership_depth",),
         )
         for implementation in _IMPLEMENTATION_CODES
     )

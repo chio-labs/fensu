@@ -61,7 +61,7 @@ def rust_workspace_facts(*, payload: object) -> RustWorkspaceFacts:
 
 
 def rust_project_tree(
-    *, subjects: object, workspace: RustWorkspaceFacts
+    *, subjects: object, workspace: RustWorkspaceFacts, ownership_depth: int = 2
 ) -> tuple[ProjectTree, MappingProxyType[ProjectPath, RustFileFacts]]:
     """Build a deterministic common project tree from native Rust subjects."""
 
@@ -84,6 +84,7 @@ def rust_project_tree(
             value=subject["relative_parts"], name="Rust relative parts"
         )
         directories: tuple[str, ...] = relative_parts[:-1]
+        grouping_depth: int = max(2, ownership_depth) - 2
         role_index: int | None = next(
             (index for index, part in enumerate(directories) if part in ROLE_DIR_NAMES), None
         )
@@ -100,7 +101,11 @@ def rust_project_tree(
             scope_root=scope_root,
             module="::".join(fact.module_parts),
             package=fact.crate_name,
-            domain_parts=directories if role_index is None else directories[:role_index],
+            domain_parts=(
+                directories[grouping_depth:]
+                if role_index is None
+                else directories[grouping_depth:role_index]
+            ),
             role=role,
             role_depth=None if role_index is None else len(directories) - role_index - 1,
             is_entry_module=_is_entry_path(path=path, crates=workspace._crate_values),

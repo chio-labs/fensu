@@ -18,7 +18,15 @@ from fensu.rules.testing.exceptions import RuleHarnessError
 from fensu.rules.testing.models import RuleCase, RuleFile
 
 _allowed_config_keys: frozenset[str] = frozenset(
-    {"contracts", "roles", "rule_exceptions", "rule_ignores", "threshold_overrides", "thresholds"}
+    {
+        "contracts",
+        "ownership_depth",
+        "roles",
+        "rule_exceptions",
+        "rule_ignores",
+        "threshold_overrides",
+        "thresholds",
+    }
 )
 
 

@@ -313,7 +313,7 @@ def nested_direct_modules_equivalent(*, module: ast.Module, ctx: RuleContext) ->
     if (
         _excluded_scope(ctx)
         or ctx.scope() is ScopeName.TOOLING
-        or len(parts) < _MINIMUM_NESTED_MODULE_PARTS
+        or len(parts) < ctx.ownership_depth() - 2 + _MINIMUM_NESTED_MODULE_PARTS
         or _MAIN in parts[:-1]
         or any(part in role_directories for part in parts[:-1])
         or parts[-1] == _INIT
@@ -338,12 +338,12 @@ def nested_direct_subpackages_equivalent(*, module: ast.Module, ctx: RuleContext
     if (
         _excluded_scope(ctx)
         or ctx.scope() is ScopeName.TOOLING
-        or len(parts) < _MINIMUM_NESTED_SUBPACKAGE_PARTS
+        or len(parts) < ctx.ownership_depth() - 2 + _MINIMUM_NESTED_SUBPACKAGE_PARTS
         or _MAIN in package_parts
         or _HELPERS in package_parts
     ):
         return []
-    for index in range(2, len(package_parts)):
+    for index in range(ctx.ownership_depth(), len(package_parts)):
         if package_parts[index - 1] in role_directories or package_parts[index] in role_directories:
             continue
         return [ctx.path_fault(message="nested packages must use explicit role boundaries")]
@@ -371,7 +371,16 @@ def top_level_direct_modules_equivalent(*, module: ast.Module, ctx: RuleContext)
                 )
             )
         ]
-    if len(parts) != _TOP_LEVEL_ROLE_PARTS or parts[-1] in role_filenames:
+    grouping_depth: int = ctx.ownership_depth() - 2
+    if len(parts) <= grouping_depth + _ROOT_MODULE_PARTS:
+        return [
+            ctx.path_fault(
+                message=(
+                    "structural ownership groups must contain domain packages, not direct modules"
+                )
+            )
+        ]
+    if len(parts) != grouping_depth + _TOP_LEVEL_ROLE_PARTS or parts[-1] in role_filenames:
         return []
     return [ctx.path_fault(message="top-level domains must not contain ad hoc direct modules")]
 

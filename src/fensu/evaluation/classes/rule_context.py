@@ -276,6 +276,11 @@ class EvaluationRuleContext:
 
         return self._parsed_module.scoped_file.relative_parts
 
+    def ownership_depth(self) -> int:
+        """Return the target-wide ownership depth."""
+
+        return self._config.ownership_depth
+
     def repo_relative_parts(self) -> tuple[str, ...]:
         """The current file's path parts relative to the repository root."""
 

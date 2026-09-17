@@ -107,6 +107,7 @@ pub(crate) const RULE_CONFIGURATION_INPUTS: &[&str] = &[
     "contracts",
     "generated",
     "openapi",
+    "ownership_depth",
     "roots",
     "rule_packs",
     "shadcn",

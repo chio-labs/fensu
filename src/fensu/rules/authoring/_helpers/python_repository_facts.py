@@ -11,6 +11,7 @@ from typing import cast
 from fensu.analysis.main.build import build_analysis
 from fensu.analysis.models import ImportAliasFact, ImportFact
 from fensu.analysis.types import Analysis, FactAnalysis
+from fensu.config.constants import MINIMUM_OWNERSHIP_DEPTH
 from fensu.config.exceptions import ConfigError
 from fensu.config.types import AnalyzerId
 from fensu.discovery.constants import (
@@ -55,6 +56,7 @@ def build_python_repository_facts(
     if envelope["schema_version"] != PYTHON_REPOSITORY_FACT_SCHEMA_VERSION:
         raise ConfigError("Python target facts use an unsupported schema.")
     parser_contract: str = _string(value=envelope["parser_contract"], name="Python parser contract")
+    ownership_depth: int = _ownership_depth(envelope["ownership_depth"])
     files: list[object] = _sequence(value=envelope["files"], name="Python target files")
     values: list[PythonFileFacts] = []
     metadata: dict[ProjectPath, dict[str, object]] = {}
@@ -69,7 +71,11 @@ def build_python_repository_facts(
         _file_values=tuple(values),
         _files_by_path=MappingProxyType({item.file.path: item for item in values}),
     )
-    tree: ProjectTree = _project_tree(subjects=subjects, metadata=metadata)
+    tree: ProjectTree = _project_tree(
+        subjects=subjects,
+        metadata=metadata,
+        ownership_depth=ownership_depth,
+    )
     graph: ArchitectureGraph = _architecture_graph(workspace=workspace, tree=tree)
     return workspace, tree, graph
 
@@ -119,7 +125,10 @@ def _python_file(*, payload: object) -> tuple[PythonFileFacts, dict[str, object]
 
 
 def _project_tree(
-    *, subjects: object, metadata: Mapping[ProjectPath, dict[str, object]]
+    *,
+    subjects: object,
+    metadata: Mapping[ProjectPath, dict[str, object]],
+    ownership_depth: int,
 ) -> ProjectTree:
     subject_values: list[object] = _sequence(value=subjects, name="Python target subjects")
     positions: dict[ProjectPath, FilePosition] = {}
@@ -142,9 +151,11 @@ def _project_tree(
             if role_index is None
             else ROLE_DIRECTORY_TO_NAME[directories[role_index]]
         )
-        domain_parts: tuple[str, ...] = (
-            directories if role_index is None else directories[:role_index]
+        owner_end: int = len(directories) if role_index is None else role_index
+        grouping_depth: int = (
+            ownership_depth - 2 if ScopeName(cast(str, details["scope"])) is ScopeName.ROOT else 0
         )
+        domain_parts: tuple[str, ...] = directories[grouping_depth:owner_end]
         first_runtime_role: str | None = next(
             (
                 STRUCTURAL_MODULE_PART_TO_NAME[part]
@@ -340,6 +351,14 @@ def _sequence(*, value: object, name: str) -> list[object]:
 def _string(*, value: object, name: str) -> str:
     if not isinstance(value, str):
         raise ConfigError(f"{name} must be a string.")
+    return value
+
+
+def _ownership_depth(value: object) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < MINIMUM_OWNERSHIP_DEPTH:
+        raise ConfigError(
+            f"Python ownership depth must be an integer of at least {MINIMUM_OWNERSHIP_DEPTH}."
+        )
     return value
 
 

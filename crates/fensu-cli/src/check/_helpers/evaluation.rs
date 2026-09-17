@@ -87,7 +87,7 @@ pub(crate) fn evaluate(request: EvaluationRequest<'_>) -> Result<TargetEvaluatio
         .iter()
         .map(|rule| rule.code.as_str())
         .collect::<HashSet<_>>();
-    let codes_by_source = owner_plan(sources, &all_rules)?;
+    let codes_by_source = owner_plan(sources, &all_rules, config.ownership_depth)?;
     let project = project_plane(project_root, config, sources)?;
     let program_by_path = sources
         .iter()
@@ -126,6 +126,7 @@ pub(crate) fn evaluate(request: EvaluationRequest<'_>) -> Result<TargetEvaluatio
                 custom_registrations: Vec::new(),
                 repo_root: project_root.to_string_lossy().into_owned(),
                 rule_options: native_rule_options(codes, config)?,
+                ownership_depth: config.ownership_depth.max(2),
             };
             let plans = plan_core_rule_queries(program(source), &implementation_codes, &context);
             context.observations =
@@ -204,7 +205,8 @@ pub(crate) fn evaluate(request: EvaluationRequest<'_>) -> Result<TargetEvaluatio
             threshold_uses: uses,
             cacheable: Some(true),
         },
-        repository_facts: collect_repository_facts.then(|| python_repository_fact_payload(sources)),
+        repository_facts: collect_repository_facts
+            .then(|| python_repository_fact_payload(sources, config.ownership_depth)),
     })
 }
 
@@ -286,11 +288,20 @@ fn evaluate_rust_target(request: EvaluationRequest<'_>) -> Result<TargetEvaluati
         .filter(|(code, _)| !code.starts_with('X'))
         .map(|(code, options)| (code.clone(), options.clone()))
         .collect::<toml::map::Map<_, _>>();
-    let analysis = fensu_rust::engine::main::analyze_repository::analyze_repository(
-        project_root,
-        Some(&native_options),
-        &config.tooling,
-    )?;
+    let analysis = if config.ownership_depth <= crate::constants::DEFAULT_OWNERSHIP_DEPTH {
+        fensu_rust::engine::main::analyze_repository::analyze_repository(
+            project_root,
+            Some(&native_options),
+            &config.tooling,
+        )?
+    } else {
+        fensu_rust::engine::main::analyze_repository_with_ownership_depth::analyze_repository_with_ownership_depth(
+            project_root,
+            Some(&native_options),
+            &config.tooling,
+            config.ownership_depth,
+        )?
+    };
     let repository_facts: Option<serde_json::Value> = collect_repository_facts
         .then(|| serde_json::to_value(&analysis.facts).map_err(|error| error.to_string()))
         .transpose()?;
@@ -973,6 +984,7 @@ fn package_name(source: &ScopedSource) -> String {
 pub(crate) fn owner_plan(
     sources: &[ScopedSource],
     rules: &[&RuleMetadata],
+    ownership_depth: usize,
 ) -> Result<Vec<Vec<String>>, String> {
     let targets: Vec<NativeExecutionTarget> = sources
         .iter()
@@ -982,6 +994,7 @@ pub(crate) fn owner_plan(
             root: source.root_text.clone(),
             relative_parts: source.relative_parts.clone(),
             direct: true,
+            ownership_depth: ownership_depth.max(2),
         })
         .collect();
     let native_rules: Vec<NativeExecutionRule> = rules

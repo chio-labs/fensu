@@ -44,6 +44,7 @@ def build_project_layout(*, config: Config, repo_root: RepoRoot) -> ProjectLayou
         runtime_sources=runtime_sources,
         test_roots=test_roots,
         tooling_sources=tooling_sources,
+        ownership_depth=config.ownership_depth,
     )
 
 

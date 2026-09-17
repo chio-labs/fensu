@@ -75,6 +75,7 @@ fn given_applicable_rule_without_execution_owner_when_planning_then_fails_closed
                 "main.py".to_owned(),
             ],
             direct: true,
+            ownership_depth: 2,
         }];
         let rules = [NativeExecutionRule::new(
             test_case.code.to_owned(),
@@ -86,6 +87,54 @@ fn given_applicable_rule_without_execution_owner_when_planning_then_fails_closed
             .expect_err("applicable rule without an owner must fail");
 
         assert_eq!(error, test_case.expected_error, "{}", test_case.description);
+    }
+}
+
+#[test]
+fn given_same_named_domains_in_sibling_groups_when_planning_then_each_leaf_executes() {
+    let test_cases = [test_types::GroupedExecutionPlanningTestCase {
+        description: "physical group prefixes keep same-named domain leaves distinct",
+        expected_planned_targets: 2,
+    }];
+    for test_case in test_cases {
+        let targets = [
+            NativeExecutionTarget {
+                repository_path: "src/example/sources/orders/main/process.py".to_owned(),
+                scope: "root".to_owned(),
+                root: "src/example".to_owned(),
+                relative_parts: ["sources", "orders", "main", "process.py"]
+                    .into_iter()
+                    .map(str::to_owned)
+                    .collect(),
+                direct: true,
+                ownership_depth: 3,
+            },
+            NativeExecutionTarget {
+                repository_path: "src/example/platform/orders/main/report.py".to_owned(),
+                scope: "root".to_owned(),
+                root: "src/example".to_owned(),
+                relative_parts: ["platform", "orders", "main", "report.py"]
+                    .into_iter()
+                    .map(str::to_owned)
+                    .collect(),
+                direct: true,
+                ownership_depth: 3,
+            },
+        ];
+        let rules = [NativeExecutionRule::new(
+            "FFR309".to_owned(),
+            "roles".to_owned(),
+            "leaf".to_owned(),
+        )];
+
+        let plans = plan_execution_owners(&targets, &rules).expect("grouped leaves plan");
+
+        assert_eq!(
+            plans.iter().filter(|plan| plan.codes == ["FFR309"]).count(),
+            test_case.expected_planned_targets,
+            "{}",
+            test_case.description
+        );
     }
 }
 

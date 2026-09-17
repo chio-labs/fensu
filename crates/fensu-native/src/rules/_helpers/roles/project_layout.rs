@@ -6,9 +6,10 @@ use crate::rules::_helpers::generated_policy::{
     FFR301_FORBIDDEN_BUCKET_NAMES, FFR302_FORBIDDEN_BUCKET_NAMES,
 };
 use crate::rules::_helpers::role_project_layout_paths::{
-    direct_modules, domain_dir, file_name, forbidden_bucket, leaf_dir, main_entries, mixed_domain,
-    named_subdomains, natural_list, prefix_groups, python_anchor, recursive_python,
-    repository_path, role_package, scope_root, HELPERS, INIT_FILE, ROOT_SCOPE,
+    direct_modules, domain_dir, domain_roots, file_name, forbidden_bucket, grouping_roots,
+    leaf_dir, main_entries, mixed_domain, named_subdomains, natural_list, ownership_roots,
+    prefix_groups, python_anchor, recursive_python, repository_path, role_package, scope_root,
+    HELPERS, INIT_FILE, ROLE_NAMES, ROOT_SCOPE,
 };
 use crate::rules::_helpers::roles::path_fault;
 use crate::rules::constants::{
@@ -21,7 +22,6 @@ const MAIN_ROLE: &str = "main";
 const MAX_HELPERS_MODULES_THRESHOLD: &str = "max_helpers_container_modules";
 const MAX_MAIN_MODULES_THRESHOLD: &str = "max_main_container_modules";
 const MAX_ROLE_DEPTH_THRESHOLD: &str = "max_role_depth";
-const MINIMUM_DOMAIN_PARTS: usize = 2;
 const MINIMUM_SHARED_PREFIX_THRESHOLD: &str = "min_shared_domain_prefix_packages";
 const TOOLING_SCOPE: &str = "tooling";
 
@@ -176,45 +176,71 @@ fn append_depth_faults(
 }
 
 fn domain_shape_faults(code: &str, context: &NativeRuleContext) -> Vec<NativeFaultRow> {
-    if context.scope == TOOLING_SCOPE || context.relative_parts.len() < MINIMUM_DOMAIN_PARTS {
+    if context.scope == TOOLING_SCOPE {
         return Vec::new();
     }
-    let Some(domain) = domain_dir(context) else {
-        return Vec::new();
-    };
-    if !mixed_domain(&domain) {
-        return Vec::new();
+    let mut faults = grouping_shape_faults(code, context);
+    for domain in domain_roots(context) {
+        if !mixed_domain(&domain) {
+            continue;
+        }
+        let anchor = domain.join(INIT_FILE);
+        let anchor = if anchor.is_file() {
+            anchor
+        } else if let Some(first) = recursive_python(&domain).into_iter().next() {
+            first
+        } else {
+            continue;
+        };
+        faults.push(reported_fault(ReportedFault {
+            code,
+            context,
+            path: &anchor,
+            message: "top-level domain mixes direct roles and named subdomains".to_owned(),
+            remediation: None,
+        }));
     }
-    let anchor = domain.join(INIT_FILE);
-    let anchor = if anchor.is_file() {
-        anchor
-    } else if let Some(first) = recursive_python(&domain).into_iter().next() {
-        first
-    } else {
-        return Vec::new();
-    };
-    vec![reported_fault(ReportedFault {
-        code,
-        context,
-        path: &anchor,
-        message: "top-level domain mixes direct roles and named subdomains".to_owned(),
-        remediation: None,
-    })]
+    faults
+}
+
+fn grouping_shape_faults(code: &str, context: &NativeRuleContext) -> Vec<NativeFaultRow> {
+    let mut faults: Vec<NativeFaultRow> = Vec::new();
+    for group in grouping_roots(context) {
+        let direct_role =
+            crate::rules::_helpers::role_project_layout_paths::directory_entries(&group)
+                .into_iter()
+                .find(|entry| {
+                    ROLE_NAMES.contains(&file_name(entry))
+                        || (entry.extension().and_then(|value| value.to_str()) == Some("py")
+                            && matches!(
+                                file_name(entry),
+                                "main.py"
+                                    | "helpers.py"
+                                    | "classes.py"
+                                    | "models.py"
+                                    | "types.py"
+                                    | "constants.py"
+                                    | "exceptions.py"
+                            ))
+                });
+        let Some(anchor) = direct_role.and_then(|path| python_anchor(&path).or(Some(path))) else {
+            continue;
+        };
+        faults.push(reported_fault(ReportedFault {
+            code,
+            context,
+            path: &anchor,
+            message: "structural ownership group contains direct role content".to_owned(),
+            remediation: Some("move role content beneath the required domain level".to_owned()),
+        }));
+    }
+    faults
 }
 
 fn shared_prefix_faults(code: &str, context: &NativeRuleContext) -> Vec<NativeFaultRow> {
     if context.scope != ROOT_SCOPE {
         return Vec::new();
     }
-    let root = scope_root(context);
-    let init_path = root.join(INIT_FILE);
-    let anchor = if init_path.is_file() {
-        init_path
-    } else if let Some(first) = recursive_python(&root).into_iter().next() {
-        first
-    } else {
-        return Vec::new();
-    };
     let minimum = context
         .thresholds
         .get(MINIMUM_SHARED_PREFIX_THRESHOLD)
@@ -224,36 +250,46 @@ fn shared_prefix_faults(code: &str, context: &NativeRuleContext) -> Vec<NativeFa
         return Vec::new();
     }
     let mut faults: Vec<NativeFaultRow> = Vec::new();
-    for (prefix, names) in prefix_groups(&root) {
-        if names.len() < minimum {
-            continue;
-        }
-        let prefix_marker = format!("{prefix}_");
-        let suffixes = names
-            .iter()
-            .map(|name| format!("{}/", name.trim_start_matches(&prefix_marker)))
-            .collect::<Vec<_>>();
-        let remediation = if root.join(&prefix).is_dir() {
-            format!(
-                "Move them under the existing {prefix}/ domain as {} subdomains.",
-                natural_list(&suffixes)
-            )
+    for root in ownership_roots(context) {
+        let init_path = root.join(INIT_FILE);
+        let anchor = if init_path.is_file() {
+            init_path
+        } else if let Some(first) = recursive_python(&root).into_iter().next() {
+            first
         } else {
-            format!(
-                "Create {prefix}/ and move them beneath it as {} subdomains.",
-                natural_list(&suffixes)
-            )
+            continue;
         };
-        faults.push(reported_fault(ReportedFault {
-            code,
-            context,
-            path: &anchor,
-            message: format!(
-                "sibling domains {} share the {prefix}_ owner prefix",
-                natural_list(&names)
-            ),
-            remediation: Some(remediation),
-        }));
+        for (prefix, names) in prefix_groups(&root) {
+            if names.len() < minimum {
+                continue;
+            }
+            let prefix_marker = format!("{prefix}_");
+            let suffixes = names
+                .iter()
+                .map(|name| format!("{}/", name.trim_start_matches(&prefix_marker)))
+                .collect::<Vec<_>>();
+            let remediation = if root.join(&prefix).is_dir() {
+                format!(
+                    "Move them under the existing {prefix}/ domain as {} subdomains.",
+                    natural_list(&suffixes)
+                )
+            } else {
+                format!(
+                    "Create {prefix}/ and move them beneath it as {} subdomains.",
+                    natural_list(&suffixes)
+                )
+            };
+            faults.push(reported_fault(ReportedFault {
+                code,
+                context,
+                path: &anchor,
+                message: format!(
+                    "sibling domains {} share the {prefix}_ owner prefix",
+                    natural_list(&names)
+                ),
+                remediation: Some(remediation),
+            }));
+        }
     }
     faults
 }
@@ -262,7 +298,9 @@ fn leaf_main_faults(code: &str, context: &NativeRuleContext) -> Vec<NativeFaultR
     let Some(leaf) = leaf_dir(context) else {
         return Vec::new();
     };
-    let domain = scope_root(context).join(&context.relative_parts[0]);
+    let Some(domain) = domain_dir(context) else {
+        return Vec::new();
+    };
     if leaf == domain && !named_subdomains(&domain).is_empty() {
         return Vec::new();
     }

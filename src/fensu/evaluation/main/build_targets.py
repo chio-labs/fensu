@@ -59,6 +59,7 @@ def build_evaluation_targets(
                 str(target.scoped_file.root),
                 list(target.scoped_file.relative_parts),
                 target.direct,
+                tree.layout.ownership_depth,
             )
             for target in ordered
         ],

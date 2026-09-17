@@ -1803,27 +1803,50 @@ fn openapi_paths(request: &WebPolicyRequest<'_>) -> HashSet<String> {
 fn owner_project_diagnostics(request: &WebPolicyRequest<'_>, diagnostics: &mut Vec<WebDiagnostic>) {
     let mut by_capability: HashMap<(String, String), Vec<&ScopedSource>> = HashMap::new();
     let mut by_owner: HashMap<(String, String), Vec<&ScopedSource>> = HashMap::new();
+    let mut invalid_group_paths: HashSet<String> = HashSet::new();
+    let mut overdeep_owner_paths: HashSet<String> = HashSet::new();
     for source in request.sources.iter().filter(|source| {
         participates_in_project(source, request.config)
             && source_is_analyzable(source)
             && !source_is_test(source)
             && !source_is_tooling(source)
     }) {
-        if let (Some(root), Some(owner)) = (
-            source_root_for(source, request.config),
-            owner_for(source, request.config),
-        ) {
-            by_owner
-                .entry((root.to_owned(), owner))
-                .or_default()
-                .push(source);
+        if let Some(path) = structural_group_role_path(source, request.config) {
+            invalid_group_paths.insert(path);
         }
-        if let Some(capability) = capability_identity(source, request.config) {
+        if let Some(path) = overdeep_owner_path(source, request.config) {
+            overdeep_owner_paths.insert(path);
+        }
+        if let Some(identity) = physical_owner_identity(source, request.config) {
+            by_owner.entry(identity).or_default().push(source);
+        }
+        if let Some(capability) = physical_capability_identity(source, request.config) {
             by_capability.entry(capability).or_default().push(source);
         }
     }
-    for ((_, owner), modules) in &by_owner {
+    if active(request, "FWR306") {
+        for path in invalid_group_paths {
+            push_project_path(
+                diagnostics,
+                "FWR306",
+                path,
+                "structural ownership group contains direct role content",
+            );
+        }
+        for path in overdeep_owner_paths {
+            push_project_path(
+                diagnostics,
+                "FWR306",
+                path,
+                "ownership hierarchy exceeds the configured domain and optional subdomain slots",
+            );
+        }
+    }
+    for modules in by_owner.values() {
         let Some(first) = modules.first() else {
+            continue;
+        };
+        let Some(owner) = owner_for(first, request.config) else {
             continue;
         };
         if active(request, "FWR204") && GENERIC_OWNERS.contains(&owner.as_str()) {
@@ -1854,8 +1877,11 @@ fn owner_project_diagnostics(request: &WebPolicyRequest<'_>, diagnostics: &mut V
             );
         }
     }
-    for ((_, capability), modules) in &by_capability {
+    for modules in by_capability.values() {
         let Some(first) = modules.first() else {
+            continue;
+        };
+        let Some(capability) = capability_for(first, request.config) else {
             continue;
         };
         let roles = modules
@@ -1866,7 +1892,7 @@ fn owner_project_diagnostics(request: &WebPolicyRequest<'_>, diagnostics: &mut V
             push_project_path(
                 diagnostics,
                 "FWR309",
-                capability_path(first, request.config, capability),
+                capability_path(first, request.config, &capability),
                 &format!("leaf '{capability}' has no main entry"),
             );
         }
@@ -1882,7 +1908,7 @@ fn owner_project_diagnostics(request: &WebPolicyRequest<'_>, diagnostics: &mut V
             push_project_path(
                 diagnostics,
                 "FWR311",
-                capability_path(first, request.config, capability),
+                capability_path(first, request.config, &capability),
                 &format!("leaf '{capability}' contains only main entries"),
             );
         }
@@ -1920,7 +1946,7 @@ fn owner_project_diagnostics(request: &WebPolicyRequest<'_>, diagnostics: &mut V
                         "FWR301",
                         format!(
                             "{}/{role}",
-                            capability_path(first, request.config, capability)
+                            capability_path(first, request.config, &capability)
                         ),
                         &format!(
                             "{capability}/{role} must be flat or grouped with depth {depth} and at most {limit} entries"
@@ -1930,6 +1956,25 @@ fn owner_project_diagnostics(request: &WebPolicyRequest<'_>, diagnostics: &mut V
             }
         }
     }
+}
+
+fn structural_group_role_path(source: &ScopedSource, config: &Config) -> Option<String> {
+    let relative = relative_to_source_root(source, config)?;
+    let parts = relative.split('/').collect::<Vec<_>>();
+    if parts.first() != Some(&"lib") {
+        return None;
+    }
+    let owner_index = 1 + config.ownership_depth.max(2).saturating_sub(2);
+    let role_index = parts.iter().enumerate().skip(1).find_map(|(index, part)| {
+        (LEAF_ROLES.contains(part) || is_role_file(part)).then_some(index)
+    })?;
+    (role_index <= owner_index).then(|| source.target_path.clone())
+}
+
+fn overdeep_owner_path(source: &ScopedSource, config: &Config) -> Option<String> {
+    let segments = owner_segments(source, config);
+    let ownership_parts = role_index(&segments).unwrap_or(segments.len().saturating_sub(1));
+    (ownership_parts > 1).then(|| source.target_path.clone())
 }
 
 fn public_main_diagnostics(request: &WebPolicyRequest<'_>, diagnostics: &mut Vec<WebDiagnostic>) {
@@ -2187,18 +2232,26 @@ fn owner_segments(source: &ScopedSource, config: &Config) -> Vec<String> {
         return Vec::new();
     };
     let parts = relative.split('/').collect::<Vec<_>>();
-    if parts.first() != Some(&"lib") || parts.len() < 3 {
+    let owner_index = 1 + config.ownership_depth.max(2).saturating_sub(2);
+    if parts.first() != Some(&"lib") || parts.len() <= owner_index + 1 {
         return Vec::new();
     }
-    parts[2..].iter().map(|part| (*part).to_owned()).collect()
+    parts[owner_index + 1..]
+        .iter()
+        .map(|part| (*part).to_owned())
+        .collect()
 }
 
 fn owner_for(source: &ScopedSource, config: &Config) -> Option<String> {
     let relative = relative_to_source_root(source, config)?;
     let parts = relative.split('/').collect::<Vec<_>>();
-    (parts.first() == Some(&"lib") && parts.len() >= 3)
-        .then(|| parts.get(1).map(|part| (*part).to_owned()))
-        .flatten()
+    let owner_index = 1 + config.ownership_depth.max(2).saturating_sub(2);
+    let owner = parts.get(owner_index)?;
+    (parts.first() == Some(&"lib")
+        && parts.len() > owner_index + 1
+        && !LEAF_ROLES.contains(owner)
+        && !is_role_file(owner))
+    .then(|| (*owner).to_owned())
 }
 
 fn relative_to_source_root<'a>(source: &'a ScopedSource, config: &Config) -> Option<&'a str> {
@@ -2283,6 +2336,36 @@ fn capability_identity(source: &ScopedSource, config: &Config) -> Option<(String
     Some((root, capability))
 }
 
+fn physical_owner_identity(source: &ScopedSource, config: &Config) -> Option<(String, String)> {
+    let root = source_root_for(source, config)?;
+    let relative = relative_to_source_root(source, config)?;
+    let parts = relative.split('/').collect::<Vec<_>>();
+    let owner_index = 1 + config.ownership_depth.max(2).saturating_sub(2);
+    owner_for(source, config)?;
+    Some((root.to_owned(), parts[1..=owner_index].join("/")))
+}
+
+fn physical_capability_identity(
+    source: &ScopedSource,
+    config: &Config,
+) -> Option<(String, String)> {
+    if source_is_test(source) || source_is_tooling(source) {
+        return capability_identity(source, config);
+    }
+    let (root, owner) = physical_owner_identity(source, config)?;
+    let segments = owner_segments(source, config);
+    let end = role_index(&segments).unwrap_or(segments.len().saturating_sub(1));
+    let suffix = segments[..end].join("/");
+    Some((
+        root,
+        if suffix.is_empty() {
+            owner
+        } else {
+            format!("{owner}/{suffix}")
+        },
+    ))
+}
+
 fn tooling_capability(source: &ScopedSource, config: &Config) -> Option<String> {
     let root = tooling_root_for(source, config)?;
     let relative = ownership_path(source)
@@ -2346,8 +2429,9 @@ fn test_capability(source: &ScopedSource, config: &Config) -> Option<String> {
     })?;
     let parts = relative.split('/').collect::<Vec<_>>();
     let lib = parts.iter().position(|part| *part == "lib")?;
-    let owner = parts.get(lib + 1)?;
-    let remaining = parts[lib + 2..]
+    let owner_index = lib + 1 + config.ownership_depth.max(2).saturating_sub(2);
+    let owner = parts.get(owner_index)?;
+    let remaining = parts[owner_index + 1..]
         .iter()
         .map(|part| (*part).to_owned())
         .collect::<Vec<_>>();
@@ -2384,10 +2468,15 @@ fn owner_path(source: &ScopedSource, config: &Config) -> String {
         .find(|root| source.target_path.starts_with(&format!("{root}/")))
         .map(String::as_str)
         .unwrap_or("src");
-    format!(
-        "{root}/lib/{}",
-        owner_for(source, config).unwrap_or_else(|| "unknown".to_owned())
-    )
+    let groups = relative_to_source_root(source, config)
+        .map(|relative| relative.split('/').collect::<Vec<_>>())
+        .unwrap_or_default();
+    let owner_index = 1 + config.ownership_depth.max(2).saturating_sub(2);
+    if groups.len() > owner_index {
+        format!("{root}/{}", groups[..=owner_index].join("/"))
+    } else {
+        format!("{root}/lib/unknown")
+    }
 }
 
 fn capability_path(source: &ScopedSource, config: &Config, capability: &str) -> String {
@@ -2397,7 +2486,21 @@ fn capability_path(source: &ScopedSource, config: &Config, capability: &str) -> 
         .find(|root| source.target_path.starts_with(&format!("{root}/")))
         .map(String::as_str)
         .unwrap_or("src");
-    format!("{root}/lib/{capability}")
+    let grouping_depth = config.ownership_depth.max(2).saturating_sub(2);
+    let groups = relative_to_source_root(source, config)
+        .map(|relative| {
+            relative
+                .split('/')
+                .skip(1)
+                .take(grouping_depth)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    if groups.is_empty() {
+        format!("{root}/lib/{capability}")
+    } else {
+        format!("{root}/lib/{}/{capability}", groups.join("/"))
+    }
 }
 
 fn resource_suffix(name: &str) -> bool {

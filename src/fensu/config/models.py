@@ -119,7 +119,6 @@ class Config:
     """Validated fensu configuration."""
 
     roots: tuple[str, ...]
-    ownership_depth: int = DEFAULT_OWNERSHIP_DEPTH
     tests: tuple[str, ...] = ("tests",)
     test_scopes: tuple[str, ...] = DEFAULT_TEST_SCOPES
     tooling: tuple[str, ...] = ()
@@ -155,6 +154,7 @@ class Config:
     shadcn: str | None = None
     openapi: str | None = None
     test_layout: TestLayout = DEFAULT_TEST_LAYOUT
+    ownership_depth: int = DEFAULT_OWNERSHIP_DEPTH
 
     def __post_init__(self) -> None:
         """Freeze defensive copies of nested rule-option mappings."""

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.1](https://github.com/chio-labs/fensu/compare/v0.22.0...v0.22.1) (2026-09-21)
+
+
+### Bug Fixes
+
+* teach generated skills ownership roots ([#97](https://github.com/chio-labs/fensu/issues/97)) ([1d1045c](https://github.com/chio-labs/fensu/commit/1d1045c6ba4619340d38992b9e274da8d7da6434))
+
 ## [0.22.0](https://github.com/chio-labs/fensu/compare/v0.21.0...v0.22.0) (2026-09-21)
 
 

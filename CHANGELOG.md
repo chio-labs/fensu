@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.0](https://github.com/chio-labs/fensu/compare/v0.21.0...v0.22.0) (2026-09-21)
+
+
+### Features
+
+* detect deterministic public facades ([#95](https://github.com/chio-labs/fensu/issues/95)) ([b6c8d16](https://github.com/chio-labs/fensu/commit/b6c8d164a3be5791e6f111ef83c4c58883cd6f63))
+
 ## [0.21.0](https://github.com/chio-labs/fensu/compare/v0.20.0...v0.21.0) (2026-09-17)
 
 

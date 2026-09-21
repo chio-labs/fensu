@@ -15,7 +15,7 @@ pub(crate) fn role_faults(
 ) -> Option<Vec<NativeFaultRow>> {
     role_declarations::declaration_faults(program, code, context)
         .or_else(|| role_project_layout::project_layout_faults(code, context))
-        .or_else(|| role_paths::path_faults(code, context))
+        .or_else(|| role_paths::path_faults(program, code, context))
         .or_else(|| role_surfaces::surface_faults(program, code, context))
 }
 

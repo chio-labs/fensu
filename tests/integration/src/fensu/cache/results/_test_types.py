@@ -154,6 +154,22 @@ class CachedLeafMainInvalidationTestCase:
 
 
 @dataclass(frozen=True)
+class CachedPublicFacadeInvalidationTestCase:
+    """One facade-shape change and expected cached FFR310 invalidation."""
+
+    description: str
+    facade_relative_path: str
+    importer_relative_path: str
+    initial_facade_source: str
+    changed_facade_source: str
+    importer_source: str
+    expected_initial_codes: tuple[str, ...]
+    expected_invalidations: int
+    expected_misses: int
+    expected_changed_codes: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class CachedSharedDomainPrefixInvalidationTestCase:
     """One added sibling domain and expected cached FFR308 invalidation."""
 

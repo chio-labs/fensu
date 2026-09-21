@@ -165,6 +165,96 @@ fn given_role_directories_in_one_leaf_when_planning_then_evaluates_owner_once() 
 }
 
 #[test]
+fn given_root_facade_when_runtime_imports_it_then_reports_direction_not_module_shape() {
+    let test_cases = [CheckPolicyTestCase {
+        description: "root facade is accepted while inward production import is rejected",
+        expected_exit_code: 1,
+        expected_present: "FFR310  runtime modules must import the facade's owning domain directly",
+        expected_absent: "FFR307",
+    }];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(
+            repository.path().join("fensu.toml"),
+            "roots = [\"src/pkg\"]\ntests = []\ntooling = []\nselect = [\"FFR307\", \"FFR310\", \"FFR403\"]\n",
+        );
+        write(
+            repository.path().join("src/pkg/orders.py"),
+            "from pkg.orders.models import Order\n\n__all__ = (\"Order\",)\n",
+        );
+        write(
+            repository
+                .path()
+                .join("src/pkg/billing/main/create_invoice.py"),
+            "from pkg.orders import Order\n",
+        );
+
+        let output = run_check_with(repository.path(), &["--no-cache"]);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {}",
+            test_case.description,
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            stdout.contains(test_case.expected_present),
+            "{}: {stdout}",
+            test_case.description
+        );
+        assert!(
+            !stdout.contains(test_case.expected_absent),
+            "{}: {stdout}",
+            test_case.description
+        );
+        assert!(
+            !stdout.contains("FFR403"),
+            "{}: {stdout}",
+            test_case.description
+        );
+
+        write(
+            repository
+                .path()
+                .join("src/pkg/billing/main/create_invoice.py"),
+            "from ... import orders\n",
+        );
+        let relative_output = run_check_with(repository.path(), &["--no-cache"]);
+        let relative_stdout = String::from_utf8_lossy(&relative_output.stdout);
+        assert_eq!(
+            relative_output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {}",
+            test_case.description,
+            String::from_utf8_lossy(&relative_output.stderr)
+        );
+        assert!(
+            relative_stdout.contains(test_case.expected_present),
+            "{}: {relative_stdout}",
+            test_case.description
+        );
+
+        write(
+            repository
+                .path()
+                .join("src/pkg/billing/main/create_invoice.py"),
+            "from pkg.orders.models import Order\n",
+        );
+        let direct_output = run_check_with(repository.path(), &["--no-cache"]);
+        let direct_stdout = String::from_utf8_lossy(&direct_output.stdout);
+        assert_eq!(
+            direct_output.status.code(),
+            Some(0),
+            "{}: {direct_stdout}",
+            test_case.description
+        );
+        assert!(!direct_stdout.contains("FFR310"), "{direct_stdout}");
+    }
+}
+
+#[test]
 fn given_native_dagster_alias_when_checking_then_executes_core_kernel_under_pack_identity() {
     let test_cases = [NativeRulePackTestCase {
         description: "selected Dagster alias executes natively and reports canonical provenance",

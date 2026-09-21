@@ -112,6 +112,10 @@ impl ProgramHandle {
         &self.data.source
     }
 
+    pub fn is_public_facade(&self, package_name: &str) -> bool {
+        crate::extension::facades::is_public_facade(self.module(), package_name)
+    }
+
     pub fn owner_symbol_at(&self, line: u32, column: u32) -> Option<String> {
         super::owner_symbols::owner_symbol_at(self.module(), self.index(), line, column)
     }

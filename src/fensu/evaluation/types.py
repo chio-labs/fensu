@@ -65,6 +65,7 @@ class NativeProjectQueryKind(StrEnum):
     DIRECTORY_ENTRIES = "directory_entries"
     GLOB = "glob"
     PYTHON_ANCHOR = "python_anchor"
+    PUBLIC_FACADE = "public_facade"
 
 
 class RepositoryDependencyKind(StrEnum):

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import json
 from collections.abc import Mapping
 from pathlib import Path
@@ -481,6 +482,24 @@ def _observe_query_plan(
                 path=path,
             )
             answers[key] = [] if anchor is None else [anchor.relative_to(repo_root).as_posix()]
+        elif kind == NativeProjectQueryKind.PUBLIC_FACADE:
+            analysis: Analysis | None = project.analysis(
+                requester=target.scoped_file.path,
+                path=path,
+            )
+            if analysis is None:
+                answers[key] = [_bool_text(False)]
+            else:
+                from fensu.analysis.main.is_public_facade import is_public_facade
+
+                answers[key] = [
+                    _bool_text(
+                        is_public_facade(
+                            module=ast.parse(analysis.text.source),
+                            package_name=argument,
+                        )
+                    )
+                ]
     return answers
 
 

@@ -61,6 +61,7 @@ pub const TOP_LEVEL_DIRECT_MODULES_CODE: &str = "FFR307";
 pub const TOP_LEVEL_DOMAIN_SHAPE_CODE: &str = "FFR306";
 pub const SHARED_DOMAIN_PREFIX_CODE: &str = "FFR308";
 pub const LEAF_MAIN_BOUNDARY_CODE: &str = "FFR309";
+pub const PUBLIC_FACADE_IMPORT_DIRECTION_CODE: &str = "FFR310";
 pub const ENTRY_MODULE_SHAPE_CODE: &str = "FFR401";
 pub const INIT_MODULE_EMPTY_CODE: &str = "FFR402";
 pub const NO_REEXPORT_SHIM_CODE: &str = "FFR403";
@@ -222,6 +223,7 @@ pub const NATIVE_RULE_FACT_FAMILIES: &[(&str, &[&str])] = &[
     (TOP_LEVEL_DOMAIN_SHAPE_CODE, &[]),
     (SHARED_DOMAIN_PREFIX_CODE, &[]),
     (LEAF_MAIN_BOUNDARY_CODE, &[]),
+    (PUBLIC_FACADE_IMPORT_DIRECTION_CODE, &["references"]),
     (ENTRY_MODULE_SHAPE_CODE, &["module_declarations"]),
     (INIT_MODULE_EMPTY_CODE, &["module_declarations"]),
     (NO_REEXPORT_SHIM_CODE, &["module_declarations"]),

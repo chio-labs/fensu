@@ -15,11 +15,11 @@ use crate::rules::constants::{
     BANNED_GENERIC_PACKAGE_NAME_CODE, CUSTOM_RULE_TEST_COVERAGE_CODE,
     MAIN_ENTRY_NAME_COLLISION_CODE, MEANINGFUL_PROJECT_RESULT_DISCARDED_CODE,
     NO_CROSS_DOMAIN_PRIVATE_MAIN_IMPORTS_CODE, NO_CROSS_PACKAGE_INTERNALS_CODE,
-    NO_SIBLING_PACKAGE_INTERNALS_CODE, TEST_CASE_ANNOTATION_CODE, TEST_LAYOUT_CODE,
-    TEST_LOCAL_TEST_CASE_CONSTRUCTORS_CODE, TEST_LOCAL_TEST_TYPES_FILE_CODE,
-    TEST_MIRRORED_ROOT_CODE, TEST_SCOPE_CODE, TEST_SCRIPTS_AREA_EXISTS_CODE,
-    TEST_SCRIPTS_MIRROR_DEPTH_CODE, TEST_SRC_AREA_EXISTS_CODE, TEST_SRC_MIRROR_DEPTH_CODE,
-    TEST_SRC_PACKAGE_EXISTS_CODE, TOOLING_PACKAGE_LAYOUT_CODE,
+    NO_SIBLING_PACKAGE_INTERNALS_CODE, PUBLIC_FACADE_IMPORT_DIRECTION_CODE,
+    TEST_CASE_ANNOTATION_CODE, TEST_LAYOUT_CODE, TEST_LOCAL_TEST_CASE_CONSTRUCTORS_CODE,
+    TEST_LOCAL_TEST_TYPES_FILE_CODE, TEST_MIRRORED_ROOT_CODE, TEST_SCOPE_CODE,
+    TEST_SCRIPTS_AREA_EXISTS_CODE, TEST_SCRIPTS_MIRROR_DEPTH_CODE, TEST_SRC_AREA_EXISTS_CODE,
+    TEST_SRC_MIRROR_DEPTH_CODE, TEST_SRC_PACKAGE_EXISTS_CODE, TOOLING_PACKAGE_LAYOUT_CODE,
 };
 use crate::rules::models::{NativeProjectQuery, NativeRuleContext};
 
@@ -32,6 +32,7 @@ const ROOT_TEST_AREA: &str = "__root__";
 const MINIMUM_TEST_LAYOUT_PARTS: usize = 3;
 const MINIMUM_TOOLING_PACKAGE_PARTS: usize = 3;
 const MAIN_ROLE_NAME: &str = "main";
+const PUBLIC_FACADE_MODULE_PARTS: usize = 2;
 const TEST_LAYOUT_CODES: &[&str] = &[
     TEST_LAYOUT_CODE,
     TEST_SCOPE_CODE,
@@ -72,6 +73,21 @@ pub(crate) fn plan_project_queries(
                 if let Some(path) = module_file_path(context, &target) {
                     queries.push(query("is_file", &path, ""));
                 }
+            }
+        }
+    }
+    if selected.contains(PUBLIC_FACADE_IMPORT_DIRECTION_CODE) && context.scope == ROOT_SCOPE {
+        for target in module_targets(program, context) {
+            if target.len() == PUBLIC_FACADE_MODULE_PARTS
+                && target.first() == Some(&context.package_name)
+            {
+                let mut path = scope_root(context);
+                path.push(format!("{}.py", target[1]));
+                queries.push(query(
+                    "public_facade",
+                    &path.join("/"),
+                    &context.package_name,
+                ));
             }
         }
     }
@@ -277,9 +293,6 @@ fn normalized_import_targets(row: &ImportRow, context: &NativeRuleContext) -> Ve
             .into_iter()
             .collect();
     }
-    if row.module_parts.is_empty() {
-        return Vec::new();
-    }
     let mut current = module_parts(context);
     if file_name(context) != INIT_FILE {
         let _ = current.pop();
@@ -289,7 +302,9 @@ fn normalized_import_targets(row: &ImportRow, context: &NativeRuleContext) -> Ve
         return Vec::new();
     }
     current.truncate(current.len() - parents);
-    current.extend(row.module_parts.clone());
+    if !row.module_parts.is_empty() {
+        current.extend(row.module_parts.clone());
+    }
     vec![current]
 }
 

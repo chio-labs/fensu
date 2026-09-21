@@ -55,6 +55,10 @@ def layout_rules() -> tuple[RuleSpec, ...]:
             slug="leaf-main-boundary",
             execution_owner=ExecutionOwner.LEAF,
         ),
+        _rule(
+            code=RoleCode.PUBLIC_FACADE_IMPORT_DIRECTION,
+            slug="public-facade-import-direction",
+        ),
     )
 
 
@@ -73,6 +77,7 @@ def _rule(
             RoleCode.TOP_LEVEL_DIRECT_MODULES,
             RoleCode.SHARED_DOMAIN_PREFIX,
             RoleCode.LEAF_MAIN_BOUNDARY,
+            RoleCode.PUBLIC_FACADE_IMPORT_DIRECTION,
         }
     )
     return RuleSpec(

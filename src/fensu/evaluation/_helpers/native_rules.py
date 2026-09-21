@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import ast
 import json
 from collections.abc import Mapping
 from pathlib import Path
@@ -490,12 +489,12 @@ def _observe_query_plan(
             if analysis is None:
                 answers[key] = [_bool_text(False)]
             else:
-                from fensu.analysis.main.is_public_facade import is_public_facade
+                from fensu.analysis.main.is_public_facade import is_public_facade_source
 
                 answers[key] = [
                     _bool_text(
-                        is_public_facade(
-                            module=ast.parse(analysis.text.source),
+                        is_public_facade_source(
+                            source=analysis.text.source,
                             package_name=argument,
                         )
                     )

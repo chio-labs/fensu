@@ -6,7 +6,7 @@ import ast
 from pathlib import Path
 
 from fensu import Fault, ImportFact, RuleContext, ScopeName
-from fensu.analysis.main.is_public_facade import is_public_facade
+from fensu.analysis.main.is_public_facade import is_public_facade_source
 from fensu.analysis.types import Analysis
 
 _INIT_FILE: str = "__init__.py"
@@ -60,8 +60,8 @@ def public_facade_import_direction_impl(*, module: ast.Module, ctx: RuleContext)
 
 def _path_is_public_facade(*, ctx: RuleContext, path: Path, package_name: str) -> bool:
     analysis: Analysis | None = ctx.project.analysis(requester=ctx.path, path=path)
-    return analysis is not None and is_public_facade(
-        module=ast.parse(analysis.text.source), package_name=package_name
+    return analysis is not None and is_public_facade_source(
+        source=analysis.text.source, package_name=package_name
     )
 
 

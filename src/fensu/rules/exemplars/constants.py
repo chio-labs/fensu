@@ -132,6 +132,9 @@ from fensu.rules.exemplars.main.roles._main_package_layout import main_package_l
 from fensu.rules.exemplars.main.roles._private_definition_ordering import (
     private_definition_ordering_equivalent,
 )
+from fensu.rules.exemplars.main.roles._public_facade_import_direction import (
+    public_facade_import_direction_equivalent,
+)
 from fensu.rules.exemplars.main.roles._shared_domain_prefix import shared_domain_prefix_equivalent
 from fensu.rules.exemplars.main.roles._tooling_package_layout import (
     tooling_package_layout_equivalent,
@@ -292,6 +295,7 @@ NATIVE_CUSTOM_RULE_EQUIVALENTS: dict[str, RuleCheck] = canonical_equivalent_rule
         "FFR307": top_level_direct_modules_equivalent,
         "FFR308": shared_domain_prefix_equivalent,
         "FFR309": leaf_main_boundary_equivalent,
+        "FFR310": public_facade_import_direction_equivalent,
         "FFR401": entry_module_shape_equivalent,
         "FFR402": init_module_empty_equivalent,
         "FFR403": no_reexport_shim_equivalent,

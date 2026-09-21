@@ -247,6 +247,11 @@ pub(crate) fn observe(
             "directory_entries" => directory_entries(&path, root)?,
             "glob" => glob_answers(&path, root, &query.argument)?,
             "python_anchor" => python_anchor(&path, root)?.into_iter().collect(),
+            "public_facade" => {
+                vec![bool_text(programs.get(query.path.as_str()).is_some_and(
+                    |program| program.is_public_facade(&query.argument),
+                ))]
+            }
             _ => Vec::new(),
         };
         answers.insert(query.key(), value);

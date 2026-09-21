@@ -50,7 +50,7 @@ pub(crate) fn surface_faults(
     let faults = match code {
         ENTRY_MODULE_SHAPE_CODE => entry_module_shape_faults(code, context, declarations),
         INIT_MODULE_EMPTY_CODE => init_module_faults(code, context, declarations),
-        NO_REEXPORT_SHIM_CODE => reexport_faults(code, context, declarations),
+        NO_REEXPORT_SHIM_CODE => reexport_faults(program, code, context, declarations),
         PUBLIC_SURFACE_SHAPE_CODE => public_surface_faults(code, context, declarations),
         CLASSES_ONE_CLASS_PER_MODULE_CODE => classes_shape_faults(code, context, declarations),
         CLASSES_RUNTIME_REEXPORT_CODE => {
@@ -156,11 +156,13 @@ fn init_module_faults(
 }
 
 fn reexport_faults(
+    program: &ProgramHandle,
     code: &str,
     context: &NativeRuleContext,
     declarations: &ModuleDeclarationRows,
 ) -> Vec<NativeFaultRow> {
     if path_name(context) == Some(INIT_FILE_NAME)
+        || context.relative_parts.len() == 1 && program.is_public_facade(&context.package_name)
         || context
             .role
             .as_deref()

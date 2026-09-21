@@ -15,6 +15,7 @@ from fensu import (
     Threshold,
     rule,
 )
+from fensu.analysis.main.is_public_facade import is_public_facade_source
 from fensu.rules.catalog.main._get_rule_constraint import get_rule_constraint
 from fensu.rules.catalog.main._get_rule_limit import get_rule_limit
 from fensu.rules.exemplars._helpers.equivalent_rule import equivalent_rule
@@ -363,6 +364,10 @@ def top_level_direct_modules_equivalent(*, module: ast.Module, ctx: RuleContext)
     )
     if _excluded_scope(ctx) or ctx.scope() is ScopeName.TOOLING or parts[-1] in {_INIT, _MAIN_INIT}:
         return []
+    if len(parts) == _ROOT_MODULE_PARTS and is_public_facade_source(
+        source=ctx.source, package_name=ctx.scope_root().name
+    ):
+        return []
     if len(parts) == _ROOT_MODULE_PARTS:
         return [
             ctx.path_fault(
@@ -458,6 +463,8 @@ def no_reexport_shim_equivalent(*, module: ast.Module, ctx: RuleContext) -> list
     if (
         _excluded_scope(ctx)
         or ctx.path.name == _INIT
+        or len(ctx.relative_parts()) == _ROOT_MODULE_PARTS
+        and is_public_facade_source(source=ctx.source, package_name=ctx.scope_root().name)
         or ctx.role_of() in ctx.constraint(name="exempt_roles")
         or not ctx.facts.module_declarations().pure_reexport
     ):

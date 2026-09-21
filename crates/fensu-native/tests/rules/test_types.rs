@@ -52,7 +52,16 @@ pub(crate) struct TopLevelDirectModuleTestCase {
     pub(crate) description: &'static str,
     pub(crate) repository_path: &'static str,
     pub(crate) relative_parts: &'static [&'static str],
+    pub(crate) source: &'static str,
     pub(crate) expected_fault_count: usize,
+}
+
+pub(crate) struct PublicFacadeImportTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) source: &'static str,
+    pub(crate) expected_fault_count: usize,
+    pub(crate) expected_path: Option<&'static str>,
+    pub(crate) expected_message: &'static str,
 }
 
 pub(crate) struct GroupedExecutionPlanningTestCase {

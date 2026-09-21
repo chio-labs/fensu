@@ -109,6 +109,7 @@ _PARITY_NATIVE_CODES: frozenset[str] = frozenset(
         "FFR307",
         "FFR308",
         "FFR309",
+        "FFR310",
         "FFR401",
         "FFR402",
         "FFR403",
@@ -700,6 +701,97 @@ _PYTHON_OWNED_SFR_CODES: frozenset[str] = frozenset()
             path="src/example/__main__.py",
         ),
         NativeCustomRuleParityTestCase(
+            description="FFR307 allows a deterministic runtime root facade",
+            native_code="FFR307",
+            source=('from example.orders.models import Order\n\n__all__ = ("Order",)\n'),
+            expected_fault_count=0,
+            path="src/example/orders.py",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="FFR307 allows a direct forwarding facade",
+            native_code="FFR307",
+            source=(
+                "from example.orders.main.read_order import read_order as _read_order\n\n"
+                '__all__ = ("read_order",)\n\n'
+                "def read_order(number: str) -> object:\n"
+                "    return _read_order(number)\n"
+            ),
+            expected_fault_count=0,
+            path="src/example/orders.py",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="FFR307 rejects facade-shaped modules with branching behavior",
+            native_code="FFR307",
+            source=(
+                "from example.orders.main.read_order import read_order as _read_order\n\n"
+                '__all__ = ("read_order",)\n\n'
+                "def read_order(number: str | None = None) -> object:\n"
+                "    if number is None:\n"
+                '        number = "unknown"\n'
+                "    return _read_order(number)\n"
+            ),
+            expected_fault_count=1,
+            path="src/example/orders.py",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="FFR307 rejects context facades with transformed yields",
+            native_code="FFR307",
+            source=(
+                "from collections.abc import Iterator\n"
+                "from contextlib import contextmanager\n"
+                "from example.orders.main.order_scope import order_scope as _order_scope\n\n"
+                '__all__ = ("order_scope",)\n\n'
+                "@contextmanager\n"
+                "def order_scope(callback: object) -> Iterator[object]:\n"
+                "    with _order_scope() as active:\n"
+                "        yield callback(active)\n"
+            ),
+            expected_fault_count=1,
+            path="src/example/orders.py",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="FFR307 rejects overload defaults with import-time calls",
+            native_code="FFR307",
+            source=(
+                "from typing import overload\n"
+                "from example.orders.main.configure import configure\n"
+                "from example.orders.main.read_order import read_order as _read_order\n\n"
+                '__all__ = ("read_order",)\n\n'
+                "@overload\n"
+                "def read_order(number: str = configure()) -> str: ...\n\n"
+                "def read_order(number: object) -> object:\n"
+                "    return _read_order(number)\n"
+            ),
+            expected_fault_count=1,
+            path="src/example/orders.py",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="FFR307 rejects wrappers whose parameters shadow imported delegates",
+            native_code="FFR307",
+            source=(
+                "from example.orders.main.run import callback\n\n"
+                '__all__ = ("run",)\n\n'
+                "def run(callback: object) -> object:\n"
+                "    return callback()\n"
+            ),
+            expected_fault_count=1,
+            path="src/example/orders.py",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="FFR307 rejects wrappers shadowing other imported delegates",
+            native_code="FFR307",
+            source=(
+                "from example.orders.main.run import first, second\n\n"
+                '__all__ = ("first", "second")\n\n'
+                "def first() -> object:\n"
+                "    return second()\n\n"
+                "def second() -> object:\n"
+                "    return first()\n"
+            ),
+            expected_fault_count=1,
+            path="src/example/orders.py",
+        ),
+        NativeCustomRuleParityTestCase(
             description="FFR401 matches entry modules without one public function",
             native_code="FFR401",
             source="def _prepare() -> None:\n    return None\n",
@@ -714,10 +806,10 @@ _PYTHON_OWNED_SFR_CODES: frozenset[str] = frozenset()
             path="src/example/_helpers/__init__.py",
         ),
         NativeCustomRuleParityTestCase(
-            description="FFR403 matches internal pure re-export shims",
+            description="FFR403 allows deterministic root public facades",
             native_code="FFR403",
             source="from example.models import Result\n\n__all__ = ['Result']\n",
-            expected_fault_count=1,
+            expected_fault_count=0,
             path="src/example/result.py",
         ),
         NativeCustomRuleParityTestCase(
@@ -1327,6 +1419,32 @@ _PYTHON_OWNED_SFR_CODES: frozenset[str] = frozenset()
             expected_fault_count=0,
             path="src/example/sources/orders/importing/main/run.py",
             config={"ownership_roots": ("src/example/sources",)},
+        ),
+        NativeCustomRuleParityTestCase(
+            description="FFR310 rejects production imports through a public facade",
+            native_code="FFR310",
+            source="from example.orders import Order\n",
+            expected_fault_count=1,
+            path="src/example/billing/main/create_invoice.py",
+            files=(
+                RuleFile(
+                    path="src/example/orders.py",
+                    source=('from example.orders.models import Order\n\n__all__ = ("Order",)\n'),
+                ),
+            ),
+        ),
+        NativeCustomRuleParityTestCase(
+            description="FFR310 allows tests to import a public facade",
+            native_code="FFR310",
+            source="from example.orders import Order\n",
+            expected_fault_count=0,
+            path="tests/unit/src/example/orders/test_public.py",
+            files=(
+                RuleFile(
+                    path="src/example/orders.py",
+                    source=('from example.orders.models import Order\n\n__all__ = ("Order",)\n'),
+                ),
+            ),
         ),
         NativeCustomRuleParityTestCase(
             description="FFR405 matches public sibling directory observations",

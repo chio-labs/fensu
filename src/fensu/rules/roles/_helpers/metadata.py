@@ -47,8 +47,9 @@ def role_rule_details(code: RoleCode) -> tuple[str, str]:
         ),
         RoleCode.TOP_LEVEL_DIRECT_MODULES: (
             "runtime roots and top-level domains must not contain ad hoc direct modules",
-            "Keep only __init__.py and __main__.py at the runtime root; move other modules into "
-            "an owning domain and its direct role boundary.",
+            "Keep only package protocol modules and deterministic static-__all__ public facades "
+            "at the runtime root; move implementation into an owning domain and its direct role "
+            "boundary.",
         ),
         RoleCode.SHARED_DOMAIN_PREFIX: (
             "sibling domains must not encode one parent domain through a shared name prefix",
@@ -61,6 +62,11 @@ def role_rule_details(code: RoleCode) -> tuple[str, str]:
             "Every leaf requires a direct main/ boundary with at least one non-__init__.py Python "
             "entry; branch-domain parents are exempt. Add a focused entry only when the leaf owns "
             "behavior; otherwise move passive declarations into the closest behavioral owner.",
+        ),
+        RoleCode.PUBLIC_FACADE_IMPORT_DIRECTION: (
+            "runtime modules must not import public facade modules",
+            "Import the facade's owning domain directly; reserve root facade imports for external "
+            "consumers, tests, and tooling.",
         ),
         RoleCode.ENTRY_MODULE_SHAPE: (
             "main/ entry modules must expose one focused public function",

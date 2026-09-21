@@ -36,6 +36,7 @@ from tests.integration.src.fensu.cache.results._test_types import (
     CachedNamingParityTestCase,
     CachedNativeProjectRuleTestCase,
     CachedPublicationInterruptionTestCase,
+    CachedPublicFacadeInvalidationTestCase,
     CachedResultReadFilteringTestCase,
     CachedSemanticCorruptionTestCase,
     CachedSharedDomainPrefixInvalidationTestCase,
@@ -799,6 +800,70 @@ def test_given_cached_leaf_when_main_entry_appears_then_invalidates_main_boundar
     )
     assert changed.stats.invalidations == test_case.expected_invalidations
     assert changed.stats.misses == test_case.expected_misses
+    assert (
+        tuple(fault.code for fault in evaluated_result(changed).faults)
+        == test_case.expected_changed_codes
+    )
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        CachedPublicFacadeInvalidationTestCase(
+            description="facade shape change invalidates cached FFR310",
+            facade_relative_path="src/pkg/orders.py",
+            importer_relative_path="src/pkg/billing/main/create_invoice.py",
+            initial_facade_source="value: int = 1\n",
+            changed_facade_source=('from pkg.orders.models import Order\n\n__all__ = ("Order",)\n'),
+            importer_source="from pkg.orders import Order\n",
+            expected_initial_codes=(),
+            expected_invalidations=2,
+            expected_misses=0,
+            expected_changed_codes=("FFR310",),
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_cached_importer_when_module_becomes_facade_then_invalidates_import_direction(
+    tmp_path: Path,
+    test_case: CachedPublicFacadeInvalidationTestCase,
+) -> None:
+    write_project_sources(
+        repo_root=tmp_path,
+        files=(
+            (test_case.facade_relative_path, test_case.initial_facade_source),
+            (test_case.importer_relative_path, test_case.importer_source),
+        ),
+    )
+    config, initial_tree = discover_project(repo_root=tmp_path)
+    ruleset: tuple[RuleSpec, ...] = (role_rule(code="FFR310"),)
+    initial: CacheEvaluation = evaluate_with_cache(
+        tree=initial_tree,
+        ruleset=ruleset,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+    write_project_sources(
+        repo_root=tmp_path,
+        files=((test_case.facade_relative_path, test_case.changed_facade_source),),
+    )
+    final_tree: DiscoveredTree = discover_project(repo_root=tmp_path)[1]
+
+    changed: CacheEvaluation = evaluate_with_cache(
+        tree=final_tree,
+        ruleset=ruleset,
+        config=config,
+        global_fingerprint=_GLOBAL_FINGERPRINT,
+    )
+
+    assert (
+        tuple(fault.code for fault in evaluated_result(initial).faults)
+        == test_case.expected_initial_codes
+    )
+    assert changed.stats.invalidations == test_case.expected_invalidations
+    assert changed.stats.misses == test_case.expected_misses
+    assert changed.stats.non_cacheable == 0
+    assert not changed.stats.internal_error
     assert (
         tuple(fault.code for fault in evaluated_result(changed).faults)
         == test_case.expected_changed_codes

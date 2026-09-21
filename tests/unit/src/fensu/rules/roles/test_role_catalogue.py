@@ -42,8 +42,9 @@ from tests.unit.src.fensu.rules.roles._test_types import FfrCatalogueTestCase
                 "runtime roots and top-level domains must not contain ad hoc direct modules"
             ),
             expected_sfr307_remediation=(
-                "Keep only __init__.py and __main__.py at the runtime root; move other modules "
-                "into an owning domain and its direct role boundary."
+                "Keep only package protocol modules and deterministic static-__all__ public "
+                "facades at the runtime root; move implementation into an owning domain and its "
+                "direct role boundary."
             ),
             expected_sfr308_slug="shared-domain-prefix",
             expected_sfr308_message=(

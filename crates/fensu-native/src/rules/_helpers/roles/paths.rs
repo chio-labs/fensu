@@ -1,11 +1,14 @@
 //! File-local role policy decided entirely from Python-owned position data.
 
+use fensu_facts::extension::models::ProgramHandle;
+
 use crate::rules::constants::{
     BANNED_GENERIC_FILENAME_CODE, BANNED_GENERIC_PACKAGE_NAME_CODE, CLASSES_MODULE_NAME_CODE,
     CUSTOM_RULE_TEST_COVERAGE_CODE, DESCRIPTIVE_RULE_MODULE_NAMES_CODE, HELPERS_MODULE_NAME_CODE,
     HELPERS_PACKAGE_SHAPE_CODE, HELPERS_RESERVED_ROLE_FILENAMES_CODE,
     MAIN_ENTRY_NAME_COLLISION_CODE, NESTED_DIRECT_MODULES_CODE, NESTED_DIRECT_SUBPACKAGES_CODE,
-    TOOLING_PACKAGE_LAYOUT_CODE, TOP_LEVEL_DIRECT_MODULES_CODE,
+    PUBLIC_FACADE_IMPORT_DIRECTION_CODE, TOOLING_PACKAGE_LAYOUT_CODE,
+    TOP_LEVEL_DIRECT_MODULES_CODE,
 };
 use crate::rules::models::{NativeFaultRow, NativeProjectQuery, NativeRuleContext};
 
@@ -25,6 +28,7 @@ const INIT_FILE_NAME: &str = "__init__.py";
 const MAIN_DIRECTORY_NAME: &str = "main";
 const MAIN_FILE_NAME: &str = "main.py";
 const MAIN_INIT_FILE_NAME: &str = "__main__.py";
+const INIT_MODULE_STEM: &str = "__init__";
 const PYTHON_SUFFIX: &str = ".py";
 const RULES_ROLE: &str = "rules";
 const ROOT_SCOPE: &str = "root";
@@ -32,9 +36,14 @@ const TEST_SCOPE: &str = "test";
 const TOOLING_SCOPE: &str = "tooling";
 const ROOT_MODULE_PARTS: usize = 1;
 const TOP_LEVEL_MODULE_PARTS: usize = 2;
+const PUBLIC_FACADE_MODULE_PARTS: usize = 2;
 const MIN_CUSTOM_RULE_TEST_CASES: &str = "min_custom_rule_test_cases";
 
-pub(crate) fn path_faults(code: &str, context: &NativeRuleContext) -> Option<Vec<NativeFaultRow>> {
+pub(crate) fn path_faults(
+    program: &ProgramHandle,
+    code: &str,
+    context: &NativeRuleContext,
+) -> Option<Vec<NativeFaultRow>> {
     let faults = match code {
         BANNED_GENERIC_FILENAME_CODE => forbidden_filename_faults(code, context),
         HELPERS_MODULE_NAME_CODE => {
@@ -47,7 +56,8 @@ pub(crate) fn path_faults(code: &str, context: &NativeRuleContext) -> Option<Vec
         HELPERS_RESERVED_ROLE_FILENAMES_CODE => helpers_reserved_filename_faults(code, context),
         NESTED_DIRECT_MODULES_CODE => nested_direct_module_faults(code, context),
         NESTED_DIRECT_SUBPACKAGES_CODE => nested_direct_subpackage_faults(code, context),
-        TOP_LEVEL_DIRECT_MODULES_CODE => top_level_direct_module_faults(code, context),
+        TOP_LEVEL_DIRECT_MODULES_CODE => top_level_direct_module_faults(program, code, context),
+        PUBLIC_FACADE_IMPORT_DIRECTION_CODE => public_facade_import_faults(program, code, context),
         HELPERS_PACKAGE_SHAPE_CODE => helpers_package_shape_faults(code, context),
         MAIN_ENTRY_NAME_COLLISION_CODE => main_entry_collision_faults(code, context),
         TOOLING_PACKAGE_LAYOUT_CODE => tooling_package_layout_faults(code, context),
@@ -56,6 +66,91 @@ pub(crate) fn path_faults(code: &str, context: &NativeRuleContext) -> Option<Vec
         _ => return None,
     };
     Some(faults)
+}
+
+fn public_facade_import_faults(
+    program: &ProgramHandle,
+    code: &str,
+    context: &NativeRuleContext,
+) -> Vec<NativeFaultRow> {
+    if context.scope != ROOT_SCOPE {
+        return Vec::new();
+    }
+    let mut faults: Vec<NativeFaultRow> = Vec::new();
+    for row in &program.reference_rows().imports {
+        let targets = import_targets(row, context);
+        if targets.iter().any(|target| {
+            let Some(path) = public_facade_path(target, context) else {
+                return false;
+            };
+            observed_bool(context, "public_facade", &path, &context.package_name)
+        }) {
+            faults.push(crate::rules::_helpers::roles::location_fault(
+                code,
+                row.line,
+                row.column,
+                Some("runtime modules must import the facade's owning domain directly"),
+            ));
+        }
+    }
+    faults
+}
+
+fn import_targets(
+    row: &fensu_facts::facts::models::ImportRow,
+    context: &NativeRuleContext,
+) -> Vec<Vec<String>> {
+    let current = current_module_parts(context);
+    let initializer = path_name(context) == Some(INIT_FILE_NAME);
+    let bases = crate::rules::_helpers::layers::normalized_targets(row, &current, initializer);
+    let mut targets = bases.clone();
+    if row.from_import {
+        for base in bases {
+            for alias in &row.aliases {
+                let mut target = base.clone();
+                target.extend(alias.imported_name.split('.').map(str::to_owned));
+                targets.push(target);
+            }
+        }
+        if row.relative_level > 0 && row.module_parts.is_empty() {
+            let mut base = if initializer {
+                current
+            } else {
+                current[..current.len().saturating_sub(1)].to_vec()
+            };
+            let parents = row.relative_level.saturating_sub(1) as usize;
+            if parents <= base.len() {
+                base.truncate(base.len() - parents);
+                for alias in &row.aliases {
+                    let mut target = base.clone();
+                    target.extend(alias.imported_name.split('.').map(str::to_owned));
+                    targets.push(target);
+                }
+            }
+        }
+    }
+    targets
+}
+
+fn public_facade_path(target: &[String], context: &NativeRuleContext) -> Option<String> {
+    if target.len() != PUBLIC_FACADE_MODULE_PARTS || target.first()? != &context.package_name {
+        return None;
+    }
+    let mut path = scope_root_parts(context);
+    path.push(format!("{}.py", target[1]));
+    Some(path.join("/"))
+}
+
+fn current_module_parts(context: &NativeRuleContext) -> Vec<String> {
+    let mut parts = vec![context.package_name.clone()];
+    parts.extend(context.relative_parts.iter().cloned());
+    if let Some(last) = parts.last_mut() {
+        *last = last.strip_suffix(PYTHON_SUFFIX).unwrap_or(last).to_owned();
+    }
+    if parts.last().is_some_and(|part| part == INIT_MODULE_STEM) {
+        let _ = parts.pop();
+    }
+    parts
 }
 
 fn banned_package_faults(code: &str, context: &NativeRuleContext) -> Vec<NativeFaultRow> {
@@ -329,18 +424,26 @@ fn nested_direct_subpackage_faults(code: &str, context: &NativeRuleContext) -> V
     Vec::new()
 }
 
-fn top_level_direct_module_faults(code: &str, context: &NativeRuleContext) -> Vec<NativeFaultRow> {
+fn top_level_direct_module_faults(
+    program: &ProgramHandle,
+    code: &str,
+    context: &NativeRuleContext,
+) -> Vec<NativeFaultRow> {
     let Some(name) = path_name(context) else {
         return Vec::new();
     };
     if context.scope == TOOLING_SCOPE || matches!(name, INIT_FILE_NAME | MAIN_INIT_FILE_NAME) {
         return Vec::new();
     }
-    if context.relative_parts.len() == ROOT_MODULE_PARTS {
+    if context.relative_parts.len() == ROOT_MODULE_PARTS
+        && !program.is_public_facade(&context.package_name)
+    {
         return vec![path_fault(
             code,
             Some("runtime roots may contain only package protocol modules and domain packages"),
         )];
+    } else if context.relative_parts.len() == ROOT_MODULE_PARTS {
+        return Vec::new();
     }
     let Some(ownership_offset) = context.ownership_offset() else {
         return vec![path_fault(

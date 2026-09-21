@@ -20,8 +20,8 @@ use crate::test_types;
 fn given_core_rule_contract_corpus_when_evaluating_then_diagnostics_are_exact() {
     let test_cases = [test_types::CoreRuleCorpusTestCase {
         description: "legacy captured requests preserve every proven core diagnostic",
-        expected_fixture_count: 531,
-        expected_core_code_count: 112,
+        expected_fixture_count: 532,
+        expected_core_code_count: 113,
         expected_non_faulting_codes: &["FFR504", "FFR707", "FFT001"],
     }];
     for test_case in &test_cases {
@@ -39,9 +39,9 @@ fn given_core_rule_contract_corpus_when_evaluating_then_diagnostics_are_exact() 
 fn given_generated_core_rule_corpus_when_evaluating_then_every_registration_is_covered() {
     let test_cases = [test_types::CoreRuleCorpusTestCase {
         description: "current rule suites reproducibly cover every core registration",
-        expected_fixture_count: 142,
-        expected_core_code_count: 112,
-        expected_non_faulting_codes: &["FFR301", "FFR302", "FFR306", "FFR308", "FFR309"],
+        expected_fixture_count: 143,
+        expected_core_code_count: 113,
+        expected_non_faulting_codes: &["FFR301", "FFR302", "FFR306", "FFR308", "FFR309", "FFR403"],
     }];
     for test_case in &test_cases {
         assert_eq!(
@@ -148,63 +148,197 @@ fn given_runtime_root_and_domain_modules_when_checking_roles_then_enforces_domai
             description: "runtime root config module is rejected",
             repository_path: "src/example/config.py",
             relative_parts: &["config.py"],
+            source: "value: int = 1\n",
             expected_fault_count: 1,
         },
         test_types::TopLevelDirectModuleTestCase {
             description: "runtime root model role module is rejected",
             repository_path: "src/example/models.py",
             relative_parts: &["models.py"],
+            source: "value: int = 1\n",
             expected_fault_count: 1,
         },
         test_types::TopLevelDirectModuleTestCase {
             description: "runtime root constants role module is rejected",
             repository_path: "src/example/constants.py",
             relative_parts: &["constants.py"],
+            source: "value: int = 1\n",
+            expected_fault_count: 1,
+        },
+        test_types::TopLevelDirectModuleTestCase {
+            description: "runtime root pure re-export facade is allowed",
+            repository_path: "src/example/orders.py",
+            relative_parts: &["orders.py"],
+            source: "from example.orders.models import Order\n\n__all__ = (\"Order\",)\n",
+            expected_fault_count: 0,
+        },
+        test_types::TopLevelDirectModuleTestCase {
+            description: "runtime root forwarding facade is allowed",
+            repository_path: "src/example/orders.py",
+            relative_parts: &["orders.py"],
+            source: "from example.orders.main.create_order import create_order as _create_order\n\n__all__ = (\"create_order\",)\n\ndef create_order(*, number: str) -> object:\n    return _create_order(number=number)\n",
+            expected_fault_count: 0,
+        },
+        test_types::TopLevelDirectModuleTestCase {
+            description: "runtime root context manager facade is allowed",
+            repository_path: "src/example/orders.py",
+            relative_parts: &["orders.py"],
+            source: "from collections.abc import Iterator\nfrom contextlib import contextmanager\nfrom example.orders.main.order_scope import order_scope as _order_scope\n\n__all__ = (\"order_scope\",)\n\n@contextmanager\ndef order_scope(order_id: str) -> Iterator[str]:\n    with _order_scope(order_id) as active_id:\n        yield active_id\n",
+            expected_fault_count: 0,
+        },
+        test_types::TopLevelDirectModuleTestCase {
+            description: "runtime root context manager with transformed yield is rejected",
+            repository_path: "src/example/orders.py",
+            relative_parts: &["orders.py"],
+            source: "from collections.abc import Iterator\nfrom contextlib import contextmanager\nfrom example.orders.main.order_scope import order_scope as _order_scope\n\n__all__ = (\"order_scope\",)\n\n@contextmanager\ndef order_scope(callback: object) -> Iterator[object]:\n    with _order_scope() as active:\n        yield callback(active)\n",
+            expected_fault_count: 1,
+        },
+        test_types::TopLevelDirectModuleTestCase {
+            description: "runtime root compatibility subclass facade is allowed",
+            repository_path: "src/example/orders.py",
+            relative_parts: &["orders.py"],
+            source: "from example.orders.classes.order_store import OrderStore as _OrderStore\n\n__all__ = (\"OrderStore\",)\n\nclass OrderStore(_OrderStore):\n    \"\"\"Supported public order store.\"\"\"\n",
+            expected_fault_count: 0,
+        },
+        test_types::TopLevelDirectModuleTestCase {
+            description: "runtime root imported type alias facade is allowed",
+            repository_path: "src/example/orders.py",
+            relative_parts: &["orders.py"],
+            source: "from example.orders.types import OrderStore\n\nPublicOrderStore: type[OrderStore] = OrderStore\n\n__all__ = (\"PublicOrderStore\",)\n",
+            expected_fault_count: 0,
+        },
+        test_types::TopLevelDirectModuleTestCase {
+            description: "runtime root overload facade is allowed",
+            repository_path: "src/example/orders.py",
+            relative_parts: &["orders.py"],
+            source: "from typing import overload\nfrom example.orders.main.read_order import read_order as _read_order\n\n__all__ = (\"read_order\",)\n\n@overload\ndef read_order(number: str) -> str: ...\n\ndef read_order(number: object) -> object:\n    return _read_order(number)\n",
+            expected_fault_count: 0,
+        },
+        test_types::TopLevelDirectModuleTestCase {
+            description: "runtime root wrapper without static exports is rejected",
+            repository_path: "src/example/orders.py",
+            relative_parts: &["orders.py"],
+            source: "from example.orders.main.create_order import create_order as _create_order\n\ndef create_order(*, number: str) -> object:\n    return _create_order(number=number)\n",
+            expected_fault_count: 1,
+        },
+        test_types::TopLevelDirectModuleTestCase {
+            description: "runtime root facade with branching implementation is rejected",
+            repository_path: "src/example/orders.py",
+            relative_parts: &["orders.py"],
+            source: "from example.orders.main.create_order import create_order as _create_order\n\n__all__ = (\"create_order\",)\n\ndef create_order(*, number: str | None = None) -> object:\n    if number is None:\n        number = \"unknown\"\n    return _create_order(number=number)\n",
+            expected_fault_count: 1,
+        },
+        test_types::TopLevelDirectModuleTestCase {
+            description: "runtime root facade with an import-time default call is rejected",
+            repository_path: "src/example/orders.py",
+            relative_parts: &["orders.py"],
+            source: "from types import MappingProxyType\nfrom example.orders.main.create_order import create_order as _create_order\n\n__all__ = (\"create_order\",)\n\ndef create_order(meta: object = MappingProxyType({})) -> object:\n    return _create_order(meta)\n",
+            expected_fault_count: 1,
+        },
+        test_types::TopLevelDirectModuleTestCase {
+            description: "runtime root overload with an import-time default call is rejected",
+            repository_path: "src/example/orders.py",
+            relative_parts: &["orders.py"],
+            source: "from typing import overload\nfrom example.orders.main.configure import configure\nfrom example.orders.main.read_order import read_order as _read_order\n\n__all__ = (\"read_order\",)\n\n@overload\ndef read_order(number: str = configure()) -> str: ...\n\ndef read_order(number: object) -> object:\n    return _read_order(number)\n",
+            expected_fault_count: 1,
+        },
+        test_types::TopLevelDirectModuleTestCase {
+            description: "runtime root all annotation with an import-time call is rejected",
+            repository_path: "src/example/orders.py",
+            relative_parts: &["orders.py"],
+            source: "from example.orders.main.configure import configure\nfrom example.orders.models import Order\n\n__all__: configure() = (\"Order\",)\n",
+            expected_fault_count: 1,
+        },
+        test_types::TopLevelDirectModuleTestCase {
+            description: "runtime root wrapper with a shadowing parameter is rejected",
+            repository_path: "src/example/orders.py",
+            relative_parts: &["orders.py"],
+            source: "from example.orders.main.run import callback\n\n__all__ = (\"run\",)\n\ndef run(callback: object) -> object:\n    return callback()\n",
+            expected_fault_count: 1,
+        },
+        test_types::TopLevelDirectModuleTestCase {
+            description: "runtime root wrapper shadowing its imported target is rejected",
+            repository_path: "src/example/orders.py",
+            relative_parts: &["orders.py"],
+            source: "from example.orders.main.run import run\n\n__all__ = (\"run\",)\n\ndef run() -> object:\n    return run()\n",
+            expected_fault_count: 1,
+        },
+        test_types::TopLevelDirectModuleTestCase {
+            description: "runtime root wrappers shadowing each other's imported targets are rejected",
+            repository_path: "src/example/orders.py",
+            relative_parts: &["orders.py"],
+            source: "from example.orders.main.run import first, second\n\n__all__ = (\"first\", \"second\")\n\ndef first() -> object:\n    return second()\n\ndef second() -> object:\n    return first()\n",
+            expected_fault_count: 1,
+        },
+        test_types::TopLevelDirectModuleTestCase {
+            description: "runtime root facade with module state is rejected",
+            repository_path: "src/example/orders.py",
+            relative_parts: &["orders.py"],
+            source: "from example.orders.models import Order\n\n_CACHE: list[Order] = []\n__all__ = (\"Order\",)\n",
+            expected_fault_count: 1,
+        },
+        test_types::TopLevelDirectModuleTestCase {
+            description: "runtime root facade with an unresolved export is rejected",
+            repository_path: "src/example/orders.py",
+            relative_parts: &["orders.py"],
+            source: "from example.orders.models import Order\n\n__all__ = (\"Order\", \"Missing\")\n",
+            expected_fault_count: 1,
+        },
+        test_types::TopLevelDirectModuleTestCase {
+            description: "runtime root facade without an owning-domain import is rejected",
+            repository_path: "src/example/orders.py",
+            relative_parts: &["orders.py"],
+            source: "from pathlib import Path\n\n__all__ = (\"Path\",)\n",
             expected_fault_count: 1,
         },
         test_types::TopLevelDirectModuleTestCase {
             description: "runtime root initializer is allowed",
             repository_path: "src/example/__init__.py",
             relative_parts: &["__init__.py"],
+            source: "value: int = 1\n",
             expected_fault_count: 0,
         },
         test_types::TopLevelDirectModuleTestCase {
             description: "runtime root module entrypoint is allowed",
             repository_path: "src/example/__main__.py",
             relative_parts: &["__main__.py"],
+            source: "value: int = 1\n",
             expected_fault_count: 0,
         },
         test_types::TopLevelDirectModuleTestCase {
             description: "domain model role module is allowed",
             repository_path: "src/example/orders/models.py",
             relative_parts: &["orders", "models.py"],
+            source: "value: int = 1\n",
             expected_fault_count: 0,
         },
         test_types::TopLevelDirectModuleTestCase {
             description: "ad hoc direct domain module is rejected",
             repository_path: "src/example/orders/config.py",
             relative_parts: &["orders", "config.py"],
+            source: "value: int = 1\n",
             expected_fault_count: 1,
         },
         test_types::TopLevelDirectModuleTestCase {
             description: "subdomain model role module is left to nested role policy",
             repository_path: "src/example/orders/fulfillment/models.py",
             relative_parts: &["orders", "fulfillment", "models.py"],
+            source: "value: int = 1\n",
             expected_fault_count: 0,
         },
     ];
-    let program = ProgramHandle::parse_many(
-        vec!["value: int = 1\n".to_owned()],
-        PythonVersion {
-            major: 3,
-            minor: 12,
-        },
-    )
-    .pop()
-    .flatten()
-    .expect("valid Python");
 
     for test_case in test_cases {
+        let program = ProgramHandle::parse_many(
+            vec![test_case.source.to_owned()],
+            PythonVersion {
+                major: 3,
+                minor: 12,
+            },
+        )
+        .pop()
+        .flatten()
+        .expect("valid Python");
         let context = NativeRuleContext {
             scope: "root".to_owned(),
             repository_path: test_case.repository_path.to_owned(),
@@ -227,6 +361,70 @@ fn given_runtime_root_and_domain_modules_when_checking_roles_then_enforces_domai
         assert_eq!(
             faults.len(),
             test_case.expected_fault_count,
+            "{}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_public_facade_when_runtime_code_imports_it_then_reports_inward_dependency() {
+    let test_cases = [test_types::PublicFacadeImportTestCase {
+        description: "runtime import through a public facade is rejected at the import",
+        source: "from example.orders import Order\n",
+        expected_fault_count: 1,
+        expected_path: None,
+        expected_message: "runtime modules must import the facade's owning domain directly",
+    }];
+    let version = PythonVersion {
+        major: 3,
+        minor: 12,
+    };
+    for test_case in test_cases {
+        let program = ProgramHandle::parse_many(vec![test_case.source.to_owned()], version)
+            .pop()
+            .flatten()
+            .expect("valid Python");
+        let context = NativeRuleContext {
+            scope: "root".to_owned(),
+            repository_path: "src/example/billing/main/create_invoice.py".to_owned(),
+            relative_parts: vec![
+                "billing".to_owned(),
+                "main".to_owned(),
+                "create_invoice.py".to_owned(),
+            ],
+            package_name: "example".to_owned(),
+            scope_roots: vec![("root".to_owned(), "src/example".to_owned())],
+            observations: HashMap::from([(
+                "public_facade\0src/example/orders.py\0example".to_owned(),
+                vec!["true".to_owned()],
+            )]),
+            ..NativeRuleContext::default()
+        };
+
+        let faults = evaluate_core_rules(
+            &program,
+            &["FFR310".to_owned()],
+            &context,
+            &NativeProjectPlane::default(),
+        )
+        .expect("public facade direction policy evaluates");
+
+        assert_eq!(
+            faults.len(),
+            test_case.expected_fault_count,
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            faults[0].path.as_deref(),
+            test_case.expected_path,
+            "{}",
+            test_case.description
+        );
+        assert_eq!(
+            faults[0].message.as_deref(),
+            Some(test_case.expected_message),
             "{}",
             test_case.description
         );

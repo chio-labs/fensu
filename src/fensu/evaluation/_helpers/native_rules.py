@@ -481,6 +481,24 @@ def _observe_query_plan(
                 path=path,
             )
             answers[key] = [] if anchor is None else [anchor.relative_to(repo_root).as_posix()]
+        elif kind == NativeProjectQueryKind.PUBLIC_FACADE:
+            analysis: Analysis | None = project.analysis(
+                requester=target.scoped_file.path,
+                path=path,
+            )
+            if analysis is None:
+                answers[key] = [_bool_text(False)]
+            else:
+                from fensu.analysis.main.is_public_facade import is_public_facade_source
+
+                answers[key] = [
+                    _bool_text(
+                        is_public_facade_source(
+                            source=analysis.text.source,
+                            package_name=argument,
+                        )
+                    )
+                ]
     return answers
 
 

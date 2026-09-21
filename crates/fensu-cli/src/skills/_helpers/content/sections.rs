@@ -8,6 +8,7 @@ use crate::skills::_helpers::content::fingerprint::canonical_ascii;
 use crate::skills::models::SkillContext;
 
 const PYPROJECT_SOURCE: &str = "pyproject";
+const CURRENT_PATH: &str = ".";
 const DOMAIN_SHAPE_HEADING: &str = "### Domain Shape";
 const RUNTIME_HEADING: &str = "### Runtime";
 const TESTS_HEADING: &str = "### Tests";
@@ -325,7 +326,7 @@ fn ownership_root_summary(context: &SkillContext) -> Result<String, String> {
                 .roots
                 .iter()
                 .map(|root| {
-                    if root == "." {
+                    if root == CURRENT_PATH {
                         "lib".to_owned()
                     } else {
                         format!("{root}/lib")

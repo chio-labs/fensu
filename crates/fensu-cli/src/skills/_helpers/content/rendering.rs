@@ -14,6 +14,8 @@ use crate::skills::models::SkillContext;
 
 const GENERATED_MARKER: &str = "<!-- generated-by: fensu skills -->";
 const CUSTOM_KIND: &str = "custom";
+const TREE_FENCE_CLOSE: &str = "```";
+const TREE_FENCE_OPEN: &str = "```text";
 const TESTS_HEADING: &str = "### Tests";
 const TEST_TYPES_LABEL: &str = "`_test_types.py`:";
 const TOOLING_HEADING: &str = "### Tooling";
@@ -455,12 +457,12 @@ fn prune_path_specific_examples(mut lines: Vec<String>) -> Result<Vec<String>, S
         .ok_or_else(|| "Repository guidance has no tests section.".to_owned())?;
     let fence_start = lines[tests_start..]
         .iter()
-        .position(|line| line == "```text")
+        .position(|line| line == TREE_FENCE_OPEN)
         .map(|offset| tests_start + offset)
         .ok_or_else(|| "Repository guidance has no test tree.".to_owned())?;
     let fence_end = lines[fence_start + 1..]
         .iter()
-        .position(|line| line == "```")
+        .position(|line| line == TREE_FENCE_CLOSE)
         .map(|offset| fence_start + 1 + offset)
         .ok_or_else(|| "Repository guidance has an unterminated test tree.".to_owned())?;
     let examples_end = lines[fence_end + 1..]

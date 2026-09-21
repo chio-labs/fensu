@@ -103,6 +103,44 @@ fn given_web_analyzer_when_generating_skills_then_native_catalogue_is_rendered()
 }
 
 #[test]
+fn given_ownership_roots_when_generating_skills_then_repository_shape_uses_them() {
+    let repository = tempfile::tempdir().expect("ownership-root skills repository");
+    write(repository.path().join(".git/keep"), b"");
+    write(
+        repository.path().join("fensu.toml"),
+        b"roots = [\"src/pkg\"]\nownership_roots = [\"src/pkg/sources/*\", \"src/pkg/runtime\"]\ntests = []\nselect = [\"FFR306\", \"FFR307\", \"FFR403\", \"FFR310\"]\n[skills]\nname = \"ownership\"\n",
+    );
+    write(
+        repository
+            .path()
+            .join("src/pkg/sources/region_a/orders/main/read_order.py"),
+        b"def read_order() -> None:\n    return None\n",
+    );
+    write(
+        repository
+            .path()
+            .join("src/pkg/runtime/support/main/run_support.py"),
+        b"def run_support() -> None:\n    return None\n",
+    );
+
+    let output = native(repository.path(), &["--target", "agents"]);
+    let guidance = fs::read_to_string(target(
+        repository.path(),
+        ".agents",
+        "fensu-ownership",
+    ))
+    .expect("ownership guidance");
+
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    assert!(guidance.contains(
+        "Ownership roots: [\"src/pkg/runtime\", \"src/pkg/sources/*\"]"
+    ));
+    assert!(guidance.contains("src/pkg/sources/*/\n└── <domain>/"));
+    assert!(guidance.contains("Enforced by FFR310: Runtime modules must import"));
+    assert!(!guidance.contains("from pkg.invoices"));
+}
+
+#[test]
 fn given_python_and_svelte_targets_when_generating_skills_then_one_guidance_surface_is_aggregated() {
     let repository = tempfile::tempdir().expect("mixed skill repository");
     write(repository.path().join(".git/keep"), b"");

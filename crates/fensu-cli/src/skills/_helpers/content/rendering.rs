@@ -14,9 +14,12 @@ use crate::skills::models::SkillContext;
 
 const GENERATED_MARKER: &str = "<!-- generated-by: fensu skills -->";
 const CUSTOM_KIND: &str = "custom";
+const TREE_FENCE_CLOSE: &str = "```";
+const TREE_FENCE_OPEN: &str = "```text";
 const TESTS_HEADING: &str = "### Tests";
 const TEST_TYPES_LABEL: &str = "`_test_types.py`:";
 const TOOLING_HEADING: &str = "### Tooling";
+const ROLE_EXAMPLES_HEADING: &str = "### Role Examples";
 const NORMATIVE_GUIDANCE_FRAGMENTS: &[&str] = &[
     " must ",
     " only ",
@@ -354,6 +357,12 @@ fn repository_lines(context: &SkillContext) -> Result<Vec<String>, String> {
         .and_then(|name| name.to_str())
         .unwrap_or(".");
     let mut profile = profile_lines("repository")?;
+    for code in ["FFR403", "FFR310"] {
+        if !active.contains(code) {
+            let prefix = format!("Enforced by {code}:");
+            profile.retain(|line| !line.starts_with(&prefix));
+        }
+    }
     if !context.config.tooling.is_empty() {
         let test_types_index = profile
             .iter()
@@ -366,6 +375,9 @@ fn repository_lines(context: &SkillContext) -> Result<Vec<String>, String> {
         if active.contains("FFR705") {
             profile.extend(tooling_lines(context)?);
         }
+    }
+    if !context.config.ownership_roots.is_empty() {
+        profile = prune_path_specific_examples(profile)?;
     }
     validate_repository_guidance(&profile, context)?;
     let mut profile = expand_repository_profile(profile, context)?;
@@ -426,6 +438,39 @@ fn repository_lines(context: &SkillContext) -> Result<Vec<String>, String> {
                 )
         })
         .collect())
+}
+
+fn prune_path_specific_examples(mut lines: Vec<String>) -> Result<Vec<String>, String> {
+    let role_start = lines
+        .iter()
+        .position(|line| line == ROLE_EXAMPLES_HEADING)
+        .ok_or_else(|| "Repository guidance has no role examples section.".to_owned())?;
+    let tests_start = lines
+        .iter()
+        .position(|line| line == TESTS_HEADING)
+        .ok_or_else(|| "Repository guidance has no tests section.".to_owned())?;
+    lines.drain(role_start..tests_start);
+
+    let tests_start = lines
+        .iter()
+        .position(|line| line == TESTS_HEADING)
+        .ok_or_else(|| "Repository guidance has no tests section.".to_owned())?;
+    let fence_start = lines[tests_start..]
+        .iter()
+        .position(|line| line == TREE_FENCE_OPEN)
+        .map(|offset| tests_start + offset)
+        .ok_or_else(|| "Repository guidance has no test tree.".to_owned())?;
+    let fence_end = lines[fence_start + 1..]
+        .iter()
+        .position(|line| line == TREE_FENCE_CLOSE)
+        .map(|offset| fence_start + 1 + offset)
+        .ok_or_else(|| "Repository guidance has an unterminated test tree.".to_owned())?;
+    let examples_end = lines[fence_end + 1..]
+        .iter()
+        .position(|line| line == TOOLING_HEADING)
+        .map_or(lines.len(), |offset| fence_end + 1 + offset);
+    lines.drain(fence_end + 2..examples_end);
+    Ok(lines)
 }
 
 fn tooling_lines(context: &SkillContext) -> Result<Vec<String>, String> {

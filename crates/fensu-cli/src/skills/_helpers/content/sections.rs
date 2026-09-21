@@ -8,6 +8,7 @@ use crate::skills::_helpers::content::fingerprint::canonical_ascii;
 use crate::skills::models::SkillContext;
 
 const PYPROJECT_SOURCE: &str = "pyproject";
+const CURRENT_PATH: &str = ".";
 const DOMAIN_SHAPE_HEADING: &str = "### Domain Shape";
 const RUNTIME_HEADING: &str = "### Runtime";
 const TESTS_HEADING: &str = "### Tests";
@@ -36,9 +37,13 @@ fn expand_runtime_trees(
     let start = heading + 2;
     let template = lines[start..end].to_vec();
     let mut expanded: Vec<String> = Vec::new();
-    for root in &context.config.roots {
+    for root in ownership_root_patterns(context) {
         let root = display_project_path(context, root);
-        expanded.extend(template.iter().map(|line| line.replace("__ROOT__", &root)));
+        expanded.extend(
+            template
+                .iter()
+                .map(|line| line.replace("__OWNERSHIP_ROOT__", &root)),
+        );
     }
     lines.splice(start..end, expanded);
     Ok(lines)
@@ -66,18 +71,25 @@ fn expand_test_trees(
     let template = lines[start..end].to_vec();
     let mut expanded: Vec<String> = Vec::new();
     for test in &context.config.tests {
-        for root in &context.config.roots {
+        for root in ownership_root_patterns(context) {
             let test = display_project_path(context, test);
             let root = display_project_path(context, root);
-            expanded.extend(
-                template
-                    .iter()
-                    .map(|line| line.replace("__TEST__", &test).replace("__ROOT__", &root)),
-            );
+            expanded.extend(template.iter().map(|line| {
+                line.replace("__TEST__", &test)
+                    .replace("__OWNERSHIP_ROOT__", &root)
+            }));
         }
     }
     lines.splice(start..end, expanded);
     Ok(lines)
+}
+
+fn ownership_root_patterns(context: &SkillContext) -> &[String] {
+    if context.config.ownership_roots.is_empty() {
+        &context.config.roots
+    } else {
+        &context.config.ownership_roots
+    }
 }
 
 fn expand_tooling_test_lines(mut lines: Vec<String>, context: &SkillContext) -> Vec<String> {
@@ -154,14 +166,7 @@ pub(crate) fn effective_config_lines(context: &SkillContext) -> Result<Vec<Strin
         format!("- Complete loaded catalogue size: {}", context.catalogue.len()), String::new(),
         "### Scopes".to_owned(), String::new(),
         format!("- Product roots: {}", path_list(context, &config.roots)?),
-        format!(
-            "- Ownership roots: `{}`",
-            if config.ownership_roots.is_empty() {
-                config.roots.join(", ")
-            } else {
-                config.ownership_roots.join(", ")
-            }
-        ),
+        format!("- Ownership roots: {}", ownership_root_summary(context)?),
         format!("- Test roots: {}", path_list(context, &config.tests)?),
         format!("- Tooling roots: {}", path_list(context, &config.tooling)?), String::new(),
         format!("- Generated source patterns: {}", sorted_json(&config.generated)?), String::new(),
@@ -307,6 +312,31 @@ pub(crate) fn effective_config_lines(context: &SkillContext) -> Result<Vec<Strin
     }
     lines.push(String::new());
     Ok(lines)
+}
+
+fn ownership_root_summary(context: &SkillContext) -> Result<String, String> {
+    let config = &context.config;
+    if !config.ownership_roots.is_empty() {
+        return path_list(context, &config.ownership_roots);
+    }
+    match config.analyzer {
+        crate::analyzer::AnalyzerId::Python => path_list(context, &config.roots),
+        crate::analyzer::AnalyzerId::TypeScript | crate::analyzer::AnalyzerId::Svelte => {
+            let roots = config
+                .roots
+                .iter()
+                .map(|root| {
+                    if root == CURRENT_PATH {
+                        "lib".to_owned()
+                    } else {
+                        format!("{root}/lib")
+                    }
+                })
+                .collect::<Vec<_>>();
+            path_list(context, &roots)
+        }
+        crate::analyzer::AnalyzerId::Rust => Ok("Cargo-inferred crate source roots".to_owned()),
+    }
 }
 
 fn threshold_match_basis(context: &SkillContext) -> String {

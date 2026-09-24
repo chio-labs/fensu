@@ -482,3 +482,13 @@ class RuleOptionsValidationOrderTestCase:
     expected_error_type: type[Exception]
     expected_error_fragment: str
     expected_marker_exists: bool
+
+
+@dataclass(frozen=True)
+class DupesSectionTestCase:
+    """A raw configuration carrying a repository-level [dupes] section."""
+
+    description: str
+    raw: Mapping[str, object]
+    target: str | None
+    expected_roots: tuple[str, ...]

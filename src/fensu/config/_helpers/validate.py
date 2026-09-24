@@ -17,6 +17,7 @@ from fensu.config.constants import (
     CONTRACT_BEHAVIORS,
     DEFAULT_TARGET_ROOT,
     DOUBLE_PATH_SEPARATOR,
+    DUPES_CONFIG_KEY,
     EVALUATION_CONFIG_KEYS,
     EVALUATION_INCLUDE_CONFIG_KEY,
     INVALID_UI_KIT_PATH_PARTS,
@@ -137,8 +138,15 @@ def select_config_target(
     if TARGETS_CONFIG_KEY not in raw:
         if target is not None:
             raise ConfigValidationError(f"Unknown target name: {target}.")
-        return raw, None, PYTHON_ANALYZER, DEFAULT_TARGET_ROOT
-    mixed_keys: set[str] = set(raw) - {TARGETS_CONFIG_KEY, REPOSITORY_RULES_CONFIG_KEY}
+        legacy: dict[str, object] = {
+            key: value for key, value in raw.items() if key != DUPES_CONFIG_KEY
+        }
+        return legacy, None, PYTHON_ANALYZER, DEFAULT_TARGET_ROOT
+    mixed_keys: set[str] = set(raw) - {
+        TARGETS_CONFIG_KEY,
+        REPOSITORY_RULES_CONFIG_KEY,
+        DUPES_CONFIG_KEY,
+    }
     if mixed_keys:
         names: str = ", ".join(sorted(mixed_keys))
         raise ConfigValidationError(

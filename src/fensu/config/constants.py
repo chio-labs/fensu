@@ -65,6 +65,7 @@ DEFAULT_TARGET_ROOT: str = "."
 TARGET_CONFIG_KEYS: frozenset[str] = frozenset({"analyzer", "root"})
 TARGETS_CONFIG_KEY: str = "targets"
 REPOSITORY_RULES_CONFIG_KEY: str = "repository_rules"
+DUPES_CONFIG_KEY: str = "dupes"
 REPOSITORY_RULE_CONFIG_KEYS: frozenset[str] = frozenset(
     {
         "cache",

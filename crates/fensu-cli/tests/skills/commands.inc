@@ -141,6 +141,34 @@ fn given_ownership_roots_when_generating_skills_then_repository_shape_uses_them(
 }
 
 #[test]
+fn given_generated_skill_when_reading_commands_then_duplicated_code_guidance_is_advisory() {
+    let repository = tempfile::tempdir().expect("dupes guidance repository");
+    write(repository.path().join(".git/keep"), b"");
+    write(
+        repository.path().join("fensu.toml"),
+        b"roots = [\"src/pkg\"]\ntests = []\nselect = [\"FFS010\"]\n[skills]\nname = \"dupes\"\n",
+    );
+    write(repository.path().join("src/pkg/__init__.py"), b"");
+
+    let output = native(repository.path(), &["--target", "agents"]);
+    let guidance = fs::read_to_string(target(repository.path(), ".agents", "fensu-dupes"))
+        .expect("dupes guidance");
+    let commands = guidance
+        .split_once("## Commands\n")
+        .and_then(|(_, rest)| rest.split_once("\n## "))
+        .map(|(section, _)| section)
+        .expect("commands section");
+
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    assert!(commands.contains("- Run `fensu dupes --since origin/main` before review; it is advisory and never needs to reach zero."));
+    assert!(commands.contains("### Duplicated Code"));
+    assert!(commands.contains("unlike `fensu check` its findings never need to reach zero"));
+    assert!(commands.contains("Members marked `[forced]`"));
+    assert!(commands.contains("Add `--diff`"));
+    assert!(commands.contains("Record intentional mirrors in the `[dupes]` allowlist with a reason"));
+}
+
+#[test]
 fn given_python_and_svelte_targets_when_generating_skills_then_one_guidance_surface_is_aggregated() {
     let repository = tempfile::tempdir().expect("mixed skill repository");
     write(repository.path().join(".git/keep"), b"");
@@ -167,6 +195,8 @@ fn given_python_and_svelte_targets_when_generating_skills_then_one_guidance_surf
     assert!(guidance.contains("Blocking rule codes: [\"FFS010\"]"));
     assert!(guidance.contains("Blocking rule codes: [\"FPSKV105\"]"));
     assert_eq!(guidance.matches("Target policy fingerprint").count(), 2);
+    assert_eq!(guidance.matches("### Duplicated Code").count(), 1);
+    assert!(guidance.contains("- Run `fensu dupes --since origin/main` before review"));
     assert!(guidance.contains("#### Effective Project Configuration"));
     assert!(!guidance.contains("\n### Effective Project Configuration"));
     assert!(guidance.contains("#### Configured Threshold Overrides"));

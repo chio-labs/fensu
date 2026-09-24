@@ -14,6 +14,19 @@ fensu dupes --since origin/main --diff   # plus where the first two copies diver
 fensu dupes --lang rust --top 10 --json
 ```
 
+## Acting on a duplicate
+
+A genuine duplicate is often the visible symptom of wider drift: a missing shared owner, two
+subsystems implementing one concept, logic on the wrong side of a boundary, or copies that have
+already diverged. Before consolidating, work out why the copy exists, use `--diff` to see whether a
+fix reached only one copy, and look at neighbouring clusters in the same modules for a larger
+pattern. Record that diagnosis before removing the copies: consolidation erases the only
+deterministic signal of the underlying drift, which is much harder to find once the duplicate is
+gone. Fix the root cause when it is in scope rather than only merging the visible copies.
+
+Before adding helpers or logic to an area, `fensu dupes --path '<area glob>'` shows whether an owner
+already exists.
+
 ## What is analysed
 
 Sources come from every configured target, discovered exactly as `fensu check` discovers them:

@@ -8,6 +8,7 @@ mod catalogue;
 mod check;
 mod configuration;
 mod constants;
+mod dupes;
 mod hosting;
 mod init;
 mod mapping;

@@ -158,3 +158,20 @@ pub(crate) fn load_optional(
         Err(error) => Err(error),
     }
 }
+
+pub(crate) fn load_section(
+    start: &Path,
+    key: &str,
+) -> Result<(PathBuf, Option<toml::Value>), String> {
+    let (path, pyproject) = discovery::find(start)?;
+    let raw =
+        fs::read(&path).map_err(|error| format!("Could not read {}: {error}", path.display()))?;
+    let document = toml::from_slice::<toml::Value>(&raw)
+        .map_err(|error| format!("Could not parse {}: {error}", path.display()))?;
+    let value = if pyproject {
+        document.get("tool").and_then(|value| value.get("fensu"))
+    } else {
+        Some(&document)
+    };
+    Ok((path, value.and_then(|table| table.get(key)).cloned()))
+}

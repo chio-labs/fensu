@@ -224,3 +224,14 @@ class CustomRuleOptionCacheCliTestCase:
     expected_cold_stats: str
     expected_warm_stats: str
     expected_override_stats: str
+
+
+@dataclass(frozen=True)
+class InstalledDupesCliTestCase:
+    """A seeded repository, dupes arguments, and expected advisory output fragments."""
+
+    description: str
+    files: tuple[CliProjectFile, ...]
+    argv: tuple[str, ...]
+    expected_exit_code: int
+    expected_stdout_fragments: tuple[str, ...]

@@ -1,4 +1,5 @@
 pub(super) mod _check;
+pub(super) mod _dupes;
 pub(super) mod _help;
 pub(super) mod _init;
 pub(super) mod _map;

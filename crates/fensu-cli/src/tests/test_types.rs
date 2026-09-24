@@ -187,3 +187,34 @@ pub(crate) struct WebRuleApplicabilityTestCase {
     pub(crate) expected_missing_pack_error: &'static str,
     pub(crate) expected_generic_code: &'static str,
 }
+
+pub(crate) struct SequenceRatioTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) left: &'static str,
+    pub(crate) right: &'static str,
+    pub(crate) expected_ratio: f64,
+    pub(crate) expected_blocks: &'static [(usize, usize, usize)],
+}
+
+pub(crate) struct FingerprintTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) tokens: &'static [&'static str],
+    pub(crate) expected_fingerprints: &'static [i64],
+}
+
+/// A repository path with its expected added ranges and deletion points.
+pub(crate) type ExpectedFileChanges = (&'static str, &'static [(usize, usize)], &'static [usize]);
+
+pub(crate) struct UnifiedDiffTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) diff: &'static str,
+    pub(crate) expected_changes: &'static [ExpectedFileChanges],
+}
+
+pub(crate) struct UnitExtractionTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) extract: fn(&str, &str) -> Vec<crate::dupes::models::ExtractedUnit>,
+    pub(crate) path: &'static str,
+    pub(crate) source: &'static str,
+    pub(crate) expected_units: &'static [(&'static str, usize, usize, &'static str)],
+}

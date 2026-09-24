@@ -215,7 +215,7 @@ fn configured_paths(
     Ok(configured)
 }
 
-fn discover(
+pub(crate) fn discover(
     root: &Path,
     project_root: &Path,
     config: &Config,
@@ -633,7 +633,10 @@ fn assign_colocated_test_owners(sources: &mut [ScopedSource], config: &Config) {
     }
 }
 
-fn select_sources(sources: Vec<ScopedSource>, config: &Config) -> (Vec<ScopedSource>, usize) {
+pub(crate) fn select_sources(
+    sources: Vec<ScopedSource>,
+    config: &Config,
+) -> (Vec<ScopedSource>, usize) {
     if config.analyzer != crate::analyzer::AnalyzerId::Python {
         let mut excluded = 0;
         let mut retained = Vec::with_capacity(sources.len());

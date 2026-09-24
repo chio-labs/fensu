@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.0](https://github.com/chio-labs/fensu/compare/v0.22.1...v0.23.0) (2026-09-24)
+
+
+### Features
+
+* **dupes:** add advisory fensu dupes command ([#99](https://github.com/chio-labs/fensu/issues/99)) ([578a497](https://github.com/chio-labs/fensu/commit/578a4975527b84966cdad64c7406fd34f93b861c))
+
 ## [0.22.1](https://github.com/chio-labs/fensu/compare/v0.22.0...v0.22.1) (2026-09-21)
 
 

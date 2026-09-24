@@ -1,6 +1,7 @@
 use crate::helpers::{
-    cluster_members, git, json_report, ranked_files, run_dupes, summary, text, write, write_files,
-    PYTHON_CONFIG, PYTHON_EXTRA, PYTHON_UNRELATED,
+    audited_summary, cluster_members, git, json_report, ranked_files, remove_files, run_dupes,
+    spaced_summaries, summary, text, write, write_files, PYTHON_CONFIG, PYTHON_EXTRA,
+    PYTHON_UNRELATED,
 };
 use crate::test_types::{ChangedSinceTestCase, CommandOutputTestCase, JsonShapeTestCase};
 
@@ -236,12 +237,16 @@ fn given_git_changes_when_filtering_since_revision_then_only_touched_clusters_re
         ChangedSinceTestCase {
             description: "no changes report no clusters",
             committed: ranked_files(),
+            removed: &[],
+            staged: vec![],
             worktree: vec![],
             expected_clusters: vec![],
         },
         ChangedSinceTestCase {
             description: "an uncommitted edit inside one member marks that cluster",
             committed: ranked_files(),
+            removed: &[],
+            staged: vec![],
             worktree: vec![(
                 "src/shop/warehouse/restock.py",
                 PYTHON_UNRELATED.replace(
@@ -257,12 +262,64 @@ fn given_git_changes_when_filtering_since_revision_then_only_touched_clusters_re
         ChangedSinceTestCase {
             description: "an untracked copy marks the cluster it joins",
             committed: ranked_files(),
+            removed: &[],
+            staged: vec![],
             worktree: vec![("src/shop/exports/summary.py", summary(""))],
             expected_clusters: vec![vec![
                 "src/shop/billing/summary.py",
                 "src/shop/exports/summary.py [changed]",
                 "src/shop/orders/summary.py",
                 "src/shop/reports/summary.py",
+            ]],
+        },
+        ChangedSinceTestCase {
+            description: "a tracked edit in a path with a space marks that member",
+            committed: spaced_summaries(),
+            removed: &[],
+            staged: vec![],
+            worktree: vec![("src/shop/order copies/summary.py", audited_summary())],
+            expected_clusters: vec![vec![
+                "src/shop/order copies/summary.py [changed]",
+                "src/shop/orders/summary.py",
+            ]],
+        },
+        ChangedSinceTestCase {
+            description: "a renamed and edited copy between spaced paths is marked",
+            committed: vec![
+                ("src/shop/orders/summary.py", summary("")),
+                ("src/shop/old name/summary.py", summary("")),
+            ],
+            removed: &["src/shop/old name/summary.py"],
+            staged: vec![("src/shop/new name/summary.py", audited_summary())],
+            worktree: vec![],
+            expected_clusters: vec![vec![
+                "src/shop/new name/summary.py [changed]",
+                "src/shop/orders/summary.py",
+            ]],
+        },
+        ChangedSinceTestCase {
+            description: "a tracked edit in a non-ASCII path marks that member",
+            committed: vec![
+                ("src/shop/orders/summary.py", summary("")),
+                ("src/shop/bücher/summary.py", summary("")),
+            ],
+            removed: &[],
+            staged: vec![],
+            worktree: vec![("src/shop/bücher/summary.py", audited_summary())],
+            expected_clusters: vec![vec![
+                "src/shop/bücher/summary.py [changed]",
+                "src/shop/orders/summary.py",
+            ]],
+        },
+        ChangedSinceTestCase {
+            description: "an untracked copy in a path with a space is marked",
+            committed: vec![("src/shop/orders/summary.py", summary(""))],
+            removed: &[],
+            staged: vec![],
+            worktree: vec![("src/shop/new copy/summary.py", summary(""))],
+            expected_clusters: vec![vec![
+                "src/shop/new copy/summary.py [changed]",
+                "src/shop/orders/summary.py",
             ]],
         },
     ];
@@ -276,6 +333,9 @@ fn given_git_changes_when_filtering_since_revision_then_only_touched_clusters_re
             repository.path(),
             &["commit", "--quiet", "-m", "seed orders"],
         );
+        remove_files(repository.path(), test_case.removed);
+        write_files(repository.path(), &test_case.staged);
+        git(repository.path(), &["add", "--all"]);
         write_files(repository.path(), &test_case.worktree);
 
         let output = run_dupes(repository.path(), &["--json", "--since", "HEAD"]);

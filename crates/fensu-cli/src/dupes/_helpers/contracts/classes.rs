@@ -213,9 +213,7 @@ impl ClassResolver {
                         if bound.as_str() == bound_name {
                             let module_name = import.module.as_ref().map(|value| value.as_str());
                             return import.level > 0
-                                || self
-                                    .module_path(importer, module_name, import.level)
-                                    .is_some();
+                                || self.module_in_repository(importer, module_name, import.level);
                         }
                     }
                 }
@@ -226,9 +224,11 @@ impl ClassResolver {
                             |value| value.as_str(),
                         );
                         if bound == bound_name {
-                            return self
-                                .module_path(importer, Some(alias.name.as_str()), 0)
-                                .is_some();
+                            return self.module_in_repository(
+                                importer,
+                                Some(alias.name.as_str()),
+                                0,
+                            );
                         }
                     }
                 }
@@ -239,21 +239,7 @@ impl ClassResolver {
     }
 
     fn module_path(&self, importer: &str, module: Option<&str>, level: u32) -> Option<String> {
-        let module = module.filter(|value| !value.is_empty())?;
-        let parts: Vec<&str> = module.split('.').collect();
-        let bases: Vec<PathBuf> = if level > 0 {
-            let mut anchor = Path::new(importer).parent()?.to_path_buf();
-            for _ in 1..level {
-                anchor = anchor.parent()?.to_path_buf();
-            }
-            vec![join_parts(anchor, &parts)]
-        } else {
-            self.import_roots
-                .iter()
-                .map(|root| join_parts(PathBuf::from(root), &parts))
-                .collect()
-        };
-        for base in bases {
+        for base in module_bases(&self.import_roots, importer, module, level) {
             let file = base.with_file_name(format!(
                 "{}{PYTHON_SUFFIX}",
                 base.file_name()?.to_string_lossy()
@@ -266,6 +252,41 @@ impl ClassResolver {
         }
         None
     }
+
+    /// Treat a module file, a package, or a namespace-package directory as repository-owned.
+    fn module_in_repository(&self, importer: &str, module: Option<&str>, level: u32) -> bool {
+        self.module_path(importer, module, level).is_some()
+            || module_bases(&self.import_roots, importer, module, level)
+                .iter()
+                .any(|base| self.root.join(base).is_dir())
+    }
+}
+
+/// Candidate module locations: relative to the importer, or under every import root.
+fn module_bases(
+    import_roots: &[String],
+    importer: &str,
+    module: Option<&str>,
+    level: u32,
+) -> Vec<PathBuf> {
+    let Some(module) = module.filter(|value| !value.is_empty()) else {
+        return Vec::new();
+    };
+    let parts: Vec<&str> = module.split('.').collect();
+    if level == 0 {
+        return import_roots
+            .iter()
+            .map(|root| join_parts(PathBuf::from(root), &parts))
+            .collect();
+    }
+    let mut anchor = Path::new(importer).parent().map(Path::to_path_buf);
+    for _ in 1..level {
+        anchor = anchor.and_then(|path| path.parent().map(Path::to_path_buf));
+    }
+    anchor
+        .map(|anchor| join_parts(anchor, &parts))
+        .into_iter()
+        .collect()
 }
 
 fn join_parts(base: PathBuf, parts: &[&str]) -> PathBuf {

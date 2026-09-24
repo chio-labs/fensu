@@ -111,6 +111,15 @@ fn given_zero_context_git_diff_when_parsing_then_added_ranges_and_deletions_are_
         description: "additions, single-line hunks, deletions, and removed files",
         diff: "diff --git a/src/orders.py b/src/orders.py\n--- a/src/orders.py\n+++ b/src/orders.py\n@@ -3,0 +4,2 @@ def total():\n+    a\n+    b\n@@ -9 +11 @@\n-x\n+y\n@@ -20,2 +21,0 @@\n-gone\n-gone\ndiff --git a/src/old.py b/src/old.py\n--- a/src/old.py\n+++ /dev/null\n@@ -1,2 +0,0 @@\n-a\n-b\n",
         expected_changes: &[("src/orders.py", &[(4, 5), (11, 11)], &[21])],
+    },
+    UnifiedDiffTestCase {
+        description: "tab-terminated spaced names and C-quoted names decode to repository paths",
+        diff: "--- a/src/shop/a copy.py\t\n+++ b/src/shop/a copy.py\t\n@@ -2 +2 @@\n-x\n+y\n--- \"a/src/shop/b\\303\\274cher \\\"q\\\".py\"\n+++ \"b/src/shop/b\\303\\274cher \\\"q\\\".py\"\n@@ -0,0 +1,3 @@\n+a\n+b\n+c\n+++ \"b/src/shop/tab\\there.py\"\n@@ -4,0 +5 @@\n+d\n",
+        expected_changes: &[
+            ("src/shop/a copy.py", &[(2, 2)], &[]),
+            ("src/shop/bücher \"q\".py", &[(1, 3)], &[]),
+            ("src/shop/tab\there.py", &[(5, 5)], &[]),
+        ],
     }];
     for test_case in &test_cases {
         let parsed = parse_unified_diff(test_case.diff);

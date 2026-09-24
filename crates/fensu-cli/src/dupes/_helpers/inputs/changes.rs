@@ -11,6 +11,10 @@ const TARGET_PATH_PREFIX: &str = "b/";
 const NULL_PATH: &str = "/dev/null";
 const HUNK_PREFIX: &str = "@@ -";
 const SINGLE_LINE_COUNT: &str = "1";
+const QUOTE: char = '"';
+const TAB: char = '\t';
+const OCTAL_RADIX: u32 = 8;
+const OCTAL_WIDTH: usize = 3;
 
 /// Map repository paths to the worktree lines changed since `revision`.
 pub(crate) fn collect_changes_since(
@@ -57,12 +61,7 @@ pub(crate) fn parse_unified_diff(diff: &str) -> HashMap<String, FileChanges> {
     let mut current: Option<String> = None;
     for line in diff.lines() {
         if let Some(target) = line.strip_prefix(TARGET_PREFIX) {
-            current = (target != NULL_PATH).then(|| {
-                target
-                    .strip_prefix(TARGET_PATH_PREFIX)
-                    .unwrap_or(target)
-                    .to_owned()
-            });
+            current = target_path(target);
             continue;
         }
         let (Some(path), Some(hunk)) = (&current, line.strip_prefix(HUNK_PREFIX)) else {
@@ -95,6 +94,66 @@ pub(crate) fn unit_changed(unit: &CloneUnit, changes: Option<&FileChanges>) -> b
             .deletion_points
             .iter()
             .any(|point| unit.start_line <= *point && *point < unit.end_line)
+}
+
+/// Decode git's `+++` name: `/dev/null`, a C-quoted path, or a tab-terminated plain path.
+fn target_path(target: &str) -> Option<String> {
+    let decoded = match target.strip_prefix(QUOTE) {
+        Some(quoted) => unquote_c_style(quoted.as_bytes())?,
+        None => target.strip_suffix(TAB).unwrap_or(target).to_owned(),
+    };
+    if decoded == NULL_PATH {
+        return None;
+    }
+    Some(
+        decoded
+            .strip_prefix(TARGET_PATH_PREFIX)
+            .map_or_else(|| decoded.clone(), str::to_owned),
+    )
+}
+
+/// Undo git's C-style path quoting, including octal-escaped UTF-8 bytes.
+fn unquote_c_style(quoted: &[u8]) -> Option<String> {
+    let mut decoded: Vec<u8> = Vec::with_capacity(quoted.len());
+    let mut index = 0;
+    while let Some(&byte) = quoted.get(index) {
+        match byte {
+            b'"' => return Some(String::from_utf8_lossy(&decoded).into_owned()),
+            b'\\' => {
+                let (value, width) = unescape(quoted.get(index + 1..)?)?;
+                decoded.push(value);
+                index += 1 + width;
+            }
+            other => {
+                decoded.push(other);
+                index += 1;
+            }
+        }
+    }
+    None
+}
+
+/// Decode one escape body, returning the byte and how many input bytes it used.
+fn unescape(escape: &[u8]) -> Option<(u8, usize)> {
+    let first = *escape.first()?;
+    let simple = match first {
+        b'a' => 0x07,
+        b'b' => 0x08,
+        b'f' => 0x0c,
+        b'n' => b'\n',
+        b'r' => b'\r',
+        b't' => b'\t',
+        b'v' => 0x0b,
+        b'0'..=b'7' => {
+            let digits = std::str::from_utf8(escape.get(..OCTAL_WIDTH)?).unwrap_or_default();
+            return match u8::from_str_radix(digits, OCTAL_RADIX) {
+                Ok(value) => Some((value, OCTAL_WIDTH)),
+                Err(_) => None,
+            };
+        }
+        other => other,
+    };
+    Some((simple, 1))
 }
 
 fn added_range(hunk: &str) -> Option<(usize, usize)> {

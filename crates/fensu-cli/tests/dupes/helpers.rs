@@ -192,6 +192,8 @@ pub(crate) const CONTRACT: &str = "from abc import ABC, abstractmethod\n\n\nclas
 pub(crate) const BASE: &str = "from shop.contract import Exporter\n\n\nclass BaseExporter(Exporter):\n    def describe(self):\n        return \"exporter\"\n";
 pub(crate) const GENERIC_BASE: &str = "from typing import Generic, TypeVar\n\nfrom shop.contract import Exporter\n\nT = TypeVar(\"T\")\n\n\nclass BaseExporter(Exporter, Generic[T]):\n    def describe(self):\n        return \"exporter\"\n";
 pub(crate) const EXEMPTION: &str = "[[dupes.contract_exemptions]]\ncontract = \"src/shop/contract.py:Exporter\"\nforbidden_owners = [\"src/shop/base.py:BaseExporter\"]\npaths = [\"src/shop/exporters/*\"]\nreason = \"Every exporter must define the export contract itself.\"\n";
+pub(crate) const MIXIN: &str =
+    "class Mixin:\n    def export_orders(self, orders, threshold):\n        return None\n";
 pub(crate) const CSV_EXPORTER: &str = "src/shop/exporters/csv.py";
 pub(crate) const JSON_EXPORTER: &str = "src/shop/exporters/json.py";
 
@@ -272,6 +274,40 @@ pub(crate) fn summary(extra: &str) -> String {
     seeded(PYTHON_TEMPLATE, "summarize_orders", extra, PYTHON_CALLS)
 }
 
+/// A committed copy pair whose second member lives under a path containing a space.
+pub(crate) fn spaced_summaries() -> Vec<(&'static str, String)> {
+    vec![
+        ("src/shop/orders/summary.py", summary("")),
+        ("src/shop/order copies/summary.py", summary("")),
+    ]
+}
+
+/// The seeded summary with one comment line added inside the function.
+pub(crate) fn audited_summary() -> String {
+    summary("").replace("    total = 0\n", "    # audited\n    total = 0\n")
+}
+
+/// A module-qualified mixin base alongside the contract, for namespace-package cases.
+pub(crate) fn mixin_exporters(
+    import: &str,
+    mixin_path: &'static str,
+) -> Vec<(&'static str, String)> {
+    let prefix = format!("{import}from shop.contract import Exporter\n");
+    vec![
+        ("src/shop/contract.py", CONTRACT.to_owned()),
+        ("src/shop/base.py", BASE.to_owned()),
+        (mixin_path, MIXIN.to_owned()),
+        (
+            CSV_EXPORTER,
+            exporter(&prefix, "CsvExporter", "mixins.Mixin, Exporter"),
+        ),
+        (
+            JSON_EXPORTER,
+            exporter(&prefix, "JsonExporter", "mixins.Mixin, Exporter"),
+        ),
+    ]
+}
+
 pub(crate) fn ranked_files() -> Vec<(&'static str, String)> {
     vec![
         ("src/shop/orders/summary.py", summary("")),
@@ -304,6 +340,12 @@ pub(crate) fn write(path: impl AsRef<Path>, contents: &str) {
 pub(crate) fn write_files(root: &Path, files: &[(&str, String)]) {
     for (path, contents) in files {
         write(root.join(path), contents);
+    }
+}
+
+pub(crate) fn remove_files(root: &Path, paths: &[&str]) {
+    for path in paths {
+        fs::remove_file(root.join(path)).expect("fixture removal");
     }
 }
 

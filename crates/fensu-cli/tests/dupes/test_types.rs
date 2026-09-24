@@ -29,6 +29,8 @@ pub(crate) struct ClusterTestCase {
 pub(crate) struct ChangedSinceTestCase {
     pub(crate) description: &'static str,
     pub(crate) committed: Vec<(&'static str, String)>,
+    pub(crate) removed: &'static [&'static str],
+    pub(crate) staged: Vec<(&'static str, String)>,
     pub(crate) worktree: Vec<(&'static str, String)>,
     pub(crate) expected_clusters: Vec<Vec<&'static str>>,
 }

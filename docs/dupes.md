@@ -124,7 +124,8 @@ must stay. A contract exemption marks those methods `[forced]`:
   would otherwise inherit that method from the contract, a `forbidden_owners` class, or nowhere.
 - If any class in the method resolution order cannot be resolved inside the repository, the method
   is not forced. This covers classes imported through a package re-export, module-qualified bases
-  such as `base.BaseExporter`, and bases qualified through a same-file class. Subscripted bases such
+  such as `base.BaseExporter` (including modules of namespace packages without `__init__.py`), and
+  bases qualified through a same-file class. Subscripted bases such
   as `BaseExporter[int]` resolve normally, and external or standard-library bases such as `ABC`,
   `Generic[T]`, or `typing` classes never block the exemption.
 

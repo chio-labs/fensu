@@ -1,7 +1,7 @@
 use crate::helpers::{
     cluster_members, direct, exemption_config, exporter, exporter_repository, function_body,
-    json_report, method, run_dupes, text, write, write_files, BASE, CSV_EXPORTER, GENERIC_BASE,
-    JSON_EXPORTER,
+    json_report, method, mixin_exporters, run_dupes, text, write, write_files, BASE, CSV_EXPORTER,
+    GENERIC_BASE, JSON_EXPORTER,
 };
 use crate::test_types::ClusterTestCase;
 
@@ -96,6 +96,46 @@ fn given_contract_exemption_when_reporting_then_forced_overrides_follow_resolved
             ),
             arguments: &["--json"],
             expected_clusters: vec![vec![CSV_EXPORTER, "src/shop/exporters/json.py [forced]"]],
+            expected_allowlisted_pairs: 0,
+            expected_contract_exempt_members: 0,
+        },
+        ClusterTestCase {
+            description: "a module-qualified base from a namespace package leaves ancestry unresolved",
+            config: exemption_config(),
+            files: mixin_exporters("from shop import mixins\n", "src/shop/mixins.py"),
+            arguments: &["--json"],
+            expected_clusters: vec![vec![CSV_EXPORTER, JSON_EXPORTER]],
+            expected_allowlisted_pairs: 0,
+            expected_contract_exempt_members: 0,
+        },
+        ClusterTestCase {
+            description: "a module-qualified base from a regular package leaves ancestry unresolved",
+            config: exemption_config(),
+            files: [
+                mixin_exporters("from shop import mixins\n", "src/shop/mixins.py"),
+                vec![("src/shop/__init__.py", String::new())],
+            ]
+            .concat(),
+            arguments: &["--json"],
+            expected_clusters: vec![vec![CSV_EXPORTER, JSON_EXPORTER]],
+            expected_allowlisted_pairs: 0,
+            expected_contract_exempt_members: 0,
+        },
+        ClusterTestCase {
+            description: "a relative namespace-package module base leaves ancestry unresolved",
+            config: exemption_config(),
+            files: mixin_exporters("from ..support import mixins\n", "src/shop/support/mixins.py"),
+            arguments: &["--json"],
+            expected_clusters: vec![vec![CSV_EXPORTER, JSON_EXPORTER]],
+            expected_allowlisted_pairs: 0,
+            expected_contract_exempt_members: 0,
+        },
+        ClusterTestCase {
+            description: "an absolute namespace-package module base below a relative-free import leaves ancestry unresolved",
+            config: exemption_config(),
+            files: mixin_exporters("import shop.support.mixins as mixins\n", "src/shop/support/mixins.py"),
+            arguments: &["--json"],
+            expected_clusters: vec![vec![CSV_EXPORTER, JSON_EXPORTER]],
             expected_allowlisted_pairs: 0,
             expected_contract_exempt_members: 0,
         },

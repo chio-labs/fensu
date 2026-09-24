@@ -22,6 +22,7 @@ from tests.unit.src.fensu.config._test_types import (
     AnalyzerCapabilityTestCase,
     AnalyzerIdentityTestCase,
     CanonicalTargetRootTestCase,
+    DupesSectionTestCase,
     EvaluationFingerprintTestCase,
     InvalidTargetConfigTestCase,
     OwnershipRootsConfigTestCase,
@@ -71,6 +72,12 @@ max_api_exports = 3
 include = ["src/**/*.{ts,js,svelte}", "tests/**/*.ts", "tooling/**/*.ts"]
 exclude = []
 """
+
+
+_DUPES_SECTION: dict[str, object] = {
+    "exclude": ["scripts/**"],
+    "allowlist": [{"paths": ["src/orders/*"], "reason": "Mirrored order exporters."}],
+}
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="symlink creation requires Windows privileges")
@@ -910,3 +917,33 @@ def test_given_known_rust_analyzer_when_resolving_backend_then_is_publicly_avail
     assert capability.available is test_case.expected_available
     assert capability.cache_contract == test_case.expected_cache_contract
     assert require_analyzer_backend(test_case.analyzer) == capability
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        DupesSectionTestCase(
+            description="legacy flat configuration",
+            raw={"roots": ["src/orders"], "dupes": _DUPES_SECTION},
+            target=None,
+            expected_roots=("src/orders",),
+        ),
+        DupesSectionTestCase(
+            description="explicit named targets",
+            raw={
+                "targets": {"app": {"analyzer": "python", "roots": ["src/customers"]}},
+                "dupes": _DUPES_SECTION,
+            },
+            target="app",
+            expected_roots=("src/customers",),
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_dupes_section_when_selecting_target_then_it_is_not_target_configuration(
+    test_case: DupesSectionTestCase,
+) -> None:
+    selected, _, _, _ = select_config_target(raw=test_case.raw, target=test_case.target)
+
+    assert "dupes" not in selected
+    assert tuple(selected["roots"]) == test_case.expected_roots  # ty: ignore[invalid-argument-type]

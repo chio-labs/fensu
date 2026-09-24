@@ -93,6 +93,7 @@ fn generate_aggregate(context: &SkillContext) -> Result<String, String> {
     {
         lines.push("- Run `fensu map <SYMBOL>` for Python call-flow navigation.".to_owned());
     }
+    lines.extend(duplicated_code_lines()?);
     if let Some(repository) = &context.repository_rules {
         lines.extend([
             "## Repository Rules".to_owned(),
@@ -245,6 +246,10 @@ fn generate_single(context: &SkillContext) -> Result<String, String> {
             lines.len() - 2,
             "- Run `fensu map <SYMBOL>` for proven callees, or add `--direction upstream` for proven callers.".to_owned(),
         );
+    }
+    lines.pop();
+    lines.extend(duplicated_code_lines()?);
+    if python {
         lines.extend(profile_lines("navigation")?);
         lines.extend(profile_lines("work_practices")?);
         lines.extend(repository_lines(context)?);
@@ -303,6 +308,16 @@ fn profile_lines(name: &str) -> Result<Vec<String>, String> {
                 .ok_or_else(|| format!("Compiled skills guidance {name} contains a non-string."))
         })
         .collect()
+}
+
+/// Advisory duplicated-code guidance, kept inside the Commands section.
+fn duplicated_code_lines() -> Result<Vec<String>, String> {
+    let mut lines = vec![
+        "- Run `fensu dupes --since origin/main` before review; it is advisory and never needs to reach zero.".to_owned(),
+        String::new(),
+    ];
+    lines.extend(profile_lines("duplicated_code")?);
+    Ok(lines)
 }
 
 fn rule_context_lines() -> Result<Vec<String>, String> {

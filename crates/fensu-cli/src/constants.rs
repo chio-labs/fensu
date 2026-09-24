@@ -9,6 +9,7 @@ pub(crate) const OPTION_TARGET: &str = "--target";
 pub(crate) const CONFIG_TARGETS_KEY: &str = "targets";
 pub(crate) const OWNERSHIP_ROOTS_CONFIG_KEY: &str = "ownership_roots";
 pub(crate) const CONFIG_REPOSITORY_RULES_KEY: &str = "repository_rules";
+pub(crate) const CONFIG_DUPES_KEY: &str = "dupes";
 pub(crate) const CHECK_WARN_ARGUMENT: &str = "--warn";
 pub(crate) const CHECK_CACHE_ARGUMENT: &str = "--cache";
 pub(crate) const CHECK_NO_CACHE_ARGUMENT: &str = "--no-cache";

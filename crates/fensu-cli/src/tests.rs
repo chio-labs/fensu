@@ -2,6 +2,8 @@
 mod helpers;
 #[path = "tests/test_analyzer.rs"]
 mod test_analyzer;
+#[path = "tests/test_dupes.rs"]
+mod test_dupes;
 #[path = "tests/test_policy.rs"]
 mod test_policy;
 #[path = "tests/test_render.rs"]

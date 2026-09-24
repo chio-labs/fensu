@@ -2,6 +2,10 @@ use std::fs;
 use std::path::Path;
 
 use crate::analyzer::AnalyzerId;
+use crate::dupes::_helpers::units::python::extract_python_units;
+use crate::dupes::_helpers::units::rust::extract_rust_units;
+use crate::dupes::_helpers::units::web::{extract_script_units, extract_svelte_units};
+use crate::dupes::models::ExtractedUnit;
 use crate::models::{ScopedSource, SourcePurpose};
 
 pub(crate) fn web_source(root: &Path, target_path: &str) -> ScopedSource {
@@ -71,4 +75,25 @@ pub(crate) fn case_sensitive_windows_siblings_remain_confined() -> Option<bool> 
 #[cfg(not(windows))]
 pub(crate) fn case_sensitive_windows_siblings_remain_confined() -> Option<bool> {
     None
+}
+
+/// Treat each character as one token.
+pub(crate) fn characters(text: &str) -> Vec<u32> {
+    text.chars().map(u32::from).collect()
+}
+
+pub(crate) fn python_units(_path: &str, source: &str) -> Vec<ExtractedUnit> {
+    extract_python_units(source)
+}
+
+pub(crate) fn rust_units(path: &str, source: &str) -> Vec<ExtractedUnit> {
+    extract_rust_units(path, source, false).units
+}
+
+pub(crate) fn script_units(path: &str, source: &str) -> Vec<ExtractedUnit> {
+    extract_script_units(Path::new(path), source)
+}
+
+pub(crate) fn svelte_units(_path: &str, source: &str) -> Vec<ExtractedUnit> {
+    extract_svelte_units(source)
 }

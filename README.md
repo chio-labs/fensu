@@ -37,7 +37,7 @@ pip install fensu
 
 The authoring/API distribution is `fensu`. It installs the lockstep
 `fensu-cli` binary package, which exclusively owns the `fensu` command.
-Core-only `check`, `init`, `rule`, `map`, `skills`, and `--version`
+Core-only `check`, `dupes`, `init`, `rule`, `map`, `skills`, and `--version`
 execution is native. Configured Python custom rules launch one compatible Python
 host only for the policy metadata or callbacks they require.
 
@@ -215,11 +215,13 @@ fensu init
 fensu check
 fensu rule FFS131
 fensu map run_plan --depth 3
+fensu dupes --since origin/main
 ```
 
 `fensu init` detects and validates an onboarding configuration, `fensu check`
 enforces the configured architecture, `fensu rule` explains one rule and its
-remediation, and `fensu map` renders a conservative project call tree. Downstream
+remediation, `fensu dupes` reports duplicated code as advisory review input, and
+`fensu map` renders a conservative project call tree. Downstream
 mapping is the default; `--direction upstream` shows proven callers. Mapping
 follows project functions and class methods when imports,
 annotations, constructors, or return types prove the receiver. Unique protocol
@@ -236,6 +238,27 @@ in configuration or pass `--no-cache` for an explicit uncached check. `--cache`
 overrides a disabled project preference for one invocation.
 Deleting `.fensu/cache/` is always safe; ignore that directory rather than the
 complete `.fensu/` namespace, which is reserved for other Fensu-owned state.
+
+## Duplicated Code
+
+`fensu dupes` reports concrete duplicated code across the configured targets: ranked
+clusters of exact, renamed, and near-miss function-level copies in Python, Rust,
+TypeScript, JavaScript, and Svelte. It is advisory. It exits 0 whenever analysis
+succeeds, whatever it finds, and exits 2 only for usage, configuration, or IO errors.
+
+```text
+$ fensu dupes --since origin/main --diff
+fensu dupes: 1 duplicated-code cluster changed since origin/main (advisory; duplicated-code findings to review, not fensu check failures)
+analysed python 212 units; 0 allowlisted pairs hidden; 0 contract-exempt members hidden
+  1. near-miss sim 0.98, ~111 duplicated tokens, 2 members
+     src/shop/orders/summary.py:1-15 summarize_orders (113 tokens)
+     src/shop/reports/summary.py:1-16 summarize_orders (118 tokens) [changed]
+     diff src/shop/orders/summary.py:1-15 vs src/shop/reports/summary.py:1-16
+       + 9: log_progress(count)
+```
+
+See [duplicated-code detection](docs/dupes.md) for options, `[dupes]` configuration,
+and contract exemptions.
 
 ## Enforce It, Then See It
 

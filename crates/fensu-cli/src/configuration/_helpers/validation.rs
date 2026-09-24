@@ -10,7 +10,7 @@ use crate::configuration::_helpers::selectors::valid_selector;
 use crate::configuration::constants::{CONFIG_ROLE_NAMES, CONTRACT_BEHAVIORS, DEFAULT_THRESHOLDS};
 use crate::configuration::main::expand_path_pattern::expand_path_pattern;
 use crate::constants::OWNERSHIP_ROOTS_CONFIG_KEY;
-use crate::constants::{CONFIG_REPOSITORY_RULES_KEY, CONFIG_TARGETS_KEY};
+use crate::constants::{CONFIG_DUPES_KEY, CONFIG_REPOSITORY_RULES_KEY, CONFIG_TARGETS_KEY};
 use crate::models::TargetSelection;
 
 const RECURSIVE_GLOB: &str = "**";
@@ -176,7 +176,7 @@ pub(crate) fn select_target(
             return Err(format!("Unknown target name: {name}."));
         }
         return Ok(TargetSelection {
-            table: table.clone(),
+            table: without_command_sections(table),
             target: None,
             analyzer: AnalyzerId::Python,
             root: DEFAULT_TARGET_ROOT.to_owned(),
@@ -215,7 +215,7 @@ pub(crate) fn selected_target_names(
         if let Some(name) = target {
             return Err(format!("Unknown target name: {name}."));
         }
-        validate(table)?;
+        validate(&without_command_sections(table))?;
         return Ok(vec![None]);
     }
     validate_repository_rules(table.get(CONFIG_REPOSITORY_RULES_KEY))?;
@@ -239,7 +239,16 @@ pub(crate) fn validate_without_selection(
         let _ = validated_targets(table)?;
         return Ok(());
     }
-    validate(table)
+    validate(&without_command_sections(table))
+}
+
+/// Remove repository-level command sections, such as `[dupes]`, that are not target settings.
+fn without_command_sections(
+    table: &toml::map::Map<String, toml::Value>,
+) -> toml::map::Map<String, toml::Value> {
+    let mut selected = table.clone();
+    selected.remove(CONFIG_DUPES_KEY);
+    selected
 }
 
 fn validated_targets(
@@ -250,7 +259,7 @@ fn validated_targets(
         .filter(|key| {
             !matches!(
                 key.as_str(),
-                CONFIG_TARGETS_KEY | CONFIG_REPOSITORY_RULES_KEY
+                CONFIG_TARGETS_KEY | CONFIG_REPOSITORY_RULES_KEY | CONFIG_DUPES_KEY
             )
         })
         .cloned()

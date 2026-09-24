@@ -6,8 +6,8 @@ use crate::check::main::clean_caches::clean_caches;
 use crate::check::main::prepare_cleanup::prepare_cleanup;
 use crate::command::_helpers::check_partition::execution::partitioned_check;
 use crate::command::main::{
-    _check as check, _help as help, _init as init, _map as map, _rule as rule, _skills as skills,
-    _target as target,
+    _check as check, _dupes as dupes, _help as help, _init as init, _map as map, _rule as rule,
+    _skills as skills, _target as target,
 };
 use crate::configuration::main::load_targets;
 use crate::models::CliOutput;
@@ -20,7 +20,7 @@ pub(super) fn run_cli() -> CliOutput {
 fn dispatch(arguments: &[String]) -> Result<CliOutput, String> {
     let Some(command) = arguments.first().map(String::as_str) else {
         return Ok(CliOutput::error(
-            "Usage: fensu {check,init,rule,skills,map,target} ...".to_owned(),
+            "Usage: fensu {check,dupes,init,rule,skills,map,target} ...".to_owned(),
         ));
     };
     match command {
@@ -30,6 +30,7 @@ fn dispatch(arguments: &[String]) -> Result<CliOutput, String> {
         ))),
         "--help" | "-h" => Ok(CliOutput::success(help::help())),
         "check" => dispatch_check(&arguments[1..]),
+        "dupes" => dupes::run(&arguments[1..]),
         "init" => init::init(&arguments[1..]),
         "map" => map::run(&arguments[1..]),
         "rule" => rule::rule(&arguments[1..]),
@@ -38,7 +39,7 @@ fn dispatch(arguments: &[String]) -> Result<CliOutput, String> {
         _ => Ok(CliOutput {
             stdout: String::new(),
             stderr: format!(
-                "Unknown command: {command}\nUsage: fensu {{check,init,rule,skills,map,target}} ...\n"
+                "Unknown command: {command}\nUsage: fensu {{check,dupes,init,rule,skills,map,target}} ...\n"
             ),
             exit_code: 2,
         }),

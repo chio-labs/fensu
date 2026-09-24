@@ -312,16 +312,11 @@ impl Scanner<'_> {
                         }
                     }
                 }
-                Item::Mod(module) if self.skipped(&module.attrs) => {
-                    if module.content.is_none() {
-                        self.record_test_module(&module.ident.to_string());
-                    }
-                }
-                Item::Mod(module) => {
-                    if let Some((_, nested)) = &module.content {
-                        self.items(nested, owner);
-                    }
-                }
+                Item::Mod(module) => match (self.skipped(&module.attrs), &module.content) {
+                    (true, None) => self.record_test_module(&module.ident.to_string()),
+                    (false, Some((_, nested))) => self.items(nested, owner),
+                    (true, Some(_)) | (false, None) => {}
+                },
                 _ => {}
             }
         }

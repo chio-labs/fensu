@@ -141,6 +141,9 @@ pub const DAGSTER_TEST_ROOT_ALLOWLIST_CODE: &str = "FPDG021";
 pub const DAGSTER_AUTOLOAD_EXTERNAL_DISCOVERY_CODE: &str = "FPDG022";
 pub const DAGSTER_TYPE_PLACEMENT_CODE: &str = "FPDG023";
 pub const NATIVE_RULE_FACT_FAMILIES: &[(&str, &[&str])] = &[
+    ("FFL106", &[]),
+    ("FFL107", &[]),
+    ("FFL108", &[]),
     (PARAMETER_ANNOTATION_CODE, &["annotations"]),
     (RETURN_ANNOTATION_CODE, &["annotations"]),
     (MODULE_VARIABLE_ANNOTATION_CODE, &["annotations"]),
@@ -339,3 +342,6 @@ pub const NATIVE_RULE_OPTIONS: &[(&str, &[&str])] = &[(
     DAGSTER_AUTOLOAD_EXTERNAL_DISCOVERY_CODE,
     &["approved_loader_boundaries"],
 )];
+pub const DEAD_DEFINITION_CODE: &str = "FFL106";
+pub const STALE_DEAD_CODE_ROOT_CODE: &str = "FFL107";
+pub const DEAD_MODULE_CODE: &str = "FFL108";

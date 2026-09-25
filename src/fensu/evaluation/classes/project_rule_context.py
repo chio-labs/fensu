@@ -51,6 +51,7 @@ class ProjectRuleContext:
             tree=tree,
             analysis=analysis,
             requester=self._requester,
+            config=config,
         )
         self.threshold_override_uses: list[ThresholdOverrideUse] = []
         self._analysis = analysis

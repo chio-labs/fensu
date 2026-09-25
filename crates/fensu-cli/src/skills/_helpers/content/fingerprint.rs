@@ -290,6 +290,10 @@ fn config_value(config: &Config) -> Value {
         "shadcn": config.shadcn,
         "openapi": config.openapi,
         "ownership_roots": config.ownership_roots,
+        "dead_code": {
+            "enabled": config.dead_code.enabled,
+            "roots": config.dead_code.roots.iter().map(|root| json!({"modules": root.modules, "symbols": root.symbols, "reason": root.reason})).collect::<Vec<_>>(),
+        },
         "role_thresholds": role_thresholds,
         "threshold_overrides": config.threshold_overrides.iter().map(|item| {
             let values = item.thresholds.iter().map(|(key, value)| (key.clone(), json!(value))).collect::<BTreeMap<_, _>>();

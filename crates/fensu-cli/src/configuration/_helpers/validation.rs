@@ -23,6 +23,7 @@ pub(crate) const WEB_THRESHOLD_ALIASES: &[(&str, &str)] = &[
     ("max_function_statements", "max_statements_global"),
 ];
 const CONFIG_KEYS: &[&str] = &[
+    "dead_code",
     "roots",
     "tests",
     "test_scopes",
@@ -65,6 +66,10 @@ pub(crate) fn validate_for_analyzer(
     validate_optional_table(table, "cache", &["enabled", "require_cacheable"])?;
     validate_optional_table(table, "evaluation", &["include", "exclude"])?;
     validate_optional_table(table, "skills", &["name"])?;
+    let dead_code = super::parsing::parse_dead_code(table.get("dead_code"))?;
+    if dead_code.enabled && analyzer != AnalyzerId::Python {
+        return Err("dead_code.enabled is supported only by the Python analyzer.".to_owned());
+    }
     validate_rule_options(table.get("rule_options"), analyzer)?;
     validate_test_scopes(table.get("test_scopes"))?;
     if let Some(value) = table.get("test_layout") {

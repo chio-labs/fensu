@@ -37,7 +37,15 @@ pub(crate) fn apply_exceptions(
     let mut applied: HashSet<ExceptionKey> = HashSet::new();
     let mut retained: Vec<Fault> = Vec::new();
     for fault in faults {
-        let reported = repository_path(&fault.path, project_root);
+        let directory = if fault.code == fensu_native::rules::constants::STALE_DEAD_CODE_ROOT_CODE {
+            crate::configuration::main::configuration_directory::configuration_directory(
+                project_root,
+                &config.target_root,
+            )
+        } else {
+            project_root.to_path_buf()
+        };
+        let reported = repository_path(&fault.path, &directory);
         let mut owner: Option<FaultOwner> = None;
         let mut matched_symbol: Option<String> = None;
         let mut matching = None;

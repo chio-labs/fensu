@@ -12,7 +12,16 @@ use crate::models::Config;
 
 pub(crate) fn validate_targets(config: &Config, project_root: &Path) -> Result<(), String> {
     for exception in &config.exceptions {
-        let path = project_root.join(&exception.path);
+        let directory =
+            if exception.rule == fensu_native::rules::constants::STALE_DEAD_CODE_ROOT_CODE {
+                crate::configuration::main::configuration_directory::configuration_directory(
+                    project_root,
+                    &config.target_root,
+                )
+            } else {
+                project_root.to_path_buf()
+            };
+        let path = directory.join(&exception.path);
         if !path.is_file() {
             return Err(format!(
                 "Rule exception path does not exist: {}.",

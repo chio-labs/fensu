@@ -246,3 +246,15 @@ from fensu.rules.testing.models import (
 )
 
 __all__: list[str]
+from fensu.analysis.main.matches_symbol_patterns import (
+    matches_symbol_patterns as matches_symbol_patterns,
+)
+from fensu.analysis.models import PythonEntryPointFact as PythonEntryPointFact
+from fensu.analysis.models import PythonReachabilityFacts as PythonReachabilityFacts
+from fensu.analysis.models import PythonReferenceFact as PythonReferenceFact
+from fensu.analysis.models import PythonSymbolFact as PythonSymbolFact
+from fensu.analysis.models import PythonSymbolId as PythonSymbolId
+from fensu.analysis.types import PythonEntryPointKind as PythonEntryPointKind
+from fensu.analysis.types import PythonSymbolKind as PythonSymbolKind
+from fensu.config.models import DeadCodeConfig as DeadCodeConfig
+from fensu.config.models import DeadCodeRoot as DeadCodeRoot

@@ -33,7 +33,9 @@ def evaluate_partition(
     """Evaluate selected rules for every target, or only the named partition."""
 
     file_evaluations: list[FileEvaluation] = []
-    selection: EvaluationSelection = select_evaluation_files(tree=tree, config=config.evaluation)
+    selection: EvaluationSelection = select_evaluation_files(
+        tree=tree, config=config.evaluation, allow_empty=config.dead_code.enabled
+    )
     project: EvaluationProjectAnalysis = build_project_analysis(tree=tree)
     file_rules: tuple[RuleSpec, ...] = tuple(
         rule for rule in ruleset if rule.subject_kind is not RuleSubjectKind.PROJECT

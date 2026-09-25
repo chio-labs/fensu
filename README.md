@@ -130,6 +130,10 @@ Cargo manifests, the lockfile when present, Rust sources, and target configurati
 in cache identity. Analysis does not create or update a lockfile.
 See [Rust analyzer configuration](docs/rust.md) for rule options and tooling boundaries.
 
+Python projects can opt into [production dead-code enforcement](docs/dead-code.md) with
+`[dead_code] enabled = true`. Reachability faults cover module-level definitions and modules;
+reasoned roots describe dynamic entry mechanisms. Tests and `main/` placement are not roots.
+
 ## Default Structure
 
 The default architecture follows SQLBuild Compiler Rules v0.101.1.

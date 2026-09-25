@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from types import MappingProxyType
 
+from fensu.config._helpers.dead_code import parse_dead_code
 from fensu.config.constants import (
     CACHE_ENABLED_CONFIG_KEY,
     CACHE_REQUIRE_CACHEABLE_CONFIG_KEY,
@@ -22,9 +23,11 @@ from fensu.config.constants import (
     RUST_RULE_PACK,
     SKILLS_NAME_CONFIG_KEY,
 )
+from fensu.config.exceptions import ConfigValidationError
 from fensu.config.models import (
     CacheConfig,
     Config,
+    DeadCodeConfig,
     EvaluationConfig,
     RuleExceptionEntry,
     RuleIgnoreEntry,
@@ -62,17 +65,26 @@ def build_config(
             }
         )
     raw_ui_kit: object = raw.get("ui_kit")
+    dead_code: DeadCodeConfig = parse_dead_code(raw.get("dead_code"))
+    selected: tuple[str, ...] = _string_tuple(
+        value=raw.get("select"),
+        default=("FPRS",) if analyzer is AnalyzerId.RUST else DEFAULT_SELECT,
+    )
+    if dead_code.enabled:
+        if analyzer is not AnalyzerId.PYTHON:
+            raise ConfigValidationError(
+                "dead_code.enabled is supported only by the Python analyzer."
+            )
+        selected = tuple(sorted(set(selected) | {"FFL106", "FFL107", "FFL108"}))
     return Config(
         roots=_string_tuple(value=raw["roots"]),
+        dead_code=dead_code,
         ownership_roots=_string_tuple(value=raw.get("ownership_roots")),
         tests=_string_tuple(value=raw.get("tests"), default=DEFAULT_TEST_PATHS),
         test_scopes=_string_tuple(value=raw.get("test_scopes"), default=DEFAULT_TEST_SCOPES),
         test_layout=TestLayout(str(raw.get("test_layout", DEFAULT_TEST_LAYOUT))),
         tooling=_string_tuple(value=raw.get("tooling"), default=DEFAULT_TOOLING_PATHS),
-        select=_string_tuple(
-            value=raw.get("select"),
-            default=("FPRS",) if analyzer is AnalyzerId.RUST else DEFAULT_SELECT,
-        ),
+        select=selected,
         warn=_string_tuple(value=raw.get("warn"), default=DEFAULT_WARN),
         ignore=_string_tuple(value=raw.get("ignore"), default=DEFAULT_IGNORE),
         rule_paths=_string_tuple(value=raw.get("rule_paths")),

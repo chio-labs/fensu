@@ -2,6 +2,7 @@
 #![forbid(unsafe_code)]
 
 pub mod constants;
+pub mod dead_code;
 pub mod extension;
 pub mod facts;
 pub mod mapping;

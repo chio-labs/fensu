@@ -492,3 +492,22 @@ class DupesSectionTestCase:
     raw: Mapping[str, object]
     target: str | None
     expected_roots: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class DeadCodeConfigTestCase:
+    """Reachability opt-in state independent of configured roots."""
+
+    description: str
+    section: Mapping[str, object]
+    expected_enabled: bool
+    expected_fingerprint_changed: bool = True
+
+
+@dataclass(frozen=True)
+class DeadCodeErrorTestCase:
+    """A malformed root configuration rejected by the shared grammar."""
+
+    description: str
+    section: Mapping[str, object]
+    expected_message: str

@@ -163,6 +163,19 @@ fn support_module_ownership(
 }
 
 pub(crate) fn entrypoint_modules(root: &Path, _config_raw: &[u8]) -> Vec<String> {
+    let mut modules = entrypoint_values(root)
+        .iter()
+        .filter_map(|(_, value)| value.split(':').next())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+    modules.sort();
+    modules.dedup();
+    modules
+}
+
+pub(crate) fn entrypoint_values(root: &Path) -> Vec<(String, String)> {
     let Ok(text) = fs::read_to_string(root.join("pyproject.toml")) else {
         return Vec::new();
     };
@@ -172,22 +185,21 @@ pub(crate) fn entrypoint_modules(root: &Path, _config_raw: &[u8]) -> Vec<String>
     let Some(project) = value.get("project") else {
         return Vec::new();
     };
-    let mut values: Vec<&str> = Vec::new();
+    let mut values: Vec<(String, String)> = Vec::new();
     for section in ENTRYPOINT_SECTIONS {
         if let Some(value) = project.get(section) {
-            values = collect_entrypoint_values(value, values);
+            let kind = match section {
+                "entry-points" => "plugin",
+                _ => "script",
+            };
+            values.extend(
+                collect_entrypoint_values(value, Vec::new())
+                    .into_iter()
+                    .map(|reference| (kind.to_owned(), reference.to_owned())),
+            );
         }
     }
-    let mut modules = values
-        .into_iter()
-        .filter_map(|value| value.split(':').next())
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(str::to_owned)
-        .collect::<Vec<_>>();
-    modules.sort();
-    modules.dedup();
-    modules
+    values
 }
 
 fn collect_entrypoint_values<'a>(value: &'a toml::Value, mut values: Vec<&'a str>) -> Vec<&'a str> {

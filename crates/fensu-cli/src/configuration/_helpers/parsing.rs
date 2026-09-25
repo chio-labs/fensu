@@ -30,7 +30,8 @@ pub(crate) fn build(
     let cache = table.get("cache").and_then(toml::Value::as_table);
     let evaluation = table.get("evaluation").and_then(toml::Value::as_table);
     let identity_raw = identity_raw(table)?;
-    Ok(Config {
+    let mut config = Config {
+        dead_code: parse_dead_code(table.get("dead_code"))?,
         analyzer: selection.analyzer,
         target: selection.target,
         target_root: selection.root,
@@ -108,7 +109,15 @@ pub(crate) fn build(
         source_kind: if pyproject { "pyproject" } else { "fensu_toml" }.to_owned(),
         raw,
         identity_raw,
-    })
+    };
+    if config.dead_code.enabled {
+        config
+            .select
+            .extend(["FFL106", "FFL107", "FFL108"].map(str::to_owned));
+        config.select.sort();
+        config.select.dedup();
+    }
+    Ok(config)
 }
 
 pub(crate) fn repository_rule_policy(
@@ -132,6 +141,24 @@ pub(crate) fn repository_rule_policy(
             .get("rule_options")
             .and_then(toml::Value::as_table)
             .is_some_and(|options| options.keys().any(|code| code.starts_with('X'))),
+    })
+}
+
+pub(crate) fn parse_dead_code(
+    value: Option<&toml::Value>,
+) -> Result<crate::models::DeadCodeConfig, String> {
+    let value = serde_json::to_value(value).map_err(|error| error.to_string())?;
+    let (enabled, roots) = fensu_native::rules::main::parse_dead_code::parse_dead_code(&value)?;
+    Ok(crate::models::DeadCodeConfig {
+        enabled,
+        roots: roots
+            .into_iter()
+            .map(|(modules, symbols, reason)| crate::models::DeadCodeRoot {
+                modules,
+                symbols,
+                reason,
+            })
+            .collect(),
     })
 }
 

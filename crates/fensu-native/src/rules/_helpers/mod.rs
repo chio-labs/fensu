@@ -4,6 +4,8 @@
 pub(crate) mod annotations;
 #[path = "dagster/dagster.rs"]
 pub(crate) mod dagster;
+#[path = "dead_code/dead_code.rs"]
+pub(crate) mod dead_code;
 #[path = "execution_planning/execution_planning.rs"]
 pub(crate) mod execution_planning;
 #[path = "policy/generated_policy.rs"]

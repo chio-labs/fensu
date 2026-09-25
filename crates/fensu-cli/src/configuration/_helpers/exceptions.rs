@@ -118,7 +118,9 @@ fn valid_qualified_symbol(value: &str) -> bool {
 }
 
 fn validate_path(path: &str, analyzer: Option<AnalyzerId>, rule: &str) -> Result<(), String> {
-    let supported = if rule == CUSTOM_RULE_TEST_COVERAGE_CODE {
+    let supported = if rule == fensu_native::rules::constants::STALE_DEAD_CODE_ROOT_CODE {
+        matches!(path, "fensu.toml" | "pyproject.toml")
+    } else if rule == CUSTOM_RULE_TEST_COVERAGE_CODE {
         path.ends_with(".py")
     } else {
         match analyzer {

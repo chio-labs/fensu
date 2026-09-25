@@ -48,6 +48,14 @@ pub struct NativeFaultRow {
     pub path: Option<String>,
 }
 
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct NativeDeadCodeContext {
+    pub enabled: bool,
+    pub roots: Vec<(Vec<String>, Vec<String>)>,
+    pub entrypoints: Vec<(String, String)>,
+    pub config_path: String,
+}
+
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct NativeProjectQuery {
     pub kind: String,
@@ -101,6 +109,7 @@ impl NativeProjectPlane {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NativeRuleContext {
+    pub dead_code: NativeDeadCodeContext,
     pub scope: String,
     pub role: Option<String>,
     pub is_main_module: bool,
@@ -125,6 +134,7 @@ pub struct NativeRuleContext {
 impl Default for NativeRuleContext {
     fn default() -> Self {
         Self {
+            dead_code: NativeDeadCodeContext::default(),
             scope: String::new(),
             role: None,
             is_main_module: false,

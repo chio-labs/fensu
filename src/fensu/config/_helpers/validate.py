@@ -15,6 +15,7 @@ from fensu.config.constants import (
     CONFIG_ROLE_NAMES,
     CONFIG_TOP_LEVEL_KEYS,
     CONTRACT_BEHAVIORS,
+    DEAD_CODE_CONFIG_FILES,
     DEFAULT_TARGET_ROOT,
     DOUBLE_PATH_SEPARATOR,
     DUPES_CONFIG_KEY,
@@ -38,10 +39,12 @@ from fensu.config.constants import (
     WEB_THRESHOLD_ALIASES,
 )
 from fensu.config.exceptions import ConfigError, ConfigValidationError
+from fensu.config.models import DeadCodeConfig
 from fensu.config.types import AnalyzerId, TestLayout
 from fensu.rules.authoring.main.is_rule_code import is_rule_code
 from fensu.rules.authoring.main.is_rule_selector import is_rule_selector
 from fensu.rules.authoring.types import Threshold
+from fensu.rules.layers.types import LayerCode
 from fensu.rules.roles.types import RoleCode
 
 _empty_string: str = ""
@@ -128,6 +131,11 @@ def validate_config(*, raw: Mapping[str, object], analyzer: AnalyzerId | None = 
     _validate_cache(value=raw.get("cache"))
     _validate_evaluation(value=raw.get("evaluation"))
     _validate_skills(value=raw.get("skills"))
+    from fensu.config._helpers.dead_code import parse_dead_code
+
+    dead_code: DeadCodeConfig = parse_dead_code(raw.get("dead_code"))
+    if dead_code.enabled and analyzer not in {None, AnalyzerId.PYTHON}:
+        raise ConfigValidationError("dead_code.enabled is supported only by the Python analyzer.")
 
 
 def select_config_target(
@@ -676,6 +684,8 @@ def _validate_exception_path(*, path: str, analyzer: AnalyzerId | None, rule: st
             or path.endswith((*web_suffixes, ".svelte", CARGO_MANIFEST_FILE_NAME))
         )
     )
+    if rule == LayerCode.STALE_DEAD_CODE_ROOT:
+        supported = path in DEAD_CODE_CONFIG_FILES
     if (
         parsed.is_absolute()
         or PureWindowsPath(path).drive != _empty_string

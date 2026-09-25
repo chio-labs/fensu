@@ -5,19 +5,40 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from fensu.analysis.models import PythonReachabilityFacts
+from fensu.config.models import Config, DeadCodeConfig
 from fensu.discovery.models import DiscoveredTree, RepoRoot
+from fensu.evaluation.main._build_reachability_facts import build_reachability_facts
 from fensu.rules.authoring.models import ProjectPath, ProjectTree
 
 
 class RuleProjectView:
     """Bind project queries to one stable rule invocation requester."""
 
-    def __init__(self, *, tree: DiscoveredTree, analysis: Any, requester: Path) -> None:
+    def __init__(
+        self, *, tree: DiscoveredTree, analysis: Any, requester: Path, config: Config
+    ) -> None:
         project_root: RepoRoot = tree.repo_root if tree.project_root is None else tree.project_root
         self._root: Path = project_root.path
         self._analysis: Any = analysis
         self._requester: Path = requester
+        self._tree: DiscoveredTree = tree
+        self._config: Config = config
         self.tree: ProjectTree = analysis.observed_project_tree(requester=requester)
+
+    @property
+    def dead_code(self) -> DeadCodeConfig:
+        """Return the structured opt-in and reasoned root declarations for this target."""
+
+        return self._config.dead_code
+
+    def python_reachability(self) -> PythonReachabilityFacts:
+        """Return native-derived graph inputs with tracked source and metadata dependencies."""
+
+        _ = self.tree.files
+        return build_reachability_facts(
+            tree=self._tree, config=self._config, analysis=self._analysis, requester=self._requester
+        )
 
     def analysis(
         self,

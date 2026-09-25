@@ -68,6 +68,14 @@ def config_fingerprint(config: Config) -> CacheFingerprint:
     return _config_fingerprint(config=config, resolved_ownership_roots=())
 
 
+def _dead_code_value(config: Config) -> CanonicalValue:
+    roots: list[CanonicalValue] = [
+        {"modules": list(root.modules), "symbols": list(root.symbols), "reason": root.reason}
+        for root in config.dead_code.roots
+    ]
+    return {"enabled": config.dead_code.enabled, "roots": roots}
+
+
 def resolved_config_fingerprint(
     *, config: Config, resolved_ownership_roots: tuple[str, ...]
 ) -> CacheFingerprint:
@@ -83,6 +91,7 @@ def _config_fingerprint(
     payload: CanonicalValue = {
         "analyzer": config.analyzer,
         "contracts": dict(sorted(config.contracts.items())),
+        "dead_code": _dead_code_value(config),
         "evaluation": {
             "exclude": list(config.evaluation.exclude),
             "include": list(config.evaluation.include),

@@ -76,6 +76,7 @@ pub(crate) struct DetectedTarget {
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Config {
+    pub(crate) dead_code: DeadCodeConfig,
     pub(crate) analyzer: AnalyzerId,
     pub(crate) target: Option<String>,
     pub(crate) target_root: String,
@@ -111,6 +112,19 @@ pub(crate) struct Config {
     pub(crate) source_kind: String,
     pub(crate) raw: Vec<u8>,
     pub(crate) identity_raw: Vec<u8>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub(crate) struct DeadCodeConfig {
+    pub(crate) enabled: bool,
+    pub(crate) roots: Vec<DeadCodeRoot>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct DeadCodeRoot {
+    pub(crate) modules: Vec<String>,
+    pub(crate) symbols: Vec<String>,
+    pub(crate) reason: String,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]

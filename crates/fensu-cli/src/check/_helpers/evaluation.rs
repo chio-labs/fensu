@@ -102,6 +102,7 @@ pub(crate) fn evaluate(request: EvaluationRequest<'_>) -> Result<TargetEvaluatio
         .map(|rule| rule.code.as_str())
         .collect::<HashSet<_>>();
     let mut uses: Vec<ThresholdUse> = Vec::new();
+    let dead_code_context = dead_code_context(config, project_root);
     let batches = sources
         .par_iter()
         .zip(codes_by_source.par_iter())
@@ -110,6 +111,7 @@ pub(crate) fn evaluate(request: EvaluationRequest<'_>) -> Result<TargetEvaluatio
             let display_codes = display_codes_by_implementation(codes)?;
             let (thresholds, source_uses) = resolved_thresholds(source, config, codes)?;
             let mut context = NativeRuleContext {
+                dead_code: dead_code_context.clone(),
                 scope: source.scope.clone(),
                 role: role(source),
                 is_main_module: is_main_module(source),
@@ -162,6 +164,32 @@ pub(crate) fn evaluate(request: EvaluationRequest<'_>) -> Result<TargetEvaluatio
         faults.extend(batch);
         uses.extend(batch_uses);
     }
+    if sources.is_empty() {
+        let codes = evaluated_codes
+            .iter()
+            .map(|code| (*code).to_owned())
+            .collect::<Vec<_>>();
+        for row in fensu_native::rules::main::evaluate_dead_code::evaluate_dead_code(
+            &codes,
+            &dead_code_context,
+            &project,
+        ) {
+            let metadata = rule_metadata(&row.code)?
+                .ok_or_else(|| format!("Unknown native rule code: {}", row.code))?;
+            faults.push(Fault {
+                warning: warning_codes.contains(row.code.as_str()),
+                code: row.code,
+                alias_of: metadata.alias_of.clone(),
+                path: row
+                    .path
+                    .unwrap_or_else(|| dead_code_context.config_path.clone()),
+                line: Some(row.line),
+                column: Some(row.column),
+                message: row.message.unwrap_or_else(|| metadata.message.clone()),
+                remediation: row.remediation.or_else(|| metadata.remediation.clone()),
+            });
+        }
+    }
     faults.sort_by(|left, right| {
         (
             &left.path,
@@ -209,6 +237,36 @@ pub(crate) fn evaluate(request: EvaluationRequest<'_>) -> Result<TargetEvaluatio
         },
         repository_facts: collect_repository_facts.then(|| python_repository_fact_payload(sources)),
     })
+}
+
+fn dead_code_context(
+    config: &Config,
+    project_root: &Path,
+) -> fensu_native::rules::models::NativeDeadCodeContext {
+    const PYPROJECT_SOURCE: &str = "pyproject";
+    if !config.dead_code.enabled {
+        return Default::default();
+    }
+    let directory = crate::configuration::main::configuration_directory::configuration_directory(
+        project_root,
+        &config.target_root,
+    );
+    let filename = if config.source_kind == PYPROJECT_SOURCE {
+        "pyproject.toml"
+    } else {
+        "fensu.toml"
+    };
+    fensu_native::rules::models::NativeDeadCodeContext {
+        enabled: config.dead_code.enabled,
+        roots: config
+            .dead_code
+            .roots
+            .iter()
+            .map(|root| (root.modules.clone(), root.symbols.clone()))
+            .collect(),
+        entrypoints: crate::check::_helpers::project::entrypoint_values(project_root),
+        config_path: directory.join(filename).to_string_lossy().into_owned(),
+    }
 }
 
 fn evaluate_rust_target(request: EvaluationRequest<'_>) -> Result<TargetEvaluation, String> {

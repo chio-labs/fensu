@@ -22,11 +22,12 @@ type TargetTuple = (
 type RuleTuple = (String, String, String);
 type PlannedTargetTuple = (Vec<String>, Vec<(String, String)>);
 
-#[pyfunction]
+#[pyfunction(signature = (paths, includes, excludes, allow_empty = false))]
 pub(crate) fn select_native_execution_files(
     paths: Vec<String>,
     includes: Vec<String>,
     excludes: Vec<String>,
+    allow_empty: bool,
 ) -> PyResult<(Option<Vec<usize>>, usize)> {
     if includes.is_empty() && excludes.is_empty() {
         return Ok((None, 0));
@@ -49,7 +50,7 @@ pub(crate) fn select_native_execution_files(
             (included && !exclude_set.is_match(path)).then_some(index)
         })
         .collect();
-    if selected.is_empty() && !paths.is_empty() {
+    if selected.is_empty() && !paths.is_empty() && !allow_empty {
         return Err(PyValueError::new_err(
             "Evaluation configuration selects zero Python files; exclusions removed all targets.",
         ));

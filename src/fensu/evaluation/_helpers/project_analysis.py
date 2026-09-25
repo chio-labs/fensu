@@ -124,6 +124,7 @@ class _EvaluationProjectAnalysis:
         self._globs: dict[tuple[str, str, bool], tuple[Path, ...]] = {}
         self._python_anchors: dict[str, Path | None] = {}
         self._entrypoint_modules: tuple[str, ...] | None = None
+        self._entrypoint_symbols: tuple[tuple[str, str], ...] = ()
         self._entrypoint_fingerprint: str | None = None
         self._tree = tree
         self._architecture_graph: ArchitectureGraph | None = None
@@ -373,6 +374,7 @@ class _EvaluationProjectAnalysis:
             else:
                 text, self._entrypoint_fingerprint = observed
                 self._entrypoint_modules = _declared_entrypoint_modules(text=text)
+                self._entrypoint_symbols = _declared_entrypoint_symbols(text=text)
         self._record(
             requester=requester,
             dependency=path,
@@ -380,6 +382,12 @@ class _EvaluationProjectAnalysis:
             answer=self._entrypoint_fingerprint,
         )
         return self._entrypoint_modules
+
+    def entrypoint_symbols(self, *, requester: Path) -> tuple[tuple[str, str], ...]:
+        """Return exact metadata references while recording the metadata dependency."""
+
+        self.entrypoint_modules(requester=requester)
+        return self._entrypoint_symbols
 
     def exists(self, *, requester: Path, path: Path) -> bool:
         """Return whether a path exists and record the dependency."""
@@ -560,6 +568,18 @@ def _record_query_cache(*, hit: bool) -> None:
 
 
 def _declared_entrypoint_modules(*, text: str) -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            {
+                value.partition(":")[0].strip()
+                for _, value in _declared_entrypoint_symbols(text=text)
+                if value.partition(":")[0].strip()
+            }
+        )
+    )
+
+
+def _declared_entrypoint_symbols(*, text: str) -> tuple[tuple[str, str], ...]:
     try:
         document: dict[str, object] = tomllib.loads(text)
     except tomllib.TOMLDecodeError:
@@ -567,15 +587,13 @@ def _declared_entrypoint_modules(*, text: str) -> tuple[str, ...]:
     project: object = document.get("project")
     if not isinstance(project, dict):
         return ()
-    values: list[str] = []
+    values: list[tuple[str, str]] = []
     for section_name in ("scripts", "gui-scripts", "entry-points"):
-        values.extend(_string_values(project.get(section_name)))
-    modules: set[str] = set()
-    for value in values:
-        module_name: str = value.partition(":")[0].strip()
-        if module_name:
-            modules.add(module_name)
-    return tuple(sorted(modules))
+        kind: str = {"scripts": "script", "gui-scripts": "script", "entry-points": "plugin"}[
+            section_name
+        ]
+        values.extend((kind, value) for value in _string_values(project.get(section_name)))
+    return tuple(sorted(set(values)))
 
 
 def _string_values(value: object) -> tuple[str, ...]:

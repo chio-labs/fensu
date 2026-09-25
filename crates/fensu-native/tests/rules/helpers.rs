@@ -125,6 +125,7 @@ fn evaluate_fixture(test_case: &CoreRuleFixture) -> Vec<ExpectedFault> {
         .map(|(_, root)| format!("{repo_root}/{root}"))
         .collect();
     let context = NativeRuleContext {
+        dead_code: Default::default(),
         scope: test_case.context.scope.clone(),
         role: test_case.context.role.clone(),
         is_main_module: test_case.context.is_main_module,

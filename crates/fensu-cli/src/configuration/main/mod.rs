@@ -1,3 +1,4 @@
+pub(crate) mod configuration_directory;
 pub(crate) mod expand_path_pattern;
 pub(crate) mod is_rule_code;
 pub(crate) mod is_rule_selector;

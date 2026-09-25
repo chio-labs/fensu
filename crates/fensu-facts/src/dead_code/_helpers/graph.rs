@@ -111,7 +111,7 @@ pub(crate) fn extract(modules: &[Module], entries: &[ProjectEntryPoint]) -> Grap
         if implicit {
             for imported in &graph.wildcard_imports[index] {
                 if let Some(imported_index) = graph.module_indexes.get(imported) {
-                    names.extend(graph.export_names(*imported_index, &mut HashSet::new()));
+                    names.extend(graph.export_names(*imported_index));
                 }
             }
         }
@@ -239,33 +239,39 @@ fn matches_patterns(patterns: &[GlobMatcher], value: &str) -> bool {
 }
 
 impl Graph<'_> {
-    fn export_names(&self, module: usize, seen: &mut HashSet<usize>) -> HashSet<String> {
-        if !seen.insert(module) {
-            return HashSet::new();
-        }
-        let program = &self.modules[module].program;
-        let has_all = program.module().body.iter().any(declares_all);
-        if has_all {
-            return program
-                .declaration_rows()
-                .static_all_names
-                .iter()
-                .cloned()
-                .collect();
-        }
-        let mut names = self.bindings[module]
-            .keys()
-            .filter(|name| !name.starts_with('_'))
-            .cloned()
-            .collect::<HashSet<_>>();
-        for imported in &self.wildcard_imports[module] {
-            if let Some(index) = self.module_indexes.get(imported) {
-                names.extend(
-                    self.export_names(*index, seen)
-                        .into_iter()
-                        .filter(|name| !name.starts_with('_')),
-                );
+    fn export_names(&self, module: usize) -> HashSet<String> {
+        let mut names: HashSet<String> = HashSet::new();
+        let mut seen: HashSet<usize> = HashSet::new();
+        let mut pending: Vec<usize> = vec![module];
+        while let Some(current) = pending.pop() {
+            if !seen.insert(current) {
+                continue;
             }
+            let is_root = current == module;
+            let program = &self.modules[current].program;
+            if program.module().body.iter().any(declares_all) {
+                names.extend(
+                    program
+                        .declaration_rows()
+                        .static_all_names
+                        .iter()
+                        .filter(|name| is_root || !name.starts_with('_'))
+                        .cloned(),
+                );
+                continue;
+            }
+            names.extend(
+                self.bindings[current]
+                    .keys()
+                    .filter(|name| !name.starts_with('_'))
+                    .cloned(),
+            );
+            pending.extend(
+                self.wildcard_imports[current]
+                    .iter()
+                    .filter_map(|imported| self.module_indexes.get(imported))
+                    .copied(),
+            );
         }
         names
     }
@@ -517,10 +523,9 @@ impl Graph<'_> {
         let mut values = self.wildcard_imports[*index]
             .iter()
             .filter(|imported| {
-                self.module_indexes.get(*imported).is_some_and(|index| {
-                    self.export_names(*index, &mut HashSet::new())
-                        .contains(name)
-                })
+                self.module_indexes
+                    .get(*imported)
+                    .is_some_and(|index| self.export_names(*index).contains(name))
             })
             .map(|imported| Binding::Symbol(imported.clone(), name.to_owned()))
             .collect::<Vec<_>>();

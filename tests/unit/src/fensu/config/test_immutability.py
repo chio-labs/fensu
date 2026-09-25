@@ -127,6 +127,7 @@ def test_given_loaded_config_when_mutating_role_thresholds_then_raises_type_erro
                 "openapi",
                 "test_layout",
                 "ownership_roots",
+                "dead_code",
             ),
         )
     ],

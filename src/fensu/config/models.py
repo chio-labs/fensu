@@ -135,7 +135,6 @@ class Config:
     """Validated fensu configuration."""
 
     roots: tuple[str, ...]
-    dead_code: DeadCodeConfig = field(default_factory=DeadCodeConfig)
     tests: tuple[str, ...] = ("tests",)
     test_scopes: tuple[str, ...] = DEFAULT_TEST_SCOPES
     tooling: tuple[str, ...] = ()
@@ -172,6 +171,7 @@ class Config:
     openapi: str | None = None
     test_layout: TestLayout = DEFAULT_TEST_LAYOUT
     ownership_roots: tuple[str, ...] = ()
+    dead_code: DeadCodeConfig = field(default_factory=DeadCodeConfig)
 
     def __post_init__(self) -> None:
         """Freeze defensive copies of nested rule-option mappings."""

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.24.0](https://github.com/chio-labs/fensu/compare/v0.23.0...v0.24.0) (2026-09-25)
+
+
+### Features
+
+* enforce opt-in Python dead-code reachability ([#101](https://github.com/chio-labs/fensu/issues/101)) ([aafb061](https://github.com/chio-labs/fensu/commit/aafb061212142911fd17f09f4b189eae35aa58aa))
+
 ## [0.23.0](https://github.com/chio-labs/fensu/compare/v0.22.1...v0.23.0) (2026-09-24)
 
 

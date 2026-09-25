@@ -9,6 +9,56 @@ fn given_python_entry_mechanisms_when_traversing_then_only_production_reachabili
 ) {
     let test_cases = [
         ReachabilityTestCase {
+            description: "tuple and list assignments execute their RHS",
+            modules: vec![module("orders", "from . import assignments\n"), module("orders.assignments", "def tuple_setup(): return (1, 2)\ndef list_setup(): return (3, 4)\nfirst, second = tuple_setup()\n[third, fourth] = list_setup()\n")],
+            ..Default::default()
+        },
+        ReachabilityTestCase {
+            description: "attribute and subscript assignments execute RHS and target expressions",
+            modules: vec![module("orders", "from . import assignments\n"), module("orders.assignments", "def attribute_setup(): return 1\ndef subscript_setup(): return 1\ndef store(): return object()\ndef items(): return {}\ndef index(): return 0\nstore().value = attribute_setup()\nitems()[index()] = subscript_setup()\n")],
+            ..Default::default()
+        },
+        ReachabilityTestCase {
+            description: "annotated assignments execute targets and RHS",
+            modules: vec![module("orders", "from . import assignments\n"), module("orders.assignments", "def attribute_setup(): return 1\ndef subscript_setup(): return 1\ndef store(): return object()\ndef items(): return {}\ndef index(): return 0\nstore().value: int = attribute_setup()\nitems()[index()]: int = subscript_setup()\n")],
+            ..Default::default()
+        },
+        ReachabilityTestCase {
+            description: "augmented assignments read targets and execute RHS",
+            modules: vec![module("orders", "from . import assignments\n"), module("orders.assignments", "def attribute_setup(): return 1\ndef subscript_setup(): return 1\ndef count_setup(): return 1\ndef store(): return object()\ndef items(): return {}\ndef index(): return 0\nstore().value += attribute_setup()\nitems()[index()] += subscript_setup()\ncount = 0\ncount += count_setup()\n")],
+            ..Default::default()
+        },
+        ReachabilityTestCase {
+            description: "methods skip class bindings while headers and class bodies retain them",
+            modules: vec![module("orders", "from .classes import Public\n"), module("orders.classes", "def helper(): pass\ndef header(): pass\ndef decorate(): pass\nclass Public:\n    helper = None\n    header = lambda: None\n    decorate = lambda method: method\n    header()\n    @decorate\n    def run(self, value=header()): return helper()\n")],
+            expected_dead: &["orders.classes:header", "orders.classes:decorate"],
+            ..Default::default()
+        },
+        ReachabilityTestCase {
+            description: "methods preserve enclosing function bindings and their own local shadows",
+            modules: vec![module("orders", "from .classes import factory\n"), module("orders.classes", "def helper(): pass\ndef local_helper(): pass\ndef factory():\n    def helper(): return 1\n    class Public:\n        helper = None\n        def run(self): return helper()\n        def local(self):\n            local_helper = lambda: None\n            return local_helper()\n    return Public\n")],
+            expected_dead: &["orders.classes:helper", "orders.classes:local_helper"],
+            ..Default::default()
+        },
+        ReachabilityTestCase {
+            description: "package wildcard exports traverse facades and terminate cycles",
+            modules: vec![module("orders", "from .facade import *\n"), module("orders.facade", "from .handlers import *\n"), module("orders.handlers", "from .facade import *\ndef run_orders(): pass\ndef _private(): pass\n")],
+            expected_dead: &["orders.handlers:_private"],
+            ..Default::default()
+        },
+        ReachabilityTestCase {
+            description: "wildcard exports respect explicit all at an intermediate facade",
+            modules: vec![module("orders", "from .facade import *\n"), module("orders.facade", "from .handlers import *\n__all__ = ['run_orders']\n"), module("orders.handlers", "def run_orders(): pass\ndef unused(): pass\n")],
+            expected_dead: &["orders.handlers:unused"],
+            ..Default::default()
+        },
+        ReachabilityTestCase {
+            description: "empty all blocks wildcard exports",
+            modules: vec![module("orders", "from .facade import *\n"), module("orders.facade", "from .handlers import *\n__all__ = []\n"), module("orders.handlers", "def unused(): pass\n")],
+            expected_dead: &["orders.handlers:unused"],
+            ..Default::default()
+        },
+        ReachabilityTestCase {
             description: "orphan and unreachable helper chain",
             modules: vec![module("orders", ""), module("orders.internal", "def _orphan(): pass\ndef tail(): pass\ndef head(): tail()\n")],
             expected_dead: &["orders.internal:", "orders.internal:_orphan", "orders.internal:tail", "orders.internal:head"],

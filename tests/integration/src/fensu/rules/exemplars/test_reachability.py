@@ -21,6 +21,102 @@ from tests.integration.src.fensu.rules.exemplars._test_types import Reachability
     "test_case",
     [
         ReachabilityTestCase(
+            "unpacking assignments execute RHS",
+            (
+                ("src/orders/__init__.py", "from . import assignments\n"),
+                (
+                    "src/orders/assignments.py",
+                    "def tuple_setup(): return (1, 2)\ndef list_setup(): return (3, 4)\nfirst, second = tuple_setup()\n[third, fourth] = list_setup()\n",
+                ),
+            ),
+            (0, 0, 0),
+        ),
+        ReachabilityTestCase(
+            "attribute and subscript assignment target evaluation",
+            (
+                ("src/orders/__init__.py", "from . import assignments\n"),
+                (
+                    "src/orders/assignments.py",
+                    "def attribute_setup(): return 1\ndef subscript_setup(): return 1\ndef store(): return object()\ndef items(): return {}\ndef index(): return 0\nstore().value = attribute_setup()\nitems()[index()] = subscript_setup()\n",
+                ),
+            ),
+            (0, 0, 0),
+        ),
+        ReachabilityTestCase(
+            "annotated assignments evaluate RHS and targets",
+            (
+                ("src/orders/__init__.py", "from . import assignments\n"),
+                (
+                    "src/orders/assignments.py",
+                    "def attribute_setup(): return 1\ndef subscript_setup(): return 1\ndef store(): return object()\ndef items(): return {}\ndef index(): return 0\nstore().value: int = attribute_setup()\nitems()[index()]: int = subscript_setup()\n",
+                ),
+            ),
+            (0, 0, 0),
+        ),
+        ReachabilityTestCase(
+            "augmented assignments read targets and execute RHS",
+            (
+                ("src/orders/__init__.py", "from . import assignments\n"),
+                (
+                    "src/orders/assignments.py",
+                    "def attribute_setup(): return 1\ndef subscript_setup(): return 1\ndef count_setup(): return 1\ndef store(): return object()\ndef items(): return {}\ndef index(): return 0\nstore().value += attribute_setup()\nitems()[index()] += subscript_setup()\ncount = 0\ncount += count_setup()\n",
+                ),
+            ),
+            (0, 0, 0),
+        ),
+        ReachabilityTestCase(
+            "method globals skip class while headers see class",
+            (
+                ("src/orders/__init__.py", "from .classes import Public\n"),
+                (
+                    "src/orders/classes.py",
+                    "def helper(): pass\ndef header(): pass\ndef decorate(): pass\nclass Public:\n    helper = None\n    header = lambda: None\n    decorate = lambda method: method\n    header()\n    @decorate\n    def run(self, value=header()): return helper()\n",
+                ),
+            ),
+            (2, 0, 0),
+        ),
+        ReachabilityTestCase(
+            "method enclosing functions and local shadows",
+            (
+                ("src/orders/__init__.py", "from .classes import factory\n"),
+                (
+                    "src/orders/classes.py",
+                    "def helper(): pass\ndef local_helper(): pass\ndef factory():\n    def helper(): return 1\n    class Public:\n        helper = None\n        def run(self): return helper()\n        def local(self):\n            local_helper = lambda: None\n            return local_helper()\n    return Public\n",
+                ),
+            ),
+            (2, 0, 0),
+        ),
+        ReachabilityTestCase(
+            "transitive wildcard exports and cycles",
+            (
+                ("src/orders/__init__.py", "from .facade import *\n"),
+                ("src/orders/facade.py", "from .handlers import *\n"),
+                (
+                    "src/orders/handlers.py",
+                    "from .facade import *\ndef run_orders(): pass\ndef _private(): pass\n",
+                ),
+            ),
+            (1, 0, 0),
+        ),
+        ReachabilityTestCase(
+            "intermediate wildcard all restricts exports",
+            (
+                ("src/orders/__init__.py", "from .facade import *\n"),
+                ("src/orders/facade.py", "from .handlers import *\n__all__ = ['run_orders']\n"),
+                ("src/orders/handlers.py", "def run_orders(): pass\ndef unused(): pass\n"),
+            ),
+            (1, 0, 0),
+        ),
+        ReachabilityTestCase(
+            "empty all restricts wildcard exports",
+            (
+                ("src/orders/__init__.py", "from .facade import *\n"),
+                ("src/orders/facade.py", "from .handlers import *\n__all__ = []\n"),
+                ("src/orders/handlers.py", "def unused(): pass\n"),
+            ),
+            (1, 0, 0),
+        ),
+        ReachabilityTestCase(
             "module-level alias preserves member references",
             (
                 (

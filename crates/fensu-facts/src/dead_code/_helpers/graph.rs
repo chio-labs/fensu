@@ -86,6 +86,8 @@ pub(crate) fn extract(modules: &[Module], entries: &[ProjectEntryPoint]) -> Grap
             module: index,
             owner,
             locals: Vec::new(),
+            class_scopes: HashSet::new(),
+            visible_class_scope: None,
             execution_only: false,
             withheld: None,
         };
@@ -109,12 +111,7 @@ pub(crate) fn extract(modules: &[Module], entries: &[ProjectEntryPoint]) -> Grap
         if implicit {
             for imported in &graph.wildcard_imports[index] {
                 if let Some(imported_index) = graph.module_indexes.get(imported) {
-                    names.extend(
-                        graph.bindings[*imported_index]
-                            .keys()
-                            .filter(|name| !name.starts_with('_'))
-                            .cloned(),
-                    );
+                    names.extend(graph.export_names(*imported_index, &mut HashSet::new()));
                 }
             }
         }
@@ -242,6 +239,37 @@ fn matches_patterns(patterns: &[GlobMatcher], value: &str) -> bool {
 }
 
 impl Graph<'_> {
+    fn export_names(&self, module: usize, seen: &mut HashSet<usize>) -> HashSet<String> {
+        if !seen.insert(module) {
+            return HashSet::new();
+        }
+        let program = &self.modules[module].program;
+        let has_all = program.module().body.iter().any(declares_all);
+        if has_all {
+            return program
+                .declaration_rows()
+                .static_all_names
+                .iter()
+                .cloned()
+                .collect();
+        }
+        let mut names = self.bindings[module]
+            .keys()
+            .filter(|name| !name.starts_with('_'))
+            .cloned()
+            .collect::<HashSet<_>>();
+        for imported in &self.wildcard_imports[module] {
+            if let Some(index) = self.module_indexes.get(imported) {
+                names.extend(
+                    self.export_names(*index, seen)
+                        .into_iter()
+                        .filter(|name| !name.starts_with('_')),
+                );
+            }
+        }
+        names
+    }
+
     fn add(&mut self, module: usize, name: &str, kind: &'static str, offset: usize) -> usize {
         let key = (module, name.to_owned());
         if let Some(node) = self.nodes.get(&key) {
@@ -488,6 +516,12 @@ impl Graph<'_> {
         }
         let mut values = self.wildcard_imports[*index]
             .iter()
+            .filter(|imported| {
+                self.module_indexes.get(*imported).is_some_and(|index| {
+                    self.export_names(*index, &mut HashSet::new())
+                        .contains(name)
+                })
+            })
             .map(|imported| Binding::Symbol(imported.clone(), name.to_owned()))
             .collect::<Vec<_>>();
         let child = format!("{module}.{name}");
@@ -526,6 +560,20 @@ struct Declarations<'a, 'm> {
     module: usize,
     bindings: &'a mut Bindings,
     conditional: bool,
+}
+
+fn declares_all(statement: &Stmt) -> bool {
+    match statement {
+        Stmt::Assign(value) => value
+            .targets
+            .iter()
+            .any(|target| matches!(target, Expr::Name(name) if name.id.as_str() == ALL_BINDING)),
+        Stmt::AnnAssign(value) => {
+            value.value.is_some()
+                && matches!(&*value.target, Expr::Name(name) if name.id.as_str() == ALL_BINDING)
+        }
+        _ => false,
+    }
 }
 
 fn static_reference(expression: &Expr, bindings: &Bindings) -> Option<Binding> {
@@ -636,13 +684,18 @@ struct Uses<'a, 'm> {
     module: usize,
     owner: usize,
     locals: Vec<Bindings>,
+    class_scopes: HashSet<usize>,
+    visible_class_scope: Option<usize>,
     execution_only: bool,
     withheld: Option<usize>,
 }
 
 impl Uses<'_, '_> {
     fn name(&self, name: &str) -> Option<Binding> {
-        for locals in self.locals.iter().rev() {
+        for (index, locals) in self.locals.iter().enumerate().rev() {
+            if self.class_scopes.contains(&index) && Some(index) != self.visible_class_scope {
+                continue;
+            }
             if let Some(binding) = locals.get(name) {
                 return binding.clone();
             }
@@ -719,6 +772,8 @@ impl Uses<'_, '_> {
                     module: self.module,
                     owner: self.owner,
                     locals: self.locals.clone(),
+                    class_scopes: self.class_scopes.clone(),
+                    visible_class_scope: self.visible_class_scope,
                     execution_only: self.execution_only,
                     withheld: self.withheld,
                 };
@@ -788,7 +843,9 @@ impl Uses<'_, '_> {
             locals.values.insert(parameter.name().to_string(), None);
         }
         self.locals.push(locals.values);
+        let previous_class_scope = self.visible_class_scope.take();
         self.visit_body(&value.body);
+        self.visible_class_scope = previous_class_scope;
         self.locals.pop();
         self.owner = previous;
     }
@@ -806,18 +863,27 @@ impl Uses<'_, '_> {
         }
         let previous_execution = self.execution_only;
         self.execution_only = true;
+        let previous_class_scope = self.visible_class_scope;
+        self.visible_class_scope = Some(self.locals.len());
+        self.class_scopes.insert(self.locals.len());
         self.locals.push(Bindings::new());
         self.visit_body(&value.body);
         self.locals.pop();
+        self.class_scopes.remove(&self.locals.len());
+        self.visible_class_scope = previous_class_scope;
         self.execution_only = previous_execution;
         self.withheld = previous_withheld;
         if previous_execution {
             return;
         }
         self.owner = declaration;
+        self.visible_class_scope = Some(self.locals.len());
+        self.class_scopes.insert(self.locals.len());
         self.locals.push(Bindings::new());
         self.visit_body(&value.body);
         self.locals.pop();
+        self.class_scopes.remove(&self.locals.len());
+        self.visible_class_scope = previous_class_scope;
         self.owner = previous;
     }
 
@@ -826,6 +892,9 @@ impl Uses<'_, '_> {
         for target in &value.targets {
             if let Expr::Name(name) = target {
                 if name.id.as_str() == ALL_BINDING {
+                    self.execution_only = true;
+                    self.visit_expr(&value.value);
+                    self.execution_only = false;
                     continue;
                 }
                 let declaration = self.definition_owner(name.id.as_str());
@@ -837,6 +906,11 @@ impl Uses<'_, '_> {
                 self.owner = declaration;
                 self.visit_expr(&value.value);
                 self.owner = previous;
+            } else {
+                self.execution_only = true;
+                self.visit_expr(&value.value);
+                self.assignment_target_uses(target);
+                self.execution_only = false;
             }
         }
         self.owner = previous;
@@ -858,6 +932,7 @@ impl Uses<'_, '_> {
 
     fn annotated_assignment_uses(&mut self, value: &ruff_python_ast::StmtAnnAssign) {
         let previous = self.owner;
+        self.assignment_target_uses(&value.target);
         let declaration = if let Expr::Name(name) = &*value.target {
             self.definition_owner(name.id.as_str())
         } else {
@@ -878,6 +953,28 @@ impl Uses<'_, '_> {
         }
         self.owner = previous;
     }
+
+    fn assignment_target_uses(&mut self, target: &Expr) {
+        match target {
+            Expr::Attribute(value) => self.visit_expr(&value.value),
+            Expr::Subscript(value) => {
+                self.visit_expr(&value.value);
+                self.visit_expr(&value.slice);
+            }
+            Expr::Tuple(value) => {
+                for target in &value.elts {
+                    self.assignment_target_uses(target);
+                }
+            }
+            Expr::List(value) => {
+                for target in &value.elts {
+                    self.assignment_target_uses(target);
+                }
+            }
+            Expr::Starred(value) => self.assignment_target_uses(&value.value),
+            _ => {}
+        }
+    }
 }
 
 impl<'a> Visitor<'a> for Uses<'_, '_> {
@@ -893,6 +990,12 @@ impl<'a> Visitor<'a> for Uses<'_, '_> {
             Stmt::Assign(value) => self.local_assignment_uses(value),
             Stmt::AnnAssign(value) if self.locals.is_empty() => {
                 self.annotated_assignment_uses(value)
+            }
+            Stmt::AugAssign(value) => {
+                if let Some(reference) = self.reference(&value.target) {
+                    self.graph.edge(self.owner, &reference);
+                }
+                visitor::walk_stmt(self, statement);
             }
             Stmt::Import(value) => {
                 for alias in &value.names {
@@ -942,9 +1045,11 @@ impl<'a> Visitor<'a> for Uses<'_, '_> {
                 }
             }
             if !self.execution_only {
+                let previous_class_scope = self.visible_class_scope.take();
                 self.locals.push(locals);
                 self.visit_expr(&value.body);
                 self.locals.pop();
+                self.visible_class_scope = previous_class_scope;
             }
             return;
         }

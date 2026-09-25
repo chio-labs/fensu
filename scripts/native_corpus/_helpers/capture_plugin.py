@@ -8,6 +8,9 @@ from pathlib import Path
 from typing import Any
 
 import fensu._native as native
+import fensu.evaluation.classes.rule_project as rule_project
+import fensu.rules.layers._helpers.dead_code as dead_code
+from scripts.native_corpus._helpers.project_capture import project_fixture
 
 _REPOSITORY_PLACEHOLDER: str = "<repo-root>"
 _EXCLUDED_FILESYSTEM_PARTS: frozenset[str] = frozenset({".fensu", ".git", "__pycache__"})
@@ -20,6 +23,31 @@ class _CaptureState:
         self.current_nodeid: str = "unknown"
         self.original_plan: Any = native.plan_native_execution_batch
         self.original_evaluate: Any = native.evaluate_native_execution_batch
+        self.original_project_check: Any = dead_code._check_dead_code
+        self.original_project_facts: Any = rule_project.build_reachability_facts
+        self.project_snapshot: tuple[dict[str, Any], Any] | None = None
+        self.project_fixtures: list[dict[str, Any]] = []
+
+    def project_facts(self, **arguments: Any) -> Any:
+        facts: Any = self.original_project_facts(**arguments)
+        self.project_snapshot = (arguments, facts)
+        return facts
+
+    def project_check(self, **arguments: Any) -> Any:
+        self.project_snapshot = None
+        faults: Any = self.original_project_check(**arguments)
+        if self.project_snapshot is not None:
+            inputs, facts = self.project_snapshot
+            self.project_fixtures.append(
+                project_fixture(
+                    description=f"{self.current_nodeid} project {arguments['code']}",
+                    code=str(arguments["code"]),
+                    inputs=inputs,
+                    facts=facts,
+                    faults=faults,
+                )
+            )
+        return faults
 
     def plan(self, *arguments: Any) -> Any:
         requests: list[Any] = arguments[0]
@@ -58,6 +86,15 @@ class _CaptureState:
     def set_current_nodeid(self, *, nodeid: str) -> None:
         self.current_nodeid = nodeid
 
+    def merge_worker_output(self, *, output: dict[str, Any]) -> None:
+        self.fixtures.extend(json.loads(output.get("fensu_core_fixtures", "[]")))
+        self.project_fixtures.extend(json.loads(output.get("fensu_project_fixtures", "[]")))
+
+    def populate_worker_output(self, *, output: dict[str, Any]) -> dict[str, Any]:
+        output["fensu_core_fixtures"] = json.dumps(self.fixtures)
+        output["fensu_project_fixtures"] = json.dumps(self.project_fixtures)
+        return output
+
 
 _CAPTURE: _CaptureState = _CaptureState()
 
@@ -65,16 +102,39 @@ _CAPTURE: _CaptureState = _CaptureState()
 def pytest_configure() -> None:
     _ = setattr(native, "plan_native_execution_batch", _CAPTURE.plan)
     _ = setattr(native, "evaluate_native_execution_batch", _CAPTURE.evaluate)
+    _ = setattr(rule_project, "build_reachability_facts", _CAPTURE.project_facts)
+    _ = setattr(dead_code, "_check_dead_code", _CAPTURE.project_check)
 
 
 def pytest_runtest_setup(item: Any) -> None:
     _CAPTURE.set_current_nodeid(nodeid=item.nodeid)
 
 
-def pytest_sessionfinish() -> None:
-    output: Path = Path(os.environ["FENSU_CORE_FIXTURE_OUTPUT"])
+def pytest_testnodedown(node: Any) -> None:
+    """Collect worker-owned records before the controller writes each corpus once."""
+
+    output: dict[str, Any] = getattr(node, "workeroutput", {})
+    _CAPTURE.merge_worker_output(output=output)
+
+
+def pytest_sessionfinish(session: Any) -> None:
+    if hasattr(session.config, "workeroutput"):
+        _ = _CAPTURE.populate_worker_output(output=session.config.workeroutput)
+        return
+    if session.exitstatus:
+        return
+    for variable, fixtures in (
+        ("FENSU_CORE_FIXTURE_OUTPUT", _CAPTURE.fixtures),
+        ("FENSU_CORE_PROJECT_FIXTURE_OUTPUT", _CAPTURE.project_fixtures),
+    ):
+        output: str | None = os.environ.get(variable)
+        if output is not None:
+            _write_fixtures(output=Path(output), fixtures=fixtures)
+
+
+def _write_fixtures(*, output: Path, fixtures: list[dict[str, Any]]) -> None:
     ordered: list[dict[str, Any]] = sorted(
-        _CAPTURE.fixtures,
+        fixtures,
         key=lambda fixture: (
             fixture["description"],
             fixture["context"]["repository_path"],

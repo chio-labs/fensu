@@ -20,8 +20,8 @@ use crate::test_types;
 fn given_core_rule_contract_corpus_when_evaluating_then_diagnostics_are_exact() {
     let test_cases = [test_types::CoreRuleCorpusTestCase {
         description: "legacy captured requests preserve every proven core diagnostic",
-        expected_fixture_count: 532,
-        expected_core_code_count: 113,
+        expected_fixture_count: 658,
+        expected_core_code_count: 116,
         expected_non_faulting_codes: &["FFR504", "FFR707", "FFT001"],
     }];
     for test_case in &test_cases {
@@ -39,8 +39,8 @@ fn given_core_rule_contract_corpus_when_evaluating_then_diagnostics_are_exact() 
 fn given_generated_core_rule_corpus_when_evaluating_then_every_registration_is_covered() {
     let test_cases = [test_types::CoreRuleCorpusTestCase {
         description: "current rule suites reproducibly cover every core registration",
-        expected_fixture_count: 143,
-        expected_core_code_count: 113,
+        expected_fixture_count: 269,
+        expected_core_code_count: 116,
         expected_non_faulting_codes: &["FFR301", "FFR302", "FFR306", "FFR308", "FFR309", "FFR403"],
     }];
     for test_case in &test_cases {

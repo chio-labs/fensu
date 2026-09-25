@@ -77,6 +77,8 @@ pub(crate) struct FilesystemEntry {
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct RuleContextFixture {
+    #[serde(default)]
+    pub(crate) dead_code: DeadCodeContextFixture,
     pub(crate) scope: String,
     pub(crate) role: Option<String>,
     pub(crate) is_main_module: bool,
@@ -92,6 +94,14 @@ pub(crate) struct RuleContextFixture {
     pub(crate) test_scopes: Vec<String>,
     pub(crate) observations: HashMap<String, Vec<String>>,
     pub(crate) custom_registrations: Vec<(String, String, String, String, u32, u32)>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+pub(crate) struct DeadCodeContextFixture {
+    pub(crate) enabled: bool,
+    pub(crate) roots: Vec<(Vec<String>, Vec<String>)>,
+    pub(crate) entrypoints: Vec<(String, String)>,
+    pub(crate) config_path: String,
 }
 
 #[derive(Debug, Deserialize)]

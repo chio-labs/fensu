@@ -12,3 +12,14 @@ class AuthoringIndexTestCase:
     description: str
     section_names: tuple[str, ...]
     expected_counts: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class ReachabilityTestCase:
+    """Production graph and independently expected diagnostic counts."""
+
+    description: str
+    files: tuple[tuple[str, str], ...]
+    expected_counts: tuple[int, int, int]
+    metadata: str = ""
+    roots: tuple[tuple[str, str], ...] = ()

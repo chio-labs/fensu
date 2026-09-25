@@ -46,7 +46,11 @@ develop-native:
 	uv sync --reinstall-package fensu
 
 native-corpus-generate:
-	PYTHONPATH=. FENSU_CORE_FIXTURE_OUTPUT=crates/fensu-native/tests/rules/fixtures/generated_rules.jsonl uv run pytest tests/unit/src/fensu/rules tests/integration/src/fensu/rules -q -n 0 -p scripts.native_corpus._helpers.capture_plugin
+	PYTHONPATH=. FENSU_CORE_FIXTURE_OUTPUT=crates/fensu-native/tests/rules/fixtures/generated_rules.jsonl FENSU_CORE_PROJECT_FIXTURE_OUTPUT=crates/fensu-native/tests/rules/fixtures/project_rules.jsonl uv run pytest tests/unit/src/fensu/rules tests/integration/src/fensu/rules -q -n auto --dist loadfile -p scripts.native_corpus._helpers.capture_plugin
+
+.PHONY: native-project-corpus-generate
+native-project-corpus-generate:
+	PYTHONPATH=. FENSU_CORE_PROJECT_FIXTURE_OUTPUT=crates/fensu-native/tests/rules/fixtures/project_rules.jsonl uv run pytest tests/integration/src/fensu/rules/exemplars/main/annotations/test_parameter_annotation.py tests/integration/src/fensu/rules/exemplars/test_reachability.py -q -n auto --dist loadfile -p scripts.native_corpus._helpers.capture_plugin
 
 self-check:
 	uv run fensu check

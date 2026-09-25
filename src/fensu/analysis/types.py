@@ -8,6 +8,27 @@ from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple, Protocol
 
+
+class PythonSymbolKind(StrEnum):
+    """Declaration and execution-node kinds in the Python dependency graph."""
+
+    MODULE = "module"
+    FUNCTION = "function"
+    CLASS = "class"
+    CONSTANT = "constant"
+    LOCAL = "local"
+
+
+class PythonEntryPointKind(StrEnum):
+    """Statically declared production entry mechanisms."""
+
+    PACKAGE = "package"
+    EXPORT = "export"
+    MAIN = "main"
+    SCRIPT = "script"
+    PLUGIN = "plugin"
+
+
 if TYPE_CHECKING:
     from fensu.analysis.models import (
         AnnotationFacts,

@@ -70,7 +70,7 @@ class EvaluationRuleContext:
         self._layout: ProjectLayout = layout
         self._rule: RuleSpec = rule
         self.__project: RuleProjectView = RuleProjectView(
-            tree=tree, analysis=project, requester=parsed_module.scoped_file.path
+            tree=tree, analysis=project, requester=parsed_module.scoped_file.path, config=config
         )
         self._file_cache: dict[str, Any] = file_cache
         self._threshold_override_uses: list[ThresholdOverrideUse] = threshold_override_uses

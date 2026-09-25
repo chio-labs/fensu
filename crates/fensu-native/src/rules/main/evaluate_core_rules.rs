@@ -27,7 +27,7 @@ pub fn evaluate_core_rules(
     project: &NativeProjectPlane,
 ) -> Result<Vec<NativeFaultRow>, String> {
     validate_rule_options(codes, context)?;
-    let mut faults: Vec<NativeFaultRow> = Vec::new();
+    let mut faults = crate::rules::_helpers::dead_code::faults(codes, &context.dead_code, project);
     for code in codes {
         match code.as_str() {
             PARAMETER_ANNOTATION_CODE => {

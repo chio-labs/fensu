@@ -115,6 +115,15 @@ macro_rules! define_execution_plan_binding {
 
 define_execution_plan_binding!();
 
+#[pyfunction]
+pub(crate) fn parse_dead_code_config(
+    value: &str,
+) -> PyResult<crate::rules::types::NativeDeadCodeSettings> {
+    let value =
+        serde_json::from_str(value).map_err(|error| PyValueError::new_err(error.to_string()))?;
+    crate::rules::main::parse_dead_code::parse_dead_code(&value).map_err(PyValueError::new_err)
+}
+
 fn plan_execution_batch(
     request: ExecutionBatchPlanRequest<'_>,
 ) -> PyResult<NativeExecutionPlanTuple> {
@@ -136,6 +145,7 @@ fn plan_execution_batch(
                 program,
                 codes: request.1,
                 context: NativeRuleContext {
+                    dead_code: Default::default(),
                     scope: request.2,
                     role: request.3,
                     is_main_module: request.4,

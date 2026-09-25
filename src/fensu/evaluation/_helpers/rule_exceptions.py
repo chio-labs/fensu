@@ -9,11 +9,13 @@ from fensu.analysis.exceptions import PythonSourceParseError
 from fensu.analysis.main.parse_source import parse_python_source
 from fensu.analysis.types import PythonSourceArtifact
 from fensu.config.exceptions import ConfigError
+from fensu.config.main.configuration_directory import configuration_directory
 from fensu.config.models import Config, RuleExceptionEntry
 from fensu.discovery.models import DiscoveredTree, ScopedFile
 from fensu.evaluation.models import FileExceptionScope, ParsedModule, RuleExceptionKey
 from fensu.evaluation.types import EvaluationProjectAnalysis
 from fensu.rules.authoring.models import Fault
+from fensu.rules.layers.types import LayerCode
 
 _POSIX_PATH_SEPARATOR: str = "/"
 
@@ -22,8 +24,13 @@ def validate_exception_targets(*, config: Config, repo_root: Path) -> None:
     """Validate configured paths and qualified symbols against repository source."""
 
     for exception in config.rule_exceptions:
-        path: Path = repo_root / exception.path
-        _validate_exception_path(path=path, repo_root=repo_root, configured=exception.path)
+        directory: Path = (
+            configuration_directory(project_root=repo_root, target_root=config.target_root)
+            if exception.rule == LayerCode.STALE_DEAD_CODE_ROOT
+            else repo_root
+        )
+        path: Path = directory / exception.path
+        _validate_exception_path(path=path, repo_root=directory, configured=exception.path)
         if not exception.symbols:
             continue
         module: ast.Module = _parse_exception_path(path)
@@ -125,7 +132,12 @@ def suppress_project_faults(
     applied: set[RuleExceptionKey] = set()
     for fault in faults:
         try:
-            relative_path: str = _repository_relative_path(path=fault.path, repo_root=repo_root)
+            directory: Path = (
+                configuration_directory(project_root=repo_root, target_root=config.target_root)
+                if fault.code == LayerCode.STALE_DEAD_CODE_ROOT
+                else repo_root
+            )
+            relative_path: str = _repository_relative_path(path=fault.path, repo_root=directory)
         except ValueError:
             retained.append(fault)
             continue

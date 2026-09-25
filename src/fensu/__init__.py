@@ -3,6 +3,16 @@
 from fensu.public_api.main.load_attribute import load_public_attribute as __getattr__  # noqa: F401
 
 __all__ = [
+    "DeadCodeConfig",
+    "DeadCodeRoot",
+    "PythonSymbolId",
+    "PythonSymbolKind",
+    "PythonSymbolFact",
+    "PythonReferenceFact",
+    "PythonEntryPointKind",
+    "PythonEntryPointFact",
+    "PythonReachabilityFacts",
+    "matches_symbol_patterns",
     "ArchitectureGraph",
     "AnalyzerId",
     "AnnotationFacts",

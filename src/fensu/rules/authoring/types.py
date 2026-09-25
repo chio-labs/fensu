@@ -15,6 +15,7 @@ if TYPE_CHECKING:
         DataclassFact,
         ProjectDependency,
         ProjectFunctionFact,
+        PythonReachabilityFacts,
         SourceLocation,
         SourceRange,
         SyntaxHandle,
@@ -26,6 +27,7 @@ if TYPE_CHECKING:
         SyntaxAnalysis,
         TextAnalysis,
     )
+    from fensu.config.models import DeadCodeConfig
     from fensu.rules.authoring.models import (
         ArchitectureGraph,
         CustomRuleRegistration,
@@ -251,6 +253,15 @@ class Threshold(StrEnum):
 
 class RuleProjectFacts(Protocol):
     """Discovered-tree facts and requester-bound cross-file queries."""
+
+    @property
+    def dead_code(self) -> DeadCodeConfig:
+        """Return typed opt-in settings and reasoned roots for the Python target."""
+        ...
+
+    def python_reachability(self) -> PythonReachabilityFacts:
+        """Return declarations, resolved dependencies, and entry facts without verdicts."""
+        ...
 
     @property
     def tree(self) -> ProjectTree:

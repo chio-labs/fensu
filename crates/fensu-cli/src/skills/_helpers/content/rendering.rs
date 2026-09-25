@@ -86,14 +86,17 @@ fn generate_aggregate(context: &SkillContext) -> Result<String, String> {
         "- Run `fensu skills` after changing any target's rule selection or custom rules."
             .to_owned(),
     ];
-    if context
+    let python = context
         .targets
         .iter()
-        .any(|target| target.config.analyzer == AnalyzerId::Python)
-    {
+        .any(|target| target.config.analyzer == AnalyzerId::Python);
+    if python {
         lines.push("- Run `fensu map <SYMBOL>` for Python call-flow navigation.".to_owned());
     }
     lines.extend(duplicated_code_lines()?);
+    if python {
+        lines.extend(dead_code_lines());
+    }
     if let Some(repository) = &context.repository_rules {
         lines.extend([
             "## Repository Rules".to_owned(),
@@ -250,6 +253,7 @@ fn generate_single(context: &SkillContext) -> Result<String, String> {
     lines.pop();
     lines.extend(duplicated_code_lines()?);
     if python {
+        lines.extend(dead_code_lines());
         lines.extend(profile_lines("navigation")?);
         lines.extend(profile_lines("work_practices")?);
         lines.extend(repository_lines(context)?);
@@ -318,6 +322,18 @@ fn duplicated_code_lines() -> Result<Vec<String>, String> {
     ];
     lines.extend(profile_lines("duplicated_code")?);
     Ok(lines)
+}
+
+fn dead_code_lines() -> Vec<String> {
+    [
+        "",
+        "## Python Dead Code",
+        "",
+        "Reachability faults are enabled only by `[dead_code] enabled = true`. New blank Python projects opt in during `fensu init`; adopting existing code does not. Other analyzers keep their existing policy.",
+        "Investigate a fault's production entry mechanism before deleting code. Deliberate public exports stay live. Tests, public-looking names, and placement under `main/` do not make an internal declaration live.",
+        "For statically opaque dispatch, configure `[[dead_code.roots]]` with non-empty `modules` and `symbols` pattern arrays and a non-empty `reason` explaining the actual entry mechanism. Stale roots fail when they match no existing production declaration. Roots never enable or disable the feature by themselves; use ordinary rule exceptions for deliberate diagnostic suppressions.",
+        "",
+    ].map(str::to_owned).to_vec()
 }
 
 fn rule_context_lines() -> Result<Vec<String>, String> {

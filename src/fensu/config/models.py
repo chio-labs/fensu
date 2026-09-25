@@ -114,6 +114,23 @@ class ThresholdResolution:
 
 
 @dataclass(frozen=True, slots=True)
+class DeadCodeRoot:
+    """One reasoned root for a statically opaque production entry mechanism."""
+
+    modules: tuple[str, ...]
+    symbols: tuple[str, ...]
+    reason: str
+
+
+@dataclass(frozen=True, slots=True)
+class DeadCodeConfig:
+    """Reachability is opt-in independently of the configured roots."""
+
+    enabled: bool = False
+    roots: tuple[DeadCodeRoot, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class Config:
     """Validated fensu configuration."""
 
@@ -154,6 +171,7 @@ class Config:
     openapi: str | None = None
     test_layout: TestLayout = DEFAULT_TEST_LAYOUT
     ownership_roots: tuple[str, ...] = ()
+    dead_code: DeadCodeConfig = field(default_factory=DeadCodeConfig)
 
     def __post_init__(self) -> None:
         """Freeze defensive copies of nested rule-option mappings."""

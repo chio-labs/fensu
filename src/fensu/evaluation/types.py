@@ -97,6 +97,10 @@ class RepositoryDependencyKind(StrEnum):
 class EvaluationProjectAnalysis(ProjectAnalysis, Protocol):
     """Project analysis with strict discovered-file parsing for evaluation."""
 
+    def entrypoint_symbols(self, *, requester: Path) -> tuple[tuple[str, str], ...]:
+        """Return full project script/plugin references with dependency evidence."""
+        ...
+
     def parsed_module(self, scoped_file: ScopedFile) -> ParsedModule:
         """Return one strict discovered-file parse."""
         ...

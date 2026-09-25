@@ -86,7 +86,9 @@ from tests.e2e.src.fensu.cli.main.helpers import (
                 CliProjectFile(relative_path="src/my_project/__init__.py", source=""),
                 CliProjectFile(
                     relative_path="fensu.toml",
-                    source=('roots = ["src/my_project"]\ntests = ["tests"]\nselect = ["FF"]\n'),
+                    source=(
+                        'roots = ["src/my_project"]\ntests = ["tests"]\nselect = ["FF"]\n\n[dead_code]\nenabled = true\n'
+                    ),
                 ),
                 CliProjectFile(relative_path="tests/.gitkeep", source=""),
             ),

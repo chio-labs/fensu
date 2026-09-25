@@ -23,11 +23,14 @@ pub(crate) fn write_project_files(
 }
 
 fn write_config(repository: &cap_std::fs::Dir, plan: &InitPlan) -> Result<(), String> {
-    let text = if plan.targets.is_empty() {
+    let mut text = if plan.targets.is_empty() {
         legacy_config_text(&plan.roots, &plan.tests, &plan.tooling)?
     } else {
         render_target_config(&plan.targets)?
     };
+    if plan.project_name.is_some() {
+        text.push_str("\n[dead_code]\nenabled = true\n");
+    }
     validate_config_text(&text)?;
     write_if_unchanged(WriteRequest {
         repository,

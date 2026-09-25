@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from fensu.analysis.types import RuleCaseForm
+from fensu.analysis.types import PythonEntryPointKind, PythonSymbolKind, RuleCaseForm
 from fensu.config.types import AnalyzerId
 
 
@@ -58,6 +58,51 @@ class SourceLocation:
     path: Path
     line: int
     column: int
+
+
+@dataclass(frozen=True, slots=True)
+class PythonSymbolId:
+    """An opaque identity local to one Python reachability-facts snapshot."""
+
+    value: int
+
+
+@dataclass(frozen=True, slots=True)
+class PythonSymbolFact:
+    """A declaration or module-execution node, without a liveness verdict."""
+
+    id: PythonSymbolId
+    module: str
+    name: str
+    kind: PythonSymbolKind
+    location: SourceLocation
+
+
+@dataclass(frozen=True, slots=True)
+class PythonReferenceFact:
+    """A resolved dependency from a symbol body or module execution to another node."""
+
+    source: PythonSymbolId
+    target: PythonSymbolId
+
+
+@dataclass(frozen=True, slots=True)
+class PythonEntryPointFact:
+    """A declared entry mechanism and its resolved node, if inside the selected surface."""
+
+    symbol: PythonSymbolId | None
+    kind: PythonEntryPointKind
+    reference: str
+
+
+@dataclass(frozen=True, slots=True)
+class PythonReachabilityFacts:
+    """Typed graph inputs; clients independently choose roots and traverse dependencies."""
+
+    symbols: tuple[PythonSymbolFact, ...]
+    references: tuple[PythonReferenceFact, ...]
+    entrypoints: tuple[PythonEntryPointFact, ...]
+    configuration_path: Path
 
 
 @dataclass(frozen=True, slots=True)

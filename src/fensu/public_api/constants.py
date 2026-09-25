@@ -1,6 +1,19 @@
 """Public attribute ownership declarations."""
 
 PUBLIC_ATTRIBUTES: dict[str, tuple[str, str]] = {
+    "DeadCodeConfig": ("fensu.config.models", "DeadCodeConfig"),
+    "DeadCodeRoot": ("fensu.config.models", "DeadCodeRoot"),
+    "PythonSymbolId": ("fensu.analysis.models", "PythonSymbolId"),
+    "PythonSymbolKind": ("fensu.analysis.types", "PythonSymbolKind"),
+    "PythonSymbolFact": ("fensu.analysis.models", "PythonSymbolFact"),
+    "PythonReferenceFact": ("fensu.analysis.models", "PythonReferenceFact"),
+    "PythonEntryPointKind": ("fensu.analysis.types", "PythonEntryPointKind"),
+    "PythonEntryPointFact": ("fensu.analysis.models", "PythonEntryPointFact"),
+    "PythonReachabilityFacts": ("fensu.analysis.models", "PythonReachabilityFacts"),
+    "matches_symbol_patterns": (
+        "fensu.analysis.main.matches_symbol_patterns",
+        "matches_symbol_patterns",
+    ),
     "ArchitectureGraph": ("fensu.rules.authoring.models", "ArchitectureGraph"),
     "AnalyzerId": ("fensu.config.types", "AnalyzerId"),
     "AnnotationFacts": ("fensu.analysis.models", "AnnotationFacts"),

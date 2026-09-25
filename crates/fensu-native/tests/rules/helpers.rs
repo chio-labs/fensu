@@ -7,7 +7,9 @@ use std::path::Path;
 use fensu_facts::extension::models::ProgramHandle;
 use fensu_native::rules::constants::NATIVE_RULE_FACT_FAMILIES;
 use fensu_native::rules::main::evaluate_core_rules::evaluate_core_rules;
-use fensu_native::rules::models::{NativeProjectModule, NativeProjectPlane, NativeRuleContext};
+use fensu_native::rules::models::{
+    NativeDeadCodeContext, NativeProjectModule, NativeProjectPlane, NativeRuleContext,
+};
 use ruff_python_ast::PythonVersion;
 
 use crate::test_types::{CoreRuleCorpusTestCase, CoreRuleFixture, ExpectedFault};
@@ -23,6 +25,7 @@ pub(crate) fn fixtures() -> Vec<CoreRuleFixture> {
     include_str!("fixtures/core_rules.jsonl")
         .lines()
         .map(|line| serde_json::from_str(line).expect("core rule fixture is valid"))
+        .chain(project_fixtures())
         .collect()
 }
 
@@ -30,6 +33,14 @@ pub(crate) fn generated_fixtures() -> Vec<CoreRuleFixture> {
     include_str!("fixtures/generated_rules.jsonl")
         .lines()
         .map(|line| serde_json::from_str(line).expect("generated core rule fixture is valid"))
+        .chain(project_fixtures())
+        .collect()
+}
+
+fn project_fixtures() -> Vec<CoreRuleFixture> {
+    include_str!("fixtures/project_rules.jsonl")
+        .lines()
+        .map(|line| serde_json::from_str(line).expect("captured project rule fixture is valid"))
         .collect()
 }
 
@@ -125,6 +136,12 @@ fn evaluate_fixture(test_case: &CoreRuleFixture) -> Vec<ExpectedFault> {
         .map(|(_, root)| format!("{repo_root}/{root}"))
         .collect();
     let context = NativeRuleContext {
+        dead_code: NativeDeadCodeContext {
+            enabled: test_case.context.dead_code.enabled,
+            roots: test_case.context.dead_code.roots.clone(),
+            entrypoints: test_case.context.dead_code.entrypoints.clone(),
+            config_path: test_case.context.dead_code.config_path.clone(),
+        },
         scope: test_case.context.scope.clone(),
         role: test_case.context.role.clone(),
         is_main_module: test_case.context.is_main_module,

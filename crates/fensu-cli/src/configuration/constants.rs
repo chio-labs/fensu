@@ -105,6 +105,8 @@ pub(crate) const CONTRACT_BEHAVIORS: &[&str] = &[
 #[rustfmt::skip]
 pub(crate) const RULE_CONFIGURATION_INPUTS: &[&str] = &[
     "contracts",
+    "dead_code",
+    "evaluation",
     "generated",
     "openapi",
     "ownership_roots",

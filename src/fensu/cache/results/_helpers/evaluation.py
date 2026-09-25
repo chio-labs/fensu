@@ -610,7 +610,9 @@ def _prepare_cached_evaluation(
     partitions: SubjectRulePartitions = _partition_subject_rules(
         ruleset=ruleset, warning_rules=warning_rules
     )
-    selection: EvaluationSelection = select_evaluation_files(tree=tree, config=config.evaluation)
+    selection: EvaluationSelection = select_evaluation_files(
+        tree=tree, config=config.evaluation, allow_empty=config.dead_code.enabled
+    )
     targets: tuple[EvaluationTarget, ...] = (
         build_evaluation_targets(
             tree=tree,

@@ -62,6 +62,7 @@ SKILLS_NAME_CONFIG_KEY: str = "name"
 DEFAULT_CACHE_REQUIRE_CACHEABLE: bool = False
 PYTHON_ANALYZER: AnalyzerId = AnalyzerId.PYTHON
 DEFAULT_TARGET_ROOT: str = "."
+DEAD_CODE_CONFIG_FILES: frozenset[str] = frozenset({"fensu.toml", "pyproject.toml"})
 TARGET_CONFIG_KEYS: frozenset[str] = frozenset({"analyzer", "root"})
 TARGETS_CONFIG_KEY: str = "targets"
 REPOSITORY_RULES_CONFIG_KEY: str = "repository_rules"
@@ -84,6 +85,7 @@ SELECT_CONFIG_KEY: str = "select"
 
 CONFIG_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
     {
+        "dead_code",
         "roots",
         "tests",
         "test_scopes",
@@ -116,6 +118,8 @@ CONFIG_ROLE_NAMES: frozenset[str] = frozenset(RoleName)
 CONTRACT_BEHAVIORS: frozenset[str] = frozenset(ContractBehavior)
 RULE_CONFIGURATION_INPUTS: frozenset[str] = frozenset(
     {
+        "dead_code",
+        "evaluation",
         "contracts",
         "generated",
         "openapi",

@@ -11,7 +11,7 @@ from fensu.evaluation.models import EvaluationSelection
 
 
 def select_evaluation_files(
-    *, tree: DiscoveredTree, config: EvaluationConfig
+    *, tree: DiscoveredTree, config: EvaluationConfig, allow_empty: bool = False
 ) -> EvaluationSelection:
     """Return validated direct targets without changing the discovered tree."""
 
@@ -34,6 +34,7 @@ def select_evaluation_files(
             [path for _, path in repository_paths],
             list(config.include),
             list(config.exclude),
+            allow_empty,
         )
     except ValueError as error:
         raise ConfigError(str(error)) from error

@@ -100,6 +100,11 @@ from fensu.rules.exemplars.main.layers._no_star_imports import no_star_imports_e
 from fensu.rules.exemplars.main.layers._public_main_entry_external_use import (
     public_main_entry_external_use_equivalent,
 )
+from fensu.rules.exemplars.main.layers._stale_dead_code_root import stale_dead_code_root_equivalent
+from fensu.rules.exemplars.main.layers._unreachable_definition import (
+    unreachable_definition_equivalent,
+)
+from fensu.rules.exemplars.main.layers._unreachable_module import unreachable_module_equivalent
 from fensu.rules.exemplars.main.naming._iterator_name_must_produce_iterator import (
     iterator_name_must_produce_iterator_equivalent,
 )
@@ -271,6 +276,9 @@ NATIVE_CUSTOM_RULE_EQUIVALENTS: dict[str, RuleCheck] = canonical_equivalent_rule
         "FFL103": no_internal_public_surface_imports_equivalent,
         "FFL104": no_cross_domain_private_main_imports_equivalent,
         "FFL105": public_main_entry_external_use_equivalent,
+        "FFL106": unreachable_definition_equivalent,
+        "FFL107": stale_dead_code_root_equivalent,
+        "FFL108": unreachable_module_equivalent,
         "FFL110": no_cross_file_helper_private_classes_equivalent,
         "FFL301": no_runtime_imports_from_tooling_equivalent,
         "FFR001": models_only_models_equivalent,

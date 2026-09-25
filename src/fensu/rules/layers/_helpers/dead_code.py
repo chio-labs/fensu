@@ -8,7 +8,25 @@ from fensu.rules.authoring.types import RuleContext
 from fensu.rules.layers.types import LayerCode
 
 
-def check_dead_code(*, project: Project, ctx: RuleContext, code: LayerCode) -> list[Fault]:
+def check_unreachable_definition(*, project: Project, ctx: RuleContext) -> list[Fault]:
+    """Evaluate definition reachability through inspectable, module-free project facts."""
+
+    return _check_dead_code(project=project, ctx=ctx, code=LayerCode.UNREACHABLE_DEFINITION)
+
+
+def check_stale_dead_code_root(*, project: Project, ctx: RuleContext) -> list[Fault]:
+    """Evaluate configured roots through inspectable, module-free project facts."""
+
+    return _check_dead_code(project=project, ctx=ctx, code=LayerCode.STALE_DEAD_CODE_ROOT)
+
+
+def check_unreachable_module(*, project: Project, ctx: RuleContext) -> list[Fault]:
+    """Evaluate module execution through inspectable, module-free project facts."""
+
+    return _check_dead_code(project=project, ctx=ctx, code=LayerCode.UNREACHABLE_MODULE)
+
+
+def _check_dead_code(*, project: Project, ctx: RuleContext, code: LayerCode) -> list[Fault]:
     """Keep project diagnostics executable even with an empty selected source surface."""
 
     del project

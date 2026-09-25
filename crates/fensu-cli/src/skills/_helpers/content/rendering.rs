@@ -86,15 +86,17 @@ fn generate_aggregate(context: &SkillContext) -> Result<String, String> {
         "- Run `fensu skills` after changing any target's rule selection or custom rules."
             .to_owned(),
     ];
-    if context
+    let python = context
         .targets
         .iter()
-        .any(|target| target.config.analyzer == AnalyzerId::Python)
-    {
+        .any(|target| target.config.analyzer == AnalyzerId::Python);
+    if python {
         lines.push("- Run `fensu map <SYMBOL>` for Python call-flow navigation.".to_owned());
     }
     lines.extend(duplicated_code_lines()?);
-    lines.extend(dead_code_lines());
+    if python {
+        lines.extend(dead_code_lines());
+    }
     if let Some(repository) = &context.repository_rules {
         lines.extend([
             "## Repository Rules".to_owned(),
@@ -250,8 +252,8 @@ fn generate_single(context: &SkillContext) -> Result<String, String> {
     }
     lines.pop();
     lines.extend(duplicated_code_lines()?);
-    lines.extend(dead_code_lines());
     if python {
+        lines.extend(dead_code_lines());
         lines.extend(profile_lines("navigation")?);
         lines.extend(profile_lines("work_practices")?);
         lines.extend(repository_lines(context)?);

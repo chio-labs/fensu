@@ -1,10 +1,12 @@
 """Opt-in Python reachability diagnostic identities."""
 
-from functools import partial
-
 from fensu.rules.authoring.models import RuleSpec
 from fensu.rules.authoring.types import ExecutionOwner, Family, RuleSubjectKind
-from fensu.rules.layers._helpers.dead_code import check_dead_code
+from fensu.rules.layers._helpers.dead_code import (
+    check_stale_dead_code_root,
+    check_unreachable_definition,
+    check_unreachable_module,
+)
 from fensu.rules.layers.types import LayerCode
 
 
@@ -25,26 +27,29 @@ def dead_code_rules() -> tuple[RuleSpec, ...]:
             subject_kind=RuleSubjectKind.PROJECT,
             subject_parameter="project",
             context_parameter="ctx",
-            check=partial(check_dead_code, code=code),
+            check=check,
             uses_module=False,
             configuration_inputs=("dead_code", "roots", "tests", "evaluation"),
             enabled_by_default=False,
         )
-        for code, slug, message in (
+        for code, slug, message, check in (
             (
                 LayerCode.UNREACHABLE_DEFINITION,
                 "unreachable-definition",
                 "definition is unreachable from production roots",
+                check_unreachable_definition,
             ),
             (
                 LayerCode.STALE_DEAD_CODE_ROOT,
                 "stale-dead-code-root",
                 "configured root matches no existing production declaration",
+                check_stale_dead_code_root,
             ),
             (
                 LayerCode.UNREACHABLE_MODULE,
                 "unreachable-module",
                 "module is unreachable from production roots",
+                check_unreachable_module,
             ),
         )
     )

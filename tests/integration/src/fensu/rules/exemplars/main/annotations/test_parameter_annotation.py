@@ -69,6 +69,9 @@ _PARITY_NATIVE_CODES: frozenset[str] = frozenset(
         "FFL103",
         "FFL104",
         "FFL105",
+        "FFL106",
+        "FFL107",
+        "FFL108",
         "FFL110",
         "FFL301",
         "FFN001",
@@ -169,6 +172,49 @@ _PYTHON_OWNED_SFR_CODES: frozenset[str] = frozenset()
 @pytest.mark.parametrize(
     "test_case",
     [
+        NativeCustomRuleParityTestCase(
+            description="FFL106 independently traverses public graph facts from configured roots",
+            native_code="FFL106",
+            source="def entry(): helper()\ndef helper(): pass\ndef unused(): pass\n",
+            config={
+                "dead_code": {
+                    "enabled": True,
+                    "roots": [
+                        {
+                            "modules": ["example.main.example"],
+                            "symbols": ["entry"],
+                            "reason": "External command registration.",
+                        }
+                    ],
+                }
+            },
+            expected_fault_count=1,
+        ),
+        NativeCustomRuleParityTestCase(
+            description="FFL107 matches configured roots against existing declarations",
+            native_code="FFL107",
+            source="def entry(): pass\n",
+            config={
+                "dead_code": {
+                    "enabled": True,
+                    "roots": [
+                        {
+                            "modules": ["example.missing"],
+                            "symbols": ["entry"],
+                            "reason": "External command registration.",
+                        }
+                    ],
+                }
+            },
+            expected_fault_count=1,
+        ),
+        NativeCustomRuleParityTestCase(
+            description="FFL108 identifies an unrooted module from public execution edges",
+            native_code="FFL108",
+            source="def unused(): pass\n",
+            config={"dead_code": {"enabled": True}},
+            expected_fault_count=1,
+        ),
         NativeCustomRuleParityTestCase(
             description="FFA001 matches a public custom rule for ordinary and variadic parameters",
             native_code="FFA001",

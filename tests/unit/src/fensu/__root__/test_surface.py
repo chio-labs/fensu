@@ -21,6 +21,16 @@ from tests.unit.src.fensu.__root__._test_types import (
         PublicSurfaceTestCase(
             description="fensu exports the complete public rule authoring surface",
             expected_all=(
+                "DeadCodeConfig",
+                "DeadCodeRoot",
+                "PythonSymbolId",
+                "PythonSymbolKind",
+                "PythonSymbolFact",
+                "PythonReferenceFact",
+                "PythonEntryPointKind",
+                "PythonEntryPointFact",
+                "PythonReachabilityFacts",
+                "matches_symbol_patterns",
                 "ArchitectureGraph",
                 "AnalyzerId",
                 "AnnotationFacts",

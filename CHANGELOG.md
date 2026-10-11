@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.26.0](https://github.com/chio-labs/fensu/compare/v0.25.0...v0.26.0) (2026-10-11)
+
+
+### Features
+
+* **rust:** enforce crate contents and embedded-file boundaries ([#105](https://github.com/chio-labs/fensu/issues/105)) ([505658c](https://github.com/chio-labs/fensu/commit/505658c8a0f99c4635a5ae150039c96de1a522ad))
+
 ## [0.25.0](https://github.com/chio-labs/fensu/compare/v0.24.0...v0.25.0) (2026-10-11)
 
 

@@ -168,7 +168,11 @@ def test_given_rust_pack_when_building_catalogue_then_registers_owned_project_po
     config: Config = build_config(raw={"roots": ["src"]}, analyzer=AnalyzerId.RUST)
     implementation_codes: set[str] = {rule.implementation_code or "" for rule in FPRS_RULES}
     structure_codes: set[str] = set()
-    for source_path in Path("crates/fensu-rust/src/rules").rglob("*.rs"):
+    rust_sources: list[Path] = [
+        *Path("crates/fensu-rust/src/rules").rglob("*.rs"),
+        Path("crates/fensu-rust/src/constants.rs"),
+    ]
+    for source_path in rust_sources:
         structure_codes.update(re.findall(r'"(RS[A-Z][0-9]{3})"', source_path.read_text()))
 
     assert len(FPRS_RULES) == test_case.expected_rule_count

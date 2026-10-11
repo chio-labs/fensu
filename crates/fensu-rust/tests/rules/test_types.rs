@@ -54,3 +54,18 @@ pub(crate) struct RepositoryPolicyTestCase {
     pub(crate) expected_present_code: &'static str,
     pub(crate) expected_absent_codes: Vec<&'static str>,
 }
+pub(crate) struct FilePlacementTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) source: &'static str,
+    pub(crate) source_path: &'static str,
+    pub(crate) target: &'static str,
+    pub(crate) ownership_roots: &'static [&'static str],
+    pub(crate) expected_faults: usize,
+}
+
+pub(crate) struct CrateContentsTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) entries: &'static [&'static str],
+    pub(crate) options: &'static str,
+    pub(crate) expected_faults: usize,
+}

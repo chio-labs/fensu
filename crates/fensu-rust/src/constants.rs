@@ -142,3 +142,13 @@ pub const PATH_KEY: &str = "path";
 pub const WILDCARD_VERSION: &str = "*";
 pub const ALLOW_ATTRIBUTE: &str = "allow";
 pub const EXPECT_ATTRIBUTE: &str = "expect";
+pub(crate) const DEFAULT_CRATE_ALLOWED_ENTRIES: &[&str] = &[
+    "Cargo.toml",
+    "build.rs",
+    "src/",
+    "tests/",
+    "benches/",
+    "examples/",
+    "README*",
+    "LICENSE*",
+];

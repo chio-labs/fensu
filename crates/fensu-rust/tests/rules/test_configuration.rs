@@ -899,6 +899,7 @@ fn given_custom_parser_boundary_when_checking_then_uses_configured_policy() {
                 .to_owned(),
         }],
         config: models::RustPolicy {
+            crate_allowed_entries: models::RustPolicy::default().crate_allowed_entries,
             ownership_roots: Vec::new(),
             tooling: models::ToolingConfig {
                 paths: vec!["crates/example-validator".to_owned()],

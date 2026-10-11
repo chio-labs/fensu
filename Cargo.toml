@@ -26,6 +26,7 @@ encoding_rs = "0.8"
 flate2 = { version = "1", default-features = false, features = ["zlib"] }
 globset = "=0.4.19"
 hex = "0.4"
+ignore = "0.4"
 oxc_allocator = "=0.143.0"
 oxc_ast = "=0.143.0"
 oxc_ast_visit = "=0.143.0"

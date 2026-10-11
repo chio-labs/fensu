@@ -120,3 +120,42 @@ Rust sources, Cargo manifests, existing lockfiles, and target settings are cache
 Existing lockfiles are read with locked metadata resolution. Lock-free workspaces use declared
 dependency metadata without creating a lockfile. A Cargo metadata setup failure produces a
 diagnostic and prevents caching, even if that diagnostic is excluded by rule selection.
+## File placement and embedded resources
+
+The `rust` pack enables `FPRSR311` (`rust-rsr311`) and `FPRSL106` (`rust-rsl106`)
+by default. Upgrading can therefore report new faults for package-root data directories
+or includes that cross ownership boundaries.
+
+`FPRSR311` checks each Cargo-discovered package directory, reporting one fault per
+non-standard direct entry. Defaults allow `Cargo.toml`, `build.rs`, `src/`, `tests/`,
+`benches/`, `examples/`, `README*`, and `LICENSE*`. `Cargo.lock` is always accepted.
+Hidden entries, VCS-ignored entries, and `target/` are skipped. Directories containing
+other workspace packages are also accepted when the workspace root is itself a package.
+Virtual workspace roots are not package directories and are not checked.
+
+The `allowed_entries` option replaces the default list. Entries are filename glob
+patterns; a trailing `/` requires a directory. For example:
+
+```toml
+[targets.rust.rule_options.FPRSR311]
+allowed_entries = [
+  "Cargo.toml", "build.rs", "src/", "tests/", "benches/", "examples/",
+  "README*", "LICENSE*", "NOTICE*",
+]
+```
+
+`FPRSL106` checks `include_str!` and `include_bytes!`, including `std::` and `core::`
+forms, in parsed items, expressions, constants, statics, and parseable macro arguments.
+Each argument must be a single string literal: `concat!`, `env!`, identifiers, and
+other computed arguments are faults. Paths resolve relative to the including file;
+canonicalization resolves `..` and symlinks before checking the boundary. Missing,
+unresolvable, and non-file targets are faults.
+
+The boundary is the including file's top-level domain below its effective ownership
+root, using the same longest configured `ownership_roots` match as the Rust ownership
+rules (or the Cargo source root by default). Files directly at that root, including
+`lib.rs` and `main.rs`, have no domain and cannot embed resources. Includes cannot
+reach another domain, the source root, or outside the source tree. For example,
+`src/orders/_helpers/read.rs` may include `../data/file.txt`, but not
+`../../customers/data/file.txt`. Integration-test files use their discovered test
+source root and must likewise keep embedded fixtures inside their own test domain.

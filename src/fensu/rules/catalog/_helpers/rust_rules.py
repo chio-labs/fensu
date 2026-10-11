@@ -30,6 +30,7 @@ _IMPLEMENTATION_CODES: tuple[str, ...] = (
     "RSL103",
     "RSL104",
     "RSL105",
+    "RSL106",
     "RSL110",
     "RSL301",
     "RSL302",
@@ -65,6 +66,7 @@ _IMPLEMENTATION_CODES: tuple[str, ...] = (
     "RSR308",
     "RSR309",
     "RSR310",
+    "RSR311",
     "RSR401",
     "RSR402",
     "RSR403",
@@ -139,6 +141,21 @@ _FAMILIES: dict[str, Family] = {
 }
 
 _OPTIONS: dict[str, tuple[RuleOption[object], ...]] = {
+    "RSR311": (
+        RuleOption.string_list(
+            name="allowed_entries",
+            default=(
+                "Cargo.toml",
+                "build.rs",
+                "src/",
+                "tests/",
+                "benches/",
+                "examples/",
+                "README*",
+                "LICENSE*",
+            ),
+        ),
+    ),
     "RSR601": (RuleOption.integer(name="max_file_lines", default=2000, minimum=1),),
     "RSS010": (RuleOption.integer(name="max_arguments", default=10, minimum=1),),
     "RSS011": (RuleOption.integer(name="max_statements", default=70, minimum=1),),
@@ -165,6 +182,8 @@ _OPTIONS: dict[str, tuple[RuleOption[object], ...]] = {
 }
 
 _MESSAGES: dict[str, str] = {
+    "RSR311": "Cargo package directories contain only allowed entries",
+    "RSL106": "embedded file paths are literal and remain inside the including source domain",
     "RSH002": "non-doc comments are not allowed",
     "RSS012": "tuple types keep a bounded number of positional elements",
     "RSL104": "underscore-prefixed Rust main entries remain inside their owning domain",
@@ -172,6 +191,14 @@ _MESSAGES: dict[str, str] = {
 }
 
 _REMEDIATIONS: dict[str, str] = {
+    "RSR311": (
+        "Move data into its owning source domain or configure allowed_entries "
+        "for justified package entries."
+    ),
+    "RSL106": (
+        "Embed an existing file using a literal path within the including source domain; "
+        "source-root files cannot embed resources."
+    ),
     "RSH002": "Use clear names or move lasting explanation into docs or tests.",
     "RSS012": "Replace the tuple with a named struct whose fields name each position.",
     "RSL104": (

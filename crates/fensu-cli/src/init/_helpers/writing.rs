@@ -78,7 +78,10 @@ fn write_gitignore(
     let mut value = if let Some(existing) = existing {
         existing.content.clone()
     } else if python_scaffold {
-        include_bytes!(concat!(env!("OUT_DIR"), "/python.gitignore")).to_vec()
+        include_str!("../data/python.gitignore")
+            .replace("\\x20\r\n", " \r\n")
+            .replace("\\x20\n", " \n")
+            .into_bytes()
     } else {
         Vec::new()
     };

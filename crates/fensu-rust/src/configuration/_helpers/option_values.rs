@@ -11,6 +11,7 @@ pub(crate) fn apply_option(
     let key = format!("rule_options.{code}.{name}");
     let thresholds = &mut config.repository.thresholds;
     match (code, name) {
+        ("FPRSR311", "allowed_entries") => config.crate_allowed_entries = strings(value, &key)?,
         ("FPRSR601", "max_file_lines") => thresholds.max_file_lines = positive(value, &key)?,
         ("FPRSS010", "max_arguments") => thresholds.max_arguments = positive(value, &key)?,
         ("FPRSS012", "max_tuple_arity") => thresholds.max_tuple_arity = positive(value, &key)?,

@@ -129,8 +129,9 @@ or includes that cross ownership boundaries.
 `FPRSR311` checks each Cargo-discovered package directory, reporting one fault per
 non-standard direct entry. Defaults allow `Cargo.toml`, `build.rs`, `src/`, `tests/`,
 `benches/`, `examples/`, `README*`, and `LICENSE*`. `Cargo.lock` is always accepted.
-Hidden entries, VCS-ignored entries, and `target/` are skipped. Directories containing
-other workspace packages are also accepted when the workspace root is itself a package.
+Hidden entries, repository-local `.gitignore` matches, and `target/` are skipped.
+Directories containing other workspace packages are also accepted when the workspace
+root is itself a package.
 Virtual workspace roots are not package directories and are not checked.
 
 The `allowed_entries` option replaces the default list. Entries are filename glob
@@ -162,8 +163,18 @@ reach another domain, the source root, or outside the source tree. For example,
 `../../customers/data/file.txt`. Integration-test files use their discovered test
 source root and must likewise keep embedded fixtures inside their own test domain.
 
-These two rules declare `cacheable = false`. Selecting either rule bypasses result
-cache reads and writes, including when selected as a displayed warning. The current
-cache observation contract does not cover all applicable ancestor/global ignore files
-or the existence and canonical state of symlink-resolved embedded targets. Other rule
-selections retain their existing caching behavior.
+Both rules support result caching, including default Rust-pack and mixed-target runs.
+Before reading the cache, Cargo package/source discovery supplies deterministic observations:
+package direct-entry names and file/directory/symlink kinds, applicable `.gitignore`
+paths and contents (including missing files), and each literal include's canonical
+target path or resolution failure and target file type. Source fingerprints cover
+literal edits, non-literal arguments, and parse failures. Hidden entries and generated
+`target/` directories are permanently skipped and do not invalidate placement results.
+
+Package-entry ignore matching consults only `.gitignore` files from the nearest Git
+repository root through the package directory, inclusive; without a `.git` marker,
+the Cargo workspace root is the boundary. Nearer matching rules take precedence.
+It does not consult parent directories above that root, `.ignore`, global Git ignore
+configuration, or `.git/info/exclude`. The rule and cache observer share the same
+ignore-input discovery. Unreadable observation inputs fail the check explicitly rather
+than returning potentially stale cached output.

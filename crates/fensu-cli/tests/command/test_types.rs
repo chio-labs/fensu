@@ -417,3 +417,13 @@ pub(crate) struct RustPlacementCacheTestCase {
     pub(crate) expected_code: &'static str,
     pub(crate) expected_path: &'static str,
 }
+pub(crate) struct RustPlacementCacheHitTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) extra_config: &'static str,
+    pub(crate) expected_hits: &'static str,
+}
+pub(crate) struct RustParentIgnoreTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_code: &'static str,
+    pub(crate) expected_hits: &'static str,
+}

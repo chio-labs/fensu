@@ -263,6 +263,15 @@ pub(crate) fn check_identity(request: CheckIdentityRequest<'_>) -> Result<String
         digest.update([u8::from(input.present)]);
     }
     digest_project_observations(&mut digest, root, project_root, config)?;
+    if config.analyzer == crate::analyzer::AnalyzerId::Rust {
+        for observation in
+            fensu_rust::rules::main::file_placement_observations::file_placement_observations(
+                project_root,
+            )?
+        {
+            digest_text(&mut digest, &observation);
+        }
+    }
     Ok(format!("{:x}", digest.finalize()))
 }
 

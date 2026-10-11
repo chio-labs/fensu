@@ -14,7 +14,7 @@ use crate::check::_helpers::policy::{
     check_identity, hex_digest, path_matches, validate_scope_roots,
 };
 use crate::check::_helpers::project as web;
-use crate::check::_helpers::rule_policy::{selected_rules_cacheable, validate_config_tiers};
+use crate::check::_helpers::rule_policy::validate_config_tiers;
 use crate::check::constants::{CARGO_TARGET_DIRECTORY, GIT_DIRECTORY};
 use crate::check::models::{CheckIdentityRequest, CheckPlan, CheckPlans};
 use crate::configuration::main::load_targets;
@@ -95,8 +95,6 @@ pub(crate) fn prepare_checks(
             project_inputs.dedup_by(|left, right| left.path == right.path);
         }
         let cache_enabled = options.cache_enabled.unwrap_or(config.cache_enabled)
-            && (config.analyzer != AnalyzerId::Rust
-                || selected_rules_cacheable(&config, options.warn)?)
             && (!matches!(
                 config.analyzer,
                 crate::analyzer::AnalyzerId::Rust

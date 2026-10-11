@@ -65,25 +65,6 @@ pub(crate) fn selected_rules(
     Ok(rules)
 }
 
-pub(crate) fn selected_rules_cacheable(config: &Config, warnings: bool) -> Result<bool, String> {
-    let select = config
-        .select
-        .iter()
-        .chain(config.warn.iter().filter(|_| warnings))
-        .filter(|code| !code.starts_with('X'))
-        .cloned()
-        .collect::<Vec<_>>();
-    let ignore = config
-        .ignore
-        .iter()
-        .filter(|code| !code.starts_with('X'))
-        .cloned()
-        .collect::<Vec<_>>();
-    Ok(selected_rules(config, &select, &ignore)?
-        .iter()
-        .all(|rule| rule.cacheable != Some(false)))
-}
-
 pub(crate) fn validate_config_tiers(config: &Config) -> Result<(), String> {
     let configured_catalogue = configured_rule_catalogue(&config.rule_packs)?;
     let catalogue = configured_catalogue

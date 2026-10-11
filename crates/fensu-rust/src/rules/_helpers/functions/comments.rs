@@ -5,12 +5,14 @@ pub(crate) struct Comment {
     pub(crate) end_line: usize,
     pub(crate) is_doc: bool,
     pub(crate) is_line: bool,
+    pub(crate) starts_line: bool,
 }
 
 pub(crate) fn scan(source: &str) -> Vec<Comment> {
     let mut comments: Vec<Comment> = Vec::new();
     let mut offset = 0;
     let mut line = 1;
+    let mut line_is_whitespace = true;
     while offset < source.len() {
         let remaining = &source[offset..];
         let length = token_length(remaining);
@@ -20,6 +22,7 @@ pub(crate) fn scan(source: &str) -> Vec<Comment> {
             comments.push(Comment {
                 line,
                 end_line,
+                starts_line: line_is_whitespace,
                 is_line: token.starts_with("//"),
                 is_doc: token.starts_with("//!")
                     || (token.starts_with("///") && !token.starts_with("////"))
@@ -29,6 +32,10 @@ pub(crate) fn scan(source: &str) -> Vec<Comment> {
                         && !token.starts_with("/**/")),
             });
         }
+        line_is_whitespace = match token.rsplit_once('\n') {
+            Some((_, tail)) => tail.trim().is_empty(),
+            None => line_is_whitespace && token.trim().is_empty(),
+        };
         line = end_line;
         offset += length;
     }

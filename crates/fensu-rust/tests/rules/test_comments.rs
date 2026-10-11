@@ -6,6 +6,31 @@ use crate::{helpers, test_types};
 fn given_comment_tokens_when_checking_then_reports_each_plain_comment_once() {
     let test_cases = [
         test_types::CommentTestCase {
+            description: "documentation for separate items does not form one run",
+            source: "/// First item.\nfn first() {} /// Second item.\nfn second() {}",
+            expected_locations: &[],
+        },
+        test_types::CommentTestCase {
+            description: "consecutive standalone documentation lines form a run",
+            source: "/// First line.\n  /// Second line.\nfn value() {}",
+            expected_locations: &[("RSH001", 1)],
+        },
+        test_types::CommentTestCase {
+            description: "blank lines break documentation runs as before",
+            source: "/// First line.\n\n/// Second line.\nfn value() {}",
+            expected_locations: &[],
+        },
+        test_types::CommentTestCase {
+            description: "inline documentation cannot start a standalone run",
+            source: "fn first() {} /// First line.\n/// Second line.\nfn second() {}",
+            expected_locations: &[],
+        },
+        test_types::CommentTestCase {
+            description: "another comment before documentation breaks the run",
+            source: "/// First line.\n/* separate */ /// Second line.\n/// Third line.\nfn value() {}",
+            expected_locations: &[("RSH002", 2)],
+        },
+        test_types::CommentTestCase {
             description: "multiline nested block reports only its start and preserves following lines",
             source: "fn value() { /* outer\n/* nested */\nend */ } // visible\n",
             expected_locations: &[("RSH002", 1), ("RSH002", 3)],

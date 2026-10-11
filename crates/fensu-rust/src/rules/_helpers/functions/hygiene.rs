@@ -331,6 +331,7 @@ fn check_doc_comment_length(
     for comment in comments {
         if !comment.is_doc
             || !comment.is_line
+            || !comment.starts_line
             || run_start.is_some_and(|start| start + run_length != comment.line)
         {
             violations.extend(doc_run_violation(file, run_start, run_length));
@@ -346,7 +347,7 @@ fn check_doc_comment_length(
                 Some(comment.line),
                 comment.end_line - comment.line + 1,
             ));
-        } else {
+        } else if comment.starts_line {
             run_start.get_or_insert(comment.line);
             run_length += 1;
         }

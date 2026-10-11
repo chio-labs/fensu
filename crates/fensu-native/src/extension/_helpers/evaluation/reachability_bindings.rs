@@ -10,23 +10,23 @@ use pyo3::exceptions::PyValueError;
 use pyo3::{pyfunction, PyResult, Python};
 use ruff_python_ast::PythonVersion;
 
-type ModuleInput = (String, String, bool, bool);
-type DeclarationRow = (usize, String, String, u32, u32);
+use crate::extension::_helpers::evaluation::python_rows::{
+    DeclarationRow, ModuleInput, PolicyGraph,
+};
 type EntryPointRow = (Option<usize>, String, String);
 type GraphRows = (Vec<DeclarationRow>, Vec<(usize, usize)>, Vec<EntryPointRow>);
-type PolicyGraph = (
-    Vec<String>,
-    Vec<(usize, String, bool)>,
-    Vec<(usize, usize)>,
-    Vec<usize>,
-);
 
 #[pyfunction]
 pub(crate) fn evaluate_python_reachability(
     graph: PolicyGraph,
     roots: Vec<(Vec<String>, Vec<String>)>,
 ) -> PyResult<(Vec<usize>, Vec<usize>)> {
-    let (modules, declarations, references, entrypoints) = graph;
+    let PolicyGraph {
+        modules,
+        declarations,
+        references,
+        entrypoints,
+    } = graph;
     if declarations
         .iter()
         .any(|(module, _, _)| *module >= modules.len())
@@ -77,14 +77,23 @@ pub(crate) fn python_reachability_facts(
 ) -> PyResult<GraphRows> {
     py.detach(move || {
         let programs = ProgramHandle::parse_many(
-            sources.iter().map(|source| source.1.clone()).collect(),
+            sources.iter().map(|source| source.source.clone()).collect(),
             PythonVersion {
                 major: version.0,
                 minor: version.1,
             },
         );
         let mut modules: Vec<Module> = Vec::new();
-        for ((name, _, package, initializer), program) in sources.into_iter().zip(programs) {
+        for (
+            ModuleInput {
+                name,
+                source: _,
+                package,
+                initializer,
+            },
+            program,
+        ) in sources.into_iter().zip(programs)
+        {
             let program = program.ok_or_else(|| {
                 PyValueError::new_err(format!("Could not parse reachability source {name}."))
             })?;
@@ -104,14 +113,12 @@ pub(crate) fn python_reachability_facts(
             facts
                 .declarations
                 .into_iter()
-                .map(|node| {
-                    (
-                        node.module,
-                        node.name,
-                        node.kind.to_owned(),
-                        node.line,
-                        node.column,
-                    )
+                .map(|node| DeclarationRow {
+                    module: node.module,
+                    name: node.name,
+                    kind: node.kind.to_owned(),
+                    line: node.line,
+                    column: node.column,
                 })
                 .collect(),
             facts.references,

@@ -10,15 +10,7 @@ use crate::extension::constants::RECURSIVE_GLOB;
 use crate::rules::main::plan_execution_owners::plan_execution_owners;
 use crate::rules::models::{NativeExecutionRule, NativeExecutionTarget};
 
-type TargetTuple = (
-    String,
-    String,
-    String,
-    Vec<String>,
-    bool,
-    Option<String>,
-    Option<usize>,
-);
+use crate::extension::_helpers::evaluation::python_rows::TargetRow;
 type RuleTuple = (String, String, String);
 type PlannedTargetTuple = (Vec<String>, Vec<(String, String)>);
 
@@ -61,21 +53,21 @@ pub(crate) fn select_native_execution_files(
 
 #[pyfunction]
 pub(crate) fn plan_native_execution_owners(
-    targets: Vec<TargetTuple>,
+    targets: Vec<TargetRow>,
     rules: Vec<RuleTuple>,
 ) -> PyResult<Vec<PlannedTargetTuple>> {
     let native_targets: Vec<NativeExecutionTarget> = targets
         .into_iter()
         .map(
-            |(
-                repository_path,
-                scope,
-                root,
-                relative_parts,
-                direct,
-                ownership_root,
-                ownership_offset,
-            )| {
+            |TargetRow {
+                 repository_path,
+                 scope,
+                 root,
+                 relative_parts,
+                 direct,
+                 ownership_root,
+                 ownership_offset,
+             }| {
                 NativeExecutionTarget {
                     repository_path,
                     scope,

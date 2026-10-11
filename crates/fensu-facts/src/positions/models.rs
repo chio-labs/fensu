@@ -7,6 +7,13 @@ pub struct OffsetLocation {
     pub column: u32,
 }
 
+/// A source interval with named start and end locations.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SourceSpan {
+    pub start: OffsetLocation,
+    pub end: OffsetLocation,
+}
+
 /// A reusable index of line-start byte offsets for one source snapshot.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LineIndex {

@@ -13,6 +13,7 @@ pub(crate) fn apply_option(
     match (code, name) {
         ("FPRSR601", "max_file_lines") => thresholds.max_file_lines = positive(value, &key)?,
         ("FPRSS010", "max_arguments") => thresholds.max_arguments = positive(value, &key)?,
+        ("FPRSS012", "max_tuple_arity") => thresholds.max_tuple_arity = positive(value, &key)?,
         ("FPRSS011", "max_statements") => thresholds.max_statements_global = positive(value, &key)?,
         ("FPRSS001", "max_statements") => thresholds.max_statements_entry = positive(value, &key)?,
         ("FPRSS002", "max_distinct_calls") => {

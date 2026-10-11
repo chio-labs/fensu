@@ -171,11 +171,19 @@ fn index_entry_value(entry: &NativeIndexEntry) -> CanonicalValue {
     ])
 }
 
-fn dependency_sort_key(observation: &NativeDependencyObservation) -> (&str, &str, &str, bool) {
-    (
-        &observation.key.query_path,
-        &observation.key.kind,
-        observation.key.pattern.as_deref().unwrap_or(""),
-        observation.key.recursive,
-    )
+#[derive(Eq, PartialEq, Ord, PartialOrd)]
+struct DependencySortKey<'a> {
+    query_path: &'a str,
+    kind: &'a str,
+    pattern: &'a str,
+    recursive: bool,
+}
+
+fn dependency_sort_key(observation: &NativeDependencyObservation) -> DependencySortKey<'_> {
+    DependencySortKey {
+        query_path: &observation.key.query_path,
+        kind: &observation.key.kind,
+        pattern: observation.key.pattern.as_deref().unwrap_or(""),
+        recursive: observation.key.recursive,
+    }
 }

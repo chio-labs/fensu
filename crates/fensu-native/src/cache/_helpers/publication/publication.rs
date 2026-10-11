@@ -13,7 +13,7 @@ use crate::cache::_helpers::schema::{
 };
 use crate::cache::_helpers::storage::mutate_records;
 use crate::cache::models::{
-    CacheMetrics, CacheMutation, CanonicalValue, DecodedRecord, EncodedWrite,
+    CacheMetrics, CacheMutation, CanonicalValue, CheckOutput, DecodedRecord, EncodedWrite,
     NativeDependencyObservation, NativeIndexEntry, NativePublicationPreparation,
     NativePublicationResult,
 };
@@ -120,11 +120,16 @@ pub(crate) fn publish_generation(
 pub(crate) fn store_check_output(
     repo_root: &Path,
     identity: (&str, &str),
-    surface: (&[String], &str, &str, i64),
+    surface: CheckOutput<'_>,
     maximum_decoded_bytes: usize,
 ) -> Option<CacheMetrics> {
     let (global_fingerprint, expected_index_fingerprint) = identity;
-    let (targets, plain_output, color_output, exit_code) = surface;
+    let CheckOutput {
+        targets,
+        plain_output,
+        color_output,
+        exit_code,
+    } = surface;
     let payload = CanonicalValue::Object(vec![
         (
             "color_output".to_owned(),

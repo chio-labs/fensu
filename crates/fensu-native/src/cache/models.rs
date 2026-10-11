@@ -1,5 +1,13 @@
 //! Native cache operation models.
 
+#[derive(Debug)]
+pub(crate) struct CheckOutput<'a> {
+    pub(crate) targets: &'a [String],
+    pub(crate) plain_output: &'a str,
+    pub(crate) color_output: &'a str,
+    pub(crate) exit_code: i64,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum CanonicalValue {
     Null,

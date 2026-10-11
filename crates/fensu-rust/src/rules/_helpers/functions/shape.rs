@@ -3,6 +3,7 @@
 use std::collections::BTreeSet;
 
 use quote::ToTokens;
+use syn::spanned::Spanned;
 use syn::visit::Visit;
 
 use crate::constants;
@@ -20,9 +21,25 @@ pub(crate) fn check(request: models::SourceShapeCheckRequest<'_>) -> Vec<models:
     } = request;
     let mut visitor = ShapeVisitor {
         functions: Vec::new(),
+        tuples: Vec::new(),
     };
     visitor.visit_file(syntax);
     let mut violations: Vec<models::Violation> = Vec::new();
+    for (arity, line) in &visitor.tuples {
+        if *arity > thresholds.max_tuple_arity {
+            violations.push(models::Violation::new(models::ViolationRequest {
+                code: "RSS012",
+                path: file.relative_path(),
+                line: Some(*line),
+                message: format!(
+                    "tuple type has {arity} elements, exceeding max_tuple_arity {}",
+                    thresholds.max_tuple_arity
+                ),
+                remediation:
+                    "replace the tuple with a named struct whose fields name each position",
+            }));
+        }
+    }
     let entry = kind == FileKind::ModuleFile && file.has_directory(constants::MAIN_DIRECTORY);
     for function in &visitor.functions {
         violations.extend(budget_violations(file, function, entry, thresholds));
@@ -41,6 +58,7 @@ struct FunctionShape {
 
 struct ShapeVisitor {
     functions: Vec<FunctionShape>,
+    tuples: Vec<(usize, usize)>,
 }
 
 struct BudgetViolationRequest<'a> {
@@ -52,6 +70,12 @@ struct BudgetViolationRequest<'a> {
 }
 
 impl<'ast> Visit<'ast> for ShapeVisitor {
+    fn visit_type_tuple(&mut self, node: &'ast syn::TypeTuple) {
+        self.tuples
+            .push((node.elems.len(), node.span().start().line));
+        syn::visit::visit_type_tuple(self, node);
+    }
+
     fn visit_item_fn(&mut self, node: &'ast syn::ItemFn) {
         self.functions.push(function_shape(&node.sig, &node.block));
         syn::visit::visit_item_fn(self, node);

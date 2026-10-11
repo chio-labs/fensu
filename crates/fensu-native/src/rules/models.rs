@@ -126,9 +126,19 @@ pub struct NativeRuleContext {
     pub ownership_roots: Vec<String>,
     pub ownership_offset: Option<usize>,
     pub observations: HashMap<String, Vec<String>>,
-    pub custom_registrations: Vec<(String, String, String, String, u32, u32)>,
+    pub custom_registrations: Vec<CustomRegistration>,
     pub repo_root: String,
     pub rule_options: HashMap<String, HashMap<String, String>>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CustomRegistration {
+    pub code: String,
+    pub module: String,
+    pub name: String,
+    pub source_path: String,
+    pub line: u32,
+    pub column: u32,
 }
 
 impl Default for NativeRuleContext {

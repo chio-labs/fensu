@@ -17,51 +17,9 @@ use crate::rules::models::{
     NativeFaultRow, NativeProjectModule, NativeProjectPlane, NativeRuleContext,
 };
 
-type NativeFaultTuple = (
-    String,
-    Option<String>,
-    Option<u32>,
-    Option<u32>,
-    Option<String>,
-    Option<String>,
-);
-type NativeProjectContextTuple = (
-    Vec<String>,
-    Vec<(String, String)>,
-    HashMap<String, Vec<String>>,
-    Vec<(String, String, String, String, u32, u32)>,
-    String,
-    HashMap<String, HashMap<String, String>>,
-    Vec<String>,
-    Option<usize>,
-    Option<String>,
-    Vec<String>,
-);
-
-type NativeProjectQueryTuple = (String, String, String, String);
-type NativeProjectFileTuple = (
-    String,
-    String,
-    Vec<String>,
-    String,
-    Option<usize>,
-    Option<String>,
-);
-
-type NativeRuleContextTuple = (
-    String,
-    Vec<String>,
-    String,
-    Option<String>,
-    bool,
-    HashMap<String, u32>,
-    String,
-    Vec<(String, String)>,
-    Vec<String>,
-    bool,
-    String,
-    NativeProjectContextTuple,
-);
+use crate::extension::_helpers::evaluation::python_rows::{
+    FaultRow, ProjectFileRow, ProjectQueryRow, RuleContextRow,
+};
 
 struct NativeExecutionRequest {
     program: ProgramHandle,
@@ -71,8 +29,8 @@ struct NativeExecutionRequest {
 
 struct ExecutionBatchPlanRequest<'py> {
     py: Python<'py>,
-    requests: Vec<NativeRuleContextTuple>,
-    project_files: Vec<NativeProjectFileTuple>,
+    requests: Vec<RuleContextRow>,
+    project_files: Vec<ProjectFileRow>,
     entrypoint_modules: Vec<String>,
     major: u8,
     minor: u8,
@@ -86,7 +44,7 @@ pub(crate) struct NativeExecutionBatch {
 
 type NativeExecutionPlanTuple = (
     Py<NativeExecutionBatch>,
-    Vec<Vec<NativeProjectQueryTuple>>,
+    Vec<Vec<ProjectQueryRow>>,
     Vec<usize>,
 );
 
@@ -95,8 +53,8 @@ macro_rules! define_execution_plan_binding {
         #[pyfunction]
         pub(crate) fn plan_native_execution_batch(
             py: Python<'_>,
-            requests: Vec<NativeRuleContextTuple>,
-            project_files: Vec<NativeProjectFileTuple>,
+            requests: Vec<RuleContextRow>,
+            project_files: Vec<ProjectFileRow>,
             entrypoint_modules: Vec<String>,
             major: u8,
             minor: u8,
@@ -137,38 +95,48 @@ fn plan_execution_batch(
     } = request;
     let version = PythonVersion { major, minor };
     let (batch, plans, failures) = py.detach(move || {
-        let sources: Vec<String> = requests.iter().map(|request| request.0.clone()).collect();
+        let sources: Vec<String> = requests
+            .iter()
+            .map(|request| request.source.clone())
+            .collect();
         let programs = ProgramHandle::parse_many(sources, version);
         let mut prepared = Vec::with_capacity(requests.len());
         for (program, request) in programs.into_iter().zip(requests) {
-            prepared.push(program.map(|program| NativeExecutionRequest {
-                program,
-                codes: request.1,
-                context: NativeRuleContext {
-                    dead_code: Default::default(),
-                    scope: request.2,
-                    role: request.3,
-                    is_main_module: request.4,
-                    thresholds: request.5,
-                    repository_path: request.6,
-                    contracts: request.7,
-                    relative_parts: request.8,
-                    is_entry_module: request.9,
-                    package_name: request.10,
-                    tooling_packages: request.11 .0,
-                    scope_roots: request.11 .1,
-                    observations: request.11 .2,
-                    custom_registrations: request.11 .3,
-                    repo_root: request.11 .4,
-                    rule_options: request.11 .5,
-                    test_scopes: request.11 .6,
-                    ownership_offset: request.11 .7,
-                    ownership_root: request.11 .8,
-                    ownership_roots: request.11 .9,
-                },
+            prepared.push(program.map(|program| {
+                NativeExecutionRequest {
+                    program,
+                    codes: request.codes,
+                    context: NativeRuleContext {
+                        dead_code: Default::default(),
+                        scope: request.scope,
+                        role: request.role,
+                        is_main_module: request.is_main_module,
+                        thresholds: request.thresholds,
+                        repository_path: request.repository_path,
+                        contracts: request.contracts,
+                        relative_parts: request.relative_parts,
+                        is_entry_module: request.is_entry_module,
+                        package_name: request.package_name,
+                        tooling_packages: request.project.tooling_packages,
+                        scope_roots: request.project.scope_roots,
+                        observations: request.project.observations,
+                        custom_registrations: request
+                            .project
+                            .custom_registrations
+                            .into_iter()
+                            .map(Into::into)
+                            .collect(),
+                        repo_root: request.project.repo_root,
+                        rule_options: request.project.rule_options,
+                        test_scopes: request.project.test_scopes,
+                        ownership_offset: request.project.ownership_offset,
+                        ownership_root: request.project.ownership_root,
+                        ownership_roots: request.project.ownership_roots,
+                    },
+                }
             }));
         }
-        let plans: Vec<Vec<NativeProjectQueryTuple>> =
+        let plans: Vec<Vec<ProjectQueryRow>> =
             prepared.par_iter().map(plan_request_queries).collect();
         let failures: Vec<usize> = prepared
             .iter()
@@ -179,23 +147,32 @@ fn plan_execution_batch(
             prepared.iter().filter_map(request_program).collect();
         let missing_sources: Vec<String> = project_files
             .iter()
-            .filter(|(path, _, _, _, _, _)| !request_programs.contains_key(path))
-            .map(|(_, _, _, source, _, _)| source.clone())
+            .filter(|file| !request_programs.contains_key(&file.path))
+            .map(|file| file.source.clone())
             .collect();
         let mut parsed_missing = ProgramHandle::parse_many(missing_sources, version).into_iter();
         let project_programs: Vec<Option<ProgramHandle>> = project_files
             .iter()
-            .map(|(path, _, _, _, _, _)| {
+            .map(|file| {
                 request_programs
-                    .get(path)
+                    .get(&file.path)
                     .cloned()
                     .map(Some)
                     .unwrap_or_else(|| parsed_missing.next().flatten())
             })
             .collect();
         let mut modules: Vec<NativeProjectModule> = Vec::new();
-        for ((path, scope, module_parts, _, ownership_start, ownership_root), program) in
-            project_files.into_iter().zip(project_programs)
+        for (
+            ProjectFileRow {
+                path,
+                scope,
+                module_parts,
+                source: _,
+                ownership_start,
+                ownership_root,
+            },
+            program,
+        ) in project_files.into_iter().zip(project_programs)
         {
             if let Some(program) = program {
                 modules.push(NativeProjectModule {
@@ -228,7 +205,7 @@ pub(crate) fn evaluate_native_execution_batch(
     py: Python<'_>,
     batch: &Bound<'_, NativeExecutionBatch>,
     observations: Vec<HashMap<String, Vec<String>>>,
-) -> PyResult<Vec<Vec<NativeFaultTuple>>> {
+) -> PyResult<Vec<Vec<FaultRow>>> {
     let batch = batch.get();
     py.detach(|| {
         batch
@@ -310,13 +287,18 @@ pub(crate) fn native_generated_policy_owners() -> Vec<String> {
         .collect()
 }
 
-fn plan_request_queries(request: &Option<NativeExecutionRequest>) -> Vec<NativeProjectQueryTuple> {
+fn plan_request_queries(request: &Option<NativeExecutionRequest>) -> Vec<ProjectQueryRow> {
     let Some(request) = request else {
         return Vec::new();
     };
     plan_core_rule_queries(&request.program, &request.codes, &request.context)
         .into_iter()
-        .map(|query| (query.key(), query.kind, query.path, query.argument))
+        .map(|query| ProjectQueryRow {
+            key: query.key(),
+            kind: query.kind,
+            path: query.path,
+            argument: query.argument,
+        })
         .collect()
 }
 
@@ -333,7 +315,7 @@ fn evaluate_request(
     request: &Option<NativeExecutionRequest>,
     observations: HashMap<String, Vec<String>>,
     project: &NativeProjectPlane,
-) -> Result<Vec<NativeFaultTuple>, String> {
+) -> Result<Vec<FaultRow>, String> {
     let Some(request) = request else {
         return Ok(Vec::new());
     };
@@ -341,7 +323,7 @@ fn evaluate_request(
     context.observations = observations;
     extract_required_rows(&request.program, &request.codes);
     let rows = evaluate_core_rules(&request.program, &request.codes, &context, project)?;
-    Ok(rows.into_iter().map(as_tuple).collect())
+    Ok(rows.into_iter().map(fault_row).collect())
 }
 
 fn execution_program(
@@ -358,14 +340,14 @@ fn owned_families(families: &[&str]) -> Vec<String> {
     families.iter().map(|family| (*family).to_owned()).collect()
 }
 
-fn as_tuple(row: NativeFaultRow) -> NativeFaultTuple {
+fn fault_row(row: NativeFaultRow) -> FaultRow {
     let location = (row.line != 0).then_some((row.line, row.column));
-    (
-        row.code,
-        row.path,
-        location.map(|(line, _)| line),
-        location.map(|(_, column)| column),
-        row.message,
-        row.remediation,
-    )
+    FaultRow {
+        code: row.code,
+        path: row.path,
+        line: location.map(|(line, _)| line),
+        column: location.map(|(_, column)| column),
+        message: row.message,
+        remediation: row.remediation,
+    }
 }

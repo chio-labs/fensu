@@ -22,8 +22,8 @@ set the target's `root` to that project directory. Paths in target settings are 
 that target root. Cargo discovers workspace membership, package identities, library and binary
 targets, and integration-test targets. No crate inventory is required.
 
-The pack enables all 117 implemented Rust rules by default. The original structural budgets
-and rule behavior are retained. Use `select`, `warn`, `ignore`, `rule_exceptions`, and
+The pack enables all implemented Rust rules by default.
+Use `select`, `warn`, `ignore`, `rule_exceptions`, and
 `rule_ignores` as for other analyzers. Rust exceptions identify files, including `Cargo.toml`;
 they do not use Python definition selectors.
 
@@ -44,6 +44,7 @@ max_file_lines = 1500
 | `FPRSR601` | `max_file_lines` | 2000 |
 | `FPRSS010` | `max_arguments` | 10 |
 | `FPRSS011` | `max_statements` | 70 |
+| `FPRSS012` | `max_tuple_arity` | 3 |
 | `FPRSS001` | `max_statements` | 40 |
 | `FPRSS002` | `max_distinct_calls` | 20 |
 | `FPRSS003` | `max_locals` | 20 |
@@ -51,6 +52,30 @@ max_file_lines = 1500
 | `FPRSR302` | `max_modules` | 20 |
 
 Budgets must be positive integers. Unknown option names are rejected.
+
+## Comments and tuple types
+
+`FPRSH002` rejects every non-doc comment in library sources, including trailing `//`
+comments and inline or standalone `/* */` blocks. Comment markers inside string, raw string,
+byte, C string, and character literals are ignored. Nested block comments are one comment.
+Rust doc comments (`///`, `//!`, `/** */`, `/*! */`) are allowed; `////`, `/**/`, and
+`/*** */` are ordinary comments. `FPRSH001` limits adjacent doc-comment lines and each
+block doc comment to one line.
+
+`FPRSS012` (`rust-rss012`) limits tuple **types** to three elements by default. This applies
+throughout source type positions, including aliases, fields, signatures, local and closure
+annotations, generic arguments, nested tuples, associated constants, and statics. Replace
+wide tuples with named structs whose fields explain each position. Tuple expressions,
+patterns, and `()` are not flagged. Macro bodies remain opaque, like other `syn`-based
+shape checks.
+
+```toml
+[targets.rust.rule_options.FPRSS012]
+max_tuple_arity = 4
+```
+
+These checks make the Rust pack stricter: code that previously passed with trailing/block
+comments or wide tuple types can now report faults after upgrading.
 
 ## Repository boundaries
 

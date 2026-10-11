@@ -18,7 +18,13 @@ use crate::models::{Config, ScopedSource, ThresholdUse};
 const PATH_SEPARATOR: char = '/';
 const RECURSIVE_GLOB: &str = "**";
 const WILDCARD: char = '*';
-type PathSpecificity = (usize, usize, Reverse<usize>, Reverse<usize>);
+#[derive(Eq, PartialEq, Ord, PartialOrd)]
+struct PathSpecificity {
+    literal_segments: usize,
+    literal_characters: usize,
+    globstars: Reverse<usize>,
+    wildcards: Reverse<usize>,
+}
 
 pub(crate) fn display_codes_by_implementation(
     codes: &[String],
@@ -166,12 +172,12 @@ fn path_specificity(pattern: &str) -> PathSpecificity {
         .iter()
         .filter(|segment| **segment == RECURSIVE_GLOB)
         .count();
-    (
+    PathSpecificity {
         literal_segments,
         literal_characters,
-        Reverse(globstars),
-        Reverse(wildcard_count(&segments)),
-    )
+        globstars: Reverse(globstars),
+        wildcards: Reverse(wildcard_count(&segments)),
+    }
 }
 
 fn matching_path_specificity(path: &str, pattern: &str) -> Result<Option<PathSpecificity>, String> {

@@ -159,16 +159,16 @@ fn evaluate_fixture(test_case: &CoreRuleFixture) -> Vec<ExpectedFault> {
             .context
             .custom_registrations
             .iter()
-            .map(|registration| {
-                (
-                    registration.0.clone(),
-                    registration.1.clone(),
-                    registration.2.clone(),
-                    registration.3.replace("<repo-root>", &repo_root),
-                    registration.4,
-                    registration.5,
-                )
-            })
+            .map(
+                |registration| fensu_native::rules::models::CustomRegistration {
+                    code: registration.0.clone(),
+                    module: registration.1.clone(),
+                    name: registration.2.clone(),
+                    source_path: registration.3.replace("<repo-root>", &repo_root),
+                    line: registration.4,
+                    column: registration.5,
+                },
+            )
             .collect(),
         repo_root,
         rule_options: HashMap::new(),

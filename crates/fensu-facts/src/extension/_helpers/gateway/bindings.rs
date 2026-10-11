@@ -2,7 +2,7 @@
 
 use pyo3::exceptions::PyValueError;
 use pyo3::types::{PyAnyMethods, PyTuple};
-use pyo3::{pyfunction, Bound, Py, PyAny, PyResult, Python};
+use pyo3::{pyfunction, Bound, IntoPyObject, Py, PyAny, PyResult, Python};
 use ruff_python_ast::PythonVersion;
 
 use crate::constants;
@@ -43,18 +43,45 @@ pub(crate) fn locate_byte_offset(source: &str, offset: usize) -> (u32, u32) {
     (location.line, location.column)
 }
 
-type SyntaxNodeRows = Vec<(String, Option<(u32, u32, u32, u32)>)>;
+type SyntaxNodeRows = Vec<(String, Option<Py<PyTuple>>)>;
 
 #[pyfunction]
-pub(crate) fn list_syntax_nodes(source: &str, major: u8, minor: u8) -> PyResult<SyntaxNodeRows> {
+pub(crate) fn list_syntax_nodes(
+    py: Python<'_>,
+    source: &str,
+    major: u8,
+    minor: u8,
+) -> PyResult<SyntaxNodeRows> {
     let version = PythonVersion { major, minor };
     match enumerate_nodes(source, version) {
-        Ok(nodes) => Ok(nodes
+        Ok(nodes) => nodes
             .into_iter()
-            .map(|node| (node.kind.to_owned(), node.span))
-            .collect()),
+            .map(|node| {
+                let span = python_span(py, node.span)?;
+                Ok((node.kind.to_owned(), span))
+            })
+            .collect(),
         Err(failure) => Err(PyValueError::new_err(failure.message)),
     }
+}
+
+fn python_span(
+    py: Python<'_>,
+    span: Option<crate::positions::models::SourceSpan>,
+) -> PyResult<Option<Py<PyTuple>>> {
+    let Some(span) = span else {
+        return Ok(None);
+    };
+    Ok(Some(
+        (
+            span.start.line,
+            span.start.column,
+            span.end.line,
+            span.end.column,
+        )
+            .into_pyobject(py)?
+            .unbind(),
+    ))
 }
 
 #[pyfunction]

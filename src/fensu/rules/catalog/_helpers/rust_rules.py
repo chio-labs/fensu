@@ -85,6 +85,7 @@ _IMPLEMENTATION_CODES: tuple[str, ...] = (
     "RSS003",
     "RSS010",
     "RSS011",
+    "RSS012",
     "RSS101",
     "RSS102",
     "RSS110",
@@ -141,6 +142,7 @@ _OPTIONS: dict[str, tuple[RuleOption[object], ...]] = {
     "RSR601": (RuleOption.integer(name="max_file_lines", default=2000, minimum=1),),
     "RSS010": (RuleOption.integer(name="max_arguments", default=10, minimum=1),),
     "RSS011": (RuleOption.integer(name="max_statements", default=70, minimum=1),),
+    "RSS012": (RuleOption.integer(name="max_tuple_arity", default=3, minimum=1),),
     "RSS001": (RuleOption.integer(name="max_statements", default=40, minimum=1),),
     "RSS002": (RuleOption.integer(name="max_distinct_calls", default=20, minimum=1),),
     "RSS003": (RuleOption.integer(name="max_locals", default=20, minimum=1),),
@@ -163,11 +165,15 @@ _OPTIONS: dict[str, tuple[RuleOption[object], ...]] = {
 }
 
 _MESSAGES: dict[str, str] = {
+    "RSH002": "non-doc comments are not allowed",
+    "RSS012": "tuple types keep a bounded number of positional elements",
     "RSL104": "underscore-prefixed Rust main entries remain inside their owning domain",
     "RSL105": "publicly named Rust main entries have an external consumer",
 }
 
 _REMEDIATIONS: dict[str, str] = {
+    "RSH002": "Use clear names or move lasting explanation into docs or tests.",
+    "RSS012": "Replace the tuple with a named struct whose fields name each position.",
     "RSL104": (
         "Keep private main entry filenames prefixed with '_' and restrict their module visibility "
         "to the owning domain; remove the prefix only when publishing the entry."

@@ -269,7 +269,14 @@ fn custom_rule_coverage_faults(code: &str, context: &NativeRuleContext) -> Vec<N
     };
     let answers = context.observation(&query);
     let mut faults: Vec<NativeFaultRow> = Vec::new();
-    for (rule_code, _, _, source_path, line, column) in &context.custom_registrations {
+    for registration in &context.custom_registrations {
+        let crate::rules::models::CustomRegistration {
+            code: rule_code,
+            source_path,
+            line,
+            column,
+            ..
+        } = registration;
         let matching = answers.iter().find_map(|answer| {
             let mut parts = answer.split('\0');
             (parts.next()? == rule_code).then(|| {

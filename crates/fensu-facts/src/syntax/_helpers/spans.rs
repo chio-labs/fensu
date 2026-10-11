@@ -4,14 +4,10 @@ use ruff_python_ast::Stmt;
 use ruff_text_size::{Ranged, TextRange};
 
 use crate::constants;
-use crate::positions::models::LineIndex;
+use crate::positions::models::{LineIndex, SourceSpan};
 use crate::syntax::types::ShapeNode;
 
-pub(crate) fn span(
-    node: &ShapeNode<'_>,
-    index: &LineIndex,
-    source: &str,
-) -> Option<(u32, u32, u32, u32)> {
+pub(crate) fn span(node: &ShapeNode<'_>, index: &LineIndex, source: &str) -> Option<SourceSpan> {
     let range = match node {
         ShapeNode::Module(_)
         | ShapeNode::Parameters(_)
@@ -50,20 +46,16 @@ pub(crate) fn span(
 
 pub(crate) fn start_of(node: &ShapeNode<'_>, index: &LineIndex, source: &str) -> (u32, u32) {
     match span(node, index, source) {
-        Some((line, column, _, _)) => (line, column),
+        Some(span) => (span.start.line, span.start.column),
         None => (1, 0),
     }
 }
 
-fn span_from_offsets(index: &LineIndex, start: usize, end: usize) -> (u32, u32, u32, u32) {
-    let start_location = index.locate(start);
-    let end_location = index.locate(end);
-    (
-        start_location.line,
-        start_location.column,
-        end_location.line,
-        end_location.column,
-    )
+fn span_from_offsets(index: &LineIndex, start: usize, end: usize) -> SourceSpan {
+    SourceSpan {
+        start: index.locate(start),
+        end: index.locate(end),
+    }
 }
 
 fn statement_range(statement: &Stmt, source: &str) -> TextRange {

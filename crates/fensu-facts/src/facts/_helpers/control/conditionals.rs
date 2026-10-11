@@ -86,7 +86,7 @@ fn conditional_row(params: ConditionalRowParams<'_, '_>) -> FunctionConditionalR
 }
 
 pub(crate) fn range_row(node: &ShapeNode<'_>, index: &LineIndex, source: &str) -> SourceRangeRow {
-    let Some((start_line, start_column, end_line, end_column)) = span(node, index, source) else {
+    let Some(span) = span(node, index, source) else {
         return SourceRangeRow {
             start_line: 1,
             start_column: 0,
@@ -98,11 +98,11 @@ pub(crate) fn range_row(node: &ShapeNode<'_>, index: &LineIndex, source: &str) -
     };
     let (start_offset, end_offset) = node_offsets(node);
     SourceRangeRow {
-        start_line,
-        start_column,
+        start_line: span.start.line,
+        start_column: span.start.column,
         start_offset,
-        end_line,
-        end_column,
+        end_line: span.end.line,
+        end_column: span.end.column,
         end_offset,
     }
 }

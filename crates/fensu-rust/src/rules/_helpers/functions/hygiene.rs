@@ -5,7 +5,7 @@ use syn::visit::Visit;
 
 use crate::constants;
 use crate::models;
-use crate::rules::_helpers::functions::{binding_clarity, discarded_errors};
+use crate::rules::_helpers::functions::{binding_clarity, comments, discarded_errors};
 use crate::types::FileKind;
 
 /// Check one library source file for hygiene violations.
@@ -14,8 +14,9 @@ pub(crate) fn check_source(
     syntax: Option<&syn::File>,
     kind: FileKind,
 ) -> Vec<models::Violation> {
-    let mut violations = check_doc_comment_length(file);
-    violations.extend(check_comment_lines(file));
+    let comments = comments::scan(&file.source);
+    let mut violations = check_doc_comment_length(file, &comments);
+    violations.extend(check_comment_lines(file, &comments));
     let Some(syntax) = syntax else {
         return violations;
     };
@@ -63,7 +64,7 @@ pub(crate) fn check_test_file(
     file: &models::SourceFile,
     syntax: Option<&syn::File>,
 ) -> Vec<models::Violation> {
-    let mut violations = check_doc_comment_length(file);
+    let mut violations = check_doc_comment_length(file, &comments::scan(&file.source));
     let Some(syntax) = syntax else {
         return violations;
     };
@@ -301,18 +302,18 @@ fn check_comparisons(file: &models::SourceFile, syntax: &syn::File) -> Vec<model
     violations
 }
 
-fn check_comment_lines(file: &models::SourceFile) -> Vec<models::Violation> {
+fn check_comment_lines(
+    file: &models::SourceFile,
+    comments: &[comments::Comment],
+) -> Vec<models::Violation> {
     let mut violations: Vec<models::Violation> = Vec::new();
-    for (index, line) in file.source.lines().enumerate() {
-        let trimmed = line.trim_start();
-        let is_plain_comment =
-            trimmed.starts_with("//") && !trimmed.starts_with("///") && !trimmed.starts_with("//!");
-        if is_plain_comment {
+    for comment in comments {
+        if !comment.is_doc {
             violations.push(models::Violation::new(models::ViolationRequest {
                 code: "RSH002",
                 path: file.relative_path(),
-                line: Some(index + 1),
-                message: "standalone comments are not allowed",
+                line: Some(comment.line),
+                message: "non-doc comments are not allowed",
                 remediation: "use clear names or move lasting explanation into docs or tests",
             }));
         }
@@ -320,23 +321,35 @@ fn check_comment_lines(file: &models::SourceFile) -> Vec<models::Violation> {
     violations
 }
 
-fn check_doc_comment_length(file: &models::SourceFile) -> Vec<models::Violation> {
+fn check_doc_comment_length(
+    file: &models::SourceFile,
+    comments: &[comments::Comment],
+) -> Vec<models::Violation> {
     let mut violations: Vec<models::Violation> = Vec::new();
     let mut run_start: Option<usize> = None;
     let mut run_length: usize = 0;
-    for (index, line) in file.source.lines().enumerate() {
-        let trimmed = line.trim_start();
-        let is_doc = trimmed.starts_with("///") || trimmed.starts_with("//!");
-        if is_doc {
-            run_length += 1;
-            if run_start.is_none() {
-                run_start = Some(index + 1);
-            }
+    for comment in comments {
+        if !comment.is_doc
+            || !comment.is_line
+            || run_start.is_some_and(|start| start + run_length != comment.line)
+        {
+            violations.extend(doc_run_violation(file, run_start, run_length));
+            run_start = None;
+            run_length = 0;
+        }
+        if !comment.is_doc {
             continue;
         }
-        violations.extend(doc_run_violation(file, run_start, run_length));
-        run_start = None;
-        run_length = 0;
+        if !comment.is_line {
+            violations.extend(doc_run_violation(
+                file,
+                Some(comment.line),
+                comment.end_line - comment.line + 1,
+            ));
+        } else {
+            run_start.get_or_insert(comment.line);
+            run_length += 1;
+        }
     }
     violations.extend(doc_run_violation(file, run_start, run_length));
     violations

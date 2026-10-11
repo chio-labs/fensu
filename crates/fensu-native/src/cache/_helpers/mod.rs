@@ -12,6 +12,8 @@ mod generation_bindings;
 pub(crate) mod publication;
 #[path = "publication/publication_merge.rs"]
 pub(crate) mod publication_merge;
+#[path = "bindings/python_rows.rs"]
+pub(crate) mod python_rows;
 #[path = "records/records.rs"]
 pub(crate) mod records;
 #[path = "generation/replay.rs"]

@@ -48,6 +48,7 @@ pub(crate) fn validate_repository_policy(
     if [
         thresholds.max_file_lines,
         thresholds.max_arguments,
+        thresholds.max_tuple_arity,
         thresholds.max_statements_global,
         thresholds.max_statements_entry,
         thresholds.max_distinct_calls_entry,

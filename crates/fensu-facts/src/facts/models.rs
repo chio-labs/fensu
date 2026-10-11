@@ -3,7 +3,7 @@
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct LocatedNode {
     pub kind: &'static str,
-    pub span: Option<(u32, u32, u32, u32)>,
+    pub span: Option<crate::positions::models::SourceSpan>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

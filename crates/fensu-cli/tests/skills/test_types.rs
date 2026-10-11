@@ -7,6 +7,8 @@ pub(crate) struct SkillsCommandTestCase {
 
 pub(crate) struct RustOptionsSkillsTestCase {
     pub(crate) description: &'static str,
+    pub(crate) code: &'static str,
+    pub(crate) option: &'static str,
     pub(crate) expected_current_value: &'static str,
     pub(crate) expected_updated_value: &'static str,
     pub(crate) expected_stale_exit_code: i32,

@@ -78,7 +78,14 @@ fn given_shape_matrix_when_enumerating_nodes_then_matches_cpython_order_and_span
             "case '{}' kinds diverged",
             test_case.description
         );
-        let first_span = nodes.get(1).and_then(|node| node.span);
+        let first_span = nodes.get(1).and_then(|node| node.span).map(|span| {
+            (
+                span.start.line,
+                span.start.column,
+                span.end.line,
+                span.end.column,
+            )
+        });
         assert_eq!(
             first_span, test_case.expected_first_span,
             "case '{}' first span diverged",

@@ -10,11 +10,13 @@ use crate::cache::_helpers::generation::{plan_generation, GenerationRequest};
 use crate::cache::_helpers::publication::{
     prepare_publication, publish_generation, store_check_output, PublicationRequest,
 };
+use crate::cache::_helpers::python_rows::{
+    CheckOutputRow, GenerationPlanRow, IndexEntryRow, MetricsRow, PublicationRow, ReplayRow,
+};
 use crate::cache::_helpers::records::{canonical_from_python, value_to_python};
 use crate::cache::main::_dependency_kinds::dependency_kinds;
 use crate::cache::main::_replay_generation::replay_generation;
-use crate::cache::models::{CacheMetrics, CanonicalValue, NativeIndexEntry};
-use crate::cache::types::{GenerationPlanRow, MetricsRow, PublicationRow, ReplayRow};
+use crate::cache::models::{CacheMetrics, CanonicalValue, CheckOutput, NativeIndexEntry};
 
 pub(crate) struct ReplayGenerationRequest<'py> {
     pub(crate) py: Python<'py>,
@@ -48,7 +50,7 @@ pub(crate) struct PublishGenerationRequest<'a, 'py> {
     pub(crate) repo_root: PathBuf,
     pub(crate) global_fingerprint: String,
     pub(crate) expected_index_fingerprint: Option<String>,
-    pub(crate) retained_entries: Vec<(String, String, String, String, String)>,
+    pub(crate) retained_entries: Vec<IndexEntryRow>,
     pub(crate) evaluations: &'a Bound<'py, PyList>,
     pub(crate) options: (bool, usize),
 }
@@ -58,7 +60,7 @@ pub(crate) struct StoreCheckOutputRequest<'py> {
     pub(crate) repo_root: PathBuf,
     pub(crate) global_fingerprint: String,
     pub(crate) expected_index_fingerprint: String,
-    pub(crate) surface: (Vec<String>, String, String, i64),
+    pub(crate) surface: CheckOutputRow,
     pub(crate) maximum_decoded_bytes: usize,
 }
 
@@ -86,13 +88,13 @@ pub(super) fn replay_generation_request(
         return (None, metrics_row(&CacheMetrics::default()));
     };
     (
-        Some((
-            replay.targets,
-            replay.plain_output,
-            replay.color_output,
-            replay.exit_code,
-            replay.index_fingerprint,
-        )),
+        Some(ReplayRow {
+            targets: replay.targets,
+            plain_output: replay.plain_output,
+            color_output: replay.color_output,
+            exit_code: replay.exit_code,
+            index_fingerprint: replay.index_fingerprint,
+        }),
         metrics_row(&metrics),
     )
 }
@@ -156,31 +158,29 @@ pub(super) fn plan_generation_request(
         .into_iter()
         .map(|value| value_to_python(py, value))
         .collect::<PyResult<Vec<_>>>()?;
-    let entries: Vec<(String, String, String, String, String)> = plan
+    let entries: Vec<IndexEntryRow> = plan
         .entries
         .into_iter()
-        .map(|entry| {
-            (
-                entry.subject_kind,
-                entry.subject_identity,
-                entry.source_fingerprint,
-                entry.result_fingerprint,
-                entry.record_fingerprint,
-            )
+        .map(|entry| IndexEntryRow {
+            subject_kind: entry.subject_kind,
+            subject_identity: entry.subject_identity,
+            source_fingerprint: entry.source_fingerprint,
+            result_fingerprint: entry.result_fingerprint,
+            record_fingerprint: entry.record_fingerprint,
         })
         .collect();
     Ok((
-        Some((
-            plan.mode,
-            plan.index_fingerprint,
+        Some(GenerationPlanRow {
+            mode: plan.mode,
+            index_fingerprint: plan.index_fingerprint,
             entries,
             results,
             contributions,
-            plan.miss_paths,
-            plan.hits,
-            plan.misses,
-            plan.invalidations,
-        )),
+            miss_paths: plan.miss_paths,
+            hits: plan.hits,
+            misses: plan.misses,
+            invalidations: plan.invalidations,
+        }),
         metrics_row(&metrics),
     ))
 }
@@ -208,13 +208,13 @@ pub(super) fn publish_generation_request(
         retained_entries: retained_entries
             .into_iter()
             .map(
-                |(
-                    subject_kind,
-                    subject_identity,
-                    source_fingerprint,
-                    result_fingerprint,
-                    record_fingerprint,
-                )| {
+                |IndexEntryRow {
+                     subject_kind,
+                     subject_identity,
+                     source_fingerprint,
+                     result_fingerprint,
+                     record_fingerprint,
+                 }| {
                     NativeIndexEntry {
                         subject_kind,
                         subject_identity,
@@ -231,13 +231,13 @@ pub(super) fn publish_generation_request(
     };
     let (result, metrics) = py.detach(move || publish_generation(&repo_root, request));
     Ok((
-        (
-            result.writes,
-            result.non_cacheable,
-            result.storage_failed,
-            result.internal_error,
-            result.index_fingerprint,
-        ),
+        PublicationRow {
+            writes: result.writes,
+            non_cacheable: result.non_cacheable,
+            storage_failed: result.storage_failed,
+            internal_error: result.internal_error,
+            index_fingerprint: result.index_fingerprint,
+        },
         metrics_row(&metrics),
     ))
 }
@@ -253,12 +253,22 @@ pub(super) fn store_check_output_request(
         surface,
         maximum_decoded_bytes,
     } = request;
-    let (targets, plain_output, color_output, exit_code) = surface;
+    let CheckOutputRow {
+        targets,
+        plain_output,
+        color_output,
+        exit_code,
+    } = surface;
     let outcome = py.detach(move || {
         store_check_output(
             &repo_root,
             (&global_fingerprint, &expected_index_fingerprint),
-            (&targets, &plain_output, &color_output, exit_code),
+            CheckOutput {
+                targets: &targets,
+                plain_output: &plain_output,
+                color_output: &color_output,
+                exit_code,
+            },
             maximum_decoded_bytes,
         )
     });

@@ -63,6 +63,7 @@ pub struct RepositoryPolicyConfig {
 pub struct ThresholdConfig {
     pub max_file_lines: usize,
     pub max_arguments: usize,
+    pub max_tuple_arity: usize,
     pub max_statements_global: usize,
     pub max_statements_entry: usize,
     pub max_distinct_calls_entry: usize,
@@ -76,6 +77,7 @@ impl Default for ThresholdConfig {
         Self {
             max_file_lines: constants::MAX_FILE_LINES,
             max_arguments: constants::MAX_ARGUMENTS,
+            max_tuple_arity: 3,
             max_statements_global: constants::MAX_STATEMENTS_GLOBAL,
             max_statements_entry: constants::MAX_STATEMENTS_ENTRY,
             max_distinct_calls_entry: constants::MAX_DISTINCT_CALLS_ENTRY,

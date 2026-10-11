@@ -1,3 +1,5 @@
+#[path = "rules/test_comments.rs"]
+mod comments;
 #[path = "rules/test_configuration.rs"]
 mod configuration;
 #[path = "rules/test_containers.rs"]
@@ -30,5 +32,7 @@ mod tests_layout;
 mod tests_shape;
 #[path = "rules/test_tooling_roles.rs"]
 mod tooling_roles;
+#[path = "rules/test_tuple_types.rs"]
+mod tuple_types;
 #[path = "rules/test_visibility.rs"]
 mod visibility;

@@ -2,6 +2,19 @@
 
 use fensu_rust::models::RustPolicy;
 
+pub(crate) struct CommentTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) source: &'static str,
+    pub(crate) expected_locations: &'static [(&'static str, usize)],
+}
+
+pub(crate) struct TupleTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) source: &'static str,
+    pub(crate) max_tuple_arity: usize,
+    pub(crate) expected_lines: &'static [usize],
+}
+
 pub(crate) struct RepoFile {
     pub(crate) path: String,
     pub(crate) contents: String,

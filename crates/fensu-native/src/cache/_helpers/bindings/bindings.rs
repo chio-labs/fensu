@@ -11,14 +11,16 @@ use crate::cache::_helpers::generation_bindings::{
     PlanGenerationRequest, PublishGenerationRequest, ReplayGenerationRequest,
     StoreCheckOutputRequest,
 };
+use crate::cache::_helpers::python_rows::{
+    CheckOutputRow, GenerationPlanRow, IndexEntryRow, MetricsRow, MutationRow, PublicationRow,
+    ReplayRow, WriteRow,
+};
 use crate::cache::_helpers::records::{
     canonical_from_python, decode_record, encode_record, value_to_python,
 };
 use crate::cache::_helpers::storage::{mutate_records, read_records, write_records};
 use crate::cache::models::{CacheMetrics, CacheMutation, DecodedRecord, EncodedWrite};
-use crate::cache::types::{
-    GenerationPlanRow, MetricsRow, MutationRow, PublicationRow, PythonRecord, ReplayRow,
-};
+use crate::cache::types::PythonRecord;
 
 struct EncodeRecordRequest<'a, 'py> {
     py: Python<'py>,
@@ -142,7 +144,7 @@ macro_rules! define_cache_python_bindings {
             repo_root: PathBuf,
             global_fingerprint: String,
             expected_index_fingerprint: Option<String>,
-            retained_entries: Vec<(String, String, String, String, String)>,
+            retained_entries: Vec<IndexEntryRow>,
             evaluations: &Bound<'_, PyList>,
             options: (bool, usize),
         ) -> PyResult<(PublicationRow, MetricsRow)> {
@@ -163,7 +165,7 @@ macro_rules! define_cache_python_bindings {
             repo_root: PathBuf,
             global_fingerprint: String,
             expected_index_fingerprint: String,
-            surface: (Vec<String>, String, String, i64),
+            surface: CheckOutputRow,
             maximum_decoded_bytes: usize,
         ) -> (bool, MetricsRow) {
             store_check_output_request(StoreCheckOutputRequest {
@@ -237,7 +239,7 @@ pub(crate) fn cache_read_batch(
 pub(crate) fn cache_write_batch(
     py: Python<'_>,
     repo_root: PathBuf,
-    writes: Vec<(String, String, Vec<u8>, bool)>,
+    writes: Vec<WriteRow>,
 ) -> (bool, MetricsRow) {
     let prepared = prepare_writes(writes);
     let outcome = py.detach(move || write_records(&repo_root, &prepared));
@@ -287,10 +289,10 @@ fn mutate_batch_request(request: MutateBatchRequest<'_, '_>) -> PyResult<(bool, 
             }
         };
         Ok(Some(CacheMutation {
-            writes: prepare_writes(mutation.0),
-            swept_prefix: mutation.1,
-            retained_paths: mutation.2,
-            deleted_paths: mutation.3,
+            writes: prepare_writes(mutation.writes),
+            swept_prefix: mutation.swept_prefix,
+            retained_paths: mutation.retained_paths,
+            deleted_paths: mutation.deleted_paths,
         }))
     });
     if let Some(error) = callback_error.take() {
@@ -302,15 +304,22 @@ fn mutate_batch_request(request: MutateBatchRequest<'_, '_>) -> PyResult<(bool, 
     }
 }
 
-fn prepare_writes(writes: Vec<(String, String, Vec<u8>, bool)>) -> Vec<EncodedWrite> {
+fn prepare_writes(writes: Vec<WriteRow>) -> Vec<EncodedWrite> {
     writes
         .into_iter()
-        .map(|(key, kind, data, insert_only)| EncodedWrite {
-            key,
-            kind,
-            data,
-            insert_only,
-        })
+        .map(
+            |WriteRow {
+                 key,
+                 kind,
+                 data,
+                 insert_only,
+             }| EncodedWrite {
+                key,
+                kind,
+                data,
+                insert_only,
+            },
+        )
         .collect()
 }
 
@@ -327,12 +336,12 @@ fn decoded_to_python(py: Python<'_>, record: Option<DecodedRecord>) -> PyResult<
 }
 
 pub(super) fn metrics_row(metrics: &CacheMetrics) -> MetricsRow {
-    (
-        metrics.reads,
-        metrics.bytes_read,
-        metrics.writes,
-        metrics.bytes_written,
-        metrics.scans,
-        metrics.deletes,
-    )
+    MetricsRow {
+        reads: metrics.reads,
+        bytes_read: metrics.bytes_read,
+        writes: metrics.writes,
+        bytes_written: metrics.bytes_written,
+        scans: metrics.scans,
+        deletes: metrics.deletes,
+    }
 }

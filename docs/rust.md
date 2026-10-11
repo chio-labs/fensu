@@ -176,5 +176,9 @@ repository root through the package directory, inclusive; without a `.git` marke
 the Cargo workspace root is the boundary. Nearer matching rules take precedence.
 It does not consult parent directories above that root, `.ignore`, global Git ignore
 configuration, or `.git/info/exclude`. The rule and cache observer share the same
-ignore-input discovery. Unreadable observation inputs fail the check explicitly rather
-than returning potentially stale cached output.
+ignore-input discovery. Placement observations are collected only when result caching
+is enabled and at least one placement rule is selected (including displayed warnings).
+If an observation cannot be read, caching is bypassed for that target and analysis
+continues; the selected rules report their diagnostics normally. `--cache-stats`
+reports the affected target and the observation failure reason. Such a bypass also
+prevents reuse or publication of the combined result cache in a mixed-target run.

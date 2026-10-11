@@ -47,6 +47,11 @@ pub(crate) fn render_check(
     let (output, exit_code) = render_results(results, &plan.root, plan.color, options.warn);
     let mut stderr = String::new();
     stderr.push_str(&freshness(&plan));
+    if options.cache_stats {
+        for reason in cache_bypass_messages(&plan) {
+            stderr.push_str(&format!("{reason}\n"));
+        }
+    }
     if plan.cache_enabled && cacheable {
         stderr.push_str(&stored_output(
             &plan,
@@ -70,6 +75,19 @@ pub(crate) fn render_check(
     })
 }
 
+fn cache_bypass_messages(plan: &CheckPlans) -> Vec<String> {
+    let mut messages: Vec<String> = Vec::new();
+    for target in &plan.plans {
+        if let Some(reason) = &target.cache_bypass_reason {
+            messages.push(format!(
+                "Cache bypassed for target {}: {reason}",
+                target.config.target.as_deref().unwrap_or("default")
+            ));
+        }
+    }
+    messages
+}
+
 pub(crate) fn evaluate_checks(
     plan: &mut CheckPlans,
     options: &CheckOptions,
@@ -83,7 +101,7 @@ pub(crate) fn evaluate_checks(
             std::mem::take(&mut target.sources),
             &target.project_inputs,
         )?;
-        let evaluated = evaluate(EvaluationRequest {
+        let mut evaluated = evaluate(EvaluationRequest {
             project_root: &target.project_root,
             config: &target.config,
             sources: &target.sources,
@@ -93,6 +111,9 @@ pub(crate) fn evaluate_checks(
             cache_enabled: target.cache_enabled,
             collect_repository_facts,
         })?;
+        if target.cache_bypass_reason.is_some() {
+            evaluated.result.cacheable = Some(false);
+        }
         target.repository_facts = evaluated.repository_facts;
         results.push(evaluated.result);
     }
@@ -248,7 +269,11 @@ fn fresh_structured_execution(
     let cacheable = results
         .iter()
         .all(|result| result.cacheable.unwrap_or(true));
-    let mut messages: Vec<String> = Vec::new();
+    let mut messages: Vec<String> = if options.cache_stats {
+        cache_bypass_messages(&plan)
+    } else {
+        Vec::new()
+    };
     let cache_stats = plan.cache_enabled.then(|| {
         if cacheable {
             CheckCacheStats {

@@ -279,3 +279,111 @@ fn given_nested_cargo_workspace_when_repository_ignore_changes_then_cached_resul
         );
     }
 }
+#[cfg(unix)]
+#[test]
+fn given_unreadable_ignore_when_checking_then_observation_failure_only_bypasses_requested_cache() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let test_cases = [
+        crate::test_types::RustObservationFailureTestCase {
+            description: "cache requested for placement",
+            selection: "select = ['FPRSR311']",
+            arguments: &["--cache", "--cache-stats"],
+            expected_exit: 1,
+            expected_output: "FPRSR311",
+            expected_bypass: true,
+            expected_error_reason: true,
+        },
+        crate::test_types::RustObservationFailureTestCase {
+            description: "cache explicitly disabled",
+            selection: "select = ['FPRSR311']",
+            arguments: &["--no-cache", "--cache-stats"],
+            expected_exit: 1,
+            expected_output: "FPRSR311",
+            expected_bypass: false,
+            expected_error_reason: false,
+        },
+        crate::test_types::RustObservationFailureTestCase {
+            description: "placement rules not selected",
+            selection: "select = ['FPRSH902']",
+            arguments: &["--cache", "--cache-stats"],
+            expected_exit: 0,
+            expected_output: "Found 0 faults",
+            expected_bypass: false,
+            expected_error_reason: false,
+        },
+        crate::test_types::RustObservationFailureTestCase {
+            description: "ignored placement rules",
+            selection:
+                "select = ['FPRSH902', 'FPRSR311', 'FPRSL106']\nignore = ['FPRSR311', 'FPRSL106']",
+            arguments: &["--cache", "--cache-stats"],
+            expected_exit: 0,
+            expected_output: "Found 0 faults",
+            expected_bypass: false,
+            expected_error_reason: false,
+        },
+        crate::test_types::RustObservationFailureTestCase {
+            description: "displayed placement warnings",
+            selection: "select = ['FPRSH902']\nwarn = ['FPRSR311']",
+            arguments: &["--cache", "--cache-stats", "--warn"],
+            expected_exit: 0,
+            expected_output: "FPRSR311",
+            expected_bypass: true,
+            expected_error_reason: true,
+        },
+        crate::test_types::RustObservationFailureTestCase {
+            description: "placement warnings not requested",
+            selection: "select = ['FPRSH902']\nwarn = ['FPRSR311']",
+            arguments: &["--cache", "--cache-stats"],
+            expected_exit: 0,
+            expected_output: "Found 0 faults",
+            expected_bypass: false,
+            expected_error_reason: false,
+        },
+    ];
+    for test_case in test_cases {
+        let repository = tempfile::tempdir().expect("fixture repository");
+        write(
+            repository.path().join("Cargo.toml"),
+            "[workspace]\nmembers = ['crates/example']\nresolver = '2'\n",
+        );
+        write(
+            repository.path().join("crates/example/Cargo.toml"),
+            "[package]\nname = 'example'\nversion = '0.1.0'\nedition = '2021'\n",
+        );
+        write(repository.path().join("crates/example/src/lib.rs"), "");
+        write(repository.path().join("fensu.toml"), &format!("[targets.rust]\nanalyzer = 'rust'\nroots = ['crates/example/src']\ntests = []\ntooling = []\nrule_packs = ['rust']\n{}\n", test_case.selection));
+        let ignore = repository.path().join("crates/example/.gitignore");
+        write(&ignore, "notes.txt\n");
+        std::fs::set_permissions(&ignore, std::fs::Permissions::from_mode(0o000))
+            .expect("make ignore unreadable");
+        let output = run_check_with(repository.path(), test_case.arguments);
+        std::fs::set_permissions(&ignore, std::fs::Permissions::from_mode(0o644))
+            .expect("restore ignore permissions");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit),
+            "{}: {stdout} {stderr}",
+            test_case.description
+        );
+        assert!(
+            stdout.contains(test_case.expected_output),
+            "{}: {stdout}",
+            test_case.description
+        );
+        assert_eq!(
+            stderr.contains("Cache bypassed for target rust:"),
+            test_case.expected_bypass,
+            "{}: {stderr}",
+            test_case.description
+        );
+        assert_eq!(
+            stderr.contains("placement observations unavailable: cannot read ignore input"),
+            test_case.expected_error_reason,
+            "{}: {stderr}",
+            test_case.description
+        );
+    }
+}

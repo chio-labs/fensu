@@ -427,3 +427,13 @@ pub(crate) struct RustParentIgnoreTestCase {
     pub(crate) expected_code: &'static str,
     pub(crate) expected_hits: &'static str,
 }
+#[cfg(unix)]
+pub(crate) struct RustObservationFailureTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) selection: &'static str,
+    pub(crate) arguments: &'static [&'static str],
+    pub(crate) expected_exit: i32,
+    pub(crate) expected_output: &'static str,
+    pub(crate) expected_bypass: bool,
+    pub(crate) expected_error_reason: bool,
+}

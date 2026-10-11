@@ -31,6 +31,7 @@ pub(crate) struct CheckPlan {
     pub(crate) excluded: usize,
     pub(crate) identity: String,
     pub(crate) cache_enabled: bool,
+    pub(crate) cache_bypass_reason: Option<String>,
     pub(crate) color: bool,
     pub(crate) repository_facts: Option<serde_json::Value>,
 }

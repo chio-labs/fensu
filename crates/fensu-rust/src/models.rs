@@ -27,6 +27,7 @@ pub struct RepositoryAnalysis {
 /// Resolved Rust rule settings. Cargo supplies workspace identities and targets.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct RustPolicy {
+    pub crate_allowed_entries: Vec<String>,
     pub ownership_roots: Vec<String>,
     pub tooling: ToolingConfig,
     pub raw_parser_boundary: RawParserBoundaryConfig,
@@ -91,6 +92,7 @@ impl Default for ThresholdConfig {
 impl Default for RustPolicy {
     fn default() -> Self {
         Self {
+            crate_allowed_entries: constants::DEFAULT_CRATE_ALLOWED_ENTRIES.iter().map(|entry| (*entry).to_owned()).collect(),
             ownership_roots: Vec::new(),
             tooling: ToolingConfig {
                 paths: Vec::new(),
@@ -109,6 +111,10 @@ impl Default for RustPolicy {
 impl RustPolicy {
     /// Reject unsupported versions and identities that cannot match a package.
     pub fn validate(&self) -> Result<(), String> {
+        for entry in &self.crate_allowed_entries {
+            globset::Glob::new(entry.trim_end_matches('/'))
+                .map_err(|error| format!("invalid crate entry pattern {entry}: {error}"))?;
+        }
         if self
             .ownership_roots
             .iter()

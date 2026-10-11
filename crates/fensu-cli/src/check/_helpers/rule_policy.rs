@@ -65,6 +65,30 @@ pub(crate) fn selected_rules(
     Ok(rules)
 }
 
+pub(crate) fn placement_rules_selected(config: &Config, warnings: bool) -> Result<bool, String> {
+    let select = config
+        .select
+        .iter()
+        .chain(config.warn.iter().filter(|_| warnings))
+        .filter(|code| !code.starts_with('X'))
+        .cloned()
+        .collect::<Vec<_>>();
+    let ignore = config
+        .ignore
+        .iter()
+        .filter(|code| !code.starts_with('X'))
+        .cloned()
+        .collect::<Vec<_>>();
+    Ok(selected_rules(config, &select, &ignore)?
+        .iter()
+        .any(|rule| {
+            matches!(
+                rule.implementation_code.as_deref(),
+                Some("RSR311" | "RSL106")
+            )
+        }))
+}
+
 pub(crate) fn validate_config_tiers(config: &Config) -> Result<(), String> {
     let configured_catalogue = configured_rule_catalogue(&config.rule_packs)?;
     let catalogue = configured_catalogue

@@ -14,7 +14,7 @@ use crate::check::_helpers::policy::{
     check_identity, hex_digest, path_matches, validate_scope_roots,
 };
 use crate::check::_helpers::project as web;
-use crate::check::_helpers::rule_policy::validate_config_tiers;
+use crate::check::_helpers::rule_policy::{placement_rules_selected, validate_config_tiers};
 use crate::check::constants::{CARGO_TARGET_DIRECTORY, GIT_DIRECTORY};
 use crate::check::models::{CheckIdentityRequest, CheckPlan, CheckPlans};
 use crate::configuration::main::load_targets;
@@ -94,7 +94,7 @@ pub(crate) fn prepare_checks(
             project_inputs.sort_by(|left, right| left.repository_path.cmp(&right.repository_path));
             project_inputs.dedup_by(|left, right| left.path == right.path);
         }
-        let cache_enabled = options.cache_enabled.unwrap_or(config.cache_enabled)
+        let mut cache_enabled = options.cache_enabled.unwrap_or(config.cache_enabled)
             && (!matches!(
                 config.analyzer,
                 crate::analyzer::AnalyzerId::Rust
@@ -102,7 +102,7 @@ pub(crate) fn prepare_checks(
                     | crate::analyzer::AnalyzerId::Svelte
             ) || custom_cache_inputs_complete(&project_root, &config));
         let color = use_color(&options.color);
-        let identity = check_identity(CheckIdentityRequest {
+        let mut identity = check_identity(CheckIdentityRequest {
             root: &root,
             project_root: &project_root,
             config: &config,
@@ -110,6 +110,29 @@ pub(crate) fn prepare_checks(
             project_inputs: &project_inputs,
             warnings: options.warn,
         })?;
+        let mut cache_bypass_reason = None;
+        if cache_enabled
+            && config.analyzer == AnalyzerId::Rust
+            && placement_rules_selected(&config, options.warn)?
+        {
+            match fensu_rust::rules::main::file_placement_observations::file_placement_observations(
+                &project_root,
+            ) {
+                Ok(observations) => {
+                    let mut fields: Vec<u8> = identity.into_bytes();
+                    for observation in observations {
+                        fields.extend_from_slice(&observation.len().to_be_bytes());
+                        fields.extend_from_slice(observation.as_bytes());
+                    }
+                    identity = hex_digest(&fields);
+                }
+                Err(reason) => {
+                    cache_enabled = false;
+                    cache_bypass_reason =
+                        Some(format!("placement observations unavailable: {reason}"));
+                }
+            }
+        }
         plans.push(CheckPlan {
             root,
             project_root,
@@ -119,6 +142,7 @@ pub(crate) fn prepare_checks(
             excluded,
             identity,
             cache_enabled,
+            cache_bypass_reason,
             color,
             repository_facts: None,
         });

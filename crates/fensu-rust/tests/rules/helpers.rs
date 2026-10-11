@@ -222,6 +222,7 @@ pub(crate) fn collect_violation_codes_with_ownership_roots(
 ) -> Vec<&'static str> {
     let defaults = fensu_rust::models::RustPolicy::default();
     let policy = fensu_rust::models::RustPolicy {
+        crate_allowed_entries: defaults.crate_allowed_entries,
         ownership_roots,
         tooling: fensu_rust::models::ToolingConfig {
             paths: vec!["crates/example-tooling".to_owned()],

@@ -24,5 +24,7 @@ mod test_check_web_custom;
 mod test_check_web_layout;
 #[path = "command/test_rule.rs"]
 mod test_rule;
+#[path = "command/test_rust_file_placement.rs"]
+mod test_rust_file_placement;
 #[path = "command/test_types.rs"]
 mod test_types;

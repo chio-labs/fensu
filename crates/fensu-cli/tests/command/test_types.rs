@@ -409,3 +409,31 @@ pub(crate) struct WebCustomPolicyTestCase {
     pub(crate) expected_present: &'static str,
     pub(crate) expected_absent: &'static str,
 }
+pub(crate) struct RustPlacementCacheTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) path: &'static str,
+    pub(crate) prepare: fn(&std::path::Path, &str),
+    pub(crate) mutate: fn(&std::path::Path, &str),
+    pub(crate) expected_code: &'static str,
+    pub(crate) expected_path: &'static str,
+}
+pub(crate) struct RustPlacementCacheHitTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) extra_config: &'static str,
+    pub(crate) expected_hits: &'static str,
+}
+pub(crate) struct RustParentIgnoreTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) expected_code: &'static str,
+    pub(crate) expected_hits: &'static str,
+}
+#[cfg(unix)]
+pub(crate) struct RustObservationFailureTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) selection: &'static str,
+    pub(crate) arguments: &'static [&'static str],
+    pub(crate) expected_exit: i32,
+    pub(crate) expected_output: &'static str,
+    pub(crate) expected_bypass: bool,
+    pub(crate) expected_error_reason: bool,
+}

@@ -6,6 +6,8 @@ mod configuration;
 mod containers;
 #[path = "rules/test_domains.rs"]
 mod domains;
+#[path = "rules/test_file_placement.rs"]
+mod file_placement;
 #[path = "rules/helpers.rs"]
 mod helpers;
 #[path = "rules/test_hygiene.rs"]

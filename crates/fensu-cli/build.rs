@@ -1,7 +1,4 @@
 use std::collections::HashSet;
-use std::env;
-use std::fs;
-use std::path::PathBuf;
 
 #[allow(dead_code)]
 #[path = "src/analyzer.rs"]
@@ -12,8 +9,6 @@ mod catalogue_models;
 
 use catalogue_models::RuleMetadata;
 
-const TRAILING_SPACE_ESCAPE_LF: &str = "\\x20\n";
-const TRAILING_SPACE_ESCAPE_CRLF: &str = "\\x20\r\n";
 const RULE_FIELDS: &[&str] = &[
     "alias_of",
     "analyzers",
@@ -39,7 +34,7 @@ const RULE_FIELDS: &[&str] = &[
 ];
 
 fn main() {
-    let catalogue = include_bytes!("assets/catalogue.json");
+    let catalogue = include_bytes!("src/catalogue/data/catalogue.json");
     let typed_entries = serde_json::from_slice::<Vec<RuleMetadata>>(catalogue)
         .expect("every catalogue entry deserializes as complete RuleMetadata");
     assert!(!typed_entries.is_empty(), "catalogue asset is nonempty");
@@ -68,13 +63,5 @@ fn main() {
             "catalogue entry {code} has incomplete schema"
         );
     }
-    let python_gitignore = std::str::from_utf8(include_bytes!("assets/python.gitignore"))
-        .expect("gitignore asset contains UTF-8")
-        .replace(TRAILING_SPACE_ESCAPE_CRLF, " \r\n")
-        .replace(TRAILING_SPACE_ESCAPE_LF, " \n");
-    let output = PathBuf::from(env::var_os("OUT_DIR").expect("output directory"));
-    fs::write(output.join("catalogue.json"), catalogue).expect("write generated catalogue");
-    fs::write(output.join("python.gitignore"), python_gitignore).expect("write gitignore template");
-    println!("cargo:rerun-if-changed=assets/catalogue.json");
-    println!("cargo:rerun-if-changed=assets/python.gitignore");
+    println!("cargo:rerun-if-changed=src/catalogue/data/catalogue.json");
 }

@@ -4,8 +4,10 @@ use std::path;
 
 use crate::models;
 use crate::rules::_helpers::functions::shape_project;
+use crate::rules::_helpers::imports::embedded_files;
 use crate::rules::_helpers::imports::{layers, visibility};
 use crate::rules::_helpers::repository::configured_paths;
+use crate::rules::_helpers::repository::crate_contents;
 use crate::rules::_helpers::roles::{containers, domains, ownership, surfaces, tooling};
 use crate::rules::_helpers::sources::scanning;
 use crate::rules::_helpers::test_conventions::test_mirroring;
@@ -35,6 +37,7 @@ pub(crate) fn check(
         &config.ownership_roots,
     );
     violations.extend(architecture_checks(repo_root, workspace_crates, config));
+    violations.extend(crate_contents::check(repo_root, workspace_crates, config));
     violations
 }
 
@@ -70,6 +73,13 @@ fn check_crate_files(
 ) -> (Vec<models::Violation>, Vec<models::SourceFile>) {
     let crate_dir = &workspace_crate.directory;
     let mut violations: Vec<models::Violation> = Vec::new();
+    for file in &workspace_crate.files {
+        violations.extend(embedded_files::check(
+            repo_root,
+            file,
+            &config.ownership_roots,
+        ));
+    }
     let src_scan = scanning::rust_target_files(repo_root, workspace_crate, false);
     let test_scan = scanning::rust_target_files(repo_root, workspace_crate, true);
     let structural_files = src_scan

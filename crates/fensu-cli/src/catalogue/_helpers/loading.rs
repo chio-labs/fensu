@@ -9,7 +9,7 @@ static CATALOGUE: OnceLock<Result<Vec<RuleMetadata>, String>> = OnceLock::new();
 pub(crate) fn rule_catalogue() -> Result<&'static [RuleMetadata], String> {
     CATALOGUE
         .get_or_init(|| {
-            serde_json::from_slice(include_bytes!(concat!(env!("OUT_DIR"), "/catalogue.json")))
+            serde_json::from_slice(include_bytes!("../data/catalogue.json"))
                 .map_err(|error| format!("Embedded rule catalogue is invalid: {error}"))
         })
         .as_ref()

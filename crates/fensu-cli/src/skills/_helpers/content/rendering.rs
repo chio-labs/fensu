@@ -33,10 +33,7 @@ const NORMATIVE_GUIDANCE_FRAGMENTS: &[&str] = &[
     "Promote",
     "Use up",
 ];
-const PROFILE: &[u8] = include_bytes!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/assets/skills_invariant.json"
-));
+const PROFILE: &[u8] = include_bytes!("../../data/skills_invariant.json");
 
 pub(crate) fn generate(context: &SkillContext) -> Result<String, String> {
     if context.targets.is_empty() {

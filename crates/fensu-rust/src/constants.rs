@@ -152,3 +152,4 @@ pub(crate) const DEFAULT_CRATE_ALLOWED_ENTRIES: &[&str] = &[
     "README*",
     "LICENSE*",
 ];
+pub const PACKAGE_CONTENTS_CODE: &str = "RSR311";

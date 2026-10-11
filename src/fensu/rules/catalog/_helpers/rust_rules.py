@@ -140,6 +140,8 @@ _FAMILIES: dict[str, Family] = {
     "T": Family.TESTS,
 }
 
+_FILESYSTEM_DEPENDENT_CODES: frozenset[str] = frozenset(("RSR311", "RSL106"))
+
 _OPTIONS: dict[str, tuple[RuleOption[object], ...]] = {
     "RSR311": (
         RuleOption.string_list(
@@ -250,6 +252,7 @@ def rust_rules() -> tuple[RuleSpec, ...]:
             options=_OPTIONS.get(implementation, ()),
             constraints=_CONSTRAINTS.get(implementation, ()),
             configuration_inputs=("ownership_roots",),
+            cacheable=False if implementation in _FILESYSTEM_DEPENDENT_CODES else None,
         )
         for implementation in _IMPLEMENTATION_CODES
     )

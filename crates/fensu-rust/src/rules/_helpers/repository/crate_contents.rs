@@ -20,7 +20,7 @@ pub(crate) fn check(
                 Ok(entry) => entry,
                 Err(error) => {
                     violations.push(models::Violation::new(models::ViolationRequest {
-                        code: "RSR311",
+                        code: constants::PACKAGE_CONTENTS_CODE,
                         path: package
                             .directory
                             .strip_prefix(repo_root)
@@ -45,7 +45,7 @@ pub(crate) fn check(
                 continue;
             }
             violations.push(models::Violation::new(models::ViolationRequest {
-                code: "RSR311",
+                code: constants::PACKAGE_CONTENTS_CODE,
                 path: entry.path().strip_prefix(repo_root).unwrap_or(entry.path()),
                 line: None,
                 message: "package directory contains a non-standard entry",

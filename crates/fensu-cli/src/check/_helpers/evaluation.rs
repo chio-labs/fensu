@@ -367,7 +367,8 @@ fn evaluate_rust_target(request: EvaluationRequest<'_>) -> Result<TargetEvaluati
     let mut cacheable = !analysis
         .diagnostics
         .iter()
-        .any(|diagnostic| diagnostic.code == fensu_rust::METADATA_SETUP_CODE);
+        .any(|diagnostic| diagnostic.code == fensu_rust::METADATA_SETUP_CODE)
+        && all_rules.iter().all(|rule| rule.cacheable != Some(false));
     let excluded_paths = sources
         .iter()
         .filter(|source| !source.purpose.is_direct())
@@ -380,10 +381,14 @@ fn evaluate_rust_target(request: EvaluationRequest<'_>) -> Result<TargetEvaluati
     let mut faults: Vec<Fault> = Vec::new();
     for diagnostic in analysis.diagnostics {
         let diagnostic_path = diagnostic.path.to_string_lossy().replace('\\', "/");
-        if excluded_paths.contains(diagnostic_path.as_str()) {
+        let package_entry = diagnostic.code == fensu_rust::constants::PACKAGE_CONTENTS_CODE;
+        if !package_entry && excluded_paths.contains(diagnostic_path.as_str()) {
             continue;
         }
-        if diagnostic_path.ends_with(".rs") && !source_paths.contains(diagnostic_path.as_str()) {
+        if !package_entry
+            && diagnostic_path.ends_with(".rs")
+            && !source_paths.contains(diagnostic_path.as_str())
+        {
             continue;
         }
         let Some(metadata) = display_by_implementation.get(diagnostic.code) else {

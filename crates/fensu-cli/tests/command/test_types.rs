@@ -409,3 +409,11 @@ pub(crate) struct WebCustomPolicyTestCase {
     pub(crate) expected_present: &'static str,
     pub(crate) expected_absent: &'static str,
 }
+pub(crate) struct RustPlacementCacheTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) path: &'static str,
+    pub(crate) prepare: fn(&std::path::Path, &str),
+    pub(crate) mutate: fn(&std::path::Path, &str),
+    pub(crate) expected_code: &'static str,
+    pub(crate) expected_path: &'static str,
+}

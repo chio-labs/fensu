@@ -145,7 +145,9 @@ allowed_entries = [
 ```
 
 `FPRSL106` checks `include_str!` and `include_bytes!`, including `std::` and `core::`
-forms, in parsed items, expressions, constants, statics, and parseable macro arguments.
+forms, in parsed items, expressions, constants, statics, and nested macro token streams.
+Nested invocations are inspected independently of the enclosing macro's grammar,
+including repetition syntax such as `vec![include_str!("data.txt"); 2]`.
 Each argument must be a single string literal: `concat!`, `env!`, identifiers, and
 other computed arguments are faults. Paths resolve relative to the including file;
 canonicalization resolves `..` and symlinks before checking the boundary. Missing,
@@ -159,3 +161,9 @@ reach another domain, the source root, or outside the source tree. For example,
 `src/orders/_helpers/read.rs` may include `../data/file.txt`, but not
 `../../customers/data/file.txt`. Integration-test files use their discovered test
 source root and must likewise keep embedded fixtures inside their own test domain.
+
+These two rules declare `cacheable = false`. Selecting either rule bypasses result
+cache reads and writes, including when selected as a displayed warning. The current
+cache observation contract does not cover all applicable ancestor/global ignore files
+or the existence and canonical state of symlink-resolved embedded targets. Other rule
+selections retain their existing caching behavior.

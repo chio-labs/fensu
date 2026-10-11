@@ -2,6 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
+use syn::parse::discouraged::Speculative;
 use syn::parse::Parser;
 use syn::spanned::Spanned;
 use syn::visit::Visit;
@@ -46,6 +47,31 @@ struct EmbeddedVisitor<'a> {
 }
 
 impl EmbeddedVisitor<'_> {
+    fn visit_tokens(&mut self, tokens: proc_macro2::TokenStream) {
+        let parser = |input: syn::parse::ParseStream<'_>| -> syn::Result<()> {
+            while !input.is_empty() {
+                let fork = input.fork();
+                if let Ok(node) = fork.parse::<syn::Macro>() {
+                    input.advance_to(&fork);
+                    self.visit_macro(&node);
+                } else if let proc_macro2::TokenTree::Group(group) = input.parse()? {
+                    self.visit_tokens(group.stream());
+                }
+            }
+            Ok(())
+        };
+        if let Err(error) = parser.parse2(tokens) {
+            self.violations
+                .push(models::Violation::new(models::ViolationRequest {
+                    code: "RSL106",
+                    path: self.file.relative_path(),
+                    line: Some(error.span().start().line),
+                    message: format!("cannot inspect embedded file macro tokens: {error}"),
+                    remediation: "use a literal embedded file path in valid Rust macro tokens",
+                }));
+        }
+    }
+
     fn check_macro(&mut self, node: &syn::Macro) {
         let parser = syn::punctuated::Punctuated::<syn::LitStr, syn::Token![,]>::parse_terminated;
         let message = match parser.parse2(node.tokens.clone()) {
@@ -104,13 +130,7 @@ impl<'ast> Visit<'ast> for EmbeddedVisitor<'_> {
         ) && supported_prefix;
         if is_include {
             self.check_macro(node);
-            return;
         }
-        let parser = syn::punctuated::Punctuated::<syn::Expr, syn::Token![,]>::parse_terminated;
-        if let Ok(arguments) = parser.parse2(node.tokens.clone()) {
-            for argument in &arguments {
-                self.visit_expr(argument);
-            }
-        }
+        self.visit_tokens(node.tokens.clone());
     }
 }

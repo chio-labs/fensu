@@ -157,7 +157,7 @@ def test_given_native_web_packs_when_building_catalogue_then_each_pack_is_standa
     [
         NativeRustPackCatalogueTestCase(
             description="Rust pack exposes every structure-engine identity",
-            expected_rule_count=117,
+            expected_rule_count=118,
         )
     ],
     ids=lambda case: case.description,

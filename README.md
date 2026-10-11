@@ -114,7 +114,7 @@ select = ["FPRS"]
 ```
 
 Run `fensu check --target rust`. Cargo discovers workspace members, package names, and targets;
-use `roots = ["src"]` for a single-package repository. The Rust pack enables all 117 `FPRS*`
+use `roots = ["src"]` for a single-package repository. The Rust pack enables all 118 `FPRS*`
 rules, covering layout, imports, dependency boundaries, naming, function shape, hygiene, and
 test conventions. Existing structural thresholds are the defaults.
 

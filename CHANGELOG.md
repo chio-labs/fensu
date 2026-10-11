@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.25.0](https://github.com/chio-labs/fensu/compare/v0.24.0...v0.25.0) (2026-10-11)
+
+
+### Features
+
+* **rust:** flag trailing comments and wide tuple types ([#103](https://github.com/chio-labs/fensu/issues/103)) ([9e0672f](https://github.com/chio-labs/fensu/commit/9e0672ff3576fe589579113ba784ba3dac123891))
+
 ## [0.24.0](https://github.com/chio-labs/fensu/compare/v0.23.0...v0.24.0) (2026-09-25)
 
 

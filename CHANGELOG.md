@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.27.0](https://github.com/chio-labs/fensu/compare/v0.26.0...v0.27.0) (2026-10-17)
+
+
+### Features
+
+* support symbol-scoped Rust rule exceptions ([#107](https://github.com/chio-labs/fensu/issues/107)) ([cd854c6](https://github.com/chio-labs/fensu/commit/cd854c6a42e19590d6318ba2b4b83e6f634d2800))
+
 ## [0.26.0](https://github.com/chio-labs/fensu/compare/v0.25.0...v0.26.0) (2026-10-11)
 
 

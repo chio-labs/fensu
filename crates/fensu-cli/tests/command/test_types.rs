@@ -437,3 +437,15 @@ pub(crate) struct RustObservationFailureTestCase {
     pub(crate) expected_bypass: bool,
     pub(crate) expected_error_reason: bool,
 }
+
+pub(crate) struct RustSymbolExceptionTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) source: &'static str,
+    pub(crate) select: &'static str,
+    pub(crate) options: &'static str,
+    pub(crate) exception: &'static str,
+    pub(crate) expected_exit_code: i32,
+    pub(crate) expected_present: &'static [&'static str],
+    pub(crate) expected_absent: &'static [&'static str],
+    pub(crate) expected_stderr: &'static str,
+}

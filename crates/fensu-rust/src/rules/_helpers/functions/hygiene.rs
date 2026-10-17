@@ -24,7 +24,7 @@ pub(crate) fn check_source(
         violations.push(models::Violation::new(models::ViolationRequest {
             code: "RSH012",
             path: file.relative_path(),
-            line: Some(1),
+            line: None,
             message: "crate root does not forbid unsafe code",
             remediation: "add #![forbid(unsafe_code)] to lib.rs",
         }));

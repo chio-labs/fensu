@@ -1,7 +1,12 @@
+use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
-use crate::models::{Config, Fault, RuleException, ScopedSource};
+use crate::analyzer::AnalyzerId;
+use crate::configuration::main::rust_exception_symbols::rust_exception_symbols;
+use crate::models::{Config, Fault, RuleException, RustExceptionSymbol, ScopedSource};
+
+const RUST_PATH_SEPARATOR: &str = "::";
 
 type ExceptionKey = (String, String, Option<String>);
 
@@ -35,6 +40,7 @@ pub(crate) fn apply_exceptions(
         .map(|source| (source.target_path.as_str(), source))
         .collect::<HashMap<_, _>>();
     let mut applied: HashSet<ExceptionKey> = HashSet::new();
+    let rust_symbols_by_path = rust_symbols_by_path(config, &source_by_path)?;
     let mut retained: Vec<Fault> = Vec::new();
     for fault in faults {
         let directory = if fault.code == fensu_native::rules::constants::STALE_DEAD_CODE_ROOT_CODE {
@@ -58,9 +64,15 @@ pub(crate) fn apply_exceptions(
                 break;
             }
             if owner.is_none() {
-                owner = source_by_path
-                    .get(reported.as_str())
-                    .and_then(|source| fault_owner(&fault, source));
+                owner = if config.analyzer == AnalyzerId::Rust {
+                    rust_symbols_by_path
+                        .get(reported.as_str())
+                        .and_then(|symbols| rust_fault_owner(&fault, symbols))
+                } else {
+                    source_by_path
+                        .get(reported.as_str())
+                        .and_then(|source| fault_owner(&fault, source))
+                };
             }
             matched_symbol = owner.as_ref().and_then(|owner| {
                 entry
@@ -149,6 +161,55 @@ fn fault_owner(fault: &Fault, source: &ScopedSource) -> Option<FaultOwner> {
         fault.line? as usize,
         fault.column.unwrap_or(0) as usize,
     )
+}
+
+fn rust_symbols_by_path(
+    config: &Config,
+    source_by_path: &HashMap<&str, &ScopedSource>,
+) -> Result<HashMap<String, Vec<RustExceptionSymbol>>, String> {
+    let mut symbols_by_path: HashMap<String, Vec<RustExceptionSymbol>> = HashMap::new();
+    if config.analyzer != AnalyzerId::Rust {
+        return Ok(symbols_by_path);
+    }
+    for entry in config
+        .exceptions
+        .iter()
+        .filter(|entry| !entry.symbols.is_empty())
+    {
+        if symbols_by_path.contains_key(&entry.path) {
+            continue;
+        }
+        let Some(source) = source_by_path.get(entry.path.as_str()) else {
+            continue;
+        };
+        let symbols = rust_exception_symbols(&String::from_utf8_lossy(&source.content)).map_err(
+            |message| {
+                format!(
+                    "Could not inspect rule exception path {}: {message}",
+                    entry.path
+                )
+            },
+        )?;
+        symbols_by_path.insert(entry.path.clone(), symbols);
+    }
+    Ok(symbols_by_path)
+}
+
+fn rust_fault_owner(fault: &Fault, symbols: &[RustExceptionSymbol]) -> Option<FaultOwner> {
+    let line = fault.line? as usize;
+    symbols
+        .iter()
+        .filter(|symbol| symbol.first_line <= line && line <= symbol.last_line)
+        .min_by_key(|symbol| {
+            (
+                symbol.last_line - symbol.first_line,
+                Reverse(symbol.name.matches(RUST_PATH_SEPARATOR).count()),
+                symbol.name.as_str(),
+            )
+        })
+        .map(|symbol| FaultOwner {
+            identities: vec![symbol.name.clone()],
+        })
 }
 
 fn web_fault_owner(source: &ScopedSource, line: usize, column: usize) -> Option<FaultOwner> {

@@ -183,12 +183,6 @@ fn given_invalid_rust_configuration_when_checking_then_configuration_fails_close
             expected_exit_code: 2,
             expected_error: "repository-relative POSIX paths",
         },
-        InvalidCheckConfigTestCase {
-            description: "Rust exceptions reject symbol scope during configuration validation",
-            config: "[[targets.rust.rule_exceptions]]\nrule = \"FPRSS010\"\npath = \"src/lib.rs\"\nsymbols = [\"value\"]\nreason = \"Unsupported symbol scope.\"\n",
-            expected_exit_code: 2,
-            expected_error: "Rust rule exceptions support file-level exceptions only",
-        },
     ];
     for test_case in test_cases {
         let repository = tempfile::tempdir().expect("temporary repository");
@@ -927,6 +921,15 @@ fn given_custom_rust_policy_when_checking_then_warning_ignore_and_exception_sema
             expected_exit_code: 0,
             expected_present: "Applied 1 rule exception",
             expected_absent: "XRS004 ",
+        },
+        RustCustomPolicyTestCase {
+            description: "symbol exception cannot suppress a line-less custom Rust finding",
+            selection: "select = [\"XRS004\"]\n",
+            policy: "[[targets.rust.rule_exceptions]]\nrule = \"XRS004\"\npath = \"src/lib.rs\"\nsymbols = [\"value\"]\nreason = \"Accepted adapter.\"\n",
+            arguments: &["--no-cache"],
+            expected_exit_code: 2,
+            expected_present: "Rule exception no longer matches a fault: XRS004 src/lib.rs::value.",
+            expected_absent: "Rust rule exceptions support file-level exceptions only",
         },
     ];
     for test_case in test_cases {

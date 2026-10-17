@@ -167,6 +167,13 @@ pub(crate) struct RuleException {
     pub(crate) symbols: Vec<String>,
 }
 
+#[derive(Clone, Debug)]
+pub(crate) struct RustExceptionSymbol {
+    pub(crate) name: String,
+    pub(crate) first_line: usize,
+    pub(crate) last_line: usize,
+}
+
 #[derive(Clone, Debug, Default)]
 pub(crate) struct RuleIgnore {
     pub(crate) rules: Vec<String>,

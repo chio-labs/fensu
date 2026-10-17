@@ -119,6 +119,14 @@ class WebExceptionPathTestCase:
 
 
 @dataclass(frozen=True)
+class RustExceptionSymbolTestCase:
+    """Rust exception symbol scope expected to be accepted."""
+
+    description: str
+    expected_symbol: str
+
+
+@dataclass(frozen=True)
 class CanonicalTargetRootTestCase:
     """A symlink target spelling and expected canonical effective identity."""
 

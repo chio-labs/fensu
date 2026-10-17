@@ -10,5 +10,6 @@ pub(crate) mod load_target;
 pub(crate) mod load_targets;
 pub(crate) mod render_target_config;
 pub(crate) mod resolve_target_root;
+pub(crate) mod rust_exception_symbols;
 pub(crate) mod validate_document;
 pub(crate) mod validate_exception_targets;

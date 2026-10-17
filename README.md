@@ -315,10 +315,14 @@ symbols = ["ProgressCollector.update"]
 reason = "The external API invokes this callback positionally."
 ```
 
-Python and web exceptions accept one exact rule code, repository-relative source file, and one
-or more qualified symbols. Rust exceptions are file-level and may target an exact `.rs` or
-`Cargo.toml` path. Globs, directories, line numbers, and inline suppression comments are not
-supported. `fensu check` rejects stale exceptions that no longer suppress a fault.
+Exceptions accept one exact rule code, repository-relative source file, and optionally one
+or more qualified symbols. Python and web symbols use dotted names such as `Class.method`; Rust
+symbols use item paths such as `parse`, `Record`, `Record::load`, or `inner::parse` (see
+[Rust](docs/rust.md#symbol-scoped-exceptions)). Without `symbols`, an exception covers the whole
+file; `Cargo.toml` exceptions are always file-level. Missing or ambiguous symbols are
+configuration errors. Globs, directories, line numbers, and inline suppression comments are not
+supported. `fensu check` rejects stale exceptions, and each listed symbol must still suppress a
+fault.
 
 For a justified rule/path intersection that is broader than one exact finding,
 keep the rules and project context active with `[[rule_ignores]]`:

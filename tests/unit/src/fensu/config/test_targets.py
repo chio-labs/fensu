@@ -26,6 +26,7 @@ from tests.unit.src.fensu.config._test_types import (
     EvaluationFingerprintTestCase,
     InvalidTargetConfigTestCase,
     OwnershipRootsConfigTestCase,
+    RustExceptionSymbolTestCase,
     TargetConfigTestCase,
     WebExceptionPathTestCase,
     WebTargetDefaultsTestCase,
@@ -494,6 +495,37 @@ def test_given_analyzer_compatible_web_exception_when_loading_then_path_is_accep
 @pytest.mark.parametrize(
     "test_case",
     [
+        RustExceptionSymbolTestCase(description="free item name", expected_symbol="value"),
+        RustExceptionSymbolTestCase(
+            description="associated item path", expected_symbol="Record::load"
+        ),
+        RustExceptionSymbolTestCase(
+            description="inline module associated item path",
+            expected_symbol="inner::Record::load",
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_rust_symbol_exception_when_loading_then_symbol_scope_is_accepted(
+    tmp_path: Path, test_case: RustExceptionSymbolTestCase
+) -> None:
+    write_fensu_toml(
+        root=tmp_path,
+        contents=(
+            '[targets.rust]\nanalyzer = "rust"\nroots = ["src"]\n'
+            '[[targets.rust.rule_exceptions]]\nrule = "FPRSS010"\n'
+            f'path = "src/lib.rs"\nsymbols = ["{test_case.expected_symbol}"]\nreason = "external contract"\n'
+        ),
+    )
+
+    config: Config = load_target_project_config(start=tmp_path, target="rust").config
+
+    assert config.rule_exceptions[0].symbols == (test_case.expected_symbol,)
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
         InvalidTargetConfigTestCase(
             description="targets must be a table",
             config_text="targets = []\n",
@@ -723,14 +755,24 @@ def test_given_analyzer_compatible_web_exception_when_loading_then_path_is_accep
             expected_error_fragment="Unknown targets.rust config key(s): structure_config",
         ),
         InvalidTargetConfigTestCase(
-            description="Rust exceptions reject unsupported symbol scope",
+            description="Rust manifest exceptions reject symbol scope",
+            config_text=(
+                '[targets.rust]\nanalyzer = "rust"\nroots = ["src"]\n'
+                '[[targets.rust.rule_exceptions]]\nrule = "FPRSL302"\n'
+                'path = "Cargo.toml"\nsymbols = ["value"]\nreason = "unsupported scope"\n'
+            ),
+            target="rust",
+            expected_error_fragment="Rust Cargo.toml rule exceptions support file-level exceptions only",
+        ),
+        InvalidTargetConfigTestCase(
+            description="Rust exceptions reject dotted symbol paths",
             config_text=(
                 '[targets.rust]\nanalyzer = "rust"\nroots = ["src"]\n'
                 '[[targets.rust.rule_exceptions]]\nrule = "FPRSS010"\n'
-                'path = "src/lib.rs"\nsymbols = ["value"]\nreason = "unsupported scope"\n'
+                'path = "src/lib.rs"\nsymbols = ["Record.load"]\nreason = "wrong separator"\n'
             ),
             target="rust",
-            expected_error_fragment="Rust rule exceptions support file-level exceptions only",
+            expected_error_fragment="Malformed qualified rule exception symbol: Record.load",
         ),
         InvalidTargetConfigTestCase(
             description="TypeScript exceptions reject Python paths",

@@ -5,6 +5,8 @@ use crate::configuration::_helpers::selectors::valid_code;
 use crate::constants::CUSTOM_RULE_TEST_COVERAGE_CODE;
 
 const RULE_EXCEPTION_SYMBOLS: &str = "symbols";
+const CARGO_MANIFEST_SUFFIX: &str = "Cargo.toml";
+const RUST_PATH_SEPARATOR: &str = "::";
 
 pub(crate) fn validate(value: Option<&toml::Value>, analyzer: AnalyzerId) -> Result<(), String> {
     validate_for(value, Some(analyzer))
@@ -46,19 +48,24 @@ fn validate_for(value: Option<&toml::Value>, analyzer: Option<AnalyzerId>) -> Re
             ));
         }
         validate_path(&path, analyzer, &rule)?;
-        if (matches!(analyzer, Some(AnalyzerId::Rust) | None)
-            || rule == CUSTOM_RULE_TEST_COVERAGE_CODE)
+        if (analyzer.is_none() || rule == CUSTOM_RULE_TEST_COVERAGE_CODE)
             && table.contains_key(RULE_EXCEPTION_SYMBOLS)
         {
             let owner = if rule == CUSTOM_RULE_TEST_COVERAGE_CODE {
                 "Custom-rule coverage"
-            } else if analyzer.is_none() {
-                "Repository"
             } else {
-                "Rust"
+                "Repository"
             };
             return Err(format!(
                 "{owner} rule exceptions support file-level exceptions only."
+            ));
+        }
+        if analyzer == Some(AnalyzerId::Rust)
+            && path.ends_with(CARGO_MANIFEST_SUFFIX)
+            && table.contains_key(RULE_EXCEPTION_SYMBOLS)
+        {
+            return Err(format!(
+                "Rust Cargo.toml rule exceptions support file-level exceptions only: {path}."
             ));
         }
         let symbols = match table.get(RULE_EXCEPTION_SYMBOLS) {
@@ -76,7 +83,12 @@ fn validate_for(value: Option<&toml::Value>, analyzer: Option<AnalyzerId>) -> Re
             ));
         }
         for symbol in symbols {
-            if !valid_qualified_symbol(&symbol) {
+            let valid = if analyzer == Some(AnalyzerId::Rust) {
+                valid_rust_symbol(&symbol)
+            } else {
+                valid_qualified_symbol(&symbol)
+            };
+            if !valid {
                 return Err(format!(
                     "Malformed qualified rule exception symbol: {symbol}."
                 ));
@@ -105,16 +117,21 @@ fn exception_text(
 
 fn valid_qualified_symbol(value: &str) -> bool {
     let mut parts = value.split('.');
-    let valid = |part: &str| {
-        let mut characters = part.chars();
-        characters
-            .next()
-            .is_some_and(|item| item.is_ascii_alphabetic() || item == '_')
-            && characters.all(|item| item.is_ascii_alphanumeric() || item == '_')
-    };
-    let first = parts.next().is_some_and(valid);
+    let first = parts.next().is_some_and(valid_identifier);
     let second = parts.next();
-    first && second.is_none_or(valid) && parts.next().is_none()
+    first && second.is_none_or(valid_identifier) && parts.next().is_none()
+}
+
+fn valid_rust_symbol(value: &str) -> bool {
+    value.split(RUST_PATH_SEPARATOR).all(valid_identifier)
+}
+
+fn valid_identifier(part: &str) -> bool {
+    let mut characters = part.chars();
+    characters
+        .next()
+        .is_some_and(|item| item.is_ascii_alphabetic() || item == '_')
+        && characters.all(|item| item.is_ascii_alphanumeric() || item == '_')
 }
 
 fn validate_path(path: &str, analyzer: Option<AnalyzerId>, rule: &str) -> Result<(), String> {
@@ -125,13 +142,15 @@ fn validate_path(path: &str, analyzer: Option<AnalyzerId>, rule: &str) -> Result
     } else {
         match analyzer {
             Some(AnalyzerId::Python) => path.ends_with(".py"),
-            Some(AnalyzerId::Rust) => path.ends_with(".rs") || path.ends_with("Cargo.toml"),
+            Some(AnalyzerId::Rust) => {
+                path.ends_with(".rs") || path.ends_with(CARGO_MANIFEST_SUFFIX)
+            }
             Some(AnalyzerId::TypeScript) => web_source_path(path),
             Some(AnalyzerId::Svelte) => path.ends_with(".svelte") || web_source_path(path),
             None => {
                 path.ends_with(".py")
                     || path.ends_with(".rs")
-                    || path.ends_with("Cargo.toml")
+                    || path.ends_with(CARGO_MANIFEST_SUFFIX)
                     || path.ends_with(".svelte")
                     || web_source_path(path)
             }

@@ -53,6 +53,8 @@ _current_path_part: str = "."
 _parent_path_part: str = ".."
 _python_file_suffix: str = ".py"
 _glob_characters: frozenset[str] = frozenset({"*", "?", "[", "]"})
+_qualified_symbol_pattern: str = r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?"
+_rust_symbol_pattern: str = r"[A-Za-z_][A-Za-z0-9_]*(::[A-Za-z_][A-Za-z0-9_]*)*"
 _registered_rule_packs: frozenset[str] = frozenset({"dagster", "rust", "sveltekit", "typescript"})
 
 
@@ -626,11 +628,14 @@ def _validate_rule_exception_entry(
             )
         seen.add(key)
         return seen
-    if analyzer is AnalyzerId.RUST or rule == RoleCode.CUSTOM_RULE_TEST_COVERAGE:
-        owner: str = (
-            "Rust" if rule != RoleCode.CUSTOM_RULE_TEST_COVERAGE else "Custom-rule coverage"
+    if rule == RoleCode.CUSTOM_RULE_TEST_COVERAGE:
+        raise ConfigValidationError(
+            "Custom-rule coverage rule exceptions support file-level exceptions only."
         )
-        raise ConfigValidationError(f"{owner} rule exceptions support file-level exceptions only.")
+    if analyzer is AnalyzerId.RUST and path.endswith(CARGO_MANIFEST_FILE_NAME):
+        raise ConfigValidationError(
+            f"Rust Cargo.toml rule exceptions support file-level exceptions only: {path}."
+        )
     symbols: tuple[str, ...] = _validate_string_sequence(
         name="rule_exceptions.symbols", value=typed_entry[RULE_EXCEPTION_SYMBOLS_CONFIG_KEY]
     )
@@ -639,7 +644,10 @@ def _validate_rule_exception_entry(
             "Rule exception symbols must not be empty; omit symbols for a file-level exception."
         )
     for symbol in symbols:
-        if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?", symbol) is None:
+        pattern: str = (
+            _rust_symbol_pattern if analyzer is AnalyzerId.RUST else _qualified_symbol_pattern
+        )
+        if re.fullmatch(pattern, symbol) is None:
             raise ConfigValidationError(f"Malformed qualified rule exception symbol: {symbol}.")
         key = (rule, path, symbol)
         if key in seen:

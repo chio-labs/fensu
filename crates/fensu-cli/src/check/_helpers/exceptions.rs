@@ -1,9 +1,12 @@
+use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use crate::analyzer::AnalyzerId;
 use crate::configuration::main::rust_exception_symbols::rust_exception_symbols;
 use crate::models::{Config, Fault, RuleException, RustExceptionSymbol, ScopedSource};
+
+const RUST_PATH_SEPARATOR: &str = "::";
 
 type ExceptionKey = (String, String, Option<String>);
 
@@ -194,12 +197,19 @@ fn rust_symbols_by_path(
 
 fn rust_fault_owner(fault: &Fault, symbols: &[RustExceptionSymbol]) -> Option<FaultOwner> {
     let line = fault.line? as usize;
-    let identities = symbols
+    symbols
         .iter()
         .filter(|symbol| symbol.first_line <= line && line <= symbol.last_line)
-        .map(|symbol| symbol.name.clone())
-        .collect::<Vec<_>>();
-    (!identities.is_empty()).then_some(FaultOwner { identities })
+        .min_by_key(|symbol| {
+            (
+                symbol.last_line - symbol.first_line,
+                Reverse(symbol.name.matches(RUST_PATH_SEPARATOR).count()),
+                symbol.name.as_str(),
+            )
+        })
+        .map(|symbol| FaultOwner {
+            identities: vec![symbol.name.clone()],
+        })
 }
 
 fn web_fault_owner(source: &ScopedSource, line: usize, column: usize) -> Option<FaultOwner> {

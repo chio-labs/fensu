@@ -1,7 +1,7 @@
 use crate::helpers::{run_check, run_check_with, write};
 use crate::test_types::{RustCacheTestCase, RustSymbolExceptionTestCase};
 
-const ITEMS: &str = "pub fn free(value: (u8, u8, u8, u8)) -> u8 { value.0 }\npub fn other(value: (u8, u8, u8, u8)) -> u8 { value.0 }\npub struct Record { pub value: (u8, u8, u8, u8) }\npub enum Choice { Value((u8, u8, u8, u8)) }\npub trait Source { fn read(&self) -> (u8, u8, u8, u8); }\npub trait Fallback { fn fetch(&self) -> (u8, u8, u8, u8) { (0, 0, 0, 0) } }\nimpl Record { pub fn load(&self) -> (u8, u8, u8, u8) { self.value } }\npub mod inner { pub fn nested(value: (u8, u8, u8, u8)) -> u8 { value.0 } }\n";
+const ITEMS: &str = "pub fn free(value: (u8, u8, u8, u8)) -> u8 { value.0 }\npub fn other(value: (u8, u8, u8, u8)) -> u8 { value.0 }\npub struct Record { pub value: (u8, u8, u8, u8) }\npub enum Choice { Value((u8, u8, u8, u8)) }\npub trait Source: From<(u8, u8, u8, u8)> {\n    fn read(&self) -> (u8, u8, u8, u8);\n}\npub trait Fallback { fn fetch(&self) -> (u8, u8, u8, u8) { (0, 0, 0, 0) } }\nimpl Record { pub fn load(&self) -> (u8, u8, u8, u8) { self.value } }\npub mod inner { pub fn nested(value: (u8, u8, u8, u8)) -> u8 { value.0 } }\n";
 const ITEM_LINES: &[&str] = &[
     "src/lib.rs:1:",
     "src/lib.rs:2:",
@@ -9,11 +9,15 @@ const ITEM_LINES: &[&str] = &[
     "src/lib.rs:4:",
     "src/lib.rs:5:",
     "src/lib.rs:6:",
-    "src/lib.rs:7:",
     "src/lib.rs:8:",
+    "src/lib.rs:9:",
+    "src/lib.rs:10:",
 ];
 const DOCUMENTED: &str = "/// First summary line.\n/// Second summary line.\npub fn documented() -> u8 { 1 }\n/// First summary line.\n/// Second summary line.\npub fn plain() -> u8 { 1 }\n";
 const ATTRIBUTED: &str = "#[inline] // first note\npub fn attributed() -> u8 { 1 }\n#[inline] // second note\npub fn plain() -> u8 { 1 }\n";
+const TRAIT_METHOD: &str =
+    "pub trait Source {\n    fn read(&self) -> (u8, u8, u8, u8);\n}\npub fn other(value: (u8, u8, u8, u8)) -> u8 { value.0 }\n";
+const UNSAFE_ROOT: &str = "pub fn free() -> u8 { 1 }\n";
 const TRAIT_IMPLS: &str = "pub trait First { fn run(&self); }\npub trait Second { fn run(&self); }\npub struct Record;\nimpl First for Record { fn run(&self) {} }\nimpl Second for Record { fn run(&self) {} }\n";
 
 #[test]
@@ -38,7 +42,7 @@ fn given_rust_symbol_exception_when_checking_then_only_faults_inside_the_symbol_
             options: "",
             exception: "path = \"src/lib.rs\"\nrule = \"FPRSS012\"\nsymbols = [\"Record\"]\n",
             expected_exit_code: 1,
-            expected_present: &["src/lib.rs:2:", "src/lib.rs:7:"],
+            expected_present: &["src/lib.rs:2:", "src/lib.rs:9:"],
             expected_absent: &["src/lib.rs:3:"],
             expected_stderr: "",
         },
@@ -54,14 +58,58 @@ fn given_rust_symbol_exception_when_checking_then_only_faults_inside_the_symbol_
             expected_stderr: "",
         },
         RustSymbolExceptionTestCase {
-            description: "trait",
+            description: "trait covers lines outside its members but not a method fault",
             source: ITEMS,
             select: "FPRSS012",
             options: "",
             exception: "path = \"src/lib.rs\"\nrule = \"FPRSS012\"\nsymbols = [\"Source\"]\n",
             expected_exit_code: 1,
-            expected_present: &["src/lib.rs:2:"],
+            expected_present: &["src/lib.rs:2:", "src/lib.rs:6:"],
             expected_absent: &["src/lib.rs:5:"],
+            expected_stderr: "",
+        },
+        RustSymbolExceptionTestCase {
+            description: "trait and its method each suppress their own fault",
+            source: ITEMS,
+            select: "FPRSS012",
+            options: "",
+            exception: "path = \"src/lib.rs\"\nrule = \"FPRSS012\"\nsymbols = [\"Source\", \"Source::read\"]\n",
+            expected_exit_code: 1,
+            expected_present: &["src/lib.rs:2:"],
+            expected_absent: &["src/lib.rs:5:", "src/lib.rs:6:"],
+            expected_stderr: "",
+        },
+        RustSymbolExceptionTestCase {
+            description: "trait method owns its fault and leaves only the trait stale",
+            source: TRAIT_METHOD,
+            select: "FPRSS012",
+            options: "",
+            exception: "path = \"src/lib.rs\"\nrule = \"FPRSS012\"\nsymbols = [\"Source\", \"Source::read\"]\n",
+            expected_exit_code: 2,
+            expected_present: &[],
+            expected_absent: &[],
+            expected_stderr: "Rule exception no longer matches a fault: FPRSS012 src/lib.rs::Source. Remove",
+        },
+        RustSymbolExceptionTestCase {
+            description: "crate-level fault is not owned by the item on line 1",
+            source: UNSAFE_ROOT,
+            select: "FPRSH012",
+            options: "",
+            exception: "path = \"src/lib.rs\"\nrule = \"FPRSH012\"\nsymbols = [\"free\"]\n",
+            expected_exit_code: 2,
+            expected_present: &[],
+            expected_absent: &[],
+            expected_stderr: "Rule exception no longer matches a fault: FPRSH012 src/lib.rs::free.",
+        },
+        RustSymbolExceptionTestCase {
+            description: "crate-level fault is suppressed by a file-level exception",
+            source: UNSAFE_ROOT,
+            select: "FPRSH012",
+            options: "",
+            exception: "path = \"src/lib.rs\"\nrule = \"FPRSH012\"\n",
+            expected_exit_code: 0,
+            expected_present: &["Found 0 faults"],
+            expected_absent: &["FPRSH012"],
             expected_stderr: "",
         },
         RustSymbolExceptionTestCase {
@@ -72,7 +120,7 @@ fn given_rust_symbol_exception_when_checking_then_only_faults_inside_the_symbol_
             exception: "path = \"src/lib.rs\"\nrule = \"FPRSS012\"\nsymbols = [\"Fallback::fetch\"]\n",
             expected_exit_code: 1,
             expected_present: &["src/lib.rs:2:"],
-            expected_absent: &["src/lib.rs:6:"],
+            expected_absent: &["src/lib.rs:8:"],
             expected_stderr: "",
         },
         RustSymbolExceptionTestCase {
@@ -83,7 +131,7 @@ fn given_rust_symbol_exception_when_checking_then_only_faults_inside_the_symbol_
             exception: "path = \"src/lib.rs\"\nrule = \"FPRSS012\"\nsymbols = [\"Record::load\"]\n",
             expected_exit_code: 1,
             expected_present: &["src/lib.rs:2:", "src/lib.rs:3:"],
-            expected_absent: &["src/lib.rs:7:"],
+            expected_absent: &["src/lib.rs:9:"],
             expected_stderr: "",
         },
         RustSymbolExceptionTestCase {
@@ -94,7 +142,7 @@ fn given_rust_symbol_exception_when_checking_then_only_faults_inside_the_symbol_
             exception: "path = \"src/lib.rs\"\nrule = \"FPRSS012\"\nsymbols = [\"inner::nested\"]\n",
             expected_exit_code: 1,
             expected_present: &["src/lib.rs:2:"],
-            expected_absent: &["src/lib.rs:8:"],
+            expected_absent: &["src/lib.rs:10:"],
             expected_stderr: "",
         },
         RustSymbolExceptionTestCase {

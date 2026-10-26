@@ -159,8 +159,13 @@ functions to be defined in the crate root. The root file of a `proc-macro` libra
 as Cargo metadata reports it, may therefore also contain thin macro entries. A top-level
 function is a thin entry only when all of these hold:
 
-- It carries exactly one directly written macro attribute. `#[cfg_attr(..)]` on the entry
-  does not qualify.
+- It carries exactly one directly written macro attribute. Its only other attributes are
+  outer `doc` (including `///` comments), `cfg`, `allow`, `warn`, `deny`, `expect`,
+  `forbid`, `inline` or `deprecated` attributes; any other attribute, including
+  `#[cfg_attr(..)]`, disqualifies the entry.
+- Its signature is a plain function: not `const`, `async`, `unsafe` or `extern`, with no
+  generics, lifetimes, where-clause or variadic, and with parameters bound to plain names.
+  Parameter and return types contain no macros or computed expressions.
 - Its body optionally starts with one binding of the parsed input:
   `let x = parse_macro_input!(input as Type);` or `let x = syn::parse::<Type>(input)`
   followed by `?`, `.unwrap()` or

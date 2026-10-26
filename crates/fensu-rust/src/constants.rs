@@ -77,7 +77,17 @@ pub const PROC_MACRO_COMPILE_ERROR_FUNCTIONS: &[&str] = &["into_compile_error", 
 pub const PROC_MACRO_FALLBACK_METHOD: &str = "unwrap_or_else";
 pub const PROC_MACRO_UNWRAP_METHOD: &str = "unwrap";
 pub const PROC_MACRO_INTO_METHOD: &str = "into";
-pub const CFG_ATTR_ATTRIBUTE: &str = "cfg_attr";
+pub const PROC_MACRO_COMPANION_ATTRIBUTES: &[&str] = &[
+    "doc",
+    "cfg",
+    "allow",
+    "warn",
+    "deny",
+    "expect",
+    "forbid",
+    "inline",
+    "deprecated",
+];
 pub const HELPERS_FILE: &str = "helpers.rs";
 pub const MODELS_FILE: &str = "models.rs";
 pub const TYPES_FILE: &str = "types.rs";

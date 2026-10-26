@@ -115,6 +115,56 @@ fn given_proc_macro_roots_when_checking_then_only_thin_entries_are_allowed() {
             expected_violation_codes: vec!["RSR406"],
         },
         test_types::CheckRepoTestCase {
+            description: "doc, cfg, deprecated, and inline companion attributes pass",
+            repo_files: vec![
+                helpers::proc_macro_manifest(),
+                helpers::library_root(
+                    "#[doc = \"Build a lookup table.\"]\n#[cfg(feature = \"tables\")]\n#[deprecated(note = \"use grid\")]\n#[inline]\n#[proc_macro]\npub fn table(input: TokenStream) -> TokenStream {\n    shapes::table(input)\n}\n",
+                ),
+            ],
+            expected_violation_codes: vec![],
+        },
+        test_types::CheckRepoTestCase {
+            description: "custom wrapper attribute is reported",
+            repo_files: vec![
+                helpers::proc_macro_manifest(),
+                helpers::library_root(
+                    "#[proc_macro]\n#[shape_support::wrap({\n    let first = 1;\n    first\n})]\npub fn table(input: TokenStream) -> TokenStream {\n    shapes::table(input)\n}\n",
+                ),
+            ],
+            expected_violation_codes: vec!["RSR406"],
+        },
+        test_types::CheckRepoTestCase {
+            description: "where-clause const block is reported",
+            repo_files: vec![
+                helpers::proc_macro_manifest(),
+                helpers::library_root(
+                    "#[proc_macro]\npub fn table(input: TokenStream) -> TokenStream\nwhere\n    [(); {\n        let mut count = 0;\n        while count < shapes::LIMIT {\n            count += 1;\n        }\n        count\n    }]: Sized,\n{\n    shapes::table(input)\n}\n",
+                ),
+            ],
+            expected_violation_codes: vec!["RSR406"],
+        },
+        test_types::CheckRepoTestCase {
+            description: "const entry function is reported",
+            repo_files: vec![
+                helpers::proc_macro_manifest(),
+                helpers::library_root(
+                    "#[proc_macro]\npub const fn table(input: TokenStream) -> TokenStream {\n    shapes::table(input)\n}\n",
+                ),
+            ],
+            expected_violation_codes: vec!["RSR406"],
+        },
+        test_types::CheckRepoTestCase {
+            description: "lifetime generic entry is reported",
+            repo_files: vec![
+                helpers::proc_macro_manifest(),
+                helpers::library_root(
+                    "#[proc_macro]\npub fn table<'a>(input: TokenStream) -> TokenStream {\n    shapes::table(input)\n}\n",
+                ),
+            ],
+            expected_violation_codes: vec!["RSR406"],
+        },
+        test_types::CheckRepoTestCase {
             description: "non-macro function in a proc-macro root is reported",
             repo_files: vec![
                 helpers::proc_macro_manifest(),

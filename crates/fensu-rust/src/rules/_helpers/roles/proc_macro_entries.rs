@@ -11,7 +11,10 @@ pub(crate) fn thin_entry(item: &syn::Item) -> Option<&syn::ItemFn> {
     let syn::Item::Fn(function) = item else {
         return None;
     };
-    (has_one_entry_attribute(&function.attrs) && forwards_thinly(function)).then_some(function)
+    (has_one_entry_attribute(&function.attrs)
+        && has_plain_signature(&function.sig)
+        && forwards_thinly(function))
+    .then_some(function)
 }
 
 /// Count the source lines an entry occupies, including its attributes and doc comments.
@@ -54,16 +57,51 @@ fn has_one_entry_attribute(attributes: &[syn::Attribute]) -> bool {
         .iter()
         .filter(|attribute| is_entry_attribute(attribute))
         .count();
-    entry_attributes == 1
-        && !attributes
-            .iter()
-            .any(|attribute| attribute.path().is_ident(constants::CFG_ATTR_ATTRIBUTE))
+    entry_attributes == 1 && attributes.iter().all(is_permitted_attribute)
 }
 
 fn is_entry_attribute(attribute: &syn::Attribute) -> bool {
     constants::PROC_MACRO_ATTRIBUTES
         .iter()
         .any(|name| attribute.path().is_ident(name))
+}
+
+fn is_permitted_attribute(attribute: &syn::Attribute) -> bool {
+    matches!(attribute.style, syn::AttrStyle::Outer)
+        && (is_entry_attribute(attribute) || is_companion_attribute(attribute))
+}
+
+fn is_companion_attribute(attribute: &syn::Attribute) -> bool {
+    constants::PROC_MACRO_COMPANION_ATTRIBUTES
+        .iter()
+        .any(|name| attribute.path().is_ident(name))
+}
+
+fn has_plain_signature(signature: &syn::Signature) -> bool {
+    let plain_output = match &signature.output {
+        syn::ReturnType::Default => true,
+        syn::ReturnType::Type(_, value) => is_plain_type(value),
+    };
+    signature.constness.is_none()
+        && signature.asyncness.is_none()
+        && signature.unsafety.is_none()
+        && signature.abi.is_none()
+        && signature.variadic.is_none()
+        && signature.generics.params.is_empty()
+        && signature.generics.where_clause.is_none()
+        && signature.inputs.iter().all(is_plain_parameter)
+        && plain_output
+}
+
+fn is_plain_parameter(input: &syn::FnArg) -> bool {
+    match input {
+        syn::FnArg::Typed(typed) => {
+            typed.attrs.is_empty()
+                && pattern_ident(&typed.pat).is_some()
+                && is_plain_type(&typed.ty)
+        }
+        syn::FnArg::Receiver(_) => false,
+    }
 }
 
 fn forwards_thinly(function: &syn::ItemFn) -> bool {
@@ -289,6 +327,14 @@ struct PlainTypeVisitor {
 }
 
 impl<'ast> Visit<'ast> for PlainTypeVisitor {
+    fn visit_type(&mut self, node: &'ast syn::Type) {
+        if matches!(node, syn::Type::Verbatim(_)) {
+            self.plain = false;
+        } else {
+            syn::visit::visit_type(self, node);
+        }
+    }
+
     fn visit_expr(&mut self, node: &'ast syn::Expr) {
         if matches!(node, syn::Expr::Lit(_) | syn::Expr::Path(_)) {
             syn::visit::visit_expr(self, node);

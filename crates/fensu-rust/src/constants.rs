@@ -67,6 +67,27 @@ pub const MOD_FILE: &str = "mod.rs";
 pub const LIB_FILE: &str = "lib.rs";
 pub const MAIN_FILE: &str = "main.rs";
 pub const MAIN_FUNCTION: &str = "main";
+pub const PROC_MACRO_TARGET_KIND: &str = "proc-macro";
+pub const PROC_MACRO_ATTRIBUTES: &[&str] =
+    &["proc_macro", "proc_macro_derive", "proc_macro_attribute"];
+pub const PROC_MACRO_PARSE_MACRO_PATH: &[&str] = &["syn", "parse_macro_input"];
+pub const PROC_MACRO_PARSE_PATH: &[&str] = &["syn", "parse"];
+pub const PROC_MACRO_ERROR_PATH: &[&str] = &["syn", "Error"];
+pub const PROC_MACRO_COMPILE_ERROR_FUNCTIONS: &[&str] = &["into_compile_error", "to_compile_error"];
+pub const PROC_MACRO_FALLBACK_METHOD: &str = "unwrap_or_else";
+pub const PROC_MACRO_UNWRAP_METHOD: &str = "unwrap";
+pub const PROC_MACRO_INTO_METHOD: &str = "into";
+pub const PROC_MACRO_COMPANION_ATTRIBUTES: &[&str] = &[
+    "doc",
+    "cfg",
+    "allow",
+    "warn",
+    "deny",
+    "expect",
+    "forbid",
+    "inline",
+    "deprecated",
+];
 pub const HELPERS_FILE: &str = "helpers.rs";
 pub const MODELS_FILE: &str = "models.rs";
 pub const TYPES_FILE: &str = "types.rs";

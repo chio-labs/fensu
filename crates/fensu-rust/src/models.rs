@@ -336,6 +336,7 @@ pub(crate) struct SourceCheckRequest<'a> {
     pub config: &'a RustPolicy,
     pub dependencies: &'a [WorkspaceDependency],
     pub is_tooling_crate: bool,
+    pub proc_macro_root: bool,
 }
 
 /// Inputs needed to check one integration-test source file.
@@ -346,6 +347,16 @@ pub(crate) struct TestCheckRequest<'a> {
     pub file: &'a SourceFile,
     pub config: &'a RustPolicy,
     pub dependencies: &'a [WorkspaceDependency],
+}
+
+/// Inputs needed to check role placement for one parsed library source file.
+#[derive(Debug)]
+pub(crate) struct PlacementCheckRequest<'a> {
+    pub(crate) file: &'a SourceFile,
+    pub(crate) syntax: &'a syn::File,
+    pub(crate) kind: crate::types::FileKind,
+    pub(crate) thresholds: &'a ThresholdConfig,
+    pub(crate) proc_macro_root: bool,
 }
 
 /// Inputs needed to check function shape for one parsed source file.

@@ -295,3 +295,31 @@ pub(crate) fn entry_with_import(domain: &str, module: &str, import: &str) -> tes
 pub(crate) fn remove_temp_repo(repo_root: &path::Path) {
     let _ = fs::remove_dir_all(repo_root);
 }
+
+pub(crate) fn proc_macro_manifest() -> test_types::RepoFile {
+    test_types::RepoFile {
+        path: "crates/example/Cargo.toml".to_owned(),
+        contents: "[package]\nname = \"example\"\nversion = \"0.1.0\"\nedition.workspace = true\nlicense.workspace = true\npublish.workspace = true\n\n[lib]\nproc-macro = true\n\n[lints]\nworkspace = true\n".to_owned(),
+    }
+}
+
+pub(crate) fn library_root(contents: &str) -> test_types::RepoFile {
+    test_types::RepoFile {
+        path: "crates/example/src/lib.rs".to_owned(),
+        contents: format!(
+            "//! Example macros.\n#![forbid(unsafe_code)]\n\nuse proc_macro::TokenStream;\n\n{contents}"
+        ),
+    }
+}
+
+pub(crate) fn numbered_derive_entries(count: usize) -> String {
+    let mut source = String::new();
+    for index in 0..count {
+        writeln!(
+            source,
+            "/// Derive shape {index}.\n#[proc_macro_derive(Shape{index})]\npub fn derive_shape_{index}(input: TokenStream) -> TokenStream {{\n    shapes::derive_shape(input)\n}}\n"
+        )
+        .expect("writing to a string succeeds");
+    }
+    source
+}

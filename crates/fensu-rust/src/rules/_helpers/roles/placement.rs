@@ -6,6 +6,7 @@ use syn::visit::Visit;
 use crate::constants;
 use crate::models;
 use crate::rules::_helpers::imports::reference_paths;
+use crate::rules::_helpers::roles::proc_macro_entries;
 use crate::types::FileKind;
 
 /// Check naming and size rules that apply to every checked file.
@@ -60,12 +61,14 @@ pub(crate) fn check_common(
 }
 
 /// Check role and shape rules for one library source file.
-pub(crate) fn check_source(
-    file: &models::SourceFile,
-    syntax: &syn::File,
-    kind: FileKind,
-    thresholds: &models::ThresholdConfig,
-) -> Vec<models::Violation> {
+pub(crate) fn check_source(request: models::PlacementCheckRequest<'_>) -> Vec<models::Violation> {
+    let models::PlacementCheckRequest {
+        file,
+        syntax,
+        kind,
+        thresholds,
+        proc_macro_root,
+    } = request;
     let mut violations: Vec<models::Violation> = Vec::new();
     if file.has_directory(constants::HELPERS_DIRECTORY) && file.file_name() == constants::MAIN_FILE
     {
@@ -77,11 +80,31 @@ pub(crate) fn check_source(
             remediation: "move orchestration into the crate's entry modules",
         }));
     }
-    for item in &syntax.items {
+    let entries: Vec<&syn::ItemFn> = if proc_macro_root && kind == FileKind::LibraryRoot {
+        syntax
+            .items
+            .iter()
+            .filter_map(proc_macro_entries::thin_entry)
+            .collect()
+    } else {
+        Vec::new()
+    };
+    for item in syntax
+        .items
+        .iter()
+        .filter(|item| !is_listed_entry(item, &entries))
+    {
         violations.extend(check_item(file, item, kind));
     }
     if kind == FileKind::LibraryRoot || kind == FileKind::BinAdapter {
-        violations.extend(check_declaration_budget(file, kind, thresholds));
+        let entry_lines = entries
+            .iter()
+            .map(|entry| proc_macro_entries::entry_line_count(entry))
+            .sum();
+        violations.extend(check_declaration_budget(file, kind, entry_lines));
+        violations.extend(proc_macro_entries::check_entry_cap(
+            file, &entries, thresholds,
+        ));
     }
     if kind == FileKind::BinAdapter {
         violations.extend(check_bin_adapter(file, syntax));
@@ -91,6 +114,13 @@ pub(crate) fn check_source(
         violations.extend(check_declaration_order(file, syntax));
     }
     violations
+}
+
+fn is_listed_entry(item: &syn::Item, entries: &[&syn::ItemFn]) -> bool {
+    match item {
+        syn::Item::Fn(function) => entries.iter().any(|entry| std::ptr::eq(*entry, function)),
+        _ => false,
+    }
 }
 
 fn check_declaration_order(
@@ -219,14 +249,15 @@ fn check_helper_visibility(file: &models::SourceFile, item: &syn::Item) -> Vec<m
 fn check_declaration_budget(
     file: &models::SourceFile,
     kind: FileKind,
-    _thresholds: &models::ThresholdConfig,
+    entry_lines: usize,
 ) -> Vec<models::Violation> {
     let limit = if kind == FileKind::BinAdapter {
         constants::MAX_BINARY_ENTRY_LINES
     } else {
         constants::MAX_DECLARATION_FILE_LINES
     };
-    if file.line_count() <= limit {
+    let counted_lines = file.line_count().saturating_sub(entry_lines);
+    if counted_lines <= limit {
         return Vec::new();
     }
     let code = match kind {
@@ -237,11 +268,7 @@ fn check_declaration_budget(
         code,
         path: file.relative_path(),
         line: None,
-        message: format!(
-            "declaration file has {} lines; the limit is {}",
-            file.line_count(),
-            limit
-        ),
+        message: format!("declaration file has {counted_lines} lines; the limit is {limit}"),
         remediation: "keep crate roots as thin declaration surfaces",
     })]
 }

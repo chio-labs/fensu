@@ -550,7 +550,7 @@ fn target_kind_name(kind: &cargo_metadata::TargetKind) -> &'static str {
         cargo_metadata::TargetKind::DyLib => "dylib",
         cargo_metadata::TargetKind::CDyLib => "cdylib",
         cargo_metadata::TargetKind::StaticLib => "staticlib",
-        cargo_metadata::TargetKind::ProcMacro => "proc-macro",
+        cargo_metadata::TargetKind::ProcMacro => constants::PROC_MACRO_TARGET_KIND,
         cargo_metadata::TargetKind::Bin => "bin",
         cargo_metadata::TargetKind::Example => "example",
         cargo_metadata::TargetKind::Test => "test",
@@ -734,6 +734,7 @@ pub(crate) fn check_source_file(request: models::SourceCheckRequest<'_>) -> Vec<
         config,
         dependencies,
         is_tooling_crate,
+        proc_macro_root,
     } = request;
     if let Some(kind) = inline_test_file_kind(file) {
         return check_test_syntax(file, kind, config, dependencies);
@@ -755,12 +756,13 @@ pub(crate) fn check_source_file(request: models::SourceCheckRequest<'_>) -> Vec<
                 raw_parser_boundary: &config.raw_parser_boundary,
                 dependencies,
             }));
-            violations.extend(placement::check_source(
+            violations.extend(placement::check_source(models::PlacementCheckRequest {
                 file,
                 syntax,
                 kind,
-                &config.repository.thresholds,
-            ));
+                thresholds: &config.repository.thresholds,
+                proc_macro_root,
+            }));
             violations.extend(containers::check_file(containers::FileCheckRequest {
                 file,
                 syntax,

@@ -2,6 +2,7 @@
 
 use std::path;
 
+use crate::constants;
 use crate::models;
 use crate::rules::_helpers::functions::shape_project;
 use crate::rules::_helpers::imports::embedded_files;
@@ -99,6 +100,7 @@ fn check_crate_files(
             config,
             dependencies: &workspace_crate.dependencies,
             is_tooling_crate,
+            proc_macro_root: is_proc_macro_root(workspace_crate, file),
         }));
     }
     for file in &test_scan.files {
@@ -112,6 +114,20 @@ fn check_crate_files(
         }));
     }
     (violations, structural_files)
+}
+
+fn is_proc_macro_root(workspace_crate: &models::WorkspaceCrate, file: &models::SourceFile) -> bool {
+    workspace_crate
+        .targets
+        .iter()
+        .any(|target| !target.test && target.entry_path == file.path && is_proc_macro(target))
+}
+
+fn is_proc_macro(target: &models::WorkspaceTarget) -> bool {
+    target
+        .kinds
+        .iter()
+        .any(|kind| kind == constants::PROC_MACRO_TARGET_KIND)
 }
 
 fn target_root<'a>(

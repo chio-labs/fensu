@@ -149,6 +149,46 @@ inventory. `FPRSL305.intentional_layout_paths` excludes explicit subtrees from a
 checks while preserving per-file checks. Paths must be canonical target-relative POSIX paths;
 overlapping intentional paths and overlaps with declared structural paths are rejected.
 
+## Crate roots
+
+`FPRSR406` keeps library crate roots as declaration surfaces. They may contain only `mod`
+and `use` items and are limited to 80 lines.
+
+Rust requires `#[proc_macro]`, `#[proc_macro_derive]` and `#[proc_macro_attribute]`
+functions to be defined in the crate root. The root file of a `proc-macro` library target,
+as Cargo metadata reports it, may therefore also contain thin macro entries. A top-level
+function is a thin entry only when all of these hold:
+
+- It carries exactly one directly written macro attribute. `#[cfg_attr(..)]` on the entry
+  does not qualify.
+- Its body optionally starts with one binding of the parsed input:
+  `let x = parse_macro_input!(input as Type);` or `let x = syn::parse::<Type>(input)`
+  followed by `?`, `.unwrap()` or
+  `.unwrap_or_else(syn::Error::into_compile_error)` (or `to_compile_error`).
+- Its body ends with exactly one call to a function path, which may belong to another crate.
+  The call may be followed by `.into()` and by
+  `.unwrap_or_else(syn::Error::into_compile_error)` (or `to_compile_error`).
+- The call's arguments are only the entry's parameters or the bound input, optionally
+  borrowed.
+
+Any other statement, control flow, closure, nested item, other macro or second call makes
+the function an ordinary item, which faults. Helper functions, constants, statics and impls
+still fault in a proc-macro root, and macro attributes do not exempt functions in other
+crates.
+
+```rust
+#[proc_macro_derive(Shape, attributes(shape))]
+pub fn derive_shape(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    shape_support::derive_shape(&input).into()
+}
+```
+
+The 80-line budget counts only lines outside thin entries; each entry's attributes and doc
+comments are excluded with it. A root may define at most as many thin entries as a
+`main/` container may hold modules (`FPRSR302.max_modules`, 20 by default). Beyond that, split the macros into separate proc-macro crates
+by family.
+
 ## Cache and Cargo metadata
 
 Rust sources, Cargo manifests, existing lockfiles, and target settings are cache inputs.

@@ -18,6 +18,8 @@ mod layers;
 mod naming;
 #[path = "rules/test_ownership.rs"]
 mod ownership;
+#[path = "rules/test_proc_macro_roots.rs"]
+mod proc_macro_roots;
 #[path = "rules/test_role_files.rs"]
 mod role_files;
 #[path = "rules/test_roles.rs"]

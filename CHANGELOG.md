@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.28.0](https://github.com/chio-labs/fensu/compare/v0.27.0...v0.28.0) (2026-10-26)
+
+
+### Features
+
+* **rust:** allow thin proc-macro entries in proc-macro crate roots ([#109](https://github.com/chio-labs/fensu/issues/109)) ([d72faf5](https://github.com/chio-labs/fensu/commit/d72faf511968e4bf0d86b8ed0a69adc2656dcc51))
+
 ## [0.27.0](https://github.com/chio-labs/fensu/compare/v0.26.0...v0.27.0) (2026-10-17)
 
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.28.1](https://github.com/sqlstack-io/fensu/compare/v0.28.0...v0.28.1) (2026-10-29)
+
+
+### Maintenance
+
+* move repository links to the sqlstack-io organization ([#111](https://github.com/sqlstack-io/fensu/issues/111)) ([416a1dc](https://github.com/sqlstack-io/fensu/commit/416a1dc12160824a2ca157d9e1a93bf5d0fb0db0))
+
 ## [0.28.0](https://github.com/chio-labs/fensu/compare/v0.27.0...v0.28.0) (2026-10-26)
 
 

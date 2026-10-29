@@ -18,9 +18,9 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/chio-labs/fensu"
-Issues = "https://github.com/chio-labs/fensu/issues"
-Repository = "https://github.com/chio-labs/fensu"
+Homepage = "https://github.com/sqlstack-io/fensu"
+Issues = "https://github.com/sqlstack-io/fensu/issues"
+Repository = "https://github.com/sqlstack-io/fensu"
 
 [tool.maturin]
 bindings = "bin"

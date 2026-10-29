@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/chio-labs/fensu/main/.github/fensu-logo-wide.png" alt="Fensu" width="100%">
+  <img src="https://raw.githubusercontent.com/sqlstack-io/fensu/main/.github/fensu-logo-wide.png" alt="Fensu" width="100%">
 </p>
 
 <p align="center">
